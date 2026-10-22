@@ -55,7 +55,7 @@ Primary surfaces: query/{sketch.go,render_sketch.go,surface.go,fake.go,cli.go,ev
 ## Plan
 
 - [x] Claim/start-plan after dependencies land; write the slice-specific execution plan.
-- [x] Implement and locally verify the Spec and Done when; submit round1 corrections and exact-source native evidence to full close (recorded-suite and operator landing gates remain explicit).
+- [ ] Implement and locally verify the Spec and Done when; submit review corrections and exact-source native evidence to full close (round2 BR-7 required-member correction, recorded-suite and operator landing gates remain explicit).
 
 ## Log
 
@@ -124,6 +124,11 @@ Primary surfaces: query/{sketch.go,render_sketch.go,surface.go,fake.go,cli.go,ev
 - BR-6 supported-environment verification on clean committed source 85406e6816976252618372a7a9f16eaab8b81a14: `env WEBCAST_LIVE_CHROME=1 go test ./cmd/internal/webcast -run 'TestLiveSketchImage|TestOperatorSketchLiveDrawing|TestLiveFidelity' -count=1 -v` passed77.227s. Fidelity fixtures passed52.12s, deliberate broken-render detection16.17s, console drawing3.41s, historical pressure/batch4.69s and cancellation/join0.56s. Eight historical shapes rendered and cleaned in1.796754583s. The stress fixture retains its documented expected limitation (one of three frames over3%); all fixture assertions passed. This supplies exact-source native evidence without rewriting the reviewer's restricted-environment failure.
 - Retained raw output: `/Volumes/TestScratch/tmp/pair-slot9/pair753-pr.b94Wej/native-85406e681.log`; SHA256 `d7942734429e891879c962c39102fc7781eaf7f3c4d9daa39e82440efae7799e`, rechecked before this checkpoint. BR-1–5 corrections and the ACK recovery regression are committed; their disposition still belongs to the next full SDLC close.
 - Publication and replacement recorded-check attempts failed at GitHub DNS fetch before a new lease existed. Report b7d4dd5a-f1e5-4192-af81-fb1c7783427e was submitted to hub. Retrying the supported publication path after recovery; no duplicate suite runner, result rewrite, DNS change or gate bypass. Recorded pass, full close, authorized stage/operator preview-and-submit acceptance and landing remain pending.
+
+### 2026-10-21 — round2 review and required-member correction
+
+- Full close round2 verified the counterfactual regressions and addressed BR-1–5, withdrew BR-6 after checking the exact-source native log/hash, and returned REWORK for BR-7. The wire schema checks types only for members present: omission of source.t, record_index or scroll passed DecodePreserving and Validate, fabricating zero evidence. Required-member presence is a separate dimension from null/type checking; enumerate all new evidence members and their intentional optional/legacy defaults before implementing the correction (ARCH-SECURE/ARCH-EVOLVE/ARCH-PURPOSE).
+- Officially canceled only this workspace's obsolete queued suite via `sdlc local-check cancel --run lease-614666113`; tool confirmed cancellation on e14d26de (pid70638), and retained runner exited on cancellation before admission. Executable correction needs a new pushed-head run. No close is finalized. Hub outcome report4f610287-8bd5-4352-9c5e-8f5a8d778f53 names the defect and replacement plan.
 
 ## Estimate
 

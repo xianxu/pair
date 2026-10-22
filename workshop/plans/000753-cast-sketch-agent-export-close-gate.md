@@ -174,6 +174,171 @@ rounds:
       recipe: milestone-review
       isolation: fenced
       blocked: true
+    - reviewer_runs:
+        - version: 1
+          intent:
+            disposable_root: true
+            id: 4a17e301-afe7-4298-9075-c5cf61a13aed
+            repository: github.com/xianxu/pair
+            issue_id: "000753"
+            recipe: milestone-review
+            round: 2
+            attempt: 1
+            agent: codex
+            root: /Volumes/TestScratch/review-checkouts/f8d411e70d5c53d7
+            reviewed_head: 4c2bd430be755eae08053496e0babe913f6382a9
+            slot: pair:9
+            requested_at: "2026-10-22T03:35:27.204559Z"
+          phase: finished
+          pid: 5571
+          started_at: "2026-10-22T03:35:27.439719Z"
+          finished_at: "2026-10-22T03:39:27.259077Z"
+          session_id: 01a161ad-93b8-7e93-a1dc-3a79e861cac9
+          outcome: returned
+      actual_inputs:
+        version: 1
+        method: active-time-v3-engagement-v1
+        repository: github.com/xianxu/pair
+        code_head: 4c2bd430be755eae08053496e0babe913f6382a9
+        tracker_head: 73a5750606dd781a91e683d951b202c90f24be26
+        branch_point: d2540fd6ae6eaa06e8a90217b285c22116247558
+        since: "2026-10-21T18:40:37-07:00"
+        until: "2026-10-21T20:34:31-07:00"
+        brain_root: /Users/xianxu/workspace/brain
+        gap_minutes: 15
+        commit_weight: 1
+        include_assistant: true
+        engagements:
+            - start: "2026-10-21T18:40:37-07:00"
+              end: "2026-10-21T20:34:31-07:00"
+              began: "2026-10-21T18:40:37-07:00"
+              roots:
+                - /Users/xianxu/workspace/worktree/pair-slot9/pair
+        sources:
+            - harness: codex
+              id: 01a15e49-d730-7d33-b4b3-809814e36de7
+              slot: pair:9
+              cwd: /Users/xianxu/workspace/worktree/pair-slot9/pair
+              digest: 9e1f30655d13e3f9fd9ddb6f4cb199ea48db666ace23bbfea5f1f21b60895a74
+              started: "2026-10-21T11:47:40.397Z"
+              spawned: false
+              bytes: 24612216
+              windows:
+                - start: "2026-10-21T18:40:37-07:00"
+                  end: "2026-10-21T20:34:31-07:00"
+            - harness: codex
+              id: 01a1615b-b3b2-71d3-878e-78e13474733a
+              slot: pair:9
+              cwd: /Users/xianxu/workspace/worktree/pair-slot9/pair
+              digest: 875cc0385845359821419e9c1c22b64d19d3a1a1c51b8bd89a7644ade60bfd46
+              started: "2026-10-22T02:06:02.68Z"
+              spawned: false
+              bytes: 781349
+              windows:
+                - start: "2026-10-22T02:06:02.68Z"
+                  end: "2026-10-21T20:34:31-07:00"
+            - harness: codex
+              id: 01a1615f-3510-79f2-9cae-31cf36613788
+              slot: pair:9
+              cwd: /Users/xianxu/workspace/worktree/pair-slot9/pair
+              digest: c47b782ebe76c153ab719771b1df19f3a47df32607a4dfc8f027c6246cc3538d
+              started: "2026-10-22T02:09:52.302Z"
+              spawned: false
+              bytes: 462083
+              windows:
+                - start: "2026-10-22T02:09:52.302Z"
+                  end: "2026-10-21T20:34:31-07:00"
+            - harness: codex
+              id: 01a16161-37d2-7071-bfc4-bdb6afa7db78
+              slot: pair:9
+              cwd: /Users/xianxu/workspace/worktree/pair-slot9/pair
+              digest: 08a97e6e51d0b85438c720071e9692010efbf73613a778bae018f6757d5213af
+              started: "2026-10-22T02:12:03.967Z"
+              spawned: false
+              bytes: 465728
+              windows:
+                - start: "2026-10-22T02:12:03.967Z"
+                  end: "2026-10-21T20:34:31-07:00"
+            - harness: codex
+              id: 01a16161-e237-7f33-bb66-192582ab999d
+              slot: pair:9
+              cwd: /Users/xianxu/workspace/worktree/pair-slot9/pair
+              digest: e8b1541e3537a5f034fd0ec8963fa2ff873e31d2608ab45319e221eb5a788811
+              started: "2026-10-22T02:12:47.67Z"
+              spawned: false
+              bytes: 447786
+              windows:
+                - start: "2026-10-22T02:12:47.67Z"
+                  end: "2026-10-21T20:34:31-07:00"
+            - harness: codex
+              id: 01a16163-584d-7811-84e6-1ee39612fbb2
+              slot: pair:9
+              cwd: /Users/xianxu/workspace/worktree/pair-slot9/pair
+              parent_id: 01a15e49-d730-7d33-b4b3-809814e36de7
+              digest: 6e28d3e8df6b95fe77b608f09974c68589a9ba68d14282999a3f6cab214a0f18
+              started: "2026-10-22T02:14:23.145Z"
+              spawned: true
+              bytes: 3120074
+              windows:
+                - start: "2026-10-22T02:14:23.145Z"
+                  end: "2026-10-21T20:34:31-07:00"
+            - harness: codex
+              id: 01a16171-a029-7232-b04f-7fdea9a0e516
+              slot: pair:9
+              cwd: /Users/xianxu/workspace/worktree/pair-slot9/pair
+              parent_id: 01a15e49-d730-7d33-b4b3-809814e36de7
+              digest: 386c931ce2f4e0a5f51a02c837ed09bb4a7381f30df53db0cad9987656567116
+              started: "2026-10-22T02:29:59.009Z"
+              spawned: true
+              bytes: 2260836
+              windows:
+                - start: "2026-10-22T02:29:59.009Z"
+                  end: "2026-10-21T20:34:31-07:00"
+        cuts:
+            - dispatched: "2026-10-21T20:07:45-07:00"
+              finalized: "2026-10-21T20:13:18-07:00"
+              finalizing: false
+      "n": 2
+      timestamp: "2026-10-21T20:39:29-07:00"
+      dispatched: "2026-10-21T20:35:23-07:00"
+      agent: codex
+      reviewer: codex (openai; author openai)
+      dispose:
+        - id: BR-1
+          disposition: addressed
+          note: Cancellation now settles the exact publication through PreviewPublishFailed. The checked-in regression passes on head and fails with pre-fix production code for all five unchanged-input notification cases.
+          round: 2
+        - id: BR-2
+          disposition: addressed
+          note: Selected facts now consume the output budget in anchor-first order with mandatory-handle reservations. The starvation regression passes on head and fails with the previous implementation; unused measurement fields were retained solely to compile the counterfactual.
+          round: 2
+        - id: BR-3
+          disposition: addressed
+          note: Absent anchor handles are omitted by both note projection and the shared extractor. The region-only Build/ContextAt regression passes on head and fails with the pre-fix implementations.
+          round: 2
+        - id: BR-4
+          disposition: addressed
+          note: Numeric tuple members now reject null before Go decoding. The null-pressure regression passes on head and fails with the previous codec, which produces pressure zero and passes Validate. Missing-field handling is a separate remaining instance reported below.
+          round: 2
+        - id: BR-5
+          disposition: addressed
+          note: Plan lines 62–91 now locate PreviewSelection in preview.go, distinguish pure SelectSketchPreview from INTEGRATION Store.DeliveredSketchVersions, and name the actual export files. These match the definitions in preview.go, preview_selection.go, store.go, sketch_export.go and sketch_image_export.go; Revisions records the correction.
+          round: 2
+        - id: BR-6
+          disposition: withdrawn
+          note: Inspected native-85406e681.log and verified SHA256 d7942734429e891879c962c39102fc7781eaf7f3c4d9daa39e82440efae7799e. The requested native checks passed in 77.227s, including pressure/batch rendering, fidelity fixtures, broken-render detection and cancellation cleanup. The eight-image measurement was 1.796754583s. git diff confirms the reviewed head changes only issue prose after that source commit.
+          round: 2
+      findings:
+        - kind: defect
+          id: BR-7
+          severity: Critical
+          title: Missing required sketch source fields become fabricated zero-valued evidence
+          detail: 'cmd/internal/submission/codec.go:189 validates only fields present in the JSON object; it never checks required-member presence. Three independent probes deleting sketches[0].source.t, record_index, or scroll from the valid checked-in fixture all passed DecodePreserving and Validate: source time 10 became 0, record index 2 became 0, and absent scroll became [0,0]. This violates the strict required-field and original-source evidence contracts (ARCH-SECURE, ARCH-EVOLVE). This is the 2nd finding in family strict-known-field-decoding: do not patch only these three fields. Define required versus optional members across the new evidence schema, enforce presence before decoding, and sweep omission regressions across that inventory while preserving intentional legacy defaults; measured prevalence here is 3/3 probed source members.'
+          family: strict-known-field-decoding
+          round: 2
+      recipe: milestone-review
+      isolation: fenced
+      blocked: true
 ---
 
 # Gate ledger — pair#753 (boundary-review)
@@ -198,11 +363,22 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-6** [Important] `native-conformance-evidence` (kind: unverifiable) Native historical rendering and fidelity preservation remain unverified
   Attempted WEBCAST_LIVE_CHROME=1 go test ./cmd/internal/webcast -run 'TestLiveSketchImage|TestOperatorSketchLiveDrawing|TestLiveFidelity' -count=1 -v. Fidelity fixtures, broken-render detection, operator drawing, and historical pressure/batch rendering failed with Chrome/CDP EOF; operator Chrome reported "GPU process isn't usable", and historical rendering also reported "operation not permitted". Cancellation cleanup passed. ARCH-MOCK: provide passing results for these checks on the final source-equivalent head in a supported native environment, including pressure pixels, eight-image timing, fidelity preservation, and joined cleanup.
 
+## Round 2 — 2026-10-21T20:39:29-07:00 (codex) — BLOCKED
+
+### Disposed
+
+- BR-1 — addressed — Cancellation now settles the exact publication through PreviewPublishFailed. The checked-in regression passes on head and fails with pre-fix production code for all five unchanged-input notification cases.
+- BR-2 — addressed — Selected facts now consume the output budget in anchor-first order with mandatory-handle reservations. The starvation regression passes on head and fails with the previous implementation; unused measurement fields were retained solely to compile the counterfactual.
+- BR-3 — addressed — Absent anchor handles are omitted by both note projection and the shared extractor. The region-only Build/ContextAt regression passes on head and fails with the pre-fix implementations.
+- BR-4 — addressed — Numeric tuple members now reject null before Go decoding. The null-pressure regression passes on head and fails with the previous codec, which produces pressure zero and passes Validate. Missing-field handling is a separate remaining instance reported below.
+- BR-5 — addressed — Plan lines 62–91 now locate PreviewSelection in preview.go, distinguish pure SelectSketchPreview from INTEGRATION Store.DeliveredSketchVersions, and name the actual export files. These match the definitions in preview.go, preview_selection.go, store.go, sketch_export.go and sketch_image_export.go; Revisions records the correction.
+- BR-6 — withdrawn — Inspected native-85406e681.log and verified SHA256 d7942734429e891879c962c39102fc7781eaf7f3c4d9daa39e82440efae7799e. The requested native checks passed in 77.227s, including pressure/batch rendering, fidelity fixtures, broken-render detection and cancellation cleanup. The eight-image measurement was 1.796754583s. git diff confirms the reviewed head changes only issue prose after that source commit.
+
+### Raised
+
+- **BR-7** [Critical] `strict-known-field-decoding` (kind: defect) Missing required sketch source fields become fabricated zero-valued evidence
+  cmd/internal/submission/codec.go:189 validates only fields present in the JSON object; it never checks required-member presence. Three independent probes deleting sketches[0].source.t, record_index, or scroll from the valid checked-in fixture all passed DecodePreserving and Validate: source time 10 became 0, record index 2 became 0, and absent scroll became [0,0]. This violates the strict required-field and original-source evidence contracts (ARCH-SECURE, ARCH-EVOLVE). This is the 2nd finding in family strict-known-field-decoding: do not patch only these three fields. Define required versus optional members across the new evidence schema, enforce presence before decoding, and sweep omission regressions across that inventory while preserving intentional legacy defaults; measured prevalence here is 3/3 probed source members.
+
 ## Open findings
 
-- **BR-1** [Critical] `canceled-operation-state-settlement` (kind: defect) Canceled preview publications can remain permanently Publishing
-- **BR-2** [Critical] `mandatory-evidence-budget-priority` (kind: defect) Unrelated DOM attributes consume the budget before mandatory anchor facts
-- **BR-3** [Critical] `optional-anchor-compatibility` (kind: defect) Valid region-only notes now fail submission preparation
-- **BR-4** [Critical] `strict-known-field-decoding` (kind: defect) Null pressure passes decoding and validation as fabricated zero pressure
-- **BR-5** [Critical] `core-concept-traceability` (kind: defect) The Core concepts inventory contradicts implemented entities and boundaries
-- **BR-6** [Important] `native-conformance-evidence` (kind: unverifiable) Native historical rendering and fidelity preservation remain unverified
+- **BR-7** [Critical] `strict-known-field-decoding` (kind: defect) Missing required sketch source fields become fabricated zero-valued evidence

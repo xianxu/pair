@@ -130,3 +130,124 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000409
+
+---
+
+## Re-review — 2026-10-21T20:39:28-07:00 (REWORK)
+
+| field | value |
+|-------|-------|
+| issue | 753 — cast-sketch: operator CLI queries and historical image export |
+| repo | pair |
+| issue file | workshop/issues/000753-cast-sketch-agent-export.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | d2540fd6ae6eaa06e8a90217b285c22116247558..4c2bd430be755eae08053496e0babe913f6382a9 |
+| command | sdlc close --issue 753 |
+| reviewer | codex (openai; author openai) |
+| isolation | fenced |
+| timestamp | 2026-10-21T20:39:28-07:00 |
+| verdict | REWORK |
+
+## Review
+
+```verdict
+verdict: REWORK
+confidence: high
+```
+
+The prior behavioral fixes have meaningful regressions, the corrected inventory matches the implementation, and retained native evidence answers BR-6. A new probe found one blocking gap: omitted required source fields still become fabricated zero-valued evidence.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      Cancellation now settles the exact publication through PreviewPublishFailed. The checked-in regression passes on head and fails with pre-fix production code for all five unchanged-input notification cases.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      Selected facts now consume the output budget in anchor-first order with mandatory-handle reservations. The starvation regression passes on head and fails with the previous implementation; unused measurement fields were retained solely to compile the counterfactual.
+  - id: BR-3
+    disposition: addressed
+    note: |
+      Absent anchor handles are omitted by both note projection and the shared extractor. The region-only Build/ContextAt regression passes on head and fails with the pre-fix implementations.
+  - id: BR-4
+    disposition: addressed
+    note: |
+      Numeric tuple members now reject null before Go decoding. The null-pressure regression passes on head and fails with the previous codec, which produces pressure zero and passes Validate. Missing-field handling is a separate remaining instance reported below.
+  - id: BR-5
+    disposition: addressed
+    note: |
+      Plan lines 62–91 now locate PreviewSelection in preview.go, distinguish pure SelectSketchPreview from INTEGRATION Store.DeliveredSketchVersions, and name the actual export files. These match the definitions in preview.go, preview_selection.go, store.go, sketch_export.go and sketch_image_export.go; Revisions records the correction.
+  - id: BR-6
+    disposition: withdrawn
+    note: |
+      Inspected native-85406e681.log and verified SHA256 d7942734429e891879c962c39102fc7781eaf7f3c4d9daa39e82440efae7799e. The requested native checks passed in 77.227s, including pressure/batch rendering, fidelity fixtures, broken-render detection and cancellation cleanup. The eight-image measurement was 1.796754583s. git diff confirms the reviewed head changes only issue prose after that source commit.
+findings:
+  - id: new
+    severity: Critical
+    kind: defect
+    family: strict-known-field-decoding
+    title: |
+      Missing required sketch source fields become fabricated zero-valued evidence
+    detail: |
+      cmd/internal/submission/codec.go:189 validates only fields present in the JSON object; it never checks required-member presence. Three independent probes deleting sketches[0].source.t, record_index, or scroll from the valid checked-in fixture all passed DecodePreserving and Validate: source time 10 became 0, record index 2 became 0, and absent scroll became [0,0]. This violates the strict required-field and original-source evidence contracts (ARCH-SECURE, ARCH-EVOLVE). This is the 2nd finding in family strict-known-field-decoding: do not patch only these three fields. Define required versus optional members across the new evidence schema, enforce presence before decoding, and sweep omission regressions across that inventory while preserving intentional legacy defaults; measured prevalence here is 3/3 probed source members.
+```
+
+1. **Strengths**
+
+   - Controlled preview tests exercise cancellation, late success, host retirement and joined replacement through the production manager.
+   - Anchor budgeting preserves mandatory handles and prevents unrelated declarations from consuming selected evidence capacity.
+   - Shared image rendering, evidence-file enumeration and durable delivery authority avoid parallel implementations.
+   - README, atlas and shipped guidance cover the new commands, preview and privacy behavior.
+
+2. **Critical findings**
+
+   - Required-member validation is missing at `cmd/internal/submission/codec.go:189`. Semantic checks at `sketch.go:77` accept fabricated zeros. Add explicit required-member metadata and rejection before unmarshalling.
+
+3. **Important findings**
+
+   None.
+
+4. **Minor findings**
+
+   None.
+
+5. **Test coverage notes**
+
+   - All nine affected Go packages passed.
+   - Focused CDP, codec and preview race checks passed.
+   - All four prior behavioral regressions failed with their fixes removed through temporary overlays.
+   - Three new omission probes failed on head. Temporary artifacts were removed; the checkout remains unchanged.
+   - Native results were verified from the retained log and source equivalence, rather than rerun here.
+
+6. **Architectural notes**
+
+   - **ARCH-DRY — pass:** shared renderer, painter, evidence inventory and delivery authority.
+   - **ARCH-PURE — pass:** corrected inventory separates deterministic logic from filesystem/browser effects.
+   - **ARCH-PURPOSE — pass:** operator handoff, historical export and generic element facts are implemented.
+   - **ARCH-MOCK — pass:** stateful injected renderer and portable store have native conformance evidence.
+   - **ARCH-CONSTRAINTS — pass:** explicit budgets and measured eight-image rendering.
+   - **ARCH-SECURE — flag:** omitted source members become fabricated evidence.
+   - **ARCH-ORDER — pass:** cancellation settles through the transition model; controlled tests cover adverse ordering.
+   - **ARCH-FUNERAL — pass:** owned cleanup, temporary-stage removal and bounded existing storage.
+   - **ARCH-EVOLVE — flag:** unknown-field preservation works, but required-member strictness remains incomplete.
+
+7. **Plan revision recommendations**
+
+   Add a `## Revisions` entry defining the required-member inventory for new evidence objects, intentional legacy omission defaults, and deletion-based regression coverage. Keep the documented operator acceptance and recorded-suite gates explicitly pending.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"4a17e301-afe7-4298-9075-c5cf61a13aed","repository":"github.com/xianxu/pair","issue_id":"000753","recipe":"milestone-review","round":2,"attempt":1,"agent":"codex","root":"/Volumes/TestScratch/review-checkouts/f8d411e70d5c53d7","reviewed_head":"4c2bd430be755eae08053496e0babe913f6382a9","slot":"pair:9","requested_at":"2026-10-22T03:35:27.204559Z"},"phase":"finished","pid":5571,"started_at":"2026-10-22T03:35:27.439719Z","finished_at":"2026-10-22T03:39:27.259077Z","session_id":"01a161ad-93b8-7e93-a1dc-3a79e861cac9","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 3.610221791s
+head: "4c2bd430be755eae08053496e0babe913f6382a9"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412
