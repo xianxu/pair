@@ -897,3 +897,132 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-22T14:57:27-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 753 — cast-sketch: operator CLI queries and historical image export |
+| repo | pair |
+| issue file | workshop/issues/000753-cast-sketch-agent-export.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | dc8e119eb1b75a91da2c4a75592988ca3c10986a..81f8ac7a6182720518a5fda17f4a877dbc529a2a |
+| command | sdlc close --issue 753 |
+| reviewer | codex (openai; author openai) |
+| isolation | fenced |
+| timestamp | 2026-10-22T14:57:27-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: medium
+```
+
+No blocking findings remain in the pinned range. BR-11 is corrected: the old assertion fails against the current guide, all 33 current assertions match, and the complete couchcmd package passes. The implementation and documentation reflect the current-view revision. Recorded-suite completion and renewed operator acceptance remain the documented landing gates.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      Retained: canceled publications settle through PreviewPublishFailed; controlled cancellation and late-ACK regressions pass.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      Retained: element-fact allocation reserves mandatory anchor evidence before optional declarations; budget-priority regressions pass.
+  - id: BR-3
+    disposition: addressed
+    note: |
+      Retained: absent anchors no longer create node-zero facts; region-only Build and capture-context regression passes.
+  - id: BR-4
+    disposition: addressed
+    note: |
+      Retained: strict schema preflight rejects null pressure and invalid known-field types; codec and Store regressions pass.
+  - id: BR-5
+    disposition: addressed
+    note: |
+      Retained: corrected Core concepts tables and symbol reconciliation distinguish pure selectors from filesystem, recorder and browser integration owners.
+  - id: BR-6
+    disposition: withdrawn
+    note: |
+      Retained withdrawal: native logs match their recorded SHA-256 hashes and report successful fidelity, historical rendering and integrated current-view qualification; real-operator acceptance remains explicitly separate.
+  - id: BR-7
+    disposition: addressed
+    note: |
+      Retained: explicit required-member schemas reject omitted source evidence; required-field deletion and Store-read regressions pass.
+  - id: BR-8
+    disposition: addressed
+    note: |
+      Retained: historical rendering requires original identity through originalOnly placement; replacement-anchor refusal regressions pass.
+  - id: BR-9
+    disposition: addressed
+    note: |
+      Retained: ReadingGuide and shipped skill describe root sketch_page evidence, original paths, current projections and legacy per-sketch representations consistently with the codec.
+  - id: BR-10
+    disposition: addressed
+    note: |
+      Retained: beginStream preserves confirmed display facts while rotating stream ownership; reconnect and outage browser regressions pass.
+  - id: BR-11
+    disposition: addressed
+    note: |
+      skill_privacy_test.go:18 now asserts current-view sketch_page provenance alongside shared indexes, original paths and legacy images. Read-only evaluation finds the old historical-provenance assertion fails while all 33 current assertions match; couchcmd passes.
+```
+
+1. **Strengths**
+
+   - Preview preparation uses fresh browser evidence followed by manager → host → Board fencing; stale results cannot authorize preparation.
+   - Strict preserving decoding covers required members, nulls, duplicate keys and nested extension round trips.
+   - Shared-page rendering preserves original vectors separately from current placement, with complete indexed coverage checks.
+   - README, atlas and both agent guides cover the new commands, current-view selection, privacy and legacy representations.
+
+2. **Critical findings:** None.
+
+3. **Important findings:** None.
+
+4. **Minor findings:** None.
+
+5. **Test coverage notes**
+
+   Passed:
+
+   - Submission, webcast and all webcast subpackages, CDP, couchcmd and couchtty.
+   - Race checks for submission, CDP, Board and sketchimage.
+   - All 531 browser tests.
+   - Lua submission-state test, affected-reader inventory, artifactpath tests and diff whitespace checks.
+
+   Native qualification was assessed through retained logs, verified hashes and source-equivalence inspection; it was not rerun locally. Repository files remain unchanged.
+
+6. **Architectural notes**
+
+   | Principle | Assessment |
+   |---|---|
+   | ARCH-DRY | Pass — shared evidence inventory, pressure painter and replay lifetime. |
+   | ARCH-PURE | Pass — selection, geometry, validation and transitions are directly testable pure functions. |
+   | ARCH-PURPOSE | Pass — operator submission, local query/export and handoff consumers reflect the revised contract. |
+   | ARCH-MOCK | Pass — injected renderers and controlled browser/publication seams exercise production boundaries. |
+   | ARCH-CONSTRAINTS | Pass — batch, image, input, deadline and cleanup bounds have explicit refusal behavior and tests. |
+   | ARCH-SECURE | Pass — strict input decoding, confined exports, private files and conservative privacy decisions. |
+   | ARCH-ORDER | Pass — opaque preview states, exact acknowledgments and controlled cancellation/ordering tests. |
+   | ARCH-FUNERAL | Pass — renderer resources have owned cleanup; submissions reuse the bounded Store lifecycle. |
+   | ARCH-EVOLVE | Pass — legacy variants remain readable and nested unknown extensions survive durable rewrites. |
+
+7. **Plan revision recommendations:** None required. Preserve the explicitly pending recorded-suite and operator acceptance gates before landing.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"a57d7d80-4288-417a-bfd1-7dea490152c8","repository":"github.com/xianxu/pair","issue_id":"000753","recipe":"milestone-review","round":9,"attempt":1,"agent":"codex","root":"/Volumes/TestScratch/review-checkouts/24e520732e58b6df","reviewed_head":"81f8ac7a6182720518a5fda17f4a877dbc529a2a","slot":"pair:9","requested_at":"2026-10-22T21:52:29.143253Z"},"phase":"finished","pid":33700,"started_at":"2026-10-22T21:52:29.32588Z","finished_at":"2026-10-22T21:57:08.718563Z","session_id":"01a16599-f02f-7d42-a98a-56cc89f9e902","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 3.17270475s
+head: "81f8ac7a6182720518a5fda17f4a877dbc529a2a"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000411
