@@ -502,3 +502,8 @@ The execution slice's previous settlement scans/recovery suggestions and state t
 ### 2026-10-21 — M3 delivered concept/adapter map
 
 The delivered concept rows now name actual declarations, including comparable RemoteSource in couchmessage/provenance.go, DocumentSource in remotesession/documents.go, synchronized sessionOperations in dispatch.go and the IO-bearing server_documents.go. Entry's retained-raw codec lives in sessionsync/ledger_codec.go. These are implementation locations, not a claim of M3 close. Subscribe's existing lifetime contract is explicit: a prompt owned channel handoff with initial editor IO on the backend's joined worker; its stream context must not expire at the ordinary exchange deadline. #758 still owns the real editor implementation and must honor the final Permit gate and subscription lifetime.
+
+
+### 2026-10-21 — full M3 code milestone tonight; operator staging tomorrow
+
+TLc4102caf requests the full M3 milestone close tonight and the operator checklist, with staging tomorrow after #753/#739 and before #737. This supersedes the earlier intent to use final issue-close as M3's only review boundary. M3 now closes its implemented code/private qualification through milestone-close; whole-issue acceptance and landing remain held for the operator's Access/iPhone check. No live result is inferred from a code milestone. The numbered checklist is [operator acceptance](000759-remote-security-plan.side/operator-acceptance.md), including official Cloudflare setup links and the explicit #758/#760 edit/submit dependency. It names native transcript and metadata audit observations without copying secrets. Retain the existing code-identical queued suite on c3634473; docs-only checkpoint does not cancel/requeue it.

@@ -54,7 +54,7 @@ Approved durable design: [remote security plan](../plans/000759-remote-security-
 - [x] Operator approved threat model and plan with explicit toggle/header/session/transcript changes; #758 stateful-backend sequencing settled.
 - [x] M1 — Verified Access identity, pure lifecycle/session policy, durable latch, bounded audit and replay state.
 - [x] M2 — Exclusive protected exposure, console-only reset, CLI refusal and kill/late-completion conformance.
-- [ ] M3 — Trusted remote provenance through submit/accounting, document-adapter integration, operator live security drill and landing.
+- [ ] M3 — Trusted remote provenance through submit/accounting, typed adapter integration and private qualification, full code milestone review; operator acceptance and landing stay held afterwards.
 
 ## Log
 
@@ -375,3 +375,10 @@ Private signed HTTP -> Supervisor.Dispatch -> stateful typed backend -> actual B
 Root integration regressions caught two real boundary failures: a pre-canceled HTTP observer could still start work (RED0.201s), and result-audit failure could kill the observer before preserving a known receipt. Dispatch now refuses pre-canceled admission, owns completion after departure, and returns uncertainty retaining validated known receipt metadata. Focused combined race PASS2.445s; entire remotesession race PASS9.869s. Local marked submit current/reopened/renamed controls race PASS1.535s; service/forget/owner/recorder/help controls race PASS3.442s. Full sessionsync PASS2.373s; retained-raw/owed race PASS2.734s. A malformed future JSON value before a later provenance key could hide that key from the old recognition helper (RED0.174s); lexical string-key recognition now detects plain/escaped keys without interpreting quoted value text, ledger/owed race GREEN5.179s. Unknown root/nested fields traverse real append/trim/reopen/owed, and new document IDs cannot attach to replacement registrations.
 
 Full repolint PASS13.440s. Artifactpath first correctly refused six new sources plus remote_service's new resolver import; classified the concrete producer/consumers with named origin/audit path members (no violation waiver), then full artifactpath PASS17.614s. Reader inventory first refused two new inputs; audited remote_origin_test's literal ../outside and native producer's literal /bin/sh/generated-private transcript reads as local_or_literal_fixture, recorded only those certificates; inventory --check PASS. Atlas/README now describe delivered surfaces, conservative forget, authority and transcript limits. No M3 close, recorded full-suite pass, stage, public exposure or Access/iPhone acceptance claimed. Checkpoint these changes before recorded checks/review.
+
+
+### 2026-10-21 — morning staging ordered, M3 code review tonight
+
+TLc4102caf fixes tomorrow's :0 order: #753 smoke, #739 check, then #759 before #737. No staging tonight. Its explicit request for full milestone-close adds an M3 code boundary before operator acceptance, superseding the earlier final-close-only M3 choice; Revisions in the durable plan records the scope/sequencing change. Checklist: workshop/plans/000759-remote-security-plan.side/operator-acceptance.md. It includes official current Cloudflare clicks, exact environment keys, phone enable/login/kill/console reset, expected transcript/audit, and honest deferred edit/submit steps requiring #758/#760. Whole issue remains working and cannot land on code/private fixtures alone.
+
+Broader packages on c3634473 passed: couchcmd71.744s, couchmessage25.136s, remotesession4.634s, sessionsync9.708s. PR538 updated on that exact head. Recorded suite attempt ba061185bb8fc8e7b42a4eeb64fa93bd, lease-4249139414, terminal85112 remains queued normally (last observed position5); no pass claimed and no duplicate runner. Preserve its FIFO position across this docs-only checkpoint.
