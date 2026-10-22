@@ -1,0 +1,20 @@
+=== RUN   TestDisposableCouchStartupBudget
+    startup_budget_acceptance_test.go:18: native Couch tool git: /usr/bin/git (git version 2.54.0 (Apple Git-157))
+    startup_budget_acceptance_test.go:18: native Couch tool sdlc: /Users/xianxu/workspace/ariadne/bin/sdlc (sdlc version path=/Users/xianxu/workspace/ariadne/bin/sdlc revision=fce345a89d417394aa6d1b7c09c758b02707066b modified=false)
+    startup_budget_acceptance_test.go:18: native Couch tool weave: /Users/xianxu/workspace/ariadne/bin/weave (weave version dev)
+    startup_budget_acceptance_test.go:18: native Couch tool zellij: /opt/homebrew/Cellar/zellij/0.45.1/bin/zellij (zellij 0.45.1)
+    startup_budget_acceptance_test.go:18: native Couch tool nvim: /opt/homebrew/opt/nvim-0.11/bin/nvim (NVIM v0.11.7)
+    startup_budget_acceptance_test.go:18: native Couch candidates: source=/Users/xianxu/workspace/worktree/pair-slot7/pair head=b98b3752ec5642e1ecffd2cd238a1c8b7d85e4df dir=/Volumes/TestScratch/couch-fleet-binaries-1683333606
+=== RUN   TestDisposableCouchStartupBudget/claude
+    startup_budget_acceptance_test.go:21: native fleet isolation: root=/Volumes/TestScratch/pc-140919474 run=224bef59eb6b78a9fcc102756d7a86f6 agent=claude workers=3
+    startup_budget_acceptance_test.go:50: cold startup: agent=claude steward=fixture:0 workers=fixture:1,fixture:2,fixture:3 elapsed=32.983456458s
+    fleet.go:460: native fleet cleaned: root=/Volumes/TestScratch/pc-140919474 all owned generations absent; direct child and IO joined
+=== RUN   TestDisposableCouchStartupBudget/codex
+    startup_budget_acceptance_test.go:21: native fleet isolation: root=/Volumes/TestScratch/pc-1873747806 run=077202f47e956b7768c2b73371e1806a agent=codex workers=3
+    startup_budget_acceptance_test.go:50: cold startup: agent=codex steward=fixture:0 workers=fixture:1,fixture:2,fixture:3 elapsed=35.798493958s
+    fleet.go:460: native fleet cleaned: root=/Volumes/TestScratch/pc-1873747806 all owned generations absent; direct child and IO joined
+--- PASS: TestDisposableCouchStartupBudget (99.93s)
+    --- PASS: TestDisposableCouchStartupBudget/claude (43.31s)
+    --- PASS: TestDisposableCouchStartupBudget/codex (49.39s)
+PASS
+ok  	github.com/xianxu/pair/cmd/couch	100.037s
