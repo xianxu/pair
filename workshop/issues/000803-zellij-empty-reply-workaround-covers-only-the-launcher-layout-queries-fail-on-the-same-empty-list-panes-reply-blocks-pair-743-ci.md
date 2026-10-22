@@ -204,6 +204,26 @@ review and landing workflow itself, so --no-plan-check acknowledges this overlap
 without claiming those gates passed. --no-project leaves the TL-owned project
 updates to the hub; neither flag waives suite, CI, review or merge validation.
 
+
+2026-10-22 — Close review R1 returned REWORK for BR-1, the remaining native
+name-absence attempt-count fixture. Independently reproduced the exact failing
+requested-identity-present subtest (three calls, refusal retained). It now pins
+three calls only for that false-miss case; other cases retain one. Audited the
+other launcher single-attempt assertions: native positive/negative authority,
+nonmatching signatures, cancellation and collector errors remain single-attempt.
+The reader certificate retains non_go_full_fallback for its committed capture.
+Cancelled only obsolete queued suite lease-3328783035 on 24a9162c, joined its
+cancelled runner; no suite work had started. Full launcher package passed (go test ./cmd/internal/launcher -count=1,
+69.348s); reader-inventory check and git diff --check passed.
+
+Read-only title-fixture cleanup audit: earlier RED tests positively observed an
+escaped matching descendant for over one second when the new private collector
+broke the CLI's inherited-group ownership. The approved InheritedGroup fix and
+current passing cleanup regression address that class. Those failed runs did not
+retain their PID/identity/root, and cleanup killed only the title group, so the
+historical escaped child's eventual cleanup is unproved. No current process was
+attributed or killed; later passes are not historical cleanup evidence.
+
 ## Revisions
 
 2026-10-22 — TL-approved scope refinement: "every query consumer" means every

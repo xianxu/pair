@@ -2634,3 +2634,8 @@ and external temporary roots rather than relying on the host's TMPDIR.
   cancellation after observers before returning raw diagnostic authority.
 - Fuzz guards must assert their promised oracle: exact accepted argv grammar and
   complete reply-kind validation, not just nonpanic or one mutation literal.
+
+- #803 BR-1: after migrating a shared recovery seam, run each affected package
+  completely before close; a selected regex can miss older native-capture tests
+  whose attempt counts encode the prior transport. Keep refusal assertions and
+  pin recoverable cases separately from single-attempt native authority.
