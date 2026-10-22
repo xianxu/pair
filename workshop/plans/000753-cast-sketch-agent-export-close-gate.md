@@ -339,6 +339,147 @@ rounds:
       recipe: milestone-review
       isolation: fenced
       blocked: true
+    - reviewer_runs:
+        - version: 1
+          intent:
+            disposable_root: true
+            id: c51462ad-6097-4714-be11-f1f600ea7f11
+            repository: github.com/xianxu/pair
+            issue_id: "000753"
+            recipe: milestone-review
+            round: 3
+            attempt: 1
+            agent: codex
+            root: /Volumes/TestScratch/review-checkouts/4a867103b057ef59
+            reviewed_head: 052330f68d4f81b9baff10d90e3559c6a5abaf55
+            slot: pair:9
+            requested_at: "2026-10-22T03:47:51.997749Z"
+          phase: finished
+          pid: 26082
+          started_at: "2026-10-22T03:47:52.170972Z"
+          finished_at: "2026-10-22T03:50:40.974503Z"
+          session_id: 01a161b8-f06b-7eb2-9d9e-069e4223328a
+          outcome: returned
+      actual_inputs:
+        version: 1
+        method: active-time-v3-engagement-v1
+        repository: github.com/xianxu/pair
+        code_head: 052330f68d4f81b9baff10d90e3559c6a5abaf55
+        tracker_head: 73a5750606dd781a91e683d951b202c90f24be26
+        branch_point: d2540fd6ae6eaa06e8a90217b285c22116247558
+        since: "2026-10-21T18:40:37-07:00"
+        until: "2026-10-21T20:46:55-07:00"
+        brain_root: /Users/xianxu/workspace/brain
+        gap_minutes: 15
+        commit_weight: 1
+        include_assistant: true
+        engagements:
+            - start: "2026-10-21T18:40:37-07:00"
+              end: "2026-10-21T20:46:55-07:00"
+              began: "2026-10-21T18:40:37-07:00"
+              roots:
+                - /Users/xianxu/workspace/worktree/pair-slot9/pair
+        sources:
+            - harness: codex
+              id: 01a15e49-d730-7d33-b4b3-809814e36de7
+              slot: pair:9
+              cwd: /Users/xianxu/workspace/worktree/pair-slot9/pair
+              digest: faffeca1a3cdfdedcbd040e819b89ef6e96764329010894d60570a4ad7908b87
+              started: "2026-10-21T11:47:40.397Z"
+              spawned: false
+              bytes: 25463723
+              windows:
+                - start: "2026-10-21T18:40:37-07:00"
+                  end: "2026-10-21T20:46:55-07:00"
+            - harness: codex
+              id: 01a1615b-b3b2-71d3-878e-78e13474733a
+              slot: pair:9
+              cwd: /Users/xianxu/workspace/worktree/pair-slot9/pair
+              digest: 875cc0385845359821419e9c1c22b64d19d3a1a1c51b8bd89a7644ade60bfd46
+              started: "2026-10-22T02:06:02.68Z"
+              spawned: false
+              bytes: 781349
+              windows:
+                - start: "2026-10-22T02:06:02.68Z"
+                  end: "2026-10-21T20:46:55-07:00"
+            - harness: codex
+              id: 01a1615f-3510-79f2-9cae-31cf36613788
+              slot: pair:9
+              cwd: /Users/xianxu/workspace/worktree/pair-slot9/pair
+              digest: c47b782ebe76c153ab719771b1df19f3a47df32607a4dfc8f027c6246cc3538d
+              started: "2026-10-22T02:09:52.302Z"
+              spawned: false
+              bytes: 462083
+              windows:
+                - start: "2026-10-22T02:09:52.302Z"
+                  end: "2026-10-21T20:46:55-07:00"
+            - harness: codex
+              id: 01a16161-37d2-7071-bfc4-bdb6afa7db78
+              slot: pair:9
+              cwd: /Users/xianxu/workspace/worktree/pair-slot9/pair
+              digest: 08a97e6e51d0b85438c720071e9692010efbf73613a778bae018f6757d5213af
+              started: "2026-10-22T02:12:03.967Z"
+              spawned: false
+              bytes: 465728
+              windows:
+                - start: "2026-10-22T02:12:03.967Z"
+                  end: "2026-10-21T20:46:55-07:00"
+            - harness: codex
+              id: 01a16161-e237-7f33-bb66-192582ab999d
+              slot: pair:9
+              cwd: /Users/xianxu/workspace/worktree/pair-slot9/pair
+              digest: e8b1541e3537a5f034fd0ec8963fa2ff873e31d2608ab45319e221eb5a788811
+              started: "2026-10-22T02:12:47.67Z"
+              spawned: false
+              bytes: 447786
+              windows:
+                - start: "2026-10-22T02:12:47.67Z"
+                  end: "2026-10-21T20:46:55-07:00"
+            - harness: codex
+              id: 01a16163-584d-7811-84e6-1ee39612fbb2
+              slot: pair:9
+              cwd: /Users/xianxu/workspace/worktree/pair-slot9/pair
+              parent_id: 01a15e49-d730-7d33-b4b3-809814e36de7
+              digest: 6e28d3e8df6b95fe77b608f09974c68589a9ba68d14282999a3f6cab214a0f18
+              started: "2026-10-22T02:14:23.145Z"
+              spawned: true
+              bytes: 3120074
+              windows:
+                - start: "2026-10-22T02:14:23.145Z"
+                  end: "2026-10-21T20:46:55-07:00"
+            - harness: codex
+              id: 01a16171-a029-7232-b04f-7fdea9a0e516
+              slot: pair:9
+              cwd: /Users/xianxu/workspace/worktree/pair-slot9/pair
+              parent_id: 01a15e49-d730-7d33-b4b3-809814e36de7
+              digest: 98e418a4aaf1b786df3aa42b3921cb715526d69c370c65cd6923b98aaa890d45
+              started: "2026-10-22T02:29:59.009Z"
+              spawned: true
+              bytes: 2626073
+              windows:
+                - start: "2026-10-22T02:29:59.009Z"
+                  end: "2026-10-21T20:46:55-07:00"
+        cuts:
+            - dispatched: "2026-10-21T20:07:45-07:00"
+              finalized: "2026-10-21T20:13:18-07:00"
+              finalizing: false
+            - dispatched: "2026-10-21T20:35:23-07:00"
+              finalized: "2026-10-21T20:39:29-07:00"
+              finalizing: false
+      "n": 3
+      timestamp: "2026-10-21T20:50:42-07:00"
+      dispatched: "2026-10-21T20:47:48-07:00"
+      agent: codex
+      reviewer: codex (openai; author openai)
+      dispose:
+        - id: BR-7
+          disposition: addressed
+          note: codec.go:85-101 declares required members across sketch evidence; filterManifest checks presence before typed decoding at lines 203-207. Tests exercise 120 required omissions, optional/legacy compatibility, and six Store read paths. Running the new regressions with the pre-fix codec through a temporary Go overlay fails, including all three original source-member probes; pinned-head tests pass.
+          round: 3
+      recipe: milestone-review
+      isolation: fenced
+      reviewed: 052330f68d4f81b9baff10d90e3559c6a5abaf55
+      blocked: false
 ---
 
 # Gate ledger — pair#753 (boundary-review)
@@ -379,6 +520,12 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-7** [Critical] `strict-known-field-decoding` (kind: defect) Missing required sketch source fields become fabricated zero-valued evidence
   cmd/internal/submission/codec.go:189 validates only fields present in the JSON object; it never checks required-member presence. Three independent probes deleting sketches[0].source.t, record_index, or scroll from the valid checked-in fixture all passed DecodePreserving and Validate: source time 10 became 0, record index 2 became 0, and absent scroll became [0,0]. This violates the strict required-field and original-source evidence contracts (ARCH-SECURE, ARCH-EVOLVE). This is the 2nd finding in family strict-known-field-decoding: do not patch only these three fields. Define required versus optional members across the new evidence schema, enforce presence before decoding, and sweep omission regressions across that inventory while preserving intentional legacy defaults; measured prevalence here is 3/3 probed source members.
 
+## Round 3 — 2026-10-21T20:50:42-07:00 (codex) — passed
+
+### Disposed
+
+- BR-7 — addressed — codec.go:85-101 declares required members across sketch evidence; filterManifest checks presence before typed decoding at lines 203-207. Tests exercise 120 required omissions, optional/legacy compatibility, and six Store read paths. Running the new regressions with the pre-fix codec through a temporary Go overlay fails, including all three original source-member probes; pinned-head tests pass.
+
 ## Open findings
 
-- **BR-7** [Critical] `strict-known-field-decoding` (kind: defect) Missing required sketch source fields become fabricated zero-valued evidence
+(none — every finding has been disposed)

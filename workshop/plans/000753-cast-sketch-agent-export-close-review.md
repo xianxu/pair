@@ -251,3 +251,85 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-21T20:50:41-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 753 — cast-sketch: operator CLI queries and historical image export |
+| repo | pair |
+| issue file | workshop/issues/000753-cast-sketch-agent-export.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | d2540fd6ae6eaa06e8a90217b285c22116247558..052330f68d4f81b9baff10d90e3559c6a5abaf55 |
+| command | sdlc close --issue 753 |
+| reviewer | codex (openai; author openai) |
+| isolation | fenced |
+| timestamp | 2026-10-21T20:50:41-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+BR-7 is addressed across the required-member inventory. The regressions fail against the pre-fix codec and pass at the pinned head. Review of the issue, plan, implementation, docs, and targeted integration checks found no additional blocking defects. The checkout remains unchanged.
+
+```findings
+dispose:
+  - id: BR-7
+    disposition: addressed
+    note: |
+      codec.go:85-101 declares required members across sketch evidence; filterManifest checks presence before typed decoding at lines 203-207. Tests exercise 120 required omissions, optional/legacy compatibility, and six Store read paths. Running the new regressions with the pre-fix codec through a temporary Go overlay fails, including all three original source-member probes; pinned-head tests pass.
+```
+
+1. **Strengths**
+
+   - Required-field checks preserve explicit zero values while rejecting absent evidence.
+   - Preview publication and preparation share exact-version selection, with controlled cancellation and stale-publication tests.
+   - One evidence-file inventory covers publication and Store reads; nested unknown-field preservation has durable-rewrite coverage.
+   - README, atlas, and the shipped Couch guide document the new operator and CLI surfaces.
+
+2. **Critical findings:** None.
+
+3. **Important findings:** None.
+
+4. **Minor findings:** None.
+
+5. **Test coverage notes**
+
+   Passed full submission, query, sketchimage, submission-builder, and CDP package tests; targeted webcast/Couch submission and preview tests, including `TestNode`; and race checks for submission, CDP, preview, and Cast sketch integration.
+
+   The pre-fix codec countercheck failed as expected. Native Chrome conformance, the recorded suite, and real operator acceptance were not rerun here; previously disposed findings remain undisturbed.
+
+6. **Architectural notes**
+
+   - **ARCH-DRY — pass:** Shared rendering, selection, and file enumeration.
+   - **ARCH-PURE — pass:** Deterministic projection, validation, and transitions remain separate from IO.
+   - **ARCH-PURPOSE — pass:** Sketch evidence reaches the existing operator transaction and local export.
+   - **ARCH-MOCK — pass:** Stateful renderer and controllable publication/CDP seams exercise production boundaries.
+   - **ARCH-CONSTRAINTS — pass:** Explicit batch, image, byte, deadline, and declaration bounds.
+   - **ARCH-SECURE — pass:** Strict evidence decoding, confined assets/output, and original-origin privacy.
+   - **ARCH-ORDER — pass:** Explicit preview transitions and exact publication/freeze fencing.
+   - **ARCH-FUNERAL — pass:** Owned cleanup, bounded existing storage, and explicit operator-owned exports.
+   - **ARCH-EVOLVE — pass:** Additive evidence preserves nested extensions while validating known fields strictly.
+
+7. **Plan revision recommendations:** None. BR-7’s revisions match the implementation; remaining acceptance and landing steps remain explicitly unchecked.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"c51462ad-6097-4714-be11-f1f600ea7f11","repository":"github.com/xianxu/pair","issue_id":"000753","recipe":"milestone-review","round":3,"attempt":1,"agent":"codex","root":"/Volumes/TestScratch/review-checkouts/4a867103b057ef59","reviewed_head":"052330f68d4f81b9baff10d90e3559c6a5abaf55","slot":"pair:9","requested_at":"2026-10-22T03:47:51.997749Z"},"phase":"finished","pid":26082,"started_at":"2026-10-22T03:47:52.170972Z","finished_at":"2026-10-22T03:50:40.974503Z","session_id":"01a161b8-f06b-7eb2-9d9e-069e4223328a","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 3.224280875s
+head: "052330f68d4f81b9baff10d90e3559c6a5abaf55"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412
