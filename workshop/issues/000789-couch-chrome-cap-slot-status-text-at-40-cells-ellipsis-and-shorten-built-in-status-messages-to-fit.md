@@ -95,6 +95,10 @@ Integrated-head startup three-test selection PASS1.466s, reader inventory and di
 
 TL6a768f10 explicitly authorizes starting #796 from main while this immutable snapshot suite waits. Preserve #789's branch and check session; return here when the result arrives, perform requested fixed-then-ship review with passing full-suite evidence, then re-enter merge. #796 plan first: collapse default, multiline available, and #810 resize/no-repaint stall mechanism documented. No stacked branch development.
 
+### 2026-10-22 — retained integration suite PASS; resume landing
+
+Retained session61444/lease-3428295058/attempta71b7262e10d47a252d630372095d2ff completed EXIT0/PASS11m26s on integrated headb2ed415eae449b0ef4d93c108e2520355c2430f7, log SHA256 prefix7a1202907b41, retained .git/sdlc/local-checks/b2ed415eae449b0ef4d93c108e2520355c2430f7/suite.log. No cancellation, duplicate or unrecorded retry. #796 landed as PR547 and its stage clear completed with pair:0 atmain09c8964de39cdb5e6bd9db20601c232446af6949; pair:9 has the753 staging go. TL9536d81d directs789 next, then819 before811/812. Returning to this independent branch: run prescribed fixed-then-ship review with this passing full-suite evidence for the sole generated-reader-certificate integration conflict, then promptly sdlc merge so its turn owns further main integration. No stage needed for789 per existing TL waiver; no producer wording work or819 scope added.
+
 ## Revisions
 
 ### 2026-10-22 — implementation scope
