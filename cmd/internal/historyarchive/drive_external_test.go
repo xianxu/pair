@@ -45,24 +45,46 @@ func driveFixture(t *testing.T, count int, mtimes ...time.Time) (ha.ContinuousCo
 	return cfg, records, root
 }
 
+// monthDriveFake pre-populates the canonical folder of a fixture's pairs. Tests
+// can then isolate pair reconciliation from the separate folder-creation flow.
+func monthDriveFake(t *testing.T, records []ha.CatalogRecord) *archivetest.FakeRclone {
+	t.Helper()
+	if len(records) == 0 {
+		t.Fatal("month fixture needs a record")
+	}
+	stamp := records[0].Label.From.UTC()
+	for _, record := range records {
+		if record.Label.From.UTC().Format("2006/01") != stamp.Format("2006/01") {
+			t.Fatal("month fixture spans months")
+		}
+	}
+	return &archivetest.FakeRclone{
+		FolderObjects: map[string]map[string][]archivetest.FakeRemoteObject{"month": {}},
+		ChildFolders: map[string]map[string][]archivetest.FakeRemoteObject{
+			"folder-1": {stamp.Format("2006"): {{ID: "year", IsDir: true}}},
+			"year":     {stamp.Format("01"): {{ID: "month", IsDir: true}}},
+		},
+	}
+}
+
 func TestDriveMirrorCountedBacklogAndRerun(t *testing.T) {
 	for _, n := range []int{8, 16} {
 		t.Run(fmt.Sprint(n), func(t *testing.T) {
 			cfg, records, root := driveFixture(t, n)
 			before := treeState(t, cfg.Sink)
-			fake := &archivetest.FakeRclone{}
+			fake := monthDriveFake(t, records)
 			mirror := ha.DriveMirror{Rclone: ha.Rclone{Runner: fake}}
 			got, err := mirror.Run(context.Background(), cfg, filepath.Join(root, "archive"))
 			if err != nil || got.Verified != n {
 				t.Fatalf("mirror = %+v, %v", got, err)
 			}
-			if fake.Lists != 2 || fake.Copies != 2*n || fake.CopyBatches != 1 || fake.Invocations > 4 {
-				t.Fatalf("counts list=%d copies=%d, want2/%d", fake.Lists, fake.Copies, 2*n)
+			if fake.Lists != 4 || fake.Copies != 2*n || fake.CopyBatches != 1 || fake.Invocations != 6 {
+				t.Fatalf("counts list=%d copies=%d, want4/%d", fake.Lists, fake.Copies, 2*n)
 			}
 			for _, r := range records {
 				for _, name := range []string{r.Label.ID + ".tar.zst.gpg", r.Label.ID + ".json"} {
-					if len(fake.Objects[name]) != 1 {
-						t.Fatalf("missing unique flat object %s", name)
+					if len(fake.FolderObjects["month"][name]) != 1 {
+						t.Fatalf("missing unique month object %s", name)
 					}
 				}
 			}
@@ -70,7 +92,7 @@ func TestDriveMirrorCountedBacklogAndRerun(t *testing.T) {
 			if err != nil || again.AlreadyRecorded != n || fake.Copies != 2*n {
 				t.Fatalf("rerun = %+v, %v copies=%d", again, err, fake.Copies)
 			}
-			if fake.Lists != 4 || fake.CopyBatches != 1 || fake.Invocations > 7 {
+			if fake.Lists != 7 || fake.CopyBatches != 1 || fake.Invocations != 10 {
 				t.Fatalf("rerun content listings=%d", fake.Lists)
 			}
 			if !sameKeys(before, treeState(t, cfg.Sink)) {
@@ -94,10 +116,11 @@ func TestDriveMirrorDuplicatesRefuseWithoutRepair(t *testing.T) {
 }
 
 func TestDriveMirrorDownloadFallbackIsReported(t *testing.T) {
-	cfg, _, root := driveFixture(t, 1)
-	fake := &archivetest.FakeRclone{MissingHashes: true}
+	cfg, records, root := driveFixture(t, 1)
+	fake := monthDriveFake(t, records)
+	fake.MissingHashes = true
 	got, err := (ha.DriveMirror{Rclone: ha.Rclone{Runner: fake}}).Run(context.Background(), cfg, filepath.Join(root, "archive"))
-	if err != nil || got.Verified != 1 || got.DownloadedChecksums != 2 || fake.Downloads != 2 || fake.HashBatches != 1 || fake.Invocations > 5 {
+	if err != nil || got.Verified != 1 || got.DownloadedChecksums != 2 || fake.Downloads != 2 || fake.HashBatches != 1 || fake.Invocations != 7 {
 		t.Fatalf("fallback = %+v %v downloads=%d", got, err, fake.Downloads)
 	}
 	if !strings.Contains(strings.Join(got.Notes, "\n"), "downloaded-sha256") {
@@ -106,9 +129,10 @@ func TestDriveMirrorDownloadFallbackIsReported(t *testing.T) {
 }
 
 func TestDriveMirrorReleasesLocalCatalogBeforeCopy(t *testing.T) {
-	cfg, _, root := driveFixture(t, 1)
+	cfg, records, root := driveFixture(t, 1)
 	checked := false
-	fake := &archivetest.FakeRclone{Before: func(ctx context.Context, operation, name string) error {
+	fake := monthDriveFake(t, records)
+	fake.Before = func(ctx context.Context, operation, name string) error {
 		if operation != "copy" {
 			return nil
 		}
@@ -118,7 +142,7 @@ func TestDriveMirrorReleasesLocalCatalogBeforeCopy(t *testing.T) {
 		}
 		checked = true
 		return catalog.Close()
-	}}
+	}
 	_, err := (ha.DriveMirror{Rclone: ha.Rclone{Runner: fake}}).Run(context.Background(), cfg, filepath.Join(root, "archive"))
 	if err != nil || !checked {
 		t.Fatalf("catalog check=%v err=%v", checked, err)
@@ -152,8 +176,9 @@ func TestContinuousDriveUnavailablePreservesLocalMarker(t *testing.T) {
 }
 
 func TestDriveMirrorPartialBatchRecordsOnlyVerifiedPairs(t *testing.T) {
-	cfg, _, root := driveFixture(t, 2)
-	fake := &archivetest.FakeRclone{AfterCopyError: fmt.Errorf("batch interrupted"), FailAfterObjects: 2}
+	cfg, records, root := driveFixture(t, 2)
+	fake := monthDriveFake(t, records)
+	fake.AfterCopyError, fake.FailAfterObjects = fmt.Errorf("batch interrupted"), 2
 	mirror := ha.DriveMirror{Rclone: ha.Rclone{Runner: fake}}
 	got, err := mirror.Run(context.Background(), cfg, filepath.Join(root, "archive"))
 	if err == nil || got.Verified != 1 || got.Pending != 1 || fake.CopyBatches != 1 {
@@ -197,7 +222,7 @@ func TestDriveMirrorBatchBudgetDefersCompletePairs(t *testing.T) {
 	if pairBytes[0] == pairBytes[1] || budget >= total {
 		t.Fatalf("want unequal pairs that fit separately but not together: sizes=%v budget=%d", pairBytes, budget)
 	}
-	fake := &archivetest.FakeRclone{}
+	fake := monthDriveFake(t, records)
 	mirror := ha.DriveMirror{Rclone: ha.Rclone{Runner: fake}, BatchByteLimit: budget}
 	got, err := mirror.Run(context.Background(), cfg, filepath.Join(root, "archive"))
 	if err != nil || got.Verified != 1 || got.Pending != 1 || got.Deferred != 1 || fake.Copies != 2 {
@@ -212,11 +237,10 @@ func TestDriveMirrorBatchBudgetDefersCompletePairs(t *testing.T) {
 }
 
 func TestDriveMirrorDestinationCapacityDefersWithoutPoisoningInventory(t *testing.T) {
-	cfg, _, root := driveFixture(t, 2)
+	cfg, records, root := driveFixture(t, 2)
 	// Duplicate, unrelated names consume real destination entries too.
-	fake := &archivetest.FakeRclone{Objects: map[string][]archivetest.FakeRemoteObject{
-		"unrelated": make([]archivetest.FakeRemoteObject, 99998),
-	}}
+	fake := monthDriveFake(t, records)
+	fake.FolderObjects["month"]["unrelated"] = make([]archivetest.FakeRemoteObject, 99998)
 	mirror := ha.DriveMirror{Rclone: ha.Rclone{Runner: fake}}
 	got, err := mirror.Run(context.Background(), cfg, filepath.Join(root, "archive"))
 	if err != nil || got.Verified != 1 || got.Deferred != 1 || got.Pending != 1 || fake.Copies != 2 {
@@ -231,7 +255,7 @@ func TestDriveMirrorDestinationCapacityDefersWithoutPoisoningInventory(t *testin
 		t.Fatalf("full destination retry = %+v, %v, copies=%d", got, err, fake.Copies)
 	}
 	// An operator-created vacancy admits the deferred complete pair next pass.
-	fake.Objects["unrelated"] = fake.Objects["unrelated"][:99996]
+	fake.FolderObjects["month"]["unrelated"] = fake.FolderObjects["month"]["unrelated"][:99996]
 	got, err = mirror.Run(context.Background(), cfg, filepath.Join(root, "archive"))
 	if err != nil || got.AlreadyRecorded != 1 || got.Verified != 1 || got.Pending != 0 || fake.Copies != 4 {
 		t.Fatalf("capacity recovery = %+v, %v, copies=%d", got, err, fake.Copies)
@@ -243,9 +267,8 @@ func TestDriveMirrorDestinationCapacityChargesOnlyMissingMembers(t *testing.T) {
 	for _, existingMembers := range []int{1, 2} {
 		t.Run(fmt.Sprint(existingMembers), func(t *testing.T) {
 			cfg, records, root := driveFixture(t, 2)
-			fake := &archivetest.FakeRclone{Objects: map[string][]archivetest.FakeRemoteObject{
-				"unrelated": make([]archivetest.FakeRemoteObject, 99998),
-			}}
+			fake := monthDriveFake(t, records)
+			fake.FolderObjects["month"]["unrelated"] = make([]archivetest.FakeRemoteObject, 99998)
 			// The first pair cannot fit; it must not block the second pair.
 			record := records[1]
 			keys := []string{record.BundleKey, record.LabelKey}
@@ -255,7 +278,7 @@ func TestDriveMirrorDestinationCapacityChargesOnlyMissingMembers(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				fake.Objects[names[i]] = []archivetest.FakeRemoteObject{{ID: fmt.Sprintf("retained-%d", i), Data: data}}
+				fake.FolderObjects["month"][names[i]] = []archivetest.FakeRemoteObject{{ID: fmt.Sprintf("retained-%d", i), Data: data}}
 			}
 			mirror := ha.DriveMirror{Rclone: ha.Rclone{Runner: fake}}
 			got, err := mirror.Run(context.Background(), cfg, filepath.Join(root, "archive"))
@@ -273,11 +296,11 @@ func TestDriveMirrorDestinationCapacityChargesOnlyMissingMembers(t *testing.T) {
 func TestDriveMirrorFinalListingRejectsLateDuplicate(t *testing.T) {
 	cfg, records, root := driveFixture(t, 1)
 	name := records[0].Label.ID + ".tar.zst.gpg"
-	fake := &archivetest.FakeRclone{}
-	fake.Before = func(_ context.Context, operation, _ string) error {
-		if operation == "lsjson" && fake.Lists == 1 {
-			original := fake.Objects[name][0]
-			fake.Objects[name] = append(fake.Objects[name], archivetest.FakeRemoteObject{ID: "duplicate", Data: original.Data})
+	fake := monthDriveFake(t, records)
+	fake.BeforeFolder = func(_ context.Context, operation, folderID string) error {
+		if operation == "lsjson" && folderID == "month" && fake.FolderLists[folderID] == 1 {
+			original := fake.FolderObjects["month"][name][0]
+			fake.FolderObjects["month"][name] = append(fake.FolderObjects["month"][name], archivetest.FakeRemoteObject{ID: "duplicate", Data: original.Data})
 		}
 		return nil
 	}
@@ -290,10 +313,11 @@ func TestDriveMirrorFinalListingRejectsLateDuplicate(t *testing.T) {
 func TestDriveMirrorBatchStageCleanedOnFailureAndCancel(t *testing.T) {
 	for _, cancelled := range []bool{false, true} {
 		t.Run(fmt.Sprint(cancelled), func(t *testing.T) {
-			cfg, _, root := driveFixture(t, 1)
+			cfg, records, root := driveFixture(t, 1)
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
-			fake := &archivetest.FakeRclone{Before: func(_ context.Context, operation, _ string) error {
+			fake := monthDriveFake(t, records)
+			fake.Before = func(_ context.Context, operation, _ string) error {
 				if operation != "copy" {
 					return nil
 				}
@@ -302,7 +326,7 @@ func TestDriveMirrorBatchStageCleanedOnFailureAndCancel(t *testing.T) {
 					return context.Canceled
 				}
 				return fmt.Errorf("batch failed")
-			}}
+			}
 			got, err := (ha.DriveMirror{Rclone: ha.Rclone{Runner: fake}}).Run(ctx, cfg, filepath.Join(root, "archive"))
 			if err == nil || got.Verified != 0 {
 				t.Fatalf("failure result %+v %v", got, err)

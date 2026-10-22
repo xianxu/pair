@@ -363,7 +363,7 @@ func TestRcloneLocalDownloadBoundConformance(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	r := Rclone{Runner: ExecRcloneRunner{Binary: binary, Env: []string{"HOME=" + root, "RCLONE_CONFIG=" + config, "PATH=" + os.Getenv("PATH")}}, LocalConformance: true}
+	r := Rclone{Runner: &downloadBoundStreamingRunner{runner: ExecRcloneRunner{Binary: binary, Env: []string{"HOME=" + root, "RCLONE_CONFIG=" + config, "PATH=" + os.Getenv("PATH")}}}, LocalConformance: true}
 	pin, err := r.ResolveDestination(context.Background(), DriveDestination{Remote: "fixture", Folder: source})
 	if err != nil {
 		t.Fatal(err)
@@ -377,8 +377,8 @@ func TestRcloneLocalDownloadBoundConformance(t *testing.T) {
 	}{
 		{"exact single", []string{strings.Repeat("a", 64) + ".tar.zst.gpg"}, 5, 5, 1, false},
 		{"exact batch", []string{strings.Repeat("b", 64) + ".json", strings.Repeat("c", 64) + ".json"}, 5, 3, 2, false},
-		{"object grew", []string{strings.Repeat("d", 64) + ".json"}, 5, 5, 0, false},
-		{"batch budget", []string{strings.Repeat("a", 64) + ".tar.zst.gpg"}, 4, 5, 0, true},
+		{"object grew", []string{strings.Repeat("d", 64) + ".json"}, 5, 5, 1, true},
+		{"batch budget", []string{strings.Repeat("a", 64) + ".tar.zst.gpg"}, 4, 5, 1, true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			dest := filepath.Join(root, strings.ReplaceAll(tc.name, " ", "-"))
@@ -407,5 +407,22 @@ func TestRcloneLocalDownloadBoundConformance(t *testing.T) {
 				t.Fatal("filter retained", err)
 			}
 		})
+	}
+}
+
+// Force native streaming: server-side local copies bypass transfer accounting.
+type downloadBoundStreamingRunner struct{ runner ExecRcloneRunner }
+
+func (r *downloadBoundStreamingRunner) Run(ctx context.Context, args []string, limit int) ([]byte, error) {
+	if args[0] == "copy" {
+		args = append(append([]string(nil), args...), "--disable", "Copy")
+	}
+	return r.runner.Run(ctx, args, limit)
+}
+func TestDownloadTransferBackstopBoundaries(t *testing.T) {
+	for _, tc := range []struct{ total, want int64 }{{1, 1 << 20}, {3109, 1 << 20}, {1<<20 - 1, 1 << 20}, {1 << 20, 2 << 20}, {4 << 30, 8 << 30}} {
+		if got := downloadTransferBackstop(tc.total); got != tc.want || got <= tc.total || got&(got-1) != 0 {
+			t.Fatalf("backstop(%d)=%d want=%d", tc.total, got, tc.want)
+		}
 	}
 }

@@ -1,0 +1,1 @@
+{"version":1,"screens":[{"id":"index","route":"/","mock":"index.html","state":"real"},{"id":"runs","route":"/runs","mock":"runs.html","state":"real"},{"id":"detail","route":"/runs/detail","mock":"detail.html","state":"mock"}]}

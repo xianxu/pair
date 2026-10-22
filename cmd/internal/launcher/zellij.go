@@ -14,7 +14,7 @@ import (
 	"github.com/xianxu/pair/cmd/internal/zellijreply"
 )
 
-// zellijQueryTimeout bounds one zellij CLI query.
+// zellijQueryTimeout bounds one logical Zellij read across all its attempts.
 //
 // Couch's inventory refresh runs Snapshot on its periodic worker, and a hung
 // zellij would otherwise block that worker forever -- the switcher would keep
@@ -25,7 +25,8 @@ import (
 const zellijQueryTimeout = 5 * time.Second
 
 // ErrZellijNoReply distinguishes an unanswered read from an observed empty
-// inventory. A fresh call is new evidence; this boundary never retries.
+// inventory. Eligible idempotent reads recover at most three attempts before
+// returning this error; a later explicit call begins a new observation.
 var ErrZellijNoReply = errors.New("zellij query returned no reply")
 
 var errSessionNameTooLong = errors.New("session name too long")
@@ -48,8 +49,9 @@ func (s ZellijSource) Snapshot() ([]Session, error) {
 // SnapshotContext is Snapshot with the caller's cancellation: every pair
 // session, each classified attached / detached / exited.
 //
-// Cost, stated because it is the expensive form: one `list-sessions` run plus
-// one `action list-clients` per non-exited pair session ON THE HOST, and
+// Cost: one logical `list-sessions` read plus one `action list-clients` read
+// per non-exited pair session ON THE HOST. Each may use up to three attempts;
+//
 // list-clients costs about 250 ms against a real detached session (pair#228).
 // A caller asking about particular sessions wants SnapshotSessionsContext; one
 // that needs only "not exited" wants LivenessContext.
@@ -57,8 +59,8 @@ func (s ZellijSource) SnapshotContext(ctx context.Context) ([]Session, error) {
 	return s.snapshot(ctx, func(string) bool { return true }, func(string) bool { return true })
 }
 
-// SnapshotSessionsContext classifies only the named sessions: one list-clients
-// per named session that is live, however many sessions the host has. Names
+// SnapshotSessionsContext classifies only the named sessions: one logical
+// list-clients read (up to three attempts) per named live session. Names
 // that are absent from zellij's listing are absent from the result.
 func (s ZellijSource) SnapshotSessionsContext(ctx context.Context, names []string) ([]Session, error) {
 	wanted := make(map[string]bool, len(names))
@@ -70,7 +72,8 @@ func (s ZellijSource) SnapshotSessionsContext(ctx context.Context, names []strin
 }
 
 // LivenessContext lists every pair session without asking any of them for
-// clients: non-exited sessions are SessionLive. One list-sessions run, and
+// clients: non-exited sessions are SessionLive. One logical list-sessions read
+// (up to three attempts), and
 // nothing that scales with the host's session count.
 func (s ZellijSource) LivenessContext(ctx context.Context) ([]Session, error) {
 	return s.snapshot(ctx, func(string) bool { return false }, func(string) bool { return true })
@@ -146,7 +149,7 @@ func (s ZellijSource) fullListing(ctx context.Context) ([]byte, error) {
 // ClientCountContext observes the attached client count for one exact session.
 // Header-only output proves zero clients; an empty successful reply remains
 // unknown. It shares the inventory query boundary, including cancellation,
-// timeout and no automatic retries, without listing unrelated sessions.
+// timeout and bounded known-corrupt-reply recovery, without listing unrelated sessions.
 func (s ZellijSource) ClientCountContext(ctx context.Context, session string) (int, error) {
 	out, err := s.runContext(ctx, "--session", session, "action", "list-clients")
 	if err != nil {
@@ -166,9 +169,11 @@ func (s ZellijSource) run(args ...string) ([]byte, error) {
 // ZellijQueryObservation retains bounded copies of a completed CLI query.
 // Stdout and Stderr each keep at most 64 KiB; byte counts describe the original
 // streams, which the production parser consumes without truncation. Err is the
-// caller-visible result; ExitCode retains the subprocess status (-1 if absent).
+// attempt-local result, even if a later attempt succeeds; ExitCode retains the
+// subprocess status (-1 if absent).
 // CallerDeadline is zero when absent; EffectiveDeadline includes the query cap.
 type ZellijQueryObservation struct {
+	Executable                        string
 	Args                              []string
 	Started, Finished                 time.Time
 	CallerDeadline, EffectiveDeadline time.Time
@@ -184,20 +189,35 @@ type zellijQueryObserverKey struct{}
 
 // WithZellijQueryObserver scopes optional query measurement to ctx. Callbacks
 // run synchronously after each direct subprocess completes and must not block.
-// Concurrent operations require a synchronized observer. No query is added or
-// retried, and ordinary contexts retain the original execution and output path.
+// Concurrent operations require a synchronized observer. Every subprocess attempt
+// is reported, including bounded known-bug recovery of an idempotent read.
 func WithZellijQueryObserver(ctx context.Context, observe func(ZellijQueryObservation)) context.Context {
 	return context.WithValue(ctx, zellijQueryObserverKey{}, observe)
 }
 
-func (s ZellijSource) runContext(ctx context.Context, args ...string) (output []byte, resultErr error) {
+func (s ZellijSource) runContext(ctx context.Context, args ...string) ([]byte, error) {
+	callerDeadline, _ := ctx.Deadline()
+	ctx, cancel := context.WithTimeout(ctx, zellijQueryTimeout)
+	defer cancel()
+	var output []byte
+	var err error
+	for attempt := 0; attempt < 3; attempt++ {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+		output, err = s.runQueryAttempt(ctx, callerDeadline, args...)
+		if zellijReadKind(args) == 0 || (!errors.Is(err, ErrZellijNoReply) && !errors.Is(err, errZellijCrossedReply) && !errors.Is(err, errZellijSessionLookupMiss)) {
+			return output, err
+		}
+	}
+	return nil, err
+}
+
+func (s ZellijSource) runQueryAttempt(ctx context.Context, callerDeadline time.Time, args ...string) (output []byte, resultErr error) {
 	path := s.Path
 	if path == "" {
 		path = "zellij"
 	}
-	callerDeadline, _ := ctx.Deadline()
-	ctx, cancel := context.WithTimeout(ctx, zellijQueryTimeout)
-	defer cancel()
 	cmd := exec.CommandContext(ctx, path, args...)
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
@@ -214,7 +234,7 @@ func (s ZellijSource) runContext(ctx context.Context, args ...string) (output []
 			const bound = 64 * 1024
 			observe(ZellijQueryObservation{
 				CallerDeadline: callerDeadline, EffectiveDeadline: effectiveDeadline,
-				Args: append([]string(nil), args...), Started: started, Finished: finished,
+				Executable: cmd.Path, Args: append([]string(nil), args...), Started: started, Finished: finished,
 				Duration: finished.Sub(started), ExitCode: exitCode, Err: resultErr,
 				Stdout:      append([]byte(nil), stdout.Bytes()[:min(stdout.Len(), bound)]...),
 				Stderr:      append([]byte(nil), stderr.Bytes()[:min(stderr.Len(), bound)]...),
@@ -236,6 +256,10 @@ func (s ZellijSource) runContext(ctx context.Context, args ...string) (output []
 			// Only the direct process exit can be normalized. A joined collector
 			// failure remains unknown even if it contains this same exit code.
 			exitErr, pureExit := err.(*exec.ExitError)
+			if pureExit && exitErr.ExitCode() == 1 && len(args) > 1 &&
+				retryableSessionLookupMiss(args, stdout.Bytes(), stderr.Bytes(), 1, true) && sessionSocketPresent(args[1]) {
+				return nil, fmt.Errorf("zellij %s: %w", strings.Join(args, " "), errZellijSessionLookupMiss)
+			}
 			if len(args) > 0 && args[0] == "list-sessions" &&
 				pureExit && exitErr.ExitCode() == 1 &&
 				stdout.Len() == 0 && strings.TrimSpace(stderr.String()) == "No active zellij sessions found." {
@@ -247,8 +271,14 @@ func (s ZellijSource) runContext(ctx context.Context, args ...string) (output []
 	if err := ctx.Err(); err != nil {
 		return nil, fmt.Errorf("zellij %s: %w", strings.Join(args, " "), err)
 	}
+	if retryableSessionLookupMiss(args, stdout.Bytes(), stderr.Bytes(), 0, false) {
+		return nil, fmt.Errorf("zellij %s: %w", strings.Join(args, " "), errZellijSessionLookupMiss)
+	}
 	if len(bytes.TrimSpace(stdout.Bytes())) == 0 {
 		return nil, fmt.Errorf("zellij %s: %w", strings.Join(args, " "), ErrZellijNoReply)
+	}
+	if stderr.Len() == 0 && crossedZellijReply(zellijReadKind(args), stdout.Bytes()) {
+		return nil, fmt.Errorf("zellij %s: %w", strings.Join(args, " "), errZellijCrossedReply)
 	}
 	return stdout.Bytes(), nil
 }

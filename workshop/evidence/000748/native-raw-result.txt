@@ -1,0 +1,8 @@
+=== RUN   TestRecoveryNativeRawDiagnostic748
+    recovery_raw_diagnostic_test.go:25: 2000 independent sequential requests: bad-first-reply=45 crossed=5
+    recovery_raw_diagnostic_test.go:26: native first-response corruption reproduced; no retries
+--- FAIL: TestRecoveryNativeRawDiagnostic748 (1.85s)
+FAIL
+write budget couchcore: bytes=557056 cap=134217728 repeats=1
+FAIL	github.com/xianxu/pair/cmd/internal/couchcore	2.907s
+FAIL

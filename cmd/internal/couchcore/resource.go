@@ -125,16 +125,30 @@ type HostedIngestSnapshot struct {
 	Omitted         int                  `json:"omitted"`
 }
 
+// SupervisionLogHealth describes acknowledgments by the optional fact sink,
+// not fsync durability. LastError remains historical after a later recovery.
+type SupervisionLogHealth struct {
+	State          string    `json:"state"`
+	Offered        uint64    `json:"offered"`
+	Written        uint64    `json:"written"`
+	Dropped        uint64    `json:"dropped"`
+	LastWriteAt    time.Time `json:"last_write_at"`
+	ErrorOperation string    `json:"error_operation,omitempty"`
+	LastError      string    `json:"last_error,omitempty"`
+	LastErrorAt    time.Time `json:"last_error_at"`
+}
+
 type ResourceView struct {
-	HostedIngest  *HostedIngestSnapshot `json:"hosted_ingest,omitempty"`
-	HistoryOldest time.Time             `json:"history_oldest"`
-	HistoryFrames int                   `json:"history_frames"`
-	SampledAt     time.Time             `json:"sampled_at"`
-	Slots         []ResourceSlotView    `json:"slots"`
-	Processes     []ResourceProcessView `json:"processes"`
-	Orphans       []ResourceProcessView `json:"orphans"`
-	Unattributed  []ResourceProcessView `json:"unattributed"`
-	OrphanNvim    []OrphanNvim          `json:"orphan_nvim"`
+	SupervisionLog *SupervisionLogHealth `json:"supervision_log,omitempty"`
+	HostedIngest   *HostedIngestSnapshot `json:"hosted_ingest,omitempty"`
+	HistoryOldest  time.Time             `json:"history_oldest"`
+	HistoryFrames  int                   `json:"history_frames"`
+	SampledAt      time.Time             `json:"sampled_at"`
+	Slots          []ResourceSlotView    `json:"slots"`
+	Processes      []ResourceProcessView `json:"processes"`
+	Orphans        []ResourceProcessView `json:"orphans"`
+	Unattributed   []ResourceProcessView `json:"unattributed"`
+	OrphanNvim     []OrphanNvim          `json:"orphan_nvim"`
 	// LeftRunning is the orphan registry (pair#695): what teardown left
 	// running, pruned to the identities this sample still saw.
 	LeftRunning            []LeftRunningOrphan `json:"left_running"`

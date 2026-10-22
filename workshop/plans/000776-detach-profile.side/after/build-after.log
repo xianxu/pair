@@ -1,0 +1,10 @@
+['/opt/homebrew/Cellar/go/1.27.1/libexec/bin/go', 'run', '-p', '4', './cmd/internal/runtimebundle/generatecmd', '--repo', '.', '--out', 'cmd/internal/runtimebundle/assets/runtime']
+exit=0 elapsed=0.503
+['/opt/homebrew/Cellar/go/1.27.1/libexec/bin/go', 'build', '-p', '4', '-o', '/Volumes/TestScratch/pair-776-after.DADE7a/bin-current/couch', './cmd/couch']
+exit=0 elapsed=15.843
+['/opt/homebrew/Cellar/go/1.27.1/libexec/bin/go', 'build', '-p', '4', '-o', '/Volumes/TestScratch/pair-776-after.DADE7a/bin-current/pair', './cmd/pair-go']
+exit=0 elapsed=3.308
+['/opt/homebrew/Cellar/go/1.27.1/libexec/bin/go', 'build', '-p', '4', '-o', '/Volumes/TestScratch/pair-776-after.DADE7a/bin-current/pair-launch-helper', './cmd/pair-launch-helper']
+exit=0 elapsed=1.500
+['/opt/homebrew/Cellar/go/1.27.1/libexec/bin/go', 'build', '-p', '4', '-o', '/Volumes/TestScratch/pair-776-after.DADE7a/bin-shared/fixture-agent', './cmd/internal/testcouch/agentfixture/cmd']
+exit=0 elapsed=2.019

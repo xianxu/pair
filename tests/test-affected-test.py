@@ -25,6 +25,17 @@ def runner():
 
 
 class PureSelection(unittest.TestCase):
+    def test_nested_module_scanners_use_their_own_module(self):
+        m = runner()
+        commands = m.source_guard_commands()
+        self.assertEqual(commands[0], (m.source_guard_argv(), None))
+        argv, directory = commands[1]
+        self.assertEqual(directory, "examples/mock-to-real")
+        self.assertIn("./internal/app", argv)
+        self.assertIn("./internal/buildsample", argv)
+        self.assertNotIn(PREFIX + "examples/mock-to-real/internal/app", commands[0][0])
+        self.assertTrue(all("..." not in arg for arg in argv))
+
     def test_exact_argv_and_lua_once(self):
         m = runner()
         for packages in ((PREFIX + "cmd/internal/model",),
@@ -118,10 +129,11 @@ class MakeEntrypoint(unittest.TestCase):
                 result, rows = self.run_selection(" ".join(packages))
                 self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
                 go = [r for r in rows if r["kind"] == "go"]
-                self.assertEqual(len(go), 2, "fixed scanner preflight then exact selected test")
+                self.assertEqual(len(go), 1 + len(runner().source_guard_commands()), "module scanner preflights then exact selected test")
                 self.assertEqual([r["args"] for r in go],
-                                 [runner().source_guard_argv()[1:], ["test", *packages, "-count=1", "-timeout", "20m"]])
-                self.assertEqual([r["args"] for r in rows if r["kind"] == "make"], [["test-make-env"], ["runtimebundle-generate"]])
+                                 [*(command[1:] for command, _ in runner().source_guard_commands()), ["test", *packages, "-count=1", "-timeout", "20m"]])
+                self.assertEqual([r["args"] for r in rows if r["kind"] == "make"],
+                                 [["test-affected-inventory"], ["test-make-env"], ["runtimebundle-generate"]])
                 self.assertTrue(all(r["identity"] is None and r["knob"] == "preserved" for r in rows))
 
     def test_groups_share_one_private_binary(self):
@@ -141,9 +153,10 @@ class MakeEntrypoint(unittest.TestCase):
         result, rows = self.run_selection(RUNTIME, "lua")
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         go_tests = [r for r in rows if r["kind"] == "go" and r["args"][0] == "test"]
-        self.assertEqual([r["args"] for r in go_tests], [runner().source_guard_argv()[1:], ["test", RUNTIME, "-count=1", "-timeout", "20m"]])
-        self.assertEqual(rows[0]["args"], ["test-make-env"])
-        self.assertEqual(rows[1]["args"], ["runtimebundle-generate"])
+        self.assertEqual([r["args"] for r in go_tests], [*(command[1:] for command, _ in runner().source_guard_commands()), ["test", RUNTIME, "-count=1", "-timeout", "20m"]])
+        self.assertEqual(rows[0]["args"], ["test-affected-inventory"])
+        self.assertEqual(rows[1]["args"], ["test-make-env"])
+        self.assertEqual(rows[2]["args"], ["runtimebundle-generate"])
 
     def test_invalid_before_child_effects(self):
         for packages, groups in (("", ""), ("./...", "lua"), ("", "unknown"), ("", "lua lua")):
@@ -154,7 +167,7 @@ class MakeEntrypoint(unittest.TestCase):
                 self.assertEqual(rows, [])
 
     def test_child_failure_stops_and_preserves_output(self):
-        for failure in ("make:runtimebundle-generate", "go:test", "go:test@2", "go:build", "make:test-affected-build"):
+        for failure in ("make:runtimebundle-generate", "go:test", "go:test@2", "go:test@3", "go:build", "make:test-affected-build"):
             with self.subTest(failure=failure):
                 self.record.unlink(missing_ok=True)
                 result, rows = self.run_selection(PREFIX + "cmd/internal/model", "build", failure)
@@ -172,7 +185,14 @@ class MakeEntrypoint(unittest.TestCase):
         result, rows = self.run_selection(PREFIX + "cmd/internal/model", "shell", "make:test-make-env")
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("child-output:make", result.stdout)
-        self.assertEqual([(r["kind"], r["args"]) for r in rows], [("make", ["test-make-env"])])
+        self.assertEqual([(r["kind"], r["args"]) for r in rows],
+                         [("make", ["test-affected-inventory"]), ("make", ["test-make-env"])])
+
+    def test_inventory_failure_precedes_every_selected_child(self):
+        result, rows = self.run_selection(PREFIX + "cmd/internal/model", "shell", "make:test-affected-inventory")
+        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual([(r["kind"], r["args"]) for r in rows],
+                         [("make", ["test-affected-inventory"])])
 
     def test_recipe_ownership(self):
         result = subprocess.run(["make", "-prRn", "-f", "Makefile.local", "test", "PAIR_TEST_BINARY=/unused", "GOFLAGS="],

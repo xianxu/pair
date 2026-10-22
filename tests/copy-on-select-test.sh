@@ -25,15 +25,20 @@ REPO=$(cd "$(dirname "$0")/.." && pwd)
 export PAIR_TEST_ZELLIJ_REPLIES="$REPO/tests/lib/zellij_fixture_replies.py"
 tmp=$(mktemp -d "${TMPDIR:-/tmp}/pair-copyonselect.XXXXXX"); trap 'rm -rf "$tmp"' EXIT
 
-# The single `pair` self-execs the `pair` sibling of its own binary for the
-# orchestrator + hand-off (dir(os.Executable())/pair), so a copy of it under
-# $PAIR_HOME/bin drives the whole chain.
+# The hook self-execs its `pair` sibling. Alias the shared image beside the
+# completion wrapper; copying it would trigger a new AMFI assessment (#749).
 export PAIR_HOME="$tmp/home"
 export PAIR_DATA_DIR="$tmp/data"
 export PAIR_TAG=t
 export PAIR_AGENT=claude
 mkdir -p "$PAIR_HOME/bin" "$PAIR_DATA_DIR"
-cp "${PAIR_TEST_BINARY:-$REPO/bin/pair}" "$PAIR_HOME/bin/pair-real"
+bash "$REPO/tests/lib/pair-test-binary.sh" "$PAIR_HOME/bin/pair-real"
+if [ -n "${PAIR_TEST_BINARY:-}" ]; then
+  python3 - "$PAIR_TEST_BINARY" "$PAIR_HOME/bin/pair-real" <<'PY'
+import os,sys
+assert os.path.samefile(*sys.argv[1:]), 'copy fixture must execute the shared image, never a per-run copy (#749)'
+PY
+fi
 export PAIR_TEST_COPY_BINARY="$PAIR_HOME/bin/pair-real"
 export PAIR_TEST_COPY_DONE="$tmp/done"
 mkfifo "$PAIR_TEST_COPY_DONE"
@@ -80,15 +85,16 @@ export XDG_CACHE_HOME="$tmp/cache"
 quote="$PAIR_DATA_DIR/quote-t"
 run() {
   rm -f "$quote" "$tmp/clipboard"
-  python3 - "$PAIR_TEST_COPY_BINARY" "$PAIR_TEST_COPY_DONE" <<'PYTHON'
+  python3 - "$PAIR_TEST_COPY_BINARY" "$PAIR_TEST_COPY_DONE" "${1:-0}" <<'PYTHON'
 import os, select, subprocess, sys
 fd = os.open(sys.argv[2], os.O_RDONLY | os.O_NONBLOCK)
 try:
     subprocess.run([sys.argv[1], 'clip', 'copy-on-select'], input=b'selected text', check=True, timeout=3)
     if not select.select([fd], [], [], 3)[0]:
         raise SystemExit('detached copy orchestrator did not finish')
-    if os.read(fd, 32).strip() != b'0':
-        raise SystemExit('detached copy orchestrator refused a healthy fixture')
+    result = os.read(fd, 32).strip()
+    if result != sys.argv[3].encode():
+        raise SystemExit(f'detached copy orchestrator returned {result!r}, wanted {sys.argv[3]}')
 finally:
     os.close(fd)
 PYTHON
@@ -111,10 +117,12 @@ python3 "$PAIR_TEST_ZELLIJ_REPLIES" --case copy-on-select.draft > "$tmp/panes.js
 run
 [ -f "$quote" ] && { echo "FAIL (b) draft-pane selection handed off (would self-insert)"; fail=1; }
 
-# (c) #125: selection in the RIGHT TERMINAL → must NOT hand off, while the
-#     clipboard mirror still happens. This is the distraction that was removed.
+# (c) #731: this fixture supplies a Pair-looking terminal template but starts
+#     no registered wrapper owner. Refuse auto-quote without staging anything;
+#     the clipboard mirror still succeeds. Registered-terminal copy-only
+#     behavior is covered by TestCopyOnSelectOrchestrateSkipsRightTerminal.
 python3 "$PAIR_TEST_ZELLIJ_REPLIES" --case copy-on-select.terminal > "$tmp/panes.json"
-run
+run 1
 [ -f "$quote" ] && { echo "FAIL (c) right-terminal selection auto-pasted into the draft (#125)"; fail=1; }
 [ "$(pbpaste 2>/dev/null)" = "selected text" ] || { echo "FAIL (c) right-terminal selection did not reach the clipboard"; fail=1; }
 

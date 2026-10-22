@@ -1,0 +1,9 @@
+Git HEAD: cc545350b41e2a531dee9de2faef8e04cf1c195c
+Command: WEBCAST_LIVE_CHROME=1 PAIR_FRONT_BROWSER_NEGATIVE_CONTROL=progress go test ./cmd/internal/mockserve -run ^TestDevelopmentFrontBrowser$ -count=1 -timeout=60s -v
+Exit: 1
+=== RUN   TestDevelopmentFrontBrowser
+    front_browser_test.go:101: real to mock detail with authoritative visible progress: DOM predicate did not become true: document.documentElement.dataset.mockVersion === "mock-1" && document.documentElement.dataset.mockScreen === "detail" && location.pathname === "/mock-1/detail.html" && location.search === '?state=empty' && location.hash === '#selection' && document.querySelector('#mock-detail')?.textContent === "mock-1 detail" && window.frontNavigationSentinel === undefined && (() => { const badge = document.querySelector('#couch-mock-progress'); return badge && badge.getClientRects().length > 0 && getComputedStyle(badge).visibility !== 'hidden' && badge.textContent.includes('MOCK') && badge.textContent.includes('2 of 3 screens real'); })() (last error context deadline exceeded, result null)
+--- FAIL: TestDevelopmentFrontBrowser (8.96s)
+FAIL
+FAIL	github.com/xianxu/pair/cmd/internal/mockserve	9.071s
+FAIL

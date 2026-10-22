@@ -1,0 +1,3 @@
+bin/
+.mock-current.lock
+.mock-current.tmp

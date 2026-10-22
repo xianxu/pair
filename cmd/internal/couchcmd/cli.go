@@ -10,6 +10,7 @@ import (
 	"github.com/xianxu/pair/cmd/internal/agentdrive"
 	"github.com/xianxu/pair/cmd/internal/couchcore"
 	"github.com/xianxu/pair/cmd/internal/couchmessage"
+	"github.com/xianxu/pair/cmd/internal/mockserve"
 	"github.com/xianxu/pair/cmd/internal/webcast/query"
 )
 
@@ -42,6 +43,7 @@ const (
 	// (#478); args holds the argv after the flag.
 	cliWebFidelity
 	cliSubmission
+	cliMock
 )
 
 type adoptionArgs struct {
@@ -120,6 +122,11 @@ func ParseCLI(args []string, operations []couchcore.Operation) (cliInvocation, e
 		switch args[0] {
 		case "--drain", "--undrain":
 			return parseDrainCLI(args)
+		case "mock":
+			if _, err := mockserve.ParseCommand(args[1:]); err != nil {
+				return cliInvocation{}, err
+			}
+			return cliInvocation{kind: cliMock, args: append([]string(nil), args[1:]...)}, nil
 		case "--keys", "--set-model", "--interrupt":
 			return parseAgentDriveCLI(args)
 		case "--move-slot":

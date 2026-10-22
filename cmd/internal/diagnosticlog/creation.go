@@ -54,7 +54,7 @@ func recoverCreation(path string, s *diskState, o Options) error {
 		if e != nil {
 			return e
 		}
-		if e = matches(staged, intended); e != nil {
+		if e = matchesRecovery(staged, intended, "creation"); e != nil {
 			return e
 		}
 		if err = o.checkContext(); err != nil {
@@ -75,11 +75,11 @@ func recoverCreation(path string, s *diskState, o Options) error {
 	if err != nil {
 		return err
 	}
-	if err = matches(st, intended); err != nil {
+	if err = matchesRecovery(st, intended, "creation"); err != nil {
 		return err
 	}
 	if staged, e := regular(stage); e == nil {
-		if e = matches(staged, intended); e != nil {
+		if e = matchesRecovery(staged, intended, "creation"); e != nil {
 			return e
 		}
 	} else if !os.IsNotExist(e) {

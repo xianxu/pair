@@ -19,7 +19,7 @@ import (
 // These frames model the CLI boundary of the v0.45.1 early-unblock race:
 // UnblockInput before Log can terminate one process successfully with no stdout.
 // They do not emulate Zellij's Rust IPC wire. A later Log belongs to a fresh,
-// explicitly requested observation, never an automatic retry of the first.
+// explicitly requested observation after the bounded read attempts are exhausted.
 type emptyReplyFrame struct {
 	Args           []string
 	Events         []string
@@ -93,6 +93,11 @@ func TestZellijEmptyReplyHelperProcess(t *testing.T) {
 	if err != nil {
 		fail(err)
 	}
+	// Count every child, including invocations that exceed the declared schedule.
+	// Otherwise a forbidden replay could fail here without changing calls().
+	if err = os.WriteFile(state, []byte(strconv.Itoa(n+1)), 0600); err != nil {
+		fail(err)
+	}
 	if n >= len(frames) {
 		fail(fmt.Errorf("unexpected automatic invocation %d", n+1))
 	}
@@ -106,9 +111,6 @@ func TestZellijEmptyReplyHelperProcess(t *testing.T) {
 	}
 	if !reflect.DeepEqual(args, frame.Args) {
 		fail(fmt.Errorf("invocation %d args %q, want %q", n, args, frame.Args))
-	}
-	if err = os.WriteFile(state, []byte(strconv.Itoa(n+1)), 0600); err != nil {
-		fail(err)
 	}
 	if len(frame.Events) == 0 {
 		fmt.Fprint(os.Stdout, frame.Stdout)
@@ -156,7 +158,9 @@ func TestZellijEmptyReplySnapshotIsNotAbsenceOrDetached(t *testing.T) {
 					frames = append(frames, emptyReplyFrame{Args: full, Stdout: zellijtest.Case(t, "launcher-frames-full").Stdout})
 					args = clients
 				}
-				frames = append(frames, earlyUnblockFrame(t, args, empty))
+				for attempt := 0; attempt < 3; attempt++ {
+					frames = append(frames, earlyUnblockFrame(t, args, empty))
+				}
 				firstCalls := len(frames)
 				frames = append(frames, emptyReplyFrame{Args: full, Events: []string{"Log", "UnblockInput"}, Stdout: zellijtest.Case(t, "launcher-frames-full").Stdout}, emptyReplyFrame{Args: clients, Stdout: zellijtest.Case(t, "launcher-frames-clients").Stdout})
 				fake := newEmptyReplyFake(t, frames...)
@@ -166,7 +170,7 @@ func TestZellijEmptyReplySnapshotIsNotAbsenceOrDetached(t *testing.T) {
 					t.Errorf("empty reply granted inventory authority: %+v", got)
 				}
 				if n := fake.calls(t); n != firstCalls {
-					t.Fatalf("automatic retry: calls %d want %d", n, firstCalls)
+					t.Fatalf("exhausted read calls %d want %d", n, firstCalls)
 				}
 				got, err = fake.source.Snapshot()
 				if err != nil || len(got) != 1 || got[0].State != SessionAttached {
@@ -181,14 +185,14 @@ func TestZellijEmptyReplySnapshotIsNotAbsenceOrDetached(t *testing.T) {
 }
 func TestZellijEmptyReplyLivenessIsNotAbsence(t *testing.T) {
 	full := []string{"list-sessions", "--no-formatting"}
-	fake := newEmptyReplyFake(t, earlyUnblockFrame(t, full, ""), emptyReplyFrame{Args: full, Stdout: zellijtest.Case(t, "launcher-frames-full").Stdout})
+	fake := newEmptyReplyFake(t, earlyUnblockFrame(t, full, ""), earlyUnblockFrame(t, full, ""), earlyUnblockFrame(t, full, ""), emptyReplyFrame{Args: full, Stdout: zellijtest.Case(t, "launcher-frames-full").Stdout})
 	got, err := fake.source.LivenessContext(context.Background())
 	assertEmptyReply(t, err)
-	if got != nil || fake.calls(t) != 1 {
+	if got != nil || fake.calls(t) != 3 {
 		t.Fatalf("uncertain liveness = %+v; calls %d", got, fake.calls(t))
 	}
 	got, err = fake.source.LivenessContext(context.Background())
-	if err != nil || len(got) != 1 || got[0].State != SessionLive || fake.calls(t) != 2 {
+	if err != nil || len(got) != 1 || got[0].State != SessionLive || fake.calls(t) != 4 {
 		t.Fatalf("fresh liveness = %+v %v; calls %d", got, err, fake.calls(t))
 	}
 }
@@ -227,28 +231,30 @@ func TestZellijEmptyReplyOwnerProbeGrantsNoAuthority(t *testing.T) {
 	valid := zellijtest.Case(t, "launcher-frames-owned-panes").Stdout
 	for _, empty := range []string{"", " \t\n"} {
 		t.Run(fmt.Sprintf("%q", empty), func(t *testing.T) {
-			fake := newEmptyReplyFake(t, earlyUnblockFrame(t, panes, empty), emptyReplyFrame{Args: panes, Events: []string{"Log", "UnblockInput"}, Stdout: valid}, emptyReplyFrame{Args: panes, Stdout: valid})
+			fake := newEmptyReplyFake(t, earlyUnblockFrame(t, panes, empty), earlyUnblockFrame(t, panes, empty), earlyUnblockFrame(t, panes, empty), emptyReplyFrame{Args: []string{"--version"}, Stdout: "zellij 0.45.1\n"}, emptyReplyFrame{Args: panes, Events: []string{"Log", "UnblockInput"}, Stdout: valid}, emptyReplyFrame{Args: panes, Stdout: valid})
 			io := &emptyReplyOwnerIO{source: fake.source, hasServer: true, server: SessionServerIdentity{PID: 37, Identity: "generation", Session: name, Socket: "/fake/socket"}}
 			probe := SessionOwnerProbe{IO: io}
 			got, err := probe.Probe(context.Background(), name, "/tmp/data", "0123456789abcdef", "1-repo-1")
 			assertEmptyReply(t, err)
-			if got.State != SessionOwnerUnknown || fake.calls(t) != 1 {
+			// Exactly three pane reads, followed by one failure-only version read.
+			if got.State != SessionOwnerUnknown || fake.calls(t) != 4 {
 				t.Fatalf("uncertain ownership = %+v; calls %d", got, fake.calls(t))
 			}
 			if err := probe.Revalidate(context.Background(), got); err == nil {
 				t.Fatal("uncertain ownership revalidated")
 			}
 			got, err = probe.Probe(context.Background(), name, "/tmp/data", "0123456789abcdef", "1-repo-1")
-			if err != nil || got.State != SessionOwnerOwned || fake.calls(t) != 3 {
+			if err != nil || got.State != SessionOwnerOwned || fake.calls(t) != 6 {
 				t.Fatalf("fresh ownership = %+v %v", got, err)
 			}
 		})
 	}
 	t.Run("no server still needs presence answer", func(t *testing.T) {
-		fake := newEmptyReplyFake(t, earlyUnblockFrame(t, []string{"list-sessions", "--no-formatting"}, ""))
+		args := []string{"list-sessions", "--no-formatting"}
+		fake := newEmptyReplyFake(t, earlyUnblockFrame(t, args, ""), earlyUnblockFrame(t, args, ""), earlyUnblockFrame(t, args, ""))
 		got, err := (SessionOwnerProbe{IO: &emptyReplyOwnerIO{source: fake.source}}).Probe(context.Background(), name, "/tmp/data", "0123456789abcdef", "1-repo-1")
 		assertEmptyReply(t, err)
-		if got.State != SessionOwnerUnknown || fake.calls(t) != 1 {
+		if got.State != SessionOwnerUnknown || fake.calls(t) != 3 {
 			t.Fatalf("no reply became absence: %+v", got)
 		}
 	})
@@ -260,9 +266,17 @@ func TestZellijEmptyReplyOwnerProbeGrantsNoAuthority(t *testing.T) {
 				raw = valid
 				want = "session server changed during observation"
 			}
-			fake := newEmptyReplyFake(t, emptyReplyFrame{Args: panes, Stdout: raw})
+			frames := []emptyReplyFrame{{Args: panes, Stdout: raw}}
+			if !change {
+				frames = append(frames, emptyReplyFrame{Args: []string{"--version"}, Stdout: "zellij 0.45.1\n"})
+			}
+			if change {
+				// The generation bracket surrounds both valid confirmation reads.
+				frames = append(frames, emptyReplyFrame{Args: panes, Stdout: raw})
+			}
+			fake := newEmptyReplyFake(t, frames...)
 			got, err := (SessionOwnerProbe{IO: &emptyReplyOwnerIO{source: fake.source, hasServer: true, changeGeneration: change, server: SessionServerIdentity{PID: 37, Identity: "generation", Session: name, Socket: "/fake/socket"}}}).Probe(context.Background(), name, "/tmp/data", "0123456789abcdef", "1-repo-1")
-			if err != nil || got.State != SessionOwnerUnknown || got.Diagnostic != want || fake.calls(t) != 1 {
+			if err != nil || got.State != SessionOwnerUnknown || got.Diagnostic != want || fake.calls(t) != len(frames) {
 				t.Fatalf("nonempty observation = %+v %v", got, err)
 			}
 		})
@@ -281,7 +295,7 @@ func TestZellijEmptyReplyOwnerPassAllowsFreshCLIObservation(t *testing.T) {
 	const name = "pair-a"
 	args := []string{"--session", name, "action", "list-panes", "--json", "--command"}
 	valid := zellijtest.Case(t, "launcher-frames-owned-panes").Stdout
-	fake := newEmptyReplyFake(t, earlyUnblockFrame(t, args, ""), emptyReplyFrame{Args: args, Events: []string{"Log", "UnblockInput"}, Stdout: valid}, emptyReplyFrame{Args: args, Stdout: valid})
+	fake := newEmptyReplyFake(t, earlyUnblockFrame(t, args, ""), earlyUnblockFrame(t, args, ""), earlyUnblockFrame(t, args, ""), emptyReplyFrame{Args: []string{"--version"}, Stdout: "zellij 0.45.1\n"}, emptyReplyFrame{Args: args, Events: []string{"Log", "UnblockInput"}, Stdout: valid}, emptyReplyFrame{Args: args, Stdout: valid})
 	world := &emptyReplyOwnerIO{source: fake.source, hasServer: true, server: SessionServerIdentity{PID: 7, Identity: "same", Session: name, Socket: "/fake/socket"}}
 	captures := 0
 	source := ownerPassSourceFunc(func(context.Context) (map[string]ServerState, error) {
@@ -291,11 +305,12 @@ func TestZellijEmptyReplyOwnerPassAllowsFreshCLIObservation(t *testing.T) {
 	pass := NewSessionOwnerPass(t.Context(), source, SessionOwnerProbe{IO: world})
 	got, err := pass.Probe(t.Context(), name, "/tmp/data", "0123456789abcdef", "1-repo-1")
 	assertEmptyReply(t, err)
-	if got.State != SessionOwnerUnknown || fake.calls(t) != 1 {
+	// Exactly three pane reads, followed by one failure-only version read.
+	if got.State != SessionOwnerUnknown || fake.calls(t) != 4 {
 		t.Fatal("pass authorized empty CLI reply")
 	}
 	got, err = pass.Probe(t.Context(), name, "/tmp/data", "0123456789abcdef", "1-repo-1")
-	if err != nil || got.State != SessionOwnerOwned || fake.calls(t) != 3 || captures != 1 {
+	if err != nil || got.State != SessionOwnerOwned || fake.calls(t) != 6 || captures != 1 {
 		t.Fatalf("fresh pane observation=%+v,%v; captures=%d", got, err, captures)
 	}
 }

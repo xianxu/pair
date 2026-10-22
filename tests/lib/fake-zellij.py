@@ -37,6 +37,8 @@ def target_pane(session, target):
 
 
 def dispatch(state, args, query):
+    if args == ["--version"]:
+        return "zellij 0.45.1\n"
     model = state["model"]
     sessions = model["sessions"]
     if "list-sessions" in args or "ls" in args:
@@ -65,7 +67,7 @@ def dispatch(state, args, query):
     supported = {"focus-pane-id", "write-chars", "write", "send-keys", "toggle-fullscreen",
                  "toggle-pane-embed-or-floating", "change-floating-pane-coordinates",
                  "show-floating-panes", "hide-floating-panes", "toggle-floating-panes",
-                 "next-swap-layout", "previous-swap-layout", "clear", "close-pane", "set-pane-color"}
+                 "next-swap-layout", "previous-swap-layout", "clear", "close-pane", "set-pane-color", "new-pane"}
     if action not in supported:
         raise ValueError("unsupported action: " + action)
     pane = None
@@ -73,10 +75,33 @@ def dispatch(state, args, query):
                   "toggle-pane-embed-or-floating", "change-floating-pane-coordinates", "clear", "close-pane", "set-pane-color"}:
         pane = target_pane(session, params[0] if action == "focus-pane-id" else option(params, "--pane-id"))
     requested_tab = option(params, "--tab-id")
+    if action == "new-pane" and requested_tab is not None and "--near-current-pane" in params:
+        raise ValueError("--tab-id conflicts with --near-current-pane")
     if requested_tab is not None and requested_tab != str(session["tab"]["tab_id"]):
         raise ValueError("requested tab is absent")
     target = identity(pane) if pane is not None else "tab_" + str(session["tab"]["tab_id"])
-    if action == "set-pane-color":
+    if action == "new-pane":
+        # Model the native returned pane and retained inventory, without executing
+        # its shell. Explicit tab targeting and no-focus match native placement.
+        command = params[params.index("--") + 1:]
+        if not command:
+            raise ValueError("new pane command missing")
+        caller = target_pane(session, os.environ.get("ZELLIJ_PANE_ID", "0"))
+        if requested_tab is not None and requested_tab != str(caller["tab_id"]):
+            raise ValueError("new pane target differs from invoking tab")
+        pane = dict(caller)
+        pane["id"] = max(int(p["id"]) for p in session["panes"] if not p["is_plugin"]) + 1
+        pane["is_plugin"] = False
+        pane["title"] = option(params, "--name", "terminal")
+        pane["terminal_command"] = None
+        pane["pane_command"] = " ".join(command)
+        pane["is_focused"] = "--no-focus" not in params
+        if pane["is_focused"]:
+            for old in session["panes"]:
+                old["is_focused"] = False
+        session["panes"].append(pane)
+        target = identity(pane)
+    elif action == "set-pane-color":
         pane["color"] = None if "--reset" in params else option(params, "--bg")
     elif action == "focus-pane-id":
         for other in session.get("panes") or []:
@@ -122,7 +147,7 @@ def dispatch(state, args, query):
     elif action == "close-pane":
         session["panes"].remove(pane)
     state["effects"].append(dict(query, action=action, target=target, is_plugin=pane["is_plugin"] if pane is not None else False))
-    return ""
+    return target + "\n" if action == "new-pane" else ""
 
 
 def main():

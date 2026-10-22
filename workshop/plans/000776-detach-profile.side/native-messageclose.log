@@ -1,0 +1,16 @@
+=== RUN   TestDetachCandidateComparison
+=== RUN   TestDetachCandidateComparison/current-4
+    detach_comparison_test.go:39: native fleet isolation: root=/Volumes/TestScratch/pc-86827902 run=4a49a7b58373b5b73661c23ff2333124 agent=claude workers=3
+    detach_comparison_test.go:50: PREPARE candidate=current total=4 root=/Volumes/TestScratch/pc-86827902
+    detach_comparison_test.go:59: START candidate=current total=4
+    detach_comparison_test.go:69: READY candidate=current slot=1/3
+    detach_comparison_test.go:69: READY candidate=current slot=2/3
+    detach_comparison_test.go:69: READY candidate=current slot=3/3
+    detach_comparison_test.go:94: COHORT READY candidate=current total=4; clock begins
+    detach_comparison_test.go:112: DETACH candidate=current total=4 physical_gesture=402.312708ms error=<nil>
+    fleet.go:460: native fleet cleaned: root=/Volumes/TestScratch/pc-86827902 all owned generations absent; direct child and IO joined
+    detach_comparison_test.go:137: CLEANED candidate=current total=4 exact generations absent, direct IO joined
+--- PASS: TestDetachCandidateComparison (28.29s)
+    --- PASS: TestDetachCandidateComparison/current-4 (28.29s)
+PASS
+ok  	github.com/xianxu/pair/cmd/couch	28.466s

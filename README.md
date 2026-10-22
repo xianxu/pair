@@ -32,6 +32,9 @@ Launches a `zellij` workbench in one of two layouts:
   overlays. At
   a shell prompt terminal-local chords are intercepted; draft-only Alt+Up/Down
   pass through to the shell.
+  Invalid backend cells display as `�` while the terminal keeps running. If the
+  wrapper itself fails, it restores the terminal and hands the pane to a plain
+  interactive shell. A missing right pane can be recreated with `Alt+Shift+t`.
 
 Layout flags are Pair-owned and may appear before or after the agent name but
 before `--`, for example `pair codex --layout3` or
@@ -168,7 +171,7 @@ adds context that a one-line description cannot carry.
 | **Alt+Shift+d** | layout 3 terminal | Split the right terminal downward; the new lower pane takes focus. `Alt+k` from the left returns to the split pane last used. |
 | **Alt+←** / **Alt+→** | layout 3 terminal | Switch local terminal tabs. |
 | **Shift+Alt+←** / **Shift+Alt+→** | any pane | Switch the right terminal's tabs from wherever you are, **without moving focus** — check another tab while you keep typing in the draft. |
-| **Shift+Alt+t** | any pane | Create a new right-terminal tab from wherever you are, without moving focus — works even while a full-screen app (nvim) owns the right pane. |
+| **Shift+Alt+t** | any pane | Create a new right-terminal tab from wherever you are, without moving focus — works even while a full-screen app (nvim) owns the right pane. If the right terminal is absent, recreate its pane after confirming the current tab. |
 | **Alt+c** | non-agent panes | Open/show/hide review. From the draft, restore the current review branch's document before toggling; pending work blocks switching documents. Without a review identity, offers `:PairReview`. |
 | **Alt+c** | review buffer (normal/insert) | Hide review and return to the draft. Esc keeps review open; insert/visual Esc leaves that mode, and normal Esc dismisses internal floats. |
 | **Enter** | review buffer (normal), on a compact marker | Open the editable comment thread (`:w` save, `q` save/close, `:q!` discard). |
@@ -487,7 +490,7 @@ couch --drain [--fast] [--json]
 couch --drain --status [--json]   anyone: inspect flagged slots and current activity observations
 couch --undrain [--message TEXT] [--json]
                          steward TL: clear flags and tell workers to continue their current work
-couch --resources [--json] cached process sample plus fresh hosted-ingest totals
+couch --resources [--json] cached process sample plus fresh hosted-ingest and supervision-log health
 couch --reap-orphans [--confirm] [--json]
                          the unattributed embedded nvim --resources named, and the processes a teardown left
                          running (an agent's setsid'd runner: a background build, test or merge); without
@@ -531,6 +534,12 @@ couch --session-sync register FILE --owner SLOT [--json]
                          keep agentic status outside the document until explicitly forgotten
 couch --session-sync lookup FILE | list | forget FILE | rename OLD NEW [--json]
                          discover bindings or update metadata after a filesystem move; see atlas/couch-agentic-documents.md
+couch --session-sync operator-acquire FILE --id ID --turn TOKEN --json
+couch --session-sync operator-release FILE --id ID --turn TOKEN --json
+                         editor-only: serialize registered operator protection with writer commits; return
+                         the canonical sidecar witness and exact turn ownership. Same-token retries recover
+                         lost replies; release removes only that turn. Full acknowledgment/retry/release
+                         contract: atlas/couch-agentic-documents.md (agents still hold no lock)
 couch --recover-plan-from-sdlc   per-slot recovery report (JSON), see below
 couch --resume repo:N [--json]   from a live slot: Continue if listed live, otherwise resume an established native binding
 couch --resume-candidates repo:N [--json]
@@ -627,7 +636,9 @@ Named raw steps are `text:…`, `enter`, `submit`, the arrows, `tab`,
 `clear-line`, `wait:MS`, `f1`–`f12`, `ctrl-LETTER` and `alt-LETTER`;
 `couch --keys --help` lists them and the refused chords. Ctrl+C is never a
 step: `couch --interrupt pair:7 --confirm` sends one into a working turn, refuses
-with no working turn, and is never retried. `enter` follows Pair's Return behavior: newline in
+with no working turn, and is never retried. Codex work is proved by its current
+Working or Waiting for… status with its interrupt hint above the composer; confirmation
+requires a fresh idle composer. `enter` follows Pair's Return behavior: newline in
 the composer, selection in a picker; `submit` follows Alt+Return. Each `esc`
 is a separate input step. Raw success confirms the writes and final observation.
 Use `--set-model` when you need a confirmed model, effort and scope: it follows
@@ -1254,6 +1265,27 @@ generation; gaps are not inactivity. The [offline labeling script](scripts/super
 compares observed writes within ten minutes without changing Couch decisions.
 See [the fact-log contract](atlas/couch.md#supervision-fact-log-543) for coverage and retention.
 
+`couch --resources [--json]` also reads the supervision logger's current health
+from memory: opening, working, unavailable, failed-write or closed, with offered,
+acknowledged-write and dropped counts, the last successful write, and a bounded
+last storage error. A recovered logger keeps its historical last error; its state
+shows whether writes currently work. These counters do not promise fsync durability
+or replay of lost facts. For unavailable/failed-write, report the shown error to
+the hub; for closed, ask the hub to restart Couch. An opening logger can be
+inspected again. Storage work never runs in this query or gates message admission.
+
+Use the rebuilt CLI with the rebuilt supervisor for this health field: an old CLI
+strictly rejects the added resource response field. A new CLI querying an older
+server prints `health unavailable`; absence is not a healthy empty stream. The
+default fact file is `~/.local/share/pair/couch/supervision.jsonl` (under the active
+Pair data directory if configured). It records completed observations, not every
+message hold: inspect `couch --message-status ID --json` for a retained delivery's
+current waiting reason. Logger health instrumentation alone does not repair a
+historically frozen stream. The measured startup failure was a persisted device
+number changing after remount; #774 rebinds a fully checkpointed file only when
+inode, size and nanosecond mtime still match. Unknown tails and interrupted
+transactions remain refused with their cause; no lost facts are replayed.
+
 Wrapper diagnostics batch at64KiB or every five seconds while dirty; raw capture
 and its offset sidecar flush every250ms. Orderly shutdown drains both. A process
 crash can lose pending buffers; optional diagnostics have no power-loss durability
@@ -1271,9 +1303,10 @@ captures use their separate age policy and exact reader protections.
 The tab bar starts with the hub, the checkout you started Couch from, and then
 lists every other slot grouped by repository:
 `ops  ariadne  :1  :2  blog  pair  :1  :2`. In the switcher the hub is the first line and the rest sit indented
-under it. The hub tab and switcher row use reversed colours as a bookmark;
-focus brackets still mark the active tab, and the selected hub row is bold
-with a cursor arrow. When the tabs don't fit, a repository's numbered slots fold into a
+under it. The hub tab uses reversed colours as a bookmark; switcher hub rows
+are underlined, and only the selected row uses reverse video. Focus brackets
+still mark the active tab, and a selected hub keeps its underline and bold
+cursor arrow. When the tabs don't fit, a repository's numbered slots fold into a
 count (`pair  +2`), starting from the right. A red, belled or focused tab is
 never folded away, and the switcher always lists everything.
 
@@ -1372,12 +1405,15 @@ slots blocked on a permission prompt or picker, and slots whose turn ended with
 a question to you. While the list has items, the right end of the status row
 shows `🔔N`, red if a slot is blocked on a prompt; click it to open the list too.
 The list opens at the top right. `Up`/`Down` (or `k`/`j`) move, `Enter` or a
-click jumps to the item's slot, `d` dismisses, and `Escape` closes. Picking a
-notification reads it, so it goes. A prompt or question stays until the slot
-stops waiting, whoever answered it. The list survives a Couch restart: messages
-come back as they were, and prompts and questions come back once the slot is
-seen still waiting. The list is never broadcast. The desktop notification still
-fires, and helps when the terminal is in the background.
+click jumps to the item's slot and removes the item, `d` dismisses, and
+`Escape` closes. Choose **Clear all** or press `c` to empty the list. Opening,
+dismissing or clearing a prompt/question hides that occurrence until the slot
+stops waiting; a fresh occurrence shows again. Notification messages expire
+after 12 hours; an unresolved live prompt/question never expires. The list is
+ephemeral: restart forgets messages and dismissals, then derives current live
+conditions again. The hub's Needs-you section holds the durable record. The
+list is never broadcast. Desktop notifications still help when the terminal
+is in the background.
 
 `Ctrl+Alt+b` **broadcasts** this screen, view-only, to anyone with the link
 (#395). The link is copied to your clipboard (it is never drawn on screen);
@@ -1569,6 +1605,39 @@ While anyone drives:
 
 Only the drive link offers driving; the view-only and pointer links never do.
 
+**Persistent sketches (#752).** 🤖~With annotation enabled, **Sketch** is available~{Console **Sketch** works with annotation off}
+🤖~to the casting-Chrome operator when nobody else drives, or to the currently~{when no viewer drives. Viewer Sketch requires annotation and the current}
+🤖~granted drive-link viewer. View-only and pointer links watch accepted sketches.~{driving seat. View-only and pointer links watch accepted sketches.}
+Choose a colour before starting; it stays fixed for that sketch. The tool holds
+the acknowledged recorded moment while the live cast continues. Pen pressure
+is preserved, mouse and touch use full pressure, and paths stream to observers
+before the pointer is released. Normal page input pauses without giving up the
+driving seat. If you try another stroke while the previous anchor is pending,
+Sketch shows **Finishing the previous stroke** and consumes that contact;
+start a fresh stroke after that wait. Anchor lookup has a five-second deadline.
+
+**Undo** and **Redo** affect the current unfinished sketch after its stroke is
+confirmed. **Done**, Escape, or choosing another tool shows **Saving…** while
+finishing the current stroke, then asks for a nonblank label. Escape from that
+prompt returns to the same held sketch. If saving cannot be confirmed within
+five seconds, **Couldn't save; accepted strokes kept** reports the failure. Use
+**Check confirmation** for an unknown write; a failed anchor leaves the label/escape action available.
+Press Enter or choose **Save label**; the requested tool opens only after confirmation.
+🤖{**Note** opens text for the unfinished sketch through that same save-and-label flow. The toolbar stays above the drawing surface, and Done is disabled until there is a sketch to finish.}
+A handoff interrupts drawing and
+keeps a separate **🤖<Label unfinished sketch>{Note}** action while the original UI and
+credentials survive. Accepted partial paths remain in the recording.
+
+If confirmation is uncertain, use **Check confirmation** before drawing more.
+It checks the original operation rather than creating a second stroke. A
+definite refusal can offer **Continue drawing** when the same drawing turn and
+held source remain valid; any accepted partial stroke is sealed before Undo or
+more drawing becomes available. Pause suspends drawing; navigation, handoff,
+clear, cast end, or two minutes without an accepted sketch mutation retire its
+source. Source preparation or history limits can refuse new work visibly.
+Recordings and read-only replay retain accepted sketches; unsent samples and
+unconfirmed label drafts are not durable. [Limits and private-scene flow](atlas/webcast.md#sketch-drawing-752).
+
 **Recording (#458).** From the first time you go live, the cast tab is recorded
 to `<couch store>/webcast/recordings/<id>/` (the format is in
 `atlas/webcast-format.md`): the page's DOM and every change to it, in every frame,
@@ -1588,7 +1657,7 @@ the binary to choose another (Couch refuses to start if it doesn't exist).
 record aren't in the recording. The viewer keeps their place at the operator's size and marks each with a dashed
 outline and a label such as "canvas: not captured", so the page never collapses around them.
 
-🤖{**Operator annotation in the cast Chrome (#494).** Use the viewer's same ✏️ and 💭 buttons in the cast Chrome to draw or leave a note on the actual page; hover for their tooltips. It starts Off; click the selected icon again or press Escape to turn annotation off. Couch’s Chrome Alt-click menu also offers Annotation · Off · Pen · Note without switching windows. Notes and strokes use the same recording and viewer display, attributed to Operator. While a remote viewer drives, annotations are disabled and an open draft is hidden and held; returning control makes annotation available again with the pen Off. A pause holds the draft, while navigation discards it. All Couch UI is excluded from page recording and hidden during fidelity and submission captures. Broadcast and driving control stay in Couch's cast row. If Couch reports uncertain remote input, close and reopen the cast Chrome to recover its hidden UI. The injected host shares the page DOM and is not a security boundary.}
+🤖{**Operator annotation in the cast Chrome (#494).** Use the viewer's same ✏️ and 💭 buttons in the cast Chrome to draw or leave a note on the actual page; hover for their tooltips. It starts Off; click the selected icon again or press Escape to turn annotation off. Couch’s Chrome Alt-click menu also offers Annotation · Off · Pen · Note without switching windows. Notes and strokes use the same recording and viewer display, attributed to Operator. While a remote viewer drives, annotations are disabled and an open draft is hidden and held; returning control makes annotation available again with the pen Off. A pause holds the draft, while navigation discards it. All Couch UI is excluded from page recording. Optional fidelity captures defer while a sketch/preparation or sketch/note editor is open, preserving visible controls and label focus; screenshots resume after that UI closes. Fidelity captures actually taken and explicit submission captures still hide private UI. Broadcast and driving control stay in Couch's cast row. If Couch reports uncertain remote input, close and reopen the cast Chrome to recover its hidden UI. The injected host shares the page DOM and is not a security boundary.}
 
 **Pointing and notes on a web cast (#470).** Anyone with the pointer link (👆) or the
 drive link can point and leave notes while annotation is enabled; the view-only
@@ -1659,8 +1728,7 @@ never see it.
   - Rotating disconnects everyone who used the old code.
   - Before pointing first makes the pointer link, its row shows `pointer (not made
     yet)`, with no actions; click `👆` to make it.
-- **Wrong guesses.** About 8 wrong tries on one code rotate it by themselves. Couch
-  says so, and viewers already in stay connected.
+- **Wrong guesses.** Every 8 wrong tries force a code change, with a Couch notice. After the third forced rotation, the link refuses new unlocks until you explicitly rotate it in the Codes menu. Successful unlocks do not reset that count; viewers already in stay connected. The third notice says the code changed and the link is locked until you rotate.
 - **What viewers see.** The codes show on your screen only, never in what the LIVE
   broadcast sends, and a notice says that a code changed, never what it is. A new code
   flashes three times over its cell.
@@ -1992,8 +2060,9 @@ For targeted tests, `PAIR_TEST_BINARY=/absolute/path/to/plain-pair go test ...`
 uses an existing executable without rebuilding or deleting it. With the variable
 unset, Go consumers lazily build once per package; their `TestMain` calls
 `testpair.Run` after helper dispatch to remove only that owned fallback after
-all tests finish. Private executable names use hard links (copies across
-filesystems). Standalone shell consumers use the same builder, which locates
+all tests finish. Private executable names use hard links (symlinks across
+filesystems) to preserve the shared image; fresh copies can trigger another macOS
+security assessment before the CLI runs. Standalone shell consumers use the same builder, which locates
 its checkout independently of the caller's working directory.
 
 Native diagnostic-log open-file conformance skips with a named reason when `lsof`
@@ -2010,6 +2079,11 @@ answer with a wrong holder or process identity fails in both modes.
 Affected branch checks use `.sdlc/affected.json` and `make test-affected` once the
 installed SDLC supports ariadne#473. SDLC reads the declaration from main and
 supplies `SDLC_AFFECTED_GO_PKGS` (exact import paths) and `SDLC_AFFECTED_GROUPS`.
+Before close or re-close, run `make test-affected-inventory`. It audits tracked
+Go test readers without building Go or running the seeded guard tests, and is
+also the affected runner's first step. Failures name each reader and print its
+per-file record or removal command. Audit its repository inputs and fixed
+preflight coverage before recording a disposition; never refresh hashes in bulk.
 For a manual selected run:
 
 ```bash
@@ -2035,6 +2109,15 @@ Every valid selection runs the environment-inventory guard `test-make-env` once
 The independent per-recipe audit in `tests/affected-consumers.json` asserts the
 real planner covers command roots, dependencies and file inputs. A separate
 Go-reader inventory refuses new or changed unmapped source readers for re-audit.
+Each certificate lives at `tests/affected-readers/<reader-path>.json`, with its
+explicit disposition and SHA256. After re-auditing a reader's inputs and scanner
+coverage, regenerate only that certificate with
+`make affected-readers READER=cmd/path/example_test.go DISPOSITION=local_or_literal_fixture`
+(or `fixed_scanner` / `non_go_full_fallback`, as audited). New readers must be
+tracked first; source scanners require every test registered in `SOURCE_GUARDS`.
+`make test-affected-inventory` checks all certificates without refreshing hashes.
+For a removed reader, run the exact `--remove` command printed by the audit.
+Independent reader edits share no certificate or generated index.
 An independent source-walker check requires preflight registration even for a
 reader labelled as a local fixture; a native seeded-violation regression drives
 the actual affected command in a disposable checkout.
@@ -2060,6 +2143,15 @@ Existing sleep debt lives only in `internal/repolint/sleep-debt.json`: remove an
 entry when replacing its sleep, and never add entries or inline sleep exemptions.
 See the [Go lint catalog](atlas/go-lint-catalog.md) for scanner scope, module
 updates and the temporary debt contract.
+
+Ordinary Darwin+cgo package tests using `testdisk.RunWithWriteBudget` disable
+Go test-result caching before the measured callback. This avoids charging Go's
+filesystem-access trace to the fixture-write cap; build caching remains enabled.
+Plain `go test` therefore executes these measured packages again on a warm cache,
+just as `-count=1` does, while explicit repetition counts keep their meaning.
+The diagnostic says `test-result cache disabled` when a trace was requested.
+Real payload writes remain subject to the same caps. Benchmark/fuzz workloads
+and unsupported native counters keep their existing coverage policy.
 
 Pair and wrapper subprocess fixtures use `testpair.Environment(t, disposableRoot,
 explicitEntries...)`. It delegates to `tests/lib/pair-test-env.sh`, the shared
@@ -2110,7 +2202,7 @@ From a non-agent Pair pane, detach with `Alt+d`. For Couch-managed work, use the
 
 ## History backup
 
-🤖{Use `pair archive inventory` to inspect supported history sources and `pair archive create --request /private/tmp/pair-archive-request.json` to back up explicitly selected stable files. Creation streams tar through zstd (`-9 -T0` for Codex databases, `-19 -T0` for other kinds) and GPG public-key encryption, verifies stored ciphertext and records the result in a private local catalog; it preserves source files. Install `gpg` and `zstd`, supply a trusted full public-key fingerprint and separate source, sink and catalog paths. No private key is needed for creation. [History backup](atlas/history-backup.md) documents the request JSON, defaults, limits, retry behavior and operator key-recovery checklist. `pair archive continuous` runs one pass over agent transcripts, Codex databases, ops documents and sdlc data, configured by `$PAIR_DATA_DIR/archive/continuous.json`: it archives files once they have been unmodified for three days, each file once by content hash, and takes coherent private snapshots of Codex databases through bounded read-only SQLite transactions or, for observed cold WAL files without sidecars, two verified descriptor reads into a private copy; Couch runs it daily when configured and warns once per database per UTC day when a failed/deferred check has no verified backup or one older than `PAIR_ARCHIVE_DATABASE_MAX_AGE` (default `48h`); currently validated unchanged databases stay healthy. Continuous mode also copies the encrypted bundles and public labels to the configured rclone destination (default `pair-backup:backups/pair-history`) after local backup succeeds, using one batch with up to eight transfers. When running from a Pair-slot terminal, set `PAIR_DATA_DIR="$HOME/.local/share/pair"` explicitly to select the shared configuration. Install and configure `rclone` separately; optional `drive_remote` and `drive_folder` settings select the destination. Drive failures leave local backup intact and print a pending/unavailable note. The same listings supply a before/after file count; Couch warns once per destination root per UTC day above `PAIR_ARCHIVE_DRIVE_MAX_FILES` (default `20000`), suggesting year subfolders. An unavailable count stays unknown. Verified upload receipts are kept separately from the local catalog. `pair archive find [--kind KIND] [--since UTC] [--until UTC]` searches local public labels without network calls; `pair archive sync-index --from drive` reconstructs the separate label/location index by downloading labels only. Dated observed/verified location evidence remains separate from local backup authority. Use `pair archive restore --id ID --to /absolute/private-scratch/new-child [--from auto|local|drive] [--path REL]` to recover verified files; repeat `--id` and literal `--path` as needed. Restore checks the downloaded ciphertext and every archived member, then publishes only a complete fresh directory after decryption succeeds. It uses the operator’s installed private key through normal GPG pinentry; it never imports files into live agent roots. Sources remain unchanged. See the [Drive verification and retry guide](atlas/history-backup.md#drive-copies-678).}
+🤖{Use `pair archive inventory` to inspect supported history sources and `pair archive create --request /private/tmp/pair-archive-request.json` to back up explicitly selected stable files. Creation streams tar through zstd (`-9 -T0` for Codex databases, `-19 -T0` for other kinds) and GPG public-key encryption, verifies stored ciphertext and records the result in a private local catalog; it preserves source files. Install `gpg` and `zstd`, supply a trusted full public-key fingerprint and separate source, sink and catalog paths. No private key is needed for creation. [History backup](atlas/history-backup.md) documents the request JSON, defaults, limits, retry behavior and operator key-recovery checklist. `pair archive continuous` runs one pass over agent transcripts, Codex databases, ops documents and sdlc data, configured by `$PAIR_DATA_DIR/archive/continuous.json`: it archives files once they have been unmodified for three days, each file once by content hash, and takes coherent private snapshots of Codex databases through bounded read-only SQLite transactions or, for observed cold WAL files without sidecars, two verified descriptor reads into a private copy; Couch runs it daily when configured and warns once per database per UTC day when a failed/deferred check has no verified backup or one older than `PAIR_ARCHIVE_DATABASE_MAX_AGE` (default `48h`); currently validated unchanged databases stay healthy. Continuous mode also copies the encrypted bundles and public labels to the configured rclone destination (default `pair-backup:backups/pair-history`) after local backup succeeds. New pairs go to `<destination>/<YYYY>/<MM>/` using the bundle’s UTC start month. Existing flat pairs remain valid and are not moved; partial or ambiguous legacy pairs require inspection. Each active physical folder uses one batch with up to eight transfers, with one shared 4 GiB complete-pair budget across the pass. Upload lists the legacy root and only current or pending months; valid receipts do not trigger historical month scans. When running from a Pair-slot terminal, set `PAIR_DATA_DIR="$HOME/.local/share/pair"` explicitly to select the shared configuration. Install and configure `rclone` separately; optional `drive_remote` and `drive_folder` settings select the destination. Drive failures leave local backup intact and print a pending/unavailable note. The same listings supply a before/after file count; Couch warns once per observed physical folder per UTC day above `PAIR_ARCHIVE_DRIVE_MAX_FILES` (default `20000`), asking the hub to inspect that folder and archive policy. Root/month counts remain separate; they never claim a whole-tree total. An unavailable count stays unknown. Verified upload receipts are kept separately from the local catalog. `pair archive find [--kind KIND] [--since UTC] [--until UTC]` searches local public labels without network calls; `pair archive sync-index --from drive` reconstructs the separate label/location index across legacy root and YYYY/MM folders by downloading labels only; it publishes one complete snapshot or retains the prior one on failure. Dated observed/verified location evidence remains separate from local backup authority. Use `pair archive restore --id ID --to /absolute/private-scratch/new-child [--from auto|local|drive] [--path REL]` to recover verified files; repeat `--id` and literal `--path` as needed. Drive restore uses the recorded physical location and confirms its current folder identity; absent location records require sync-index, and a bad selected copy is refused. Restore checks the downloaded ciphertext and every archived member, then publishes only a complete fresh directory after decryption succeeds. It uses the operator’s installed private key through normal GPG pinentry; it never imports files into live agent roots. Sources remain unchanged. See the [Drive verification and retry guide](atlas/history-backup.md#drive-copies-678).}
 
 ## Storage retention
 
@@ -2409,6 +2501,21 @@ log before scratch cleanup. For manual Go runs, add `-artifacts -outputdir
 The [oracle guide](tests/terminal-oracle/README.md) covers replay, headless controls
 and report limitations; a diagnostic pass does not establish a crash fix.
 
+For a standalone Zellij 0.45.1 lookup-race reproduction, run
+`bash scripts/repro/zellij-false-miss.sh 1000 4`. It uses three private sessions
+without Pair or Couch; see the [repro guide](scripts/repro/README.md) for counters
+and liveness limits. `make zellij-false-miss` explicitly runs its Python
+regressions followed by the default native diagnostic (1,000 queries/four
+workers). It is opt-in and is not part of `make test`.
+
+For disposable multi-slot Couch acceptance, run `make test-couch-fleet`. It uses
+the shared native fleet helper with real Zellij, Pair/wrappers and provisioned
+workspaces, plus deterministic Claude/Codex fixtures. It requires installed
+SDLC/Weave, Git, Zellij and nvim, and uses private state and queue roots without
+models or credentials. Portable helper tests run normally; the native consumer
+opts in only through this target or `PAIR_NATIVE_COUCH_FLEET=1`.
+See [fleet ownership and evidence](atlas/couch-testing.md).
+
 `tests/terminal-performance.py --help` describes isolated baseline/candidate
 measurements using real Pair terminal processes and independent screen receipts.
 Those timings include interpreter IPC and parsing; measured resource figures are
@@ -2440,3 +2547,15 @@ Repeat the same command after interrupted setup. Completed work is reused;
 unconfirmed setup reruns `weave compile`. This operation prepares directories
 without starting an agent. See the [workspace provisioning contract](atlas/workspace-provisioning.md)
 for remote selection, paths and the separate lifecycle/UI integration work.
+
+## Clickable project mocks
+
+Run `couch mock serve examples/couch-mocks` and open the printed loopback URL. It serves plain HTML/CSS/JS, reloads on edits, and opens no browser. `--port N` after the directory selects a port; the default chooses a free one. Stop with Ctrl-C.
+
+Keep `mock-1/`, `mock-2/`, … alongside one shared `fixtures.json`. The highest numbered version shows by default. `couch mock use examples/couch-mocks mock-1` selects an existing direction without restarting the server; `.mock-current` remembers that explicit choice. Remove that file to return to the highest-numbered default. A switch preserves the current screen when available, otherwise opens the selected version's index.
+
+Every screen fetches `/fixtures.json`. Write a state list in the project's `design.md`, including empty, error and long-list cases and links between screens. The fixture shape is the future backend response contract. The sample has three linked screens, two directions and scenario links. Each served HTML root carries `data-mock-version` and `data-mock-screen`; version URLs make the iteration explicit.
+
+Commit each feedback round to the current version and revert that commit to undo it. Make a new mock-N+1 for a new direction worth comparing. The server does not invoke git or make versions. Reload resets transient browser state; invalid input shows a repairable preview error. Selection uses two reserved, git-ignored lock/staging files, excluded from reload and caps; an interrupted writer is recovered by the next selection. Limits are 1,024 project directory entries, 32 MiB total regular-file contents and 1 MiB per HTML file; symlinks/special files are refused. Only version assets and the root fixtures are served, on 127.0.0.1. See [the server map](atlas/mock-server.md).
+
+🤖{To grow a real app screen by screen, start its own development command and run `couch mock serve mocks/ --real http://localhost:3000` in front. One `screens.json` chooses real or mock per screen; mock pages show MOCK and progress. Cross-boundary links load a full document. `couch mock check mocks/` reports unfinished screens without refusing a valid build. Production uses only your app stack: unfinished screens show **Not implemented yet** with a way back and marked links; never ship mock code, fixtures or badges. See the [Go worked sample](examples/mock-to-real/README.md) and [feature map](atlas/mock-to-real.md).}

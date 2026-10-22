@@ -2,9 +2,10 @@
 // (recording.State.Apply) and of State.Canonical(). It holds no DOM; the
 // renderer draws what this model accepted. Where the two disagree the Go
 // package is right: the node tests hold this port to every fixture's pinned
-// canonical hash, so a drift is a red test. Control (ctl records, a
-// record's driver attribution, #466) is not modelled: it draws nothing, so
-// the viewer accepts it as it comes, and #467 follows it through onRecord.
+// canonical hash, so a drift is a red test. Sketch history and control
+// transitions share their own pure core, outside legacy DOM hashes.
+
+import { SKETCH_KINDS, createSketchState, nextSketch, sketchProjection, sketchMetadata, sketchContextEffect, nextSketchControl, restoreSketchState, snapshotControl } from './sketch-model.js';
 
 export const VERSION = 1;
 
@@ -64,12 +65,22 @@ const signature = (n) => `${n.y}:${n.ns || ''}:${n.n || ''}`;
 // record in atomically: it checks every reference first and throws on a
 // refusal, leaving the state as it was.
 export class Model {
+  #sketches;
+  #control;
+  #ctlSeen;
+
+  // Control and sketch projections are owned read views. Only apply() can
+  // change the accepted history, receipts and driving generation.
+  get control() { return structuredClone(this.#control); }
+
   // paused: a page was cast and the cast is paused on it (not ended). The
   // one viewer-side rule for "viewers do nothing" (pair#499), as Go's
   // recording.State.Paused.
   get paused() { return this.seg > 0 && !this.live && !this.ended; }
 
-  constructor() {
+  constructor({allowSketchSnapshot = false} = {}) {
+    this.allowSketchSnapshot = allowSketchSnapshot;
+    this.#sketches = createSketchState(); this.#control = {driver:null,pending:[]}; this.#ctlSeen = false;
     this.head = null;
     this.t = 0;
     this.seg = 0; this.docSeg = 0; this.why = ''; this.live = false;
@@ -95,10 +106,35 @@ export class Model {
 
   node(id) { return this.nodes.get(id); }
 
+  sketchProjection() { return sketchProjection(this.#sketches); }
+  sketchMetadata(sketch, stroke) { return sketchMetadata(this.#sketches, sketch, stroke); }
+
   apply(r) {
     if (!this.head) {
       if (r.k !== 'head') fail('the first record must be head');
       if (r.v !== VERSION) fail(`format version ${r.v}; this reader knows ${VERSION}`);
+    }
+    if (r.k === 'sketch-snapshot') {
+      if (!this.allowSketchSnapshot) fail('sketch snapshot is catch-up only');
+      if (!Number.isSafeInteger(r.t) || r.t < this.t) fail('invalid snapshot time');
+      const control = snapshotControl(r.control), sketches = restoreSketchState(r.sketches);
+      if (this.ended && sketches.active) fail('ended snapshot still drawing');
+      if (sketches.active) {
+        const begin = sketches.sketches.get(sketches.active).begin;
+        if (begin.doc !== this.docSeg || begin.tab !== this.tab.id) fail('snapshot active source differs');
+        if (begin.author.id !== (control.driver?.id || 'operator')) fail('snapshot active author is not driving');
+      }
+      this.#control = control; this.#sketches = sketches; this.#ctlSeen = true; this.t = r.t;
+      return;
+    }
+    if (SKETCH_KINDS.includes(r.k)) {
+      const delta = nextSketch(this.#sketches, r, {
+        live: this.live, ended: this.ended, doc: this.docSeg,
+        tab: this.tab.id, driver: this.#control.driver?.id || '',
+      });
+      if (delta.duplicate) return;
+      if (r.t < this.t) fail(`t=${r.t} is before the previous record's t=${this.t}`);
+      delta.commit(); this.t = r.t; return;
     }
     if (r.t < this.t) fail(`t=${r.t} is before the previous record's t=${this.t}`);
     checkRecord(r);
@@ -116,6 +152,7 @@ export class Model {
         this.head = r; return;
       case 'seg':
         if (r.seg <= this.seg) fail(`segment ${r.seg} after segment ${this.seg}`);
+        if (r.why !== 'resume' || (r.tab?.id || '') !== this.tab.id) sketchContextEffect(this.#sketches,'interrupt','navigation');
         this.resetDOM();
         this.seg = r.seg; this.why = r.why; this.live = true; this.tab = r.tab || { id: '', url: '' }; this.vp = vpOf(r.vp);
         if (r.why !== 'resume' || this.docSeg === 0) this.docSeg = r.seg;
@@ -123,9 +160,18 @@ export class Model {
         return;
       case 'stop':
         if (!this.live) fail('stop without a live segment');
+        sketchContextEffect(this.#sketches,r.why==='pause'?'pause':'interrupt','end');
         this.live = false; this.awaitTop = false;
-        if (r.why === 'end') this.ended = true;
+        if (r.why === 'end') { this.ended = true; this.#control={driver:null,pending:[]}; }
         return;
+      case 'ctl': {
+        const next = nextSketchControl(this.#control, r, this.#ctlSeen);
+        if (r.op === 'reset') sketchContextEffect(this.#sketches, 'interrupt', 'reset');
+        else if ((this.#control.driver?.id || '') !== (next.driver?.id || '')) {
+          sketchContextEffect(this.#sketches, 'interrupt', 'handoff');
+        }
+        this.#control = next; this.#ctlSeen = true; return;
+      }
       case 'doc': return this.applyDoc(r);
       case 'asset': this.assets.set(r.url, r); return;
       case 'note': this.notes.push({ note: r, state: 'open', seg: this.seg }); return;
@@ -143,7 +189,7 @@ export class Model {
         n.resolvedBy = r.state === 'resolved' && r.who ? { ...r.who } : null; return;
       }
       case 'stroke': this.strokes.push({ stroke: r, seg: this.seg }); return;
-      case 'annotation-clear': this.notes = []; this.strokes = []; return;
+      case 'annotation-clear': sketchContextEffect(this.#sketches,'clear'); this.notes = []; this.strokes = []; return;
       case 'frame': return;
       case 'ins': case 'rm': case 'kids': case 'attr': case 'text': case 'shadow': case 'sheet': case 'adopt':
       case 'font': case 'input': case 'scroll': case 'selection': case 'nav': case 'title': case 'vp':

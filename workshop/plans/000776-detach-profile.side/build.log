@@ -1,0 +1,36 @@
+['/opt/homebrew/Cellar/go/1.27.1/libexec/bin/go', 'version']
+go version go1.27.1 darwin/arm64
+
+['/usr/bin/git', '--version']
+git version 2.54.0 (Apple Git-157)
+
+['/Users/xianxu/workspace/ariadne/bin/sdlc', '--version']
+sdlc version path=/Users/xianxu/workspace/ariadne/bin/sdlc revision=510aab6ff3a55bfdf5472e45eedf5512f6d04420 modified=false
+
+['/Users/xianxu/workspace/ariadne/bin/weave', '--version']
+weave version dev
+
+['/opt/homebrew/Cellar/zellij/0.45.1/bin/zellij', '--version']
+zellij 0.45.1
+
+['/opt/homebrew/opt/nvim-0.11/bin/nvim', '--version']
+NVIM v0.11.7
+Build type: Release
+LuaJIT 2.1.1741730670
+Run "nvim -V1 -v" for more info
+
+['/opt/homebrew/Cellar/go/1.27.1/libexec/bin/go', 'run', '-p', '4', './cmd/internal/runtimebundle/generatecmd', '--repo', '.', '--out', 'cmd/internal/runtimebundle/assets/runtime']
+['/opt/homebrew/Cellar/go/1.27.1/libexec/bin/go', 'build', '-p', '4', '-o', '/Volumes/TestScratch/detach-compare.O0eTeh/bin-old/couch', './cmd/couch']
+exit=0 elapsed=10.463
+['/opt/homebrew/Cellar/go/1.27.1/libexec/bin/go', 'build', '-p', '4', '-o', '/Volumes/TestScratch/detach-compare.O0eTeh/bin-old/pair', './cmd/pair-go']
+exit=0 elapsed=1.943
+['/opt/homebrew/Cellar/go/1.27.1/libexec/bin/go', 'build', '-p', '4', '-o', '/Volumes/TestScratch/detach-compare.O0eTeh/bin-old/pair-launch-helper', './cmd/pair-launch-helper']
+exit=0 elapsed=0.602
+['/opt/homebrew/Cellar/go/1.27.1/libexec/bin/go', 'run', '-p', '4', './cmd/internal/runtimebundle/generatecmd', '--repo', '.', '--out', 'cmd/internal/runtimebundle/assets/runtime']
+['/opt/homebrew/Cellar/go/1.27.1/libexec/bin/go', 'build', '-p', '4', '-o', '/Volumes/TestScratch/detach-compare.O0eTeh/bin-current/couch', './cmd/couch']
+exit=0 elapsed=6.598
+['/opt/homebrew/Cellar/go/1.27.1/libexec/bin/go', 'build', '-p', '4', '-o', '/Volumes/TestScratch/detach-compare.O0eTeh/bin-current/pair', './cmd/pair-go']
+exit=0 elapsed=1.877
+['/opt/homebrew/Cellar/go/1.27.1/libexec/bin/go', 'build', '-p', '4', '-o', '/Volumes/TestScratch/detach-compare.O0eTeh/bin-current/pair-launch-helper', './cmd/pair-launch-helper']
+exit=0 elapsed=0.651
+['/opt/homebrew/Cellar/go/1.27.1/libexec/bin/go', 'build', '-p', '4', '-o', '/Volumes/TestScratch/detach-compare.O0eTeh/bin-shared/fixture-agent', './cmd/internal/testcouch/agentfixture/cmd']

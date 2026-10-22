@@ -653,7 +653,6 @@ func (c *Couch) spawnResolved(ctx context.Context, resolution StartResolution, r
 // inside the same rollback as everything else here.
 type claimedLaunch struct {
 	Readiness    WorkspaceReadiness
-	Prompt       string
 	Context      context.Context
 	Thread       ThreadRecord
 	Nonce        string
@@ -682,11 +681,7 @@ func (c *Couch) launchClaimedThread(in claimedLaunch) (ActorRecord, Handle, erro
 			return ActorRecord{}, nil, errors.Join(err, c.rollbackTrackedStart(thread, nonce))
 		}
 	}
-	buildProfile := launcher.BuildCouchLaunchProfile
-	if in.Prompt != "" {
-		buildProfile = launcher.BuildCouchFreshLaunchProfile
-	}
-	profileRaw, err := buildProfile(
+	profileRaw, err := launcher.BuildCouchLaunchProfile(
 		string(thread.Address.Tag), profile.Profile.Agent, profile.Profile.Argv,
 		string(profile.AgentSource), string(profile.ArgvSource),
 	)
@@ -700,7 +695,6 @@ func (c *Couch) launchClaimedThread(in claimedLaunch) (ActorRecord, Handle, erro
 		Context: ctx,
 		Thread:  thread, Nonce: nonce, Args: args, StartedAt: in.StartedAt,
 		ProfileRaw: profileRaw, UseRepoDefault: profile.ArgvSource == ArgvSourceRepoDefault,
-		Fresh: in.Prompt != "", Prompt: in.Prompt, Recovery: in.Prompt != "",
 	})
 }
 

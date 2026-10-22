@@ -1,0 +1,8 @@
+{
+  "go": "/opt/homebrew/Cellar/go/1.27.1/libexec/bin/go",
+  "git": "/usr/bin/git",
+  "sdlc": "/Users/xianxu/workspace/ariadne/bin/sdlc",
+  "weave": "/Users/xianxu/workspace/ariadne/bin/weave",
+  "zellij": "/opt/homebrew/Cellar/zellij/0.45.1/bin/zellij",
+  "nvim": "/opt/homebrew/opt/nvim-0.11/bin/nvim"
+}

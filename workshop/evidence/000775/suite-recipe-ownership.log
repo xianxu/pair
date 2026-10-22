@@ -1,0 +1,26 @@
+python3 -B tests/zellij-false-miss-test.py
+...............
+----------------------------------------------------------------------
+Ran 15 tests in 5.566s
+
+OK
+bash tests/lib/with-pair-test-binary.sh /Library/Developer/CommandLineTools/usr/bin/make test
+go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime
+python3 -B tests/test-affected-test.py
+.......F....
+======================================================================
+FAIL: test_recipe_ownership (__main__.MakeEntrypoint.test_recipe_ownership)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Volumes/TestScratch/local-checks/sdlc-local-1040729841/tests/test-affected-test.py", line 202, in test_recipe_ownership
+    self.assertEqual(set(flat), expected)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Items in the second set but not the first:
+'test-zellij-false-miss'
+
+----------------------------------------------------------------------
+Ran 12 tests in 9.492s
+
+FAILED (failures=1)
+make[1]: *** [test-affected-runner] Error 1
+make: *** [test] Error 2

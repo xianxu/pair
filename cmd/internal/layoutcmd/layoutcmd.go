@@ -208,6 +208,9 @@ func SwitchRightTerminalTabContext(ctx context.Context, rt Runtime, chord workbe
 	if err := ctx.Err(); err != nil {
 		return err
 	}
+	if chord == workbenchshortcut.ChordAltShiftT {
+		return newRightTerminalTabContext(ctx, rt)
+	}
 	terminal, ok, err := resolveRightTerminalContext(ctx, rt)
 	if err != nil {
 		return err
@@ -224,6 +227,31 @@ func SwitchRightTerminalTabContext(ctx context.Context, rt Runtime, chord workbe
 	return zellijreply.Effect(ctx, func() error {
 		return rt.RunZellijAction(args...)
 	})
+}
+
+// Creating a terminal requires positive native absence, even when a stale
+// registration can still name the pane that disappeared. The confirmed caller
+// tab is also supplied to the effect so client focus cannot redirect creation.
+func newRightTerminalTabContext(ctx context.Context, rt Runtime) error {
+	last, err := rt.LastTerminalPaneID()
+	if err != nil {
+		last = ""
+	}
+	ids, err := rt.TerminalPaneIDs()
+	if err != nil {
+		ids = nil
+	}
+	panes, tab, _, err := ConfirmWorkbenchPanesContext(ctx, rt, rt.CurrentPaneID(), ids)
+	if err != nil {
+		return err
+	}
+	var args []string
+	if target, ok := pickRightTerminal(panes, last, ids); ok {
+		args, _ = workbenchshortcut.DeliverChordArgs(target.ID, workbenchshortcut.ChordAltShiftT)
+	} else {
+		args = []string{"new-pane", "--direction", "right", "--tab-id", strconv.Itoa(tab), "--no-focus", "--name", "terminal", "--", "sh", "-c", workbenchshortcut.RightTerminalPaneShell}
+	}
+	return zellijreply.Effect(ctx, func() error { return rt.RunZellijAction(args...) })
 }
 
 // RunSwitchTerminalTab is the CLI entry the draft pane's Lua function calls, so

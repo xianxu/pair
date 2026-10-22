@@ -11,7 +11,7 @@ import (
 func TestOperatorModuleAssembly(t *testing.T) {
 	for _, source := range []string{
 		"export default 1;", "import x from './unknown.js';", "export * from './unknown.js';",
-		"import { x } from './unknown.js';", "export class X {}",
+		"import { x } from './unknown.js';", "export class {}",
 	} {
 		if _, err := assembleOperatorModule(source, nil); err == nil {
 			t.Errorf("unsupported module admitted: %s", source)
@@ -59,4 +59,20 @@ func runOperatorJS(t *testing.T, source string) {
 	if out, err := cmd.CombinedOutput(); err != nil {
 		t.Fatalf("assembled JavaScript: %v\n%s", err, out)
 	}
+}
+
+func TestOperatorNamedClassModuleAssembly(t *testing.T) {
+	js, err := assembleOperatorModule("export class Scene { value(){return 42;} }", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	runOperatorJS(t, "const m="+js+"; if(new m.Scene().value()!==42)throw Error('named class');")
+}
+
+func TestOperatorSketchSharedBundleExecutes(t *testing.T) {
+	script := buildOperatorScript()
+	if !strings.Contains(script, "mountOperatorSketch") || !strings.Contains(script, "__couchcastSketchDelivery") {
+		t.Fatal("shared sketch adapter absent from console")
+	}
+	runOperatorJS(t, "globalThis.document=undefined;"+strings.Split(script, "\n"+controlJS)[0])
 }

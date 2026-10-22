@@ -1,0 +1,99 @@
+[
+  {
+    "name": "launcher-evidence-version",
+    "source": "cmd/internal/launcher/zellij_query_evidence_test.go:evidenceVersionShell",
+    "kind": "fault",
+    "decoder": "panes",
+    "expect": "reject",
+    "payload": {
+      "stdout": "zellij 0.45.1",
+      "stderr": "",
+      "code": 0
+    }
+  },
+  {
+    "name": "launcher-evidence-chain-malformed",
+    "source": "cmd/internal/launcher/zellij_query_evidence_test.go:TestSessionOwnerFailureEvidenceChainsObserver",
+    "kind": "fault",
+    "decoder": "panes",
+    "expect": "reject",
+    "payload": {
+      "stdout": "{bad",
+      "stderr": "native stderr",
+      "code": 0
+    }
+  },
+  {
+    "name": "launcher-evidence-observer-malformed",
+    "source": "cmd/internal/launcher/zellij_query_evidence_test.go:TestSessionOwnerEvidenceOwnsObserverBytes",
+    "kind": "fault",
+    "decoder": "panes",
+    "expect": "reject",
+    "payload": {
+      "stdout": "{bad",
+      "stderr": "stderr",
+      "code": 0
+    }
+  },
+  {
+    "name": "launcher-evidence-empty",
+    "source": "cmd/internal/launcher/zellij_query_evidence_test.go:TestSessionOwnerExhaustedQueryPreservesCauseAndEvidence",
+    "kind": "fault",
+    "decoder": "panes",
+    "expect": "reject",
+    "payload": {
+      "stdout": "",
+      "stderr": "",
+      "code": 0
+    }
+  },
+  {
+    "name": "launcher-evidence-cancelled",
+    "source": "cmd/internal/launcher/zellij_query_evidence_test.go:cancelledEvidenceOwnerWorld",
+    "kind": "fault",
+    "decoder": "panes",
+    "expect": "reject",
+    "payload": {
+      "stdout": "{unfinished",
+      "stderr": "",
+      "code": 0
+    }
+  },
+  {
+    "name": "launcher-evidence-custom-raw",
+    "source": "cmd/internal/launcher/zellij_query_evidence_test.go:TestSessionOwnerCustomIORetainsRawWithoutInventingExit",
+    "kind": "fault",
+    "decoder": "panes",
+    "expect": "reject",
+    "payload": {
+      "stdout": "{custom raw",
+      "stderr": "",
+      "code": 0
+    }
+  },
+  {
+    "name": "launcher-evidence-generation-malformed",
+    "source": "cmd/internal/launcher/zellij_query_evidence_test.go:TestSessionOwnerGenerationFenceRetainsInvalidReply",
+    "kind": "fault",
+    "decoder": "panes",
+    "expect": "reject",
+    "payload": {
+      "stdout": "{invalid",
+      "stderr": "",
+      "code": 0
+    }
+  },
+  {
+    "name": "launcher-evidence-large-owned",
+    "source": "cmd/internal/launcher/zellij_query_evidence_test.go:TestSessionOwnerLargeValidReplyDoesNotCapturePrefix",
+    "kind": "panes",
+    "expect": "accept",
+    "payload": [
+      {
+        "id": 1,
+        "pane_command": "nvim /tmp/data/repos/0123456789abcdef/draft-1-repo-1.md",
+        "extra": "catalog seed; runtime test expands this irrelevant field beyond observer prefix"
+      }
+    ]
+  }
+]

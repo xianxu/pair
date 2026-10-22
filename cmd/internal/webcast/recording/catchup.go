@@ -16,6 +16,31 @@ package recording
 // Order is kept. Applied to a fresh state, the catch-up gives the same DOM,
 // assets, DocSeg and all note state as the whole recording.
 func CatchUp(recs []Record) []Record {
+	hasSketch := false
+	for _, r := range recs {
+		if sketchMetadata(r) != nil || r.Kind() == "sketch-snapshot" {
+			hasSketch = true
+			break
+		}
+	}
+	if !hasSketch {
+		return catchUpRecords(recs)
+	}
+	state, err := ReduceCatchUp(recs, int64(^uint64(0)>>1))
+	if err != nil {
+		return append([]Record(nil), recs...)
+	}
+	retained := catchUpRecords(recs)
+	out := make([]Record, 0, len(retained)+1)
+	for _, r := range retained {
+		if sketchMetadata(r) == nil && r.Kind() != "sketch-snapshot" {
+			out = append(out, r)
+		}
+	}
+	return append(out, state.SketchSnapshot())
+}
+
+func catchUpRecords(recs []Record) []Record {
 	last, doc := -1, -1
 	for i, r := range recs {
 		if s, ok := r.(*Seg); ok {
