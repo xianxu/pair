@@ -243,12 +243,12 @@ Files: `broadcast/cloudflared.go`, `host.go` and tests; new `couchcmd/remote.go`
 
 ### M3 — Trusted submits, document integration and acceptance
 
-Files: new `remotesession/documents.go`, `couchcmd/remote_submit.go`; `couchmessage/{model,batch,broker}.go` and endpoint/accounting consumers; session-sync provenance ledger/owed projections; #758 adapter at its agreed owner path; tests and docs.
+Files: extend existing `remotesession/documents.go`; new `couchcmd/remote_submit.go`; `couchmessage/{model,batch,broker}.go` and endpoint/accounting consumers; session-sync provenance ledger/owed projections; #758 adapter at its agreed owner path; tests and docs. The M3 execution slice below fixes the concrete ordering and qualification against the delivered M1/M2 seams.
 
 - [ ] Implement the M1-agreed document adapter seam and its stateful backend using the DocumentBackend and Supervisor.Dispatch rows; leave #758's RPC/editor implementation with its owner.
 - [ ] Exercise the RemoteServer.ServeHTTP, DocumentBackend and Supervisor.Dispatch strategies end to end before connecting the actual broker.
 - [ ] Add broker-origin handling without reusing OriginSystem; carry remote provenance through endpoint validation, batches, receipts, delivery accounting and preserved supported persisted fields. Keep the canonical submitted path line unchanged. Local legacy submits stay compatible; older incompatible wrappers visibly refuse remote delivery.
-- [ ] Complete the Broker.SendRemote / Envelope / deliveryRecorder.record / OwedForDocument and proxy.dispatchPeer / peerTurnRecorder function-strategy rows. #520 supplies the confirmation rule; do not implement that agent policy here.
+- [ ] Complete the Broker.SendRemote / Envelope / deliveryRecorder.record / OwedForDocument and proxy.dispatchPeer / peerTurnRecorder function-strategy rows, with the native-transcript/correlation distinction below. The operator dropped ariadne#520; implement provenance, not an agent confirmation policy.
 - [ ] Record the #758 adapter contract and qualify #759 against its stateful backend now. Per TL sequencing, real-nvim edit/submit acceptance runs after #758/parley.nvim#405 integrate; it does not block this security foundation. The #759 security harness is not real-nvim acceptance.
 - [ ] Run targeted packages and reader inventory audit on committed HEAD; push; recorded affected/full check per current gate contract; required final close review. Do not weaken deadlines or bypass failed gates.
 - [ ] Operator-assisted live conformance only after separate authorization for setup/staging/network: approved named tunnel + Access policy; iPhone login as allowed user, refused unapproved identity, raw forged/missing/wrong-audience assertion refused before handler, no artificial idle/absolute expiry, silent Access-bound re-handshake, explicit sign-in-needed on invalid Access, exact email/IP header and transcript paper trail, console untagged, kill by a second authenticated session, off/on old-link revocation, old tab/session dead, restart still killed, CLI/--keys unable to reset, console reset then fresh login succeeds. Check no owned stage/connector remains after teardown. Record exact build and outcomes without secrets. Before #758, this live pass covers Access/status/expiry/kill/reset only; tagged-submit behavior is verified against the private stateful backend and actual broker. The real document edit/submit and nvim handover portion is deferred to #758 integration per TL; use the stateful backend here and make that limit explicit. Do not expose a test document backend on the operator's public tunnel to manufacture acceptance.
@@ -387,3 +387,104 @@ Review round2 disposed socket-budget/help BR-5/6 with independent RED controls, 
 Review round3 disposed BR-7 but found a Critical missing outcome: killed opening can return no mount after failed connector cleanup, and the supervisor incorrectly inferred successful teardown. TLbe526c06 approved requiring teardown evidence independently of mount presence and joining the same attempt when cancellation meets an already-closing owner. Existing blocked state and reset refusal remain the recovery; no new remote state or reset authority.
 
 Implementation retains the Host's cleanup error through the explicit broadcast.ErrProtectedCleanup classification, including subsequent calls on an uncertain Host. An epoch stores that outcome before its started acknowledgment; its cleanup join consumes it even when no Mount was returned. Ordinary busy remains separately classified. The shared unwanted-owner rule returns the existing close attempt instead of returning early. Lifecycle qualification includes canceled held-open/failed-close, failed-open/listener-close failure and held-close cancellation; tests assert Join error, blocked status, reset/on refusal and one exact owned close attempt. No raw connector error reaches operator status.
+
+
+### 2026-10-21 — M3 execution refinement after M2 SHIP
+
+TL41f4e736 requested dispatch/audit/provenance planning while the retained M2 suite ran. TLb16a99b4 confirmed the two source-discovered boundaries: the existing eight-turn/256 KiB peer recorder remains a correlation aid, while the native agent transcript is the operator's second paper trail; forget uses Couch's sole origin writer and a durable intent in the existing origin record, with offline refusal “start Couch and retry”. No registry tombstone, extra origin writer or second unbounded transcript. This refinement preserves the approved security policy, M3 review boundary and operator-last acceptance sequencing. Earlier claims about the generic transcript seam are qualified by the distinction below.
+
+## M3 execution slice — dispatch, durable origin and trusted delivery
+
+This slice is implementation planning, not a claim that these routes exist. M1/M2 are closed; M3 remains one review boundary. The existing risk-function table owns the adversarial classes; tasks below name concrete producer/consumer paths and additional source-discovered cases. No new Cloudflare configuration, network exposure or operator-session action is authorized.
+
+### Concrete concepts and ownership
+
+| Concept | Exact location | Classification / status |
+|---|---|---|
+| `Message`, new `RemoteSource`, remote origin and rendered envelope | `cmd/internal/couchmessage/model.go`, `batch.go` | PURE values/projection; planned modifications; keep Message comparable |
+| `Replay` and typed document request/result | `cmd/internal/remotesession/replay.go`, `protocol.go`, `documents.go` | PURE decisions/values already delivered |
+| `Supervisor.Dispatch`, owned operation completion | `cmd/internal/remotesession/supervisor.go`, new `dispatch.go` | INTEGRATION; planned session, audit, backend and join wiring |
+| `RemoteServer` document routes and streams | `cmd/internal/remotesession/server.go`, new `server_documents.go` | INTEGRATION; planned verified HTTP admission and bounded streaming |
+| `OriginStore` and pending-forget record fields | `cmd/internal/remotesession/origin_store.go`, `origin_codec.go` | INTEGRATION owner and PURE retained-raw codec respectively; extend existing family |
+| Trusted submit and local provenance admission | new `cmd/internal/couchcmd/remote_submit.go`, existing `message_service.go`, `remote_service.go` | INTEGRATION; exact registry identity, service lifetime and broker enqueue |
+| Local forget routing and transaction | `cmd/internal/couchcmd/session_sync.go`, `cmd/internal/sessionsync/registry.go` | INTEGRATION; coordinate existing registry lock with sole origin owner |
+| `Broker.SendRemote` and receiver capability | `cmd/internal/couchmessage/broker.go`, `endpoint.go`, `endpoint_batch.go`; `cmd/internal/wrapcmd/peer_runtime.go` | INTEGRATION; planned trusted admission and compatibility refusal |
+| Delivery `Entry`, retained-raw codec and owed projection | `cmd/internal/sessionsync/ledger.go`, new `ledger_codec.go`, `owed.go`; `cmd/internal/couchcmd/message_deliveries.go` | ledger/recorder INTEGRATION; codec/value projection PURE; planned changes |
+| Existing peer turn correlation and actual agent input | `cmd/internal/wrapcmd/peer_turn_log.go`, `peer_delivery.go`; `cmd/internal/pairlog/runcli.go` | INTEGRATION; preserve correlation bounds and qualify native transcript separately |
+
+One service-lifetime OriginStore instance is shared by remote operations, ordinary local submits and local forget even while remote mode is off. The existing Couch singleton is its lifetime resource (ARCH-DRY / single writer). No CLI opener may independently rewrite its cached record. Registry transactions retain their existing lock; no filesystem, audit or broker wait runs under the admission mutex. Resolve under registry transaction, release it, then revalidate the pinned ID/path/editor generation at effect admission; do not introduce inverted lock nesting.
+
+### Task 0 — correct the executable documentation example
+
+Files: `cmd/internal/couchcmd/skills/couch/SKILL.md`; existing regression `cmd/internal/couchcmd/messages_test.go`.
+
+- [ ] Preserve the recorded RED from M2's completed suite: `TestSkillDocumentsRecovery` treats literal `couch --remote on|off|status` as executable and correctly rejects it. Replace the executable example with concrete on, off and status commands; synopsis prose may describe alternatives outside executable examples. Do not relax the parser or scanner.
+- [ ] Run `go test ./cmd/internal/couchcmd -run '^TestSkillDocumentsRecovery$' -count=1`, expect PASS. Commit the correction with its source failure. This is a branch defect, not a flake or resume candidate.
+
+### Task 1 — origin ownership, local submit and exact-ID forget
+
+Files: origin owner/codec and Couch service/registry files in the concept table; add `cmd/internal/couchcmd/remote_submit_test.go` and extend origin/registry tests.
+
+- [ ] First add failing integration tests for local submit after remote edit, off/restart/rename/editor handover, unreadable evidence, concurrent forget, path reuse and crashes at each forget publication boundary. Use real private stores and the registry, not function-call-only mocks.
+- [ ] Open the sole origin owner with the message service and inject it into the remote supervisor. A local `submitted: PATH` must resolve the registered stable ID/effective owner and consult this owner before broker admission; peer request JSON cannot supply origin fields. Never infer clean provenance from missing/false legacy evidence.
+- [ ] Route local forget through this Couch owner. Persist bounded `forget_pending: true` in the existing per-ID retained-raw origin object before registry removal; it is a local intent, not a remote-edit assertion. Adjust `Marked` to inspect validated `remote_edited` rather than mere map membership, so an intent for a never-remote-edited registration cannot create false edit evidence. Preserve unknown envelope/per-ID fields and the existing version, 4096-entry/1 MiB bounds; capacity/publication failure refuses before removal.
+- [ ] Fence new work for that exact ID, cancel/join owned document operations and settle its submit receipts. Remove the registration only through its existing identity-checked transaction. Retire the exact absent ID only when its persisted intent and settled work prove the retirement. A replacement at the same path has a different ID and remains untouched. On restart retry the retained intent; arbitrary absence is never authorization to retire. Unknown receipts retain intent/evidence and require inspection, not automatic re-execution or eviction.
+- [ ] Offline forget refuses with “start Couch and retry”; no independent origin writer, no new registry tombstone format. Test the actual CLI/server route, including a lost reply and retry after registry removal. Run focused origin/registry/service tests RED then GREEN and commit this unit.
+
+### Task 2 — owned dispatch, audit ordering and typed HTTP routes
+
+Files: `remotesession/{dispatch,server_documents}.go` (new), existing `supervisor.go`, `server.go`, `session.go`, `documents.go`; add corresponding dispatch/server integration tests.
+
+- [ ] Build failing held-boundary tests using the existing private stateful document backend, real stores, signed issuer and fake clock. Cover kill at each admission/audit/handoff/result boundary with independent effect counts, and restart/uncertainty recovery. Record zero effects for refused/expired/stale refs.
+- [ ] Authenticate to an internal immutable request context containing Access identity and the normalized verified proxy IP; never decode either from a browser-supplied source object. Pin stable document ID, current path, owner and editor generation before work is queued. Resolve navigation destinations before any open. Missing backend remains unavailable; inject the typed seam for tests/#758 without exposing a public fake backend.
+- [ ] Reserve replay and owned completion state, persist conservative edit evidence before mutating handoff, then persist audit intent outside the lifecycle mutex. Recheck the same epoch/session/ref under the admission gate, and hand off via the existing nonblocking `DocumentBackend.Dispatch`. The backend's one-use `Permit.EffectDoor` guards the final nonblocking effect enqueue; never call blocking `Broker.Send` or do IO inside it. A submit's save-and-submit work is one owned typed operation, not an unchecked second request with a copied grant. Coordinate #758 on this exact contract before adapter integration.
+- [ ] Keep result/audit completion owned after HTTP disconnect or timeout. Intent failure gives zero effects; post-effect/result-publication failure retains uncertainty and revokes remote mode. Cleanup/reset waits for joined owned work. Replay returns cached/pending results without a second effect; evicted sequences refuse, and conflicting payloads refuse. No automatic replay of an uncertain mutation.
+- [ ] Add only the closed list/read/subscribe/edit/submit/navigation routes under the current capability. Preserve Access, same-origin, CSRF and reserved kill admission. Apply the five-second exchange budget to ordinary requests and stream establishment, not the entire subscription lifetime; stream lifetime follows JWT/session/epoch, one stream/session, bounded writes and 1 MiB output. Session traffic is 10 mutations/s, burst20; process request lanes stay capped at eight.
+- [ ] Run targeted remotesession dispatch/server/replay tests RED then GREEN, followed by race qualification of these owners. Commit the working slice before broker wiring.
+
+### Task 3 — trusted broker provenance and compatible receiver admission
+
+Files: `couchcmd/remote_submit.go`; `couchmessage/{model,batch,broker,refusal,endpoint,endpoint_batch}.go`; `wrapcmd/{peer_runtime,peer_delivery}.go`; colocated tests.
+
+- [ ] Add failing actual broker/endpoint/batch tests for direct remote versus marked local submission, forged metadata, duplicate IDs with different provenance and old receiver refusal. Retain legacy peer/system controls.
+- [ ] `Broker.SendRemote` accepts only trusted typed server facts. Set `Origin="remote"`, comparable `RemoteSource{Email, IP}` and independently derived `RemoteEdited`; leave Body canonical `submitted: <current registered path>`. `Envelope` places exact `[remote <email> <IP>]` before that body. Local submits never acquire this display header just because RemoteEdited is true.
+- [ ] Add a closed receiver capability query/response advertising `remote-provenance-v1`; unknown/legacy capability refuses remote before admission and names relaunch as recovery. Do not broaden legacy hello decoders or alter binding/socket identity. A strict old receiver must never receive a downgraded local submit; legacy peer delivery still works.
+- [ ] Carry and compare metadata through every Message constructor, refusal receipt, deduplication, retained promotion, singleton reserve/commit/status, prepare/finalize batch and fallback. Keep Message comparable. Do not recover remote authority solely by adopting a wrapper's retained receipt; keep existing peer-only adoption. Apply remote deadline fencing as for privileged system recovery. Count rendered prefix bytes in message/batch bounds.
+- [ ] Run couchmessage/wrapcmd provenance, compatibility and batch tests RED then GREEN; inspect all Message constructors/equality sites before committing. Browser and worker text resembling the prefix remains untrusted ordinary text.
+
+### Task 4 — ledger, owed records and the transcript paper trail
+
+Files: sessionsync ledger/codec/owed, Couch delivery recorder and wrapper/pairlog locations above; extend their real-writer tests.
+
+- [ ] Seed future nested fields, then test actual deliveryRecorder.record -> Entry append -> Ledger.trim -> reopen -> OwedForDocument. Add exact known-field validation, duplicate rejection and unknown-preserving root/RemoteSource codecs; raw maps belong in ledger codec state, not comparable Message. Recognized malformed provenance produces a recording gap/refusal, not a silently skipped clean-local row. Preserve current ledger size/age/row caps.
+- [ ] Preserve Origin, RemoteEdited, RemoteSource and admission document identity where needed through fresh recorder/owed structs. Keep historical path/time attribution for legacy rows; new identity cannot migrate to a replacement registration merely sharing a path.
+- [ ] Qualify actual wrapper PTY delivery with exact prefix, canonical body, delivery ID and receipt metadata. Native transcript producers/readers use `sessioninventory.OSRuntime.NativeRoots` and poisoned-identity private fixtures; no inherited live namespace. Qualify Claude and Codex; Qoder when credits permit, recording unsupported/unavailable cases honestly.
+- [ ] Keep `peerTurnRecorders` at eight turns / 256 KiB aggregate and best-effort behavior. Its Pair log is a correlation aid only. Assert the native agent transcript contains a remote submit after turn eight as well as earlier submits; do not claim correlation captures every submit or create another unbounded format. Native transcript fixtures qualify recording behavior; the operator's real native transcript check remains the integration evidence when #758 supports actual dispatch.
+- [ ] Run focused ledger/owed/recorder/wrapper/log tests RED then GREEN, then race checks. Commit the qualified provenance path and update atlas with authority, lifetime, forget recovery and transcript limits.
+
+### States and recovery for the added operation paths
+
+Actions: inspect document/receipt/audit, retry the same sequence, resubscribe, start Couch and retry forget, relaunch receiver, or disable remote and request host reset after cleanup. No reset authority changes.
+
+| Internal state / failure | Visible state | Recovery action | Possible loss |
+|---|---|---|---|
+| Audit intent or origin publication refused before effect | not applied | inspect storage/status | request was not applied; conservative edit marker may remain |
+| Handoff accepted; result not yet known or HTTP gone | pending/uncertain | inspect document/receipt/audit | result visibility; never infer effect rollback |
+| Same sequence with retained complete result | completed | retry same sequence to retrieve result | none; no new effect |
+| Replay result evicted or sequence conflict | inspect | inspect document/receipt/audit | cached response; no automatic rerun |
+| Result audit fails after effect | remote blocked, uncertain | disable remote and request host reset after cleanup | durable result line; effect may have happened |
+| Forgotten ID intent persisted, registry present or absent | forget pending | start Couch and retry forget | no authority/evidence removal until exact-ID settlement |
+| Old-ID receipt remains unknown | inspect | inspect document/receipt/audit | registration/evidence retained conservatively |
+| Origin evidence unreadable or unsupported | provenance unavailable | inspect storage/status | no claim of clean local provenance |
+| Receiver lacks remote capability | relaunch required | relaunch receiver | no submit admitted |
+| Stream expires, revokes or overflows | disconnected | resubscribe after valid silent handshake | intermediate snapshots, not mutation replay |
+
+Covered: local submit while off/restarted, remote edit/submit, navigation, stale identity, forget/re-register, delivery uncertainty and bounded streaming. Not covered: arbitrary files/commands, protection from hostile same-UID code, actual editor RPC implementation (#758), phone editor UX (#760), automatic audit repair or unsupported downgrade writers. Their exclusion follows the approved boundary, not a test exemption.
+
+### Cost, qualification and final handoff
+
+- [ ] Count N=8 and16 unique mutations and duplicates: one backend dispatch per accepted unique request, one intent/result pair when completion is known, zero duplicate effects; no full transcript/registry scan per frame. Include origin store serialized publication work under its explicit 1 MiB/4096-entry cap rather than calling persistent writes O(1). Count capability queries per receiver binding/batch, not per delivered byte. Inspect stream goroutine/queue counts across kill/logout/off.
+- [ ] Run `go test ./cmd/internal/remotesession -run 'Test.*(Dispatch|Replay|Document|Server|Origin|Forget)' -count=1`; `go test ./cmd/internal/couchmessage ./cmd/internal/wrapcmd -run 'Test.*(Remote|Origin|Batch|Peer)' -count=1`; and `go test ./cmd/internal/sessionsync ./cmd/internal/couchcmd ./cmd/internal/pairlog -run 'Test.*(Remote|Origin|Forget|Ledger|Owed|SkillDocumentsRecovery|Peer)' -count=1`. Every named new regression must actually run (verify -v output, no empty selector success). Broaden to affected package/race checks after those pass.
+- [ ] Audit production sources/readers individually before inventory certificate updates; run repolint, artifactpath and affected-reader checks. Update README/atlas and the #758 handoff. Push the corrected code and record the required affected/full check through sdlc on that head. The M2 own-defect failure cannot become passing evidence via resume. No manual stale-head status or guessed process cancellation.
+- [ ] Operator-assisted Access/iPhone acceptance is the final functional step, arranged through TL with explicit setup/staging/network authorization. Use the exact current build, security-only public surface until #758 exists, and approved real document/native-transcript checks at adapter integration. No public fake backend. Record what passed and what remains deferred without secrets; keep CLI links suppressed and capture refusal unchanged.
+- [ ] Mandatory M3/issue review and landing gates follow functional acceptance; the binary owns fresh-eyes review. Send outcomes to TL; TL owns project updates. This plan refinement does not close M3, grant network changes or assert a passing full suite.
