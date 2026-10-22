@@ -135,7 +135,7 @@ func startupArgumentsTraceTools(t *testing.T, binaries testcouch.Binaries) testc
 	for _, tool := range []struct {
 		name string
 		path *string
-	}{{"sdlc", &binaries.SDLC}, {"git", &binaries.Git}} {
+	}{{"sdlc", &binaries.SDLC}} {
 		path := filepath.Join(dir, tool.name)
 		script := "#!/bin/sh\nrecord=$(/usr/bin/mktemp " + quote(filepath.Join(dir, "call.XXXXXX")) + ") || exit 1\n" +
 			"printf '%s\\n' " + quote(tool.name) + " \"$PWD\" \"$@\" > \"$record\"\n" +
