@@ -492,3 +492,22 @@ The unsent-sketch tab-return failure now has a concrete native RED: after A→B�
 - [ ] Officially replace the obsolete recorded suite only after corrected source commits, full close on revised scope, final recorded pass, hub-scheduled restage, real operator three-case re-look, then normal landing. Keep current suite retained until actual executable changes make it obsolete; no duplicate/rewrite/timeout bumps.
 
 Function strategy: pure selection/clone/codec/geometry use direct/generated tests; actual manager and Board use stateful blocked-publisher/host fakes at real locks; visibility/placement use existing controlled DOM composition; native Chrome qualifies source tab/SPA/pointer behavior and frozen image pixels. All existing preserving Store transaction, CDP cancellation, legacy export and confirmed-mask regressions remain required (ARCH-MOCK/ARCH-EVOLVE/ARCH-SECURE/ARCH-ORDER).
+
+
+### 2026-10-22 — admitted implementation symbol reconciliation
+
+TL668aa826 approval and plan-quality7 CLEAN admit the preceding consolidated revision. The following implemented names supersede its provisional symbol/path names; the behavior and single close boundary are unchanged.
+
+| Actual symbol / owner | Kind | Source and verification |
+|---|---|---|
+| FeedbackVisibility / VisibleSketch / VisiblePath / SelectVisibleFeedback | PURE | submission/visible_feedback.go; current painted intersection, exact-version/cap/deferred tests and generated32/64 metadata counts |
+| PreviewPrepare.Fresh / samePreparedFeedback / clonePreviewSelection | PURE | submission/preview.go; fresh owned witness required for witnessed publications; only revision and source ordinal/time/title may advance without changing reviewed geometry, mask, page or items; changed view refuses |
+| createFeedbackVisibility | INTEGRATION | web/feedback-visibility.js; actual composed note and sketch painters, both-paint barrier, synchronous invalidation, stale async/read/busy/partial placement tests |
+| ReadSubmissionVisibility / ResolveSubmissionPreview | INTEGRATION | chrome_feedback_visibility.go with Cast delegation in cast_submission_candidates.go; strict private CDP payload, host/revision fence, recorder-owned current identity resolution before freeze |
+| Recorder.ResolveOperatorPaths | INTEGRATION | recorder/feedback_paths.go; actor resolves the existing raw child/open-shadow grammar; reduced DOM cannot resolve raw indices because private nodes are deliberately omitted; scope/cancellation tests |
+| FreezeVisibleSubmissionSelection / currentFeedbackPageLocked | INTEGRATION | board/submission.go and feedback_context.go; selected current nodes already resolved outside locks, exact visible subsets and current anchors validated under Board lock, current prefix pinned once |
+| PageBatch.Current / PathProjection / ValidateCurrentView | PURE | sketchimage/page.go; exact current projection coverage/clip plus retained original/history checks; current shared codec in submission/sketch_page.go and codec.go |
+| appendSubmissionSketches | INTEGRATION | cast_submission.go; uses frozen Selection.CurrentPage/Current for new shared evidence, retains legacy historical path, one render and unchanged box crops |
+| ordered held-scene reconstruction | INTEGRATION | sketch_scene_script.go and web/sketch-scene.js; separate render model advances with every historical record; final descriptor validation remains independent; synthetic SPA negative controls and native pen/Note/save qualification |
+
+The raw visibility scene ordinal is informational until the chord's short Board transaction pins the current record boundary. Fresh preparation never uses an old cached finish-time context. A fresh paint with the same reviewed items/placement may advance ordinal/time/title; different visible content, page/view, mask or geometry asks the operator to review again. The private bridge independently requires the latest owned raw witness and resolved identities. No CDP, recorder actor wait, filesystem read or journal copy occurs under the manager→host→Board freeze locks.

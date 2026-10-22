@@ -198,7 +198,7 @@ func TestCastSketchPageSharesBundleBudgetWithOtherFeedback(t *testing.T) {
 	}
 	sub := core.Submission{Version: 3, Source: core.Source{Kind: "dom", RecordingID: "shapes"}}
 	total := core.MaxBundleBytes - sketchimage.MaxImageBytes + 1
-	err = c.appendSubmissionSketches(context.Background(), &sub, map[string][]byte{}, rec.Records, selected.Sketches, core.OriginPolicy{}, &total, nil)
+	err = c.appendSubmissionSketches(context.Background(), &sub, map[string][]byte{}, rec.Records, selected, core.OriginPolicy{}, &total, nil)
 	if err == nil || !strings.Contains(err.Error(), "bundle budget") {
 		t.Fatalf("combined feedback budget accepted: %v", err)
 	}
@@ -349,5 +349,34 @@ func TestCastSketchSubmissionDurableLifecycleAcrossTargets(t *testing.T) {
 	preview := core.SelectSketchPreview(candidates, delivered, core.PreviewStamp{})
 	if len(preview.Items) != 1 || preview.Items[0].SketchID != pendingRead.Sketches[0].ID || preview.Remaining != 0 {
 		t.Fatalf("target-independent policy resent delivered versions or hid merely Prepared evidence: %+v", preview)
+	}
+}
+
+func TestCastSketchPageUsesFrozenSubmissionView(t *testing.T) {
+	c, fake, selected := castSketchSubmissionFixture(t, 1)
+	rec, err := recording.ReadDir(c.RecordingPath())
+	if err != nil {
+		t.Fatal(err)
+	}
+	scene := sketchimage.PageScene{RecordingID: "shapes", SketchSourceFacts: selected.Sketches[0].Finish}
+	// A later source frame is the chord context, independently of sketch finish.
+	recs := append([]recording.Record(nil), rec.Records[:scene.RecordIndex+1]...)
+	recs = append(recs, &recording.Attr{Header: recording.Header{T: scene.T + 1}, ID: 2, Name: "title", V: recording.Str("current frame")})
+	scene.T++
+	scene.RecordIndex++
+	box := recording.Box{0, 0, 100, 100}
+	selected.CurrentPage = &scene
+	selected.Current = &sketchimage.CurrentView{Projections: []sketchimage.PathProjection{{SketchID: selected.Sketches[0].ID, PathID: "p", At: recording.NoteAt{Node: 2, Box: &box}, Clip: recording.Box{0, 0, 1280, 800}}}}
+	sub := core.Submission{Version: 3, Source: core.Source{Kind: "dom", RecordingID: scene.RecordingID}}
+	total := 0
+	err = c.appendSubmissionSketches(context.Background(), &sub, map[string][]byte{}, recs, selected, core.OriginPolicy{}, &total, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if sub.SketchPage.Source != scene || sub.SketchPage.Current == nil || sub.SketchPage.Provenance != "replay-rendered-current-view" {
+		t.Fatalf("page=%+v", sub.SketchPage)
+	}
+	if sub.Sketches[0].Finish.SketchSourceFacts != selected.Sketches[0].Finish || fake.Snapshot().Requests != 1 {
+		t.Fatal("history changed or image not shared")
 	}
 }

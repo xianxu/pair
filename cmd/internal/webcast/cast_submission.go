@@ -151,7 +151,7 @@ func (c *Cast) PrepareSubmission(parent context.Context, id string, target core.
 			note.Replay = ReplayLink(replayBase, sub.Source.RecordingID, note.T)
 		}
 	}
-	if err = c.appendSubmissionSketches(ctx, &sub, crops, recs, selected.Sketches, policy, &total, progress); err != nil {
+	if err = c.appendSubmissionSketches(ctx, &sub, crops, recs, selected, policy, &total, progress); err != nil {
 		return sub, crops, err
 	}
 	if err = core.Validate(sub); err != nil {
@@ -341,7 +341,8 @@ func (c *Cast) ReconcilePendingSubmissions(ctx context.Context, observe func(con
 
 // appendSubmissionSketches shares the already-read recording and immutable
 // selected prefix with one batch renderer. It never captures the live browser.
-func (c *Cast) appendSubmissionSketches(ctx context.Context, sub *core.Submission, files map[string][]byte, recs []recording.Record, selected []board.SelectedSketch, policy core.OriginPolicy, total *int, progress func(core.SubmissionProgress)) error {
+func (c *Cast) appendSubmissionSketches(ctx context.Context, sub *core.Submission, files map[string][]byte, recs []recording.Record, frozen board.Selection, policy core.OriginPolicy, total *int, progress func(core.SubmissionProgress)) error {
+	selected := frozen.Sketches
 	if len(selected) == 0 {
 		return nil
 	}
@@ -384,6 +385,13 @@ func (c *Cast) appendSubmissionSketches(ctx context.Context, sub *core.Submissio
 			batch.Scene = sketchimage.PageScene{RecordingID: sub.Source.RecordingID, SketchSourceFacts: v.Finish}
 		}
 	}
+	if (frozen.CurrentPage == nil) != (frozen.Current == nil) {
+		return fmt.Errorf("incomplete current submission view")
+	}
+	if frozen.CurrentPage != nil {
+		batch.Scene = *frozen.CurrentPage
+		batch.Current = frozen.Current
+	}
 	plan, err := sketchimage.ValidatePageBatch(batch)
 	if err != nil {
 		return err
@@ -415,6 +423,10 @@ func (c *Cast) appendSubmissionSketches(ctx context.Context, sub *core.Submissio
 	*total += len(image.PNG)
 	pageDecision := policy.Decide(batch.Scene.URL)
 	sub.SketchPage = &core.SketchPage{PrivacyDecision: pageDecision, File: "sketch-page.png", Provenance: "replay-rendered", Source: batch.Scene, Region: plan.Region, Scale: plan.Scale, Width: plan.Width, Height: plan.Height, Clipped: image.Clipped, Limitations: append([]string(nil), image.Limitations...)}
+	if batch.Current != nil {
+		sub.SketchPage.Provenance = "replay-rendered-current-view"
+		sub.SketchPage.Current = batch.Current
+	}
 	if pageDecision.Privacy != core.Shareable {
 		sub.Privacy = core.Private
 	}

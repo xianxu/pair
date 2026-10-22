@@ -1,6 +1,7 @@
 package webcast
 
 import (
+	"context"
 	"fmt"
 	"path/filepath"
 
@@ -38,4 +39,24 @@ func (c *Cast) SetDeliveredFeedback(delivered core.DeliveredFeedback) error {
 		notes = append(notes, board.SelectedNote{ID: key.ID, Revision: key.Revision})
 	}
 	return c.board.SetDeliveredFeedback(sketches, notes)
+}
+
+// ReadSubmissionVisibility reads the completed paint from the private console.
+func (c *Cast) ReadSubmissionVisibility(ctx context.Context, host core.PreviewHost) (core.FeedbackVisibility, error) {
+	if browser, ok := c.browser.(interface {
+		ReadSubmissionVisibility(context.Context, core.PreviewHost) (core.FeedbackVisibility, error)
+	}); ok {
+		return browser.ReadSubmissionVisibility(ctx, host)
+	}
+	return core.FeedbackVisibility{}, ErrNotRecording
+}
+
+// ResolveSubmissionPreview binds painted locators through the current recorder.
+func (c *Cast) ResolveSubmissionPreview(ctx context.Context, host core.PreviewHost, selection core.PreviewSelection) (core.PreviewSelection, error) {
+	if browser, ok := c.browser.(interface {
+		ResolveSubmissionPreview(context.Context, core.PreviewHost, core.PreviewSelection) (core.PreviewSelection, error)
+	}); ok {
+		return browser.ResolveSubmissionPreview(ctx, host, selection)
+	}
+	return core.PreviewSelection{}, ErrNotRecording
 }
