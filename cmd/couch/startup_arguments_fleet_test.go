@@ -87,6 +87,10 @@ func TestDisposableStartupArguments(t *testing.T) {
 			}); err != nil {
 				t.Fatalf("park source stayed live: %v\n%s", err, fleet.Screen())
 			}
+			// Process exit happens before ParkExpected finalizes its transaction
+			// and the console releases operation ownership. Observe completion,
+			// rather than treating disappearance as a completed park.
+			forceFleetWaitScreen(t, ctx, fleet, "park complete")
 			startupArgumentsSwitch(t, ctx, fleet, previous, false, source, nil)
 			t.Log("parked-source switch reused the original agent's saved explicit-empty parameters")
 			cleanup, cancelCleanup := context.WithTimeout(context.Background(), 15*time.Second)
@@ -110,16 +114,17 @@ func startupArgumentsSwitch(t *testing.T, ctx context.Context, fleet *testcouch.
 	}
 	args := append([]string{"--switch-agent", "fixture:1", "--agent", agent, "--confirm", "--json"}, extra...)
 	result, err := fleet.ActorCLI(ctx, 0, args...)
-	if err != nil || result.ExitCode != 0 {
-		t.Fatalf("switch admission %q: %+v, %v", args, result, err)
-	}
 	var response couchmessage.Response
-	if err := json.Unmarshal([]byte(result.Stdout), &response); err != nil || response.Operation == nil || response.Operation.ID == "" {
-		t.Fatalf("missing switch receipt: %+v, %v", result, err)
+	if decodeErr := json.Unmarshal([]byte(result.Stdout), &response); decodeErr != nil || response.Operation == nil || response.Operation.ID == "" || result.CleanupUncertain || response.Code != "accepted" && response.Code != "ok" && response.Code != "uncertain" {
+		t.Fatalf("switch admission %q: %+v, %v decode=%v", args, result, err, decodeErr)
 	}
 	id := response.Operation.ID
-	if err := startupArgumentsWait(ctx, func() (bool, error) {
-		result, err := fleet.ActorCLI(ctx, 0, "--operation-status", id, "--json")
+	// An uncertain admission is never resubmitted. Resolve only its exact
+	// receipt through the public read-only path, within one bounded wait.
+	receiptCtx, cancelReceipt := context.WithTimeout(ctx, 45*time.Second)
+	defer cancelReceipt()
+	if err := startupArgumentsWait(receiptCtx, func() (bool, error) {
+		result, err := fleet.ActorCLI(receiptCtx, 0, "--operation-status", id, "--json")
 		if err != nil || result.ExitCode != 0 {
 			return false, fmt.Errorf("receipt %s: %+v, %v", id, result, err)
 		}
@@ -131,7 +136,7 @@ func startupArgumentsSwitch(t *testing.T, ctx context.Context, fleet *testcouch.
 			return false, fmt.Errorf("uncorrelated receipt %s: %s", id, result.Stdout)
 		}
 		switch status.Operation.Status {
-		case couchmessage.ReceiptQueued, couchmessage.ReceiptRunning:
+		case couchmessage.ReceiptQueued, couchmessage.ReceiptRunning, couchmessage.ReceiptUnknown:
 			return false, nil
 		case couchmessage.ReceiptSucceeded:
 			return true, nil
