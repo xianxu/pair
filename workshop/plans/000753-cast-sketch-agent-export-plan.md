@@ -12,7 +12,7 @@ collaboration-mode: discussion
 
 **Tech stack:** Go recording/query/submission core, shared JavaScript pressure painter and sandboxed replay, CDP/headless Chrome, existing Neovim operator submission transaction.
 
-**Status:** Proposed, pending TL review. No implementation. Canonical source of revised scope: issue #753 Revisions, TL deliveries cbb63f0f and 0f71ee20 (2026-10-21).
+**Status:** TL approved the core design and both product choices (delivery 745ea763-8e84-4ac2-8897-f40e82a884c0), with the preview requirement below. No implementation before change-code clears. Canonical source of revised scope: issue #753 Revisions, TL deliveries cbb63f0f and 0f71ee20 (2026-10-21).
 
 ## Operator contract and alternatives
 
@@ -22,7 +22,17 @@ collaboration-mode: discussion
 
 A submitted shape is one finished, labeled sketch, including its accepted visible strokes. Two separately finished sketches produce two images and two labels. Unfinished, cleared and entirely undone sketches remain queryable with explicit status but are not auto-submitted. Labeled interrupted sketches with visible strokes remain eligible; interruption/truncation is explicit. Submission never clears the ink or changes its editing state.
 
-Proposal for bounded batches: at most eight sketches per preparation, ordered by creation; existing note inclusion remains unchanged. Status says how many sketches are in this batch and how many remain, and successful dispatch makes the next batch eligible on the next operator submission. An over-byte-budget or failed render refuses preparation with the draft/evidence retained; no shape disappears silently. The eight-sketch envelope is an initial design choice requiring TL confirmation, not a measured performance claim.
+Proposal for bounded batches: at most eight sketches per preparation, ordered by creation; existing note inclusion remains unchanged. Status says how many sketches are in this batch and how many remain, and successful dispatch makes the next batch eligible on the next operator submission. An over-byte-budget or failed render refuses preparation with the draft/evidence retained; no shape disappears silently. The eight-sketch envelope and oldest-unsent-first ordering are TL-approved; meeting the existing deadline still requires measurement.
+
+## Before-send preview (TL acceptance addition)
+
+The console Chrome private UI displays Next submission: N sketches, M more, with a compact pressure-ink thumbnail and attached note for each selected shape. Thumbnails show the shapes, not newly captured live-page pixels; final evidence uses the historical renderer described below. Preview cards are keyed by exact sketch version, so metadata refreshes cannot replace an unrelated label editor or steal focus.
+
+One immutable PreviewSelection owned by the existing submission manager carries ordered sketch/version keys, count/remaining and a monotonically revised delivery identity. It is a view of the same pure candidate selector used by preparation, not a second queue or delivery authority. The existing private console projection publishes it alongside existing sketch display data and acknowledges that revision; one coalesced owned worker refreshes on sketch metadata or store delivery changes, never a polling headless renderer. Superseded/retired host acknowledgments cannot enable a new preview.
+
+For sketch-containing submissions, preparation freezes that displayed/acknowledged preview. If a selected version was cleared/changed or the preview is not current, preparation refuses visibly (Selection changed; review the updated preview and submit again), refreshes the preview, and leaves draft/ink untouched. Later changes after preparation do not mutate the frozen bundle. Ordinary note-only submissions retain their current flow and CLI query/export need no preview. Browser preview is read-only: it cannot choose an agent, begin delivery or ACK a send; only the existing operator chord does that.
+
+Add pure preview state/selection tests and native acceptance that the operator can see all selected shapes/count before pressing the chord, including eight oldest + N more, after navigation, and stale-preview refusal. This is the approved acceptance extension; no second send button or browser-to-agent route.
 
 ## Core concepts
 
@@ -32,6 +42,7 @@ Proposal for bounded batches: at most eight sketches per preparation, ordered by
 | DeclaredElementFacts | cmd/internal/webcast/query/element_facts.go | new | Bounded id/data-* facts for original anchors, ancestor chain and nearest intersected source elements; shared by sketches and ordinary annotations. |
 | SketchRenderPlan / ImageTransform | cmd/internal/webcast/sketchimage/contract.go | new | Validated source viewport/crop/scale, visible pressure paths, PNG limits and qualified provenance; no IO. |
 | Submission.Sketch | cmd/internal/submission/sketch.go | new | Typed immutable image/note/page/anchor/vector/history evidence; independent of existing CDP Note/Crop meanings. |
+| PreviewSelection | cmd/internal/submission/sketch.go, couchtty/console_submission.go | new | One immutable candidate selection with current-console publication acknowledgment; freezes exactly the displayed batch. |
 | Selection / SelectedSketch | cmd/internal/webcast/board/submission.go | modified | Frozen recording+sketch+accepted-prefix identity, never a moving latest-state lookup. |
 | DeliveredSketchSet | cmd/internal/submission/sketch.go | new | Derive delivered selection keys from confirmed dispatched/resolved manifests; no second durable ACK source. |
 | Submission validation / file inventory | cmd/internal/submission/model.go and codec.go (new) | modified | Strict known fields, preserved unknown fields, one enumeration of all evidence files and bounds. |
@@ -46,6 +57,7 @@ One SketchView owns many strokes and anchors, one source moment, one selected hi
 | Query CLI | query/{surface.go,fake.go,contract.go,cli.go,render_sketch.go}, couchcmd query wiring | modified | Add sketches and sketch-image; preserve existing query entrypoints via a forwarding options seam. |
 | Cast evidence builder | webcast/cast_submission.go, webcast/submission/{build.go,sketch.go} | modified/new | One bounded recording read, policy decisions, render batch, frozen immutable bundle. |
 | Submission manager/store | couchtty/console_submission.go, submission/{store.go,publication.go} | modified | Sketch-only selection, preparation, PNG inventory, exact publication reconciliation and existing delivery transaction. |
+| Private submission preview | webcast/operator-sketch.js, chrome_operator_sketch_wiring.go, couchtty/console_submission.go | modified | Read-only batch cards/count using existing pressure display and one coalesced owned publication worker. |
 | Operator progress and guide | nvim/dom_submission_state.lua, couchcmd/skills/couch/SKILL.md, submission ReadingGuide | modified | Batch counts/provenance, manifest handoff and existing retry/target semantics. |
 
 ## Source and history clocks
@@ -89,6 +101,7 @@ Actions: submit draft, inspect progress, retry/status the same submission, choos
 
 | Internal state/event | Visible state | Recovery/effect | Possible loss |
 |---|---|---|---|
+| Preview unavailable or selected version changed | Review updated selection | Refuse sketch prepare, refresh cards; no send or draft mutation | None |
 | Finished unsent sketches + submit | Preparing N sketches, M remaining | Freeze selection and target, render once in existing worker | None; draft untouched |
 | Render/read/asset/budget refusal | Preparation failed with reason | Retain draft/selection; retry existing transaction | No delivery/ACK |
 | Prepared immutable manifest | Ready to send | Existing begin/send transaction | None |
@@ -159,11 +172,13 @@ Files: board/submission.go and tests; couchtty/console_submission.go and tests; 
 
 - [ ] Write RED sketch-only submission through existing manager (currently len(selected.Notes)==0 returns empty), batched counts, duplicate submission filtering and mixed note resolution without ink clearing.
 - [ ] Derive exact delivered versions from verified manifests; sequence-test prepared/delivering/dispatched/resolved, old ACK/new history, target change, navigation, restart, failed publication and cancellation. No new delivery state machine.
+- [ ] Add private preview projection from the same candidate selector, stable shape thumbnails/count and current-host revision acknowledgment. Test stale/late preview, eight-oldest ordering and no focus/capture interference.
 - [ ] Add normal-suite disposable Couch fixture and native Chrome conformance: two distinct shapes/notes, navigate, operator submission to pinned agent receives two historical images/URLs/IDs; live page changes must not leak. Exercise Claude and Codex (Qoder when credits), using fixture agent sinks rather than live fleet.
 - [ ] Measure maximum proposed batch in bounded native renderer; if it misses the existing deadline, reduce/revise the envelope with TL before implementation is accepted. Verify all Chrome/server/profile children are joined.
 - [ ] Document source/history clocks, recorded-dom/replay provenance, limits/privacy, CLI and operator chord. Audit named readers, then `make test-affected-inventory`; no bulk hash refresh.
 - [ ] Push and run required recorded affected/suite, close through SDLC's mandatory review, stage by hub authorization, operator submits real sketches to their agent, then land only after accepted smoke. No Mx tags unless actual independent review milestones are agreed.
 
-## TL review points
+## Revisions
 
-Confirm the eight-sketch explicit batching proposal and that one finished sketch, potentially several strokes with one note, is the submission unit. Confirm repeat suppression follows successful operator delivery across targets rather than automatically resending old shapes to a newly selected agent. The image is historical replay plus pressure ink, with qualified limitations, not a pixel capture made when drawn. These choices are visible product behavior and need approval before change-code.
+2026-10-21 19:04 PDT — TL745ea763 approves one finished multi-stroke sketch as one item, oldest eight unsent first with visible N more, and exact-version dispatched/resolved suppression across targets. Adds acceptance that the operator sees count and shapes before the chord submits. Added a read-only immutable private preview sharing the candidate selector and existing projection; no new browser delivery route. Proceed to full-flow change-code plan-quality review before implementation.
+
