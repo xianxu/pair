@@ -3,7 +3,7 @@ id: 000791
 status: codecomplete
 created: 2026-10-21
 updated: 2026-10-22
-estimate_hours: 1.019
+estimate_hours: 1.597
 github_issue:
 started: 2026-10-22T12:23:59-07:00
 claimant:
