@@ -92,3 +92,11 @@ Actions: inspect, request a new confirmation, acknowledge the current confirmati
 | Exact retirement confirmed | new generation started | inspect/deliver | old working turn intentionally ends |
 
 ARCH-DRY: reuse the existing terminal plan, leases, strict parser and fleet harness. ARCH-PURE: classify evidence independently of IO; the shell executes declared recovery order. ARCH-PURPOSE: both public live reboot personalities and negative ownership gates are required; a diagnostic-only change does not finish the issue. ARCH-MOCK: couple fake native metadata to process state and compare it with native capture. ARCH-CONSTRAINTS: no deadline tuning or extra unbounded scans. ARCH-SECURE: argv, pane JSON and persisted bindings are observations, never trusted because they are local. ARCH-ORDER: distinguish initial proof, own applied stops and uncertain completion; preserve the original exact set and current effect vetoes. ARCH-FUNERAL: no new production durable family; bounded diagnostic captures stay in the test log/evidence record, fixture roots and processes have existing cleanup. ARCH-EVOLVE: no persisted format or field-meaning change is proposed; if the concrete correction needs one, return for approval.
+
+## Revisions
+
+### 2026-10-22 — Diagnostic stage approved
+
+Authenticated ops:0 approval9d722e7b-5b6a-4b7e-8907-d5d045742c03 authorizes the bounded throwaway Claude/Codex capture and causal replay first. Retain the refusal's actual NativeQueryEvidence before cleanup removes the private store; retain that diagnostic improvement regardless of the selected correction. No production ownership or ordering change is authorized yet. After capture, bring the concrete correction choice to the hub and append its approved design before changing it.
+
+The initial diagnostic stage changes tests and the existing harness evidence renderer only. Reuse the persisted bounded LifecycleFailure.Zellij* fields; test that the pre-cleanup renderer emits the actual command, version, exit, byte counts, truncation and raw stdout/stderr prefixes, never synthesizing a valid JSON reply from a truncated prefix. The producer's4KiB per-stream cap and existing max-four failure selection remain unchanged. Native runs use the shared testcouch fleet and its disposable stores; no runtime/fleet stage.
