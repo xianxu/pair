@@ -6,7 +6,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"io"
 	"os"
 	"path/filepath"
@@ -193,7 +192,7 @@ func runNativeBridgeCohort(t *testing.T, parent context.Context, owner *NativeOw
 	// The exact advertised environment replaces ambient HOME/COUCH/PATH. No
 	// native editor survives this foreground invocation when EOF/TERM is sent.
 	nvim := filepath.Join(root, "bin", "nvim")
-	lua := fmt.Sprintf(`local a=vim.fn.argv(); assert(#a==2); local side=table.concat(vim.fn.readfile(a[2]),"\n"); assert(side:find("type: side-doc",1,true)); assert(side:find("parent: ../first.md",1,true)); io.stdout:write(vim.json.encode({Parent=a[1],Side=a[2],IDs={%q,%q}}).."\n"); vim.cmd("qa!")`, ready.Documents[0].ID, ready.Documents[1].ID)
+	lua := `local a=vim.fn.argv(); assert(#a==2); local side=table.concat(vim.fn.readfile(a[2]),"\n"); assert(side:find("type: side-doc",1,true)); assert(side:find("parent: ../first.md",1,true)); io.stdout:write(vim.json.encode({Parent=vim.fn.fnamemodify(a[1],":p"),Side=vim.fn.fnamemodify(a[2],":p")}).."\n"); vim.cmd("qa!")`
 	editor, stopEditor := context.WithTimeout(ctx, 15*time.Second)
 	native, err := nativeCommand(editor, nvim, []string{"--headless", "--clean", "-u", "NONE", "-i", "NONE", "-n", ready.Documents[0].File, ready.Documents[1].File, "-c", "lua " + lua}, root, env)
 	stopEditor()
@@ -202,9 +201,8 @@ func runNativeBridgeCohort(t *testing.T, parent context.Context, owner *NativeOw
 	}
 	var docs struct {
 		Parent, Side string
-		IDs          []string
 	}
-	if err := json.Unmarshal(bytes.TrimSpace(native), &docs); err != nil || docs.Parent != ready.Documents[0].File || docs.Side != ready.Documents[1].File || len(docs.IDs) != 2 || docs.IDs[0] != ready.Documents[0].ID || docs.IDs[1] != ready.Documents[1].ID {
+	if err := json.Unmarshal(bytes.TrimSpace(native), &docs); err != nil || docs.Parent != ready.Documents[0].File || docs.Side != ready.Documents[1].File {
 		t.Fatalf("native document recognition %s (%v)", native, err)
 	}
 	if term {
