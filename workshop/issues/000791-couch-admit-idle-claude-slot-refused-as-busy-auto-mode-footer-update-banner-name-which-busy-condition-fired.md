@@ -37,4 +37,12 @@ which of the three busy conditions fired; the refusal should name the one that d
 
 ## Log
 
+- 10-21 ~20:40 (ops-echo:0): **cause pinned: the `✔ Update installed · Restart to update` banner** in Claude's footer
+  blocks composer recognition. After the operator restarted echo:3's Claude (banner gone, auto mode still on), a
+  resend delivered. While the banner showed, sends also sat at "waiting for recognized composer", `couch --relaunch`
+  refused busy, and `couch --reboot` failed at recovery confirmation: "slot zellij session 1-393 kill not confirmed:
+  ownership unresolved, unknown pane owner, pane has no unambiguous actual command" (operation
+  e630974ef114e3fe95e51db5a22971b0, launch-diagnostics/failures.json); that reboot failure may be its own issue.
+  Fixture: footer `⏵⏵ auto mode on (shift+tab to cycle)   ✔ Update installed · Restart to update`.
+
 ### 2026-10-21
