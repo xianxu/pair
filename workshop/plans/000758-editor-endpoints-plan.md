@@ -24,7 +24,7 @@ Recommended: Couch's single owner retains endpoint authority and retired-attempt
 
 | Name | Lives in | Status |
 |---|---|---|
-| EndpointBinding, EndpointRequest, EndpointReply | cmd/internal/editorendpoint/model.go | new |
+| EndpointBinding, RegisterRequest, UnregisterRequest, EndpointReply | cmd/internal/editorendpoint/model.go | new |
 | EndpointState and ApplyEndpointEvent | cmd/internal/editorendpoint/state.go | new |
 | DecodeEndpointState and EncodeEndpointState | cmd/internal/editorendpoint/codec.go | new |
 
@@ -39,7 +39,7 @@ Namespace + DocumentID is one logical document. It has at most one current bindi
 | EditorRPC | cmd/internal/editorendpoint/nvim.go | new | bounded fixed nvim callback queries/notifications |
 | EndpointProcessSource and ClassifyEndpointProcess | cmd/internal/editorendpoint/process.go | new | injected error-preserving procutil.Source.ReadIdentity observations |
 | Source.ReadIdentity | cmd/internal/procutil/source.go | new | expose existing native per-PID identity plus error without changing Identity |
-| Stateful editor fixture | cmd/internal/editorendpoint/fixture_test.go | new | current/pending attachments, delayed RPC, death, replacement and retained channels |
+| Stateful editor fixture | cmd/internal/editorendpoint/owner_test.go | new | current/pending attachments, delayed RPC, death, replacement and retained channels |
 | endpoint CLI/service adapter | cmd/internal/couchcmd/editor_endpoint.go, editor_endpoint_service.go | new | bounded stdin JSON, private broker socket and runtime lifecycle |
 | Registration namespace projection | cmd/internal/sessionsync/registry.go; couchcmd/session_sync.go | modified | existing confirmed document register/lookup replies |
 
@@ -188,3 +188,11 @@ Parley final contract confirmation7d43957e accepts the fields, monotone uint64 d
 ### 2026-10-22 — plan-quality round1 evidence and strategy corrections
 
 PQ-1: Source.Identity suppresses errors, so explicitly add Source.ReadIdentity returning the existing injected native result and ClassifyEndpointProcess with narrow identity-specific positive absence. All permission, unsupported, empty/malformed and ambiguous errno evidence remains unknown; no full-host snapshot or new native implementation. PQ-2: name risky functions and a mechanical adversarial strategy for each, compressing the former case inventories into generated invariants, fuzz/opaque round trips and controlled IO ordering. These refine execution of the approved producer scope without changing the pinned consumer contract. Parley3cfbb244 confirms its plan pins aa24764a and separately owns stable runtime-parent/PID+start marker cleanup after positive-dead evidence.
+
+## Revisions
+
+### 2026-10-22 — approved implementation refinements
+
+The fixed callback seam now invokes installed nvim --server/--remote-expr as a bounded owned child rather than adding the Go RPC client, per TLe0091eff. Fixed Lua callbacks receive separately JSON-decoded data; no arbitrary code or browser-controlled method is exposed. A 1s operation budget is followed, when needed, by the existing 2s process-group cleanup grace. CurrentBinding projects the selected older desktop when a newer same-process headless attempt is terminally refused; the finite Current metadata combination is validated and unknown-preserving.
+
+TL6bf10860 approves additive RejectDuplicateKeysPreserveNumbers, SplitObjectPreserveNumbers and EncodeObjectPreserveNumbers as this producer's codec prerequisite. Only new endpoint state uses them; existing strict readers/equivalence tests remain unchanged. Decode the exact owned subset with typed json.Unmarshal after structural validation, so nested RawMessage children retain valid numeric lexemes without float conversion while known types stay strict. Test unknown over/underflow exponents, precise fractions, huge integers and negative zero at root/record/binding/Current, store reopen, duplicate aliases and known numeric overflow. #759 has a sibling checker: whichever lands second must reconcile to one shared implementation (ARCH-DRY), never permanent duplication.

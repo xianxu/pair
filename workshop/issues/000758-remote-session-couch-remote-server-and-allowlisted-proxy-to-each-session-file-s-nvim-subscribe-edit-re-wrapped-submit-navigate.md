@@ -61,6 +61,16 @@ Read remote-session project/design and existing sessionsync namespace/registry/p
 
 Initial unpinned change-code inferred quick from the short design despite this producer exceeding the implementation shell; reran with full flow for the approved durable plan, no code. Plan-quality round1 blocked PQ-1/PQ-2: Source.Identity drops native errors, and tests need named risky functions/strategies. Plan now specifies additive Source.ReadIdentity with original errors plus a narrow pure alive/replaced/dead/unknown classifier; existing consumers unchanged, no host-table scans. Named strategies use generated authority invariants, fuzzed strict/unknown-preserving codecs and controlled IO ordering/counts. No estimate or implementation before these clear.
 
+### 2026-10-22 — producer implementation checkpoint and approved codec prerequisite
+
+Implemented pure authority/high-water transitions, retained-raw endpoint store, error-preserving process evidence, installed-nvim fixed callback client, bounded owner admission/publication, CLI/private service and additive document Namespace projection. Stateful ordering/count tests and two private installed nvim editors exercise replacement, nil retirement, stale unregister and headless priority. No real Parley/remote adapter acceptance is claimed. Targeted packages passed (editorendpoint 0.692s, couchcmd 54.057s, procutil 0.414s, sessionsync 2.172s); focused race passed; artifact inventory, reader inventory and lint passed after individual source classifications. Full recorded suite and boundary review remain pending.
+
+The installed nvim client replaces the initially proposed Go RPC library, per TLe0091eff: fixed Lua and JSON data are separated through luaeval/json_decode, literal process argv, bounded output and owned timeout/group cleanup. A 1s operation budget can additionally incur the existing 2s cleanup grace. No custom MessagePack codec or added dependency. Same-process rejected headless attempts retain an older selected desktop through validated Current metadata, with CurrentBinding as the sole authority projection.
+
+TL6bf10860 approves the additive preserve-number duplicate checker plus SplitObject and EncodeObject entry points, only for new retained-raw endpoint state; existing strict readers and equivalence tests stay unchanged. This prerequisite is pending at this checkpoint. #759 has the sibling checker: whichever issue lands second must consolidate to the single shared helper and delete its duplicate (ARCH-DRY). Both issue Logs will record the coordination.
+
+Recovery screen unavailable on this fresh session; branch, plan and working diff are intact at e4d048845. Earlier test outcomes above are retained session evidence; new executable changes will receive fresh verification. No suite, review or merge runner is being claimed as surviving.
+
 ## Revisions
 
 ### 2026-10-22 — producer-only whole issue
@@ -95,3 +105,7 @@ total: 4.136
 ```
 
 Design subtotal 1.44h x1.15 plus implementation subtotal 2.48h = 4.136h. This is focused ship-time, not a deadline; suite queue time is excluded by the actuals system.
+
+### 2026-10-22 — additive codec prerequisite and transport refinement
+
+Per TL6bf10860, #758 owns additive preserve-number structural validation/object splitting/encoding for endpoint retained raw fields only. Strict APIs retain historical overflow refusal. #759 and #758 reconcile to one shared helper when the second lands. The initial Go RPC library option is superseded by the bounded installed-nvim client approved in TLe0091eff; semantic callbacks stay fixed and typed. No producer filesystem cleanup of editor-owned paths and no new adapter scope.
