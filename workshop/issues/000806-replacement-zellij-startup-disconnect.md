@@ -32,18 +32,21 @@ Retain and diagnose the new-session-before-first-wrapper disconnect through the 
 
 ## Done when
 
-- A retained failing startup includes the private Zellij server log and exact session/launch identities before root cleanup.
-- Causal replay identifies the trigger and pins the failure with a regression through the existing startup path; unknown ownership remains refused.
-- Disposable Claude and Codex startup/reboot+delivery acceptance and exact owned cleanup pass under existing bounds.
+The next replacement-startup failure retains its server-log tails and the identities needed to classify it.
+
+- Private server-log snapshots are bounded to two8192-byte escaped tails, before teardown and after producer joins, with unavailable/truncated evidence explicit.
+- Existing startup evidence retains exact session, scope/tag, launch nonce and observed PID/start identity where available; missing identities remain unknown.
+- Reader boundaries and capture counts are tested; disposable Claude/Codex reboot, delivery and exact cleanup pass under unchanged bounds.
 
 ## Plan
 
-Diagnostic proposal: [replacement startup diagnosis plan](../plans/000806-replacement-zellij-startup-disconnect-plan.md). Diagnostic phase approved by ops:0; production correction still requires the follow-up approval described in the plan.
+Diagnostic coverage: [replacement startup diagnosis plan](../plans/000806-replacement-zellij-startup-disconnect-plan.md). The scope revision below supersedes the original causal-correction completion requirements.
 
-- [ ] Retain bounded private server evidence before cleanup and qualify its reader boundaries.
-- [ ] Run one bounded diagnostic per personality and, only with a captured failure, one causal contrast; preserve unknown outcomes.
-- [ ] Bring the measured cause and concrete correction choice to the hub; revise the implementation plan before production changes.
-- [ ] Complete the approved correction, causal regression, both-personality native acceptance and normal close/landing gates.
+- [x] Retain bounded private server evidence before cleanup and qualify its reader boundaries.
+- [x] Run one bounded diagnostic per personality; preserve unknown outcomes without repeated native retries.
+- [x] Return measured uncertainty to the hub and receive approval to land diagnostics only.
+- [x] File unclaimed #820, waiting for the first retained failure.
+- [ ] Complete required recorded verification, close review and landing gates.
 
 ## Log
 
@@ -102,3 +105,10 @@ Raw logs: /Volumes/TestScratch/tmp/pair-slot2/pair806-native.CT4uCk/claude.log (
 The normal complete testcouch package also passed25.028s. No global query ordering trace was added: existing public operation timing, identities and private server tails are the measured coverage, not a complete census of executed cross-process queries. The source census lists potential overlaps only. The original failed server log is irrecoverable after its historical cleanup, so the original trigger remains unclassified. No failure was retained in this bounded phase, therefore no causal contrast is authorized/executed under the conditional allowance. These two passes neither close806 nor register its original failure as a flake.
 
 Correction choice: retain the diagnostic evidence boundary, but select no production correction on these measurements. A one-poller pause cannot enforce the class-wide invariant over the current census; broad birth/query exclusion or an upstream dependency correction needs retained causal evidence and a separately approved design. Return this limit to the hub now, before further native work or production edits. Stopping at this approval boundary with no queued/running work. Next step: hub decides whether to retain/land diagnostic-only coverage separately or approve a further causally instrumented reproduction; original Done when stays pending.
+
+
+### 2026-10-22 — Approved scope revision: retain the next failure
+
+Authenticated ops:0 delivery7e2c8fdd-2dc2-4419-96e1-34da5d1eb6df approved diagnostic-only completion, following the same evidence-retention disposition as #791/#810. Done when is now: “the next replacement-startup failure retains its server-log tails and the identities needed to classify it.” Original causal identification/regression/correction requirements move to an unclaimed follow-up that waits for the first retained failure. This supersedes the original Spec/Plan's requirement to select a production correction inside806; the preserved historical entries remain evidence. No new production behavior, native retries or time-budget change. Proceed through recorded verification, close and landing for the diagnostic coverage.
+
+Causal follow-up filed as unclaimed #820 (replacement-startup-causal-fix), dependency #806 plus an explicit first-retained-failure evidence prerequisite. No causal work is dispatched by filing it.

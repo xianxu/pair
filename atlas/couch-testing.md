@@ -111,6 +111,17 @@ attribution and pane querying; an unknown nonce labels only the current observed
 identity. The final wrapper projection runs again after writers join to capture
 buffered terminal records, without another native query.
 
+Failed fleets additionally retain two escaped private Zellij server-log tails:
+one before cancellation or teardown effects, one after native producers and IO
+join. Each snapshot retains at most 8192 bytes, with same-descriptor size/offset,
+truncation and read errors. One-shot phase budgets include failed reads and
+repeated cleanup. The path derives from this Fleet's private TMPDIR; ambient
+logs, final symlinks, nonregular files and root escapes are refused. The
+`RetainStartupServerLog` test option also captures successful diagnostic
+controls; other successful fleets leave it off. Shared-log lines need matching
+session/launch/generation chronology before attribution. Truncated or unavailable
+evidence never proves absence or grants cleanup authority (#806).
+
 At most four exact failure or recently emitted private thread identities are
 selected. Each scope census reads at most 129 directory entries, reports its
 128-entry scan limit and retains at most 32 readiness sibling names. The exact

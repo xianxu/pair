@@ -96,3 +96,8 @@ The issue remains open until its original Done when is satisfied: retained faili
 ### 2026-10-22 — Bounded diagnostic samples completed
 
 On diagnostic headc90b43e6e99f29a8cd6dbf2546262752745d6972, both Claude and Codex reboot/delivery/cleanup passed with two bounded private server tails. No failed sample occurred, so no conditional causal contrast ran. Query coverage remains the public operation chronology plus shared server-log tails, not cross-process query attribution. Preserve the detailed receipts and hashes in the issue Log. No production correction is selected; return to the hub at the approval boundary. No additional native runs or production edits are authorized by these successful controls. Original completion criteria remain pending.
+
+
+### 2026-10-22 — Hub-approved diagnostic-only deliverable
+
+Authenticated ops:0 delivery7e2c8fdd-2dc2-4419-96e1-34da5d1eb6df supersedes “Completion beyond this phase”:806 closes on retaining the next replacement-startup failure's bounded server tails and available exact identities. Causal reproduction and production correction move to a separate unclaimed issue waiting for the first retained failure. The two native controls and unit/reader checks qualify diagnostic retention, not historical causation. Conditional causal-contrast and further query-observer tasks above are deferred to that follow-up; no additional native run is authorized or required for this scope. Required recorded checks, boundary review and landing remain.
