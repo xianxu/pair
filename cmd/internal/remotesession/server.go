@@ -26,7 +26,8 @@ func newRemoteServer(s *Supervisor, v *AccessVerifier) *RemoteServer {
 }
 
 func (h *RemoteServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	exchange, cancelExchange := context.WithTimeout(r.Context(), 5*time.Second)
+	requestContext := r.Context()
+	exchange, cancelExchange := context.WithTimeout(requestContext, 5*time.Second)
 	defer cancelExchange()
 	r = r.WithContext(exchange)
 	_ = http.NewResponseController(w).SetWriteDeadline(time.Now().Add(5 * time.Second))
@@ -58,7 +59,8 @@ func (h *RemoteServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "remote request capacity reached", 429)
 		return
 	}
-	if _, err := h.s.policy.requestIP(r); err != nil {
+	ip, err := h.s.policy.requestIP(r)
+	if err != nil {
 		http.Error(w, "remote origin refused", 403)
 		return
 	}
@@ -99,11 +101,18 @@ func (h *RemoteServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	e.requests.Add(1)
 	h.s.gate.mu.Unlock()
 	defer e.requests.Done()
-	ctx, cancel := context.WithDeadline(r.Context(), id.expires)
+	suffix := strings.TrimPrefix(r.URL.Path, prefix)
+	parent := r.Context()
+	if r.Method == http.MethodPost && suffix == "v1/stream" {
+		parent = requestContext
+	}
+	ctx, cancel := context.WithDeadline(parent, id.expires)
 	stop := context.AfterFunc(e.ctx, cancel)
 	defer func() { stop(); cancel() }()
 	r = r.WithContext(ctx)
-	suffix := strings.TrimPrefix(r.URL.Path, prefix)
+	if h.documentRoute(w, r, e, id, ip, suffix) {
+		return
+	}
 	switch {
 	case r.Method == http.MethodGet && suffix == "":
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")

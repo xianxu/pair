@@ -2,7 +2,8 @@
 
 The #759 implementation is under development and defaults off. M2 wires the
 protected security surface, qualified and closed SHIP at its milestone review;
-document routes, dispatch/audit handoff and broker provenance remain M3.
+M3 now implements document routes, owned dispatch/audit handoff and broker
+provenance; qualification and operator acceptance remain pending.
 #758 supplies the real document/nvim adapter after interface integration; private
 stateful backends qualify that seam without being exposed publicly.
 
@@ -24,7 +25,7 @@ automatically enable anything.
 expiry supplies the time bound; no Couch idle or absolute session timer applies.
 `replay.go` keeps a sequence high-water mark and at most256 results per session;
 uncertain/in-flight entries remain pinned, and evicted requests cannot execute
-again. The supervisor owns lifecycle serialization; M3 adds document dispatch
+again. The supervisor owns lifecycle serialization and document dispatch
 against its exact admission mutex.
 
 `access.go` uses coreos/go-oidc and go-jose for signature/issuer/audience validation.
@@ -36,9 +37,17 @@ named connector and private Unix origin. Same-UID host compromise is outside
 this boundary.
 
 `origin_store.go` retains conservative remote-edit markers by stable registration
-ID across editor and Couch lifetimes. Only settled, explicitly forgotten IDs may
-be retired locally. A missing marker does not prove a legacy document was local.
-The supported records retain opaque JSON fields through rewrite.
+ID across editor and Couch lifetimes. The message service initializes its single
+origin writer before publishing sockets and lends it to remote mode; local
+submits consult it even while remote mode is off. `submit_seen` is persisted
+before remote or marked-local submit handoff and never cleared in M3. Such IDs
+cannot be forgotten yet: the refusal points to pair#795, which owns lifetime
+settlement proof beyond receipt/audit retention. Never-submitted registrations
+use the local Couch owner, a durable forget intent, exact-ID registry removal
+and an active-operation fence; offline forget says start Couch and retry.
+Replacement registrations at a reused path are not removed by the old request.
+A missing marker does not prove a legacy document was local. Supported records
+retain opaque JSON fields through rewrite.
 
 For these new retained-raw stores, strictjson exposes the additive
 `RejectDuplicateKeysPreserveNumbers` check: arbitrary valid JSON numbers remain
@@ -77,8 +86,10 @@ Access ingress and one opening per owner. There is no anonymous/TCP fallback,
 public readiness probe, shared remote mount or automatic reconnect. Teardown
 uncertainty permanently blocks that Host instance.
 
-`server.go` currently serves only authenticated security status, handshake,
-logout and kill. Every request verifies Access and trusted-proxy IP. Same-origin
+`server.go` serves authenticated security status, handshake, logout and kill;
+`server_documents.go` adds the closed document routes below when #758's typed
+backend is connected. Without a backend, they report unavailable; no private
+fake backend is exposed. Every request verifies Access and trusted-proxy IP. Same-origin
 GET need not carry Origin; mutations require exact Origin plus JSON and a custom
 header. Kill has a separate bounded lane independent of session capacity and the
 per-enable passcode. Cookie resume preserves the original assertion expiry and
@@ -120,3 +131,50 @@ The supervisor retains that classified error before acknowledging opening and
 includes it in the epoch cleanup result. A missing mount never proves cleanup.
 Cancellation also joins an already-closing Host attempt; failed connector or
 listener cleanup keeps the existing blocked state and denies console reset.
+
+
+M3 dispatch and provenance
+
+`dispatch.go` reserves per-session replay, owns completion after HTTP departure,
+and persists origin evidence and audit intent before the nonblocking backend
+handoff. Durable work runs outside the lifecycle mutex. Backend workers use the
+one-use Permit at the final enqueue, sharing kill's exact fence. Audit intent
+failure has zero effects; result audit failure revokes and retains uncertainty,
+including any already-known receipt ID. Reset still waits for joined work.
+Per-epoch active operations are capped at eight. A canceled observer before
+admission cannot start work; departure after admission does not assert rollback.
+
+The closed API under the current capability is GET `v1/documents` and POST
+`v1/read`, `v1/stream`, `v1/edit`, `v1/submit`, `v1/navigate`. POST bodies use the
+strict typed DocumentRequest and every POST requires session CSRF. Streams emit
+NDJSON snapshots, one per session, at most 1 MiB per encoded frame with bounded
+writes; JWT/session/epoch ends them, not the ordinary five-second exchange timer.
+The backend owns its bounded subscription queue and must return subscriptions
+promptly with all remote work canceled/joined through its existing lifetime.
+#760 owns the phone editor; #758 owns registered eligibility and actual nvim RPC.
+
+`couchmessage.Broker.SendRemote` assigns Origin remote and comparable
+RemoteSource Email/IP facts. `Envelope` emits `[remote <email> <IP>]` before the
+canonical `submitted: <path>` body, preserving SubmitPath parsing. Message and
+receipt carry RemoteEdited independently plus stable DocumentID. Marked local
+submits have no remote display prefix; ordinary unmarked peer messages retain
+the old wire. All new provenance requires receiver `remote-provenance-v1`;
+unknown/legacy receivers refuse with relaunch recovery before admission. Generic
+request JSON cannot set these fields. Same-UID host code remains trusted.
+
+Delivery recorder, retained-raw Entry codec, trim/reopen and owed projections
+preserve the facts and unknown nested fields. New DocumentID-bearing rows cannot
+be attributed to a replacement registration sharing a path. Recognized malformed
+provenance causes refusal/gap, never clean-local inference. Rollback to an old
+writer is unsupported for preserving the added facts; disable remote and retain
+provenance/transcripts before rollback.
+
+The agent's native transcript is the second paper trail. Private Claude/Codex
+native-format fixture producers through actual wrapper PTY input and production
+readers retain the exact header/body beyond turn eight; this is fixture
+qualification, not real-agent/iPhone acceptance. The existing Pair peer recorder
+remains best-effort correlation, capped at eight turns / 256 KiB per launch. It
+does not prove every submit, and there is no new unbounded transcript format.
+Qoder native fixture coverage is unavailable; live acceptance is reported
+separately. No fixture transcript contains JWTs, session credentials or the
+remote link/passcode.

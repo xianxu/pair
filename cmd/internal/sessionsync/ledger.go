@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/xianxu/pair/cmd/internal/couchcore"
+	"github.com/xianxu/pair/cmd/internal/couchmessage"
 	"github.com/xianxu/pair/cmd/internal/durablefile"
 )
 
@@ -25,9 +26,16 @@ type Entry struct {
 	At   time.Time
 	// AddressedAt is broker admission time, used only to attribute renamed
 	// paths. At remains the delivery horizon, display and retention authority.
-	AddressedAt time.Time `json:",omitempty"`
-	Head        string
-	Uncertain   bool `json:",omitempty"`
+	AddressedAt       time.Time `json:",omitempty"`
+	Head              string
+	Uncertain         bool                      `json:",omitempty"`
+	Origin            couchmessage.Origin       `json:",omitempty"`
+	RemoteEdited      bool                      `json:",omitempty"`
+	RemoteSource      couchmessage.RemoteSource `json:",omitempty"`
+	DocumentID        string                    `json:",omitempty"`
+	rawFields         map[string]json.RawMessage
+	rawSource         map[string]json.RawMessage
+	provenancePresent bool
 }
 
 // The ledger's bound (ARCH-FUNERAL): a slot's file is trimmed when it grows
@@ -95,7 +103,7 @@ func (l *Ledger) Append(slot string, e Entry) error {
 		return err
 	}
 	e.Head = Head(e.Head)
-	line, err := json.Marshal(e)
+	line, err := encodeLedgerEntry(e)
 	if err != nil {
 		return err
 	}
@@ -145,7 +153,7 @@ func (l *Ledger) trim(p string) error {
 	var lines [][]byte
 	size := 0
 	for i := len(kept) - 1; i >= 0 && len(lines) < keepRows; i-- {
-		line, err := json.Marshal(kept[i])
+		line, err := encodeLedgerEntry(kept[i])
 		if err != nil {
 			return err
 		}
@@ -179,8 +187,8 @@ func (l *Ledger) Read(slot string) ([]Entry, error) {
 	return readRows(p)
 }
 
-// readRows skips a line that does not decode: the writer appends whole lines,
-// so only a torn tail can fail, and it is the newest row's write in flight.
+// readRows tolerates legacy torn tails. A recognized provenance row that fails
+// validation refuses the read; it can never silently become clean local evidence.
 func readRows(p string) ([]Entry, error) {
 	f, err := os.Open(p)
 	if errors.Is(err, os.ErrNotExist) {
@@ -195,7 +203,13 @@ func readRows(p string) ([]Entry, error) {
 	sc.Buffer(make([]byte, 64*1024), 1024*1024)
 	for sc.Scan() {
 		var e Entry
-		if json.Unmarshal(sc.Bytes(), &e) == nil && e.ID != "" {
+		if err := e.UnmarshalJSON(sc.Bytes()); err != nil {
+			if hasLedgerProvenance(sc.Bytes()) {
+				return nil, fmt.Errorf("invalid delivery provenance: %w", err)
+			}
+			continue
+		}
+		if e.ID != "" {
 			rows = append(rows, e)
 		}
 	}

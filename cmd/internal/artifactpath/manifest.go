@@ -59,6 +59,9 @@ type ResolvedBinding struct {
 var ResolvedBindings = append([]ResolvedBinding{
 	{Name: "remote-publication-stage", Family: "remote-security", Resolver: "RemotePublicationStage"},
 	{Name: "couch-remote-latch", Family: "remote-security", Resolver: "ResolveCouchRemote", Member: "Latch"},
+	{Name: "couch-remote-origins", Family: "remote-security", Resolver: "ResolveCouchRemote", Member: "Origins"},
+	{Name: "couch-remote-audit", Family: "remote-security", Resolver: "ResolveCouchRemote", Member: "Audit"},
+	{Name: "couch-remote-previous-audit", Family: "remote-security", Resolver: "ResolveCouchRemote", Member: "PreviousAudit"},
 	{Name: "cache-session-lock", Family: "session-lock", Resolver: "ResolvePairCache", Member: "TerminalLease"},
 	{Name: "matched-changelog-family", Family: "changelog", Resolver: "MatchArtifact"},
 	{Name: "parsed-parked-capture", Family: "parked", Resolver: "ParseParkedCapture"},
@@ -242,7 +245,8 @@ var Families = []Family{
 // pair:m5-concept pure
 var SourceClassifications = []SourceClassification{
 	{Path: "cmd/internal/remotesession/publication.go", Kind: ResolvedConsumer, Families: []string{"remote-security"}, BindingNames: []string{"remote-publication-stage"}},
-	{Path: "cmd/internal/remotesession/supervisor.go", Kind: ResolvedConsumer, Families: []string{"remote-security"}, BindingNames: []string{"couch-remote-latch"}},
+	{Path: "cmd/internal/remotesession/supervisor.go", Kind: ResolvedConsumer, Families: []string{"remote-security"}, BindingNames: []string{"couch-remote-latch", "couch-remote-origins", "couch-remote-audit", "couch-remote-previous-audit"}},
+	{Path: "cmd/internal/couchcmd/remote_service.go", Kind: ResolvedConsumer, Families: []string{"remote-security"}, BindingNames: []string{"couch-remote-origins"}},
 	{Path: "cmd/internal/artifactpath/remote.go", Kind: Constructor, Families: []string{"remote-security"}},
 	// #649 title adapters resolve scoped roots and storage ownership through
 	// artifactpath; neither constructs a tracked artifact filename family.
@@ -676,10 +680,15 @@ var SourceClassifications = []SourceClassification{
 // the artifact namespace requires an explicit SourceClassification.
 // pair:m5-concept pure
 var NonArtifactSources = []string{
+	"cmd/internal/couchcmd/remote_forget.go",
+	"cmd/internal/couchcmd/remote_submit.go",
+	"cmd/internal/couchmessage/provenance.go",
+	"cmd/internal/remotesession/dispatch.go",
+	"cmd/internal/remotesession/server_documents.go",
+	"cmd/internal/sessionsync/ledger_codec.go",
 	"cmd/internal/remotesession/server.go",
 	"cmd/internal/couchcmd/remote.go",
 	"cmd/internal/couchcmd/remote_cli.go",
-	"cmd/internal/couchcmd/remote_service.go",
 	"cmd/internal/couchtty/console_remote_session.go",
 	"cmd/internal/couchtty/remote_qr.go",
 	"cmd/internal/broadcast/protected.go",

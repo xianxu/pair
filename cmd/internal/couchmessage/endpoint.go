@@ -28,6 +28,7 @@ type EndpointRequest struct {
 }
 
 type EndpointResponse struct {
+	RemoteProvenance string             `json:",omitempty"`
 	DriveObservation *DriveObservation  `json:",omitempty"`
 	DriveResult      *agentdrive.Result `json:",omitempty"`
 	BatchReady       bool               `json:",omitempty"`
@@ -70,7 +71,7 @@ func ValidateEndpointRequest(r EndpointRequest) error {
 			return errors.New("tail requires only a binding and a line count")
 		}
 		return ValidTailLines(r.Lines)
-	case "observe":
+	case "remote-provenance", "observe":
 		if r.ID != "" || r.Sequence != 0 || r.Message != nil {
 			return errors.New("observe requires only a binding")
 		}
@@ -87,7 +88,7 @@ func ValidateEndpointRequest(r EndpointRequest) error {
 			return errors.New("commit requires binding, ID and message")
 		}
 		m := r.Message
-		if !m.Origin.Valid() || m.ID != r.ID || m.To != r.Binding || m.From.Validate() != nil || m.Deadline.IsZero() {
+		if m.ValidateProvenance() != nil || m.ID != r.ID || m.To != r.Binding || m.From.Validate() != nil || m.Deadline.IsZero() {
 			return errors.New("commit message identity mismatch")
 		}
 		return ValidateBody(m.Body)
@@ -178,6 +179,9 @@ func (e RemoteEndpoint) call(ctx context.Context, r EndpointRequest) (EndpointRe
 	case response.Error != "":
 		return EndpointResponse{}, &endpointRefusal{message: response.Error}
 	}
+	if response.RemoteProvenance != "" && r.Op != "remote-provenance" {
+		return EndpointResponse{}, errors.New("endpoint returned remote provenance for another operation")
+	}
 	if response.BatchReady && r.Op != "batch-status" {
 		return EndpointResponse{}, errors.New("endpoint returned batch readiness for another operation")
 	}
@@ -229,7 +233,7 @@ func (e RemoteEndpoint) Release(ctx context.Context, id string) error {
 }
 
 func matchingReceipt(r Receipt, m Message) bool {
-	return m.Origin.Valid() && r.Message.Origin == m.Origin && r.Message.ID == m.ID && r.Message.From == m.From && r.Message.To == m.To && r.Message.Body == m.Body && r.Message.Deadline.Equal(m.Deadline)
+	return m.ValidateProvenance() == nil && r.Message.SameProvenance(m) && r.Message.ID == m.ID && r.Message.From == m.From && r.Message.To == m.To && r.Message.Body == m.Body && r.Message.Deadline.Equal(m.Deadline)
 }
 
 // peerHeldPoll paces status polling while the recipient holds a delivery.
@@ -292,4 +296,21 @@ func (e RemoteEndpoint) waitForDelivery(ctx context.Context, m Message, r Endpoi
 			return Receipt{}, errors.New("endpoint returned no delivery status")
 		}
 	}
+}
+
+// SupportsRemoteProvenance uses a closed, separate operation so old hello and
+// observation readers retain their strict wire shapes. Unknown is never support.
+func (e RemoteEndpoint) SupportsRemoteProvenance(ctx context.Context) error {
+	response, err := e.call(ctx, EndpointRequest{Op: "remote-provenance"})
+	if err != nil {
+		var refusal *endpointRefusal
+		if errors.As(err, &refusal) {
+			return fmt.Errorf("remote-provenance-v1 unavailable; relaunch receiver: %w", ErrUnsupported)
+		}
+		return err
+	}
+	if response.RemoteProvenance != "remote-provenance-v1" {
+		return fmt.Errorf("remote-provenance-v1 unavailable; relaunch receiver: %w", ErrUnsupported)
+	}
+	return nil
 }

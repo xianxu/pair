@@ -21,6 +21,7 @@ type SupervisorConfig struct {
 	CaptureConfigured bool
 	Documents         DocumentBackend
 	Verifier          *AccessVerifier
+	Origins           *OriginStore // shared with local submit/forget; one Couch writer
 }
 
 // RemoteStatus deliberately contains no capability link. CLI replies may be
@@ -44,25 +45,29 @@ type remoteEpoch struct {
 	cleanup        bool
 	cleaned        bool
 	cleanupErr     error
+	operations     int
 	requests       sync.WaitGroup // Add only under the shared gate while ready
 }
 
 // Supervisor owns the reducer, persistent command order and every exposure.
 // No disk/network operation runs while its admission mutex is held.
 type Supervisor struct {
-	gate              admissionGate
-	store             *Store
-	paths             artifactpath.RemoteStatePaths
-	policy            remotePolicy
-	host              *broadcast.Host
-	backend           DocumentBackend
-	captureConfigured bool
-	changed           chan struct{}
-	epoch             *remoteEpoch
-	persistTail       <-chan struct{}
-	persistPending    int
-	detail            string
-	handler           http.Handler
+	gate               admissionGate
+	store              *Store
+	paths              artifactpath.RemoteStatePaths
+	policy             remotePolicy
+	host               *broadcast.Host
+	backend            DocumentBackend
+	origins            *OriginStore
+	audit              *Audit
+	documentOperations map[string]int
+	captureConfigured  bool
+	changed            chan struct{}
+	epoch              *remoteEpoch
+	persistTail        <-chan struct{}
+	persistPending     int
+	detail             string
+	handler            http.Handler
 }
 
 // NewSupervisor returns reset authority separately for capture by Couch's owned
@@ -83,9 +88,20 @@ func NewSupervisor(c SupervisorConfig) (*Supervisor, func() error, error) {
 	if err != nil {
 		return nil, nil, err
 	}
+	origins := c.Origins
+	if origins == nil {
+		origins, err = OpenOriginStore(paths.Origins())
+		if err != nil {
+			return nil, nil, err
+		}
+	}
+	audit, err := OpenAudit(paths.Audit(), paths.PreviousAudit(), time.Now)
+	if err != nil {
+		return nil, nil, err
+	}
 	done := make(chan struct{})
 	close(done)
-	s := &Supervisor{store: store, paths: paths, policy: p, host: c.Host, backend: c.Documents,
+	s := &Supervisor{store: store, paths: paths, policy: p, host: c.Host, backend: c.Documents, origins: origins, audit: audit,
 		captureConfigured: c.CaptureConfigured, changed: make(chan struct{}, 1), persistTail: done,
 	}
 	s.handler = newRemoteServer(s, c.Verifier)

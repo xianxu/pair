@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"path/filepath"
 	"strings"
 	"time"
 	"unicode"
@@ -48,7 +49,10 @@ type Request struct {
 // Only this response may authorize an automatic retry of the same intent.
 const CodeWarming = "warming"
 
+type ForgetResult struct{ Changed bool }
+
 type Response struct {
+	Forget *ForgetResult `json:",omitempty"`
 	// Remote contains status only. Capability links never cross the child IPC.
 	Remote *RemoteStatus `json:",omitempty"`
 	// RetryAfterMillis is a transient admission hint, only for CodeWarming.
@@ -166,6 +170,13 @@ func validMessageID(id string) bool {
 }
 
 func ValidateRequest(r Request) error {
+	if r.Op == "session-forget" {
+		if r != (Request{Op: r.Op, Target: r.Target}) || !filepath.IsAbs(r.Target) || filepath.Clean(r.Target) != r.Target || len(r.Target) > MaxBindingBytes || !utf8.ValidString(r.Target) || strings.IndexFunc(r.Target, unicode.IsControl) >= 0 {
+			return errors.New("session-forget requires only one canonical absolute document path")
+		}
+		return nil
+	}
+
 	if IsRemoteOp(r.Op) {
 		// Like ordinary console clicks, these local owner-only socket actions
 		// need no agent identity. Same-UID code is explicitly trusted; neither

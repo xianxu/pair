@@ -70,19 +70,23 @@ type Origin string
 const (
 	OriginPeer   Origin = ""
 	OriginSystem Origin = "system"
+	OriginRemote Origin = "remote"
 )
 
-func (o Origin) Valid() bool { return o == OriginPeer || o == OriginSystem }
+func (o Origin) Valid() bool { return o == OriginPeer || o == OriginSystem || o == OriginRemote }
 
 // Deadline bounds the initial reservation/commit exchange. Once committed,
 // a connected receiver retains the message until its composer is ready;
 // DeliveryTimeout starts only when the wrapper writes the paste.
 type Message struct {
-	Origin   Origin `json:",omitempty"`
-	ID       string
-	From, To Binding
-	Body     string
-	Deadline time.Time
+	Origin       Origin       `json:",omitempty"`
+	RemoteSource RemoteSource `json:",omitzero"`
+	RemoteEdited bool         `json:",omitempty"`
+	DocumentID   string       `json:",omitempty"`
+	ID           string
+	From, To     Binding
+	Body         string
+	Deadline     time.Time
 	// AcceptedAt is the broker's immutable admission time, including time
 	// spent queued before promotion. Zero is accepted for legacy messages.
 	AcceptedAt time.Time `json:",omitzero"`
@@ -383,7 +387,7 @@ func Advance(s ActorState, e Event) (ActorState, []Effect, error) {
 		activity()
 	case Admit, Enqueue:
 		m := e.Message
-		if !m.Origin.Valid() || !validMessageID(m.ID) || m.To != s.binding || m.From.Validate() != nil || ValidateBody(m.Body) != nil || !m.Deadline.After(e.At) {
+		if m.ValidateProvenance() != nil || !validMessageID(m.ID) || m.To != s.binding || m.From.Validate() != nil || ValidateBody(m.Body) != nil || !m.Deadline.After(e.At) {
 			return fail(errors.New("invalid message admission"))
 		}
 		for _, active := range s.PendingMessages() {

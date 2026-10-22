@@ -337,7 +337,7 @@ func (s *Sync) owed(f *file, acceptGap bool) ([]Entry, []OwedEvent, error) {
 		paths = f.registration.Paths
 	}
 	// Plain deliveries are owed by the owner's session file only (pair#599).
-	return rows, OwedForDocument(rows, f.state, f.paths.File, paths, IsSessionSync(f.content), s.Canonical), nil
+	return rows, OwedForRegistration(rows, f.state, f.paths.File, registeredID(f.registration), paths, IsSessionSync(f.content), s.Canonical), nil
 }
 
 // folds validates ids against what is owed: folding something not owed is a
@@ -401,7 +401,7 @@ func (s *Sync) Round(path string) (RoundResult, error) {
 		if f.registration != nil {
 			paths = f.registration.Paths
 		}
-		return RoundResult{Round: round, Cleared: SubmittedSince(rows, f.paths.File, paths, round.At, s.Canonical)}, nil
+		return RoundResult{Round: round, Cleared: SubmittedSinceForRegistration(rows, f.paths.File, registeredID(f.registration), paths, round.At, s.Canonical)}, nil
 	})
 }
 
@@ -727,4 +727,11 @@ func (l *Ledger) Recording() error {
 			Reason: "this Couch store has no delivery ledger yet; restart Couch on a build with pair#437 so owed events are recorded"}
 	}
 	return nil
+}
+
+func registeredID(r *DocumentRegistration) string {
+	if r == nil {
+		return ""
+	}
+	return r.ID
 }

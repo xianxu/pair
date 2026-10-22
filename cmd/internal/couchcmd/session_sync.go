@@ -168,9 +168,8 @@ func parseSessionSyncCLI(args []string) (cliInvocation, error) {
 	return cliInvocation{kind: cliSessionSync, sessionSync: a}, nil
 }
 
-// runSessionSyncCLI runs in-process: it reads the store's ledger directly
-// and constructs no supervisor, so it answers whether or not Couch runs
-// (status alone refuses when no Couch has recorded deliveries).
+// runSessionSyncCLI reads the store directly except for forget, which must
+// reach Couch's sole provenance writer. It never constructs another supervisor.
 func runSessionSyncCLI(a *sessionSyncArgs, rt Runtime, stdout, stderr io.Writer) int {
 	fail := func(err error) int {
 		code, exit := "error", 1
@@ -222,7 +221,7 @@ func runSessionSyncCLI(a *sessionSyncArgs, rt Runtime, stdout, stderr io.Writer)
 		case "register":
 			res, err = s.Register(file, a.owner)
 		case "forget":
-			res, err = s.Forget(file)
+			res.Changed, err = requestSessionForget(namespace.Dir(), file, couchmessage.Call)
 		case "rename":
 			res, err = s.Rename(a.oldFile, file)
 		}

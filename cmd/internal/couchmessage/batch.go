@@ -20,6 +20,11 @@ func Envelope(m Message) string {
 	switch m.Origin {
 	case OriginSystem:
 		return fmt.Sprintf("[Couch system; delivery %s]\n%s", m.ID, m.Body)
+	case OriginRemote:
+		if m.ValidateProvenance() != nil {
+			return ""
+		}
+		return fmt.Sprintf("[Couch peer from %s; delivery %s]\n[remote %s %s]\n%s", m.From.Slot, m.ID, m.RemoteSource.Email, m.RemoteSource.IP, m.Body)
 	case OriginPeer:
 	default:
 		return ""
@@ -81,7 +86,7 @@ func ValidateBatch(messages []Message, to Binding, id string) error {
 	}
 	seen := make(map[string]bool, len(messages))
 	for _, m := range messages {
-		if !m.Origin.Valid() || !validMessageID(m.ID) || seen[m.ID] || m.To != to || m.From.Validate() != nil || m.Deadline.IsZero() {
+		if m.ValidateProvenance() != nil || !validMessageID(m.ID) || seen[m.ID] || m.To != to || m.From.Validate() != nil || m.Deadline.IsZero() {
 			return errors.New("batch member identity mismatch")
 		}
 		if err := ValidateBody(m.Body); err != nil {

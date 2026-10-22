@@ -79,16 +79,24 @@ func decodeOrigins(raw []byte) (originRecord, error) {
 		if !validDocumentID(id) {
 			return originRecord{}, errors.New("invalid remote document ID")
 		}
-		fields, err := remoteObject(rawMarker, "remote_edited")
+		fields, err := remoteObject(rawMarker, "remote_edited", "forget_pending", "submit_seen")
 		if err != nil {
 			return originRecord{}, err
 		}
-		var marked bool
-		if err := requiredRemoteField(fields, "remote_edited", &marked); err != nil {
-			return originRecord{}, err
+		if len(fields["remote_edited"]) == 0 && len(fields["forget_pending"]) == 0 && len(fields["submit_seen"]) == 0 {
+			return originRecord{}, errors.New("remote origin record requires marker or forget intent")
 		}
-		if !marked {
-			return originRecord{}, errors.New("remote origin marker cannot be false")
+		for _, key := range []string{"remote_edited", "forget_pending", "submit_seen"} {
+			if _, present := fields[key]; !present {
+				continue
+			}
+			var flag bool
+			if err := requiredRemoteField(fields, key, &flag); err != nil {
+				return originRecord{}, err
+			}
+			if !flag {
+				return originRecord{}, errors.New("remote origin flags cannot be false")
+			}
 		}
 		record.documents[id] = fields
 	}

@@ -5,6 +5,8 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/xianxu/pair/cmd/internal/couchmessage"
 )
 
 // SubmitPrefix opens the message parley.nvim sends on the operator's submit
@@ -26,11 +28,15 @@ const (
 // OwedEvent is a delivery to the file's owner that no write has
 // folded yet. The JSON shape is agreed with parley.nvim#314.
 type OwedEvent struct {
-	ID        string
-	Kind      Kind
-	From      string
-	At        time.Time
-	Uncertain bool `json:",omitempty"`
+	ID           string
+	Kind         Kind
+	From         string
+	At           time.Time
+	Uncertain    bool                      `json:",omitempty"`
+	Origin       couchmessage.Origin       `json:",omitempty"`
+	RemoteEdited bool                      `json:",omitempty"`
+	RemoteSource couchmessage.RemoteSource `json:",omitzero"`
+	DocumentID   string                    `json:",omitempty"`
 }
 
 // SubmitPath returns the path a submit's head names, or ok=false when the
@@ -56,6 +62,12 @@ func Owed(rows []Entry, st State, file string, canonical func(string) string) []
 // agentic document of that owner (pair#599). Submits are owed only by the
 // document they name.
 func OwedForDocument(rows []Entry, st State, file string, paths []PathInterval, plain bool, canonical func(string) string) []OwedEvent {
+	return OwedForRegistration(rows, st, file, "", paths, plain, canonical)
+}
+
+// OwedForRegistration pins new submit rows to the immutable registration ID.
+// Legacy rows retain their historical pathname/time attribution.
+func OwedForRegistration(rows []Entry, st State, file, documentID string, paths []PathInterval, plain bool, canonical func(string) string) []OwedEvent {
 	folded := make(map[string]bool, len(st.Folded))
 	for _, id := range st.Folded {
 		folded[id] = true
@@ -64,7 +76,7 @@ func OwedForDocument(rows []Entry, st State, file string, paths []PathInterval, 
 	seen := map[string]bool{}
 	out := []OwedEvent{}
 	for _, r := range rows {
-		if r.At.Before(st.Since) || folded[r.ID] || seen[r.ID] {
+		if r.At.Before(st.Since) || folded[r.ID] || seen[r.ID] || (r.DocumentID != "" && r.DocumentID != documentID) {
 			continue
 		}
 		kind := KindDelivery
@@ -83,7 +95,7 @@ func OwedForDocument(rows []Entry, st State, file string, paths []PathInterval, 
 			kind = KindSubmit
 		}
 		seen[r.ID] = true
-		out = append(out, OwedEvent{ID: r.ID, Kind: kind, From: r.From, At: r.At, Uncertain: r.Uncertain})
+		out = append(out, OwedEvent{ID: r.ID, Kind: kind, From: r.From, At: r.At, Uncertain: r.Uncertain, Origin: r.Origin, RemoteEdited: r.RemoteEdited, RemoteSource: r.RemoteSource, DocumentID: r.DocumentID})
 	}
 	sort.SliceStable(out, func(i, j int) bool { return out[i].At.Before(out[j].At) })
 	return out
@@ -121,8 +133,16 @@ func submitNames(r Entry, p, self string, paths []PathInterval, canonical func(s
 // SubmittedSince says whether any row records a submit of the document after
 // at, folded or not (pair#661: a round clears on the next submit).
 func SubmittedSince(rows []Entry, file string, paths []PathInterval, at time.Time, canonical func(string) string) bool {
+	return SubmittedSinceForRegistration(rows, file, "", paths, at, canonical)
+}
+
+// SubmittedSinceForRegistration uses the same immutable attribution as owed.
+func SubmittedSinceForRegistration(rows []Entry, file, documentID string, paths []PathInterval, at time.Time, canonical func(string) string) bool {
 	self := canonical(file)
 	for _, r := range rows {
+		if r.DocumentID != "" && r.DocumentID != documentID {
+			continue
+		}
 		p, ok := SubmitPath(r.Head)
 		if ok && filepath.IsAbs(p) && r.At.After(at) && submitNames(r, p, self, paths, canonical) {
 			return true

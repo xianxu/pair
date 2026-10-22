@@ -1,6 +1,9 @@
 package couchcmd
 
 import (
+	"errors"
+
+	"github.com/xianxu/pair/cmd/internal/artifactpath"
 	"github.com/xianxu/pair/cmd/internal/couchmessage"
 	"github.com/xianxu/pair/cmd/internal/couchtty"
 	"github.com/xianxu/pair/cmd/internal/remotesession"
@@ -11,14 +14,44 @@ type remoteControl struct {
 	reason     string
 }
 
+// initializeOriginsLocked runs before socket publication, or under
+// originAdmission. An opened or failed owner is retained for this service's
+// lifetime; exposure configuration never opens another writer.
+func (s *messageService) initializeOriginsLocked(namespace string) error {
+	if s.originNamespace != "" {
+		if s.originNamespace != namespace {
+			return errors.New("origin owner namespace changed; restart Couch")
+		}
+		return s.originErr
+	}
+	s.originNamespace = namespace
+	paths, err := artifactpath.ResolveCouchRemote(namespace)
+	if err == nil {
+		s.origins, err = remotesession.OpenOriginStore(paths.Origins())
+	}
+	s.originErr = err
+	return err
+}
+
 func (s *messageService) configureRemoteSession(console *couchtty.Console, namespace string, getenv func(string) string) {
+	s.originAdmission.Lock()
+	defer s.originAdmission.Unlock()
 	control := &remoteControl{}
-	cast, err := broadcastSettings(getenv, namespace, guardArgv())
+	// The leased service owns provenance even when remote exposure is absent
+	// or misconfigured. A supervisor always borrows this same owner.
+	err := s.initializeOriginsLocked(namespace)
+	cast, settingsErr := broadcastSettings(getenv, namespace, guardArgv())
+	if err == nil {
+		err = settingsErr
+	} else {
+		err = errors.New("remote origin evidence unavailable; inspect local state before enabling remote")
+	}
 	var reset func() error
 	if err == nil {
 		var cfg remotesession.SupervisorConfig
 		cfg, err = remoteSettings(getenv, namespace, cast.Tunnel)
 		if err == nil {
+			cfg.Origins = s.origins
 			control.supervisor, reset, err = remotesession.NewSupervisor(cfg)
 		}
 	}
