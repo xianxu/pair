@@ -3,12 +3,85 @@ package couchcore
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
 )
+
+type switchTargetCountedCatalog struct {
+	*SlotCatalogFake
+	workspaces  []string
+	discoveries int
+}
+
+func (c *switchTargetCountedCatalog) Discover(context.Context, string) (SlotRepository, error) {
+	c.discoveries++
+	return SlotRepository{}, errors.New("unrelated slot discovery must not participate in explicit target selection")
+}
+
+func (c *switchTargetCountedCatalog) ResolveWorkspace(ctx context.Context, path string) (WorkspaceIdentity, error) {
+	c.workspaces = append(c.workspaces, path)
+	return c.SlotCatalogFake.ResolveWorkspace(ctx, path)
+}
+
+func TestResolveAgentSwitchTargetDirectProbeCostIndependentOfOtherSlots(t *testing.T) {
+	for _, count := range []int{8, 16} {
+		t.Run(fmt.Sprint(count), func(t *testing.T) {
+			env, local, catalog := switchTargetFixture(t)
+			record := slotPreferenceRecord(t, env, local)
+			catalog.Workspaces["."] = catalog.Workspaces[local.slot.PrimaryRoot]
+			repo := catalog.Repositories[local.slot.PrimaryRoot]
+			for n := 2; n < count+2; n++ {
+				repo.Slots = append(repo.Slots, SlotCandidate{Identity: conventionalSlot(local.slot.PrimaryRoot, n), Err: errors.New("unrelated slot is unavailable")})
+			}
+			catalog.Repositories[local.slot.PrimaryRoot] = repo
+			counted := &switchTargetCountedCatalog{SlotCatalogFake: catalog}
+			env.Couch.Slots = counted
+			for range 2 { // Initial resolution and its fresh authorization recheck.
+				address, _, err := env.Couch.ResolveAgentSwitchTarget(context.Background(), local.slot.Repo+":1")
+				if err != nil || address != record.Address {
+					t.Fatalf("direct target resolution: %+v %v", address, err)
+				}
+			}
+			want := []string{".", local.slot.WorktreeRoot, ".", local.slot.WorktreeRoot}
+			if counted.discoveries != 0 || !reflect.DeepEqual(counted.workspaces, want) {
+				t.Fatalf("target cost grew with %d unrelated slots: discoveries=%d workspaces=%q", count, counted.discoveries, counted.workspaces)
+			}
+		})
+	}
+}
+
+func TestResolveAgentSwitchTargetDirectRecheckPreservesSiblingPrecedence(t *testing.T) {
+	env, local, catalog := switchTargetFixture(t)
+	record := slotPreferenceRecord(t, env, local)
+	catalog.Workspaces["."] = catalog.Workspaces[local.slot.PrimaryRoot]
+	if err := env.Couch.Threads.SetRepositoryAlias(local.slot.PrimaryRoot, "short"); err != nil {
+		t.Fatal(err)
+	}
+	counted := &switchTargetCountedCatalog{SlotCatalogFake: catalog}
+	env.Couch.Slots = counted
+	address, _, err := env.Couch.ResolveAgentSwitchTarget(context.Background(), "short:1")
+	if err != nil || address != record.Address {
+		t.Fatalf("initial alias selection: %+v %v", address, err)
+	}
+	// An exact sibling directory shadows the enrolled alias. Even though the
+	// prior selection is still readable, the next check must verify the sibling
+	// candidate and refuse its missing identity instead of reusing old authority.
+	sibling := filepath.Join(filepath.Dir(local.slot.PrimaryRoot), "short")
+	if err := os.Mkdir(sibling, 0700); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := env.Couch.ResolveAgentSwitchTarget(context.Background(), "short:1"); err == nil {
+		t.Fatal("recheck ignored the new exact sibling")
+	}
+	want := []string{".", local.slot.WorktreeRoot, ".", NewSlotLayout(sibling, "", 1).Host()}
+	if counted.discoveries != 0 || !reflect.DeepEqual(counted.workspaces, want) {
+		t.Fatalf("sibling recheck probes: discovery=%d workspaces=%q", counted.discoveries, counted.workspaces)
+	}
+}
 
 func switchTargetFixture(t *testing.T) (*testEnv, *ThreadStore, *SlotCatalogFake) {
 	t.Helper()

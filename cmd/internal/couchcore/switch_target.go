@@ -22,12 +22,25 @@ func (c *Couch) ResolveAgentSwitchTarget(ctx context.Context, target string) (Th
 	if err != nil || !recognized || ref.Repo == "" {
 		return ThreadAddress{}, WorkspaceIdentity{}, errors.New("switch-agent requires an exact repo:N target")
 	}
-	path, recognized, err := c.WorkspaceReferencePath(ctx, target)
+	// A named target needs only its own current identity. Whole-repository
+	// discovery here repeats every peer slot's SDLC probes during admission
+	// and again at authorization, exceeding the bounded broker exchange.
+	fleetRoot := ""
+	if current, contextErr := c.slotWorkspace(ctx, "."); contextErr == nil {
+		fleetRoot = current.FleetRoot
+	}
+	if err := ctx.Err(); err != nil {
+		return ThreadAddress{}, WorkspaceIdentity{}, err
+	}
+	primary, err := c.repositoryPrimary(ref.Repo, fleetRoot)
 	if err != nil {
 		return ThreadAddress{}, WorkspaceIdentity{}, err
 	}
-	if !recognized || path == "" {
-		return ThreadAddress{}, WorkspaceIdentity{}, errors.New("switch-agent target workspace unavailable")
+	path := primary
+	if ref.Number != 0 {
+		// Layout derives a location, never authority. Resolve and validate that
+		// exact candidate below, including its Git-backed primary identity.
+		path = NewSlotLayout(primary, "", ref.Number).Host()
 	}
 	identity, err := c.slotWorkspace(ctx, path)
 	if err != nil {
@@ -36,8 +49,13 @@ func (c *Couch) ResolveAgentSwitchTarget(ctx context.Context, target string) (Th
 	if err := identity.validate(); err != nil {
 		return ThreadAddress{}, WorkspaceIdentity{}, fmt.Errorf("switch-agent target workspace: %w", err)
 	}
-	if identity.WorktreeRoot != path || identity.Slot == nil || *identity.Slot != ref.Number || (identity.Kind != "primary" && identity.Kind != "slot") {
+	if identity.WorktreeRoot != path || identity.PrimaryRoot != primary || identity.Slot == nil || *identity.Slot != ref.Number || ref.Number == 0 && identity.Kind != "primary" {
 		return ThreadAddress{}, WorkspaceIdentity{}, errors.New("switch-agent target workspace does not match the requested slot")
+	}
+	if ref.Number != 0 {
+		if _, err := SlotIdentityFromWorkspace(identity); err != nil {
+			return ThreadAddress{}, WorkspaceIdentity{}, fmt.Errorf("switch-agent target slot: %w", err)
+		}
 	}
 	snapshot, err := c.Threads.PreviewSnapshotContext(ctx)
 	if err != nil {

@@ -6,9 +6,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"reflect"
-	"strings"
 	"testing"
 	"time"
 
@@ -31,8 +29,7 @@ func TestDisposableStartupArguments(t *testing.T) {
 			if source == other {
 				other = "claude"
 			}
-			observed := startupArgumentsTraceTools(t, binaries)
-			fleet := testcouch.New(t, observed, testcouch.Options{Workers: 1, ExplicitHub: true, AgentKind: source, RuntimeBudget: 4 * time.Minute})
+			fleet := testcouch.New(t, binaries, testcouch.Options{Workers: 1, ExplicitHub: true, AgentKind: source, RuntimeBudget: 4 * time.Minute})
 			fleet.Environment = append(fleet.Environment, "COUCH_RESOURCE_CADENCE=1s")
 			setup, cancelSetup := context.WithTimeout(t.Context(), 180*time.Second)
 			err := fleet.Prepare(setup)
@@ -108,45 +105,6 @@ func TestDisposableStartupArguments(t *testing.T) {
 			break
 		}
 	}
-}
-
-// Keep real subprocess timings when an admission cannot return a receipt. Each
-// invocation owns a separate file, so concurrent workspace probes cannot mix.
-func startupArgumentsTraceTools(t *testing.T, binaries testcouch.Binaries) testcouch.Binaries {
-	t.Helper()
-	dir := t.TempDir()
-	quote := func(s string) string { return "'" + strings.ReplaceAll(s, "'", "'\"'\"'") + "'" }
-	t.Cleanup(func() {
-		if !t.Failed() {
-			return
-		}
-		entries, err := os.ReadDir(dir)
-		if err != nil {
-			t.Logf("native admission timing unavailable: %v", err)
-			return
-		}
-		for _, entry := range entries {
-			if strings.HasPrefix(entry.Name(), "call.") {
-				raw, err := os.ReadFile(filepath.Join(dir, entry.Name()))
-				t.Logf("native admission timing %s: %s (read=%v)", entry.Name(), raw, err)
-			}
-		}
-	})
-	for _, tool := range []struct {
-		name string
-		path *string
-	}{{"sdlc", &binaries.SDLC}} {
-		path := filepath.Join(dir, tool.name)
-		script := "#!/bin/sh\nrecord=$(/usr/bin/mktemp " + quote(filepath.Join(dir, "call.XXXXXX")) + ") || exit 1\n" +
-			"printf '%s\\n' " + quote(tool.name) + " \"$PWD\" \"$@\" > \"$record\"\n" +
-			"/bin/date '+start %s' >> \"$record\"\n" + quote(*tool.path) + " \"$@\"\nstatus=$?\n" +
-			"/bin/date '+end %s' >> \"$record\"\nprintf 'exit %s\\n' \"$status\" >> \"$record\"\nexit \"$status\"\n"
-		if err := os.WriteFile(path, []byte(script), 0700); err != nil {
-			t.Fatal(err)
-		}
-		*tool.path = path
-	}
-	return binaries
 }
 
 func startupArgumentsSwitch(t *testing.T, ctx context.Context, fleet *testcouch.Fleet, previous agentfixture.Ready, sourceLive bool, agent string, want []string, extra ...string) agentfixture.Ready {
