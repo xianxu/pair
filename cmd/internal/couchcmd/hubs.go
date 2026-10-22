@@ -12,8 +12,9 @@ import (
 	"github.com/xianxu/pair/cmd/internal/couchtty"
 )
 
-// hubRuntime owns one immutable domain snapshot. It exists only for explicit
-// directory launches; nil retains the legacy implicit-cwd path.
+// hubRuntime owns a hub domain snapshot and serializes its process effects.
+// Explicit launches populate ownership; implicit launches use only the effect
+// gate and retain legacy cwd authority separately.
 type hubRuntime struct {
 	effectOnce sync.Once
 	effects    chan struct{}
@@ -190,7 +191,7 @@ func dispatchHubOperation(h *hubRuntime, call couchcore.OperationCall, dispatch 
 		return dispatch(call)
 	}
 	op, ok := Resolve(call.Name)
-	if !ok || op.Effect != couchcore.EffectProcess && call.Name != "move-slot" {
+	if !ok && call.Name != "start-hub" || ok && op.Effect != couchcore.EffectProcess && call.Name != "move-slot" {
 		return dispatch(call)
 	}
 	ctx := call.Context

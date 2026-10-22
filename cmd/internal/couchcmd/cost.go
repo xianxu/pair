@@ -34,6 +34,8 @@ var verbCosts = map[string]verbCost{
 	"--notify":                 costLight,
 	"--message-status":         costLight,
 	"--operation-status":       costLight,
+	"--drain":                  costLight,
+	"--undrain":                costLight,
 	"--switch-agent":           costHeavy,
 	"--keys":                   costSeconds,
 	"--set-model":              costSeconds,

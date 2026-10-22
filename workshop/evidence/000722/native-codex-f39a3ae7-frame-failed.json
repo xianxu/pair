@@ -1,0 +1,26 @@
+{
+  "source": "f39a3ae7bbf0933ebb1a2db038b803479e7678d7",
+  "command": [
+    "go",
+    "test",
+    "./cmd/couch",
+    "-run",
+    "^TestDisposableCouchDrainFlags/codex$",
+    "-count=1",
+    "-v",
+    "-timeout",
+    "4m"
+  ],
+  "environment": {
+    "PAIR_DRAIN_ACCEPTANCE": "1"
+  },
+  "started_at": "2026-10-22T09:34:49.941756+00:00",
+  "finished_at": "2026-10-22T09:35:22.885957+00:00",
+  "seconds": 32.943217374995584,
+  "exit": 1,
+  "sha256": "5012f1b53bc7288c62d5ed2adaced41c73ee4a91e7bf04cc43754f995e0557c7",
+  "log": "native-codex-f39a3ae7-frame-failed.log",
+  "zellij_version": "zellij 0.45.1",
+  "scratch": "/Volumes/TestScratch/tmp/pair722-native-codex-3smhff3q/tmp",
+  "authorization": "TL95172ebe: one exact-source focused Codex run; no automatic further retry"
+}

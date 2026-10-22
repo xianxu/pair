@@ -58,6 +58,7 @@ type registrySession struct {
 	picker      *bool
 	pickerSince time.Time
 	lastWorkAt  time.Time
+	submission  uint64
 	phase       AdmissionPhase
 	pane        PaneHandle // optional client metadata captured when admission began
 	attempt     int        // failed admissions since the last event that reset it
@@ -210,6 +211,7 @@ func (r *Registry) Advance(e RegistryEvent) ([]RegistryEffect, error) {
 		if s == nil {
 			return nil, nil
 		}
+		s.submission = max(s.submission, e.Observation.Submission)
 		if s.build != nil && e.Settled != nil {
 			v := *e.Settled
 			if s.settled == nil && v && !e.At.IsZero() && e.Observation.LastActivity.After(s.lastWorkAt) {
@@ -340,7 +342,8 @@ func (r *Registry) Phase(t SessionToken) (AdmissionPhase, bool) {
 // until a hello-v2 session reports it. Both being nil reads as "unknown",
 // which is never "idle".
 type SlotLiveness struct {
-	Binding Binding
+	Submission uint64
+	Binding    Binding
 	// LastWorkAt is the last observed work/completion of this session (#625).
 	// Settled refreshes cannot advance it; replacement sessions start empty.
 	LastWorkAt time.Time
@@ -375,7 +378,7 @@ func (r *Registry) Liveness() map[string]SlotLiveness {
 			ambiguous[slot] = true
 			continue
 		}
-		out[slot] = SlotLiveness{Binding: s.binding, LastWorkAt: s.lastWorkAt, Build: s.build, Settled: s.settled, BackgroundWork: copyBackgroundWork(s.backgroundWork), Picker: s.picker, PickerSince: s.pickerSince, Session: t}
+		out[slot] = SlotLiveness{Binding: s.binding, Submission: s.submission, LastWorkAt: s.lastWorkAt, Build: s.build, Settled: s.settled, BackgroundWork: copyBackgroundWork(s.backgroundWork), Picker: s.picker, PickerSince: s.pickerSince, Session: t}
 	}
 	for slot := range ambiguous {
 		delete(out, slot)

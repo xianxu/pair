@@ -14,6 +14,7 @@ import (
 	"github.com/xianxu/pair/cmd/internal/couchcore"
 	"github.com/xianxu/pair/cmd/internal/couchmessage"
 	"github.com/xianxu/pair/cmd/internal/launcher"
+	"github.com/xianxu/pair/cmd/internal/notifyosc"
 )
 
 type messageCall func(context.Context, string, any, any) error
@@ -68,6 +69,15 @@ func runMessageCLIWithCall(inv cliInvocation, rt Runtime, stdout, stderr io.Writ
 	}
 	r := callerIdentity(rt, inv.messageOp)
 	switch inv.messageOp {
+	case "drain":
+		r.Drain = inv.drain
+		if inv.drain.Action != "status" {
+			r.ID, err = newRequestID()
+			if err != nil {
+				fmt.Fprintln(stderr, "couch:", err)
+				return 1
+			}
+		}
 	case "send":
 		if r.ID, err = newRequestID(); err != nil {
 			fmt.Fprintln(stderr, "couch: create message ID:", err)
@@ -96,7 +106,10 @@ func runMessageCLIWithCall(inv cliInvocation, rt Runtime, stdout, stderr io.Writ
 	defer cancel()
 	var result couchmessage.Response
 	if err := call(ctx, socket, r, &result); err != nil {
-		if r.Op == "send" {
+		if r.Op == "drain" && inv.drain.Action != "status" {
+			id := r.ID
+			fmt.Fprintf(stderr, "couch: drain %s outcome uncertain: %s; inspect couch --operation-status %s and couch --drain --status; do not retry automatically\n", id, notifyosc.Sanitize([]byte(err.Error())), id)
+		} else if r.Op == "send" {
 			printUncertainMessage(stderr, r.ID, err.Error())
 		} else {
 			fmt.Fprintln(stderr, "couch:", err)
@@ -127,6 +140,37 @@ func runMessageCLIWithCall(inv cliInvocation, rt Runtime, stdout, stderr io.Writ
 		fmt.Fprintf(stderr, "couch: %s: %s\n", result.Code, result.Error)
 	} else if result.Code == "not-dispatched" {
 		fmt.Fprintf(stdout, "not-dispatched: %s\n", result.Error)
+	} else if r.Op == "drain" && result.Operation != nil && result.Operation.Drain != nil {
+		printDrainOperation(stdout, *result.Operation)
+	} else if r.Op == "drain" && result.Drain != nil {
+		fmt.Fprintf(stdout, "drain flags: %d slots (requested posture; not checkpoint confirmation)\n", len(result.Drain.Rows))
+		for _, row := range result.Drain.Rows {
+			idle := "idle unavailable"
+			switch {
+			case !row.Connected:
+				idle = "disconnected; idle unavailable"
+			case row.Settled != nil && !*row.Settled:
+				idle = "active"
+			case row.Picker != nil && *row.Picker:
+				idle = "picker open; idle unavailable"
+			case row.Background != nil && *row.Background:
+				idle = "background work; idle unavailable"
+			case row.IdleMillis != nil:
+				idle = "observed idle " + (time.Duration(*row.IdleMillis) * time.Millisecond).String()
+			}
+			fmt.Fprintf(stdout, "%s: %s\n", notifyosc.Sanitize([]byte(row.Workspace)), idle)
+			if row.Notice != "" {
+				fmt.Fprintf(stdout, "  notice %s (operation %s; child %s): %s\n", row.Notice, row.OperationID, row.NoticeID, notifyosc.Sanitize([]byte(row.NoticeDetail)))
+			}
+		}
+		for _, d := range result.DrainDeliveries {
+			if d.Error != "" {
+				fmt.Fprintf(stdout, "%s: notice refused: %s\n", notifyosc.Sanitize([]byte(d.Workspace)), notifyosc.Sanitize([]byte(d.Error)))
+			}
+			if d.Receipt != nil {
+				fmt.Fprintf(stdout, "%s: %s %s\n", notifyosc.Sanitize([]byte(d.Workspace)), d.Receipt.Message.ID, d.Receipt.Status)
+			}
+		}
 	} else if r.Op == "actors" {
 		if len(result.Actors) == 0 {
 			fmt.Fprintln(stdout, "No live message-capable slots.")

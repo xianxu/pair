@@ -123,6 +123,9 @@ func TestBrokerSystemOriginThroughQueueAndDedup(t *testing.T) {
 	if _, err := b.SendSystem(context.Background(), sender, "peer", Route{Target: hub.Slot}, first.Message.Body); err == nil {
 		t.Fatal("system deduplicated peer ID")
 	}
+	if _, err := b.Send(context.Background(), sender, "after-system", Route{Target: hub.Slot}, "ordinary work"); err != nil {
+		t.Fatalf("ordinary admission after system notice: %v", err)
+	}
 	ep.outcomes <- Receipt{Status: Submitted}
 	m := delivered(t, ep)
 	if m.Origin != OriginSystem || Envelope(m) != "[Couch system; delivery system]\nSlots update" {
@@ -130,6 +133,10 @@ func TestBrokerSystemOriginThroughQueueAndDedup(t *testing.T) {
 	}
 	ep.outcomes <- Receipt{Status: Submitted}
 	waitStatus(t, b, sender, "system", Submitted)
+	if next := delivered(t, ep); next.ID != "after-system" || next.Origin != OriginPeer {
+		t.Fatalf("ordinary FIFO stalled or reordered after system notice: %+v", next)
+	}
+	ep.outcomes <- Receipt{Status: Submitted}
 	done, err := b.SendSystem(context.Background(), sender, "system", Route{Target: hub.Slot}, "Slots update")
 	if err != nil || done.Status != Submitted || done.Message.Origin != OriginSystem {
 		t.Fatalf("system dedup: %+v %v", done, err)

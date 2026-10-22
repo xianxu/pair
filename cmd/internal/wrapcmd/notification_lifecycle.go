@@ -250,6 +250,7 @@ func (p *proxy) publishLifecycleObservation(observation TurnObservation) {
 // direct single-threaded tests). The loop owns the sole lifecycle timer and
 // feeds its immutable expiry token back through this reducer.
 func (p *proxy) processLifecycleObservation(observation TurnObservation) {
+	p.inputAdmission.Lock()
 	state, decision := Reduce(p.notificationLifecycle, observation)
 	p.notificationLifecycle = state
 	// The settle check reads turnActive off this goroutine (#421), and a turn
@@ -258,6 +259,7 @@ func (p *proxy) processLifecycleObservation(observation TurnObservation) {
 	if p.turnActive.Swap(state.Active) != state.Active && p.peer != nil {
 		p.peer.lifecycleTurnChanged(state.Active)
 	}
+	p.inputAdmission.Unlock()
 	if decision.Notify {
 		p.emitOuter(decision.Message)
 	}

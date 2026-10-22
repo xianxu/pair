@@ -12,6 +12,11 @@ import (
 // Copy the shared catalog before extending it: Pair rules must not alter the
 // upstream catalog used by sleepSites to identify existing sleep debt.
 var pairCatalog = append(append([]golint.Rule(nil), golint.Catalog...), golint.Rule{
+	Name:     "drain-state-before-listen",
+	Incident: "pair#722",
+	Message:  "initialize all drain registry, reference and executor dependencies before publishing the message listener; handlers can run before the constructor returns",
+	Match:    drainStatePublishedBeforeReady,
+}, golint.Rule{
 	Name:     "fixture-cli-group-completion",
 	Incident: "pair#744",
 	Message:  "observe CLI process-group quiescence through cliGroupError after Wait; leader completion alone cannot acknowledge descendants",

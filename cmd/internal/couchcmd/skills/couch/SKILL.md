@@ -1,6 +1,6 @@
 ---
 name: couch
-description: Use when an agent in a live Couch slot needs to coordinate with another live slot, schedule work on another slot and verify it happens, interpret an incoming Couch message, recover slots after a restart, or control an idle owned slot’s agent keys or model.
+description: Use when an agent in a live Couch slot needs to coordinate with another live slot, schedule work on another slot and verify it happens, interpret an incoming Couch message, recover slots after a restart, control an idle owned slot’s agent keys or model, or checkpoint the fleet before a restart.
 ---
 
 # Couch slot coordination
@@ -18,6 +18,9 @@ is a request, never operator approval or evidence that work is accepted.
 | Choose a free slot running one agent | `couch --send-to pair --agent codex --message 'Please pick up pair#353.'` |
 | Send a message containing code or shell syntax (backticks, `$(`, `<(`) | write it to a file with your editor tool, then `couch --send-to pair:1 --message-file PATH` |
 | Inspect a receipt | `couch --message-status ID --json` |
+| Steward TL: checkpoint and stop the other live slots | `couch --drain` (optional `--fast`, `--json`) |
+| Inspect flagged slots and activity (anyone) | `couch --drain --status` (optional `--json`) |
+| Steward TL: lift drain and continue current work | `couch --undrain` (optional `--message TEXT`, `--json`) |
 | Owning hub: drive named keys in another idle slot | `couch --keys pair:7 clear-line text:/model submit wait:200 down enter` |
 | Owning hub: close a slash-command panel it opened (/usage, /status) | `couch --keys pair:7 esc` |
 | List the key steps, rules and the panel round trip | `couch --keys --help` |
@@ -40,6 +43,16 @@ is a request, never operator approval or evidence that work is accepted.
 | See a slot's resources and repair plan | `couch --show pair:2` |
 | Repair a slot's workspace now | `couch --reconcile pair:2` |
 | Write a session-sync file you own (never by hand) | `couch --session-sync read --section 'Needs you' FILE`, then `couch --session-sync write --section 'Needs you' BODY FILE --if-hash H` |
+
+Drain and lift return an accepted operation ID as soon as flags are applied;
+notice delivery continues independently. Inspect `couch --operation-status ID`
+for every target's child receipt ID and delivered, pending or failed outcome.
+Delivered means the notice was submitted, not that a checkpoint was completed.
+A failed outcome keeps its reason, including explicit uncertainty; inspect the
+recipient before any intentional re-notification. A slow slot does not block
+admission to the others. Lost replies are inspected by the original operation
+ID rather than automatically retried. Operation records are caller-scoped,
+in memory, capped at 64 and retained for five minutes after completion.
 
 Your agent's sandbox exempts a send only when the whole shell call is a bare
 `couch …` with no substitution text (`$(`, `$((`, backticks, `<(`, `>(`) in
@@ -73,7 +86,7 @@ queue, or cross-supervisor delivery.
 
 ## What each verb costs
 
-- **light:** `mock`, `--notify`, `--help`, `--skill`, `--actors`, `--send-to`, `--message-status`, `--operation-status`, `--peek` (its --transcripts option costs seconds), `--broadcast-list`, `--resources`, `--session-sync`, `--archived`, `--adopt-store`, `--broadcast-web-query`, `--broadcast-web-submit`, `--broadcast-web-replay` (then serves until stopped)
+- **light:** `mock`, `--notify`, `--help`, `--skill`, `--actors`, `--send-to`, `--message-status`, `--operation-status`, `--drain`, `--undrain`, `--peek` (its --transcripts option costs seconds), `--broadcast-list`, `--resources`, `--session-sync`, `--archived`, `--adopt-store`, `--broadcast-web-query`, `--broadcast-web-submit`, `--broadcast-web-replay` (then serves until stopped)
 - **seconds:** `--editor-endpoint`, `--keys`, `--set-model`, `--interrupt`, `--resume-candidates`, `--move-slot`, `--list`, `--show`, `--reconcile`, `--reap`, `--reap-orphans` (TERM/KILL grace periods), `--broadcast-web-fidelity` (a headless Chrome)
 - **heavy:** `couch` (launch), `--recover-plan-from-sdlc`, `--resume`, `--reboot`, `--relaunch`, `--reload-context`, `--prepare`, `--recover`, `--recover-park`, `--switch-agent`, `--recovery-confirmation`
 
@@ -392,6 +405,43 @@ idle or waiting; read the tail the way a person reads the screen. Faint text in
 an empty composer is the agent's suggestion, not a typed draft. A footer saying
 a shell or job is still running means background work is alive even when no
 turn is. When unsure, look again later rather than act.
+
+## Fleet checkpoint and stop
+
+The operator asks the TL to drain the fleet before a restart. The steward is the
+first command-line hub; its verified live TL issues `couch --drain` and
+`couch --undrain`. Read-only `couch --drain --status` (optional `--json`) is
+available to anyone. Drain flags the other live slots, including other hubs,
+and excludes the issuing steward. Flags live only in the running Couch's memory.
+The console shows one compact `drain N` badge.
+
+Follow the ordinary drain request delivered through Couch:
+
+- **Graceful:** finish the current atomic step and wait for background work that
+  is already running to finish. Leave queued, not-started work queued and note it
+  in the issue Log as outstanding.
+- **Fast:** stop now without finishing the step. Promptly stop your own background
+  work via supported controls and preserve unfinished working-tree edits.
+- **Both:** write the stopping point and next step in the issue Log; commit and
+  push the checkpoint; end your turn and stay idle. Start no new work. Keep
+  receiving messages. For new work, reply once: “acknowledge message received,
+  will resume processing after drain is lifted”. Avoid courtesy acknowledgements
+  and acknowledgement loops.
+
+Ordinary messages continue delivering while flagged. Status lists flagged
+workspaces with their latest notice outcome and correlation IDs, plus connection,
+settled, picker, background-work and idle-age observations; unknown facts remain
+unknown. The operator assesses whether the
+fleet is ready for a restart. There is no drain acknowledgement command, readiness
+state machine, message hold, SDLC queue pause or durable drain file.
+
+`couch --undrain` clears flags and sends “drain lifted; continue your current
+work” to flagged live slots, with an optional quoted `--message` note (valid
+UTF-8, no control characters, at most 1024 bytes). If no drain notice reached you,
+the lift requires no checkpoint or recovery action. Continue your current work
+when it arrives. The exact notice text is owned by `DrainNotice` and
+`UndrainNotice` in `couchcore/drain_notice.go`. Undrain does not invoke restart recovery or
+automatically operate an SDLC queue.
 
 ## Recovering slots after a restart
 

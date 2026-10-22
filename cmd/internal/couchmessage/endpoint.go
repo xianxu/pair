@@ -166,6 +166,7 @@ func (e RemoteEndpoint) call(ctx context.Context, r EndpointRequest) (EndpointRe
 		}
 		return EndpointResponse{}, err
 	}
+
 	switch {
 	case response.Error == ErrAlreadyCommitted.Error() && response.Receipt != nil:
 		return EndpointResponse{}, &AlreadyCommittedError{Receipt: *response.Receipt}

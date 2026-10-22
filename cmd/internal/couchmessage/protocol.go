@@ -19,6 +19,7 @@ import (
 // Request has closed per-operation shapes. Wrapper lifecycle operations use a
 // full binding and must pass the supervisor adapter's live identity check.
 type Request struct {
+	Drain                                            *DrainRequest                 `json:",omitempty"`
 	LegacyTarget                                     *couchcore.LegacyOrphanTarget `json:",omitempty"`
 	OrphanTarget                                     *couchcore.ProvenOrphanTarget `json:",omitempty"`
 	OrphanSignal                                     string                        `json:",omitempty"`
@@ -52,11 +53,13 @@ type Request struct {
 const CodeWarming = "warming"
 
 type Response struct {
-	LegacySignal *LegacyOrphanSignalResult `json:",omitempty"`
-	OrphanSignal *ProvenOrphanSignalResult `json:",omitempty"`
+	DrainDeliveries []DrainDelivery           `json:",omitempty"`
+	Drain           *couchcore.DrainBoard     `json:",omitempty"`
+	Resources       *couchcore.ResourceView   `json:",omitempty"`
+	LegacySignal    *LegacyOrphanSignalResult `json:",omitempty"`
+	OrphanSignal    *ProvenOrphanSignalResult `json:",omitempty"`
 	// RetryAfterMillis is a transient admission hint, only for CodeWarming.
-	RetryAfterMillis int                     `json:",omitempty"`
-	Resources        *couchcore.ResourceView `json:",omitempty"`
+	RetryAfterMillis int `json:",omitempty"`
 	// Refusals answers refusals: each canonical slot's newest unsuperseded
 	// reason and recovery class. No caller credentials: this is unauthenticated.
 	Refusals        map[string]RefusalInfo `json:",omitempty"`
@@ -183,6 +186,12 @@ func ValidateRequest(r Request) error {
 	}
 	if r.Op != "reap-orphan-signal" && r.Op != "reap-legacy-signal" && r.OrphanSignal != "" {
 		return errors.New("orphan signal applies only to guarded orphan signal operations")
+	}
+	if r.Op == "drain" {
+		return ValidateDrainRequest(r)
+	}
+	if r.Drain != nil {
+		return errors.New("drain payload applies only to drain")
 	}
 	if r.Drive != nil && !IsDriveOp(r.Op) {
 		return errors.New("drive intent applies only to keys, set-model and interrupt")

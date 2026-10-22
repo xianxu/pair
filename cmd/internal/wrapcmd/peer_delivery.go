@@ -368,6 +368,9 @@ func (d *peerDelivery) retainedLocked(id string) (couchmessage.Receipt, bool) {
 func (d *peerDelivery) reserve(id string, sequence uint64) error {
 	d.mu.Lock()
 	defer d.mu.Unlock()
+	return d.reserveLocked(id, sequence)
+}
+func (d *peerDelivery) reserveLocked(id string, sequence uint64) error {
 	if r, ok := d.retainedLocked(id); ok {
 		return &couchmessage.AlreadyCommittedError{Receipt: r}
 	}

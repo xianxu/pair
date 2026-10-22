@@ -676,6 +676,16 @@ var SourceClassifications = []SourceClassification{
 // the artifact namespace requires an explicit SourceClassification.
 // pair:m5-concept pure
 var NonArtifactSources = []string{
+	// #722 transient flags, ordinary notices and cached status create no files.
+	"cmd/internal/couchcmd/drain_cli.go",
+	"cmd/internal/couchcmd/drain_wiring.go",
+	"cmd/internal/couchcmd/drain_operations.go",
+	"cmd/internal/couchcmd/drain_executor.go",
+	"cmd/internal/couchcore/drain.go",
+	"cmd/internal/couchcore/drain_board.go",
+	"cmd/internal/couchcore/drain_notice.go",
+	"cmd/internal/couchmessage/drain_protocol.go",
+	"cmd/internal/couchtty/console_drain.go",
 	// #758 endpoint model and native editor transport name no Pair artifact paths.
 	"cmd/internal/editorendpoint/model.go",
 	"cmd/internal/editorendpoint/state.go",
@@ -975,6 +985,7 @@ var NonArtifactSources = []string{
 	"cmd/internal/couchmessage/session_transport.go",
 	// #367 M2 slot-operation receipts.
 	"cmd/internal/couchmessage/operation.go",
+	"cmd/internal/couchmessage/drain_operation.go",
 	// pair#465 picker text reader over a tail; reads memory, names no file.
 	"cmd/internal/couchmessage/picker.go",
 	"cmd/internal/couchidentity/identity.go",

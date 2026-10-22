@@ -255,6 +255,8 @@ type Console struct {
 	// blockedUpdates carries the latest picker set (pair#465); see
 	// SetBlockedThreads.
 	blockedUpdates chan map[couchcore.ThreadAddress]bool
+	drainUpdates   chan couchcore.DrainBoard
+	drainBoard     couchcore.DrainBoard
 	// paletteFG and paletteBG record which of the host terminal's colour
 	// replies have arrived (pair#247); the palette is Known once both have.
 	paletteFG, paletteBG bool
@@ -322,6 +324,7 @@ func New(host hostty.Host, stdin io.Reader) *Console {
 		activityInterval:    defaultActivityInterval,
 		probeTimeout:        activityProbeTimeout,
 		blockedUpdates:      make(chan map[couchcore.ThreadAddress]bool, 1),
+		drainUpdates:        make(chan couchcore.DrainBoard, 1),
 		now:                 time.Now,
 		continuationResults: make(chan continuationScanResult, 1),
 		continuations:       make(map[couchcore.ThreadAddress]continuationWatch),
@@ -1080,6 +1083,11 @@ func (c *Console) Run() (code int) {
 			c.advanceActivity(RefreshScheduleEvent{Kind: RefreshRequested})
 		case result := <-c.activityResults:
 			c.finishActivity(result)
+		case board := <-c.drainUpdates:
+			c.mu.Lock()
+			c.drainBoard = board
+			c.mu.Unlock()
+			c.repaintVisible()
 		case blocked := <-c.blockedUpdates:
 			c.mu.Lock()
 			c.menu, _ = ReduceMenu(c.menu, MenuEvent{Kind: MenuEventBlocked, Blocked: blocked})

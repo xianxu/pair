@@ -1,0 +1,35 @@
+Private regression, sanitized excerpt (not a complete runtime dump).
+Executable source: 629fab876567f54f17ee12de78d878a2f539fa9b plus the new private probe; production code was unchanged for RED.
+Command: go test -race ./cmd/internal/couchcmd -run '^TestDrainStatusDuringServicePublication$' -count=1
+Fixture: 50 private service constructions with concurrent read-only status; no live Couch or actor controls.
+
+WARNING: DATA RACE
+Read by a message server handler:
+  (*messageService).drainNoticeSnapshotLocked()
+    cmd/internal/couchcmd/drain_operations.go:160
+  (*messageService).drainBoardLocked()
+    cmd/internal/couchcmd/drain_wiring.go:47
+  (*messageService).handleDrain()
+    cmd/internal/couchcmd/drain_wiring.go:62
+  (*Server).serve()
+    cmd/internal/couchmessage/transport.go:268
+
+Previous write by the constructor:
+  newMessageService()
+    cmd/internal/couchcmd/message_service.go:732
+  TestDrainStatusDuringServicePublication()
+    cmd/internal/couchcmd/drain_startup_probe_test.go:34
+
+Additional race reports covered the newly assigned registry's mutex and fields
+read by slotOperations.sweepLocked while newSlotOperations was publishing them.
+
+--- FAIL: TestDrainStatusDuringServicePublication (0.21s)
+    testing.go:1865: race detected during execution of test
+FAIL
+write budget couchcmd: bytes=0 cap=100663296 repeats=1
+FAIL github.com/xianxu/pair/cmd/internal/couchcmd 0.652s
+
+Correction: initialize the registry, callback, notice references and owned
+executor before the first listener publication. Both later constructor-error
+paths cancel and join the executor. This is a newly introduced private registry
+publication race, not attribution of the historical pair#773 startup failures.

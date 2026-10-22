@@ -93,6 +93,7 @@ func (c *Console) statusModelLocked() StatusModel {
 		a := &model.Actors[i]
 		a.OtherHub = activeHub != "" && a.OwnerHub != "" && a.OwnerHub != activeHub
 	}
+	applyDrainStatus(&model, c.drainBoard)
 	return model
 }
 

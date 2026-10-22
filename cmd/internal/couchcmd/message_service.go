@@ -31,6 +31,7 @@ import (
 // messageAuthority separates live evidence from registry mutation. All probes
 // are read-only; none call mutable Couch domain operations from request workers.
 type messageAuthority struct {
+	drainPublish func(couchcore.DrainBoard)
 	// now is the broker clock; nil uses wall time.
 	now        func() time.Time
 	thread     func(context.Context, couchmessage.Binding) (string, error)
@@ -166,6 +167,11 @@ const (
 // timers in arrival order. Request goroutines read
 // only the published snapshot of connected bindings.
 type messageService struct {
+	drainMu               sync.Mutex
+	drainFlags            couchcore.DrainFlags
+	drainNotices          map[string]drainNoticeReference
+	drainOps              *slotOperations
+	drainExecutor         *drainAdmissionExecutor
 	endpoints             *editorEndpointService
 	lifecycle             atomic.Pointer[lifecyclePublisher]
 	resources             atomic.Pointer[resourceSampler]
@@ -275,6 +281,9 @@ func (s *messageService) Close() {
 	}
 	_ = s.server.Close()
 	_ = s.sessions.Close()
+	if s.drainExecutor != nil {
+		s.drainExecutor.close()
+	}
 	_ = s.broker.Close()
 	s.workers.Wait()
 	if s.hubTargets != nil {
@@ -522,6 +531,7 @@ func startMessageService(console *couchtty.Console, c *couchcore.Couch, configur
 	c.ProcessTable = procutil.Table
 	c.LeaseHolders = lifetimelease.Holders
 	facts := openSupervisionFacts(artifacts.PairLifecycleDataDir(), namespace)
+	authority.drainPublish = console.SetDrainBoard
 	service, err := newMessageService(context.Background(), brokerSocket, registrySocket, authority, panes, console.MessageSlotGit, consoleSlotOperations(console, c, probe), facts)
 	if err != nil {
 		facts.Close()
@@ -680,6 +690,14 @@ func newMessageService(parent context.Context, brokerSocket, registrySocket stri
 		status, ok := slotGit(identity.WorktreeRoot)
 		return ok && !status.Detached && status.Branch == *identity.RestingBranch, ok
 	})
+	s.drainOps = slotOps
+	if s.drainOps == nil {
+		s.drainOps = newSlotOperations(nil, nil, now)
+	}
+	s.drainOps.refreshDrain = s.refreshDrainOperation
+	s.drainNotices = map[string]drainNoticeReference{}
+	s.drainExecutor = newDrainAdmissionExecutor(lifetime)
+	// All request-visible drain state and owned workers precede socket publication.
 	s.workers.Add(1)
 	go s.loop()
 	server, err := couchmessage.StartServer(lifetime, brokerSocket, func(ctx context.Context, raw []byte) ([]byte, error) {
@@ -691,6 +709,7 @@ func newMessageService(parent context.Context, brokerSocket, registrySocket stri
 	})
 	if err != nil {
 		cancel()
+		s.drainExecutor.close()
 		_ = s.broker.Close()
 		s.workers.Wait()
 		return nil, err
@@ -714,6 +733,7 @@ func newMessageService(parent context.Context, brokerSocket, registrySocket stri
 	if err != nil {
 		cancel()
 		_ = server.Close()
+		s.drainExecutor.close()
 		_ = s.broker.Close()
 		s.workers.Wait()
 		return nil, err
@@ -937,6 +957,9 @@ func (s *messageService) connectedWorkspace(ctx context.Context, b couchmessage.
 }
 
 func (s *messageService) handle(ctx context.Context, request couchmessage.Request) (response couchmessage.Response) {
+	if request.Op == "drain" {
+		return s.handleDrain(ctx, request)
+	}
 	if request.Op == "send" {
 		// Sender authority and recipient admission spend one budget, leaving
 		// the exchange's existing margin for the broker's verdict (#634).
@@ -1292,7 +1315,7 @@ func (s *messageService) handleSlotOperation(ctx context.Context, request couchm
 	if err := couchmessage.ValidateRequest(request); err != nil {
 		return couchmessage.Response{Code: "invalid-request", Error: err.Error()}
 	}
-	if s.slotOps == nil {
+	if s.slotOps == nil && (request.Op != "operation-status" || s.drainOps == nil) {
 		return couchmessage.Response{Code: "unsupported", Error: "this Couch runs no slot operations"}
 	}
 	caller, err := s.liveCaller(ctx, request)
@@ -1324,6 +1347,9 @@ func (s *messageService) handleSlotOperation(ctx context.Context, request couchm
 		}
 	}
 	if request.Op == "operation-status" {
+		if s.slotOps == nil {
+			return s.drainOps.handle(ctx, caller, request)
+		}
 		if authenticated, err := s.switchCaller(ctx, request); err == nil {
 			if identity, err := s.connectedWorkspace(ctx, authenticated); err == nil && s.authority.isHub(identity) {
 				if response, ok := s.slotOps.switchStatus(request.ID, s.hubReceiptFilter(ctx, identity)); ok {

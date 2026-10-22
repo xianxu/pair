@@ -2446,6 +2446,9 @@ and external temporary roots rather than relying on the host's TMPDIR.
 
 - #712 BR-1 disposition: A deadline-safe observation followed by an unbounded state write still hangs. Enumerate routing, metadata reads, CAS retry and journal locking under one persistence context; contend both the pre-read and read/write seams. If durable unknown cannot commit, keep the exact occupied claim and report that uncertainty too.
 
+- #722 integration audit: Exact identity must accompany the final observation that grants completion. A prior wrapper check followed by a later unqualified idle read can seal an old checkpoint after a same-Binding re-exec. Swap the instance only at the final read and require the old ack to become invalid.
+- #722 integration audit: Required exact JSON keys do not make a later encoding/json struct decode exact: differently cased additive keys can override them. Exercise aliases at every authority-bearing object depth and retain unrelated additive fields without granting them known-field authority.
+- #722 suite: New production files must enter artifactpath's exhaustive inventory as well as the Go lint catalog and slot-state audit. Classify actual ownership explicitly; fixed private Couch metadata is not a new tag-bearing Pair artifact family, and the old-violation quarantine must not grow.
 - #706 operator restore regression: qualify external byte-limit flags with odd sizes above 1 KiB and exact power-of-two boundaries. Rclone SizeSuffix serializes through rounded human-readable units; exact byte spelling alone is not exact enforcement. Force streaming in private native fixtures so clonefile/server-side copies cannot hide transfer-limit failures. Own exact listed-label size admission and post-copy size/hash checks, retain a coarse transport backstop, and include the selected source and staged file path in acquisition errors.
 - #721 PQ-1: A named-function adversarial strategy table owns the test plan. Tasks reference it and carry execution commands; do not duplicate it as prose case inventories. Keep unique safety invariants in design/state/format contracts.
 - #721: Type-owned preserving codecs must normalize absent unknown-member maps consistently with their clones. Empty allocated maps can break exact durable-intent comparisons after a JSON round trip; test equality through the real profile/record encoding rather than weakening the claim check.
@@ -2468,6 +2471,12 @@ and external temporary roots rather than relying on the host's TMPDIR.
 - #724: testing.AllocsPerRun reads process-global Mallocs; GOMAXPROCS(1) does not suspend unrelated goroutines. Isolate strict allocation oracles in a self-exec helper and bind the sample to its actual PID; keep an unbounded-implementation negative control so isolation does not weaken the bound.
 - #724: Publishing a native PID is not simultaneous identity availability. A fixture must re-observe unavailable identity until established, then retain that exact generation; caching the PID must not disable all later identity observations. Report both title publication and agent identity on timeout so a real live title is not misdiagnosed as never started.
 
+- #722 BR-1: Acknowledgement authority must sample activity at the acknowledgement boundary. A cached reconciliation baseline can classify preceding activity as new; discard pre-ack in-flight observations and test both registry and wrapper counters before and after acknowledgement.
+- #722 BR-2: Keep real dependency conformance executable and opt-in with an isolated-root guard and a documented cadence. Historical scratch-probe logs cannot detect subsequent divergence from a stateful fake.
+
+- #722 BR-3: Compare the full operation-kind policy of a dependency against both the original Spec and fake before calling conformance complete. A real test that accepts narrower behavior needs an explicit approved scope revision; align suite, merge, landing, owner replay and resume assertions across both seams.
+
+- #722 BR-4: Enumerate failure and recovery writes when claiming a pure transition authority. Broker-release refusal, store failure and capacity failure must be reducer events too; enforce coordinator phase/error ownership with an AST catalog rule, including aliases.
 - #711: Registration identity and observation freshness are different guards. Check actor/registration replacement first; ordinary operator input invalidating an otherwise live reservation belongs to the existing busy queue, not a missing-registration error. Reproduce input between successful Reserve and broker commit, and retain sender/recipient disconnect plus same-binding reconnect negative controls.
 - #711: Validate a native snapshot before renewing its cache timestamp. A completed subprocess can still return malformed evidence; preserve the prior good observation and its original age. Count one native query at N/2N sessions and zero native calls per cached reader rather than repairing contradictory sequential snapshots with retries.
 
@@ -2640,6 +2649,7 @@ and external temporary roots rather than relying on the host's TMPDIR.
   whose attempt counts encode the prior transport. Keep refusal assertions and
   pin recoverable cases separately from single-attempt native authority.
 
+- #722 native acceptance: a predicate over a mutable terminal screen certifies only that captured frame. Retain its immutable screen and row through logging and coordinate calculation; never re-read after a successful check. A controlled valid-frame-then-blank-redraw source must catch the check/use split.
 - #792 BR-1: Before independently truncating evidence and legacy action lists, remove protected overlaps from the complete view. A projection must never drop a veto while retaining broader destructive authority; test the actual lossy projection through its action consumer.
 
 - #792 BR-2: Audit information loss before classification as well as transport. A later healthy sample cannot restore forgotten ownership; destructive fallback needs a process-lifetime fail-closed decision after any provenance loss, with overflow/recovery sequence tests. Distinguish an unobserved startup seed from a failed completed attempt.
@@ -2651,8 +2661,11 @@ and external temporary roots rather than relying on the host's TMPDIR.
 
 - #792 landing: when an existing atlas guide already has an index link, put new feature detail in that guide. Appending feature clauses to its shared index summary creates avoidable landing conflicts; keep the index as a stable navigation map.
 
+- #722 BR-7: Anchor a prose insertion by its enclosing section, then inspect the complete surrounding block. A first inline-command match can be a Markdown table cell. Keep the public command index contiguous and mechanically require complete rows and its final commands; audit each consumer when inserting shared prose.
 - #803 integrated-suite correction: enumerate transitive users of an OS adapter,
   not only packages edited by a seam migration. Stateful refusal fixtures must
   fault the entire physical-attempt budget; add transient recovery controls and
   keep semantic mismatches non-retriable. Audit structural call-site manifests
   when a collector method changes, even when the effect remains read-only.
+
+- #722 publication race: initialize request-visible registries and owned executors before opening their listener. A constructor has not finished when its first handler can run; guard that publication order in the catalog, exercise concurrent cold status under -race, and join new resources on every post-allocation failure path.

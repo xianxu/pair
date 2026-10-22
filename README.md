@@ -485,6 +485,11 @@ couch --peek repo:N --all [--transcripts]
                                            complete current recording projection [heavy]; bounded, plain text
 couch --archived         threads removed from couch, with their records kept
 couch --actors [--json]  live peer-message receivers in this Couch namespace
+couch --drain [--fast] [--json]
+                         steward TL: flag the other live slots and request a checkpoint and stop
+couch --drain --status [--json]   anyone: inspect flagged slots and current activity observations
+couch --undrain [--message TEXT] [--json]
+                         steward TL: clear flags and tell workers to continue their current work
 couch --resources [--json] cached process sample plus fresh hosted-ingest and supervision-log health
 couch --reap-orphans [--confirm] [--json]
                          the unattributed embedded nvim --resources named, and the processes a teardown left
@@ -582,6 +587,42 @@ couch --message-status ID [--json]      inspect a receipt by full ID or unique v
 couch --skill            print the bundled agent coordination skill
 couch --adopt-store /absolute/store     preview adoption of an existing store
 ```
+
+Before a Couch restart, ask the TL to drain the fleet. The steward is the first
+hub on Couch's command line; its verified live TL issues `couch --drain` and
+`couch --undrain`. Drain flags the other live slots, including other hubs, and
+excludes the issuing steward. Flags live in Couch's memory and disappear when
+Couch restarts. The console shows one compact `drain N` badge.
+
+Graceful drain asks workers to finish their current atomic step and wait for
+background work that is already running to finish. Queued, not-started work stays
+queued and is noted in the issue Log as outstanding. Fast drain asks them to stop
+now and promptly stop their own background work through supported controls, preserving unfinished
+edits. Both ask workers to write the stopping point and next step in the issue
+Log, commit and push the checkpoint, end the turn and stay idle. Workers keep
+receiving messages; for new work they reply once, “acknowledge message received,
+will resume processing after drain is lifted”, avoiding courtesy acknowledgement
+loops. Ordinary messages continue delivering throughout.
+
+Drain and lift return an accepted operation ID as soon as flags are applied;
+notice delivery continues independently. Inspect `couch --operation-status ID`
+for every target's child receipt ID and delivered, pending or failed outcome.
+Delivered means the notice was submitted, not that a checkpoint was completed.
+A failed outcome keeps its reason, including explicit uncertainty; inspect the
+recipient before any intentional re-notification. A slow slot does not block
+admission to the others. Lost replies are inspected by the original operation
+ID rather than automatically retried. Operation records are caller-scoped,
+in memory, capped at 64 and retained for five minutes after completion.
+
+`couch --drain --status` lists flagged slots with their latest notice outcome
+and correlation IDs, plus connection, settled, picker,
+background-work and idle-age observations; unknown facts stay unknown. These
+observations help the operator assess activity. Drain does not certify restart
+readiness or pause SDLC queues. `couch --undrain` clears flags and sends “drain
+lifted; continue your current work”, explaining that a worker which received no
+drain notice needs no checkpoint or recovery action, with an optional quoted
+`--message` note.
+See [the drain contract](atlas/couch.md#fleet-checkpoint-and-stop-722).
 
 `couch --keys` and `couch --set-model` require a verified owning hub and one
 other exact live slot with an idle, empty agent composer. The separate Neovim

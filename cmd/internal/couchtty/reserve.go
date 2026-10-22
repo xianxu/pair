@@ -91,6 +91,7 @@ const dimSGR = "\x1b[2m"
 
 // StatusModel is everything the row shows.
 type StatusModel struct {
+	Drain     string
 	Broadcast BroadcastCell
 	Pointer   PointerCell
 	// Notes is the broadcast's open sticky notes (#447), drawn as 💭N after
@@ -364,6 +365,12 @@ func renderStatusCells(width int, m StatusModel, cells []chipCell, planned bool,
 		}
 		appendText(rowtext.Sanitize(m.CapabilityNotice), "")
 	}
+	if summary := rowtext.Sanitize(m.Drain); summary != "" {
+		if used > 0 {
+			appendText(" ", "")
+		}
+		appendText(summary, "")
+	}
 	prefixUsed := used
 	width = actorBudget
 	var chips []ChipSpan
@@ -577,7 +584,7 @@ type chipCell struct {
 func chipTail(a StatusActor, spinner uint8) string {
 	tail := ""
 	if a.Placeholder && a.Loading {
-		tail = " " + spinnerGlyph(spinner)
+		tail += " " + spinnerGlyph(spinner)
 	}
 	if a.Active {
 		tail += "]"

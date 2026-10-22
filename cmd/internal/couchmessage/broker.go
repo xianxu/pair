@@ -69,7 +69,10 @@ type admission struct {
 	receipt Receipt
 	err     error
 }
-type deliveryJob struct{ cancel context.CancelFunc }
+type deliveryJob struct {
+	cancel context.CancelFunc
+	done   chan struct{}
+}
 type Broker struct {
 	familyEligible     func(Binding, Binding) bool
 	submissionObserver func(Binding, uint64)
@@ -876,6 +879,9 @@ func (b *Broker) promote(ctx context.Context, a *SlotActor) bool {
 	if err == nil && (ctx.Err() != nil || a.sequence != seq || b.actors[a.binding] != a) {
 		err = ErrUnavailable
 	}
+	if current, allowed := a.state.QueueHead(); err == nil && (!allowed || current != head) {
+		err = ErrUnavailable
+	}
 	if err == nil {
 		err = b.reconcileObservation(a, obs)
 	}
@@ -1072,7 +1078,7 @@ func (b *Broker) runActor(ctx context.Context, a *SlotActor) {
 func (b *Broker) deliver(ctx context.Context, a *SlotActor, m Message) {
 	// Accepted composer waits end with this exact receiver's lifetime.
 	deliveryCtx, cancel := context.WithCancel(ctx)
-	job := &deliveryJob{cancel: cancel}
+	job := &deliveryJob{cancel: cancel, done: make(chan struct{})}
 	b.mu.Lock()
 	pending, ok := a.state.Pending()
 	valid := ok && pending == m && b.actors[m.To] == a && b.caller(m.To) && b.caller(m.From) && ctx.Err() == nil
@@ -1122,6 +1128,7 @@ func (b *Broker) deliver(ctx context.Context, a *SlotActor, m Message) {
 		}
 	}
 	_ = b.apply(a, Event{Kind: DeliveryFinished, Binding: m.To, Message: m, Status: status, Detail: detail, At: b.now()})
+	close(job.done)
 	b.mu.Unlock()
 }
 func (b *Broker) Close() error {
@@ -1141,6 +1148,25 @@ func (b *Broker) SetSubmissionObserver(observe func(Binding, uint64)) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	b.submissionObserver = observe
+}
+
+// ActivitySnapshot returns cached activity for connected actors without endpoint
+// probes or family-store IO. Each caller owns the returned map.
+func (b *Broker) ActivitySnapshot() map[Binding]time.Time {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	activity := make(map[Binding]time.Time, len(b.actors))
+	for binding, a := range b.actors {
+		if !a.state.Connected() {
+			continue
+		}
+		at := a.state.LastActivity()
+		if a.observed.LastActivity.After(at) {
+			at = a.observed.LastActivity
+		}
+		activity[binding] = at
+	}
+	return activity
 }
 
 // ResourceIdle returns pending-work evidence without observation or alias IO.
