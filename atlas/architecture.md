@@ -1347,6 +1347,14 @@ upstream startup behavior. Native regressions in `pty_darwin_test.go` force all
 child slave descriptors closed before the first read and assert exact bytes,
 EOF, exit status and descendant-held-slave completion.
 
+XNU's ptmx allocator races under concurrent allocation and intermittently fails
+`open("/dev/ptmx")` with ENXIO (#809), so `openPTY` bounds it at three attempts.
+The errno arrives *negated* through the raw syscall path — `int` value -6,
+rendering "errno -6" — so `isTransientPTYAlloc` normalises the sign;
+`errors.Is(err, syscall.ENXIO)` does not match it and would never fire. Test
+fixtures allocate through the same `openPTY`: one doing its own `pty.Open` is
+exposed to the same race, and its failure reads as a failure of `Run`.
+
 ## Design intent
 
 - **Asymmetric panes by design.** Most chat UIs cram input and output into the same constrained box. The split makes the asymmetry explicit — agent owns *output*, nvim owns *input* — and lets each side specialize.
