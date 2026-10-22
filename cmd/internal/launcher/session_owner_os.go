@@ -10,6 +10,7 @@ import (
 	"os"
 
 	"github.com/xianxu/pair/cmd/internal/procutil"
+	"github.com/xianxu/pair/cmd/internal/zellijquery"
 	"github.com/xianxu/pair/cmd/internal/zellijreply"
 )
 
@@ -88,8 +89,22 @@ func (p SessionOwnerProbe) probe(ctx context.Context, name, globalDataDir, scope
 	// The existing exact-generation checks bracket the complete observation pair.
 	// Confirmation never retries invalid first evidence or adds host table scans.
 	const generationChanged = "session server changed during observation"
+	var lastQuery ZellijQueryObservation
+	var hasQuery bool
 	read := func(ctx context.Context) ([]byte, error) {
+		lastQuery, hasQuery = ZellijQueryObservation{ExitCode: -1}, false
+		previous := zellijquery.Observer(ctx)
+		ctx = WithZellijQueryObserver(ctx, func(event ZellijQueryObservation) {
+			lastQuery, hasQuery = snapshotNativeQueryObservation(event), true
+			if previous != nil {
+				previous(event)
+			}
+		})
 		raw, err := io.SessionPanes(ctx, name)
+		if !hasQuery && len(raw) > 0 {
+			lastQuery = snapshotNativeQueryObservation(ZellijQueryObservation{Stdout: raw, StdoutBytes: len(raw), ExitCode: -1})
+			hasQuery = true
+		}
 		if err != nil {
 			return nil, err
 		}
@@ -110,12 +125,19 @@ func (p SessionOwnerProbe) probe(ctx context.Context, name, globalDataDir, scope
 		}
 		return projection, err
 	})
+	if err != nil && !errors.Is(err, zellijreply.ErrMismatch) && hasQuery {
+		diagnostic := err.Error()
+		if invalidObservation != nil {
+			diagnostic = invalidObservation.Error()
+		}
+		result.DiagnosticCause = nativeQueryFailureEvidence(ctx, lastQuery, diagnostic)
+	}
 	if ctx.Err() != nil {
-		return result, ctx.Err()
+		return result, result.WithDiagnosticCause(ctx.Err())
 	}
 	after, generationErr := io.SessionServers(ctx, name)
 	if generationErr != nil {
-		return result, generationErr
+		return result, result.WithDiagnosticCause(generationErr)
 	}
 	if len(after) != 1 || before[0] != after[0] {
 		result.Diagnostic = generationChanged
@@ -130,7 +152,7 @@ func (p SessionOwnerProbe) probe(ctx context.Context, name, globalDataDir, scope
 			result.Diagnostic = "session owner observations disagree"
 			return result, nil
 		}
-		return result, fmt.Errorf("observe live session owner: %w", err)
+		return result, fmt.Errorf("observe live session owner: %w", result.WithDiagnosticCause(err))
 	}
 	panes, err := zellijreply.ParsePanes(raw, zellijreply.PaneRequirements{})
 	if err != nil {

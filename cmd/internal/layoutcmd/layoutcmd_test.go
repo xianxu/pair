@@ -16,7 +16,7 @@ import (
 )
 
 func TestFocusRightTerminalFocusesTiledTerminalByID(t *testing.T) {
-	rt := &fakeRuntime{panesJSON: []byte(`[
+	rt := &fakeRuntime{terminalPaneIDs: []string{"4"}, panesJSON: []byte(`[
 		{"id":2,"is_focused":true,"is_floating":false,"title":"draft","terminal_command":"nvim -u /pair/nvim/init.lua d.md"},
 		{"id":4,"is_focused":false,"is_floating":false,"pane_x":75,"title":"terminal","terminal_command":"pair term"}
 	]`)}
@@ -31,7 +31,7 @@ func TestFocusRightTerminalFocusesTiledTerminalByID(t *testing.T) {
 func TestFocusRightTerminalPrefersRecordedSplitHalf(t *testing.T) {
 	// Focus sits in the left stack, so neither tiled right terminal reports
 	// is_focused; the recorded last-terminal pane id picks the half.
-	rt := &fakeRuntime{lastTerminal: "4", panesJSON: []byte(`[
+	rt := &fakeRuntime{terminalPaneIDs: []string{"3", "4"}, lastTerminal: "4", panesJSON: []byte(`[
 		{"id":2,"is_focused":true,"is_floating":false,"title":"draft","terminal_command":"nvim -u /pair/nvim/init.lua d.md"},
 		{"id":3,"is_focused":false,"is_floating":false,"pane_x":75,"title":"[terminal 1]","terminal_command":"sh -c exec pair term"},
 		{"id":4,"is_focused":false,"is_floating":false,"pane_x":75,"title":"[terminal 1]","terminal_command":"sh -c exec pair term"}
@@ -48,7 +48,7 @@ func TestFocusRightTerminalPrefersRecordedOverZellijFocus(t *testing.T) {
 	// zellij's is_focused on right-side panes is stale memory while the user
 	// sits in the left stack (live smoke: it pointed at the top half right
 	// after the user left the bottom one). The pair-authored record wins.
-	rt := &fakeRuntime{lastTerminal: "4", panesJSON: []byte(`[
+	rt := &fakeRuntime{terminalPaneIDs: []string{"3", "4"}, lastTerminal: "4", panesJSON: []byte(`[
 		{"id":3,"is_focused":true,"is_floating":false,"pane_x":75,"title":"[terminal 1]","terminal_command":"sh -c exec pair term"},
 		{"id":4,"is_focused":false,"is_floating":false,"pane_x":75,"title":"[terminal 1]","terminal_command":"sh -c exec pair term"}
 	]`)}
@@ -61,7 +61,7 @@ func TestFocusRightTerminalPrefersRecordedOverZellijFocus(t *testing.T) {
 }
 
 func TestFocusRightTerminalIgnoresStaleRecordedID(t *testing.T) {
-	rt := &fakeRuntime{lastTerminal: "9", panesJSON: []byte(`[
+	rt := &fakeRuntime{terminalPaneIDs: []string{"3"}, lastTerminal: "9", panesJSON: []byte(`[
 		{"id":2,"is_focused":true,"is_floating":false,"title":"draft","terminal_command":"nvim -u /pair/nvim/init.lua d.md"},
 		{"id":3,"is_focused":false,"is_floating":false,"pane_x":75,"title":"[terminal 1]","terminal_command":"sh -c exec pair term"}
 	]`)}
@@ -94,6 +94,36 @@ func TestFocusRightTerminalRefusesWithoutObservedTerminal(t *testing.T) {
 	rt := &fakeRuntime{panesJSON: []byte(`[]`)}
 	if err := FocusRightTerminal(rt); err == nil || len(rt.ops) != 0 {
 		t.Fatalf("error=%v effects=%v", err, rt.ops)
+	}
+}
+
+// Zellij can retain a terminal's startup command and title after Pair exits.
+// Neither the old last-used record nor those labels authorize pane effects.
+func TestUnregisteredStaleTerminalReceivesNoEffects(t *testing.T) {
+	for _, action := range []string{"focus", "previous-tab", "next-tab"} {
+		t.Run(action, func(t *testing.T) {
+			rt := &fakeRuntime{lastTerminal: "4", panesJSON: []byte(`[
+				{"id":4,"is_focused":true,"is_floating":false,"title":"terminal","terminal_command":"sh -c exec pair term"}
+			]`)}
+			var err error
+			switch action {
+			case "focus":
+				err = FocusRightTerminal(rt)
+				if err == nil {
+					t.Fatal("unregistered terminal accepted for focus")
+				}
+			case "previous-tab":
+				err = SwitchRightTerminalTab(rt, workbenchshortcut.ChordAltLeft)
+			case "next-tab":
+				err = SwitchRightTerminalTab(rt, workbenchshortcut.ChordAltRight)
+			}
+			if action != "focus" && err != nil {
+				t.Fatal(err)
+			}
+			if len(rt.ops) != 0 {
+				t.Fatalf("unregistered terminal effects=%v", rt.ops)
+			}
+		})
 	}
 }
 
@@ -160,7 +190,7 @@ func TestSwitchRightTerminalTabWritesTheChordToTheRecordedHalf(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			// Two split halves; the recorded one must win, exactly as the focus
 			// jump picks it — otherwise Alt+k and Alt+Shift+arrow disagree.
-			rt := &fakeRuntime{lastTerminal: "4", panesJSON: []byte(`[
+			rt := &fakeRuntime{terminalPaneIDs: []string{"3", "4"}, lastTerminal: "4", panesJSON: []byte(`[
 				{"id":3,"is_focused":true,"is_floating":false,"pane_x":75,"title":"[terminal 1]","terminal_command":"sh -c exec pair term"},
 				{"id":4,"is_focused":false,"is_floating":false,"pane_x":75,"title":"[terminal 1]","terminal_command":"sh -c exec pair term"}
 			]`)}
@@ -204,7 +234,7 @@ func TestRunSwitchTerminalTabDeliversTheGlobalBytes(t *testing.T) {
 		{"new", "write --pane-id 4 27 91 56 52 59 52 117"},
 	} {
 		t.Run(test.dir, func(t *testing.T) {
-			rt := &fakeRuntime{panesJSON: panes}
+			rt := &fakeRuntime{terminalPaneIDs: []string{"4"}, panesJSON: panes}
 			var stderr bytes.Buffer
 			if code := RunSwitchTerminalTab([]string{test.dir}, rt, &stderr); code != 0 {
 				t.Fatalf("exit = %d (stderr %q)", code, stderr.String())
@@ -232,7 +262,7 @@ func TestRunSwitchTerminalTabParsesItsDirection(t *testing.T) {
 		{"too many", []string{"prev", "next"}, 2, 0},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			rt := &fakeRuntime{panesJSON: panes}
+			rt := &fakeRuntime{terminalPaneIDs: []string{"3"}, panesJSON: panes}
 			var stderr bytes.Buffer
 			if code := RunSwitchTerminalTab(test.args, rt, &stderr); code != test.code {
 				t.Errorf("exit = %d, want %d (stderr %q)", code, test.code, stderr.String())
@@ -360,16 +390,9 @@ func TestSidecarFastPathAgreesWithThePaneListWheneverItAnswers(t *testing.T) {
 	t.Logf("generated %d complete-or-empty-registry cases; answered %d, of which %d through the single-live-id branch (answered with no record)", checked, answered, single)
 }
 
-// The invariant that survives an INCONSISTENT registry: the fast path never
-// invents an id. It answers with something the registry listed, or it declines
-// — so the worst an unregistered half or a stale entry can cost is a fall back
-// to the pane list, or the wrong half in a no-record case where
-// pickRightTerminal's own answer is pane-order arbitrary anyway.
-//
-// This is deliberately weaker than the agreement property above, and the
-// weakness is the honest one: with an incomplete registry and no recorded half,
-// BOTH paths are guessing, and asserting they guess alike would assert a
-// coincidence rather than a contract (#220).
+// The fast path never invents an ID: it answers with a registered ID or
+// declines. The pane-list path also requires registration, so neither stale
+// terminal metadata nor a stale last-used record can restore eligibility.
 func TestSidecarFastPathNeverInventsAnID(t *testing.T) {
 	for _, registry := range [][]string{nil, {}, {"4"}, {"3", "4"}, {"9"}} {
 		for _, record := range []string{"", "3", "4", "9", "77"} {
@@ -407,15 +430,15 @@ func TestSidecarFastPathFallsBackWhenItCannotAnswer(t *testing.T) {
 		wantID       string
 	}{
 		{"two halves, no record: only the pane list can choose", []string{"3", "4"}, "", 2, "4"},
-		{"empty registry proves nothing", nil, "", 2, "4"},
-		{"record names an unregistered half", []string{"4"}, "3", 2, "3"},
+		{"empty registry excludes stale terminal metadata", nil, "", 2, ""},
+		{"record names an unregistered half", []string{"4"}, "3", 2, "4"},
 		{"record hits a registered half: no list call", []string{"3", "4"}, "3", 0, "3"},
 		{"one live half, no record: nothing to tie-break", []string{"4"}, "", 0, "4"},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			rt := &fakeRuntime{panesJSON: panes, terminalPaneIDs: test.registry, lastTerminal: test.lastTerminal}
 			id, ok, err := resolveRightTerminalID(rt)
-			if err != nil || !ok {
+			if err != nil || ok != (test.wantID != "") {
 				t.Fatalf("resolve = %q ok=%v err=%v", id, ok, err)
 			}
 			if id != test.wantID {

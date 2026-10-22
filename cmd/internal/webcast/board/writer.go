@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"github.com/xianxu/pair/cmd/internal/webcast/capability"
-	"sync"
 
 	"github.com/xianxu/pair/cmd/internal/webcast/recording"
 )
@@ -16,11 +15,15 @@ import (
 // document a navigation has since replaced is dropped. The recorder's queue
 // does the same (recorder.Emit's Doc); tests and fakes use this.
 type Writer struct {
-	mu           sync.Mutex
+	mu           writerMutex
+	closed       bool
+	failure      error
 	clearID      uint64
 	clearFailure error
 	st           *recording.State
 	lastKind     string
+	budget       recording.SketchBudget
+	uncertain    map[string]error
 	sink         recording.Sink
 	now          func() int64
 }
@@ -46,9 +49,18 @@ func (w *Writer) Put(r recording.Record) error {
 func (w *Writer) Emit(r recording.Record, doc int) error {
 	w.mu.Lock()
 	defer w.mu.Unlock()
+	duplicate, err := w.st.Sketches.Reconcile(r)
+	if err != nil {
+		return err
+	}
+	if duplicate {
+		return w.uncertain[recording.SketchReceiptKey(r)]
+	}
 	noteState, conditional := r.(*recording.NoteState)
 	historicalResolution := doc == 0 && conditional && noteState.IfRevision != nil && noteState.State == recording.NoteResolved
-	if !historicalResolution && !w.st.OnDoc(doc) {
+	_, label := r.(*recording.SketchLabel)
+	historicalLabel := doc == 0 && label
+	if !historicalResolution && !historicalLabel && !w.st.OnDoc(doc) {
 		if w.st.Paused() && w.st.DocSeg == doc {
 			return ErrPaused
 		}
@@ -61,20 +73,69 @@ func (w *Writer) Emit(r recording.Record, doc int) error {
 	if w.now != nil {
 		t = max(t, w.now())
 	}
-	r.SetTime(t)
-	return w.writeLocked(r)
+	return w.writeReconciledAt(r, t)
 }
 
 // Close closes the sink.
-func (w *Writer) Close() error { return w.sink.Close() }
+func (w *Writer) Close() error {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	w.closed = true
+	return w.sink.Close()
+}
 
 func (w *Writer) writeLocked(r recording.Record) error {
-	r.SetTime(recording.OrderedTime(r.Time(), w.st.T, w.lastKind, r.Kind()))
+	duplicate, err := w.st.Sketches.Reconcile(r)
+	if err != nil {
+		return err
+	}
+	if duplicate {
+		return w.uncertain[recording.SketchReceiptKey(r)]
+	}
+	return w.writeReconciledAt(r, r.Time())
+}
+
+func (w *Writer) writeReconciledAt(r recording.Record, requestedTime int64) error {
+	if w.closed {
+		return ErrClosed
+	}
+	if r.Kind() == "sketch-snapshot" {
+		return errors.New("board: catch-up snapshot cannot be persisted")
+	}
+	t, err := recording.OrderedTime(requestedTime, w.st.T, w.lastKind, r.Kind())
+	if err != nil {
+		return err
+	}
+	r.SetTime(t)
+	size, err := recording.SketchEncodedBytes(r)
+	if err != nil {
+		return err
+	}
+	delta, err := w.budget.Next(r, size, false)
+	if err != nil {
+		return err
+	}
 	if err := w.st.Apply(r); err != nil {
 		return err
 	}
+	w.budget.Commit(delta)
 	w.lastKind = r.Kind()
-	return w.sink.Put(r)
+	if err := w.sink.Put(r); err != nil {
+		if w.failure == nil {
+			w.failure = err
+		}
+		// A reducer receipt proves acceptance, not successful persistence.
+		// The sink may have written none or all of the record; exact retries
+		// keep that uncertainty and never append a second physical record.
+		if key := recording.SketchReceiptKey(r); key != "" {
+			if w.uncertain == nil {
+				w.uncertain = make(map[string]error)
+			}
+			w.uncertain[key] = err
+		}
+		return err
+	}
+	return nil
 }
 
 // ClearAnnotations serializes with Emit and acknowledges the sink's clear.
@@ -98,7 +159,7 @@ func (w *Writer) ClearAnnotations(ctx context.Context, id uint64) error {
 		w.clearID = id
 		return nil
 	}
-	t := w.st.T + 1
+	t := w.st.T
 	if w.now != nil {
 		t = max(t, w.now())
 	}

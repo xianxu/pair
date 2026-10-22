@@ -10,20 +10,22 @@ func TestZellijReadAttemptBypassRule(t *testing.T) {
 		name, pkg, source string
 		want              int
 	}{
-		{"bounded entry", "launcher", "func (s ZellijSource) runContext() { s.runQueryAttempt(ctx, deadline, args...) }", 0},
-		{"pointer entry", "launcher", "func (s *ZellijSource) runContext() { s.runQueryAttempt(ctx, deadline, args...) }", 0},
-		{"other method", "launcher", "func (s ZellijSource) Snapshot() { s.runQueryAttempt(ctx, deadline, args...) }", 1},
-		{"other receiver", "launcher", "func (s Other) runContext() { s.runQueryAttempt(ctx, deadline, args...) }", 1},
-		{"bare function owner", "launcher", "func runContext() { s.runQueryAttempt(ctx, deadline, args...) }", 1},
-		{"bare call", "launcher", "func query() { runQueryAttempt(ctx, deadline, args...) }", 1},
-		{"parenthesized call", "launcher", "func query() { (s.runQueryAttempt)(ctx, deadline, args...) }", 1},
-		{"method expression", "launcher", "func query() { ZellijSource.runQueryAttempt(s, ctx, deadline, args...) }", 1},
-		{"nested bypass", "launcher", "func query() { defer func() { s.runQueryAttempt(ctx, deadline, args...) }() }", 1},
-		{"package initializer", "launcher", "var result = s.runQueryAttempt(ctx, deadline, args...)", 1},
-		{"method declaration", "launcher", "func (s ZellijSource) runQueryAttempt() {}", 0},
-		{"comment and literal", "launcher", "// s.runQueryAttempt(ctx, deadline)\nvar text = \"runQueryAttempt()\"", 0},
-		{"ordinary entry call", "launcher", "func query() { s.runContext(ctx, args...) }", 0},
-		{"other package", "other", "func query() { s.runQueryAttempt(ctx, deadline, args...) }", 0},
+		{"bounded entry", "zellijquery", "func (s Source) ReadContext() { s.readAttempt(ctx, deadline, args...) }", 0},
+		{"pointer entry", "zellijquery", "func (s *Source) ReadContext() { s.readAttempt(ctx, deadline, args...) }", 0},
+		{"other method", "zellijquery", "func (s Source) Snapshot() { s.readAttempt(ctx, deadline, args...) }", 1},
+		{"other receiver", "zellijquery", "func (s Other) ReadContext() { s.readAttempt(ctx, deadline, args...) }", 1},
+		{"bare function owner", "zellijquery", "func ReadContext() { s.readAttempt(ctx, deadline, args...) }", 1},
+		{"bare call", "zellijquery", "func query() { readAttempt(ctx, deadline, args...) }", 1},
+		{"parenthesized call", "zellijquery", "func query() { (s.readAttempt)(ctx, deadline, args...) }", 1},
+		{"method expression", "zellijquery", "func query() { Source.readAttempt(s, ctx, deadline, args...) }", 1},
+		{"nested selector bypass", "zellijquery", "var result = decorate(s.readAttempt).Field", 1},
+		{"nested bypass", "zellijquery", "func query() { defer func() { s.readAttempt(ctx, deadline, args...) }() }", 1},
+		{"package initializer", "zellijquery", "var result = s.readAttempt(ctx, deadline, args...)", 1},
+		{"method declaration", "zellijquery", "func (s Source) readAttempt() {}", 0},
+		{"comment and literal", "zellijquery", "// s.readAttempt(ctx, deadline)\nvar text = \"readAttempt()\"", 0},
+		{"method value", "zellijquery", "var bypass = s.readAttempt", 1},
+		{"ordinary entry call", "zellijquery", "func query() { s.ReadContext(ctx, args...) }", 0},
+		{"other package", "other", "func query() { s.readAttempt(ctx, deadline, args...) }", 0},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			source := []byte("package " + tc.pkg + "\n" + tc.source + "\n")

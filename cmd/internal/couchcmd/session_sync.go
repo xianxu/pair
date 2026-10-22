@@ -19,9 +19,30 @@ import (
 type sessionSyncArgs struct {
 	verb, file, section, bodyFile, ifHash string
 	owner, oldFile                        string
+	id, turn                              string
 	all, frontmatter, json                bool
 	accepts                               sessionsync.Accepts
 	fold                                  []string
+}
+
+func (a *sessionSyncArgs) operatorLockCommand() bool {
+	return a.verb == "operator-acquire" || a.verb == "operator-release"
+}
+
+// Preparation and namespace resolution can fail before the session-sync store
+// exists. Both boundaries use the same machine-readable operator outcome.
+func sessionSyncUnavailable(stdout io.Writer, err error) int {
+	return operatorSessionSyncFailure(stdout, &sessionsync.Refusal{Code: "session-sync-unavailable", Exit: sessionsync.ExitUnavailable, Reason: err.Error()})
+}
+
+func operatorSessionSyncFailure(stdout io.Writer, err error) int {
+	code, exit := "error", 1
+	var refusal *sessionsync.Refusal
+	if errors.As(err, &refusal) {
+		code, exit = refusal.Code, refusal.Exit
+	}
+	_ = json.NewEncoder(stdout).Encode(sessionSyncResponse{Code: code, Error: err.Error()})
+	return exit
 }
 
 const sessionSyncUsage = `couch --session-sync register FILE --owner SLOT [--json]
@@ -38,7 +59,9 @@ couch --session-sync write --section HEADING BODYFILE FILE --if-hash H [--accept
 couch --session-sync write --all BODYFILE FILE --if-hash H [--accept-gap] [--fold ID[,ID]]
 couch --session-sync write --frontmatter BODYFILE FILE --if-hash H [--accept-gap] [--fold ID[,ID]]
 couch --session-sync apply EDITS.json FILE --if-hash H [--accept-gap] [--fold ID[,ID]] [--json]
-couch --session-sync round FILE --json`
+couch --session-sync round FILE --json
+couch --session-sync operator-acquire FILE --id ID --turn TOKEN --json
+couch --session-sync operator-release FILE --id ID --turn TOKEN --json`
 
 // parseSessionSyncCLI reads the closed forms above. Values (a heading, a
 // path) are taken verbatim even when they start with "--".
@@ -51,17 +74,19 @@ func parseSessionSyncCLI(args []string) (cliInvocation, error) {
 	}
 	a := &sessionSyncArgs{verb: args[1]}
 	allowed := map[string][]string{
-		"register": {"--owner", "--json"},
-		"lookup":   {"--json"},
-		"list":     {"--json"},
-		"forget":   {"--json"},
-		"rename":   {"--json"},
-		"diff":     {},
-		"status":   {"--json"},
-		"read":     {"--section", "--all", "--frontmatter", "--json"},
-		"write":    {"--section", "--all", "--frontmatter", "--if-hash", "--accept-gap", "--fold"},
-		"apply":    {"--if-hash", "--accept-gap", "--fold", "--json"},
-		"round":    {"--json"},
+		"register":         {"--owner", "--json"},
+		"lookup":           {"--json"},
+		"list":             {"--json"},
+		"forget":           {"--json"},
+		"rename":           {"--json"},
+		"diff":             {},
+		"status":           {"--json"},
+		"read":             {"--section", "--all", "--frontmatter", "--json"},
+		"write":            {"--section", "--all", "--frontmatter", "--if-hash", "--accept-gap", "--fold"},
+		"apply":            {"--if-hash", "--accept-gap", "--fold", "--json"},
+		"round":            {"--json"},
+		"operator-acquire": {"--id", "--turn", "--json"},
+		"operator-release": {"--id", "--turn", "--json"},
 		// Retired by pair#439 (no agent-held lock); accepted as a no-op
 		// with its old flags for one release so older skills don't break.
 		"release": {"--accept-edits", "--accept-gap", "--fold"},
@@ -88,13 +113,17 @@ func parseSessionSyncCLI(args []string) (cliInvocation, error) {
 		}
 		seen[arg] = true
 		switch arg {
-		case "--section", "--fold", "--if-hash", "--owner":
+		case "--section", "--fold", "--if-hash", "--owner", "--id", "--turn":
 			if i+1 >= len(rest) || rest[i+1] == "" {
 				return usage("%s needs a value", arg)
 			}
 			i++
 			if arg == "--owner" {
 				a.owner = rest[i]
+			} else if arg == "--id" {
+				a.id = rest[i]
+			} else if arg == "--turn" {
+				a.turn = rest[i]
 			} else if arg == "--section" {
 				a.section = rest[i]
 			} else if arg == "--if-hash" {
@@ -146,6 +175,11 @@ func parseSessionSyncCLI(args []string) (cliInvocation, error) {
 	if a.verb == "round" && !a.json {
 		return usage("round answers only as JSON: pass --json")
 	}
+	if a.operatorLockCommand() {
+		if a.id == "" || a.turn == "" || !a.json {
+			return usage("%s requires --id ID --turn TOKEN --json", a.verb)
+		}
+	}
 	if a.verb == "write" {
 		if a.ifHash == "" {
 			return usage("write needs --if-hash H, the hash `read` printed (an unconditional write could overwrite an edit you never saw)")
@@ -173,6 +207,9 @@ func parseSessionSyncCLI(args []string) (cliInvocation, error) {
 // (status alone refuses when no Couch has recorded deliveries).
 func runSessionSyncCLI(a *sessionSyncArgs, rt Runtime, stdout, stderr io.Writer) int {
 	fail := func(err error) int {
+		if a.operatorLockCommand() {
+			return operatorSessionSyncFailure(stdout, err)
+		}
 		code, exit := "error", 1
 		var r *sessionsync.Refusal
 		if errors.As(err, &r) {
@@ -212,10 +249,27 @@ func runSessionSyncCLI(a *sessionSyncArgs, rt Runtime, stdout, stderr io.Writer)
 	}
 	namespace, err := rt.ResolveNamespace()
 	if err != nil {
+		if a.operatorLockCommand() {
+			return sessionSyncUnavailable(stdout, err)
+		}
 		return fail(err)
 	}
 	s := sessionsync.New(namespace.Dir())
 	switch a.verb {
+	case "operator-acquire", "operator-release":
+		request := sessionsync.OperatorLockRequest{File: file, ID: a.id, Turn: a.turn}
+		var result sessionsync.OperatorLock
+		if a.verb == "operator-acquire" {
+			result, err = s.AcquireOperator(request)
+		} else {
+			result, err = s.ReleaseOperator(request)
+		}
+		if err != nil {
+			return fail(err)
+		}
+		if err := json.NewEncoder(stdout).Encode(sessionSyncResponse{Code: "ok", OperatorLock: &result}); err != nil {
+			return fail(err)
+		}
 	case "register", "forget", "rename":
 		var res sessionsync.RegistryResult
 		switch a.verb {
@@ -228,6 +282,9 @@ func runSessionSyncCLI(a *sessionSyncArgs, rt Runtime, stdout, stderr io.Writer)
 		}
 		if err != nil {
 			return fail(err)
+		}
+		if res.Registration != nil {
+			res.Registration.Namespace = namespace.Dir()
 		}
 		if a.json {
 			if err := json.NewEncoder(stdout).Encode(sessionSyncResponse{Code: "ok", Registration: res.Registration, Changed: res.Changed}); err != nil {
@@ -242,6 +299,9 @@ func runSessionSyncCLI(a *sessionSyncArgs, rt Runtime, stdout, stderr io.Writer)
 		res, err := s.Lookup(file)
 		if err != nil {
 			return fail(err)
+		}
+		if res != nil {
+			res.Namespace = namespace.Dir()
 		}
 		if a.json {
 			if err := json.NewEncoder(stdout).Encode(sessionSyncResponse{Code: "ok", Registration: res}); err != nil {
@@ -367,6 +427,7 @@ type sessionSyncResponse struct {
 	Registration  *sessionsync.Registration
 	Registrations []sessionsync.Registration
 	Changed       bool
+	OperatorLock  *sessionsync.OperatorLock `json:",omitempty"`
 	// Invalid lists the bad records of an `edits-invalid` apply.
 	Invalid []sessionsync.BadEdit `json:",omitempty"`
 }

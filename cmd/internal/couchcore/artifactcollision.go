@@ -325,7 +325,7 @@ func (c ScopedThreadArtifactCollisionChecker) NamedPairSessionContext(ctx contex
 	case launcher.SessionOwnerOrphaned:
 		return binding, refuseResume(ResumeOrphanedServer, owner.Diagnostic)
 	default:
-		return binding, fmt.Errorf("session %q ownership unresolved: %s", name, owner.Diagnostic)
+		return binding, owner.WithDiagnosticCause(fmt.Errorf("session %q ownership unresolved: %s", name, owner.Diagnostic))
 	}
 	return binding, nil
 }

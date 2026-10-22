@@ -12,6 +12,27 @@ the pty console, actor panel, notices, and complete local lifecycle shipped in
 
 ## What exists today
 
+### Wrapped tab bar (#779)
+
+`couchtty.RenderStatusBar` in `status_layout.go` plans at most two bottom rows.
+Groups stay together unless one original group exceeds a full line; a continued
+row starts with the full repository label. A wide bar preserves the existing
+one-row bytes and styles. Chrome/cast/capture controls remain at the start of
+row one, the attention badge at its right edge, and transient notices use free
+space on the final row. Beyond two rows, active chips precede hub/blocked/belled
+chips in retention priority, followed by ordinary chips; retained actors keep
+their original order. One whole final `+N` counts hidden actors, with `!` when
+attention chips are hidden. The bounded planner sanitizes/measures labels once
+and searches a stable priority prefix, O(B + A log A).
+
+The extra row reduces pane height only while used. A tiny host retains a body
+row and falls back to one chrome row; the active chip takes precedence over
+controls and may be clipped to a positive clickable span. If `LIVE ⏸` cannot be
+shown completely in its own style, broadcast frame admission fails closed.
+`RenderedStatusBar.Chips` carry a relative row as well as columns, from the same
+clipping pass that draws them. See [terminal ownership](terminal.md) for admitted
+versus confirmed geometry and [broadcast](broadcast.md) for trusted chrome rows.
+
 ### Slot scratch (#708)
 
 [Slot scratch](couch-scratch.md) maps optional TestScratch temp settings, the
@@ -249,6 +270,23 @@ nonce, dispatched target, optional thread address, slot path, park/launch nonce,
 bounded exact process identities with executable kinds. Holders never collect argv.
 Generic failures have no inferred phase. Launch fields retain their existing
 16 KiB raw output tail, 4 KiB per error and separate pre/post-cleanup exit codes.
+Unresolved native pane queries also retain typed `zellij_*` evidence on that
+same operation: exact raw stdout/stderr prefixes (4 KiB each), original counts
+and truncation flags, nullable native exit, bounded argv/executable and version.
+Version observation uses the failed query's executable and remaining proof
+deadline. Concise notices/receipts keep raw bytes in the failure record, and
+successful operations perform no version query or failure write.
+
+Zellij0.45.1 can falsely miss a live session during its internal socket lookup.
+`launcher/zellij_read_recovery.go` recognizes two native signatures only for
+its existing idempotent read allowlist: exact missing-target stderr plus a
+validated plain/colored listing containing that live target, or exact exit1
+no-active-session output while the target socket is present. Reissues share
+the original deadline and three-attempt cap; the successful reply still passes
+strict parsing, independent owner agreement and exact-generation fencing.
+Socket presence permits another read and never grants ownership. Remove these
+compatibility signatures when the supported native release fixes lookup/IPC
+routing and the private native controls are requalified (#761, #748).
 
 `launchfailure_store.go` atomically publishes one JSON array at
 `<namespace>/launch-diagnostics/failures.json` (0600), under its private file lock.
@@ -325,6 +363,8 @@ operation therefore cannot erase a newer field. Nested objects stay strict, and
 there is no schema bump. Decode checks the binding's types only, so one bad or
 newer-build binding refuses a resume (`resume-transcript-invalid`) and never hides
 the thread.
+
+New retained-raw editor endpoint state (#758) uses additive `RejectDuplicateKeysPreserveNumbers`, `SplitObjectPreserveNumbers` and `EncodeObjectPreserveNumbers`. These retain valid numeric tokens outside float64 range while checking syntax, duplicate keys and owned nullability. The caller decodes its exact owned fields into typed values; opaque child members stay raw. Existing strict readers keep their historical numeric acceptance. See [editor endpoint ownership](editor-endpoints.md).
 
 **Transcript binding.** `ThreadRecord.Transcript` (`threadrecord/transcript.go`)
 stores the agent's exact conversation. It keeps the native ID plus the root name
@@ -474,7 +514,13 @@ checked before selection publication or directory creation. Escaping or unresolv
 symlinks refuse; children receive only validated physical paths.
 The resolved runtime propagates selected Pair/Couch/identity/isolation roots to
 children and feeds the same roots to listing, messaging and artifact readers.
-Existing socket addressing remains derived from the selected namespace.
+Socket endpoint hashes remain derived from the selected namespace. With explicit
+isolation, broker and wrapper sockets live in the physical `COUCH_ISOLATED_ROOT/m`
+directory; listener startup can sweep only that owned parent. Namespace or parent
+escapes and overlong socket addresses refuse before listener effects. With isolation
+unset, the existing per-UID socket addresses and startup sweep are unchanged.
+The [shared native fleet helper](couch-testing.md) owns this boundary for disposable
+multi-slot acceptance tests (#744).
 
 
 ### Durable numbered slots (#306)
@@ -1217,8 +1263,24 @@ historical. Closed absorbs late IO completions. Counters report offers, complete
 sink acknowledgments and existing drops, not power-loss durability or a drained
 queue. The fact file's default location is `~/.local/share/pair/couch/supervision.jsonl`.
 Retained `couch --message-status ID --json` receipts, rather than this fact stream,
-explain per-message waiting decisions. The historical freeze still awaits the
-coordinated restart's measured error and a cause-specific M2 repair.
+explain per-message waiting decisions. The 2026-10-21 readout exposed an open
+failure: persisted device16777232 versus observed16777229 with identical inode,
+size and nanosecond mtime. #736 closes around health instrumentation; #774 owns
+this measured repair and the hub-coordinated fresh-write acceptance.
+
+`diagnosticlog/checkpoint_identity.go` classifies persisted generations as exact,
+device-only or mismatched. Under the existing log flock, a current checkpoint
+without a pending intent is durably rebound before append admission; the old
+reservation is untouched. Preview uses the same persisted comparison read-only.
+Collection carries preview's first observed generation privately through strict
+revalidation, then may rebind retained metadata before a new deletion intent;
+current rows and all already-pending transaction recovery keep strict identity.
+A device change between observations within one operation is refused. Inode,
+size, nanosecond-time and uncertain-tail mismatches never authorize a reset,
+truncation or new append. Errors identify the mismatched component and recovery
+stage. There is no new format, retry loop, payload reread or durable artifact.
+A rebind adds one bounded existing atomic metadata publication per touched
+current/retained generation; normal append and page bounds are unchanged.
 
 The optional health field requires the rebuilt CLI with the new supervisor;
 older strict resource decoders reject it. A new CLI accepts an older server's
@@ -2396,18 +2458,28 @@ once (`Request.shapeProof`), and start admission (`Admits`), the pre-write
 recheck (`WriteAdmits`) and the turn gate (`DriveState.TurnTolerant`) all derive
 from it. The interrupt's proof is `Interruptible`: positive evidence of work,
 never the turn flag alone, because a bare submission or an open Claude panel
-also sets that flag. The proof needs three things. First, the lifecycle
-reducer's one `Working()` predicate: open, not completed, activity seen, and no
-stop grace pending. `turnWorking` mirrors that predicate off the master loop.
-Second, the agent's own composer on screen, which rules out a panel. Third, the
-agent's own "esc to interrupt" hint in the bottom viewport rows
-(`agentdrive.AdvertisesInterrupt`), which also covers a turn end the lifecycle
-missed. It also needs a complete frame, no picker, and the wrapper owning
+also sets that flag. Claude uses the lifecycle reducer's `Working()` predicate
+(open, not completed, activity seen, no stop grace), a recognized composer and
+its own bottom-viewport interrupt hint. Codex uses the current coherent native
+work status above its qualified composer: `RecognizeCodexWorking` recognizes
+`Working ` and `Waiting for ` status prefixes plus `esc to interrupt`, with
+either captured spinner bullet. Counters, truncated summaries and following
+command-detail rows do not supply authority and are ignored. The same recognizer feeds lifecycle observation and interrupt admission;
+Codex admission does not depend on cached notification flags. Interrupt observations
+carry the last operator-input value of the mailbox activity sequence, so normal
+work redraws do not revoke a queued interrupt. Observation, wrapper admission
+and the writer use the same sequence selector; typing, Esc, image input and
+submit advance it. Other drive shapes retain the all-activity sequence. Reader
+output not yet parsed blocks interrupt proof until the current frame is known. Status position
+is relative to the composer because modern Codex can leave most of the viewport
+blank below it. MCP startup, quoted status text and partial redraws do not prove
+work; partial redraws also do not publish a stop transition (#742). It also needs a complete frame, no picker, and the wrapper owning
 input. It may take a residual
 automatic-input wait, as recovery does, but never an active owner. `Admits`
 checks the interrupt first and exclusively, so an idle agent never gets
 Ctrl+C. The drive writes one internal `interrupt` key (`\x03`) and is done
-when the turn ends. It is unconfirmed at the deadline and never resent. A second
+only after a fresh complete idle composer proves the turn ended. Unknown or
+picker screens cannot confirm it. It is unconfirmed at the deadline and never resent. A second
 interrupt refuses because no turn is working. `couchmessage.IsDriveOp` names
 the three drive ops wherever the protocol, service, CLI and console dispatch
 them.
@@ -4970,24 +5042,18 @@ fires per episode on the existing `resource_episode` seam after `OrphanSamples`
 consecutive passes, addressed by the managed checkout the sweep matched, because
 an orphan has no slot of its own to resolve a hub from.
 
-`couch --reap-orphans [--confirm] [--json]` is the destructive half and takes no
-slot: the sweep it confirms is fleet-wide. Without `--confirm` it names the rows
-from the monitor's cached report and signals nothing. With it, the supervisor
-re-classifies from a fresh pass its own worker ran — never from the cached view,
-because an operator confirmed a kill and the world is allowed to have moved in
-the minute since — and the caller ends each named tree on `launcher.TreeReaper`'s
-cadence (#399: SIGTERM, 3 s, SIGKILL, 2 s), descendants deepest first. Every
-signal is fenced on the identity the sweep recorded, so a pid that exited or was
-recycled is *skipped* with the reason printed rather than signalled on the
-strength of a number that still exists; the whole tree goes, because killing
-only the editor reparents its language servers to launchd and manufactures the
-next leak. The confirmation lives in `couchmessage.ValidateRequest`, not in the
-handler that acts on it, so a hand-written request cannot reach the
-classification at all. Outcomes are one per named row — `reaped`, `skipped` (the
-world moved; exit 0), `failed` (survived SIGKILL, or the host refused the
-snapshot; exit 1), `refused` (no `--confirm`; exit 1) — and rows the wire
-projection dropped at its detail limit are announced as `Coverage:` lines on
-stderr ahead of them.
+`couch --reap-orphans [--confirm] [--json]` previews these rows, registered
+`LeftRunning` entries and proven previous-incarnation processes (below). It
+takes no slot. Without confirmation it reads the monitor's cached report and
+signals nothing. A confirmed request obtains a fresh classification from the
+sampler worker. The unattributed nvim and registered teardown families retain
+`launcher.TreeReaper`'s tree cleanup (#399: SIGTERM, 3 s, SIGKILL, 2 s), with
+descendants deepest first and process identities checked before signalling.
+The whole nvim tree goes because killing only the editor reparents its language
+servers to launchd and manufactures the next leak. Confirmation is enforced by
+`couchmessage.ValidateRequest`; a hand-written unconfirmed request cannot reach
+the destructive classification. Wire omissions are announced as `Coverage:`
+lines on stderr, never treated as a complete census.
 
 Owners: `couchcore/resource_orphan.go` (the pure classification),
 `couchcmd/resources.go` (the gated probe and the sweep seam),
@@ -4997,6 +5063,85 @@ Owners: `couchcore/resource_orphan.go` (the pure classification),
 the composition against the real host: a real reparented embed at PID 1 inside a
 managed checkout is named, an embed with a live parent in the same checkout under
 the same age gate is not, and the confirmed reap ends it.
+
+### Proven previous-incarnation processes (#792)
+
+The same confirmed command can clean up a live slot's proven former processes
+while preserving its current incarnation. Eligibility comes from the resource
+sampler's positive orphan provenance: exact PID/start identity, original root,
+thread and verified slot workspace. Names, PID existence or a matching thread
+alone grant no authority. A bound caller must be the current authenticated hub
+that owns the target slot; workers and other hubs are refused. There is no
+special fleet-wide steward role. An entirely unbound local CLI uses the existing
+UID-private owner-only namespace socket as the operator boundary. Partial or
+stale credentials cannot fall back to that boundary.
+
+The CLI freezes the admitted set and drives TERM, the shared 3 s wait, KILL for
+proven survivors, and the shared 2 s wait. Every signal is a separate short
+supervisor request. The existing sampler worker supplies a fresh shared
+`collectOwnership` proof, including detached roots, before the effect. Unknown
+detached evidence, incomplete inventory or changed ownership refuses the effect;
+current ownership always vetoes remembered orphan provenance. Under the hub read
+lock the supervisor checks the current caller and owning hub, rechecks the
+nonempty process start identity and sends one signal to one PID. Native
+check-to-signal identity checks do not provide an atomic PID handle.
+
+This group never expands descendants, even below an eligible old root. Targets
+that overlap a registered teardown entry are handled once through the exact-set
+path; a refusal cannot fall back to tree cleanup. Overlaps are removed before
+lossy projection. Legacy nvim/teardown tree admission also has a process-lifetime
+fence: any incomplete table/inventory, selection overflow, ambiguous identity or
+unknown ownership sets one worker-owned sticky flag. Subsequent healthy scans
+cannot recover forgotten provenance and never clear it. Legacy admission then
+refuses with `provenance incomplete; use the exact proven reap or restart Couch`.
+Only a fresh process resets it. The flag is never persisted; no new registry or
+process-wide lease is introduced. Every legacy TERM/KILL is a separate
+`reap-legacy-signal` exchange with the exact root, target and closed family.
+The worker returns the same current collection's full proof and legacy
+classification, without retaining another table or signal permit. The pure
+legacy decision requires current ancestry and excludes protected ownership.
+The supervisor holds the hub read lock and the sticky gate's read lock through
+its final flag check, root/target identity rereads and one signal; the worker
+sets the flag under that gate's write lock. This revokes outstanding plans,
+including KILL escalation. The CLI freezes and deduplicates descendants once,
+then uses the exact executor and supervisor callbacks. It never signals legacy
+processes locally. A surviving child whose root ended or whose ancestry changed
+is refused or partial; remembered ancestry grants no permission.
+
+The confirmed response uses `provenance-incomplete` with exact proven rows and
+no actionable legacy rows, so older CLIs fail closed. The current CLI still
+executes independently guarded exact targets, reports `legacy_refusal` in JSON
+and returns nonzero for the unavailable legacy path. The sampler is constructed
+once by the Couch service owner. Its worker starts after the existing inventory
+seed attempt completes through one service-owned, cancellation-aware barrier;
+requests remain unavailable until then. Healthy seed permits ordinary admission;
+a failed seed sets the sticky refusal. Shared collection sets the sticky refusal using the pure
+`ResourceOwnershipComplete` decision;
+cache projection and persistence contain no copy of that authoritative flag.
+
+Text and JSON preserve one final outcome per admitted target: `reaped` follows
+positive absence after an acknowledged signal; `skipped` means its original
+generation disappeared or changed, without claiming the replacement ended;
+`refused` means confirmation, authority or current proof did not permit the
+effect; `failed` includes signal errors, uncertain replies, cancellation and
+survival past the final wait. Any refusal or failure gives a nonzero exit and
+retains partial progress. An uncertain TERM reply permits neither automatic
+resend nor KILL escalation. Inspect resources before a new explicit confirmation.
+Coverage and displayed labels retain the existing output sanitization. The
+2-minute command and 2-second exchange bounds remain unchanged.
+
+Owners: `couchcore/resource_reap.go` (exact target and pure proof decision),
+`couchcmd/resources.go` (worker-owned ownership collection),
+`couchcmd/reap_proven.go` (exact supervisor authority and guarded effect),
+`couchcore/resource_reap_legacy.go` (current legacy root/ancestry decision),
+`couchcmd/reap_legacy_signal.go` (legacy effect gate),
+`couchcmd/reap_legacy.go` (frozen forest and supervisor callbacks),
+`couchcmd/reap_orphans.go` (CLI composition), and `launcher/exact_reap*.go`
+(invocation-local transition model and effect interpreter). Public-command
+conformance uses a disposable Couch with Claude and Codex; it does not require
+staging a build on an operator slot.
+
+### Resource policy and cost
 
 | Setting | Default | Meaning |
 | --- | --- | --- |

@@ -25,6 +25,7 @@ const launchVerb = "couch"
 
 var verbCosts = map[string]verbCost{
 	launchVerb:                 costHeavy,
+	"mock":                     costLight,
 	"--help":                   costLight,
 	"--skill":                  costLight,
 	"--actors":                 costLight,
@@ -41,6 +42,7 @@ var verbCosts = map[string]verbCost{
 	"--resources":              costLight,
 	"--broadcast-list":         costLight,
 	"--session-sync":           costLight,
+	"--editor-endpoint":        costSeconds,
 	"--archived":               costLight,
 	"--list":                   costSeconds,
 	"--show":                   costSeconds,

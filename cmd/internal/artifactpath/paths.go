@@ -848,3 +848,10 @@ func (p ScopePaths) ChangelogSetFromNvimPID(path string) (ChangelogArtifactSet, 
 func (p Paths) AgentDraft(agent string) string {
 	return mustPath(p.taggedComponent("draft-", agent, ".md"))
 }
+
+// IsAgentReadyCandidate recognizes filenames worth retaining in a diagnostic
+// census, including malformed readiness names. It grants no owner or readiness
+// authority; exact consumers must still resolve and decode their expected record.
+func IsAgentReadyCandidate(name string) bool {
+	return filepath.Base(name) == name && strings.HasPrefix(name, "agent-ready-") && strings.HasSuffix(name, ".json")
+}

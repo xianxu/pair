@@ -2,6 +2,7 @@ package procutil
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"time"
 )
@@ -38,6 +39,15 @@ func (s Source) runtime() processReader {
 	return nativeReader{}
 }
 func (s Source) Table() ([]Process, error) { return s.runtime().table() }
+
+// ReadIdentity returns the native start stamp and error for one positive PID.
+// It preserves both results so callers can distinguish absence from uncertainty.
+func (s Source) ReadIdentity(pid int) (string, error) {
+	if pid <= 0 {
+		return "", fmt.Errorf("process identity: PID must be positive: %d", pid)
+	}
+	return s.runtime().identity(pid)
+}
 
 // Identity returns the kernel start stamp for one pid, or "" when it cannot be
 // read. Callers fence pid reuse by comparing it against a stamp they already

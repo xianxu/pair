@@ -39,6 +39,8 @@ left waiting is a frozen tab. Without `Page.enable` the script never reaches the
 
 ## Operator annotation (#494)
 
+The casting page never reaches the recorded scene, bindings or assets.
+
 The cast Chrome uses the viewer's `mountAnnotation` (`web/annotate.js`) and
 `collab.js` dialog, swatches and geometry inside the existing excluded closed
 shadow host. `operator_script.go` assembles these trusted embedded modules into
@@ -147,6 +149,143 @@ and strokes) enter its queue as `recorder.Emit`, stamped on arrival and checked 
 - **Live check:** `TestLiveRecording` (`live_record_test.go`) casts a page with re-renders, open and closed roots, an
   out-of-process iframe, insertRule, a >10k `<style>`, a password, a click that navigates, pause and resume; the
   recording must validate, drop nothing, and hold each case.
+
+## Sketch recording model (#751)
+
+Persistent sketches extend version-1 recording events; the [format contract](webcast-format.md#persistent-sketches-751)
+lists all eight kinds, pressure triples, required labels and interruption rules. The recording model provides
+persistence, replay state and geometry. [Sketch drawing](#sketch-drawing-752) adds the UI, source preparation,
+privilege ingress and transport receipts; #753 owns historical image export.
+
+`recording/sketch.go` and `sketch_codec.go` own bounded wire records and preserving codecs. `sketch_state.go` owns
+indexed histories and operation receipts, integrated into `State.Apply` and control transitions. The browser port
+is `web/sketch-model.js`, loaded by `model.js`; shared prefix fixtures pin both accepted projections and refusals.
+Unknown wire members survive codec rewrites but stay outside authoritative core/snapshot state. Actual request
+semantics are reconciled beside the claimed digest, so a reused digest cannot disguise a changed command.
+`sketch/geometry.go` and browser `annotation-anchor.js` preserve pressure while projecting recorded anchors and points.
+
+`board.Writer` and `recorder/mirror.go` share `OrderedTime` and `SketchBudget`. Strict timestamp fences on both sides
+of `sketch-begin` freeze its preceding source prefix; clear also strictly follows earlier records, and overflow
+refuses admission. Exact retries are reconciled before timestamp/document checks and never append or charge twice.
+Historical labels use `Emit` with document zero, allowing valid interrupted work to be labeled without current DOM.
+The recorder shell admits all eight kinds through its existing ordered queue.
+
+The writer's 32 MiB cap includes exact encoded sketch bytes/newlines and outstanding terminal reservations.
+Each sketch initially reserves 16 KiB across label/end/interrupt components, verified against maximal `Encode`
+envelopes; reservations cannot be spent by new drawing. Completed labels, clear and recording end release unused
+capacity while historical bytes remain charged. Core `history_bytes` separately counts known-field encoding for its
+32 MiB bound; the producer budget additionally counts preserved unknown wire members. Admission inspects one entry;
+reopening uses the explicit one-pass `RebuildSketchBudget` helper.
+
+Sketch catch-up is derived state: `recording/sketch_snapshot.go` and browser snapshot restoration carry the current
+driving holder and bounded sketch histories in one ephemeral `sketch-snapshot` frame. `CatchUp`/browser `catchUp`
+reduce through the same model before compacting sketch/control history. Live bootstrap, Player rebuild and Replayer
+seek explicitly enable the frame; ordinary disk/source replay and ordered writers refuse it. Restore validates owned
+copies before installing state, and future control events retain strict validation. Disk history stays append-only;
+control chatter adds no retained history to the snapshot. Shared catch-up tests compare sketch projections separately
+from DOM hashes.
+
+Acceptance is not proof of persistence. `board.Writer` retains per-operation sink uncertainty and returns it on
+retries without reappending. The pure mirror accepts into its output queue; `Recorder.write` retains sink failure in
+`r.err`, and `Close` returns it. Sketch receipt queries and acknowledgments consult persistence outcome before
+reporting success. Both accept-then-error and reject-before-write sinks are covered by producer tests.
+
+## Sketch drawing (#752)
+
+`web/sketch.js` mounts the shared toolbar, required-label editor and pointer controller in the viewer and isolated
+operator UI. Drawing follows the existing driving holder: the trusted operator when no viewer drives, otherwise
+only the granted drive-link seat. Viewer drawing requires annotation enabled; console drawing does not. The server rechecks the authenticated principal, annotation
+generation and drawing epoch on ingress; client availability is only an affordance. Pointer and view-only links,
+and recording replay, render accepted paths without drawing permission or a palette endpoint.
+
+The trusted console sketches independently of viewer annotation permission when no viewer drives; ordinary
+viewer admission still requires annotation and the current driving seat. Console unavailable controls explain
+readiness or ask the viewer to release driving control. Paused/ended casts explain resume/new-cast recovery; Done is disabled until
+there is a sketch or preparation to finish. Read-only viewer toolbars honor their hidden state.
+The toolbar sits above the private scene and drawing canvas so its buttons remain visible and clickable. Note
+opens text for an unfinished sketch through the same settlement/required-label path; completed-label editing
+is deferred to #783. Identical authority/control refreshes preserve editor focus and existing unfinished controls.
+
+Optional periodic fidelity captures defer while a console sketch/preparation or sketch/note editor is open;
+their privacy suppression would otherwise hide the host and interrupt typing. Explicit captures retain their
+existing suppression, and background captures resume after the UI closes. Fidelity screenshots can therefore
+have gaps while composing; capture without visible suppression outside this fallback is tracked by #784.
+
+Choose a fixed colour, then Sketch, and wait for its held recorded scene. Pressure samples stream before pointer-up;
+mouse/touch use pressure 1, pen hover is ignored, and cancellation seals a truncated partial stroke. Physical release
+does not release a pending logical gesture: the accumulator token stays owned until its anchor and terminal drain
+into the FIFO or retirement fences its callback. Successor contacts are visibly consumed without buffering or
+allocation; a fresh down is required after readiness. The shared five-second anchor observer bounds this wait.
+Undo/Redo also wait for logical gesture release, then wait
+for confirmation and affect only the current unfinished sketch. Done, Escape or a tool change first shows
+“Saving…” and stops new input while the existing gesture is finished, including an anchor still being resolved
+after pointer-up. The required-label prompt opens after that work is confirmed; Escape there resumes the same
+scene. Enter or Save label submits through the same settlement guard and completes the requested transition
+only after acceptance.
+Handoff releases drawing input promptly and leaves an independent old-author label action while its UI credentials
+survive. Normal remote input is suspended while the sketch overlay owns input; the driving seat remains granted.
+
+`web/sketch.js` and `web/sketch-policy.js` own this finishing transition for both viewer and console; adapter tool
+controls retain the requested exit until it settles. Finishing has a five-second deadline. If it cannot be confirmed,
+the UI says “Couldn't save; accepted strokes kept”. An unknown write offers Check confirmation; a failed anchor
+leaves label/escape available to acknowledge the unsaved gesture. It does not report completion or
+discard an unknown write: the original operation remains available for reconciliation. A late callback cannot
+silently turn the failure into success.
+
+`web/sketch-policy.js` also owns one operation in flight per sketch and bounded FIFO chunks. An uncertain
+reply stops new geometry: Check confirmation queries the same operation/sequence/epoch, resending its exact body
+only after status says it was not observed. A definite refusal leaves the sequence unconsumed. Continue drawing is
+offered only for an authoritative drawing status at the expected sequence, the same eligible epoch and a ready held
+scene; it confirms a fresh truncated seal for any accepted open prefix before enabling drawing or Undo. Pause can
+resume on the same source. Navigation, handoff/reset, clear, end or mutation-idle expiry retire source ownership;
+none transfers unfinished work to a new drawer. Reconnect restores accepted history, not an unsent gesture or draft.
+
+### Source preparation and privacy
+
+`board/sketch.go`, `board/writer_sketch.go`, `recorder/sketch.go` and `recording/sketch_source.go` capture the source from
+the ordered begin candidate before committing it. The acknowledged descriptor names its exact prefix, time,
+document, tab and viewport. `web/sketch-scene.js` reduces that prefix once into an independent Model/Renderer,
+freezes animations, and resolves only source-bound recorded asset hashes. It never freezes whichever live DOM the
+viewer happened to have when the reply arrived.
+
+The casting Chrome uses `operator-sketch.js`, `chrome_operator_sketch.go`, `chrome_sketch_scene.go` and
+`sketch_scene_script.go`. Its closed shadow root hosts the controls, but the security boundary for recorded content
+is an opaque-origin `data:` child frame, sandboxed with `allow-same-origin` and without `allow-scripts`. Chrome
+installs the shared Model/Renderer into that child's trusted isolated world through CDP. Toolbar, draft and pointer
+policy stay in the parent isolated world. After preparation, gesture queries cross the private CDP bridge only as
+read-only hit-testing and placement.
+Casting-page JavaScript never receives the recorded scene DOM, trusted bindings, lease handles or recorded asset
+bytes/blob URLs, including through named-frame targeting. The page can still see or remove the outer control host.
+Page CSP remains in force: shell/module preflight precedes begin, and a blocked preparation fails visibly without a
+CSP bypass. Parent context, child loader/frame, cast and source retirement fence late calls, revoke asset URLs and
+dispose the scene. Scene frames and their nested targets are excluded from recording and ordinary drive input.
+
+### Delivery, rendering and limits
+
+`board/sketch_delivery.go` derives compact display facts after the authoritative reducer accepts a record. The
+existing Chrome worker sends ACKed journal batches; a gap or new context installs an atomic render-only bootstrap.
+`web/sketch-delivery.js` checks epoch/cursor/chunk continuity, and `sketch-render.js` applies indexed display patches
+without another history-legality machine. Its anchor index includes accepted empty and undone strokes, requires
+their exact source document and excludes cleared sketches. Point chunks neither rebuild that index nor clone full
+history. The shared painter retains accepted ink and paints only a last join plus new samples; geometry,
+visibility/Undo/Redo, bootstrap or canvas-size changes trigger a full repaint. Bounded unconfirmed ink uses a
+separate canvas and is replaced by accepted echo.
+
+| Resource | Bound |
+| --- | --- |
+| Sampling and queued points | 50 ms cadence; 64 points/chunk; 16 queued chunks; a pending asynchronous hit-test buffers at most 1024 points. |
+| Recorded sketch history | 4096 points/stroke, 16384 points/sketch, 64 strokes/sketch, 256 sketches and the existing 32 MiB history budget, including producer terminal reservations. Labels are nonblank and at most 1024 UTF-8 bytes. |
+| Begin source | 8 MiB held DOM/state and 16 MiB complete prefix; exceeded limits refuse before begin commits. |
+| Private reads | 32 KiB chunks; recorded assets retain the existing capture limit of 32 MiB per body. |
+| Operator delivery | 256-entry/1 MiB journal; batches of at most 32 records/64 KiB; render-only bootstrap at most 36 MiB. |
+| Source lifetime | One held source cast-wide; expires after two minutes without an accepted sketch mutation. Reads/status do not renew it. |
+
+Pure and counted tests live in `tests/webcast/sketch-*.test.mjs`; source, ingress, writer and journal tests sit beside
+their Go owners. `TestSketchLiveTwoViewers` runs the real server, Board/Writer/Hub, controller and two disposable
+headless viewers: pressure ink arrives before pointer-up, echo is unique, Undo/Redo changes canvas pixels, pointer
+and view-only links cannot draw, and recording replay agrees with the reducer. Run it with
+`WEBCAST_LIVE_CHROME=1 go test ./cmd/internal/webcast -run '^TestSketchLiveTwoViewers$' -count=1 -v`.
+The private console scene has separate owned Chrome checks in `chrome_sketch_scene_test.go` and operator sketch tests.
 
 ## The fidelity check (#478)
 
@@ -402,7 +541,8 @@ end cast or start a new cast. See `cast_capabilities.go`, `server_capabilities.g
         outgoing driver, so a late release never ends the next driver's press.
 
       The shell resets its gestures and keys when control ends.
-    - Pointing and notes wait while this viewer drives.
+    - An annotation/sketch tool can suspend normal remote input while retaining the driving seat; its mode
+      coordinator gates leaving a sketch on the required label acknowledgment.
     - `viewer_drive_live_test.go` drives two headless viewers, one by mouse and one by touch, through a real
       `Server` and `MemController`.
 - **Viewer fidelity:** `replay_test.go` replays every fixture in headless Chrome (`WEBCAST_LIVE_CHROME=1`).
@@ -460,13 +600,14 @@ instead of the event stream.
   `connect`. Both return the surface `{model, renderer, onRecord}`, so layout, scaling, the pointer and
   `window.couchViewer` are unchanged.
 - **Seek rule:** the state at t is the catch-up of the records up to t, reduced. `catchUp` is a port of
-  `recording.CatchUp`, which keeps only the latest `hover` and `ptr` of the latest segment.
+  `recording.CatchUp`, which keeps only the latest `hover` and `ptr` of the latest segment. Sketch-bearing prefixes
+  additionally derive the current control and sketch history as one validated ephemeral snapshot (see Sketch recording model).
   - **Shared corpus:** `tests/webcast/catchup_corpus.json` reaches every branch of the rule and holds Go's answer at
     every cut. `TestCatchUpCorpus` keeps the answers true to Go and requires every special-cased kind; regenerate them
     with `-update-catchup`. The node test holds the port to the same answers, so a change to Go's rule fails at once
     until the port follows.
   - **Invariant:** node tests also check the format's catch-up invariant at every boundary cut of every fixture: the
-    same DOM, assets, `DocSeg` and current-document notes as the whole prefix.
+    same DOM, assets, `DocSeg`, notes and sketch projection as the whole prefix.
   - **Live:** the live check compares the port with Go's, record for record, on the fixtures. A forward seek within a stretch applies the records in
   between. A seek backward or across a `seg` rebuilds from the catch-up, so it replays at most one segment.
 - **Player:** `Player` is the replay's state (`t`, playing, speed 0.5–4×, an error state for a refused record). It has
@@ -487,8 +628,9 @@ instead of the event stream.
   - **strokes:** `strokesAt(model, t)`, the points drawn by t with chunks joined by id, fading over `FADE_MS` after
     the last point. They're painted on a canvas by `paintStrokes`.
 
-  The replay has no `palette.json`, so `mountAnnotate`'s posting UI never mounts there. Every server of the viewer
-  serves its files from one table (`serveViewerFile`), the fidelity harness included: `replay.js` now imports
+  The replay has no `palette.json`, so `mountAnnotate`'s posting UI never mounts there. The shared sketch observer
+  still mounts and paints historical accepted ink without enabling ingress or source preparation. Every server of
+  the viewer serves its files from one table (`serveViewerFile`), the fidelity harness included: `replay.js` now imports
   `annotate.js`, which imports `collab.js`.
 - **Server:** `webcast.ReplayServer(token, root)`, a `broadcast.Mountable` with the viewer's CSP. It serves:
   - `<token>/`: the listing, newest first, from each recording's head line and last line;
@@ -560,3 +702,9 @@ recorder. Its fixed trusted owner can edit only operator-created notes. Unknown
 writes retain their request identity: the existing target note does not prove an
 edit was accepted. See [the format](webcast-format.md#own-note-revisions-537) and
 [session ownership](broadcast.md#own-note-editing-537).
+
+Sketch anchor latency can be qualified with the opt-in `TestSketchAnchorLatencyLive` in
+`cmd/internal/webcast/sketch_anchor_latency_live_test.go` (`WEBCAST_MEASURE_SKETCH_ANCHOR=1 WEBCAST_LIVE_CHROME=1`).
+It owns synthetic local/tunnel pages and disposable Chrome profiles, measures the actual accumulator token drain
+separately from writer acknowledgments, and includes console journal traffic. Raw samples go to owned scratch;
+small desktop measurements do not qualify mobile or large-document behavior.

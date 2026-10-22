@@ -208,7 +208,8 @@ func (c *Console) applyPoints(b broadcast.PointBatch) {
 	ok := c.pointer == pointerOn && c.bcast.phase == broadcastLive && !c.focus.IsPanel()
 	palette := c.menu.Palette
 	c.mu.Unlock()
-	if !ok {
+	state, confirmed := c.confirmedChromeState()
+	if !ok || !confirmed || state.Host.Cols != b.Cols || state.Host.Rows != b.Rows || state.Rows != b.ChromeRows {
 		return
 	}
 	now := c.now()
@@ -219,7 +220,7 @@ func (c *Console) applyPoints(b broadcast.PointBatch) {
 	// Fade into the operator's real background when the terminal can show
 	// it (truecolor, and the background reported by OSC 11).
 	c.pmarks.marks.SetBlend(palette.BG, blendable(palette))
-	c.pmarks.marks.Add(b.Points, b.Cols, b.Rows, b.Color, now)
+	c.pmarks.marks.Add(b.Points, b.Cols, b.Rows, b.ChromeRows, b.Color, now)
 	c.pmarks.mu.Unlock()
 	c.refreshMarks()
 }

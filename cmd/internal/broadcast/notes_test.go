@@ -19,32 +19,32 @@ import (
 func TestNoteBoardLimits(t *testing.T) {
 	var b NoteBoard
 	for i := 0; i < MaxNotesPerColor; i++ {
-		if _, err := b.Add(Note{Box: CellBox{i * 2, 0, 2, 1}, Color: 3, Text: "x"}, 80, 24); err != nil {
+		if _, err := b.Add(Note{Box: CellBox{i * 2, 0, 2, 1}, Color: 3, Text: "x"}, 80, 24, 1); err != nil {
 			t.Fatalf("note %d: %v", i, err)
 		}
 	}
-	if _, err := b.Add(Note{Box: CellBox{40, 0, 2, 1}, Color: 3, Text: "x"}, 80, 24); err != ErrNoteColorFull {
+	if _, err := b.Add(Note{Box: CellBox{40, 0, 2, 1}, Color: 3, Text: "x"}, 80, 24, 1); err != ErrNoteColorFull {
 		t.Fatalf("9th note in one color: %v, want ErrNoteColorFull", err)
 	}
-	if _, err := b.Add(Note{Box: CellBox{40, 0, 2, 1}, Color: 4, Text: "x"}, 80, 24); err != nil {
+	if _, err := b.Add(Note{Box: CellBox{40, 0, 2, 1}, Color: 4, Text: "x"}, 80, 24, 1); err != nil {
 		t.Fatalf("another color still has room: %v", err)
 	}
 }
 
 func TestNoteBoardOverlap(t *testing.T) {
 	var b NoteBoard
-	if _, err := b.Add(Note{Box: CellBox{10, 5, 2, 1}, Text: "a"}, 80, 24); err != nil {
+	if _, err := b.Add(Note{Box: CellBox{10, 5, 2, 1}, Text: "a"}, 80, 24, 1); err != nil {
 		t.Fatal(err)
 	}
 	for _, col := range []int{9, 10, 11} {
-		if _, err := b.Add(Note{Box: CellBox{col, 5, 2, 1}, Text: "b"}, 80, 24); err != ErrNoteOverlap {
+		if _, err := b.Add(Note{Box: CellBox{col, 5, 2, 1}, Text: "b"}, 80, 24, 1); err != ErrNoteOverlap {
 			t.Errorf("col %d: %v, want ErrNoteOverlap", col, err)
 		}
 	}
-	if _, err := b.Add(Note{Box: CellBox{12, 5, 2, 1}, Text: "b"}, 80, 24); err != nil {
+	if _, err := b.Add(Note{Box: CellBox{12, 5, 2, 1}, Text: "b"}, 80, 24, 1); err != nil {
 		t.Errorf("adjacent note: %v", err)
 	}
-	if _, err := b.Add(Note{Box: CellBox{10, 6, 2, 1}, Text: "b"}, 80, 24); err != nil {
+	if _, err := b.Add(Note{Box: CellBox{10, 6, 2, 1}, Text: "b"}, 80, 24, 1); err != nil {
 		t.Errorf("the row below: %v", err)
 	}
 }
@@ -61,28 +61,28 @@ func TestNoteBoardPlacesThePin(t *testing.T) {
 		return [2]int{n.Col, n.Row}
 	}
 	box := CellBox{20, 3, 10, 4}
-	if got := pin(b.Add(Note{Box: box, Text: "a"}, 80, 24)); got != [2]int{28, 3} {
+	if got := pin(b.Add(Note{Box: box, Text: "a"}, 80, 24, 1)); got != [2]int{28, 3} {
 		t.Errorf("first pin %v, want the top-right [28 3]", got)
 	}
-	if got := pin(b.Add(Note{Box: box, Text: "b"}, 80, 24)); got != [2]int{26, 3} {
+	if got := pin(b.Add(Note{Box: box, Text: "b"}, 80, 24, 1)); got != [2]int{26, 3} {
 		t.Errorf("same box again %v, want the next spot left [26 3]", got)
 	}
 	narrow := CellBox{40, 3, 2, 3}
-	pin(b.Add(Note{Box: narrow, Text: "c"}, 80, 24))
-	if got := pin(b.Add(Note{Box: narrow, Text: "d"}, 80, 24)); got != [2]int{40, 4} {
+	pin(b.Add(Note{Box: narrow, Text: "c"}, 80, 24, 1))
+	if got := pin(b.Add(Note{Box: narrow, Text: "d"}, 80, 24, 1)); got != [2]int{40, 4} {
 		t.Errorf("a narrow box's second pin %v, want the row below [40 4]", got)
 	}
 	// A box on the last row whose corner is on the controls: the pin moves
 	// left only while it stays off them; with no room it is refused.
 	var g NoteBoard
 	last := CellBox{0, 23, StatusGuardCols + 3, 1}
-	if got := pin(g.Add(Note{Box: last, Text: "e"}, 80, 24)); got != [2]int{StatusGuardCols + 1, 23} {
+	if got := pin(g.Add(Note{Box: last, Text: "e"}, 80, 24, 1)); got != [2]int{StatusGuardCols + 1, 23} {
 		t.Errorf("last-row pin %v, want [%d 23]", got, StatusGuardCols+1)
 	}
-	if _, err := g.Add(Note{Box: last, Text: "f"}, 80, 24); err != ErrNoteOverlap {
+	if _, err := g.Add(Note{Box: last, Text: "f"}, 80, 24, 1); err != ErrNoteOverlap {
 		t.Errorf("the only spot off the controls is taken: %v, want ErrNoteOverlap", err)
 	}
-	if _, err := g.Add(Note{Box: CellBox{0, 23, StatusGuardCols, 1}, Text: "g"}, 80, 24); err != ErrNoteOverlap {
+	if _, err := g.Add(Note{Box: CellBox{0, 23, StatusGuardCols, 1}, Text: "g"}, 80, 24, 1); err != ErrNoteOverlap {
 		t.Errorf("a box with only the controls for its pin: %v, want ErrNoteOverlap", err)
 	}
 }
@@ -109,7 +109,7 @@ func TestPinSpotsCaseTable(t *testing.T) {
 		t.Fatalf("the table assumes controls %d wide; they are %d", table.Guard, StatusGuardCols)
 	}
 	for _, c := range table.Cases {
-		if got := hasPin(CellBox{c.Box[0], c.Box[1], c.Box[2], c.Box[3]}, c.Cols, c.Rows); got != c.Has {
+		if got := hasPin(CellBox{c.Box[0], c.Box[1], c.Box[2], c.Box[3]}, c.Cols, c.Rows, 1); got != c.Has {
 			t.Errorf("%s: %v, want %v", c.Name, got, c.Has)
 		}
 	}
@@ -129,14 +129,14 @@ func TestNoteCrop(t *testing.T) {
 }
 
 func TestNoteBoxEdgeAndWire(t *testing.T) {
-	edge := boxEdge(CellBox{2, 1, 4, 3}, 80, 24)
+	edge := boxEdge(CellBox{2, 1, 4, 3}, 80, 24, 1)
 	if len(edge) != 10 {
 		t.Errorf("a 4x3 box has 10 edge cells, got %d: %v", len(edge), edge)
 	}
-	if got := boxEdge(CellBox{0, 23, StatusGuardCols + 2, 1}, 80, 24); len(got) != 2 {
+	if got := boxEdge(CellBox{0, 23, StatusGuardCols + 2, 1}, 80, 24, 1); len(got) != 2 {
 		t.Errorf("the controls are never outlined: %v", got)
 	}
-	if got := boxEdge(CellBox{78, 22, 6, 5}, 80, 24); len(got) != 3 {
+	if got := boxEdge(CellBox{78, 22, 6, 5}, 80, 24, 1); len(got) != 3 {
 		t.Errorf("a box past a shrunk grid is cut: %v", got)
 	}
 	n := Note{ID: 1, Col: 8, Row: 2, Box: CellBox{1, 2, 9, 3}, Text: "x"}
@@ -152,7 +152,7 @@ func TestNoteBoxEdgeAndWire(t *testing.T) {
 
 func TestNoteBoardResolveIdempotent(t *testing.T) {
 	var b NoteBoard
-	n, _ := b.Add(Note{Box: CellBox{0, 0, 2, 1}, Text: "a"}, 80, 24)
+	n, _ := b.Add(Note{Box: CellBox{0, 0, 2, 1}, Text: "a"}, 80, 24, 1)
 	if !b.Resolve(n.ID) || b.Resolve(n.ID) || b.Resolve(999) {
 		t.Fatal("resolve reports true once, then false")
 	}
@@ -163,9 +163,9 @@ func TestNoteBoardResolveIdempotent(t *testing.T) {
 
 func TestNoteBoardIDsAndCopies(t *testing.T) {
 	var b NoteBoard
-	a, _ := b.Add(Note{Box: CellBox{0, 0, 2, 1}, Text: "a"}, 80, 24)
+	a, _ := b.Add(Note{Box: CellBox{0, 0, 2, 1}, Text: "a"}, 80, 24, 1)
 	b.Resolve(a.ID)
-	c, _ := b.Add(Note{Box: CellBox{0, 0, 2, 1}, Text: "c"}, 80, 24)
+	c, _ := b.Add(Note{Box: CellBox{0, 0, 2, 1}, Text: "c"}, 80, 24, 1)
 	if c.ID <= a.ID {
 		t.Fatalf("ids must keep increasing past a resolve: %d then %d", a.ID, c.ID)
 	}
@@ -178,7 +178,7 @@ func TestNoteBoardIDsAndCopies(t *testing.T) {
 	if len(b.List()) != 0 {
 		t.Fatal("Clear leaves notes")
 	}
-	d, _ := b.Add(Note{Box: CellBox{0, 0, 2, 1}, Text: "d"}, 80, 24)
+	d, _ := b.Add(Note{Box: CellBox{0, 0, 2, 1}, Text: "d"}, 80, 24, 1)
 	if d.ID <= c.ID {
 		t.Fatal("ids keep increasing past a clear")
 	}
@@ -225,7 +225,6 @@ var noteRefusals = []string{
 	`{"cols":80,"rows":24,"box":[3,22,10,3],"color":0,"text":"hi"}`, // past the bottom
 	`{"cols":80,"rows":24,"box":[-1,4,10,3],"color":0,"text":"hi"}`,
 	`{"cols":80,"rows":24,"box":[3,-4,10,3],"color":0,"text":"hi"}`,
-	`{"cols":80,"rows":24,"box":[0,23,4,1],"color":0,"text":"hi"}`, // only the controls: nowhere for the pin
 	`{"cols":80,"rows":24,"box":[3,4,9999999999,3],"color":0,"text":"hi"}`,
 	`{"cols":80,"rows":24,"box":[1,0,9223372036854775807,1],"color":0,"text":"hi"}`, // Col+W overflows (BR-10)
 	`{"cols":80,"rows":24,"box":[0,1,2,9223372036854775807],"color":0,"text":"hi"}`,
@@ -313,9 +312,7 @@ func FuzzParseNote(f *testing.F) {
 			b.W > req.Cols-b.Col || b.H > req.Rows-b.Row || n.Color < 0 || n.Color >= PointerColors {
 			t.Fatalf("accepted out-of-range %+v", n)
 		}
-		if b.Row == req.Rows-1 && b.H == 1 && b.Col+b.W-2 < StatusGuardCols {
-			t.Fatalf("accepted a box with nowhere for its pin but the controls %+v", n)
-		}
+
 		if n.Text == "" || len(n.Text) > MaxNoteBytes || !utf8.ValidString(n.Text) {
 			t.Fatalf("accepted bad text %q", n.Text)
 		}
@@ -341,11 +338,11 @@ func TestNoteVisible(t *testing.T) {
 		{80, 6, false},                   // now the last row, inside the guard
 	}
 	for _, c := range cases {
-		if got := NoteVisible(n, c.cols, c.rows); got != c.want {
+		if got := NoteVisible(n, c.cols, c.rows, 1); got != c.want {
 			t.Errorf("%dx%d: %v, want %v", c.cols, c.rows, got, c.want)
 		}
 	}
-	if !NoteVisible(Note{Col: StatusGuardCols, Row: 5}, 80, 6) {
+	if !NoteVisible(Note{Col: StatusGuardCols, Row: 5}, 80, 6, 1) {
 		t.Error("the last row past the guard is visible")
 	}
 }
@@ -459,7 +456,7 @@ func TestDrawNotesProperty(t *testing.T) {
 		f := textFrame(t, cols, rows, body.String(), "")
 		var board NoteBoard
 		for k := 0; k < 4; k++ {
-			board.Add(Note{Box: CellBox{rng.Intn(cols - 1), rng.Intn(rows - 1), 2 + rng.Intn(6), 1 + rng.Intn(3)}, Text: "x"}, cols, rows)
+			board.Add(Note{Box: CellBox{rng.Intn(cols - 1), rng.Intn(rows - 1), 2 + rng.Intn(6), 1 + rng.Intn(3)}, Text: "x"}, cols, rows, 1)
 		}
 		notes := board.List()
 		a := DrawNotes(f, notes, NoteStyle{})
@@ -475,7 +472,7 @@ func TestDrawNotesProperty(t *testing.T) {
 		}
 		near := map[int]bool{}
 		for _, n := range notes {
-			if !NoteVisible(n, cols, rows) {
+			if !NoteVisible(n, cols, rows, 1) {
 				continue
 			}
 			for c := n.Col - 1; c <= n.Col+2; c++ {
@@ -523,11 +520,11 @@ func TestHasPinStopsAtTheFirstSpot(t *testing.T) {
 	for _, size := range []int{1000, 2000} {
 		for range 1000 {
 			visits := 0
-			_, ok := firstPin(CellBox{0, 0, size, size}, size, size, func(cell) bool {
+			_, ok := firstPin(CellBox{0, 0, size, size}, size, size, 1, func(cell) bool {
 				visits++
 				return false
 			})
-			if !ok || visits != 1 || !hasPin(CellBox{0, 0, size, size}, size, size) {
+			if !ok || visits != 1 || !hasPin(CellBox{0, 0, size, size}, size, size, 1) {
 				t.Fatalf("grid %d: pin=%v, visits=%d; want first-cell success", size, ok, visits)
 			}
 		}

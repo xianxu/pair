@@ -23,7 +23,7 @@ func (f *fakeRuntime) TryLock() (func(), bool, error)                     { retu
 func (f *fakeRuntime) CurrentTabJSON() ([]byte, error) {
 	return []byte(`{"tab_id":1,"position":1,"active_swap_layout_name":"BASE","is_swap_layout_dirty":false}`), nil
 }
-func (f *fakeRuntime) NudgeWrap() error { return nil }
+func (f *fakeRuntime) NudgeWrap() error           { return nil }
 func (f *fakeRuntime) NotifyRefusal(string) error { return nil }
 func (f *fakeRuntime) LogFailure(err error) {
 	f.fullscreenErrors = append(f.fullscreenErrors, err.Error())
@@ -78,7 +78,7 @@ func TestTerminalToggleRefusalReturnsFailureAndNotifiesBroker(t *testing.T) {
 	defer broker.Close()
 	f.SetModel(shortcutAdmissionModel(2))
 	wrong := "CLIENT_ID ZELLIJ_PANE_ID RUNNING_COMMAND\n"
-	f.SetFaults(zellijtest.Fault{Ordinal: 1, Reply: &wrong})
+	f.SetFaults(zellijtest.Fault{Ordinal: 1, Reply: &wrong}, zellijtest.Fault{Ordinal: 2, Reply: &wrong}, zellijtest.Fault{Ordinal: 3, Reply: &wrong})
 	var stderr bytes.Buffer
 	if code := Run([]string{"--test-shortcut", "Alt+Shift+Enter"}, strings.NewReader(""), io.Discard, &stderr); code != 1 {
 		t.Fatalf("uncertain toggle code=%d stderr=%q", code, &stderr)
@@ -91,7 +91,7 @@ func TestTerminalToggleRefusalReturnsFailureAndNotifiesBroker(t *testing.T) {
 	case <-testwait.After(t):
 		t.Fatal("terminal refusal never reached broker")
 	}
-	if !strings.Contains(stderr.String(), "refused") || len(f.Effects()) != 0 || len(f.Queries()) != 1 {
+	if !strings.Contains(stderr.String(), "refused") || len(f.Effects()) != 0 || len(f.Queries()) != 3 {
 		t.Fatalf("diagnostic=%q effects=%+v queries=%+v", &stderr, f.Effects(), f.Queries())
 	}
 }
@@ -118,7 +118,7 @@ func TestTerminalNativeAlreadyFocusedReturnClearsRecord(t *testing.T) {
 	}
 	t.Setenv("PATH", dir)
 	for _, quiet := range []bool{false, true} {
-		f := &fakeRuntime{currentPaneID: "4", fullscreenRecord: "2 swap=BASE", panesJSON: `[{"id":2,"is_floating":false,"is_fullscreen":false,"title":"draft","terminal_command":"nvim -u /pair/nvim/init.lua d.md","is_plugin":false,"is_focused":false,"pane_x":0,"pane_y":0,"pane_columns":75,"pane_rows":39,"tab_id":1,"tab_position":1},{"id":4,"is_floating":true,"is_fullscreen":false,"title":"terminal","terminal_command":"pair term","is_plugin":false,"is_focused":false,"pane_x":0,"pane_y":0,"pane_columns":75,"pane_rows":39,"tab_id":1,"tab_position":1}]`}
+		f := &fakeRuntime{currentPaneID: "4", terminalPaneIDs: []string{"4"}, fullscreenRecord: "2 swap=BASE", panesJSON: `[{"id":2,"is_floating":false,"is_fullscreen":false,"title":"draft","terminal_command":"nvim -u /pair/nvim/init.lua d.md","is_plugin":false,"is_focused":false,"pane_x":0,"pane_y":0,"pane_columns":75,"pane_rows":39,"tab_id":1,"tab_position":1},{"id":4,"is_floating":true,"is_fullscreen":false,"title":"terminal","terminal_command":"pair term","is_plugin":false,"is_focused":false,"pane_x":0,"pane_y":0,"pane_columns":75,"pane_rows":39,"tab_id":1,"tab_position":1}]`}
 		if code := layoutcmd.RunToggleFocused(nil, nativeReturnFocusRuntime{f, quiet}, io.Discard); code != 0 || f.fullscreenRecord != "" || len(f.fullscreenErrors) != 0 {
 			t.Fatalf("quiet=%v code=%d record=%q errors=%v", quiet, code, f.fullscreenRecord, f.fullscreenErrors)
 		}

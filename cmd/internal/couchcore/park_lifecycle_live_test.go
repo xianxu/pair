@@ -318,6 +318,9 @@ func newRealParkConformance(t *testing.T, ctx context.Context, intentOnly bool) 
 		markRecoveryQuery(ctx, "park-session-cleanup-enter")
 		err := zellij.Close()
 		markRecoveryQuery(ctx, fmt.Sprintf("park-session-cleanup-return err=%v", err))
+		if err != nil {
+			t.Errorf("controlled zellij cleanup: %v", err)
+		}
 	})
 
 	namespace := testCouchNamespace(t)

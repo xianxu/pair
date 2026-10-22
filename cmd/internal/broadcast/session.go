@@ -426,20 +426,20 @@ func (s *Session) acceptPoint(b PointBatch) {
 	if on, _ := s.pointer.On(); !on {
 		return
 	}
-	if !s.landsNow(b.Cols, b.Rows) {
+	cur := s.hub.Current()
+	if !landsOn(cur, b.Cols, b.Rows) {
 		return
 	}
 	if s.cfg.OnPoints != nil {
+		b.ChromeRows = cur.ChromeRows
 		s.cfg.OnPoints(b)
 	}
 }
 
-// landsNow reports whether input made on a cols×rows grid lands on what the
-// operator sees now: that grid, a public screen, and the active pointer
-// marker drawn. Hub.Current waits on the hub loop, so no lock may be held.
-func (s *Session) landsNow(cols, rows int) bool {
-	cur := s.hub.Current()
-	return cur.OK && cur.Geometry == (terminal.Geometry{Cols: cols, Rows: rows}) && cur.Class == terminal.FramePublic && cur.PointerShown
+// landsOn checks against trusted operator geometry. Hub.Current waits on the
+// hub loop, so callers retrieve it before holding pointer-state locks.
+func landsOn(cur CurrentFrame, cols, rows int) bool {
+	return cur.ChromeRows > 0 && cur.ChromeRows < rows && cur.OK && cur.Geometry == (terminal.Geometry{Cols: cols, Rows: rows}) && cur.Class == terminal.FramePublic && cur.PointerShown
 }
 
 // ErrScreenChanged refuses a note placed on a screen the operator no longer
@@ -454,15 +454,19 @@ func (s *Session) acceptNote(req NoteRequest) error {
 	if on, _ := s.pointer.On(); !on {
 		return ErrPointerOff
 	}
-	if !s.landsNow(req.Cols, req.Rows) {
+	cur := s.hub.Current()
+	if !landsOn(cur, req.Cols, req.Rows) {
 		return ErrScreenChanged
+	}
+	if !hasPin(req.Note.Box, req.Cols, req.Rows, cur.ChromeRows) {
+		return ErrNoteRange
 	}
 	req.Note.At = s.now()
 	if s.cfg.AnchorNote != nil {
 		a := s.cfg.AnchorNote(req.Note, req.Cols, req.Rows)
 		req.Note.Anchor = &a
 	}
-	if _, err := s.pointer.addNote(req.Note, req.Cols, req.Rows, gen); err != nil {
+	if _, err := s.pointer.addNote(req.Note, req.Cols, req.Rows, cur.ChromeRows, gen); err != nil {
 		return err
 	}
 	s.notesChanged()

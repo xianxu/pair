@@ -9,6 +9,7 @@ import (
 
 	"github.com/xianxu/pair/cmd/internal/agentdrive"
 	"github.com/xianxu/pair/cmd/internal/couchcore"
+	"github.com/xianxu/pair/cmd/internal/mockserve"
 	"github.com/xianxu/pair/cmd/internal/webcast/query"
 )
 
@@ -31,6 +32,7 @@ const (
 	// cliKeysHelp is `couch --keys --help`: the step table and recipes (#716).
 	cliKeysHelp
 	cliSessionSync
+	cliEditorEndpoint
 	// cliWebQuery is couch broadcast-web's agent queries (#462); args holds
 	// the argv after the flag, which query.Run parses.
 	cliWebQuery
@@ -41,6 +43,7 @@ const (
 	// (#478); args holds the argv after the flag.
 	cliWebFidelity
 	cliSubmission
+	cliMock
 )
 
 type adoptionArgs struct {
@@ -116,6 +119,11 @@ func ParseCLI(args []string, operations []couchcore.Operation) (cliInvocation, e
 	// scanning layout flags, which could otherwise consume a literal body.
 	if len(args) > 0 {
 		switch args[0] {
+		case "mock":
+			if _, err := mockserve.ParseCommand(args[1:]); err != nil {
+				return cliInvocation{}, err
+			}
+			return cliInvocation{kind: cliMock, args: append([]string(nil), args[1:]...)}, nil
 		case "--keys", "--set-model", "--interrupt":
 			return parseAgentDriveCLI(args)
 		case "--move-slot":
@@ -140,6 +148,8 @@ func ParseCLI(args []string, operations []couchcore.Operation) (cliInvocation, e
 			return cliInvocation{kind: cliWebFidelity, args: args[1:]}, nil
 		case "--session-sync":
 			return parseSessionSyncCLI(args)
+		case "--editor-endpoint":
+			return parseEditorEndpointCLI(args)
 		case "--switch-agent", "--operation-status":
 			return parseSwitchAgentCLI(args)
 		case "--recovery-confirmation", "--resume-candidates", "--actors", "--send-to", "--message-status", "--skill", "--broadcast-list", "--resources", "--reap-orphans":

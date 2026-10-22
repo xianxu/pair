@@ -46,10 +46,9 @@ func (k castKind) name() string {
 }
 
 const (
-	codesPress      = 180 * time.Millisecond // a pressed word's feedback
-	codeFlashes     = 3
-	codeFlashPhase  = 400 * time.Millisecond
-	codeNoticeQuiet = 30 * time.Second // per link, between guess-rotation notices
+	codesPress     = 180 * time.Millisecond // a pressed word's feedback
+	codeFlashes    = 3
+	codeFlashPhase = 400 * time.Millisecond
 )
 
 // castCodes is what the operator-only layer draws. Its mutex is a leaf.
@@ -71,9 +70,6 @@ type castCodes struct {
 	flash *codeFlash
 	// gens is the newest rotation seen per link (castlock.Rotation.Gen).
 	gens map[string]uint64
-	// noticed and quiet coalesce guess-rotation notices per link.
-	noticed map[string]time.Time
-	quiet   map[string]int
 }
 
 type codeFlash struct {
@@ -138,13 +134,16 @@ func (c *Console) codeAnchorLocked(kind castKind) int {
 // motion over a cast cell shows its tooltip (motion is never consumed). It
 // reports whether it took the event.
 func (c *Console) routeCastCodes(raw []byte) bool {
+	if !c.chromeConfirmed() {
+		return false
+	}
 	hit, _, _, ok := mouseinput.ParsePrefix(raw)
 	if !ok || hit.Release {
 		return false
 	}
 	x, y := hit.X-1, hit.Y-1
 	c.mu.Lock()
-	rows := int(c.size.Rows)
+	rows := int(c.size.Rows) - c.statusRows + 1
 	c.mu.Unlock()
 	motion := hit.Button&32 != 0
 	button := mouseinput.BaseButton(hit.Button)
@@ -233,7 +232,7 @@ func (c *Console) buildCodesMenu(kind castKind) (codesMenu, bool) {
 		return codesMenu{}, false
 	}
 	c.mu.Lock()
-	cols, rows := int(c.size.Cols), int(c.size.Rows)
+	cols, rows := int(c.size.Cols), int(c.size.Rows)-c.statusRows+1
 	c.mu.Unlock()
 	var menuRows []codesMenuRow
 	hasPointer := false
@@ -438,8 +437,7 @@ func (c *Console) rotateCastCodes(kind castKind, links []string) error {
 // onCodeRotated is a cast reporting a new code, on whichever goroutine
 // rotated it; attempt is the start that made the cast. A rotation from an
 // earlier attempt (a cast that has ended) is dropped. The newest Gen per link
-// wins; a guessing rotation is told in a notice, coalesced per link, without
-// the code.
+// wins; every current guessing rotation is told in a notice without the code.
 func (c *Console) onCodeRotated(kind castKind, attempt uint64, link string, r castlock.Rotation) {
 	key := linkKey(kind, attempt, link)
 	now := c.now()
@@ -464,7 +462,7 @@ func (c *Console) onCodeRotated(kind castKind, attempt uint64, link string, r ca
 	}
 	c.codes.mu.Lock()
 	if c.codes.gens == nil {
-		c.codes.gens, c.codes.noticed, c.codes.quiet = map[string]uint64{}, map[string]time.Time{}, map[string]int{}
+		c.codes.gens = map[string]uint64{}
 	}
 	if r.Gen <= c.codes.gens[key] {
 		c.codes.mu.Unlock()
@@ -483,25 +481,24 @@ func (c *Console) onCodeRotated(kind castKind, attempt uint64, link string, r ca
 	c.codes.flash = &codeFlash{cast: kind, link: link, code: r.Code, at: at, start: now}
 	notice := ""
 	if r.Reason == castlock.ReasonGuessing {
-		if last, ok := c.codes.noticed[key]; ok && now.Sub(last) < codeNoticeQuiet {
-			c.codes.quiet[key]++
+		if r.Capped {
+			notice = fmt.Sprintf("Too many wrong codes on the %s %s link: its code changed; the link is locked until you rotate its code.", kind.name(), link)
 		} else {
-			times := ""
-			if n := c.codes.quiet[key]; n > 0 {
-				times = fmt.Sprintf(" (%d more times since)", n)
-			}
-			c.codes.noticed[key], c.codes.quiet[key] = now, 0
-			notice = fmt.Sprintf("Too many wrong codes on the %s %s link: its code changed%s. Hover %s to see it.", kind.name(), link, times, kind.name())
+			notice = fmt.Sprintf("Too many wrong codes on the %s %s link: its code changed. Hover %s to see it.", kind.name(), link, kind.name())
 		}
 	}
 	c.codes.mu.Unlock()
+	// Publish before releasing the generation guard: an older callback must
+	// never overwrite the notice from a newer, capped rotation.
+	paintNotice := false
+	if notice != "" {
+		paintNotice = c.publishNoticeLocked(Notice{Kind: "status", Body: notice})
+	}
 	c.mu.Unlock() // before GoTracked, which takes c.mu
-	c.GoTracked(func() {
-		if notice != "" {
-			c.setNotice(notice)
-		}
-		c.flashCodes()
-	})
+	if paintNotice {
+		c.repaint()
+	}
+	c.GoTracked(c.flashCodes)
 }
 
 // flashCodes repaints at each phase of a code's flash; the layer decides
@@ -532,11 +529,22 @@ func (c *Console) forgetCastCodes(kind castKind) {
 	for key := range c.codes.gens {
 		if strings.HasPrefix(key, strconv.Itoa(int(kind))+"/") {
 			delete(c.codes.gens, key)
-			delete(c.codes.noticed, key)
-			delete(c.codes.quiet, key)
 		}
 	}
 	c.codes.mu.Unlock()
+}
+
+// reflowCodesMenu reuses the retained semantic rows and selection against the
+// exact frame being composed, without reading Console or scheduling a repaint.
+func reflowCodesMenu(menu codesMenu, cols, rows int) codesMenu {
+	source := make([]codesMenuRow, len(menu.rows))
+	for i, row := range menu.rows {
+		source[i].label = row.label
+		for _, word := range row.words {
+			source[i].actions = append(source[i].actions, word.codesMenuWord)
+		}
+	}
+	return layoutCodesMenu(menu.title, source, cols, rows).Select(menu.sel)
 }
 
 // codesLayer is the presenter's operator-only layer: the codes tooltip, the
@@ -548,7 +556,13 @@ func (c *Console) codesLayer(f terminal.Frame, _ terminal.FrameClass) terminal.F
 	now := c.now()
 	c.codes.mu.Lock()
 	defer c.codes.mu.Unlock()
-	cols, rows := f.Geometry.Cols, f.Geometry.Rows
+	if f.ChromeRows == 0 {
+		c.codes.menu, c.codes.menuBox = castNone, codesMenu{}
+		c.codes.hover, c.codes.hoverCodes = castNone, nil
+		c.codes.flash = nil
+		return f
+	}
+	cols, rows := f.Geometry.Cols, f.Geometry.Rows-f.ChromeRows+1
 	if fl := c.codes.flash; fl != nil {
 		phase := int(now.Sub(fl.start) / codeFlashPhase)
 		switch {
@@ -566,6 +580,11 @@ func (c *Console) codesLayer(f terminal.Frame, _ terminal.FrameClass) terminal.F
 		f = codeTip(strings.Join(parts, " · "), c.codes.hoverAt, cols, rows).Draw(f, 0, style)
 	}
 	if c.codes.menu != castNone {
+		c.codes.menuBox = reflowCodesMenu(c.codes.menuBox, cols, rows)
+		if !c.codes.menuBox.Open() {
+			c.codes.menu = castNone
+			return f
+		}
 		press := codesMenuSel{row: -1}
 		if now.Before(c.codes.pressedUntil) {
 			press = c.codes.pressed

@@ -229,13 +229,13 @@ func verifyCouchSessionCreate(ctx context.Context, rt Runtime, globalDataDir str
 			return err
 		}
 		if err := ctx.Err(); err != nil {
-			return err
+			return observed.WithDiagnosticCause(err)
 		}
 		switch observed.State {
 		case SessionOwnerForeign, SessionOwnerAbsent:
 			continue
 		default:
-			return fmt.Errorf("couch conversation terminal %q is live or unresolved; refusing another terminal", session.Name)
+			return observed.WithDiagnosticCause(fmt.Errorf("couch conversation terminal %q is live or unresolved; refusing another terminal", session.Name))
 		}
 	}
 	return ctx.Err()

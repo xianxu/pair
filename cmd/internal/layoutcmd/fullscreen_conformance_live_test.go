@@ -7,7 +7,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"github.com/xianxu/pair/cmd/internal/zellijexec"
+	"github.com/xianxu/pair/cmd/internal/zellijquery"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -66,10 +66,7 @@ func TestFullscreenZellijConformance(t *testing.T) {
 	}
 	t.Cleanup(func() {
 		if err := fixture.Close(); err != nil {
-			// A short-lived session may have no resurrection directory yet:
-			// delete-session --force kills it but returns 2 for that missing
-			// directory. Verify server disappearance independently of this code.
-			t.Logf("fixture close: %v; checking server disappearance", err)
+			t.Errorf("fixture close: %v; checking server disappearance", err)
 		}
 		cleanupCtx, cleanupCancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cleanupCancel()
@@ -300,20 +297,18 @@ func (r *fullscreenLiveRuntime) command(args ...string) ([]byte, error) {
 	return out, nil
 }
 func (r *fullscreenLiveRuntime) queryContext(ctx context.Context, args ...string) ([]byte, error) {
-	cmd := exec.CommandContext(ctx, "zellij", append([]string{"--session", r.session, "action"}, args...)...)
-	cmd.Env = append(os.Environ(), "ZELLIJ_PANE_ID="+r.caller)
-	var out, diagnostic bytes.Buffer
-	cmd.Stdout, cmd.Stderr = &out, &diagnostic
-	err := zellijexec.Run(cmd)
-	if r.queryLog != nil {
-		// Disposable fixture evidence only: preserve raw streams without changing
-		// the bytes the production parser sees. Bound each diagnostic field.
+	ctx = zellijquery.WithObserver(ctx, func(observation zellijquery.Observation) {
+		if r.queryLog == nil {
+			return
+		}
+		// Keep the established native evidence fields, with one entry per attempt.
 		const maxQueryTrace = 8192
 		r.queryLog("native query %v stdout=%q stdout_bytes=%d stderr=%q stderr_bytes=%d error=%v", args,
-			out.Bytes()[:min(out.Len(), maxQueryTrace)], out.Len(),
-			diagnostic.Bytes()[:min(diagnostic.Len(), maxQueryTrace)], diagnostic.Len(), err)
-	}
-	return out.Bytes(), err
+			observation.Stdout[:min(len(observation.Stdout), maxQueryTrace)], observation.StdoutBytes,
+			observation.Stderr[:min(len(observation.Stderr), maxQueryTrace)], observation.StderrBytes, observation.Err)
+	})
+	return (zellijquery.Source{Env: append(os.Environ(), "ZELLIJ_PANE_ID="+r.caller)}).Output(ctx,
+		append([]string{"--session", r.session, "action"}, args...)...)
 }
 func (r *fullscreenLiveRuntime) ListPanesJSONContext(ctx context.Context) ([]byte, error) {
 	return r.queryContext(ctx, "list-panes", "--json", "--command", "--state", "--geometry")

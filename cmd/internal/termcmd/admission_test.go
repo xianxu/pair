@@ -48,7 +48,7 @@ func TestTerminalShortcutRetainsOneAdmissionBudgetAndCancellation(t *testing.T) 
 			}
 			var first context.Context
 			reads := 0
-			base := &fakeRuntime{currentPaneID: "4"}
+			base := &fakeRuntime{currentPaneID: "4", terminalPaneIDs: []string{"4"}}
 			rt := contextShortcutRuntime{fakeRuntime: base, read: func(observed context.Context) ([]byte, error) {
 				reads++
 				if first == nil {
@@ -88,7 +88,7 @@ func shortcutAdmissionModel(draft int) zellijtest.Model {
 }
 
 func TestTerminalShortcutRequiresConfirmedCallerTab(t *testing.T) {
-	for _, scenario := range []string{"healthy", "stale-last-left", "wrong-kind-first", "wrong-kind-confirmation", "displaced-first", "changed-target", "missing-caller", "missing-draft", "ambiguous-draft"} {
+	for _, scenario := range []string{"healthy", "one-crossed-first", "one-crossed-confirmation", "stale-last-left", "wrong-kind-first", "wrong-kind-confirmation", "displaced-first", "changed-target", "missing-caller", "missing-draft", "ambiguous-draft"} {
 		t.Run(scenario, func(t *testing.T) {
 			f := zellijtest.New(t)
 			for _, entry := range f.Env() {
@@ -99,8 +99,12 @@ func TestTerminalShortcutRequiresConfirmedCallerTab(t *testing.T) {
 			wrong := "CLIENT_ID ZELLIJ_PANE_ID RUNNING_COMMAND\n"
 			switch scenario {
 			case "wrong-kind-first":
-				f.SetFaults(zellijtest.Fault{Ordinal: 1, Reply: &wrong})
+				f.SetFaults(zellijtest.Fault{Ordinal: 1, Reply: &wrong}, zellijtest.Fault{Ordinal: 2, Reply: &wrong}, zellijtest.Fault{Ordinal: 3, Reply: &wrong})
 			case "wrong-kind-confirmation":
+				f.SetFaults(zellijtest.Fault{Ordinal: 2, Reply: &wrong}, zellijtest.Fault{Ordinal: 3, Reply: &wrong}, zellijtest.Fault{Ordinal: 4, Reply: &wrong})
+			case "one-crossed-first":
+				f.SetFaults(zellijtest.Fault{Ordinal: 1, Reply: &wrong})
+			case "one-crossed-confirmation":
 				f.SetFaults(zellijtest.Fault{Ordinal: 2, Reply: &wrong})
 			case "displaced-first":
 				body, err := json.Marshal(shortcutAdmissionModel(3).Sessions["test"].Panes)
@@ -126,24 +130,37 @@ func TestTerminalShortcutRequiresConfirmedCallerTab(t *testing.T) {
 				model.Sessions["test"] = session
 			}
 			f.SetModel(model)
-			rt := nativeShortcutRuntime{&fakeRuntime{currentPaneID: "4"}}
+			rt := nativeShortcutRuntime{&fakeRuntime{currentPaneID: "4", terminalPaneIDs: []string{"4"}}}
 			if scenario == "stale-last-left" {
 				rt.lastLeft = "8"
 			}
 			err := handleChord(workbenchshortcut.ChordAltK, rt, strings.NewReader(""), io.Discard)
-			if scenario == "healthy" || scenario == "stale-last-left" {
+			if scenario == "healthy" || scenario == "stale-last-left" || strings.HasPrefix(scenario, "one-crossed-") {
 				if err != nil {
 					t.Fatal(err)
 				}
 				if effects := f.Effects(); len(effects) != 1 || effects[0].Target != "terminal_2" {
 					t.Fatalf("effects=%+v", effects)
 				}
-				if len(f.Queries()) != 3 {
-					t.Fatalf("queries=%+v; want two reads and one focus", f.Queries())
+				wantReads := 2
+				if strings.HasPrefix(scenario, "one-crossed-") {
+					wantReads = 3
+				}
+				if len(f.Queries()) != wantReads+1 {
+					t.Fatalf("queries=%+v; want %d reads and one focus", f.Queries(), wantReads)
 				}
 			} else {
-				if (scenario == "ambiguous-draft" || scenario == "missing-draft") && len(f.Queries()) != 1 {
-					t.Fatalf("invalid first target queried again: %+v", f.Queries())
+				wantReads := 2
+				switch scenario {
+				case "wrong-kind-first":
+					wantReads = 3
+				case "wrong-kind-confirmation":
+					wantReads = 4
+				case "missing-caller", "missing-draft", "ambiguous-draft":
+					wantReads = 1
+				}
+				if len(f.Queries()) != wantReads {
+					t.Fatalf("refusal queries=%+v; want exactly %d reads", f.Queries(), wantReads)
 				}
 				if err == nil || len(f.Effects()) != 0 || len(rt.recordedTerminal) != 0 {
 					t.Fatalf("uncertain shortcut error=%v effects=%+v records=%v", err, f.Effects(), rt.recordedTerminal)
@@ -180,11 +197,60 @@ func TestTerminalInertShortcutAllowsConfirmedMissingDraft(t *testing.T) {
 	session.Panes = append(session.Panes[:1], session.Panes[2:]...)
 	model.Sessions["test"] = session
 	f.SetModel(model)
-	rt := nativeShortcutRuntime{&fakeRuntime{currentPaneID: "4"}}
+	rt := nativeShortcutRuntime{&fakeRuntime{currentPaneID: "4", terminalPaneIDs: []string{"4"}}}
 	if err := handleChord(workbenchshortcut.ChordAltJ, rt, strings.NewReader(""), io.Discard); err != nil {
 		t.Fatal(err)
 	}
 	if len(f.Queries()) != 2 || len(f.Effects()) != 0 || len(rt.recordedTerminal) != 0 {
 		t.Fatalf("inert chord queries=%+v effects=%+v records=%v", f.Queries(), f.Effects(), rt.recordedTerminal)
+	}
+}
+
+func TestTerminalRegistrationRemovalDeniesStalePaneMetadata(t *testing.T) {
+	for _, cached := range []bool{false, true} {
+		for _, metadata := range []string{"startup-command", "terminal-title", "both"} {
+			t.Run(fmt.Sprintf("cached=%v/%s", cached, metadata), func(t *testing.T) {
+				model := shortcutAdmissionModel(2)
+				own := model.Sessions["test"].Panes[0]
+				if metadata != "startup-command" {
+					own["title"] = "terminal"
+				}
+				if metadata == "terminal-title" {
+					own["terminal_command"] = ""
+				}
+				body, err := json.Marshal(model.Sessions["test"].Panes)
+				if err != nil {
+					t.Fatal(err)
+				}
+				rt := &fakeRuntime{currentPaneID: "4", terminalPaneIDs: []string{"4"}, panesJSON: string(body)}
+				if cached {
+					rt.cachedDraft = "2"
+				}
+				if err := handleChord(workbenchshortcut.ChordAltK, rt, strings.NewReader(""), io.Discard); err != nil {
+					t.Fatal(err)
+				}
+				wantReads := 2
+				if cached {
+					wantReads = 0
+				}
+				if strings.Join(rt.ops, ",") != "focus-pane-id 2" || strings.Join(rt.recordedTerminal, ",") != "4" || rt.listCalls != wantReads {
+					t.Fatalf("registered: effects=%v records=%v reads=%d", rt.ops, rt.recordedTerminal, rt.listCalls)
+				}
+
+				// Model the live registry filter dropping the exited wrapper. Its
+				// startup command, title and cached draft have not changed.
+				rt.terminalPaneIDs = nil
+				rt.ops, rt.recordedTerminal, rt.listCalls = nil, nil, 0
+				if err := handleChord(workbenchshortcut.ChordAltK, rt, strings.NewReader(""), io.Discard); err != nil {
+					t.Fatal(err)
+				}
+				if len(rt.ops) != 0 || len(rt.recordedTerminal) != 0 || rt.listCalls != 2 {
+					t.Fatalf("removed registration: effects=%v records=%v reads=%d", rt.ops, rt.recordedTerminal, rt.listCalls)
+				}
+				if err := splitTerminalDown(rt); err == nil || len(rt.ops) != 0 {
+					t.Fatalf("removed registration admitted split: error=%v effects=%v", err, rt.ops)
+				}
+			})
+		}
 	}
 }

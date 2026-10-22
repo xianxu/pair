@@ -17,6 +17,7 @@ import (
 	"github.com/xianxu/pair/cmd/internal/scrollbackcmd"
 	"github.com/xianxu/pair/cmd/internal/sessioninventory"
 	"github.com/xianxu/pair/cmd/internal/storagegc"
+	"github.com/xianxu/pair/cmd/internal/zellijquery"
 )
 
 // OSRuntime implements Runtime with real zellij/nvim/exec/fs calls. The fs
@@ -58,7 +59,7 @@ func (e *renderError) Error() string { return fmt.Sprintf("scrollback-render exi
 // pane id from `zellij action list-panes --json`, or "" — the Go port of the
 // shell's jq recursive-descent selector.
 func (OSRuntime) AgentPaneID() string {
-	out, err := exec.Command("zellij", "action", "list-panes", "--json").Output()
+	out, err := (zellijquery.Source{}).Output(context.Background(), "action", "list-panes", "--json")
 	if err != nil {
 		return ""
 	}
@@ -119,7 +120,7 @@ func paneIDString(v interface{}) string {
 }
 
 func (OSRuntime) DumpScreen(paneID string) (string, error) {
-	out, err := exec.Command("zellij", "action", "dump-screen", "--pane-id", "terminal_"+paneID).Output()
+	out, err := (zellijquery.Source{}).Output(context.Background(), "action", "dump-screen", "--pane-id", "terminal_"+paneID)
 	if err != nil {
 		return "", err
 	}

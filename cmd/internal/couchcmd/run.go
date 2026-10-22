@@ -16,6 +16,7 @@ import (
 	"github.com/xianxu/pair/cmd/internal/broadcast"
 	"github.com/xianxu/pair/cmd/internal/couchidentity"
 	"github.com/xianxu/pair/cmd/internal/couchsingleton"
+	"github.com/xianxu/pair/cmd/internal/sessionsync"
 	"io"
 	"os"
 	"os/exec"
@@ -36,9 +37,11 @@ import (
 	"github.com/xianxu/pair/cmd/internal/couchtty"
 	"github.com/xianxu/pair/cmd/internal/crashreport"
 	"github.com/xianxu/pair/cmd/internal/diagnosticlog"
+	"github.com/xianxu/pair/cmd/internal/editorendpoint"
 	"github.com/xianxu/pair/cmd/internal/hostty"
 	"github.com/xianxu/pair/cmd/internal/keyhelp"
 	"github.com/xianxu/pair/cmd/internal/launcher"
+	"github.com/xianxu/pair/cmd/internal/mockserve"
 	"github.com/xianxu/pair/cmd/internal/runtimebundle"
 	"github.com/xianxu/pair/cmd/internal/scrollbackcmd"
 	"github.com/xianxu/pair/cmd/internal/submission"
@@ -298,6 +301,11 @@ func RunWithRuntime(args []string, stdin io.Reader, stdout, stderr io.Writer, rt
 		fmt.Fprintf(stderr, "couch: %v\n", err)
 		return 2
 	}
+	if invocation.kind == cliMock {
+		ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+		defer stop()
+		return mockserve.Run(ctx, invocation.args, stdout, stderr)
+	}
 	if invocation.kind == cliHelp {
 		usage(stdout)
 		return 0
@@ -356,9 +364,26 @@ func RunWithRuntime(args []string, stdin io.Reader, stdout, stderr io.Writer, rt
 	if invocation.kind == cliAdopt {
 		return runAdoptionCLI(invocation, rt, stdout, stderr)
 	}
-	if invocation.kind == cliSessionSync {
+	if invocation.kind == cliEditorEndpoint {
 		prepared, lease, err := prepareRuntime(rt, false)
 		if err != nil {
+			_ = json.NewEncoder(stdout).Encode(editorendpoint.EndpointReply{Version: 1, Code: "unavailable", Error: "Couch namespace unavailable; start Couch and retry"})
+			return 3
+		}
+		defer lease.Close()
+		return runEditorEndpointCLI(invocation, prepared, stdin, stdout, stderr, couchmessage.Call)
+	}
+	if invocation.kind == cliSessionSync {
+		if a := invocation.sessionSync; a.operatorLockCommand() {
+			if err := (sessionsync.OperatorLockRequest{ID: a.id, Turn: a.turn}).ValidateTurn(); err != nil {
+				return operatorSessionSyncFailure(stdout, err)
+			}
+		}
+		prepared, lease, err := prepareRuntime(rt, false)
+		if err != nil {
+			if invocation.sessionSync.operatorLockCommand() {
+				return sessionSyncUnavailable(stdout, err)
+			}
 			fmt.Fprintln(stderr, "couch:", err)
 			return 1
 		}
@@ -1405,6 +1430,7 @@ func usageWith(w io.Writer, bindings []couchkeys.Binding) {
 	fmt.Fprintln(w, "couch - supervise agent actors, one per working tree")
 	fmt.Fprintln(w)
 	verbLine(w, launchVerb, "usage: couch [path ...] [--layout2|--layout3]")
+	verbLine(w, "mock", "       couch mock serve DIR [--port N] [--real URL] | mock use DIR mock-N | mock check DIR")
 	verbLine(w, "--list", "       couch --list")
 	verbLine(w, "--show", "       couch --show <thread>")
 	verbLine(w, "--reconcile", "       couch --reconcile repo:N")
@@ -1470,6 +1496,11 @@ func usageWith(w io.Writer, bindings []couchkeys.Binding) {
 	verbLine(w, "--session-sync", "       couch --session-sync round FILE --json")
 	fmt.Fprintln(w, "             The last agent round's spans, and whether a submit has cleared it.")
 	fmt.Fprintln(w, "             Registration lasts until forget; rename moves metadata only. See couch --skill.")
+	verbLine(w, "--editor-endpoint", "       couch --editor-endpoint register --json")
+	verbLine(w, "--editor-endpoint", "       couch --editor-endpoint unregister --json")
+	fmt.Fprintln(w, "             Bounded editor attachment JSON on stdin; unregister compares a batch of exact generations.")
+	verbLine(w, "--editor-endpoint", "       couch --editor-endpoint lookup --namespace PATH --document-id ID --json")
+	fmt.Fprintln(w, "             Private live-editor endpoint metadata; no document acquisition or remote editing.")
 	verbLine(w, "--adopt-store", "       couch --adopt-store <absolute-path> [--pair-data <path>] [--identity-dir <path>]")
 	fmt.Fprintln(w, "             [--legacy-store <path>]... [--exclude-store <path>]... [--apply <digest>]")
 	fmt.Fprintln(w, "             Preview legacy stores as JSON; apply the current digest to select in place.")

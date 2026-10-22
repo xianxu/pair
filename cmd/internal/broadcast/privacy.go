@@ -12,7 +12,7 @@ const PlaceholderText = "The operator is switching threads"
 
 // ViewerFrame is the frame viewers get for f. A private frame (the switcher,
 // which lists the whole fleet) becomes a placeholder of the same geometry
-// unless showSwitcher is set. The placeholder keeps f's last row, the tab bar:
+// unless showSwitcher is set. The placeholder keeps all declared chrome rows, the tab bar:
 // it shows the same thread labels as every public frame, so it reveals nothing
 // new, and it keeps the LIVE indicator in front of viewers too.
 func ViewerFrame(f terminal.Frame, class terminal.FrameClass, showSwitcher bool) (terminal.Frame, error) {
@@ -23,16 +23,23 @@ func ViewerFrame(f terminal.Frame, class terminal.FrameClass, showSwitcher bool)
 		return terminal.Frame{}, err
 	}
 	cols, rows := f.Geometry.Cols, f.Geometry.Rows
-	var cells []terminal.Cell
-	if rows > 1 {
-		body, err := terminal.StyledRows(placeholderBody(cols, rows-1), cols, rows-1)
-		if err != nil {
-			return terminal.Frame{}, err
-		}
-		cells = body
+	bodyRows := rows - f.ChromeRows
+	body, err := terminal.StyledRows(placeholderBody(cols, bodyRows), cols, bodyRows)
+	if err != nil {
+		return terminal.Frame{}, err
 	}
-	cells = append(cells, f.Cells[(rows-1)*cols:]...)
-	return terminal.PanelFrame(f.Geometry, cells, terminal.Cursor{})
+	child, err := terminal.PanelFrame(terminal.Geometry{Cols: cols, Rows: bodyRows}, body, terminal.Cursor{})
+	if err != nil {
+		return terminal.Frame{}, err
+	}
+	out, err := terminal.Compose(child, f.Geometry, f.Cells[bodyRows*cols:])
+	if err != nil {
+		return terminal.Frame{}, err
+	}
+	if len(f.Rows) == rows {
+		copy(out.Rows[bodyRows:], f.Rows[bodyRows:])
+	}
+	return out, nil
 }
 
 // placeholderBody centres PlaceholderText in a body of rows×cols, truncated

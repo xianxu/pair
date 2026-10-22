@@ -1,0 +1,14 @@
+{
+  "initial_attempts": 1011,
+  "diagnostic_attempts": 26,
+  "initial_failures": 24,
+  "diagnostic_requeries": 24,
+  "diagnostic_success": 24,
+  "diagnostic_failure": 0,
+  "stable_generation": 24,
+  "socket_present_before_after": 24,
+  "caller_deadlines_unexpired": 24,
+  "initial_error_stderr": {
+    "There is no active session!\n": 24
+  }
+}

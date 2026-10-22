@@ -270,19 +270,78 @@ remain unknown. Native list_sessions exits before its caller's intended exit1.
 
 ### Bounded native read compatibility (#748)
 
-`launcher.ZellijSource.runContext` owns a temporary workaround for0.45.1's
-client-ID reuse bug (upstream PR5630). Exact allowlisted full unformatted
-listings, list-clients and JSON list-panes command/state reads can make at most
+`zellijquery.Source.ReadContext` owns the shared Go read boundary and temporary
+workaround for0.45.1's client-ID reuse bug (upstream PR5630, #748/#803).
+Launcher inventory/name probes, layout, clipboard, shortcut focus, opener,
+title liveness and wrapper viewport reads derive from it without importing the
+launcher. Its strict classifiers and socket namespace helpers also live there;
+launcher retains compatibility aliases for its errors and per-attempt observer.
+Exact allowlisted full unformatted listings, explicit or implicit list-clients,
+JSON list-panes (supported command/state/geometry/tab/all flags) and JSON
+current-tab reads can make at most
 three total sequential attempts under their original shared5s/caller deadline.
 Only exit-zero empty/whitespace output or a complete validated different reply
 kind is reissued. Every attempt retains its own query-observer event. There is
 no delay/backoff or mutation replay. Nonzero/collector errors, malformed
 same-kind payloads and cancellation stop immediately; caller strict fields,
-server-generation checks and independent agreement remain mandatory.
+server-generation checks and independent agreement remain mandatory. The exact
+#761 false-session-miss diagnostic/socket exception remains; socket observations
+use the same child environment, never a different ambient namespace. An explicit
+environment with no resolvable native root cannot certify socket presence.
+
+`Source.Output` retains partial stdout on failure. `ReadContext` also returns the
+last attempt's raw `Result` (stdout, stderr, original `ProcessErr`) separately from
+its classified read error. Only a direct native exit can authorize the launcher
+name probe's Clap/absence interpretation; joined cancellation/collection failures
+remain unknown. Per-attempt observers run synchronously with bounded copies.
+
+The default collector is `zellijexec.Run`, which joins a private query group.
+`Source.Run` is the explicit collector injection seam. A CLI that already owns
+its entire process group uses `zellijquery.InheritedGroup` (one-second WaitDelay)
+to retain that shutdown boundary: the title CLI's EOF cleanup must still kill
+the query and its descendants. This collector requires a whole-group lifetime
+owner and is not a standalone cleanup owner. It changes no retry/deadline rule.
+The disposable layout conformance runtime uses this same production Source with
+its private child environment and per-attempt logs, rather than a fixture retry.
 
 Tests retain the empty/crossed reply schedules, exhaustion without effects,
 cancellation, counted8/16 read bounds, and native qualification artifacts in
-`workshop/evidence/000748`. The Pair lint catalog rejects new direct calls to
-the private one-attempt collector outside that owner. Other query consumers
-retain their existing contracts. Remove the workaround after the supported
+`workshop/evidence/000748`. The Pair lint catalog guards private-attempt ownership
+and direct production Go query bypasses (see go-lint-catalog.md).
+Screen dumps share bounded collection but valid empty text is not retried.
+Failure-only version reads, startup failure dumps and deliberately raw native
+reproduction/latency probes remain diagnostic exclusions. Production Lua reads
+in workbench_route, dom_transport, pair_poke and review/restore_client remain
+outside this Go seam until #804 adds its thin CLI adapter; they retain existing
+strict validation and operation budgets. Remove the workaround after the supported
 native release includes PR5630 and the controls are requalified.
+
+### Standalone native lookup reproduction (#775)
+
+`scripts/repro/zellij-false-miss.sh [queries=1000] [workers=4]` is an upstream-shareable
+Bash diagnostic requiring only Zellij0.45.1 and stock Unix utilities. It starts
+three private background shell sessions under temporary HOME/XDG/config/socket
+roots, then issues raw pane, client and session-list queries without measured-read
+retries. Its [ten-line guide](../scripts/repro/README.md) describes invocation.
+
+`exit0_target_listed` requires the complete target-not-found stderr response and
+an exact target token in the colored native listing. `exit1_alive_confirmed`
+requires the complete no-active-session response, a socket before/after the
+failure, and a subsequent successful dump-layout response containing a line
+matching `^layout[[:space:]]*\{`. Failed queries or responses without that heading
+stay `exit1_liveness_unconfirmed`; this recognizes a heading rather than parsing
+the complete layout. Other nonzero
+results remain separate. These are observations, not continuous liveness proof
+or an ownership grant, and zero misses does not rule out the race. Raw anomalous
+results print before cleanup. Cleanup addresses only the private namespace;
+unconfirmed socket removal retains the named root and exits unsuccessfully.
+
+`python3 tests/zellij-false-miss-test.py` exercises the actual worker with a
+stateful CLI double and real private sockets, including whole-stderr byte
+matching and confirmed/unconfirmed liveness. Both private executables use the
+shared reply serializer and producer catalog in `tests/lib/zellij_fixture_replies.py`;
+explicit faults retain malformed bytes and their production-decoder classifications.
+The standalone script itself does
+not require Python. `make zellij-false-miss` explicitly runs the regressions and
+the default native diagnostic; neither is added to `make test`. This manual
+diagnostic is separate from Pair's bounded recovery.

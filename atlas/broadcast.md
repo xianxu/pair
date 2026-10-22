@@ -22,9 +22,10 @@ controls.
 and a frame are totally ordered.
 
 - **Withholding:** a frame is forwarded only if `IndicatorShown` holds. That
-  means its last row starts with `LiveLabel` drawn in `LiveSGR` (red
-  background). The status row draws the same constants. Invariant: viewers get
-  only frames the operator saw marked LIVE.
+  means the first compositor-declared chrome row starts with `LiveLabel`
+  drawn in `LiveSGR` (red background). Missing/invalid chrome metadata or a
+  clipped label fails closed; child pixels cannot grant broadcast authority.
+  The status row draws the same constants. Invariant: viewers get only frames the operator saw marked LIVE.
 - **Fail-safe:** a tagged watch, `off | shown | hidden`, is driven by the
   indicator on the most recent frame. After `Activate()`, an indicator that
   stays hidden for `Grace` (1s) ends the hub with `ErrIndicatorHidden`.
@@ -32,7 +33,8 @@ and a frame are totally ordered.
   opening. It arms the timer only if the last frame lacked the indicator, so a
   quiet screen already showing LIVE keeps broadcasting.
 - **Privacy:** `ViewerFrame` replaces a private frame with a placeholder that
-  keeps the tab bar, unless `ShowSwitcher` is set.
+  keeps every declared tab-bar row and its row metadata, unless `ShowSwitcher`
+  is set.
 - **Shared diffs:** each frame is rendered once with `terminal.Render`, the
   same renderer the xterm oracle checks, and the diff is shared. Late joiners
   get `Join()`, a full render of the current frame.
@@ -60,7 +62,9 @@ is the current one, for late joiners.
   styles are allowed because xterm.js's DOM renderer inserts `<style>`
   elements.
 - **`events`:** a Server-Sent Events stream.
-  - `event: frame` carries `{cols, rows, b: base64}`.
+  - `event: frame` carries `{cols, rows, chrome_rows, b: base64}`. The trusted
+    reservation accompanies initial, diff, metadata-only and late-join frames;
+    client point/note bodies cannot override it.
   - `event: end` carries `{reason}`.
   - A `: ping` every 15s keeps Cloudflare from closing an idle stream (it does
     at 100s). A failed ping ends that viewer, which frees its slot.
@@ -90,8 +94,7 @@ the operator says it on the call.
   - The page's own fetches send it with same-origin credentials.
   - **Trade-off:** a viewer who re-opens the link from a chat app
     (cross-site) is asked for the code again.
-- **Unlock attempts** are rate-limited per lock (a burst of 5, then 1/s),
-  so a guesser can force at most about one rotation every 8 seconds.
+- **Unlock attempts:** each link shares a burst of 5 then 1/s across clients, with 8 wrong codes per forced rotation. The third forced rotation (24 wrong codes) locks out every new unlock, including the correct code, until a successful explicit operator rotation. Successful unlocks do not reset this lifetime count; already-unlocked sessions survive forced rotations and the cap. Failed rotation randomness leaves the lock refusing. Couch notices name the cast/link on each forced rotation; the third combines “code changed” with “link locked until you rotate,” without exposing the code.
 - **Terminal broadcast.** Each link has its own 4-digit code:
   - `view`: the lock exists before `Mount`;
   - `pointer`: the lock is minted with the pointer token.
@@ -131,7 +134,7 @@ the operator says it on the call.
   - **Flash:** a new code flashes three times.
   - **Notices:** the status row and the notice line are broadcast, so a
     notice says that a code changed and never what it is.
-    - A guess-rotation notice is coalesced per link every 30 s.
+    - Every current guess rotation raises a notice; the third includes the operator-rotation recovery action.
     - Rotations apply in `Gen` order.
 - **Registry.** `broadcast.LinkLocks` is one per cast: a lock per link token,
   minted with the token (`Mint`), routed by `LockFor`, listed by `Codes`, and
@@ -145,7 +148,7 @@ the operator says it on the call.
   - The code travels out of band: said on the call.
   - A `#code` fragment is never sent to a server, and preview fetchers don't
     run the page's script.
-  - Guessing is bounded by the per-code budget and the per-lock rate.
+  - Guessing is bounded by the per-code budget, per-lock rate and per-link lifetime cap.
   - Rotating a code revokes every session that used it.
 - **What it does not protect against:**
   - a viewer who has the code: they can share what they see, or pass on
@@ -216,7 +219,7 @@ header comment; all transitions happen on the Run loop.
   first LIVE frame streams. `Activate` comes after, so the grace watch starts
   with the indicator on screen. The link goes to the clipboard (OSC 52) and is
   never drawn; the notice only says "link copied".
-- **Status row:** `RenderStatusRow` draws `LIVE …` (starting) or `LIVE ⏸`
+- **Status row:** `RenderStatusBar` draws `LIVE …` (starting) or `LIVE ⏸`
   (live) in `broadcast.LiveSGR` before the `REC` badge, through the same
   clipping pass. Its span is `RenderedStatusRow.Control`. A click anywhere in
   it (`routeMouseEvent`, checked before the actor chips) toggles.
@@ -392,10 +395,12 @@ and it is kept narrow.
   long-lived event streams.
 - **Marks** (`marks.go`): pure. A batch's points are joined by line fill; an
   off-grid point is dropped before any line reaches it. The broadcast's controls
-  (`StatusGuardCols`, the width of `LIVE ⏸ 👆` at the left of the last row)
-  are never marked or tinted: the overlay refuses them whatever put a mark
-  there. The rest of the tab bar can be marked. At most 1/8 of the grid is
-  marked, oldest first. A cell keeps its batch's color. A mark holds 1.5s at
+  (`StatusGuardCols`, the width of `LIVE ⏸ 👆` at the left of the first
+  declared chrome row) are never marked or tinted: the overlay refuses them whatever put a mark
+  there, including wide-cell overlaps. The rest of the tab bar, including its
+  second row, can be marked. Current trusted chrome metadata determines note
+  admission, pin placement, outlines and halos after resizing; stored note grids
+  remain unchanged. At most 1/8 of the grid is marked, oldest first. A cell keeps its batch's color. A mark holds 1.5s at
   its full color (`MarkHold`), then fades fast over 0.5s (`MarkFade`, 10
   steps): with truecolor it blends into the operator's real background,
   otherwise it walks that color's five-step 256-colour ladder. The Presenter's overlay hook draws marks (terminal.md).

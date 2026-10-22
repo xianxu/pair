@@ -4,7 +4,7 @@ import {mountOperator} from '../../cmd/internal/webcast/operator.js';
 
 // Exercise the live operator adapter, not createPlacement with a resolver that
 // the real adapter never supplies. The page and isolated control root are separate.
-function operatorPage(text='Save', {bind=true}={}) {
+function operatorPage(text='Save', {bind=true,sketch=false}={}) {
  const win={innerWidth:800,innerHeight:600,scrollX:0,scrollY:0,location:{href:'https://example.test/form'},getComputedStyle:n=>n.style,addEventListener(){},setTimeout:()=>1,clearTimeout(){}};
  const doc={nodeType:9,childNodes:[],defaultView:win};win.document=doc;
  const el=(tag,parent=null,attrs={},text='')=>{
@@ -15,8 +15,8 @@ function operatorPage(text='Save', {bind=true}={}) {
  const main=el('main',doc),anchor=el('button',main,{},text),host=el('couchcast-control',doc),root=el('shadow');
  const note={id:'viewer-note',author:{id:'viewer'},at:{node:7,tag:'button',text,path:['main','button'],route:win.location.href,box:[10,20,100,50]},region:[20,30,40,20]};
  let view;
- mountOperator({host,root,report(){}},{annotate:{mountAnnotation(_doc,_win,surface){view=surface;return{strokes:{clear(){}},setAnnotationAllowed(){},setMode(){}};}},palette:[],css:''},doc,win);
- const snapshot=(revision=1,document=1)=>win.__couchcastOperatorView({revision,doc:document,seg:document,t:revision,notes:[note],strokes:[]});
+ mountOperator({host,root,report(){}},{annotate:{mountAnnotation(_doc,_win,surface){view=surface;return{strokes:{clear(){}},setAnnotationAllowed(){},setMode(){}};}},palette:[],css:'',sketch:sketch?{mount(){return {tool:{},receiver:{hasAnchor:(document,id)=>document===1&&id===7}};}}:undefined},doc,win);
+ const snapshot=(revision=1,document=1)=>win.__couchcastOperatorView({revision,doc:document,seg:document,t:revision,notes:sketch?[]:[note],strokes:[]});
  snapshot();
  if(bind) win.__couchcastOperatorOriginal?.(1,7,anchor);
  return{win,doc,el,main,anchor,note,snapshot,place:()=>view.placementOf(note)};
@@ -79,4 +79,12 @@ test('operator retains paused pins and ignores stale snapshots or unknown-node b
  f.anchor.style.visibility='hidden';assert.equal(f.place(),null);
  delete f.anchor.style.visibility;assert.deepEqual(f.place(),f.note.region);
  f.snapshot(3,0);assert.equal(f.place(),null);assert.equal(f.win.__couchcastOperatorOriginal(1,7,f.anchor),false);
+});
+
+test('operator binds unchanged sketch anchor without an open note',()=>{
+ const f=operatorPage('Save',{sketch:true});
+ assert.deepEqual(f.place(),f.note.region);
+ f.anchor.rect.left=110;assert.deepEqual(f.place(),[120,30,40,20]);
+ f.snapshot(2);assert.deepEqual(f.place(),[120,30,40,20]);
+ f.main.childNodes=[];f.anchor.parentNode=null;f.el('button',f.main,{},'Save');assert.equal(f.place(),null);
 });
