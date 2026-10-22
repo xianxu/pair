@@ -17,6 +17,7 @@ claimant:
     workspace: pair:2
     worktree: /Users/xianxu/workspace/worktree/pair-slot2/pair
     repository: github.com/xianxu/pair
+flow: {kind: quick, provenance: inferred, spec: "36f7a046", done: "503048df"}
 ---
 
 # Replacement Zellij disconnects before first wrapper startup
