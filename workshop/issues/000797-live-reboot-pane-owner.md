@@ -1,6 +1,6 @@
 ---
 id: 000797
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-10-22
@@ -8,7 +8,7 @@ updated: 2026-10-22
 estimate_hours:
 severity: high
 collaboration-mode: collaboration
-card_mirror: 'e30b4e9437856ae7b4b0037e290957a5381e0823' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: 'd0a9716d78b324590d66018dc267e231b2adcfc8' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-22T09:32:31-07:00
 claimant:
     operator: Xian Xu
@@ -18,6 +18,7 @@ claimant:
     worktree: /Users/xianxu/workspace/worktree/pair-slot2/pair
     repository: github.com/xianxu/pair
 flow: {kind: quick, provenance: inferred, spec: "64c232d4", done: "74ab5a33"}
+actual_hours: 2.88
 ---
 
 # Live reboot refuses owned pane as ambiguous
