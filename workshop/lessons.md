@@ -2582,3 +2582,5 @@ and external temporary roots rather than relying on the host's TMPDIR.
 - #771 review: Check the branch patch for whitespace after generated prose is recorded; review transcripts can introduce blank-line spaces. Trim prose-only whitespace before publishing, while preserving byte-exact terminal recordings and upstream evidence.
 
 - #778: Separate private socket roots still collide when independent fixture identity authorities reset to the same native name and admission uses a host-wide census. Seed fixture authorities through one shared initializer, preserve the real allocator and refusal, and prove distinct names through actual constructors. Temp basenames alone are not cross-parent uniqueness. Validate fixture seed extrema against the allocator's next step, including its exhausted-counter refusal.
+
+- #778 verification: Every new non-test Go helper must enter artifactpath's exhaustive source inventory, even when it owns no Pair session artifact. Run TestProductionArtifactReferencesAreExactlyClassified alongside reader inventory and lint before a full suite; classify the source through its ordinary inventory, never the known-violation quarantine.
