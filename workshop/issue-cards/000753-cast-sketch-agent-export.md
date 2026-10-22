@@ -13,14 +13,14 @@ claimant:
     workspace: pair:9
     worktree: /Users/xianxu/workspace/worktree/pair-slot9/pair
     repository: github.com/xianxu/pair
-actual_hours: 4.37
+actual_hours: 4.58
 tracker:
     version: 1
     completion:
-        token: close-7463867d2383
+        token: close-2ed3f7043c92
         repository: github.com/xianxu/pair
-        reviewed_head: 052330f68d4f81b9baff10d90e3559c6a5abaf55
-        evidence_commit: 00a50d934fb52f17df9d13f93a23cf9891b3b0d2
+        reviewed_head: 37ef740f65a78dc037696aa62189f71c58c8a22e
+        evidence_commit: d5e6a9c9b0e1017276bbe6e7dbd31a5e4c74416d
 ---
 
 # cast-sketch: operator CLI queries and historical image export
