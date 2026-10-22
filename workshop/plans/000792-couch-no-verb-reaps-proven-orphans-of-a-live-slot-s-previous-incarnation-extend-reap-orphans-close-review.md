@@ -398,3 +398,75 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-22T05:28:34-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 792 — Couch: no verb reaps proven orphans of a live slot's previous incarnation; extend --reap-orphans |
+| repo | pair |
+| issue file | workshop/issues/000792-couch-no-verb-reaps-proven-orphans-of-a-live-slot-s-previous-incarnation-extend-reap-orphans.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | b19ef54ad75547d53ebc0d04b043c00b95dce7a5..e6535a0c2c671bfeb3b1065ed279c269886829b0 |
+| command | sdlc close --issue 792 |
+| reviewer | codex (openai; author openai) |
+| isolation | fenced |
+| timestamp | 2026-10-22T05:28:34-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+The interdiff correctly repairs two misplaced doc comments and removes an obsolete lint suppression. It introduces no runtime behavior, scope change, or new architectural surface. No open prior findings require disposition; BR-1, BR-2, and BR-3 remain disposed. Required recorded verification remains pending independently of this review.
+
+```findings
+{}
+```
+
+1. **Strengths**
+
+   - Doc comments now describe their actual declarations: `cmd/internal/couchcmd/reap_orphans.go:64` and `cmd/internal/couchcmd/resources.go:65`.
+   - The socket fixture retains its short private root and cleanup while removing only the unmatched suppression.
+   - Tracker updates preserve the pending verification requirement.
+
+2. **Critical findings:** None.
+
+3. **Important findings:** None.
+
+4. **Minor findings:** None.
+
+5. **Test coverage notes**
+
+   Passed both complete affected packages, `internal/repolint` and `cmd/internal/termcmd`, plus the socket fixture’s long-TMPDIR regression. Diff whitespace checks passed. No runtime regression test is needed for the doc-comment moves.
+
+6. **Architectural notes**
+
+   - **ARCH-DRY: Pass** — no duplicated logic introduced.
+   - **ARCH-PURE: Pass** — no logic or IO boundaries changed.
+   - **ARCH-PURPOSE: Pass** — corrections address the reported lint failures without changing issue scope.
+   - **ARCH-EVOLVE: Pass** — no persisted-format changes.
+
+   README and atlas updates are unnecessary for this interdiff.
+
+7. **Plan revision recommendations:** None.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"37913029-3c6b-4085-b6a2-76647b793532","repository":"github.com/xianxu/pair","issue_id":"000792","recipe":"fix-review","round":5,"attempt":1,"agent":"codex","root":"/Volumes/TestScratch/review-checkouts/1d73ccafb3f1cabb","reviewed_head":"e6535a0c2c671bfeb3b1065ed279c269886829b0","slot":"pair:2","requested_at":"2026-10-22T12:27:34.501248Z"},"phase":"finished","pid":39518,"started_at":"2026-10-22T12:27:34.671482Z","finished_at":"2026-10-22T12:28:34.032819Z","session_id":"01a16394-befd-78a0-b55c-2d1b27382538","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 2.916854166s
+head: "e6535a0c2c671bfeb3b1065ed279c269886829b0"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412
