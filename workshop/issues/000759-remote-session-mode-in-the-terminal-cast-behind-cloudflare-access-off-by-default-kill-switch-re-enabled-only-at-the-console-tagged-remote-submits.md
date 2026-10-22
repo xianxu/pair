@@ -300,3 +300,6 @@ One-line M2 status report de6fcc4e and boundary question3ccb10f9 confirmed submi
 ### 2026-10-21 20:00 PDT — DNS restored, freshness integration
 
 Authenticated TLcd9681ea lifted the push hold. First M2 milestone-close refused before review because this preserved branch lacked main's pre-noon code (eaa758a6f); no review or milestone completion occurred. Followed its ordinary integration remedy with git merge origin/main. Resolved three additive conflicts by retaining both remote and landed entries: artifactpath NonArtifactSources includes the remote modules and #757 mockserve modules; pairCatalog includes remote reset/environment and #744 group completion rules; lint atlas retains both rule explanations plus #771. No remote lifecycle/transport policy changed. Verify combined tree before resubmitting M2.
+
+
+Combined-head qualification after the freshness merge: remote/supervisor/protected race checks PASS (remotesession4.567s, broadcast4.472s, couchtty1.919s, couchcmd2.036s); full repolint20.091s/artifactpath29.699s PASS; reader inventory --check PASS. PR538 opened through sdlc pr after DNS recovery. Queue exactly one recorded affected/full-fallback check on this pushed combined code, then overlap mandatory M2 boundary review per worker rules. No full-suite result or M2 completion claimed yet.
