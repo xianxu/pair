@@ -84,6 +84,16 @@ The full-flow change-code gate admitted implementation. Test-first work now adds
 
 Verification so far: targeted core/protocol/launcher/service/CLI and legacy reap selections pass. Launcher generated/exhaustive model tests and stateful executor race tests pass. The combined new service/CLI proof selection passes under race detection, including current or unknown detached ownership before KILL after acknowledged TERM. The full artifact inventory first refused the two new shared retained-fixture helpers, as expected; they are being registered, without a quarantine. The reader audit is pending final source registration. Shared disposable-Couch native acceptance is running; no recorded suite or landing runner has started, and no :0 stage was made.
 
+### 2026-10-22 — native qualification and independent restart refusal
+
+PR #541 opened; its first head passed all four CI checks. The broader couchcmd, couchcore and launcher package runs passed in62.312s,380.455s and64.216s. Full artifactpath passed in16.032s after registering the shared fixture sources. Reader inputs were audited: pure/fake proof tests are literal fixtures; native Build/New consumes real runtime inputs and conservatively uses non_go_full_fallback. Their per-reader certificates pass the audit.
+
+Native setup first failed at missing wrapper-ready publication, before retained descendants existed; subsequent starts reached the fixture. Cause remains unclassified, not a passing-retry/flake claim; #773 records the related missing-ready evidence class. A diagnostic run then exposed a test-only resource-envelope oracle error, followed by the expected two-step live reboot confirmation contract. Corrected those assertions without product changes. The completed native attempt then proved all six ancestry and reparent barriers but the acknowledged public reboot failed with unknown pane owner before #792 effects. Its retained log /Volumes/TestScratch/tmp/pair-slot2/pair-792-native-confirmation.kamQRO/native.log hashes to794f8c0dce57ec187b5ae7eda2c90e80fd35a9974b280c4036e96eb8b40f4d0e; exact disposable cleanup passed.
+
+Authenticated hub approval d2356d3f-461c-4576-9ceb-a71acb4179f6 approves the fixture-only exact-generation crash of the already-proven old worker cohort, excluding the frozen six and the steward, followed by public reboot on the dead session, preview, confirmed reap and current-worker delivery for Claude/Codex. Filed the separate live-reboot bug as unclaimed #797 with the concrete receipt and log evidence; no recovery validator change. The plan Revisions records this acceptance refinement.
+
+Recorded affected selection on d2f4b5e9 expanded to full suite and queued lease-2652748101. Canceled only that owned queued lease via sdlc before capacity, because native-test oracle repairs changed the source requiring a new head; the runner exited with suite-lock context canceled. No suite started or evidence was discarded. No recorded check or landing runner is active now. Requeue on the final qualified source.
+
 ## Estimate
 
 Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md` against `baseline-v3.1.md`. Method A only. The source is marked stale by estimate-source; this is a provisional calibration, not a fitted total.

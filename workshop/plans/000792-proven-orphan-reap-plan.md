@@ -177,3 +177,9 @@ These strategies replace tasks 1–3's enumerated case inventories. Keep their f
 | `runReapOrphansCLI` / rendering | Exercise real service composition with mixed new/legacy rows and typed effect outcomes. Compare exact text/JSON row identity and multiplicity, return code, coverage and uncertainty; a refused row never reaches legacy fallback. |
 
 No implementation starts until these refinements pass plan quality and the hub accepts the complete-ownership/cost clarification. Native acceptance remains the approved shared disposable-Couch public command with both Claude and Codex, never the real fleet.
+
+### 2026-10-22 — Native acceptance refinement (approved)
+
+Public live reboot returned its exact confirmation offer but failed at the acknowledged stop with `ownership unresolved: unknown pane owner: pane has no unambiguous actual command`, before orphan-reap effects. This independently tracked product defect is #797, filed unclaimed per the hub; it was previously only a Log mention in #791. Approval d2356d3f-461c-4576-9ceb-a71acb4179f6 accepts a fixture-only exact-generation crash of the already-proven old worker cohort, explicitly excluding the frozen six descendants and the steward. Then public reboot runs on a genuinely dead session, followed by public preview, confirmed reap and delivery to the current Claude/Codex worker. The shared disposable harness owns every fixture process and cleanup. No recovery validator, native fleet, production signal scope or deadline changes.
+
+The startup ready-file miss observed before fixture setup stays unclassified, alongside #773's related evidence; later startup success does not establish its cause or register a flake. Native-test oracle repairs decode the public flat ResourceView, require a complete typed intentional preview refusal, and follow the public recovery confirmation envelope without weakening uncertainty checks.
