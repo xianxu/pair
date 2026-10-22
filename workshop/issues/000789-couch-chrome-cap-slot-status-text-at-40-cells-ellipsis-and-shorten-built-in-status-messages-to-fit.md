@@ -106,6 +106,10 @@ Prescribed fixed close round6 EXIT0/SHIP, no findings, evidence58c2bc3852362edc3
 
 Reran one manual merge of that main. All source/test changes auto-merged; only the atlas introduction overlapped #796's new tab-style section with789's cap/copy description. Retained the complete collapse/multiline/geometry/scope description and added both-style40-cell/full-copy semantics; removed the obsolete unconditional two-row claim. Reader inventory PASS; integrated cap/collapse/owner/pending/copy selection PASS0.539s. Diff against incoming main passes whitespace; cached whole-merge check reports one existing main-owned trailing space in797's archived review, preserved unchanged rather than rewriting unrelated history. No code conflict or new design/source fix. Next commit/push this integration, record required exact-head suite, fixed review with pass, retry merge; no active merge runner remains. #819 waits for789 landing.
 
+### 2026-10-22 — newer-main integration check queued
+
+Manual integration pushed through sdlc pr at73288d8654a9b9ca426bdf71b765805d72c4e78c. Required recorded suite retained session41982/lease-2426150993/attempt94ffb98dd3384d51488e76e31ffeeb46, isolated checkout /Volumes/TestScratch/local-checks/sdlc-local-260067086; initial FIFO13, latest12 behind machine holder ariadne:3. No execution/pass claimed. This is the only owned active suite; earlier789 and796 runners completed. No merge runner remains active after the atlas-conflict refusal. Preserve this check; after PASS, run fixed-then-ship with full-suite evidence on the atlas resolution, then promptly sdlc merge. Do not chase further main manually; #819 stays after789 landing per TL. No stage needed for789; pair:0 released796 and belongs to753's separate operator look.
+
 ## Revisions
 
 ### 2026-10-22 — implementation scope
