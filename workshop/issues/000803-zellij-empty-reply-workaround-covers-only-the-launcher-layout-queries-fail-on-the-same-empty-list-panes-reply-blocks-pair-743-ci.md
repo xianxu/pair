@@ -37,16 +37,28 @@ Fix: one shared read-compatibility seam (#748's bounded retry on an empty or cro
 every Zellij query consumer, layout first, not a per-consumer copy and not a test-only retry. Update the atlas
 exclusion.
 
+Approved boundary (2026-10-22): this issue covers every **Go** production query
+consumer through an independent lower-level seam, with layout first, then clip,
+focus, opener, title liveness and launcher probes. #761 false-miss handling and
+per-attempt observation survive the extraction. Mutations never retry; raw
+diagnostic probes remain excluded. Lua consumers are explicitly deferred to
+#804, which will use a thin CLI adapter over this same seam. Full flow applies.
+
 ## Done when
 
 - The layout consumer retries an empty successful reply within the existing bound, through the shared seam (test with
   a fake that returns empty once).
 - The live conformance test passes without any test-only retry; pair#743's hosted run goes green.
+- Every in-scope Go query consumer derives bounded read recovery from one
+  lower-level owner without a launcher import cycle; the atlas names #804's
+  remaining Lua exclusion and the raw-diagnostic exclusion explicitly.
+- Counted 8/16-read tests, cancellation/collector-error cases, strict malformed
+  refusal and no mutation replay pin the shared bound and authority contract.
 
 ## Plan
 
 - [x] Claim, enter planning, and enumerate query consumers and existing retry authority.
-- [ ] Settle the Go/Lua boundary with the hub, then checkpoint the executable plan before change-code.
+- [x] Settle the Go/Lua boundary with the hub, then checkpoint the executable plan before change-code.
 - [ ] Implement and qualify the approved shared seam, keeping strict confirmation and mutation behavior intact.
 - [ ] Record verification, close review, and land through SDLC; #759 operator acceptance takes precedence.
 
@@ -83,3 +95,22 @@ thin CLI adapter for Lua, requiring a short full-flow plan; alternative is an
 explicit Go-only scope plus a separate Lua follow-up. Awaiting that decision;
 no implementation or new refusal mechanism has been added. #759's iPhone
 acceptance retains priority.
+
+### 2026-10-22 — approved scope and implementation plan
+
+Authenticated TL receipt a27b640f-2e13-4c62-b6d8-b2faf5b422e0 approves Go-only
+scope, full flow, preserving false-miss and per-attempt evidence. Filed #804
+unclaimed with dependency pair#803 for the Lua consumers and future thin CLI
+adapter. The executable plan is
+`workshop/plans/000803-shared-zellij-read-plan.md`. It extracts the existing
+read/classification into independent zellijquery and keeps launcher compatibility
+aliases. Original process/collector errors remain distinct from synthetic read
+classification so the name probe keeps its exact diagnostic authority.
+
+## Revisions
+
+2026-10-22 — TL-approved scope refinement: "every query consumer" means every
+Go production consumer in #803; #804 owns the Lua integration. Expanded to full
+flow because moving the existing strict classifiers and all Go adapters exceeds
+the quick-flow production-line shell. No mutation or raw diagnostic retry is
+added, and no caller's strict confirmation is relaxed.
