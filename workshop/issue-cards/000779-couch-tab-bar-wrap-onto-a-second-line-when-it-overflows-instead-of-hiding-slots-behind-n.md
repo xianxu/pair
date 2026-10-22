@@ -1,6 +1,6 @@
 ---
 id: 000779
-status: working
+status: codecomplete
 created: 2026-10-21
 updated: 2026-10-21
 estimate_hours: 5.814
@@ -13,6 +13,14 @@ claimant:
     workspace: pair:4
     worktree: /Users/xianxu/workspace/worktree/pair-slot4/pair
     repository: github.com/xianxu/pair
+actual_hours: 0.91
+tracker:
+    version: 1
+    completion:
+        token: close-b96961644745
+        repository: github.com/xianxu/pair
+        reviewed_head: b1c68720d3e721e9d7684535b91af1f870354c17
+        evidence_commit: c0f8c25bed8bb42001881a1ed7d0c3c7604931e3
 ---
 
 # Couch tab bar: wrap onto a second line when it overflows, instead of hiding slots behind +N
