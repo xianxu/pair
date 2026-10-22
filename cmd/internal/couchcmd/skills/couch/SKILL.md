@@ -146,8 +146,9 @@ goal. Model/effort/scope success requires explicit confirmation.
 
 ## Remote session mode
 
-`couch --remote on|off|status` controls the separate protected remote-session
-mode through Couch's local owner-only socket. It defaults off. Enable only when
+`couch --remote on`, `couch --remote off` and `couch --remote status` control the
+separate protected remote-session mode through Couch's local owner-only socket.
+It defaults off. Enable only when
 the operator has authorized exposure and configured the named tunnel, Cloudflare
 Access team/application and allowed identities. There is no anonymous or local
 fallback. Same-UID code is trusted; local on/off is equivalent to the console

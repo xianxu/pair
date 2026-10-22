@@ -418,8 +418,8 @@ One service-lifetime OriginStore instance is shared by remote operations, ordina
 
 Files: `cmd/internal/couchcmd/skills/couch/SKILL.md`; existing regression `cmd/internal/couchcmd/messages_test.go`.
 
-- [ ] Preserve the recorded RED from M2's completed suite: `TestSkillDocumentsRecovery` treats literal `couch --remote on|off|status` as executable and correctly rejects it. Replace the executable example with concrete on, off and status commands; synopsis prose may describe alternatives outside executable examples. Do not relax the parser or scanner.
-- [ ] Run `go test ./cmd/internal/couchcmd -run '^TestSkillDocumentsRecovery$' -count=1`, expect PASS. Commit the correction with its source failure. This is a branch defect, not a flake or resume candidate.
+- [x] Preserve the recorded RED from M2's completed suite: `TestSkillDocumentsRecovery` treats literal `couch --remote on|off|status` as executable and correctly rejects it. Replace the executable example with concrete on, off and status commands; synopsis prose may describe alternatives outside executable examples. Do not relax the parser or scanner.
+- [x] Run `go test ./cmd/internal/couchcmd -run '^TestSkillDocumentsRecovery$' -count=1`, expect PASS. Commit the correction with its source failure. This is a branch defect, not a flake or resume candidate.
 
 ### Task 1 — origin ownership, local submit and exact-ID forget
 
