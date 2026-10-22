@@ -217,6 +217,13 @@ BR-9 RED required the emitted Lua handoff to name sketch-page.png, indexed ink, 
 
 Peer pair:7 durably preserved the Codex missing-ready startup capture in #773 PR525 commit0959aace92f7ea9b3b69b327cbe6a20a23455cd0 at workshop/evidence/000773/pair753-011cdcbf6-steward-startup-failed.log with adjacent provenance; independently verified SHA25629dec23f55757b4c79970db1033143a6bbf21053763b394d919d82c2b27c43b0. Its exact cause remains unclassified, distinct from the proven readiness-clipping fix. TL32b7ffab explicitly permits #753 to proceed using the successful Claude qualification and shared-page native evidence; no retry or timeout increase.
 
+
+### 2026-10-22 — corrected-source native evidence and retained recorded suite
+
+Executable correction2c3a8336dfba445246e332f01965f982880449aa passed the full native conformance command (TestLiveSketchPage|TestLiveSketchImage|TestOperatorSketchLiveDrawing|TestLiveFidelity) in69.350s, including the matching replacement-node refusal. Raw output/provenance are committed at workshop/evidence/000753/native-2c3a8336d.log and .json; SHA256a7f4b2e6a336cdd145a111a3835295dc637038a902f645f6ab68bc7e7193f1bf. The declared rec-stress baseline remains1/3frames above3percent; its qualified fixture passes. All497 browser tests passed1.950s, actual Neovim transaction checks pass, artifactpath passes7.077s and repository lint passes6.855s; reader inventory passes. An initial lint invocation named a nonexistent cmd/internal/repolint path; corrected to the actual internal/repolint package and passed, with no source change.
+
+Obsolete lease-2726541650 on62197d6d4 was officially canceled only after the correction committed. PR537 updated to2c3a8336dfba. One replacement recorded suite is retained: lease-2698428296, attemptbf5cd53ec4457890533c74eae61d9ca5, checkout/Volumes/TestScratch/local-checks/sdlc-local-222107559, raw log/Users/xianxu/workspace/pair/.git/sdlc/test-stats/inflight/bf5cd53ec4457890533c74eae61d9ca5/run.log; FIFO9 at initial admission. Full close is next; final recorded pass and renewed operator shared-image acceptance still precede landing. No stage is held.
+
 ## Estimate
 
 *Produced via brain/data/life/42shots/velocity/estimate-logic-v3.1.md against baseline-v3.1.md. Method A only. Calibration is stale per sdlc estimate-source; this remains provisional. Unit: idle-removed ship wall-clock, including agent/subagent execution, not operator-attention time. No parallel overlap discount applied.*
