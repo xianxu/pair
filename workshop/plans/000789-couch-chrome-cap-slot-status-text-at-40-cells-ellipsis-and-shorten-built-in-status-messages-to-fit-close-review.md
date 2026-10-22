@@ -425,3 +425,78 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-22T11:30:28-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 789 — Couch chrome: cap status text at 40 cells and preserve full copying |
+| repo | pair |
+| issue file | workshop/issues/000789-couch-chrome-cap-slot-status-text-at-40-cells-ellipsis-and-shorten-built-in-status-messages-to-fit.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | cf0893a04cd4ae0dea475f35a78ef26c0835c08c..8727e94da57d888272eaa1a855a12e6b334f87ff |
+| command | sdlc close --issue 789 |
+| reviewer | codex (openai; author openai) |
+| isolation | fenced |
+| timestamp | 2026-10-22T11:30:28-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+The pinned interdiff corrects caller-package screen assertions while preserving complete diagnostic checks. Production behavior, Spec, and Done-when remain unchanged. No pending prior findings require disposition, and no new defects were found.
+
+```findings
+{}
+```
+
+1. **Strengths**
+
+   - `hubs_startup_test.go:228` checks bounded display text while retaining failure-cause, repository-path, and diagnostic-path assertions.
+   - `run_test.go:1920` independently checks clipped paint and exact full-warning recovery through Ctrl+Y.
+   - `status_notice_copy_test.go:14` exercises the real clipboard path using an isolated executable fixture.
+
+2. **Critical findings:** None.
+
+3. **Important findings:** None.
+
+4. **Minor findings:** None.
+
+5. **Test coverage notes**
+
+   - All three targeted tests passed.
+   - Full `couchcmd` package passed: 104.454s.
+   - `make test-affected-inventory` and diff whitespace checks passed.
+   - Repository-wide tests were not run. No production behavior changed in this window.
+
+6. **Architectural notes**
+
+   - **ARCH-DRY — pass:** the clipboard assertion is shared within the caller package.
+   - **ARCH-PURE — pass:** IO remains confined to integration fixtures; no business logic was added.
+   - **ARCH-PURPOSE — pass:** corrected assertions distinguish bounded presentation from complete diagnostics without weakening existing startup invariants.
+   - **ARCH-EVOLVE — pass:** no persisted-format contract changes.
+
+   No new architectural or user-facing surface requires atlas or README changes.
+
+7. **Plan revision recommendations:** None.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"30aafbe0-10db-46b9-ac94-103694dafcd2","repository":"github.com/xianxu/pair","issue_id":"000789","recipe":"fix-review","round":5,"attempt":1,"agent":"codex","root":"/Volumes/TestScratch/review-checkouts/a802ca2999b41d2b","reviewed_head":"8727e94da57d888272eaa1a855a12e6b334f87ff","slot":"pair:4","requested_at":"2026-10-22T18:27:45.853316Z"},"phase":"finished","pid":32969,"started_at":"2026-10-22T18:27:46.046687Z","finished_at":"2026-10-22T18:30:27.446168Z","session_id":"01a164de-8410-77d3-9b12-e113091fc70f","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 5.252151541s
+head: "8727e94da57d888272eaa1a855a12e6b334f87ff"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412
