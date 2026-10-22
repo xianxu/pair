@@ -4,6 +4,8 @@
 
 ## Map
 
+- [Editor endpoints](editor-endpoints.md) — Couch-owned editor incarnation, retry, replacement and compare-release producer for registered documents (#758).
+
 - [Project mock server](mock-server.md) — standalone loopback serving of versioned clickable mocks, shared fixtures, authoritative page identity and content-driven live reload (#755).
 - [Mock-to-real development](mock-to-real.md) — any-framework development front, catalogue/report and production convention (#757).
 

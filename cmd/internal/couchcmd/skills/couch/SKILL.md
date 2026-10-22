@@ -74,7 +74,7 @@ queue, or cross-supervisor delivery.
 ## What each verb costs
 
 - **light:** `mock`, `--notify`, `--help`, `--skill`, `--actors`, `--send-to`, `--message-status`, `--operation-status`, `--peek` (its --transcripts option costs seconds), `--broadcast-list`, `--resources`, `--session-sync`, `--archived`, `--adopt-store`, `--broadcast-web-query`, `--broadcast-web-submit`, `--broadcast-web-replay` (then serves until stopped)
-- **seconds:** `--keys`, `--set-model`, `--interrupt`, `--resume-candidates`, `--move-slot`, `--list`, `--show`, `--reconcile`, `--reap`, `--reap-orphans` (TERM/KILL grace periods), `--broadcast-web-fidelity` (a headless Chrome)
+- **seconds:** `--editor-endpoint`, `--keys`, `--set-model`, `--interrupt`, `--resume-candidates`, `--move-slot`, `--list`, `--show`, `--reconcile`, `--reap`, `--reap-orphans` (TERM/KILL grace periods), `--broadcast-web-fidelity` (a headless Chrome)
 - **heavy:** `couch` (launch), `--recover-plan-from-sdlc`, `--resume`, `--reboot`, `--relaunch`, `--reload-context`, `--prepare`, `--recover`, `--recover-park`, `--switch-agent`, `--recovery-confirmation`
 
 Cost: light is under a second, seconds is a few seconds, heavy is tens of
@@ -475,6 +475,12 @@ couch --send-to pair:4 --message 'Recovery (pair:4): restore this slot'\''s pair
      converge (for example its resting branch is checked out elsewhere); tell the
      `:0` agent. Note `workspace-unknown`: part of the workspace could not be
      observed; read the report again later.
+
+## Editor endpoints
+
+`couch --editor-endpoint register --json` and `couch --editor-endpoint unregister --json` consume bounded typed JSON on stdin. `couch --editor-endpoint lookup --namespace PATH --document-id ID --json` observes the selected editor without acquiring a document. Confirmed document register/lookup replies supply canonical `Registration.Namespace` and stable ID; they survive a rename. Endpoint operations require the running Couch owner and do not start one. These are the producer API for parley.nvim#405, not a remote editing API.
+
+A lost acknowledgement retries the same incarnation and AttachID. Superseded attachment attempts cannot reclaim the binding; only an explicit reopen advances AttachID. Exit unregister compares exact generations and may batch up to256 entries. Couch cleans exact stale bindings, while editors own their private sockets/directories. The complete wire fields, bounds and recovery are mapped in atlas/editor-endpoints.md.
 
 ## Session-sync files and agentic documents
 

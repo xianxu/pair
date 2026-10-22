@@ -59,7 +59,7 @@ Hub pin 941a9381-a841-44ca-98b0-7e10a90936b3 approves authenticated owning hubs 
 - [x] Approve the durable plan and enter change-code through the full-flow gate.
 - [x] Add pure exact-target proof and strict protocol shapes; verify the negative authority/identity cases first.
 - [x] Implement the guarded exact executor and supervisor effect owner, with stateful transition and counted-cost tests.
-- [x] Wire preview/confirmed CLI reporting, prove disposable public-command behavior, document and run the required recorded verification before the SDLC close review.
+- [ ] Wire preview/confirmed CLI reporting, prove disposable public-command behavior, document and run the required recorded verification before the SDLC close review.
 
 ## Log
 
@@ -272,3 +272,9 @@ Integrated-source preflights passed: internal/repolint13.422s, termcmd5.562s, ar
 ### 2026-10-22 — Integrated recorded verification passed
 
 Retained lease-1170667131 completed exit0 in10m42s on pushed integrated source5bf644a97583c63168a0059701a8c4c3cac967b9, recorded as sdlc-local/suite. All packages and shell/editor checks completed, including couchcmd51.149s, couchcore167.812s, couchmessage26.001s, launcher72.054s, termcmd2.357s and repolint6.369s. Log /Users/xianxu/workspace/pair/.git/sdlc/local-checks/5bf644a97583c63168a0059701a8c4c3cac967b9/suite.log; SHA256743004136e89fec9e80bc0772db0243ef415631235e02c6ad90abafa8f4c6f08. No failure, flake rerun or waiver. The final verification checkbox is complete again; earlier native Claude/Codex acceptance applies to unchanged reap executable behavior. Narrow fixed-then-ship review of the atlas-only integration resolution is next, followed promptly by a fresh merge runner because the original runner exited on that conflict. TL granted two-hour priority; report landing immediately so it can be revoked.
+
+### 2026-10-22 — Second main integration after the active landing
+
+The retained merge runner entered the landing turn after #758 and exited1 on integration with main39be359a3c55bcce5fd485548cd01e9d318d8b5e. As directed by SDLC, repeated the manual merge. The two conflicts were additive: messageService gained #758's editorEndpointService field adjacent to #792's provenOrphanProcesses field, and the Couch cost list gained editor-endpoint adjacent to #792's TERM/KILL wording. Retained both fields and both command-guide changes; gofmt applied and whitespace audit passed. No reap proof, executor, authority, cadence or bounds changed. The prior runner has exited; no duplicate is active.
+
+Final combined-source verification is pending again, with its checklist reopened. Next run catalog/Godoc/artifact/reader preflights and focused service/reap tests, push, required recorded full fallback, narrow re-close with full-suite evidence, then re-enter merge. The previous integrated10m42s pass and round-six SHIP remain historical evidence of the earlier source. Native Claude/Codex acceptance remains applicable to unchanged reap behavior. The TL priority grant currently expires09:11:17; report the landing immediately for revocation.
