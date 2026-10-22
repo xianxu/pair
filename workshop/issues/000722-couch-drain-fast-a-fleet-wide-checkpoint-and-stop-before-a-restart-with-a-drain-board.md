@@ -468,3 +468,9 @@ The [durable implementation plan](../plans/000722-fleet-drain-plan.md) defines t
 - [x] Wire steward CLI, authenticated ack, dispatch gate, fast wrapper interrupt and tab/status board.
 - [ ] Verify real ariadne#481 conformance, isolated wrapper integration, races, docs and required recorded suite; stage/live board check with hub authorization.
 - [ ] Close through the mandatory SDLC review, land through the ordinary gates and report the outcome.
+
+### 2026-10-22 — resumed after #778; shared-harness qualification remains
+
+#778 landed as PR536, carddone/archive verified and merge exited0. Canonical sdlc claim resumed the held #722 branch/claim; PR477 is OPEN at parked7880cc6c2. TL next-item receipt a5d4365f supersedes #772/#740. Sent resumed-state report9b71b2cc to hub: transient product implementation exists, but private daemon/PTY acceptance failed and never qualified. Fresh native acceptance/suite/close and watched live remain outstanding; old ariadne:4 discrepancy remains unproved.
+
+Integrated landed main in fdf65982d, including #744/#761/#778. Resolved four additive conflicts preserving both drain and new mock command/help/source inventory. Broad merge diff whitespace check named incoming raw terminal captures and an archived diagnostic patch; preserve their exact bytes. Check limited to all four conflict resolutions against incoming main passes. No test pass is claimed yet; the obsolete private acceptance caller also predates installedEnv's new signature and will be replaced, not grown. Appended the shared-consumer execution checklist to the durable plan; same approved product/state contract. Renew change-code before resumed implementation.
