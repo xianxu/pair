@@ -500,3 +500,78 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-22T16:49:37-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 789 — Couch chrome: cap status text at 40 cells and preserve full copying |
+| repo | pair |
+| issue file | workshop/issues/000789-couch-chrome-cap-slot-status-text-at-40-cells-ellipsis-and-shorten-built-in-status-messages-to-fit.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | ae212b9d2b201ed4bcc8c2ab3438c0e83498ecb7..d5cb39afbc2015156d60875bc992589304b86eee |
+| command | sdlc close --issue 789 |
+| reviewer | codex (openai; author openai) |
+| isolation | fenced |
+| timestamp | 2026-10-22T16:49:37-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+The interdiff correctly resolves the reader-certificate conflict while preserving its classification and matching the merged source. Remaining changes record review history and relocate existing lessons. No scope change or new defect was found. No prior findings remain open.
+
+```findings
+{}
+```
+
+1. **Strengths**
+
+   - `tests/affected-readers/cmd/internal/couchcmd/run_test.go.json:1` contains valid JSON whose SHA-256 exactly matches the merged `run_test.go`.
+   - The resolution preserves `fixed_scanner`; the inventory check confirms every test remains registered.
+   - Spec, Done-when, and Revisions remain unchanged. Lessons retain their existing content.
+
+2. **Critical findings:** None.
+
+3. **Important findings:** None.
+
+4. **Minor findings:** None.
+
+5. **Test coverage notes**
+
+   - `make test-affected-inventory` passed.
+   - All 21 reader-inventory tests passed, including certificate validation, scanner enforcement, and affected-run integration.
+   - `git diff --check` passed.
+   - No production or Go test source changes occur in this window; the full application suite was not rerun.
+
+6. **Architectural notes**
+
+   - **ARCH-DRY — pass:** the certificate references the source hash without duplicating behavior.
+   - **ARCH-PURE — pass:** no business logic or IO boundaries changed.
+   - **ARCH-PURPOSE — pass:** the conflict resolution certifies the merged source without weakening reader enforcement.
+   - **ARCH-EVOLVE — pass:** certificate version, fields, and meanings remain unchanged.
+
+   No new surface requires atlas or README updates.
+
+7. **Plan revision recommendations:** None.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"9b46af00-5967-49ab-a4a4-6555b44ae37c","repository":"github.com/xianxu/pair","issue_id":"000789","recipe":"fix-review","round":6,"attempt":1,"agent":"codex","root":"/Volumes/TestScratch/review-checkouts/037fb39c01abf4d0","reviewed_head":"d5cb39afbc2015156d60875bc992589304b86eee","slot":"pair:4","requested_at":"2026-10-22T23:47:41.678632Z"},"phase":"finished","pid":74262,"started_at":"2026-10-22T23:47:41.82079Z","finished_at":"2026-10-22T23:49:36.269881Z","session_id":"01a16603-6a21-7372-ab71-b8909285e95c","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 2.973207833s
+head: "d5cb39afbc2015156d60875bc992589304b86eee"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412
