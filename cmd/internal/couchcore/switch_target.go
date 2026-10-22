@@ -71,6 +71,48 @@ func (c *Couch) ResolveAgentSwitchTarget(ctx context.Context, target string) (Th
 	return address, identity, nil
 }
 
+// RecheckAgentSwitchTarget refreshes passive selection within one admission.
+// observed is the workspace already verified by that admission, not authority
+// for queued execution: callers must resolve the full workspace again there.
+func (c *Couch) RecheckAgentSwitchTarget(ctx context.Context, target string, expected ThreadAddress, observed WorkspaceIdentity) error {
+	if ctx == nil || c == nil || c.Threads == nil {
+		return errors.New("switch-agent target selection unavailable")
+	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if err := observed.validate(); err != nil {
+		return fmt.Errorf("switch-agent observed workspace: %w", err)
+	}
+	ref, recognized, err := ParseWorkspaceReference(target)
+	if err != nil || !recognized || ref.Repo == "" {
+		return errors.New("switch-agent requires an exact repo:N target")
+	}
+	primary, err := c.repositoryPrimary(ref.Repo, observed.FleetRoot)
+	if err != nil {
+		return err
+	}
+	path := primary
+	if ref.Number != 0 {
+		path = NewSlotLayout(primary, "", ref.Number).Host()
+	}
+	if observed.PrimaryRoot != primary || observed.WorktreeRoot != path || observed.Slot == nil || *observed.Slot != ref.Number {
+		return ErrSwitchResolutionChanged
+	}
+	snapshot, err := c.Threads.PreviewSnapshotContext(ctx)
+	if err != nil {
+		return err
+	}
+	address, err := selectAgentSwitchTarget(snapshot, ref.Number, path)
+	if err != nil {
+		return err
+	}
+	if address != expected {
+		return ErrSwitchResolutionChanged
+	}
+	return ctx.Err()
+}
+
 func selectAgentSwitchTarget(snapshot ThreadSnapshot, number int, path string) (ThreadAddress, error) {
 	// A partial snapshot may retain a readable record alongside its backend
 	// error. Projecting that record must never discard the selection refusal.

@@ -2864,6 +2864,10 @@ source is selected passively by `ResolveAgentSwitchTarget`, then admitted throug
 Private `SwitchSourceEvidence` carries the admitted mode, revision, working path
 and canonical repository identity; serialized previews cannot mint that evidence.
 The service checks admission again at queued execution and immediately before park.
+Retained-source admission shares one verified workspace observation across its
+checks, with fresh alias/sibling/address selection, record, Git and hub checks.
+Queued preparation and the effect guard resolve current workspace authority
+again; the request-local observation never replaces those proofs.
 
 Presence-aware `couchmessage.SwitchArguments` preserves absent versus explicit
 empty argv. `PrepareKnownAgentSwitch` resolves Couch's canonical repository choice;

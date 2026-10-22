@@ -83,6 +83,35 @@ func TestResolveAgentSwitchTargetDirectRecheckPreservesSiblingPrecedence(t *test
 	}
 }
 
+func TestRecheckAgentSwitchTargetUsesFreshSelectionWithoutWorkspaceProbe(t *testing.T) {
+	env, local, catalog := switchTargetFixture(t)
+	record := slotPreferenceRecord(t, env, local)
+	catalog.Workspaces["."] = catalog.Workspaces[local.slot.PrimaryRoot]
+	if err := env.Couch.Threads.SetRepositoryAlias(local.slot.PrimaryRoot, "short"); err != nil {
+		t.Fatal(err)
+	}
+	counted := &switchTargetCountedCatalog{SlotCatalogFake: catalog}
+	env.Couch.Slots = counted
+	address, identity, err := env.Couch.ResolveAgentSwitchTarget(context.Background(), "short:1")
+	if err != nil || address != record.Address {
+		t.Fatal(err)
+	}
+	for range 2 {
+		if err := env.Couch.RecheckAgentSwitchTarget(context.Background(), "short:1", address, identity); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if counted.discoveries != 0 || !reflect.DeepEqual(counted.workspaces, []string{".", local.slot.WorktreeRoot}) {
+		t.Fatalf("selection recheck repeated workspace discovery: %+v", counted)
+	}
+	if err := os.Mkdir(filepath.Join(filepath.Dir(local.slot.PrimaryRoot), "short"), 0700); err != nil {
+		t.Fatal(err)
+	}
+	if err := env.Couch.RecheckAgentSwitchTarget(context.Background(), "short:1", address, identity); err == nil {
+		t.Fatal("new sibling did not revoke admission selection")
+	}
+}
+
 func switchTargetFixture(t *testing.T) (*testEnv, *ThreadStore, *SlotCatalogFake) {
 	t.Helper()
 	env, local := slotRecoverySemanticFixture(t)

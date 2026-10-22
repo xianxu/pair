@@ -34,11 +34,19 @@ func (g *switchServiceGuard) ConfirmAgentSwitch(ctx context.Context, address cou
 // Cooperative admission waives only the idle check, never source/Git proof.
 // Input remains on the owned lifecycle phase, not a request worker.
 func (g *switchServiceGuard) confirmAgentSwitchAdmission(ctx context.Context, address couchcore.ThreadAddress, source string, evidence couchcore.SwitchSourceEvidence, interruptFirst bool) error {
+	return g.confirmAgentSwitchAdmissionObserved(ctx, address, source, evidence, interruptFirst, nil)
+}
+
+func (g *switchServiceGuard) confirmAgentSwitchAdmissionObserved(ctx context.Context, address couchcore.ThreadAddress, source string, evidence couchcore.SwitchSourceEvidence, interruptFirst bool, observed *retainedSwitchAdmission) error {
 	s := g.service.Load()
 	if s == nil {
 		return errors.New("switch-agent: supervisor unavailable")
 	}
 	if evidence.Vacant() {
+		if observed != nil {
+			_, err := inspectVacantSwitchSourceObserved(ctx, s, address, source, evidence, false, observed)
+			return err
+		}
 		return g.confirmVacantAgentSwitch(ctx, s, address, source, evidence)
 	}
 	_, err := inspectSwitchLiveSource(ctx, s, address, source, !interruptFirst)
@@ -120,6 +128,10 @@ func (g *switchServiceGuard) confirmVacantAgentSwitch(ctx context.Context, s *me
 }
 
 func inspectVacantSwitchSource(ctx context.Context, s *messageService, address couchcore.ThreadAddress, source string, evidence couchcore.SwitchSourceEvidence, force bool) (couchcore.SlotGitStatus, error) {
+	return inspectVacantSwitchSourceObserved(ctx, s, address, source, evidence, force, nil)
+}
+
+func inspectVacantSwitchSourceObserved(ctx context.Context, s *messageService, address couchcore.ThreadAddress, source string, evidence couchcore.SwitchSourceEvidence, force bool, observed *retainedSwitchAdmission) (couchcore.SlotGitStatus, error) {
 	fail := func(err error) (couchcore.SlotGitStatus, error) { return couchcore.SlotGitStatus{}, err }
 	if source != "" {
 		return fail(errors.New("switch-agent: live source changed; review the parked source again"))
@@ -127,7 +139,15 @@ func inspectVacantSwitchSource(ctx context.Context, s *messageService, address c
 	if s.authority.record == nil || s.authority.workspace == nil || s.authority.branch == nil {
 		return fail(errors.New("switch-agent: vacant source verification unavailable"))
 	}
+	if observed != nil && (force || observed.address != address || observed.workspace.WorktreeRoot != evidence.WorkingPath() || observed.workspace.RepoIdentity != evidence.RepositoryIdentity()) {
+		return fail(errors.New("switch-agent: admission workspace does not match the prepared source"))
+	}
 	current := func() error {
+		if observed != nil {
+			if err := observed.recheck(ctx); err != nil {
+				return err
+			}
+		}
 		if live, ok := s.LivenessForThread(address.RepoScope, string(address.Tag)); ok && s.isConnected(live.Binding) {
 			return errors.New("switch-agent: vacant source reconnected; review it again")
 		}
@@ -143,7 +163,13 @@ func inspectVacantSwitchSource(ctx context.Context, s *messageService, address c
 	if err := current(); err != nil {
 		return fail(err)
 	}
-	identity, err := s.authority.workspace(ctx, evidence.WorkingPath())
+	var identity couchcore.WorkspaceIdentity
+	var err error
+	if observed != nil {
+		identity = observed.workspace
+	} else {
+		identity, err = s.authority.workspace(ctx, evidence.WorkingPath())
+	}
 	if err != nil {
 		return fail(err)
 	}
@@ -166,9 +192,36 @@ func inspectVacantSwitchSource(ctx context.Context, s *messageService, address c
 
 type agentSwitchService struct {
 	resolveTarget func(context.Context, string) (couchcore.ThreadAddress, couchcore.WorkspaceIdentity, error)
+	recheckTarget func(context.Context, string, couchcore.ThreadAddress, couchcore.WorkspaceIdentity) error
 	guard         *switchServiceGuard
 	prepare       func(context.Context, couchcore.ThreadAddress, string, *[]string) (couchcore.PreparedAgentSwitch, error)
 	enqueue       func(string, func(context.Context) (couchcore.OperationCall, error), func(), func(any, error)) error
+}
+
+// This observation belongs only to one admission. Queued and effect guards
+// retain the full resolver; they never receive this value as workspace proof.
+type retainedSwitchAdmission struct {
+	address   couchcore.ThreadAddress
+	workspace couchcore.WorkspaceIdentity
+	recheck   func(context.Context) error
+}
+
+func (s *messageService) authorizeRetainedSwitchWorkspace(ctx context.Context, caller couchmessage.Binding, identity couchcore.WorkspaceIdentity) error {
+	origin, err := s.connectedWorkspace(ctx, caller)
+	if err != nil {
+		return err
+	}
+	if origin.WorktreeRoot == identity.WorktreeRoot {
+		return errors.New("switch-agent: a caller cannot switch its own slot")
+	}
+	slot, ok := hubWorkspaceSlot(identity)
+	if !ok {
+		return errors.New("switch-agent: target slot identity unavailable")
+	}
+	if s.authority.hubs != nil {
+		return authorizeHubMutation(origin, slot, s.authority.hubs.snapshot())
+	}
+	return ctx.Err()
 }
 
 func (s *messageService) switchCaller(ctx context.Context, r couchmessage.Request) (couchmessage.Binding, error) {
@@ -218,6 +271,7 @@ func (s *messageService) handleAgentSwitch(ctx context.Context, r couchmessage.R
 	var address couchcore.ThreadAddress
 	token := ""
 	var authorize func(context.Context) error
+	var observed *retainedSwitchAdmission
 	switch {
 	case err == nil:
 		address = couchcore.ThreadAddress{RepoScope: source.Scope, Tag: couchcore.ThreadTag(source.Tag)}
@@ -233,6 +287,10 @@ func (s *messageService) handleAgentSwitch(ctx context.Context, r couchmessage.R
 		if err != nil {
 			return refuse(err)
 		}
+		if service.recheckTarget != nil {
+			observed = &retainedSwitchAdmission{address: address, workspace: identity,
+				recheck: func(ctx context.Context) error { return service.recheckTarget(ctx, r.Target, address, identity) }}
+		}
 		authorize = func(ctx context.Context) error {
 			currentAddress, current, err := service.resolveTarget(ctx, r.Target)
 			if err != nil {
@@ -241,21 +299,7 @@ func (s *messageService) handleAgentSwitch(ctx context.Context, r couchmessage.R
 			if currentAddress != address || current.WorktreeRoot != identity.WorktreeRoot || current.RepoIdentity != identity.RepoIdentity || current.PrimaryRoot != identity.PrimaryRoot {
 				return errors.New("switch-agent: retained slot selection changed; review it again")
 			}
-			origin, err := s.connectedWorkspace(ctx, caller)
-			if err != nil {
-				return err
-			}
-			if origin.WorktreeRoot == current.WorktreeRoot {
-				return errors.New("switch-agent: a caller cannot switch its own slot")
-			}
-			slot, ok := hubWorkspaceSlot(current)
-			if !ok {
-				return errors.New("switch-agent: target slot identity unavailable")
-			}
-			if s.authority.hubs != nil {
-				return authorizeHubMutation(origin, slot, s.authority.hubs.snapshot())
-			}
-			return ctx.Err()
+			return s.authorizeRetainedSwitchWorkspace(ctx, caller, current)
 		}
 	default:
 		return refuse(err)
@@ -263,7 +307,16 @@ func (s *messageService) handleAgentSwitch(ctx context.Context, r couchmessage.R
 	if address.RepoScope == caller.Scope && string(address.Tag) == caller.Tag {
 		return refuse(errors.New("switch-agent: a caller cannot switch its own slot"))
 	}
-	if err := authorize(ctx); err != nil {
+	authorizeAdmission := authorize
+	if observed != nil {
+		authorizeAdmission = func(ctx context.Context) error {
+			if err := observed.recheck(ctx); err != nil {
+				return err
+			}
+			return s.authorizeRetainedSwitchWorkspace(ctx, caller, observed.workspace)
+		}
+	}
+	if err := authorizeAdmission(ctx); err != nil {
 		return refuse(err)
 	}
 	var explicit *[]string
@@ -274,7 +327,7 @@ func (s *messageService) handleAgentSwitch(ctx context.Context, r couchmessage.R
 	if err != nil {
 		return refuse(err)
 	}
-	if err = service.guard.confirmAgentSwitchAdmission(ctx, address, token, prepared.SourceEvidence(), r.InterruptFirst); err != nil {
+	if err = service.guard.confirmAgentSwitchAdmissionObserved(ctx, address, token, prepared.SourceEvidence(), r.InterruptFirst, observed); err != nil {
 		return refuse(err)
 	}
 	guard := func(ctx context.Context) error {
@@ -332,7 +385,7 @@ func (s *slotOperations) existingSwitch(caller couchmessage.Binding, r couchmess
 func (s *messageService) installAgentSwitchService(console *couchtty.Console, c *couchcore.Couch, guard *switchServiceGuard) {
 	guard.service.Store(s)
 	lifecycleQueue := newLifecycleRemoteQueue(console, c)
-	s.switches.Store(&agentSwitchService{resolveTarget: c.ResolveAgentSwitchTarget, guard: guard, prepare: func(ctx context.Context, address couchcore.ThreadAddress, agent string, argv *[]string) (couchcore.PreparedAgentSwitch, error) {
+	s.switches.Store(&agentSwitchService{resolveTarget: c.ResolveAgentSwitchTarget, recheckTarget: c.RecheckAgentSwitchTarget, guard: guard, prepare: func(ctx context.Context, address couchcore.ThreadAddress, agent string, argv *[]string) (couchcore.PreparedAgentSwitch, error) {
 		if argv == nil {
 			return c.PrepareKnownAgentSwitch(ctx, address, agent)
 		}
