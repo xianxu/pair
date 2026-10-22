@@ -121,3 +121,9 @@ TL745ea763-8e84-4ac2-8897-f40e82a884c0 approves the design, one completed multi-
 ### 2026-10-21 — plan-quality refinement
 
 Round1 returned Important PQ-1 (explicit-event-state-ownership) and PQ-2 (function-level-test-strategy). Specified NextPreview's states/events, exact publication identity and atomic manager→board freeze guard, including worker cancellation/join and opaque preparation token. Replaced test-case prose with named function strategies across all pure risk seams. This refines the approved preview mechanism without changing product policy. No implementation or estimate yet.
+
+### 2026-10-21 — implementation admitted; first pure slices
+
+Full-flow change-code passed after plan-quality disposed PQ-1/PQ-2; the 8.4h v3.1 estimate reconciles. Estimate-quality INFO notes are advisory: the estimate covers the whole issue including authored design, native fixture/agent-path work is included in the integration/UI rows, and real-api-discovery covers Chrome requalification rather than all acceptance tests. Calibration remains provisional as recorded.
+
+TDD started with independent pure query, preview and render-plan slices. Render Plan was RED for missing API, then GREEN; stronger tests caught original anchor metadata aliasing and inconsistent crop/scale under a one-pixel narrow-image cap, both fixed. Focused tests pass0.148s; ten-second bounded-transform fuzz passes334554 executions in10.222s. Preview policy observed RED before implementation and for missing teardown/no-op transitions, then GREEN; controlled/generated ordering, deep ownership and explicit worker Stop are implemented, integration not yet wired. Four new pure production files are explicitly classified in artifactpath after its exhaustive inventory named them; targeted classifier passes1.970s. No claim of end-to-end submission completion: renderer IO, typed bundle/store, manager/preview projection, CLI wiring and native acceptance remain.
