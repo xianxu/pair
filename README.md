@@ -1248,7 +1248,10 @@ default fact file is `~/.local/share/pair/couch/supervision.jsonl` (under the ac
 Pair data directory if configured). It records completed observations, not every
 message hold: inspect `couch --message-status ID --json` for a retained delivery's
 current waiting reason. Logger health instrumentation alone does not repair a
-historically frozen stream; #736's measured cause fix follows its live observation.
+historically frozen stream. The measured startup failure was a persisted device
+number changing after remount; #774 rebinds a fully checkpointed file only when
+inode, size and nanosecond mtime still match. Unknown tails and interrupted
+transactions remain refused with their cause; no lost facts are replayed.
 
 Wrapper diagnostics batch at64KiB or every five seconds while dirty; raw capture
 and its offset sidecar flush every250ms. Orderly shutdown drains both. A process
@@ -1569,6 +1572,39 @@ While anyone drives:
 
 Only the drive link offers driving; the view-only and pointer links never do.
 
+**Persistent sketches (#752).** 🤖~With annotation enabled, **Sketch** is available~{Console **Sketch** works with annotation off}
+🤖~to the casting-Chrome operator when nobody else drives, or to the currently~{when no viewer drives. Viewer Sketch requires annotation and the current}
+🤖~granted drive-link viewer. View-only and pointer links watch accepted sketches.~{driving seat. View-only and pointer links watch accepted sketches.}
+Choose a colour before starting; it stays fixed for that sketch. The tool holds
+the acknowledged recorded moment while the live cast continues. Pen pressure
+is preserved, mouse and touch use full pressure, and paths stream to observers
+before the pointer is released. Normal page input pauses without giving up the
+driving seat. If you try another stroke while the previous anchor is pending,
+Sketch shows **Finishing the previous stroke** and consumes that contact;
+start a fresh stroke after that wait. Anchor lookup has a five-second deadline.
+
+**Undo** and **Redo** affect the current unfinished sketch after its stroke is
+confirmed. **Done**, Escape, or choosing another tool shows **Saving…** while
+finishing the current stroke, then asks for a nonblank label. Escape from that
+prompt returns to the same held sketch. If saving cannot be confirmed within
+five seconds, **Couldn't save; accepted strokes kept** reports the failure. Use
+**Check confirmation** for an unknown write; a failed anchor leaves the label/escape action available.
+Press Enter or choose **Save label**; the requested tool opens only after confirmation.
+🤖{**Note** opens text for the unfinished sketch through that same save-and-label flow. The toolbar stays above the drawing surface, and Done is disabled until there is a sketch to finish.}
+A handoff interrupts drawing and
+keeps a separate **🤖<Label unfinished sketch>{Note}** action while the original UI and
+credentials survive. Accepted partial paths remain in the recording.
+
+If confirmation is uncertain, use **Check confirmation** before drawing more.
+It checks the original operation rather than creating a second stroke. A
+definite refusal can offer **Continue drawing** when the same drawing turn and
+held source remain valid; any accepted partial stroke is sealed before Undo or
+more drawing becomes available. Pause suspends drawing; navigation, handoff,
+clear, cast end, or two minutes without an accepted sketch mutation retire its
+source. Source preparation or history limits can refuse new work visibly.
+Recordings and read-only replay retain accepted sketches; unsent samples and
+unconfirmed label drafts are not durable. [Limits and private-scene flow](atlas/webcast.md#sketch-drawing-752).
+
 **Recording (#458).** From the first time you go live, the cast tab is recorded
 to `<couch store>/webcast/recordings/<id>/` (the format is in
 `atlas/webcast-format.md`): the page's DOM and every change to it, in every frame,
@@ -1588,7 +1624,7 @@ the binary to choose another (Couch refuses to start if it doesn't exist).
 record aren't in the recording. The viewer keeps their place at the operator's size and marks each with a dashed
 outline and a label such as "canvas: not captured", so the page never collapses around them.
 
-🤖{**Operator annotation in the cast Chrome (#494).** Use the viewer's same ✏️ and 💭 buttons in the cast Chrome to draw or leave a note on the actual page; hover for their tooltips. It starts Off; click the selected icon again or press Escape to turn annotation off. Couch’s Chrome Alt-click menu also offers Annotation · Off · Pen · Note without switching windows. Notes and strokes use the same recording and viewer display, attributed to Operator. While a remote viewer drives, annotations are disabled and an open draft is hidden and held; returning control makes annotation available again with the pen Off. A pause holds the draft, while navigation discards it. All Couch UI is excluded from page recording and hidden during fidelity and submission captures. Broadcast and driving control stay in Couch's cast row. If Couch reports uncertain remote input, close and reopen the cast Chrome to recover its hidden UI. The injected host shares the page DOM and is not a security boundary.}
+🤖{**Operator annotation in the cast Chrome (#494).** Use the viewer's same ✏️ and 💭 buttons in the cast Chrome to draw or leave a note on the actual page; hover for their tooltips. It starts Off; click the selected icon again or press Escape to turn annotation off. Couch’s Chrome Alt-click menu also offers Annotation · Off · Pen · Note without switching windows. Notes and strokes use the same recording and viewer display, attributed to Operator. While a remote viewer drives, annotations are disabled and an open draft is hidden and held; returning control makes annotation available again with the pen Off. A pause holds the draft, while navigation discards it. All Couch UI is excluded from page recording. Optional fidelity captures defer while a sketch/preparation or sketch/note editor is open, preserving visible controls and label focus; screenshots resume after that UI closes. Fidelity captures actually taken and explicit submission captures still hide private UI. Broadcast and driving control stay in Couch's cast row. If Couch reports uncertain remote input, close and reopen the cast Chrome to recover its hidden UI. The injected host shares the page DOM and is not a security boundary.}
 
 **Pointing and notes on a web cast (#470).** Anyone with the pointer link (👆) or the
 drive link can point and leave notes while annotation is enabled; the view-only
@@ -2431,6 +2467,13 @@ log before scratch cleanup. For manual Go runs, add `-artifacts -outputdir
 <owned-dir>` to retain the complete oracle files; successful calls remove theirs.
 The [oracle guide](tests/terminal-oracle/README.md) covers replay, headless controls
 and report limitations; a diagnostic pass does not establish a crash fix.
+
+For a standalone Zellij 0.45.1 lookup-race reproduction, run
+`bash scripts/repro/zellij-false-miss.sh 1000 4`. It uses three private sessions
+without Pair or Couch; see the [repro guide](scripts/repro/README.md) for counters
+and liveness limits. `make zellij-false-miss` explicitly runs its Python
+regressions followed by the default native diagnostic (1,000 queries/four
+workers). It is opt-in and is not part of `make test`.
 
 For disposable multi-slot Couch acceptance, run `make test-couch-fleet`. It uses
 the shared native fleet helper with real Zellij, Pair/wrappers and provisioned

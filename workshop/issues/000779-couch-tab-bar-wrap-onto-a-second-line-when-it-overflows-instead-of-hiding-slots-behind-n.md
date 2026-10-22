@@ -79,6 +79,14 @@ Recorded full suite PASS, exit0 in11m20s, on3e86e8f202a00e7329c21859f6234ef5f9e5
 
 Close round2 SHIP disposed BR-1 with no new findings and published codecomplete; evidence commitc0f8c25bed8bb42001881a1ed7d0c3c7604931e3. Current runtime code/tests/atlas are identical to the recorded suite head; subsequent commits only correct workflow documentation and provide the approved operator checklist. CI is green on the published documentation head. No active check or merge runner remains. Await hub stage clearance and live acceptance per TLb07bf583; no stage or merge has been attempted. Keep this branch/PR535 in place.
 
+### 2026-10-21 — refresh stage baseline
+
+TL22868012 requires current main before live restaging: staged0b0fa2db was134 commits behind and would remove newly accepted operator features after restart. Integrated origin/main d2540fd6ae6eaa06e8a90217b285c22116247558, retaining #752/#757/#776 and all other main changes. Only atlas/index.md conflicted; combined #779 terminal/broadcast descriptions with #752 pressure-sketch link text. No production conflict or independent product fix.
+
+Integrated wrap/status/chrome/anchor/resize/native Console targets PASS2.348s. Broad Console package ran49.470s with one unchanged intermittent test failure: TestAnOperatorSwitchWaitsBehindAtMostTheRunningAttempt, dispatch order resume:second before switch. Candidate count50 probe reproduced2 failures; isolated unmodified plain-main d2540fd6a count100 reproduced2 failures/98 passes and a subsequent single run passed. Filed and registered unclaimed #788 with exact raw evidence; candidate exact single-test rerun also passed. All other Console tests completed without failure. No timeout changes, retry of the full suite, or notification/layout scope expansion.
+
+The earlier recorded11m20 suite covers the pre-integration runtime, not this new integrated tree. Per TL instruction, the landing merge owns the required integrated full suite. Push and replace the operator stage next; same three-step look.
+
 ## Revisions
 
 - 2026-10-21: TL c5c04f63 approves full-flow shared trusted chrome height, row1 attention badge, final-row notices and clipped-but-clickable active at absurd widths. Attention must be prioritized over ordinary chips; overflow explicitly marks hidden attention (+N !). Durable plan records the full consumer sweep and awaits TL approval.

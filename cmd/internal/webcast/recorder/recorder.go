@@ -213,17 +213,21 @@ type Recorder struct {
 	t0                              time.Time
 	opened                          bool
 	// openedFlag is opened for other goroutines (Opened).
-	openedFlag atomic.Bool
-	live       bool
-	seg        int
-	segT       int64  // when the current segment started
-	top        string // the cast page's session
-	tab        rec.Tab
-	parents    map[string]string // frame session -> parent session
-	frameIDs   map[string]string // session -> its main frame id
-	loader     map[string]string // session -> its main frame's loader id
-	contexts   map[string]map[int64]string
-	snapSeq    map[string]uint64 // session -> reply number of its last snapshot
+	openedFlag      atomic.Bool
+	live            bool
+	seg             int
+	segT            int64  // when the current segment started
+	top             string // the cast page's session
+	tab             rec.Tab
+	parents         map[string]string // frame session -> parent session
+	frameParents    map[string]string // live frame -> parent frame
+	sketchSessions  map[string]bool   // excluded sessions retained only until target detach
+	sketchAssetURLs map[string]string // private blob URL -> owning live frame
+	sketchFrames    map[string]string // live excluded root -> registering session
+	frameIDs        map[string]string // session -> its main frame id
+	loader          map[string]string // session -> its main frame's loader id
+	contexts        map[string]map[int64]string
+	snapSeq         map[string]uint64 // session -> reply number of its last snapshot
 	// dirty: sessions to snapshot again after this input (a resync, a
 	// document update, a desync).
 	dirty    map[string]bool
@@ -243,11 +247,12 @@ type sheetHeader struct {
 	Session     string
 	ID          string `json:"styleSheetId"`
 	FrameID     string `json:"frameId"`
+	URL         string `json:"sourceURL"`
 	OwnerNode   int    `json:"ownerNode"`
 	Constructed bool   `json:"isConstructed"`
 }
 
-type netReq struct{ typ, url, mime string }
+type netReq struct{ typ, url, mime, frame string }
 
 // Start runs a recorder; it records nothing until the first Live.
 func Start(opts Options) *Recorder {
@@ -557,6 +562,21 @@ func (r *Recorder) handle(in stamped) {
 	case FrameAttached:
 		r.parents[v.Session] = v.Parent
 		r.frameIDs[v.Session] = v.FrameID
+		if r.frameParents == nil {
+			r.frameParents = map[string]string{}
+		}
+		if _, known := r.frameParents[v.FrameID]; !known && r.frameIDs[v.Parent] != "" {
+			r.frameParents[v.FrameID] = r.frameIDs[v.Parent]
+		}
+		if r.excludedFrame(v.FrameID) || r.excludedSession(v.Parent) {
+			if r.sketchSessions == nil {
+				r.sketchSessions = map[string]bool{}
+			}
+			r.sketchSessions[v.Session] = true
+		}
+		if r.excludedSession(v.Session) {
+			break
+		}
 		r.m.Session(v.Session, v.FrameID, false)
 		if r.live && r.casts(v.Session) {
 			r.enable(v.Session)
@@ -592,6 +612,10 @@ func (r *Recorder) handle(in stamped) {
 			r.m.Emit(r.t(in.at), v.Record)
 		}
 	case Detached:
+		defer delete(r.sketchSessions, v.Session)
+		r.forgetFrame(r.frameIDs[v.Session])
+		delete(r.frameIDs, v.Session)
+		delete(r.loader, v.Session)
 		delete(r.parents, v.Session)
 		delete(r.contexts, v.Session)
 		delete(r.snapSeq, v.Session)
@@ -680,6 +704,9 @@ func (r *Recorder) write() error {
 
 // casts reports whether a session is the cast page's or a frame under it.
 func (r *Recorder) casts(session string) bool {
+	if r.excludedSession(session) {
+		return false
+	}
 	for s, n := session, 0; s != "" && n < 32; s, n = r.parents[s], n+1 {
 		if s == r.top {
 			return true
@@ -779,10 +806,14 @@ func (r *Recorder) document(session string) (*cnode, string, error) {
 				ID       string `json:"id"`
 				LoaderID string `json:"loaderId"`
 			} `json:"frame"`
+			Children []frameTree `json:"childFrames"`
 		} `json:"frameTree"`
 	}
 	if _, err := r.call(session, "Page.getFrameTree", nil, &tree); err == nil {
 		r.loader[session] = tree.FrameTree.Frame.LoaderID
+		for _, child := range tree.FrameTree.Children {
+			r.learnFrameTree(child, tree.FrameTree.Frame.ID)
+		}
 	}
 	var res struct {
 		Root *cnode `json:"root"`
@@ -794,6 +825,7 @@ func (r *Recorder) document(session string) (*cnode, string, error) {
 	if res.Root == nil {
 		return nil, "", errors.New("recorder: getDocument returned no root")
 	}
+	r.hideSketchNodes(res.Root)
 	r.snapSeq[session] = seq
 	return res.Root, fmt.Sprintf("%s:%d", r.loader[session], res.Root.BackendNodeID), nil
 }
@@ -882,7 +914,10 @@ func (r *Recorder) disable(session string) {
 // resync) or off.
 func (r *Recorder) observe(session string, on bool) {
 	expr := fmt.Sprintf("globalThis.__couchcastRec && globalThis.__couchcastRec(%t, true)", on)
-	for ctx := range r.contexts[session] {
+	for ctx, frame := range r.contexts[session] {
+		if r.excludedFrame(frame) {
+			continue
+		}
 		r.call(session, "Runtime.evaluate", map[string]any{"expression": expr, "contextId": ctx}, nil)
 	}
 }
@@ -902,6 +937,10 @@ func (r *Recorder) stop(at time.Time, why string) {
 }
 
 func (r *Recorder) event(at time.Time, e Event) {
+	r.frameLifecycle(e)
+	if r.excludedSession(e.Session) {
+		return
+	}
 	switch e.Method {
 	case "Runtime.executionContextCreated":
 		var p struct {
@@ -918,7 +957,9 @@ func (r *Recorder) event(at time.Time, e Event) {
 				r.contexts[e.Session] = map[int64]string{}
 			}
 			r.contexts[e.Session][p.Context.ID] = p.Context.AuxData.FrameID
-			r.operatorContextCreated(e.Session, p.Context.ID)
+			if !r.excludedFrame(p.Context.AuxData.FrameID) {
+				r.operatorContextCreated(e.Session, p.Context.ID)
+			}
 		}
 		return
 	case "Runtime.executionContextDestroyed":
@@ -988,6 +1029,9 @@ func (r *Recorder) event(at time.Time, e Event) {
 			return
 		}
 		h := p.Header
+		if r.excludedFrame(h.FrameID) || r.excludedAssetURL(h.URL) {
+			return
+		}
 		h.Session = e.Session
 		r.headers[h.ID] = h
 		if h.Constructed {
@@ -1025,20 +1069,24 @@ func (r *Recorder) event(at time.Time, e Event) {
 		}
 		if json.Unmarshal(e.Params, &p) == nil && p.Font != nil && p.Font.Src != "" && p.Font.Family != "" {
 			f := p.Font
+			if r.excludedAssetURL(f.Src) {
+				return
+			}
 			r.m.Emit(t, &rec.Font{Family: f.Family, Src: f.Src, Style: f.Style, Weight: f.Weight, Stretch: f.Stretch, Range: f.Range})
 			r.queueURL(e.Session, f.Src, at)
 		}
 	case "Network.responseReceived":
 		var p struct {
 			ID       string `json:"requestId"`
+			FrameID  string `json:"frameId"`
 			Type     string `json:"type"`
 			Response struct {
 				URL      string `json:"url"`
 				MIMEType string `json:"mimeType"`
 			} `json:"response"`
 		}
-		if json.Unmarshal(e.Params, &p) == nil && assetType(p.Type) {
-			r.requests[e.Session+"|"+p.ID] = netReq{p.Type, p.Response.URL, p.Response.MIMEType}
+		if json.Unmarshal(e.Params, &p) == nil && assetType(p.Type) && !r.excludedFrame(p.FrameID) && !r.excludedAssetURL(p.Response.URL) {
+			r.requests[e.Session+"|"+p.ID] = netReq{p.Type, p.Response.URL, p.Response.MIMEType, p.FrameID}
 		}
 	case "Network.loadingFinished", "Network.loadingFailed":
 		var p struct {
@@ -1062,6 +1110,7 @@ func (r *Recorder) event(at time.Time, e Event) {
 		r.binding(at, e)
 	default:
 		if strings.HasPrefix(e.Method, "DOM.") {
+			e = r.hideSketchEvent(e)
 			if r.m.Event(t, e.Session, e.Method, e.Params) == errDesync {
 				r.dirty[e.Session] = true
 			}
@@ -1108,7 +1157,7 @@ func (r *Recorder) sortedFrames(session string) []string {
 		out, seen[main] = append(out, main), true
 	}
 	for _, f := range r.contexts[session] {
-		if !seen[f] {
+		if !seen[f] && !r.excludedFrame(f) {
 			out, seen[f] = append(out, f), true
 		}
 	}
@@ -1120,7 +1169,7 @@ func (r *Recorder) sortedFrames(session string) []string {
 func (r *Recorder) inWorld(session, frameID string, backend int, fn string) (*string, bool) {
 	var ctx int64
 	for id, f := range r.contexts[session] {
-		if f == frameID || frameID == "" {
+		if !r.excludedFrame(f) && (f == frameID || frameID == "") {
 			ctx = id
 			break
 		}
@@ -1176,6 +1225,9 @@ func (r *Recorder) binding(at time.Time, e Event) {
 // viewer whose injected input they follow, "" for anyone else's (#467).
 func (r *Recorder) observeItems(t int64, session string, context int64, items []Item, by string) {
 	frame := r.contexts[session][context]
+	if frame == "" || r.excludedFrame(frame) || r.excludedSession(session) {
+		return
+	}
 	if by != "" && r.m.State().Control.Driving() != by {
 		// A tagged report ordered after control moved (a revoke between the
 		// batch and its reports): what the page received is kept, without

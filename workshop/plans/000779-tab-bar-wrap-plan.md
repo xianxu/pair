@@ -150,6 +150,8 @@ Targeted commands: go test ./cmd/internal/couchtty -run 'Test.*Status|Test.*Wrap
 
 - 2026-10-21: Made the approved operator qualification concrete below while the recorded suite waits. These steps exercise existing approved behavior; no implementation or release-order change. TL still owns the stage slot and acceptance.
 
+- 2026-10-21 TL22868012: integrate current main before operator staging so the live supervisor retains accepted #752/#757/#776 features. Targeted Console checks precede replacement stage; the landing merge runs the authoritative integrated full suite. The initial0b0fa2db stage is superseded, with no operator acceptance claimed.
+
 ## Operator look after stage clearance
 
 Use a fresh Couch process built from the staged revision; the running supervisor keeps its old binary until restarted. The hub sequences this with #752 and #737.

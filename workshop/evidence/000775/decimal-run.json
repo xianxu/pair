@@ -1,0 +1,15 @@
+{
+  "head": "2f9215ad916f2573686e247119c16579f0997da2",
+  "argv": [
+    "bash",
+    "/Users/xianxu/workspace/worktree/pair-slot5/pair/scripts/repro/zellij-false-miss.sh",
+    "1000",
+    "4"
+  ],
+  "cwd": "/tmp",
+  "exit": 0,
+  "elapsed_seconds": 11.831698624999262,
+  "script_sha256": "3050daec3f7b6243f53dadb73006a4a8da5bc4d16f9a8d4b1141cd51ef2149ae",
+  "log_sha256": "69405cfe110d400e6bfd1d2c7d874366d746f41e4ff25d0c173008977f7a9088",
+  "head_after": "2f9215ad916f2573686e247119c16579f0997da2"
+}

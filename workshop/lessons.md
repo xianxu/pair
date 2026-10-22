@@ -7,6 +7,14 @@ representative evidence, not an exhaustive index.
 
 ## Proof and verification
 
+- Start a shutdown grace clock after delivering its triggering signal; allocating it earlier silently spends the grace under preemption. Pin signal/clock order and exactly-once cleanup through a deterministic clock factory. (#776)
+
+- Read the current gate evidence-reuse contract before canceling a queued check: a passing ancestor suite can serve a docs-only descendant. Cancel by exact run only when necessary; executable changes require new verification. (#776)
+
+- When profiling changes the approved mechanism, reconcile Done when with the specific regression that proves that mechanism; an old timing or parallelism requirement does not become satisfied by a different cancellation test. Preserve the approval and old clause in Revisions. (#776 BR-1)
+
+- A child TERM marker is not proof that cleanup is still in progress when the test resumes. Prove an inherited lease before cancellation and its release after the owned join; an intermediate busy assertion can reject correctly completed cleanup under race instrumentation. (#776)
+
 - #744 close: a cross-process command belongs to its caller through cancellation and terminal acknowledgment, including time spent queued. Preserve the absolute admission deadline, suppress canceled queued work, join active child effects, and retire correlated files only after completion. When tightening a shared isolation contract, enumerate existing consumers as well as new-helper tests; keep recovery snapshots atomic and surface persistence errors while preserving in-memory teardown authority.
 
 - Before an expensive native harness rerun, sweep the complete adapter: derive physical keys from negotiated terminal modes, parse all captured query replies, propagate caller deadlines, reserve shutdown capacity, and treat permanent observation refusals as terminal. Test cancellation at the descendant boundary and use observed state rather than sleeps for negative assertions. (#744)
@@ -2526,6 +2534,28 @@ and external temporary roots rather than relying on the host's TMPDIR.
 
 - #742 live recheck: Exercise the reader's observeOutput before handleChunk in drive regressions. A render-only harness bypasses the activity-sequence fence and can pass while every native timer tick revokes admission. Interrupt proof uses operator-input generation plus freshly parsed work/composer/ownership; queued unparsed output cannot attest the old complete frame. Keep ordinary drives on their activity fence.
 
+- #752: Renew a lease at the ordered writer's successful persistence boundary, before replying; a held HTTP reply must not hide accepted activity from expiry. Use a mutation version as well as time to fence queued expiry, and recheck the idle deadline inside mutation admission. A global begin reservation ends at acceptance so a handoff can admit the next drawer while the previous response is held.
+
+- #752: A producer-side binding acknowledgment is valid only while the receiver retains the same eligibility lifetime. Coalesced clear→same-ID recreation can prune receiver proof without changing the producer ID set; invalidate affected acknowledgments at a ready anchor revision and defer attempts while its journal bootstrap is incomplete. Test the skipped intermediate state, not only sequential clear/rebind.
+
+- #752 BR-2: A shared tool needs authoritative lifecycle metadata on every adapter, including a console fed by synthetic view and render-journal records. Drawing permission loss alone does not update cached open-stroke status. Test interruption during contact, then original-owner label after authoritative sealing, across handoff/pause/expiry/clear/end.
+- #752 BR-3: Bounded streaming queues reserve a terminal path as well as data capacity. Saturation can occur synchronously inside pointer-up; preserve a truncated seal/reconciliation behind accepted data and never reread a contact that cancellation may have retired. Test both move-time and finish-time saturation.
+- #752 BR-4: Before review, cross-check every Core concepts path and status against the actual pinned diff, including reused interfaces and doubles. Planned file splits must not remain as nonexistent implementation locations.
+
+- #752 BR-6: Resolve mismatched presentation constants against the approved product contract before choosing a value. Pin the expected pressure outputs independently; a test that merely makes optimistic and durable paths agree can entrench the wrong design.
+- #752 BR-7: Core concepts classify named functions/types by actual effects and test dependencies, not by the file containing them. Separate a pure projection from its canvas caller and random epoch initialization, and audit every row after a repeated mapping finding.
+
+- #752 BR-8: Voluntary Done/Escape/tool changes must stop new capture while retaining the current asynchronous gesture, buffered terminal and immutable receipt identity until settlement; a released contact can still own an unresolved anchor. Promise completion is not receipt settlement after an unknown outcome. Keep label/tool completion behind one shared finishing owner, show bounded saving or accepted-work-kept failure with Check confirmation, and sweep both adapters across open/released contacts, delayed anchors, queued writes and uncertain replies with controlled-order tests. Hard authority/context retirement still fences late work.
+
+- #752 BR-9: Physical pointer release is not logical gesture retirement. Hold one accumulator token through asynchronous anchor/terminal drain, check it before successor allocation, and consume rejected tails until a fresh down. Derive all input/control admission from the same lifetime table, including Undo/Redo and setup rollback. Both success and failure completions must prove the original token, so a stale rejected anchor cannot cancel its successor; an unanchored canceled contact has no stroke-end receipt to invent. Test every ending on both adapters and measure real anchor latency before deciding whether a successor queue is needed.
+
+- #752 BR-10: Trace approved keyboard actions as well as visible buttons. Enter and Save must use one settlement-guarded handler, with IME/blank/repeat and held-ack coverage on each adapter; a label field plus working button does not deliver the specified keyboard control.
+
+- #752 console smoke: A disabled entry control needs a visible reason and recovery action at that control's surface. Distinguish adjacent same-icon controls by their owning status group; disabled Sketch must name Chrome's annotation toggle, and Done must derive availability from an actual sketch/preparation. Qualify the initial annotation-off state in real Chrome, not only enabled drawing; explicit display CSS must honor hidden read-only toolbars.
+
+- #752 console capture/focus: Privacy suppression that hides a UI host also removes its editor from the focus tree. Qualify screenshot capture while typing, with native focus/caret, blur and subsequent input checks; retained text is insufficient. Defer optional captures atomically across an open sketch/editor and preserve suppression for captures admitted. Test native toolbar hit targets/clicks, not only controller methods; unchanged refreshes must preserve DOM identity and avoid refocusing.
+
+- #752 BR-11: After operator smoke changes controls or prerequisites, update the complete user-facing usage passage as well as atlas and code. Trace every button name, permission prerequisite and capture qualification against the latest approved contract; historical design prose is not current instructions.
 - #761 suite: A new executable native-query fixture must use registered producer-specific shared reply cases and pass the complete zellijtest package before a suite. A focused fake-version test does not exercise TestEveryZellijFixtureReplyUsesProductionDecoder; run that contract with artifact/source-reader preflights whenever a test adds a shell or Python query producer.
 
 - #761 BR-1/BR-2: A native socket root can intentionally preserve symlink/parent traversal spelling. Never filepath.Join-clean it at a presence check; cover native-present/cleaned-absent and the reverse through actual admission. Unix socket fixtures must budget their complete path independently of inherited TMPDIR and qualify an intentionally long temp root; ordinary t.TempDir portability does not imply socket-path portability.
@@ -2544,6 +2574,12 @@ and external temporary roots rather than relying on the host's TMPDIR.
 - #767: Prove inherited descriptor usability by operating on the descriptor, with an exact token or identity and absent/wrong-descriptor controls. On macOS a shell permission probe of /dev/fd/3 returned false while builtin read immediately recovered the correct token. Permission inspection is a separate pathname observation, not inheritance proof; an already-open descriptor also remains usable after chmod000. The Pair golint catalog rejects literal shell permission gates on /dev/fd/N.
 - #766: A PTY consumer cannot recover bytes the kernel discarded at last slave close. Native tee fixtures must own producer lifetime through an output/input acknowledgement and establish the controlling-terminal reference on Darwin; distinguish first-read EOF from a wrapper closing its master early. Audit public generic-command exposure and file that product defect separately from a fixture repair.
 
+- #774: distinguish persisted file checkpoints from observations within a single operation. Remount equivalence belongs only at the persisted boundary; after capturing/rebinding a live identity, revalidation must stay strict. Never reuse a tolerant checkpoint matcher at every call site. Keep the original mismatch cause when an older intent cannot certify recovery.
+
+- #774 BR-1: preserving a strict matcher is insufficient if the caller discards the first observation. Carry its snapshot across phases and exercise the real preview-to-effect transition; a direct matcher unit test cannot prove the caller uses the right baseline.
+
+- #774: a new production helper must appear in both applicable inventories: affected-reader certificates cover readers, while artifactpath's exhaustive source inventory covers every production file, including pure metadata helpers. Classify the concrete source; never grow the known-violation quarantine for a new file.
+- #771: A request barrier orders only that request channel, not another ready select case. Manual timer delivery must rendezvous with the receiver before a completion barrier; an enqueued buffered value is not consumption proof. Reproduce the ordering with a controlled loop and quiescence, preserving the real timer-select path in integration tests.
 - #744 BR-2: a reaped command leader and drained pipes do not prove its process group is quiescent. Check descendants on every completion path; retain explicit uncertainty and correlated evidence when incarnation-safe cleanup cannot be proved.
 
 - #744 BR-2 round3: once asynchronous work is admitted, every return must resolve the same lifetime owner. Result-content checks miss publication, read, timeout and partial-retirement failures; arm a single default-uncertain outcome until joined acknowledgment and retirement prove completion.
@@ -2558,3 +2594,15 @@ and external temporary roots rather than relying on the host's TMPDIR.
 - #757 close review: a function consuming io.Reader belongs to the integration shell even when its only work is decoding; classify the actual API in Core concepts and keep compiler execution behind a stateful fake plus real-tool conformance.
 
 - #779 BR-1: Before close, reconcile every Core concepts and risky-function table against the delivered symbol names and actual signatures. A renamed pure planner can leave a false plan/code contradiction even when its tests and runtime behavior are correct; append the naming revision and update all live tables together.
+- #775: For an exact external diagnostic, compare the complete stderr stream, including newline boundaries. grep -Fxq proves one line exists and accepts unrelated errors around it; cover both positive signatures and extra-line negatives through the actual worker. Standalone tooling also needs a discoverable README/atlas pointer.
+
+- #775 BR-4/5: Bound and canonicalize the entire numeric string before shell arithmetic; leading zeros invoke octal and large integers can wrap. Exercise both CLI arguments through the actual main path, including no-effect refusal and exact work counts. Documentation must name the implemented observation predicate rather than imply a stronger parser or liveness proof.
+
+- #775: A new default Make recipe also creates affected-runner ownership obligations. Keep real native diagnostic experiments explicitly opt-in; verify MakeEntrypoint.test_recipe_ownership when changing the default recipe set.
+
+- #775 BR-6/7: After SHIP, a newly combined runnable entry point requires a full close rather than a fix-only review. Every added runnable command must be named in the top-level README as well as its guide and atlas owner; a prior invocation of the underlying script does not document a later Make command.
+
+- #775: A new executable Zellij double must use the shared reply serializer and producer-specific catalog, including malformed/non-query envelopes as explicit classified faults. Run TestEveryZellijFixtureReplyUsesProductionDecoder and the reader-inventory preflight before queuing the full suite; source registration alone cannot certify independent wire serialization.
+- #771 review: Check the branch patch for whitespace after generated prose is recorded; review transcripts can introduce blank-line spaces. Trim prose-only whitespace before publishing, while preserving byte-exact terminal recordings and upstream evidence.
+
+- #779 staging: a long-lived SHIP branch may predate accepted live features. Compare its ancestry with current main before restarting the operator’s supervisor; an approved stage slot does not establish baseline freshness. Integrate accepted main changes, run targeted integration checks, and keep the full suite owned by the landing turn.

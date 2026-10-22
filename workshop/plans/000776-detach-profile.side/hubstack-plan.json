@@ -1,0 +1,11 @@
+{
+  "recorded_at": "2026-10-21T19:26:25.039966+00:00",
+  "base_sha": "eaa758a6f0cd38837655be5334400098849410ec",
+  "scope": "At most3 serial private4-total-slot configured-hub attempts; stop on first adequate stack capture or cleanup uncertainty. Fresh TLbb7bac55 via root authorizes configured hub and repeated bounded attempts. No8, no product code, no timer/fanout changes.",
+  "harness_adaptation": "Root approved minimal scratch Fleet.Start exec argv: pass existing private Workspaces.Primary explicitly. Same cwd/env/config/lifetime/cleanup, no new workspace or operator path.",
+  "prior_config_audit": "All previous Fleet.Start calls invoked couch with zero arguments; hubRuntime only created for explicit directory launch, so prior slow run was implicit cwd, not explicit configured hubs.",
+  "watcher": "Only while bounded collector active, messages.Close starts owned goroutine and100ms timer. If Close still blocked snapshot runtime.Stack(all goroutines) into512KiB max in-memory buffer once; no IO during Close. Deferred stop joins watcher before Close return. No cancellation of application or shortened timer.",
+  "persistence": "FinalFlush after service closes writes bounded private0600 stack sidecar. Record stack capture duration/bytes and write duration; all added IO remains disclosed in physical bracket.",
+  "proof": "Require messages.Close.hubmemo.present event and exact ready4 actors; retained component+producer+retirement+shutdown timers.",
+  "limits": "If all3 fast stop without cause. If startup fails or cleanup uncertain stop. No preferred-result loop."
+}

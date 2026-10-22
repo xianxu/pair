@@ -211,3 +211,23 @@ test('live and reconnect viewer install the reducer sketch bootstrap before live
   const stroke={t:4,k:'sketch-stroke-begin',sketch:'sk',id:'p',at:{node:9,box:[0,0,10,10]},width:4,operation:'op1',sequence:1,digest:'a'.repeat(64)};
   source.apply(stroke);h.rec(stroke);assert.deepEqual(h.v.model.sketchProjection(),source.sketchProjection());
 });
+test('drawing capabilities preserve safe epoch/holder and fail closed on disconnect', () => {
+  const h = harness();
+  h.es().emit('capabilities', {
+    ...capabilities(true, true),
+    drawing: { epoch: 7, holder: 'seat', ready: true },
+  });
+  assert.deepEqual(h.v.capabilities.drawing, { epoch: 7, holder: 'seat', ready: true });
+  h.es().emit('capabilities', {
+    ...capabilities(true, true),
+    drawing: { epoch: 6, holder: 'other', ready: true },
+  });
+  assert.equal(h.v.capabilities.drawing.holder, 'seat');
+  h.es().onerror();
+  assert.equal(h.v.capabilities.drawing.ready, false);
+  h.es().emit('capabilities', {
+    ...capabilities(true, true),
+    drawing: { epoch: 8, holder: 'seat', ready: true },
+  });
+  assert.equal(h.v.capabilities.drawing.ready, true);
+});

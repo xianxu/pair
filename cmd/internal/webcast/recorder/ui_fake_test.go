@@ -22,6 +22,7 @@ type fakeUIWorld struct {
 	id     int
 	page   *fakePage
 	tokens map[string]int64
+	busy   bool
 }
 
 func (h *harness) confirmUI(session, frame string, id int) *fakeControlUI {
@@ -71,6 +72,12 @@ func (f *fakeControlUI) more(session, method string, p map[string]any, page *fak
 	ok := world != nil && world.page == page && int(ctx) == world.id
 	if ok {
 		switch op {
+		case "acquire-background":
+			if world.busy {
+				ok = false
+			} else {
+				world.tokens[token] = until
+			}
 		case "acquire":
 			world.tokens[token] = until
 		case "check":
