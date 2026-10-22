@@ -143,3 +143,7 @@ Authenticated ops:0 disposition5a670f4e-1ef7-49da-99ba-835f86d2814b keeps this c
 ### 2026-10-22 — Correct pre-retirement capture-change refusal
 
 Per TL513c014e-0e54-4c8a-986a-76a5008a2f19, one focused trace distinguishes a changed capture from a guard misfire. The exact refusal branch requires a fresh size/UTC-mtime/device/inode tuple differing from the directly captured identity, and the existing unchanged/real-write regression passes. The r2 Codex run kept its old agent alive and started no replacement. The retained log lacks the before/after tuples, so exact file/bytes/redraw cause remains unclaimed. Record this as correct refusal behavior, not a defect or flake; no additional native run or implementation change. The positive unchanged-evidence acceptance already completed on both agents; the negative changed-evidence refusal preserves its existing contract.
+
+### 2026-10-22 — Self-found test isolation repair after SHIP
+
+The direct caller regression passed a private checker DataDir but omitted private HOME for TriggerBoundQuit's compatibility quit marker. Isolate HOME and defend direct in-process quit-trigger test calls with the existing Pair lint catalog, sweeping refusal-only callers too. This is executable-test isolation only; production ownership/quiescence and native acceptance assertions remain unchanged. Cancel the now-obsolete queued source check, publish the corrected test head, run a fresh recorded check, and narrow re-close before merge.

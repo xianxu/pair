@@ -24,6 +24,7 @@ type nameOnlyDeleter struct{ calls int }
 func (d *nameOnlyDeleter) DeleteSession(string) error { d.calls++; return nil }
 
 func TestScopedDeletionRequiresOriginalOwnedProof(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
 	for _, site := range []string{"indexed", "named", "quit"} {
 		for _, supported := range []bool{false, true} {
 			t.Run(site+map[bool]string{false: "/unsupported", true: "/owned"}[supported], func(t *testing.T) {
