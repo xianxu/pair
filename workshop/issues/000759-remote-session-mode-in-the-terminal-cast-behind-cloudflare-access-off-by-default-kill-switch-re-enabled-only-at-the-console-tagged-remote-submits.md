@@ -576,3 +576,25 @@ Evidence informing the proposal (installed version still must be qualified)
   forwarding, removal of client identity headers, atomic foreground port
   conflict checks and foreground session removal. This is upstream evidence,
   not proof of the operator's installed Mac binary.
+
+
+### 2026-10-22 — native probe waiting on operator readiness
+
+TL 79b46dec requested exact prerequisites. Read-only inspection finds no
+tailscale command on PATH and no /Applications/Tailscale.app or user Applications
+copy; Caskroom holds only tailscale-app/1.104.2/Tailscale-1.104.2-macos.pkg.
+Reported this observation without claiming the installer ran. Sent the hub the
+Mac install/open/network-extension approval/login, admin DNS MagicDNS and HTTPS
+Certificates, same-tailnet untagged iPhone identity, exact allowed login and free
+Serve HTTPS/443 prerequisites. No manual certificate generation, Funnel,
+configuration reset, installation, app opening or Serve mapping was performed.
+Probe remains gated on the hub's readiness confirmation. No remote product code
+has changed for either transport revision; no stage or code acceptance claimed.
+
+During #803's live merge, the auxiliary sibling worktree failed change-code's
+workspace identity guard. Returned to the supported checkout, then stopped the
+new plan-quality call with Ctrl-C when the TL's hold arrived and restored #803
+immediately. #803 subsequently landed with its retained runner. The independent
+worktree was removed cleanly; its committed #759 integration/plan survived. The
+aborted plan-quality call grants no new implementation acceptance. The current
+Tailscale revision supersedes that interrupted dedicated-tunnel review input.
