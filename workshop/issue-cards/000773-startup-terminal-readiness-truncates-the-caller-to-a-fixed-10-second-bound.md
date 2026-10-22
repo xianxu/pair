@@ -1,8 +1,8 @@
 ---
 id: 000773
-status: working
+status: codecomplete
 created: 2026-10-21
-updated: 2026-10-21
+updated: 2026-10-22
 estimate_hours:
 github_issue:
 severity: high
@@ -14,6 +14,14 @@ claimant:
     workspace: pair:7
     worktree: /Users/xianxu/workspace/worktree/pair-slot7/pair
     repository: github.com/xianxu/pair
+actual_hours: 6.28
+tracker:
+    version: 1
+    completion:
+        token: close-5887612f67e3
+        repository: github.com/xianxu/pair
+        reviewed_head: f3c423c6462058da7433262a1617a9fb42ab3386
+        evidence_commit: d31754e4d613a5d2d2c8cbefa2ae270badbaf7f0
 ---
 
 # startup: terminal readiness truncates the caller to a fixed 10-second bound
