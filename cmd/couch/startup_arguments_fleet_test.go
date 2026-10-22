@@ -212,8 +212,19 @@ func startupArgumentsWaitIdle(t *testing.T, parent context.Context, fleet *testc
 				matches++
 			}
 		}
-		if matches != 1 || binding.Agent != expected.Agent {
-			t.Fatalf("source actor unavailable or ambiguous: %+v", actors.Actors)
+		if matches > 1 {
+			t.Fatalf("source actor ambiguous: %+v", actors.Actors)
+		}
+		// Native readiness precedes the replacement wrapper's registration.
+		// Keep observing absence/old registration within this same bound;
+		// only the expected actor may supply idle evidence for the next switch.
+		if matches == 0 || binding.Agent != expected.Agent {
+			select {
+			case <-ctx.Done():
+				t.Fatalf("source actor never registered: %v; actors=%+v", ctx.Err(), actors.Actors)
+			case <-ticker.C:
+			}
+			continue
 		}
 		result, err := fleet.ActorCLI(ctx, 0, "--resources", "--json")
 		if err != nil || result.ExitCode != 0 {
