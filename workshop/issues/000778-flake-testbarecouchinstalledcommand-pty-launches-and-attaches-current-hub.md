@@ -96,3 +96,9 @@ After the one-line NonArtifactSources classification, all relevant packages PASS
 ### 2026-10-21 — implementation checklist clarification
 
 The original final Plan row included "close, land, and retire the flake registration through close" after full verification. Those are subsequent SDLC receipts, not pre-close implementation tasks. The active row now ends at the passing full suite and explicitly leaves closure/registration retirement to the binary's close/landing receipts. No acceptance or implementation scope changes; the original text is retained here to preserve the revision.
+
+### 2026-10-21 19:40 — hub-directed DNS hold
+
+Authenticated TL receipt65adc077 confirms machine-wide github.com DNS failure from a stuck Mac resolver; the operator owns recovery. Hold corrected sourcefa165827a45bacaa8954ea19d8a90d544c8f4c25 locally until the hub says Git works. The outside-sandbox fetch had already completed with the same DNS failure before this direction; no machine settings or resolver changes were made. All own recorded/targeted/native runs are finished; no live runner or landing ticket is retained for #778. PR536 remains at the earlier pushed head.
+
+Resume: confirm the hub's recovery notice, publish the corrected local head with sdlc pr, run a fresh recorded suite (the old suite was a deterministic inventory failure, not a flake), tick the final Plan row only after its pass, close and merge. The native Claude/Codex pass still qualifies unchanged behavior. Do not start #772 on this branch; it follows #778 landing. #775 is done/archived after train254/PR534, reports delivered and grant revoked. Previous recovery screen remained unavailable; issue/Git/tool evidence supplied continuity.
