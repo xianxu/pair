@@ -100,7 +100,11 @@ limit. Then legacy cleanup stays refused: `provenance incomplete; use the exact
 proven reap or restart Couch`. A healthy later scan does not reset it. Exact
 proven reaps remain available; partial results include `legacy_refusal` in JSON
 and a nonzero exit. Only a fresh Couch process clears the in-memory flag; nothing
-persists it. Overlapping exact targets are handled once. Native identity checks
+persists it. Every legacy signal also requires current supervisor proof of the
+exact root and target ancestry. The final refusal check, identity rereads and
+signal share a gate with sticky transitions. The CLI freezes descendants once
+and never signals locally. A child surviving or reparenting after its root ends
+is refused or partial. Overlapping exact targets are handled once. Native identity checks
 are not atomic process handles.
 
 Each target reports `reaped`, `skipped`, `refused` or `failed`; refusals and

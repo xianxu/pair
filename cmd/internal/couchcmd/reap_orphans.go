@@ -123,12 +123,17 @@ func runReapOrphansCLI(inv cliInvocation, rt Runtime, stdout, stderr io.Writer, 
 		}
 	}
 	report := orphanReapReport{Confirmed: true, SampledAt: result.Resources.SampledAt}
+	// Freeze the legacy forest before any effect, including exact orphan effects.
+	// Missing rows after a signal can never expand or redefine this plan.
+	var legacy legacyReapPlan
+	if !legacyRefused {
+		legacy = freezeLegacyReap(ctx, reaper, nvims, left)
+	}
 	report.Proven = append(refused, reapProvenOrphans(ctx, socket, request, call, reaper, targets)...)
 	if legacyRefused {
 		report.LegacyRefusal = orphanLegacyRefusal
 	} else {
-		report.Outcomes = reapOrphanNvim(ctx, reaper, nvims)
-		report.LeftRunning = reapLeftRunning(ctx, reaper, left)
+		report.Outcomes, report.LeftRunning = reapFrozenLegacy(ctx, socket, request, call, reaper, legacy)
 	}
 
 	return finishOrphanReap(inv, stdout, stderr, report)
@@ -253,46 +258,6 @@ func renderOrphanReap(out io.Writer, report orphanReapReport) {
 		fmt.Fprintf(out, "%s pid=%d age=%s root=%s%s\n", o.Status, o.Row.Key.PID, o.Row.Age.Round(time.Minute), rowtext.Sanitize(o.Row.Root), detail)
 	}
 	fmt.Fprintf(out, "Reaped %d, skipped %d, failed %d\n", reaped, skipped, failed)
-}
-
-// reapOrphanNvim ends each named row's whole tree, on the cadence #399 measured.
-// The identity fence is the safety story: the plan named a generation, and a pid
-// that no longer holds it belongs to someone else now, so it is skipped rather
-// than signalled. The tree matters too -- killing only the editor reparents its
-// language servers to launchd and manufactures the next leak.
-func reapOrphanNvim(ctx context.Context, reaper launcher.Reaper, rows []couchcore.OrphanNvim) []orphanReapOutcome {
-	outcomes := make([]orphanReapOutcome, 0, len(rows))
-	for _, row := range rows {
-		status, detail := reapExact(ctx, reaper, row.Key.PID, row.Key.Identity, fmt.Sprintf("orphan-nvim-%d", row.Key.PID))
-		outcomes = append(outcomes, orphanReapOutcome{Row: row, Status: status, Detail: detail})
-	}
-	return outcomes
-}
-
-// reapLeftRunning ends each registered left-running process's tree by its
-// exact identity, on the same cadence and fence as the nvim sweep. A reaped
-// or vanished entry drops from the registry at the next sample.
-func reapLeftRunning(ctx context.Context, reaper launcher.Reaper, entries []couchcore.LeftRunningOrphan) []leftRunningReapOutcome {
-	outcomes := make([]leftRunningReapOutcome, 0, len(entries))
-	for _, entry := range entries {
-		status, detail := reapExact(ctx, reaper, entry.Process.PID, entry.Process.Identity, fmt.Sprintf("left-running-%d", entry.Process.PID))
-		outcomes = append(outcomes, leftRunningReapOutcome{Entry: entry, Status: status, Detail: detail})
-	}
-	return outcomes
-}
-
-// reapExact is one row's reap and its outcome: reaped, skipped when the pid no
-// longer holds the named identity, or failed.
-func reapExact(ctx context.Context, reaper launcher.Reaper, pid int, identity, label string) (string, string) {
-	err := reaper.Reap(ctx, launcher.SessionServerIdentity{PID: pid, Identity: identity, Session: label})
-	switch {
-	case err == nil:
-		return orphanReaped, ""
-	case errors.Is(err, launcher.ErrServerChanged):
-		return orphanSkipped, "pid no longer holds the identity the sweep named (gone, or recycled)"
-	default:
-		return orphanFailed, err.Error()
-	}
 }
 
 // reapProvenOrphans interprets only acknowledged supervisor effects. An older

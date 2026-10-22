@@ -19,6 +19,7 @@ import (
 // Request has closed per-operation shapes. Wrapper lifecycle operations use a
 // full binding and must pass the supervisor adapter's live identity check.
 type Request struct {
+	LegacyTarget                                     *couchcore.LegacyOrphanTarget `json:",omitempty"`
 	OrphanTarget                                     *couchcore.ProvenOrphanTarget `json:",omitempty"`
 	OrphanSignal                                     string                        `json:",omitempty"`
 	Drive                                            *agentdrive.Request           `json:",omitempty"`
@@ -51,6 +52,7 @@ type Request struct {
 const CodeWarming = "warming"
 
 type Response struct {
+	LegacySignal *LegacyOrphanSignalResult `json:",omitempty"`
 	OrphanSignal *ProvenOrphanSignalResult `json:",omitempty"`
 	// RetryAfterMillis is a transient admission hint, only for CodeWarming.
 	RetryAfterMillis int                     `json:",omitempty"`
@@ -85,6 +87,14 @@ type Response struct {
 // result records delivery, not process exit; an uncertain attempt is not retried.
 type ProvenOrphanSignalResult struct {
 	Target couchcore.ProvenOrphanTarget
+	Status string
+	Detail string
+}
+
+// LegacyOrphanSignalResult reports one guarded legacy member effect, never
+// authority to repeat it or to discover more descendants.
+type LegacyOrphanSignalResult struct {
+	Target couchcore.LegacyOrphanTarget
 	Status string
 	Detail string
 }
@@ -165,8 +175,14 @@ func validMessageID(id string) bool {
 }
 
 func ValidateRequest(r Request) error {
-	if r.Op != "reap-orphan-signal" && (r.OrphanTarget != nil || r.OrphanSignal != "") {
-		return errors.New("orphan target and signal apply only to reap-orphan-signal")
+	if r.Op != "reap-orphan-signal" && r.OrphanTarget != nil {
+		return errors.New("proven orphan target applies only to reap-orphan-signal")
+	}
+	if r.Op != "reap-legacy-signal" && r.LegacyTarget != nil {
+		return errors.New("legacy orphan target applies only to reap-legacy-signal")
+	}
+	if r.Op != "reap-orphan-signal" && r.Op != "reap-legacy-signal" && r.OrphanSignal != "" {
+		return errors.New("orphan signal applies only to guarded orphan signal operations")
 	}
 	if r.Drive != nil && !IsDriveOp(r.Op) {
 		return errors.New("drive intent applies only to keys, set-model and interrupt")
@@ -293,7 +309,7 @@ func ValidateRequest(r Request) error {
 		}
 		return nil
 	}
-	if r.Op == "reap-orphans" || r.Op == "reap-orphan-signal" {
+	if r.Op == "reap-orphans" || r.Op == "reap-orphan-signal" || r.Op == "reap-legacy-signal" {
 		// Entirely unbound calls use the owner-only operator socket. Any caller
 		// credentials must be complete; authentication and ownership are then
 		// mandatory at the effect boundary, never downgraded to operator access.
@@ -312,10 +328,19 @@ func ValidateRequest(r Request) error {
 			if err := r.OrphanTarget.Validate(); err != nil {
 				return fmt.Errorf("reap-orphan-signal target: %w", err)
 			}
-			if r.OrphanSignal != "TERM" && r.OrphanSignal != "KILL" {
-				return errors.New("reap-orphan-signal requires TERM or KILL")
-			}
 			shape.OrphanTarget, shape.OrphanSignal = r.OrphanTarget, r.OrphanSignal
+		}
+		if r.Op == "reap-legacy-signal" {
+			if r.LegacyTarget == nil {
+				return errors.New("reap-legacy-signal requires an exact target and root")
+			}
+			if err := r.LegacyTarget.Validate(); err != nil {
+				return fmt.Errorf("reap-legacy-signal target: %w", err)
+			}
+			shape.LegacyTarget, shape.OrphanSignal = r.LegacyTarget, r.OrphanSignal
+		}
+		if r.Op != "reap-orphans" && r.OrphanSignal != "TERM" && r.OrphanSignal != "KILL" {
+			return errors.New(r.Op + " requires TERM or KILL")
 		}
 		if r != shape {
 			return errors.New(r.Op + " takes only confirmation, optional caller identity and its exact signal witness")

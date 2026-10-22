@@ -233,3 +233,15 @@ The CLI freezes a bounded, deduplicated legacy tree plan before effects and uses
 Tests must first reproduce loss after admission, during exact dispatch, waits and legacy execution across both families; then prove zero later signals, gate linearization, root death/reparenting, caller change and no uncertain retry. Count planning work at N and 2N and preserve bounded single collection per effect. Repeat native Claude/Codex, recorded suite and full close. ARCH-ORDER and ARCH-SECURE place revocation at the effect, rather than another observation before it.
 
 TL's stop rule: if the next review finds another legacy window, do not patch it. Bring it to the hub and retire legacy tree signalling in favor of exact proven sets only.
+
+The revised concepts add no persisted lifecycle:
+
+| Concept | Kind / owner | Purpose |
+| --- | --- | --- |
+| LegacyOrphanTarget | Pure value, couchcore | Closed family plus exact root and member generations; a proposal requiring current proof |
+| DecideLegacyOrphanSignal | Pure decision, couchcore | Current full collection establishes family, ancestry and absence of protected membership |
+| legacyReapPlan | Transient CLI value | One bounded deduplicated forest census, consumed by the existing exact executor |
+| legacyGate | Sampler lifetime coordination | Serializes the sticky write transition against final legacy identity checks and one signal |
+| reap-legacy-signal | Stateless supervisor exchange | One typed guarded single-PID effect, without retained permits or retry authority |
+
+Cost drivers: P current census rows, G admitted roots, K frozen unique members. CLI construction takes one table observation and O(P+G) indexing/traversal plus O(G log G) deterministic root ordering; counted tests at512/1024 pin exactly2P visits with G=P and one census. Each effect takes one worker collection, bounded linear proof maps/ancestry/subtree work O(P+S), and at most two native identity reads plus one signal. Shared executor waits remain batch snapshots. No per-root census or effect-discovered descendants.

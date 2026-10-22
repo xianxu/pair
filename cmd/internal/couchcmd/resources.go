@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"sort"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -51,6 +52,8 @@ type resourceSampler struct {
 	// sticky flag. No later healthy scan can recover forgotten provenance.
 	// Nothing persists it, and a fresh process is the only reset (#792).
 	provenanceIncomplete bool
+	// Serializes the sticky transition with every legacy single-process effect.
+	legacyGate sync.RWMutex
 }
 
 // resourceSweep is a reap's answer: the view one pass produced, and whether that
@@ -167,8 +170,9 @@ func (s *resourceSampler) run(ctx context.Context) {
 				proof := couchcore.ProvenOrphanProof{Table: sample.Table, Selection: selection, TableKnown: sample.TableKnown, InventoryComplete: reason == "", UnknownDetached: unknown, IncompleteReason: reason}
 				request.reply <- resourceSweep{proof: proof, err: collection.Err()}
 			} else {
-				fresh := s.pass(collection)
-				request.reply <- resourceSweep{fresh: fresh, view: s.view(), legacyRefused: s.provenanceIncomplete, err: collection.Err()}
+				result := s.passSnapshot(collection)
+				result.err = collection.Err()
+				request.reply <- result
 			}
 			unlink()
 			cancel()
@@ -235,7 +239,7 @@ func (s *resourceSampler) collectOwnership(ctx context.Context) (couchcore.Resou
 	sample.Cost.TableCalls += n
 	sample.Cost.NativeCalls += n
 	if ctx.Err() != nil {
-		s.provenanceIncomplete = true
+		s.refuseLegacy()
 		return sample, couchcore.ResourceSelection{}, nil
 	}
 	sample.TableKnown = err == nil
@@ -255,9 +259,17 @@ func (s *resourceSampler) collectOwnership(ctx context.Context) (couchcore.Resou
 		unknownKeys = append(unknownKeys, k)
 	}
 	if !couchcore.ResourceOwnershipComplete(sample, selection, unknownKeys) {
-		s.provenanceIncomplete = true
+		s.refuseLegacy()
 	}
 	return sample, selection, unknownKeys
+}
+
+// refuseLegacy linearizes evidence loss with the final legacy effect gate.
+// Only the worker sets the flag; no successful later collection clears it.
+func (s *resourceSampler) refuseLegacy() {
+	s.legacyGate.Lock()
+	s.provenanceIncomplete = true
+	s.legacyGate.Unlock()
 }
 
 // proveReap asks the existing worker for fresh complete ownership evidence.
@@ -284,8 +296,14 @@ func (s *resourceSampler) proveReap(ctx context.Context) (couchcore.ProvenOrphan
 // that acts on the answer -- a reap -- must be able to tell that from a pass
 // that saw an empty host (#583).
 func (s *resourceSampler) pass(ctx context.Context) bool {
+	return s.passSnapshot(ctx).fresh
+}
+
+// passSnapshot returns this collection's full evidence only to its requesting
+// handler. The cache remains bounded; no signal permit or table is retained.
+func (s *resourceSampler) passSnapshot(ctx context.Context) resourceSweep {
 	if ctx.Err() != nil {
-		return false
+		return resourceSweep{}
 	}
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -304,9 +322,9 @@ func (s *resourceSampler) pass(ctx context.Context) bool {
 	if cpuErr != nil {
 		sample.Errors = append(sample.Errors, "sampler CPU start: "+cpuErr.Error())
 	}
-	ownership, selection, _ := s.collectOwnership(ctx)
+	ownership, selection, unknown := s.collectOwnership(ctx)
 	if ctx.Err() != nil {
-		return false
+		return resourceSweep{}
 	}
 	ownership.At, ownership.Commands, ownership.OrphanProbes = sample.At, sample.Commands, sample.OrphanProbes
 	ownership.Cost.NativeCalls += sample.Cost.NativeCalls
@@ -341,7 +359,7 @@ func (s *resourceSampler) pass(ctx context.Context) bool {
 	}
 	for _, owned := range selection.Processes {
 		if ctx.Err() != nil {
-			return false
+			return resourceSweep{}
 		}
 		selected[owned.Key] = true
 		if p, ok := rows[owned.Key]; ok {
@@ -368,7 +386,7 @@ func (s *resourceSampler) pass(ctx context.Context) bool {
 	}
 	for _, p := range candidates {
 		if ctx.Err() != nil {
-			return false
+			return resourceSweep{}
 		}
 		o := observe(p)
 		if filepath.Base(p.Name) != "nvim" {
@@ -406,7 +424,7 @@ func (s *resourceSampler) pass(ctx context.Context) bool {
 		sample.OrphanProbes[o.Key] = probe
 	}
 	if ctx.Err() != nil {
-		return false
+		return resourceSweep{}
 	}
 	next, v, _ := couchcore.AdvanceResources(s.state, sample, s.policy)
 	if s.leftRunning != nil {
@@ -434,6 +452,9 @@ func (s *resourceSampler) pass(ctx context.Context) bool {
 	if s.history != nil {
 		v.HistoryOldest, v.HistoryFrames = s.history()
 	}
+	reason := couchcore.ResourceOwnershipIncompleteReason(sample, selection, unknown)
+	proof := couchcore.ProvenOrphanProof{Table: sample.Table, Selection: selection, TableKnown: sample.TableKnown, InventoryComplete: reason == "", UnknownDetached: unknown, IncompleteReason: reason}
+	full := cloneResourceView(v)
 	v = cloneResourceView(projectResourceView(v)) // Include bounded wire projection and cache construction in sampler CPU.
 	end, n, endErr := r.SelfCPU(ctx)
 	v.Cost.NativeCalls += n
@@ -448,7 +469,7 @@ func (s *resourceSampler) pass(ctx context.Context) bool {
 	}
 	v.Cost.WallTime = time.Since(wall)
 	s.cached.Store(&v)
-	return true
+	return resourceSweep{fresh: true, view: full, proof: proof, legacyRefused: s.provenanceIncomplete}
 }
 
 // registeredLeftRunning drops the registry entries whose exact identity this

@@ -878,7 +878,11 @@ legacy cleanup refuses: `provenance incomplete; use the exact proven reap or
 restart Couch`. A later healthy scan does not clear that refusal. Guarded exact
 reaps remain available; JSON reports `legacy_refusal` and returns nonzero when
 legacy cleanup is refused. Only a fresh Couch process resets this in-memory flag;
-nothing is persisted.
+nothing is persisted. Every legacy TERM/KILL also returns to the supervisor:
+current proof must still identify the exact root and target ancestry, and the
+sticky refusal check, native identity rereads and signal share one gate. The CLI
+freezes descendants once and never signals locally. Children that survive or
+reparent after their root ends are refused or reported partial.
 
 A bound caller may reap proven previous-incarnation processes only as their
 slot's authenticated owning hub. Workers and other hubs are refused. An entirely

@@ -953,6 +953,8 @@ func (s *messageService) handle(ctx context.Context, request couchmessage.Reques
 			return couchmessage.Response{Code: "ok", Resources: &view}
 		}
 		return couchmessage.Response{Code: "unsupported", Error: "resource sampler unavailable"}
+	case request.Op == "reap-legacy-signal":
+		return s.handleLegacyOrphanSignal(ctx, request)
 	case request.Op == "reap-orphan-signal":
 		return s.handleProvenOrphanSignal(ctx, request)
 	case request.Op == orphanReapOp:

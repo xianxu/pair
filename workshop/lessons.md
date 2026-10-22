@@ -2616,3 +2616,5 @@ and external temporary roots rather than relying on the host's TMPDIR.
 
 - #792 BR-2: Audit information loss before classification as well as transport. A later healthy sample cannot restore forgotten ownership; destructive fallback needs a process-lifetime fail-closed decision after any provenance loss, with overflow/recovery sequence tests. Distinguish an unobserved startup seed from a failed completed attempt.
 - #792 BR-3: Unix socket fixtures must choose a short private namespace independently of inherited TMPDIR and retain cleanup. Test a deliberately long TMPDIR; shared value-flow lint follow-up is ariadne#549.
+
+- #792 BR-2 round three: destructive authority returned to a caller outlives admission. Route every signal through the current proof owner and serialize revocation with the final effect; refreshing admission alone leaves a later-loss window. A root that ends cannot authorize surviving descendants from remembered ancestry.

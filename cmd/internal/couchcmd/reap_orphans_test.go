@@ -182,7 +182,7 @@ func TestReapOrphanNvimFencesEveryRowOnItsIdentity(t *testing.T) {
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			outcomes := reapOrphanNvim(context.Background(), fastOrphanReaper(c.table), []couchcore.OrphanNvim{orphanRow(4242, "gen-1")})
+			outcomes := testReapOrphanNvim(t, context.Background(), fastOrphanReaper(c.table), []couchcore.OrphanNvim{orphanRow(4242, "gen-1")})
 			if len(outcomes) != 1 || outcomes[0].Status != c.status {
 				t.Fatalf("outcomes %+v", outcomes)
 			}
@@ -207,7 +207,7 @@ func TestReapOrphanNvimEndsTheWholeTree(t *testing.T) {
 		ids:    map[int]string{4242: "gen-1", 4300: "gen-3"},
 		diesOn: map[int]syscall.Signal{4242: syscall.SIGTERM, 4300: syscall.SIGTERM},
 	}
-	outcomes := reapOrphanNvim(context.Background(), fastOrphanReaper(table), []couchcore.OrphanNvim{orphanRow(4242, "gen-1")})
+	outcomes := testReapOrphanNvim(t, context.Background(), fastOrphanReaper(table), []couchcore.OrphanNvim{orphanRow(4242, "gen-1")})
 	if outcomes[0].Status != orphanReaped {
 		t.Fatalf("%+v", outcomes)
 	}
@@ -222,7 +222,7 @@ func TestReapOrphanNvimEndsTheWholeTree(t *testing.T) {
 // confirmed a kill and is owed the outcome of every row they confirmed.
 func TestReapOrphanNvimReportsARefusedSnapshot(t *testing.T) {
 	table := &fakeOrphanTable{snapErr: fmt.Errorf("sysctl denied")}
-	outcomes := reapOrphanNvim(context.Background(), fastOrphanReaper(table), []couchcore.OrphanNvim{orphanRow(4242, "gen-1")})
+	outcomes := testReapOrphanNvim(t, context.Background(), fastOrphanReaper(table), []couchcore.OrphanNvim{orphanRow(4242, "gen-1")})
 	if outcomes[0].Status != orphanFailed || !strings.Contains(outcomes[0].Detail, "sysctl denied") {
 		t.Fatalf("%+v", outcomes)
 	}
@@ -231,9 +231,21 @@ func TestReapOrphanNvimReportsARefusedSnapshot(t *testing.T) {
 	}
 }
 
-func reapCLIStub(t *testing.T, view couchcore.ResourceView, sent *[]couchmessage.Request) messageCall {
+// Exercise the frozen plan and strict supervisor RPC boundary even in the
+// small single-family outcome tests. The stateful table belongs to the fake
+// supervisor; the executor receives acknowledgments rather than signalling it.
+func testReapOrphanNvim(t *testing.T, ctx context.Context, reaper launcher.Reaper, rows []couchcore.OrphanNvim) []orphanReapOutcome {
 	t.Helper()
-	return func(_ context.Context, _ string, req any, resp any) error {
+	view := couchcore.ResourceView{OrphanNvim: rows}
+	var sent []couchmessage.Request
+	plan := freezeLegacyReap(ctx, reaper, rows, nil)
+	outcomes, _ := reapFrozenLegacy(ctx, "", couchmessage.Request{}, reapCLIStub(t, view, &sent, reaper.Table), reaper, plan)
+	return outcomes
+}
+
+func reapCLIStub(t *testing.T, view couchcore.ResourceView, sent *[]couchmessage.Request, tables ...launcher.ProcessTable) messageCall {
+	t.Helper()
+	return func(ctx context.Context, _ string, req any, resp any) error {
 		r, ok := req.(couchmessage.Request)
 		if !ok {
 			t.Fatalf("request %T", req)
@@ -242,6 +254,47 @@ func reapCLIStub(t *testing.T, view couchcore.ResourceView, sent *[]couchmessage
 		out, ok := resp.(*couchmessage.Response)
 		if !ok {
 			t.Fatalf("response %T", resp)
+		}
+
+		if err := couchmessage.ValidateRequest(r); err != nil {
+			t.Fatalf("invalid CLI request: %v", err)
+		}
+		if r.Op == "reap-legacy-signal" {
+			if len(tables) != 1 || tables[0] == nil {
+				t.Fatal("unexpected legacy signal without a supervisor process world")
+			}
+			table := tables[0]
+			rows, err := table.Snapshot(ctx)
+			if err != nil {
+				return err
+			}
+			proof := couchcore.ProvenOrphanProof{TableKnown: true, InventoryComplete: true}
+			for _, row := range rows {
+				proof.Table = append(proof.Table, procutil.Process{PID: row.PID, PPID: row.PPID, Identity: row.Identity, Name: row.Name})
+			}
+			for _, row := range view.Processes {
+				proof.Selection.Processes = append(proof.Selection.Processes, row.ResourceProvenance)
+			}
+			target := *r.LegacyTarget
+			status, detail := couchcore.DecideLegacyOrphanSignal(target, proof, view)
+			if status == "sent" {
+				if table.Identity(target.Root.PID) != target.Root.Identity || table.Identity(target.Key.PID) != target.Key.Identity {
+					status, detail = "refused", "process changed at signal gate"
+				} else {
+					signal := syscall.SIGTERM
+					if r.OrphanSignal == "KILL" {
+						signal = syscall.SIGKILL
+					}
+					if err := table.Signal(target.Key.PID, signal); err != nil {
+						status, detail = "failed", err.Error()
+					}
+				}
+			}
+			*out = couchmessage.Response{Code: "ok", LegacySignal: &couchmessage.LegacyOrphanSignalResult{Target: target, Status: status, Detail: detail}}
+			return nil
+		}
+		if r.Op != "resources" && r.Op != orphanReapOp {
+			t.Fatalf("unexpected CLI operation %s", r.Op)
 		}
 		v := view
 		out.Code, out.Resources = "ok", &v
@@ -257,7 +310,7 @@ func TestReapOrphansCLIWithoutConfirmationNamesAndRefuses(t *testing.T) {
 	var sent []couchmessage.Request
 	view := couchcore.ResourceView{SampledAt: time.Unix(1760100000, 0), OrphanNvim: []couchcore.OrphanNvim{orphanRow(4242, "gen-1"), orphanRow(4300, "gen-2")}}
 	var out, errw bytes.Buffer
-	code := runReapOrphansCLI(cliInvocation{messageOp: orphanReapOp}, testRT{dir: t.TempDir()}, &out, &errw, reapCLIStub(t, view, &sent), fastOrphanReaper(table))
+	code := runReapOrphansCLI(cliInvocation{messageOp: orphanReapOp}, testRT{dir: t.TempDir()}, &out, &errw, reapCLIStub(t, view, &sent, table), fastOrphanReaper(table))
 	if code == 0 {
 		t.Fatal("an unconfirmed reap succeeded")
 	}
@@ -287,8 +340,8 @@ func TestReapOrphansCLIWithConfirmationReapsAndReports(t *testing.T) {
 	var sent []couchmessage.Request
 	view := couchcore.ResourceView{SampledAt: time.Unix(1760100000, 0), OrphanNvim: []couchcore.OrphanNvim{orphanRow(4242, "gen-1"), orphanRow(4300, "gen-2")}}
 	var out, errw bytes.Buffer
-	code := runReapOrphansCLI(cliInvocation{messageOp: orphanReapOp, confirmed: true}, testRT{dir: t.TempDir()}, &out, &errw, reapCLIStub(t, view, &sent), fastOrphanReaper(table))
-	if len(sent) != 1 || sent[0].Op != orphanReapOp || !sent[0].Confirmed {
+	code := runReapOrphansCLI(cliInvocation{messageOp: orphanReapOp, confirmed: true}, testRT{dir: t.TempDir()}, &out, &errw, reapCLIStub(t, view, &sent, table), fastOrphanReaper(table))
+	if len(sent) != 2 || sent[0].Op != orphanReapOp || !sent[0].Confirmed || sent[1].Op != "reap-legacy-signal" {
 		t.Fatalf("confirmed reap sent %v", sent)
 	}
 	if len(table.signals[4242]) != 1 || table.signals[4242][0] != syscall.SIGTERM {
@@ -319,7 +372,7 @@ func TestReapOrphansCLIFailsARowThatSurvivedSigkill(t *testing.T) {
 	var sent []couchmessage.Request
 	view := couchcore.ResourceView{OrphanNvim: []couchcore.OrphanNvim{orphanRow(4242, "gen-1")}}
 	var out, errw bytes.Buffer
-	code := runReapOrphansCLI(cliInvocation{messageOp: orphanReapOp, confirmed: true}, testRT{dir: t.TempDir()}, &out, &errw, reapCLIStub(t, view, &sent), fastOrphanReaper(table))
+	code := runReapOrphansCLI(cliInvocation{messageOp: orphanReapOp, confirmed: true}, testRT{dir: t.TempDir()}, &out, &errw, reapCLIStub(t, view, &sent, table), fastOrphanReaper(table))
 	if code == 0 {
 		t.Fatal("a survivor exited 0")
 	}
@@ -332,7 +385,7 @@ func TestReapOrphansCLISaysSoWhenThereIsNothingToReap(t *testing.T) {
 	table := &fakeOrphanTable{}
 	var sent []couchmessage.Request
 	var out, errw bytes.Buffer
-	code := runReapOrphansCLI(cliInvocation{messageOp: orphanReapOp, confirmed: true}, testRT{dir: t.TempDir()}, &out, &errw, reapCLIStub(t, couchcore.ResourceView{}, &sent), fastOrphanReaper(table))
+	code := runReapOrphansCLI(cliInvocation{messageOp: orphanReapOp, confirmed: true}, testRT{dir: t.TempDir()}, &out, &errw, reapCLIStub(t, couchcore.ResourceView{}, &sent, table), fastOrphanReaper(table))
 	if code != 0 {
 		t.Fatalf("exit %d: %s", code, errw.String())
 	}
@@ -350,7 +403,7 @@ func TestReapOrphansCLIJSONCarriesEveryOutcome(t *testing.T) {
 	var sent []couchmessage.Request
 	view := couchcore.ResourceView{SampledAt: time.Unix(1760100000, 0), OrphanNvim: []couchcore.OrphanNvim{orphanRow(4242, "gen-1")}}
 	var out, errw bytes.Buffer
-	if code := runReapOrphansCLI(cliInvocation{messageOp: orphanReapOp, confirmed: true, jsonOutput: true}, testRT{dir: t.TempDir()}, &out, &errw, reapCLIStub(t, view, &sent), fastOrphanReaper(table)); code != 0 {
+	if code := runReapOrphansCLI(cliInvocation{messageOp: orphanReapOp, confirmed: true, jsonOutput: true}, testRT{dir: t.TempDir()}, &out, &errw, reapCLIStub(t, view, &sent, table), fastOrphanReaper(table)); code != 0 {
 		t.Fatalf("exit %d: %s", code, errw.String())
 	}
 	var report orphanReapReport
@@ -485,7 +538,7 @@ func TestReapOrphansCLIEndsLeftRunningByExactIdentity(t *testing.T) {
 	table := newTable()
 	var sent []couchmessage.Request
 	var out, errw bytes.Buffer
-	if code := runReapOrphansCLI(cliInvocation{messageOp: orphanReapOp}, testRT{dir: t.TempDir()}, &out, &errw, reapCLIStub(t, view, &sent), fastOrphanReaper(table)); code == 0 || len(table.signals) != 0 {
+	if code := runReapOrphansCLI(cliInvocation{messageOp: orphanReapOp}, testRT{dir: t.TempDir()}, &out, &errw, reapCLIStub(t, view, &sent, table), fastOrphanReaper(table)); code == 0 || len(table.signals) != 0 {
 		t.Fatalf("unconfirmed: exit %d, signals %v", code, table.signals)
 	}
 	if text := out.String(); !strings.Contains(text, leftRunningSection) || !strings.Contains(text, "pid=5100 sdlc thread=s/couch-1") {
@@ -494,7 +547,7 @@ func TestReapOrphansCLIEndsLeftRunningByExactIdentity(t *testing.T) {
 
 	table = newTable()
 	sent, out, errw = nil, bytes.Buffer{}, bytes.Buffer{}
-	code := runReapOrphansCLI(cliInvocation{messageOp: orphanReapOp, confirmed: true}, testRT{dir: t.TempDir()}, &out, &errw, reapCLIStub(t, view, &sent), fastOrphanReaper(table))
+	code := runReapOrphansCLI(cliInvocation{messageOp: orphanReapOp, confirmed: true}, testRT{dir: t.TempDir()}, &out, &errw, reapCLIStub(t, view, &sent, table), fastOrphanReaper(table))
 	if len(table.signals[5100]) != 1 || len(table.signals[5200]) != 0 {
 		t.Fatalf("signals %v, want only the exact identity ended", table.signals)
 	}

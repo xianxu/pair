@@ -826,6 +826,9 @@ var NonArtifactSources = []string{
 	// worktrees and the argv it reads is inspected, never constructed.
 	"cmd/internal/couchcmd/reap_orphans.go",
 	"cmd/internal/couchcmd/reap_proven.go",
+	"cmd/internal/couchcmd/reap_legacy.go",
+	"cmd/internal/couchcmd/reap_legacy_signal.go",
+	"cmd/internal/couchcore/resource_reap_legacy.go",
 	"cmd/internal/couchcore/resource_reap.go",
 	"cmd/internal/couchcore/resource_orphan.go",
 	"cmd/internal/procutil/identity_age.go",

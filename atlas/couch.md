@@ -5067,7 +5067,18 @@ unknown ownership sets one worker-owned sticky flag. Subsequent healthy scans
 cannot recover forgotten provenance and never clear it. Legacy admission then
 refuses with `provenance incomplete; use the exact proven reap or restart Couch`.
 Only a fresh process resets it. The flag is never persisted; no new registry or
-process-wide lease is introduced.
+process-wide lease is introduced. Every legacy TERM/KILL is a separate
+`reap-legacy-signal` exchange with the exact root, target and closed family.
+The worker returns the same current collection's full proof and legacy
+classification, without retaining another table or signal permit. The pure
+legacy decision requires current ancestry and excludes protected ownership.
+The supervisor holds the hub read lock and the sticky gate's read lock through
+its final flag check, root/target identity rereads and one signal; the worker
+sets the flag under that gate's write lock. This revokes outstanding plans,
+including KILL escalation. The CLI freezes and deduplicates descendants once,
+then uses the exact executor and supervisor callbacks. It never signals legacy
+processes locally. A surviving child whose root ended or whose ancestry changed
+is refused or partial; remembered ancestry grants no permission.
 
 The confirmed response uses `provenance-incomplete` with exact proven rows and
 no actionable legacy rows, so older CLIs fail closed. The current CLI still
@@ -5093,7 +5104,10 @@ Coverage and displayed labels retain the existing output sanitization. The
 
 Owners: `couchcore/resource_reap.go` (exact target and pure proof decision),
 `couchcmd/resources.go` (worker-owned ownership collection),
-`couchcmd/reap_proven.go` (supervisor authority and guarded effect),
+`couchcmd/reap_proven.go` (exact supervisor authority and guarded effect),
+`couchcore/resource_reap_legacy.go` (current legacy root/ancestry decision),
+`couchcmd/reap_legacy_signal.go` (legacy effect gate),
+`couchcmd/reap_legacy.go` (frozen forest and supervisor callbacks),
 `couchcmd/reap_orphans.go` (CLI composition), and `launcher/exact_reap*.go`
 (invocation-local transition model and effect interpreter). Public-command
 conformance uses a disposable Couch with Claude and Codex; it does not require
