@@ -173,3 +173,84 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000411
+
+---
+
+## Re-review — 2026-10-22T16:03:04-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 806 — Replacement Zellij disconnects before first wrapper startup |
+| repo | pair |
+| issue file | workshop/issues/000806-replacement-zellij-startup-disconnect.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | e814b17f15f5f194119f41b209bc35f76285e1e7..23c008e9aecc51ee5ef6dcebc1fa97607d3d2f9f |
+| command | sdlc close --issue 806 |
+| reviewer | codex (openai; author openai) |
+| isolation | fenced |
+| timestamp | 2026-10-22T16:03:04-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+The pinned implementation satisfies the revised diagnostic-only scope. BR-1 is addressed: lifecycle tests now protect capture selection, cancellation ordering, native producer/IO completion, root removal, and repeated cleanup. No new findings.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      startup_server_log_test.go:180-275 exercises real Fleet.Close across all four failure/option combinations. Independent mutations removing either capture, delaying the first past cancellation, or moving the final capture before native teardown all fail in the three capture-enabled cases. Successful option-off retains no snapshots; repeated Close adds none.
+```
+
+1. **Strengths**
+
+   - Reuses the confined reader and preserves unsafe-source refusal.
+   - Independent one-shot budgets include failed reads; retained tails are bounded and escaped.
+   - The controlled producer verifies final bytes and IO completion before root removal.
+   - Atlas and plan revisions accurately describe diagnostic scope and attribution limits.
+
+2. **Critical findings:** None.
+
+3. **Important findings:** None remaining.
+
+4. **Minor findings:** None.
+
+5. **Test coverage notes**
+
+   - Startup-evidence tests passed.
+   - Full `testcouch` package passed.
+   - Targeted launcher admission/handoff tests passed.
+   - All four lifecycle mutations failed as expected.
+   - Both retained native logs match their recorded hashes and show reboot, delivery, two captures, and cleanup within recorded bounds. No native reruns performed.
+   - Diff whitespace checks passed; tracked checkout unchanged.
+
+6. **Architectural notes**
+
+   - **ARCH-DRY — pass:** shared file-access boundary reused.
+   - **ARCH-PURE — pass:** diagnostic IO remains in the integration harness.
+   - **ARCH-PURPOSE — pass:** fulfills the explicitly revised retention purpose without claiming causal resolution.
+   - **ARCH-EVOLVE — pass:** no persisted-format changes.
+   - Core-concept locations match the implementation. Atlas covers the new harness surface; no new user-facing command or configuration requires README changes.
+
+7. **Plan revision recommendations:** None. Existing revisions cover the corrected lifecycle verification.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"a386291c-14c1-4cd1-8c3d-5a144a784b92","repository":"github.com/xianxu/pair","issue_id":"000806","recipe":"small-diff-review","round":3,"attempt":1,"agent":"codex","root":"/Volumes/TestScratch/review-checkouts/f0c66e7124eec7a2","reviewed_head":"23c008e9aecc51ee5ef6dcebc1fa97607d3d2f9f","slot":"pair:2","requested_at":"2026-10-22T23:01:34.609509Z"},"phase":"finished","pid":73837,"started_at":"2026-10-22T23:01:34.71983Z","finished_at":"2026-10-22T23:03:03.792488Z","session_id":"01a165d9-30d6-74b0-92a1-d546a139145f","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 2.412091209s
+head: "23c008e9aecc51ee5ef6dcebc1fa97607d3d2f9f"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412
