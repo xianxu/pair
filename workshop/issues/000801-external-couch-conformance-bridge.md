@@ -16,7 +16,7 @@ claimant:
     workspace: pair:7
     worktree: /Users/xianxu/workspace/worktree/pair-slot7/pair
     repository: github.com/xianxu/pair
-flow: {kind: quick, provenance: inferred, spec: "e6d08ca1", done: "6a997b54"}
+flow: {kind: full, provenance: operator}
 ---
 
 # External hold-open Couch conformance bridge

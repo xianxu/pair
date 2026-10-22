@@ -1,4 +1,24 @@
 ---
+reviewer_runs:
+    - version: 1
+      intent:
+        id: d9631838-e35f-4a83-9d23-47225e06b879
+        repository: github.com/xianxu/pair
+        issue_id: "000801"
+        recipe: estimate-quality
+        round: 1
+        attempt: 1
+        agent: codex
+        root: /Users/xianxu/workspace/worktree/pair-slot7/pair
+        reviewed_head: d5c6983cbfcd5f2f4657cf3adf7cdd097e5a2274
+        slot: pair:7
+        requested_at: "2026-10-22T20:58:28.778496Z"
+      phase: finished
+      pid: 40791
+      started_at: "2026-10-22T20:58:29.000672Z"
+      finished_at: "2026-10-22T20:59:10.695827Z"
+      session_id: 01a16568-7edc-7160-91b0-b95037a753c1
+      outcome: returned
 gate: plan-quality
 issue: 801
 id_prefix: PQ
@@ -75,7 +95,41 @@ rounds:
           note: The canonical table supersedes earlier case inventories with named risky functions and adversarial strategies guarded by bounded fuzzing, stateful failure injection, generated event sequences and controlled joined IO.
           round: 2
       blocked: false
-content_hash: bd4ff6bce667be3a7549a05fa5fdd256ef6cac402072b5bf3735ac0218f366c8
+    - reviewer_runs:
+        - version: 1
+          intent:
+            id: 3be84431-3cc4-465d-bf87-ca1e48638960
+            repository: github.com/xianxu/pair
+            issue_id: "000801"
+            recipe: plan-quality
+            round: 3
+            attempt: 1
+            agent: codex
+            root: /Users/xianxu/workspace/worktree/pair-slot7/pair
+            reviewed_head: d5c6983cbfcd5f2f4657cf3adf7cdd097e5a2274
+            slot: pair:7
+            requested_at: "2026-10-22T20:57:53.633803Z"
+          phase: finished
+          pid: 23025
+          started_at: "2026-10-22T20:57:53.791548Z"
+          finished_at: "2026-10-22T20:58:24.637428Z"
+          session_id: 01a16567-f4f9-7711-8df4-e61e40024a28
+          outcome: returned
+      "n": 3
+      timestamp: "2026-10-22T13:58:25-07:00"
+      agent: codex
+      reviewer: codex (openai; author openai)
+      dispose:
+        - id: PQ-1
+          disposition: addressed
+          note: Shared placement, checkout provenance, offline preparation and the deliberate cache boundary are explicit.
+          round: 3
+        - id: PQ-2
+          disposition: addressed
+          note: The canonical table names risky functions with adversarial strategies and mechanical guards.
+          round: 3
+      blocked: false
+content_hash: 5b0e3d54c54d7b260ddaf756fce2678f1f5d2f880098e4ed4b1b46ce545389b7
 ---
 
 # Gate ledger — pair#801 (plan-quality)
@@ -98,6 +152,13 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 
 - PQ-1 — addressed — The revision defines PlaceCandidate and BuildOwned, verified checkout selection, explicit isolated build configuration, permitted shared caches, offline refusal and joined partial-owner cleanup, with Task1 scope and verification extended accordingly.
 - PQ-2 — addressed — The canonical table supersedes earlier case inventories with named risky functions and adversarial strategies guarded by bounded fuzzing, stateful failure injection, generated event sequences and controlled joined IO.
+
+## Round 3 — 2026-10-22T13:58:25-07:00 (codex) — passed
+
+### Disposed
+
+- PQ-1 — addressed — Shared placement, checkout provenance, offline preparation and the deliberate cache boundary are explicit.
+- PQ-2 — addressed — The canonical table names risky functions with adversarial strategies and mechanical guards.
 
 ## Open findings
 
