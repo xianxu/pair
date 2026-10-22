@@ -5,9 +5,9 @@ deps: [pair#752]
 github_issue:
 created: 2026-10-20
 updated: 2026-10-22
-estimate_hours: 15.35
+estimate_hours: 19.23
 collaboration-mode: collaboration
-card_mirror: '49cf8801b3c8ecf67ab36818638d991368fcb6d3' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: 'fd9711bb0656cdceea372c34f0b85147820a41fe' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-21T18:40:37-07:00
 claimant:
     operator: Xian Xu
@@ -275,6 +275,8 @@ Rows18–31 cost the approved changes in order:
 
 The renderer's controlled/native tests are included in rows22/23/30; consumer integration in26; panel and renewed real operator flow in27. No uncosted second test program is hidden in the API-discovery row. Task9's queued suite/operator availability waits are excluded as idle; executing tests/review and qualification are included. Incremental design2.78h +15% and implementation3.76h add6.957h. Whole-issue design6.22h +15% plus implementation8.20h =15.353h, rounded15.35h.
 
+2026-10-22 live-mask re-derivation after Task10 plan-quality CLEAN: retain rows1–31 as completed baseline, append rows32–41 for distinct new work: issue-spec(.20/.08); smaller-go-module Store derivation(.06/.20); smaller-go-module Board projection(.06/.20); cross-cutting-refactor version metadata(.16/.20); greenfield-go-module pure mask/index(.30/.32); api-integration worker and both transports(.40/.40); tui-screen painters/note visibility(.20/.32); atlas-docs(.04/.08); milestone-review renewed full-close correction(0/.20); real-api-discovery native/reconnect qualification(0/.24). Values are discounted design/scaled implementation, from the same table ranges and multipliers above, not remaining-time promises. Component design covers seam/ownership choices; issue-spec covers operator rule and durable acceptance, without recosting earlier designs. Source reuse removes library discovery: existing Store, Board, SSE, private projection and painters cover all IO. Incremental design1.42×1.15 + implementation2.24 =3.873h; total whole-issue19.226h, rounded19.23h. This includes new tests/review/native work and excludes idle queue/operator waits. Earlier codec/inventory rows are one primitive each because they share one variant validator and evidence inventory; their observed work is already retained in the completed baseline, not a claim about the new slice. Calibration remains provisional.
+
 ```estimate
 model: estimate-logic-v3.1
 familiarity: 1.0
@@ -309,8 +311,18 @@ item: atlas-docs design=0.04 impl=0.08
 item: milestone-review design=0 impl=0.2
 item: real-api-discovery design=0 impl=0.24
 item: api-integration design=0.4 impl=0.4
+item: issue-spec design=0.2 impl=0.08
+item: smaller-go-module design=0.06 impl=0.2
+item: smaller-go-module design=0.06 impl=0.2
+item: cross-cutting-refactor design=0.16 impl=0.2
+item: greenfield-go-module design=0.3 impl=0.32
+item: api-integration design=0.4 impl=0.4
+item: tui-screen design=0.2 impl=0.32
+item: atlas-docs design=0.04 impl=0.08
+item: milestone-review design=0 impl=0.2
+item: real-api-discovery design=0 impl=0.24
 design-buffer: 0.15
-total: 15.35
+total: 19.23
 ```
 
 ## Revisions
