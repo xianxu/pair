@@ -1,8 +1,8 @@
 ---
 id: 000753
-status: codecomplete
+status: working
 created: 2026-10-20
-updated: 2026-10-21
+updated: 2026-10-22
 estimate_hours: 8.4
 github_issue:
 started: 2026-10-21T18:40:37-07:00
