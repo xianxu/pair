@@ -5,9 +5,9 @@ deps: []
 github_issue:
 created: 2026-10-22
 updated: 2026-10-22
-estimate_hours:
+estimate_hours: 1.7935
 collaboration-mode: collaboration
-card_mirror: '86950eb171dfc54a50d405413b9aad047be1127f' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: 'c221394b6d2d817dc0cf4a56bdb1f3a44d9b8940' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-22T09:04:04-07:00
 claimant:
     operator: Xian Xu
@@ -16,6 +16,7 @@ claimant:
     workspace: pair:6
     worktree: /Users/xianxu/workspace/worktree/pair-slot6/pair
     repository: github.com/xianxu/pair
+flow: {kind: full, provenance: operator}
 ---
 
 # Zellij empty-reply workaround covers only the launcher; layout queries fail on the same empty list-panes reply (blocks pair#743 CI)
@@ -54,6 +55,29 @@ diagnostic probes remain excluded. Lua consumers are explicitly deferred to
   remaining Lua exclusion and the raw-diagnostic exclusion explicitly.
 - Counted 8/16-read tests, cancellation/collector-error cases, strict malformed
   refusal and no mutation replay pin the shared bound and authority contract.
+
+## Estimate
+
+Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md`
+against `baseline-v3.1.md`, Method A only. Calibration is tagged stale by SDLC;
+hours are provisional. Familiar stack and existing collector/parser/fake libraries
+cover the work; no greenfield library or external API is required. Design for
+the extraction/module/docs uses the thorough-spec 0.2 discount; implementation
+values already use the v3.1 40% scale. Native qualification uses the existing
+installed Zellij and controlled fixture, with discovery at the upper bound.
+
+```estimate
+model: estimate-logic-v3.1
+familiarity: 1.0
+item: issue-spec design=0.5 impl=0.08
+item: cross-cutting-refactor design=0.12 impl=0.2
+item: smaller-go-module design=0.03 impl=0.2
+item: real-api-discovery design=0 impl=0.24
+item: atlas-docs design=0.02 impl=0.08
+item: milestone-review design=0.02 impl=0.2
+design-buffer: 0.15
+total: 1.7935
+```
 
 ## Plan
 
