@@ -195,7 +195,7 @@ func TestWorkbenchPerformanceOwnerPassCountsEveryNativeFence(t *testing.T) {
 	}
 }
 
-func (r *countedAttachRuntime) AttachSessionContext(lifetime, admission context.Context, session, config string) (int, error) {
+func (r *countedAttachRuntime) AttachSessionContext(lifetime, startup, admission context.Context, session, config string) (int, error) {
 	if err := admission.Err(); err != nil {
 		return 1, err
 	}

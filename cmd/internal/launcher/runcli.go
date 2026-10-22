@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/xianxu/pair/cmd/internal/checkpoint"
 	"github.com/xianxu/pair/cmd/internal/lifetimelease"
+	"github.com/xianxu/pair/cmd/internal/startupbudget"
 	"io"
 	"os"
 	"os/exec"
@@ -56,6 +57,8 @@ func LaunchNative(launchArgs []string, pairHome string, stdout, stderr io.Writer
 	expectedDigest := os.Getenv(checkpoint.DigestEnv)
 	_ = os.Unsetenv(checkpoint.DigestEnv)
 	useRepoDefault := consumeRepoDefaultPolicy(os.Getenv, os.Unsetenv)
+	startupRaw, startupProvided := os.LookupEnv(startupbudget.DeadlineEnv)
+	_ = os.Unsetenv(startupbudget.DeadlineEnv)
 	couchIntent := os.Getenv(CouchSessionIntentEnv)
 	_ = os.Unsetenv(CouchSessionIntentEnv)
 	couchProfile := os.Getenv(CouchLaunchProfileEnv)
@@ -72,6 +75,24 @@ func LaunchNative(launchArgs []string, pairHome string, stdout, stderr io.Writer
 	if err != nil {
 		fmt.Fprintln(stderr, "pair: "+err.Error())
 		return 2, nil
+	}
+	var startup context.Context
+	var stopStartup context.CancelFunc
+	if startupProvided {
+		if args.CouchSession == nil {
+			fmt.Fprintln(stderr, "pair: startup deadline requires a selected Couch intent")
+			return 2, nil
+		}
+		deadline, e := startupbudget.Decode(startupRaw)
+		if e == nil {
+			deadline, e = startupbudget.Select(time.Now(), deadline, startupbudget.Default)
+		}
+		if e != nil {
+			fmt.Fprintf(stderr, "pair: startup deadline: %v\n", e)
+			return 2, nil
+		}
+		startup, stopStartup = context.WithDeadline(context.Background(), deadline)
+		defer stopStartup()
 	}
 	if args.CouchSession != nil && args.CouchSession.Disposition == "attach" && couchProfile != "" {
 		fmt.Fprintln(stderr, "pair: couch session attach cannot carry a native launch profile")
@@ -171,6 +192,7 @@ func LaunchNative(launchArgs []string, pairHome string, stdout, stderr io.Writer
 	}
 	opts := newLaunchOptions(args, env, pairHome, dataDir, useRepoDefault, os.Getenv, parkPromptTimeout())
 	opts.startupTiming = timing
+	opts.StartupContext = startup
 	// The slot's lifetime lease, held for as long as this launcher runs its
 	// tree (pair#695 P1). Only under Couch; a failure costs teardown one of its
 	// witnesses, never the session.

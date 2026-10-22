@@ -1,0 +1,24 @@
+=== RUN   TestDisposableCouchFleet
+    fleet_acceptance_test.go:25: native Couch tool git: /usr/bin/git (git version 2.54.0 (Apple Git-157))
+    fleet_acceptance_test.go:25: native Couch tool sdlc: /Users/xianxu/workspace/ariadne/bin/sdlc (sdlc version path=/Users/xianxu/workspace/ariadne/bin/sdlc revision=891ba3f81f67690364507cf4030a71c60ee681e4 modified=false)
+    fleet_acceptance_test.go:25: native Couch tool weave: /Users/xianxu/workspace/ariadne/bin/weave (weave version dev)
+    fleet_acceptance_test.go:25: native Couch tool zellij: /opt/homebrew/Cellar/zellij/0.45.1/bin/zellij (zellij 0.45.1)
+    fleet_acceptance_test.go:25: native Couch tool nvim: /opt/homebrew/opt/nvim-0.11/bin/nvim (NVIM v0.11.7)
+    fleet_acceptance_test.go:25: native Couch candidates: source=/Users/xianxu/workspace/worktree/pair-slot7/pair head=88f7326491b1daf012aebee461df8f39f1b9184f dir=/Volumes/TestScratch/couch-fleet-binaries-1146833729
+=== RUN   TestDisposableCouchFleet/claude
+    fleet_acceptance_test.go:29: native fleet isolation: root=/Volumes/TestScratch/pc-290355749 run=5df8b0ba8bce97fc388a6f843f4a144f agent=claude workers=3
+    fleet_acceptance_test.go:68: native cohort: agent=claude steward=fixture:0 workers=fixture:1,fixture:2,fixture:3 elapsed=48.552031917s
+    fleet_acceptance_test.go:128: native delivery: receipt=ecb2017f-ba56-4fa3-9991-114a84e550f8 status=submitted recipient=fixture:1 accepted_body="shared-native-fleet-ordinary-message-claude" elapsed=49.721959042s
+    fleet_acceptance_test.go:147: native detach/restart: all four actors returned elapsed=59.652086084s
+    fleet.go:460: native fleet cleaned: root=/Volumes/TestScratch/pc-290355749 all owned generations absent; direct child and IO joined
+=== RUN   TestDisposableCouchFleet/codex
+    fleet_acceptance_test.go:29: native fleet isolation: root=/Volumes/TestScratch/pc-1198301025 run=1274088468adb9c0a94b4fd5b7b2d605 agent=codex workers=3
+    fleet_acceptance_test.go:68: native cohort: agent=codex steward=fixture:0 workers=fixture:1,fixture:2,fixture:3 elapsed=42.958228625s
+    fleet_acceptance_test.go:128: native delivery: receipt=0eb0c846-bd76-4bcb-8297-0f150c6d80f7 status=submitted recipient=fixture:1 accepted_body="shared-native-fleet-ordinary-message-codex" elapsed=44.119660791s
+    fleet_acceptance_test.go:147: native detach/restart: all four actors returned elapsed=52.306506291s
+    fleet.go:460: native fleet cleaned: root=/Volumes/TestScratch/pc-1198301025 all owned generations absent; direct child and IO joined
+--- PASS: TestDisposableCouchFleet (131.25s)
+    --- PASS: TestDisposableCouchFleet/claude (65.30s)
+    --- PASS: TestDisposableCouchFleet/codex (57.28s)
+PASS
+ok  	github.com/xianxu/pair/cmd/couch	131.441s

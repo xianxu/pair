@@ -225,6 +225,22 @@ and shell protocol correctness are outside its scope. Other commands and helpers
 are unaffected. Public scribe's generic-command exposure is tracked separately
 in #768; this fixture rule does not claim a production launch-policy fix.
 
+## Startup admission budget (#773)
+
+The Pair-local `startup-admission-budget` rule in
+`internal/repolint/local_catalog_test.go` protects launcher's probe-only
+`birthBound` from reuse as a terminal admission deadline. It rejects that direct
+identifier in the budget argument of `coordinateTerminalHandoff`,
+`CoordinateTerminalHandoff` and `context.WithTimeout` (including parentheses
+and explicit aliases of the standard context import). Birth watches, watched
+launches, diagnostics, other packages and unrelated bounds remain allowed.
+
+`TestStartupAdmissionBudgetRule` qualifies this through the ordinary composed
+repository scanner. This is a narrow syntax guard: it does not resolve shadowed
+symbols, local bound aliases, computed/conversion expressions, function values
+or arbitrary dataflow. Runtime startup-deadline propagation is independently
+qualified at the production boundaries; the rule does not replace those tests.
+
 ## Manual-clock delivery proof (#771)
 
 The Pair-local `manual-clock-rendezvous` rule is registered in

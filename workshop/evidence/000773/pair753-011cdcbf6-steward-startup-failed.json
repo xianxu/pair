@@ -1,0 +1,16 @@
+{
+  "version": 1,
+  "source_head": "011cdcbf62d9169e63ce509ee976bbf98bb72548",
+  "source_issue": "pair#753",
+  "peer_receipt": "60e2009a-ae24-4c44-982f-631709a89747",
+  "log": "pair753-011cdcbf6-steward-startup-failed.log",
+  "sha256": "29dec23f55757b4c79970db1033143a6bbf21053763b394d919d82c2b27c43b0",
+  "classification": "related startup failure; root cause unclassified",
+  "observations": [
+    "Claude cohort, ordinary delivery and detach/restart passed",
+    "Codex steward startup exceeded context; agent-ready and wrapper startup records absent",
+    "All owned generations absent; direct child and IO joined"
+  ],
+  "retry": false,
+  "timeout_increase": false
+}

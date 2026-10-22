@@ -676,6 +676,12 @@ var SourceClassifications = []SourceClassification{
 // the artifact namespace requires an explicit SourceClassification.
 // pair:m5-concept pure
 var NonArtifactSources = []string{
+	// #773 carries deadlines and progress through existing launch owners;
+	// these helpers neither name nor construct Pair artifact files.
+	"cmd/internal/couchcore/startup_budget.go",
+	"cmd/internal/couchcore/startup_progress.go",
+	"cmd/internal/launcher/startup_budget.go",
+	"cmd/internal/startupbudget/budget.go",
 	// #758 endpoint model and native editor transport name no Pair artifact paths.
 	"cmd/internal/editorendpoint/model.go",
 	"cmd/internal/editorendpoint/state.go",
