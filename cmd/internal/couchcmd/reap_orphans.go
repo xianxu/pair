@@ -334,11 +334,10 @@ func provenOrphanAdmission(view couchcore.ResourceView) ([]couchcore.ProvenOrpha
 	for _, t := range targets {
 		eligible[t.Key] = true
 	}
-	protected := map[int]bool{}
+	protected := resourceOrphanPIDs(view.Orphans)
 	seen := map[couchcore.ResourceProcessKey]bool{}
 	var refused []provenOrphanReapOutcome
 	for _, row := range view.Orphans {
-		protected[row.Key.PID] = true
 		if eligible[row.Key] || seen[row.Key] {
 			continue
 		}

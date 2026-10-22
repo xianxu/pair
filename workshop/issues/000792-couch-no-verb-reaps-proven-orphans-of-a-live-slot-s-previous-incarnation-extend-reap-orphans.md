@@ -126,6 +126,16 @@ Both focused native commands passed again on final coverage commit7181ed56f2a494
 
 Native acceptance, negative authority/identity cases, composed CLI reporting, operation counters, documentation, artifact inventory and reader audit are complete. The last issue Plan row remains unchecked solely because required recorded verification has not yet passed; queue it after this durable evidence checkpoint. Any permitted close-review overlap must preserve that pending status and cannot authorize landing before the exact-source recorded pass.
 
+### 2026-10-22 — close round1 REWORK; projection boundary
+
+Boundary review round1 returned Critical BR-1, family incomplete-evidence-must-not-widen-authority: independent response projection can omit an orphan row while retaining its overlapping legacy row, bypassing exact admission. Verified the dataflow: the sampler projects its cached view, then the confirmed service response projects again; a service-only filter would therefore be too late. Root fix belongs before the first lossy projection and covers both legacy families against all full-view orphan PIDs, including incomplete witnesses. The durable plan adds this refinement without new state/protocol/bounds. Mandatory review is not finalized; issue stays working.
+
+Canceled only owned queued suite lease-3281852616 ondfd00c60 via sdlc after the source became superseded. The retained runner exited context-canceled before capacity; no suite executed. There is no recorded passing suite and no active landing runner. Reproduce BR-1 with a projection-to-CLI red test, then repair, requalify and queue the corrected head.
+
+BR-1 red evidence: all four projected CLI cases (LeftRunning/OrphanNvim, complete/incomplete omitted witness) signalled both the old PID11 and current descendantPID12, then falsely reported reaped. The correction filters both legacy sections using every complete-view orphan PID at the common projection entry, before either section is bounded; the CLI shares that protected-PID helper. This covers both cached sampler and final-response projections. No frame/deadline/output cap changed. The transport-capacity fixture now uses genuinely unrelated nvim PIDs so it still proves legacy section retention.
+
+Projection-to-CLI regressions, repeated projection, conservative incomplete/changed-identity overlap, unrelated legacy retention and source immutability all pass in the combined race selection2.364s. Reader audit and diff check pass. Re-run final focused native acceptance and the required recorded suite on this corrected source, then full close (round1 REWORK was not a finalized close).
+
 ## Estimate
 
 Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md` against `baseline-v3.1.md`. Method A only. The source is marked stale by estimate-source; this is a provisional calibration, not a fitted total.
