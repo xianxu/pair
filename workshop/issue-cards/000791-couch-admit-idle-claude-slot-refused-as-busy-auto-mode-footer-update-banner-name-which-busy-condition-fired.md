@@ -15,6 +15,6 @@ claimant:
     repository: github.com/xianxu/pair
 ---
 
-# Couch admit: idle Claude slot refused as busy (auto-mode footer / update banner?); name which busy condition fired
+# Couch delivery: capture delayed refusal evidence
 
 ## Problem
