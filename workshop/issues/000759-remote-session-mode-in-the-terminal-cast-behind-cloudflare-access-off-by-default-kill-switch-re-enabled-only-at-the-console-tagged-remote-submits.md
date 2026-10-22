@@ -336,3 +336,10 @@ Regression RED under race: actual supervisor killed-opening sequence lost cleanu
 
 
 Final BR-8 correction qualification PASS: complete broadcast race194.955s and complete remotesession race12.093s; console/CLI remote boundary race2.237s/2.186s; full catalog18.311s/artifactpath21.482s; staged reader inventory --check PASS after re-auditing protected fixture inputs. Test resources joined; no recorded suite remains active (all superseded queued runs were canceled exactly, without test execution). Authenticated TL345bfc6c lifted the renewed DNS hold; publish this correction and resume the mandatory M2 review/recorded check. No milestone completion claimed.
+
+
+### 2026-10-21 — M2 finalized SHIP, recorded suite retained
+
+Mandatory M2 review round4 disposed Critical BR-8 addressed, independently reproduced its RED controls, and reported no new findings. Binary finalized M2 SHIP and committed/pushed evidence c1e73a5cbd9c. Prior BR-5/6/7 are disposed. This is the approved protected exposure/lifecycle/session boundary, not whole-issue completion or public editor acceptance.
+
+Retain exactly one recorded suite on corrected production head752d2c38 (attempt4c2a155c0f28ad76da8594b7c7d6afe0, run lease-4257384631), terminal session93845. It remains queued normally; no passing full-suite result claimed. The close and this documentation are code-identical descendants, so do not cancel the queued run for a docs-only head move. Review runner82837 exited successfully. No native fixture remains. M3 document dispatch/audit handoff, broker/receipt/transcript provenance and operator-assisted Access/phone acceptance remain outstanding. The real nvim drill follows #758 integration as approved. No public tunnel/account/network change or live deployment occurred.

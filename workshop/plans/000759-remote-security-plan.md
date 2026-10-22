@@ -107,10 +107,10 @@ The reducer owns legal transitions; policy decides identity, origin and bounds f
 | Audit | `cmd/internal/remotesession/audit.go` | delivered M1 | metadata append, durability, rotation/retention |
 | AccessVerifier / accessKeys | `cmd/internal/remotesession/access.go` / `access_keys.go` respectively | delivered M1 | JWT library, bounded HTTPS JWKS |
 | DocumentBackend, admissionGate, Permit | `cmd/internal/remotesession/documents.go` | delivered M1 seam | typed adapter interface and synchronized one-use effect handoff; stateful private backend only |
-| Supervisor / remoteEpoch | `cmd/internal/remotesession/supervisor.go` | M2 implemented, qualification pending | lifecycle effects, ordered persistent writes, sessions, joined requests |
-| RemoteServer | `cmd/internal/remotesession/server.go` | M2 security surface implemented; M3 document routes pending | protected HTTP, signed Access, bounded request lanes, cookies/CSRF |
-| ProtectedTunnel / protected Host; remote configuration | `cmd/internal/broadcast/protected.go`, `cloudflared.go`, `host.go`; `couchcmd/remote.go` | M2 implemented, qualification pending | existing cloudflared handle/guard/lock, strict remote config |
-| Console remote control / remoteConsoleView | `cmd/internal/couchtty/console_remote_session.go`, `terminal_input.go`, `console.go` | M2 implemented, qualification pending | local decoded key event, status and operator-only link/QR |
+| Supervisor / remoteEpoch | `cmd/internal/remotesession/supervisor.go` | M2 reviewed SHIP | lifecycle effects, ordered persistent writes, sessions, joined requests |
+| RemoteServer | `cmd/internal/remotesession/server.go` | M2 security surface reviewed SHIP; M3 document routes pending | protected HTTP, signed Access, bounded request lanes, cookies/CSRF |
+| ProtectedTunnel / protected Host; remote configuration | `cmd/internal/broadcast/protected.go`, `cloudflared.go`, `host.go`; `couchcmd/remote.go` | M2 reviewed SHIP | existing cloudflared handle/guard/lock, strict remote config |
+| Console remote control / remoteConsoleView | `cmd/internal/couchtty/console_remote_session.go`, `terminal_input.go`, `console.go` | M2 reviewed SHIP | local decoded key event, status and operator-only link/QR |
 | Trusted remote submit | `cmd/internal/couchcmd/remote_submit.go`, `couchmessage/broker.go` | planned M3 addition/modification | broker, receipt, batching and delivery accounting |
 
 Effects receive the pure transition's attempt/epoch identity and return typed outcomes. Store, issuer, clock, tunnel and document adapter are replaceable with portable private-root stateful backends. Reuse FakeTunnel and guarded cleanup; add fake JWKS rotation and fake document revisions/held operations, not function-call-only mocks.
@@ -239,7 +239,7 @@ Files: `broadcast/cloudflared.go`, `host.go` and tests; new `couchcmd/remote.go`
 - [x] Implement the matchRemoteConsoleReset function-strategy row as pair-local catalog rule remote-console-reset, citing #759.
 - [x] Complete the ReduceRemote and Store lifecycle/session sequence strategies against the integrated exposure owner, including counted8/16 open/close controls; Supervisor.Dispatch and audit-handoff strategies qualify in M3.
 - [x] Run targeted remote/broadcast/couchtty/couchcmd/wrapcmd tests plus relevant race tests, update README/atlas/CLI help and commit the local M2 qualification checkpoint.
-- [ ] Milestone-close M2 after the hub lifts the DNS/push hold; mandatory fresh review remains outstanding.
+- [x] Milestone-close M2 after the hub lifts the DNS/push hold; mandatory fresh review finalized SHIP, with BR-5/6/7/8 disposed.
 
 ### M3 — Trusted submits, document integration and acceptance
 
