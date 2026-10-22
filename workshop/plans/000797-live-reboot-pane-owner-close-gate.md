@@ -300,6 +300,117 @@ rounds:
       isolation: fenced
       reviewed: 716e5f77d63ecceb0121a3dd796f203722959e7b
       blocked: false
+    - reviewer_runs:
+        - version: 1
+          intent:
+            disposable_root: true
+            id: 83713e1a-28d4-4c36-a4f5-4b3135a891e5
+            repository: github.com/xianxu/pair
+            issue_id: "000797"
+            recipe: fix-review
+            round: 4
+            attempt: 1
+            agent: codex
+            root: /Volumes/TestScratch/review-checkouts/d5e8cbd70e024f9a
+            reviewed_head: ceda3da54a7bd9577dfd529da9d8f89995715053
+            slot: pair:2
+            requested_at: "2026-10-22T17:50:50.384044Z"
+          phase: finished
+          pid: 65688
+          started_at: "2026-10-22T17:50:50.497403Z"
+          finished_at: "2026-10-22T17:52:06.161962Z"
+          session_id: 01a164bc-b45c-7d73-81a2-d437edf39eff
+          outcome: returned
+      actual_inputs:
+        version: 1
+        method: active-time-v3-engagement-v1
+        repository: github.com/xianxu/pair
+        code_head: ceda3da54a7bd9577dfd529da9d8f89995715053
+        tracker_head: 9a44cb8887ac51b83c5ecb39f64b96529b8f8223
+        branch_point: 5dd027f15ac0f24f76b2c1188043642f71822f97
+        since: "2026-10-22T09:32:31-07:00"
+        until: "2026-10-22T10:49:31-07:00"
+        brain_root: /Users/xianxu/workspace/brain
+        gap_minutes: 15
+        commit_weight: 1
+        include_assistant: true
+        engagements:
+            - start: "2026-10-22T09:32:31-07:00"
+              end: "2026-10-22T10:49:31-07:00"
+              began: "2026-10-22T09:32:31-07:00"
+              roots:
+                - /Users/xianxu/workspace/worktree/pair-slot2/pair
+        sources:
+            - harness: codex
+              id: 01a15a8b-89c9-7e02-a733-8b52dd00ebac
+              slot: pair:2
+              cwd: /Users/xianxu/workspace/worktree/pair-slot2/pair
+              digest: a59ba841221bff1cbb96b2cc524e29196ea07b745e89b8f4b718b4d14a3c7589
+              started: "2026-10-20T18:21:51.812Z"
+              spawned: false
+              bytes: 59284395
+              windows:
+                - start: "2026-10-22T09:32:31-07:00"
+                  end: "2026-10-22T10:49:31-07:00"
+            - harness: codex
+              id: 01a16475-3ba3-7181-bc0e-60d420d8d5c8
+              slot: pair:2
+              cwd: /Users/xianxu/workspace/worktree/pair-slot2/pair
+              parent_id: 01a15a8b-89c9-7e02-a733-8b52dd00ebac
+              digest: 83c40badc1c8621551866f62f081a7143ca7010caf3553e5e2c0992b87cc9c76
+              started: "2026-10-22T16:32:47.212Z"
+              spawned: true
+              bytes: 2122032
+              windows:
+                - start: "2026-10-22T16:32:47.212Z"
+                  end: "2026-10-22T10:49:31-07:00"
+            - harness: codex
+              id: 01a1647d-d249-7852-951b-5c6fd3dbfa1f
+              slot: pair:2
+              cwd: /Users/xianxu/workspace/worktree/pair-slot2/pair
+              parent_id: 01a15a8b-89c9-7e02-a733-8b52dd00ebac
+              digest: 1965ce1ce85f43d1de7e301321783f46e2a23ff86ba03d7c483b1a593ebbd095
+              started: "2026-10-22T16:42:10.056Z"
+              spawned: true
+              bytes: 2133405
+              windows:
+                - start: "2026-10-22T16:42:10.056Z"
+                  end: "2026-10-22T10:49:31-07:00"
+        cuts:
+            - dispatched: "2026-10-22T10:11:51-07:00"
+              finalized: "2026-10-22T10:21:59-07:00"
+              finalizing: false
+            - dispatched: "2026-10-22T10:31:28-07:00"
+              finalized: "2026-10-22T10:33:54-07:00"
+              finalizing: false
+            - dispatched: "2026-10-22T10:39:35-07:00"
+              finalized: "2026-10-22T10:43:19-07:00"
+              finalizing: true
+      "n": 4
+      timestamp: "2026-10-22T10:52:07-07:00"
+      dispatched: "2026-10-22T10:50:48-07:00"
+      agent: codex
+      reviewer: codex (openai; author openai)
+      dispose:
+        - id: BR-1
+          disposition: addressed
+          note: 'Preserved: the plan still separates immutable RecoveryTerminalPlan data from the INTEGRATION checkConfirmed validator; this interdiff does not alter that classification or implementation.'
+          round: 4
+        - id: BR-2
+          disposition: addressed
+          note: 'Preserved: this interdiff changes neither production reboot behavior nor native acceptance assertions. The previously finalized native acceptance disposition is not reopened.'
+          round: 4
+      findings:
+        - kind: defect
+          id: BR-3
+          severity: Critical
+          title: Scope changed after close — run a full sdlc close
+          detail: 'workshop/plans/000797-live-reboot-pane-owner-plan.md:147-149 adds a self-found isolation workstream, implemented as a new executable quit-trigger-private-home catalog rule at internal/repolint/local_catalog_test.go:15-19. Neither prior finding requested this behavior. Under the explicit fix-review scope rule, this addition requires a full sdlc close; the narrow review cannot authorize it. ARCH-PURPOSE: validate the expanded deliverable through the full boundary.'
+          family: post-close-scope-change
+          round: 4
+      recipe: fix-review
+      isolation: fenced
+      blocked: true
 ---
 
 # Gate ledger — pair#797 (boundary-review)
@@ -330,6 +441,18 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - BR-1 — addressed — Plan lines 40 and 48 correctly separate immutable RecoveryTerminalPlan data from INTEGRATION checkConfirmed; the revision at line 137 matches the readiness-file IO in recovery_terminal_confirmed.go:278-291. This is a prose-only correction.
 - BR-2 — addressed — On pinned head 716e5f77, the exact Codex acceptance command passed in 51.871s: confirmation succeeded, old generation 70179/1792690846.889015 disappeared, replacement 80421/1792690861.235185 accepted delivery, and cleanup confirmed all owned generations absent with child and IO joined. Claude independently passed in 58.382s. Verified all three retained transcript hashes against the tracker. The round-2 capture refusal matches the unchanged identity-comparison guard at recovery_evidence_os.go:104-125; its unchanged/changed-file regression passed. The original replacement-start disconnect remains explicitly unclassified, rather than represented as fixed.
 
+## Round 4 — 2026-10-22T10:52:07-07:00 (codex) — BLOCKED
+
+### Disposed
+
+- BR-1 — addressed — Preserved: the plan still separates immutable RecoveryTerminalPlan data from the INTEGRATION checkConfirmed validator; this interdiff does not alter that classification or implementation.
+- BR-2 — addressed — Preserved: this interdiff changes neither production reboot behavior nor native acceptance assertions. The previously finalized native acceptance disposition is not reopened.
+
+### Raised
+
+- **BR-3** [Critical] `post-close-scope-change` (kind: defect) Scope changed after close — run a full sdlc close
+  workshop/plans/000797-live-reboot-pane-owner-plan.md:147-149 adds a self-found isolation workstream, implemented as a new executable quit-trigger-private-home catalog rule at internal/repolint/local_catalog_test.go:15-19. Neither prior finding requested this behavior. Under the explicit fix-review scope rule, this addition requires a full sdlc close; the narrow review cannot authorize it. ARCH-PURPOSE: validate the expanded deliverable through the full boundary.
+
 ## Open findings
 
-(none — every finding has been disposed)
+- **BR-3** [Critical] `post-close-scope-change` (kind: defect) Scope changed after close — run a full sdlc close

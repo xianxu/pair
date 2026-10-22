@@ -2635,3 +2635,5 @@ and external temporary roots rather than relying on the host's TMPDIR.
 - #797 BR-1: Separate immutable authorization data from its validator in core-concept tables. Trace every validator's injected readers before calling it PURE; a readiness-file reader remains IO even when the surrounding comparison uses a captured process snapshot.
 
 - #797: A private Pair DataDir does not isolate compatibility quit markers: TriggerQuit/TriggerBoundQuit writes through HOME/.cache/pair. In-process quit-trigger tests must isolate HOME as well as thread storage, including refusal cases that may acquire effects after future changes.
+
+- #797 BR-3: A post-close repair that adds a new executable lint policy expands the deliverable, even when production is unchanged. Use a full close review for that addition; narrow fix-review only covers repairs within its prior scope.

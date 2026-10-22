@@ -147,3 +147,7 @@ Per TL513c014e-0e54-4c8a-986a-76a5008a2f19, one focused trace distinguishes a ch
 ### 2026-10-22 — Self-found test isolation repair after SHIP
 
 The direct caller regression passed a private checker DataDir but omitted private HOME for TriggerBoundQuit's compatibility quit marker. Isolate HOME and defend direct in-process quit-trigger test calls with the existing Pair lint catalog, sweeping refusal-only callers too. This is executable-test isolation only; production ownership/quiescence and native acceptance assertions remain unchanged. Cancel the now-obsolete queued source check, publish the corrected test head, run a fresh recorded check, and narrow re-close before merge.
+
+### 2026-10-22 — Full review required for lint-policy addition
+
+The fix-review confirms the HOME repairs and rule tests but treats the new executable lint policy as expanded scope outside its narrow authorization. Run full sdlc close on the expanded head; this supersedes the prior revision's narrow re-close instruction. Production/native acceptance code is unchanged, and the already-queued corrected-source suite remains valid. No gate bypass or another suite restart.

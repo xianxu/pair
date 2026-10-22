@@ -260,3 +260,96 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000411
+
+---
+
+## Re-review — 2026-10-22T10:52:06-07:00 (REWORK)
+
+| field | value |
+|-------|-------|
+| issue | 797 — Live reboot refuses owned pane as ambiguous |
+| repo | pair |
+| issue file | workshop/issues/000797-live-reboot-pane-owner.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 08d06fbc8ba368e54c338b72ed4ac23d691cb947..ceda3da54a7bd9577dfd529da9d8f89995715053 |
+| command | sdlc close --issue 797 |
+| reviewer | codex (openai; author openai) |
+| isolation | fenced |
+| timestamp | 2026-10-22T10:52:06-07:00 |
+| verdict | REWORK |
+
+## Review
+
+```verdict
+verdict: REWORK
+confidence: high
+```
+
+The focused tests pass, and the HOME isolation changes are sensible. However, this interdiff introduces a new executable lint policy unrelated to either prior finding and expands the plan accordingly. The explicit fix-review contract requires a full `sdlc close` for that scope change.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      Preserved: the plan still separates immutable RecoveryTerminalPlan data from the INTEGRATION checkConfirmed validator; this interdiff does not alter that classification or implementation.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      Preserved: this interdiff changes neither production reboot behavior nor native acceptance assertions. The previously finalized native acceptance disposition is not reopened.
+findings:
+  - id: new
+    severity: Critical
+    kind: defect
+    family: post-close-scope-change
+    title: |
+      Scope changed after close — run a full sdlc close
+    detail: |
+      workshop/plans/000797-live-reboot-pane-owner-plan.md:147-149 adds a self-found isolation workstream, implemented as a new executable quit-trigger-private-home catalog rule at internal/repolint/local_catalog_test.go:15-19. Neither prior finding requested this behavior. Under the explicit fix-review scope rule, this addition requires a full sdlc close; the narrow review cannot authorize it. ARCH-PURPOSE: validate the expanded deliverable through the full boundary.
+```
+
+1. **Strengths**
+
+   - Both changed Couch tests establish private HOME before reaching quit-trigger calls.
+   - The new lint matcher is pure AST analysis, with direct fixtures covering ordering, nested subtests, overwritten variables and HOME resets.
+   - `atlas/go-lint-catalog.md` documents the rule and its analysis limits.
+
+2. **Critical findings**
+
+   - **Scope expansion:** [plan:147](/Volumes/TestScratch/review-checkouts/d5e8cbd70e024f9a/workshop/plans/000797-live-reboot-pane-owner-plan.md:147). Run a full `sdlc close` against the expanded head.
+
+3. **Important findings:** None.
+
+4. **Minor findings:** None.
+
+5. **Test coverage notes**
+
+   Passed `go test ./internal/repolint` and both modified Couch tests. Native acceptance was not rerun because its implementation and assertions are outside this interdiff.
+
+6. **Architectural notes**
+
+   - **ARCH-DRY — pass:** rule registration reuses the existing catalog.
+   - **ARCH-PURE — pass:** matching logic operates directly on AST data.
+   - **ARCH-PURPOSE — flag:** the expanded deliverable requires full boundary review.
+   - **ARCH-EVOLVE — pass:** no persisted-format semantics change.
+
+   Atlas coverage accompanies the new internal rule. No new user command, flag or configuration key requires a README update.
+
+7. **Plan revision recommendations**
+
+   Update the new revision’s “narrow re-close” instruction to require a full `sdlc close` covering the added lint policy and isolation work.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"83713e1a-28d4-4c36-a4f5-4b3135a891e5","repository":"github.com/xianxu/pair","issue_id":"000797","recipe":"fix-review","round":4,"attempt":1,"agent":"codex","root":"/Volumes/TestScratch/review-checkouts/d5e8cbd70e024f9a","reviewed_head":"ceda3da54a7bd9577dfd529da9d8f89995715053","slot":"pair:2","requested_at":"2026-10-22T17:50:50.384044Z"},"phase":"finished","pid":65688,"started_at":"2026-10-22T17:50:50.497403Z","finished_at":"2026-10-22T17:52:06.161962Z","session_id":"01a164bc-b45c-7d73-81a2-d437edf39eff","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 2.265952667s
+head: "ceda3da54a7bd9577dfd529da9d8f89995715053"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412
