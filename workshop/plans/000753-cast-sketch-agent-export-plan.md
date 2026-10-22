@@ -366,3 +366,51 @@ Each task is a coherent TDD slice with a narrow commit; plain checkboxes, one fi
 ### 2026-10-22 — BR-8/9 close correction: original identity and consumer guidance
 
 Shared historical projection requires the connected original recorded node. The existing createPlacement adapter accepts originalOnly:true for this caller; prepareHistoricalPageInk wires it into every chosen path before painting. Default live annotation matching retains its existing replacement behavior. Missing/disconnected, hidden, conflicting and wrong-document/tab originals refuse the whole image, with connected-original controls and an actual Renderer adapter regression plus native replacement-record replay. This fulfills the already-approved unprojectable-ink refusal, without changing batching, permissions, replay versions or timeout budgets (ARCH-PURPOSE/ARCH-SECURE). Agent handoff guidance names the shared sketch_page/sketch-page.png/index/paths form and the immutable legacy image.plan.paths form, full-page privacy and oldest compatible batching; the Lua emitted prompt is verified through the real Neovim transaction tests.
+
+### 2026-10-22 — approved painting-only submitted-feedback mask
+
+Authority: TLc78d3900 approves this revision after the operator accepted the indexed full-page image. Supersedes every earlier live ink-stays clause; source/recording/replay semantics remain unchanged. Existing conditional annotation resolution stays, while the live mask also hides confirmed exact notes when resolution waits. #808 toolbar work is excluded. No new recording event or persistent acknowledgment owner (ARCH-DRY/ARCH-PURPOSE/ARCH-EVOLVE).
+
+#### Core concepts and seams for this revision
+
+| Name | Lives in | Status | Kind |
+|------|----------|--------|------|
+| DeliveredFeedback (exact sketch keys and note revisions) | cmd/internal/submission/store.go or dedicated delivered_feedback.go | new | PURE value, derived only from existing manifests |
+| LiveFeedbackMask (scope, revision, exact current keys) | cmd/internal/webcast/board/feedback_display.go | new | PURE wire value; no vectors |
+| createFeedbackMask / exact sketchVisible and noteVisible | cmd/internal/webcast/web/feedback-mask.js | new | PURE bounded parse/index/match |
+| SketchMetadata digest / display version metadata | recording/sketch_state.go, web/sketch-model.js, board/sketch_delivery.go, web/sketch-render.js | modified | PURE metadata, no event/snapshot schema change |
+| Store.DeliveredFeedbackVersions | cmd/internal/submission/delivered_feedback.go | new | INTEGRATION Store scan/confirmation; existing fake fsync seam |
+| Board.SetDeliveredFeedback, FeedbackMask, SubscribeFeedbackMask | cmd/internal/webcast/board/feedback_display.go | new | INTEGRATION existing Board lock/subscriptions; derived bounded cache |
+| Cast.SetDeliveredFeedback / manager refresh | cast_submission_candidates.go and couchtty/console_submission_preview.go | modified | INTEGRATION existing preview worker/Store/Board; stateful fake cast |
+| OperatorView + viewer SSE mask delivery | board/operator_view.go and server.go | modified | INTEGRATION existing delivery workers/stream; no new goroutine |
+| Live painters and note projections | operator.js, operator-sketch.js, web/viewer.js, web/sketch.js, web/annotate.js | modified | INTEGRATION shared pure mask predicate; existing browser fixture/native harness |
+
+Store.DeliveredSketchVersions remains compatible, deriving through one scan implementation. DeliveredFeedbackVersions confirms only dispatched/resolved bundles; includes annotation-only bundles and exact note revisions. No duplicate directory scan per refresh. Board receives converted exact keys through Cast, matches current candidates/notes under its existing lock, and keeps only current identities (at most existing sketch/note authority bounds). Later sequence/revision changes cannot equal an older key. No recorded mutation or event is emitted by setting a mask. Board selection excludes exact masked notes, so an annotation-off resolution wait cannot reoffer already-delivered feedback; sketch suppression remains the established selector. Empty/no-op updates do not advance revisions or notify subscribers. Board teardown closes subscriptions; mask dies with the cast and is rederived on attach/reconnect from the Store, without a sidecar.
+
+The existing preview worker loads confirmed deliveries independently of private-host availability, then applies under manager→Board lock order only while that run/delivery generation remains current. A lookup/confirmation error retains the prior confirmed mask, invalidates preparation and shows existing unavailable feedback; no uncertain delivery is newly hidden. A successful ACK invalidates the cache through existing submissionDeliveredLocked; duplicate ACK is safe. Cast replacement joins the old worker before installing a new one. Re-read selection after applying the mask before building the acknowledged preview. No detached task or timer changes (ARCH-ORDER/ARCH-FUNERAL).
+
+Console receives a full mask in its existing acknowledged OperatorView; viewer gets a separate live-stream feedback event with an initial/current full mask and coalesced updates. This is transport-only display metadata, never a recording record. Stream identity plus mask scope/revision fence stale callbacks; reconnect/catchup retains the current mask for that stream, and a replacement stream replaces its scope. Historical replay has no feedback publisher/hook. The pure JS mask matches exact sequence+digest and revision, not only IDs; metadata adds constant-size last accepted digest/next sequence (computed from the last ordered receipt in Go, maintained in the JS reducer on commit/restore). Console private sketch bootstrap and incremental headers carry that same version. Missing version metadata never hides a path. Shared paint filtering leaves display paths/point offsets and all reducer data intact; it triggers full canvas invalidation on mask change, and note pins/list/dialog redraw. Preview thumbnails retain their own unfiltered source and exact selector.
+
+Actions: submit, confirm existing receipt, draw/edit new feedback, reconnect.
+
+| Internal state / failure mode | Visible state | Recovery action | Possible loss |
+|---|---|---|---|
+| prepared/delivering/unknown ACK | feedback and ink remain | confirm existing receipt | none; never substitute a new send |
+| confirmed dispatched/resolved exact version | exact submitted ink/pins absent live; panel advances | draw new feedback | only live display visibility; history retained |
+| confirmed old version, newer sequence/revision | newer feedback visible and sendable | submit new version | none |
+| partial/incompatible batch | only confirmed selected batch absent | submit remaining feedback | none |
+| display delivery lost/reconnect | current full mask reinstalled; vectors retained | reconnect | none; no recorded clear |
+| Store confirmation/load fails | keep prior confirmed display, preparation unavailable | confirm existing receipt after recovery | no new hiding |
+| replay/history/export | historical ink remains | normal replay/query | none |
+
+Hot path: one existing bounded Store scan per delivered generation, not per event/paint. Mask installation indexes D delivered keys and visits C current sketch/note headers once O(D+C), no points/receipts replay; counted N/2N tests enforce visit counts. Wire size is bounded by current sketches and existing notes capacity. JS mask parse/index O(M) per update, O(1) version lookup per sketch path/note during existing painting; sketch digest metadata O(1) per event/restore receipt. No extra per-point work or background worker (ARCH-CONSTRAINTS/ARCH-PURE).
+
+#### Task10 — execute the approved mask revision (single full-close boundary)
+
+- [ ] TDD Store derivation: only confirmed delivery, notes-only/mixed, uncertain fsync/duplicate ACK, cross-target exact versions; preserve existing DeliveredSketchVersions API.
+- [ ] TDD Board derived mask: current-version matching, deep ownership, no-op notifications, stale versions/newer changes, selective batches, selection excludes masked notes, no record writes; scope/revision/subscriber teardown; counted N/2N header visits.
+- [ ] TDD pure JS exact-mask parser and shared metadata: wrong digest/sequence/revision never hides, malformed/stale mask atomic refusal, optional legacy display metadata safe; bootstrap and incremental equivalence without point rescans.
+- [ ] Wire worker/manager/Cast and both live transports; test ACK/unknown/lost-host/reconnect/cast replacement through stateful fakes, initial full snapshot, stale stream rejection and recorded-history preservation.
+- [ ] Wire live painters and annotation projections: mask change removes old canvas pixels, selected only, unsent/newer visible, replay unaffected; real native console/viewer/reconnect conformance.
+- [ ] Update actual atlas/README/agent handoff guidance to live-hide/history-retain behavior, preserve old revisions as history; inventory, affected targeted/race/browser/Neovim checks, final recorded suite and full close on revised contract.
+- [ ] Restage only on hub go, quick operator re-look after confirmed send (selected gone, remaining visible, historical ink retained), then supported merge after recorded pass and acceptance.

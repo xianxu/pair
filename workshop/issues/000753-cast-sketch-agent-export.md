@@ -1,13 +1,13 @@
 ---
 id: 000753
-status: codecomplete
+status: working
 deps: [pair#752]
 github_issue:
 created: 2026-10-20
 updated: 2026-10-22
 estimate_hours: 15.35
 collaboration-mode: collaboration
-card_mirror: 'ccae1ba616da4bbf7e31d9ffed467d68fe291cb4' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '49cf8801b3c8ecf67ab36818638d991368fcb6d3' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-21T18:40:37-07:00
 claimant:
     operator: Xian Xu
@@ -237,6 +237,13 @@ Authenticated TLb57fc758-c7cd-41f8-a8b6-75720836dd25 authorizes staging now whil
 
 The prior queued lease-2698428296 was canceled through SDLC only after main integration made its executable source obsolete. One integrated-source replacement is retained: lease-1347790431 on c95f2421, parent session90718, attemptfd682680d0dee739e368e2d5f4d4e08b, checkout/Volumes/TestScratch/local-checks/sdlc-local-4173628454, raw log/Users/xianxu/workspace/pair/.git/sdlc/test-stats/inflight/fd682680d0dee739e368e2d5f4d4e08b/run.log; initial FIFO7. Preserve it through any Couch restart; no duplicate runner. Next: operator's shared-page recheck and retained suite result, then supported landing path. This prose-only log does not alter the staged executable source.
 
+
+### 2026-10-22 — shared-page acceptance; approved live-display clearing revision
+
+Authenticated TL8112fb61 reports operator acceptance on stagedc95f2421: one full-page screenshot with numbered shapes is exactly right. Operator reverses the earlier ink-stays rule: after successful submission remove only submitted sketches and annotations from the live screen; preserve recording/history and unsent versions. Toolbar unification is independent #808, excluded. Provisional sizing medium2–3focused hours plus verification, sent before implementation; TLc78d3900 explicitly approves a painting-only live mask derived from confirmed dispatched/resolved manifests, exact sketch sequence+digest and note revision, console/viewer streams with reconnect/bootstrap, no recording event or new registry. Reopened through set-status working/start-plan; revise plan and run change-code before implementation.
+
+Owned sdlc stage --clear was initially blocked on the common repo lock (alive merge17156), then completed without interference: pair:0 restored to freshly fetched mainfb79d27bd66bb42f52601055915b3798fe5a6dc8 and all4binaries verified exact revision, modified=false. Hubc1815b5f and pair:5040aff6e notified of release. #722 now owns subsequent staging coordination. Retained suite lease-1347790431 on c95f2421 remains until a new executable correction commits, when it becomes obsolete and must be officially canceled; do not start a duplicate. Existing accepted smoke verifies the shared image, while revised post-submit disappearance needs a quick operator re-look before landing.
+
 ## Estimate
 
 *Produced via brain/data/life/42shots/velocity/estimate-logic-v3.1.md against baseline-v3.1.md. Method A only. Calibration is stale per sdlc estimate-source; this remains provisional. Unit: idle-removed ship wall-clock, including agent/subagent execution, not operator-attention time. No parallel overlap discount applied.*
@@ -352,3 +359,7 @@ TDD started with independent pure query, preview and render-plan slices. Render 
 ### 2026-10-21 19:51 PDT — CDP cancellation scope revision (approved)
 
 Authenticated TL a7274b6d-b64e-40f0-b1db-969c0cc4f4ba approves folding the discovered transport blocker into #753: context-aware serialized write admission; owned pipe write-deadline cancellation joined before admission is released; partial writes retire the connection; no detached writer or timeout increase. Required regressions: a canceled active call unblocks, an expired queued command is never written, and cancellation callbacks cannot change a successor command's deadline. This supports the already-approved bounded preview/render lifetimes without changing routing, permissions or delivery policy.
+
+### 2026-10-22 — live-only submitted-feedback hiding (approved; supersedes ink-stays)
+
+Authority: TL8112fb61 and c78d3900 following the accepted shared-page recheck. On confirmed dispatched or resolved delivery, hide only the exact submitted sketch sequence+digest and annotation revision on every live console/viewer surface, including reconnect/bootstrap. Unsent feedback and later revisions remain visible. Failed, prepared and uncertain delivery does not hide anything. No recorded clear/delete, vector mutation, new recording event, format version or persistent acknowledgment registry. Existing conditional annotation resolution remains unchanged; display masking must work even when that resolution is waiting/refused. Historical query, rendering and replay do not consume the live mask. The earlier ink-stays acceptance/checklist clauses are superseded for live display only. Toolbar unification remains #808.
