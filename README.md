@@ -1413,6 +1413,8 @@ it asks the running Couch to share the recording and prints its replay link
 alone on stdout (any note goes to stderr), and with no Couch it refuses.
 `couch --broadcast-web-query` alone prints its usage. See [atlas/webcast-format.md](atlas/webcast-format.md#agent-queries-462).
 
+🤖{Sketch evidence uses the same operator submission chord, Shift+Ctrl+Alt+Return: the console shows the eight oldest unsent finished shapes and their notes, with a count of any more, before submission. Each shape has a historical replay-rendered image, its original page URL and literal element IDs; sending leaves the ink in place. Local tools can inspect `couch --broadcast-web-query DIR sketches [--sketch ID] [--at MS] [--json]` or export a private image and metadata with `couch --broadcast-web-query DIR sketch-image --sketch ID --out NEW_DIR [--at MS]`. These tools never dispatch to an agent. See [sketch evidence and retry behavior](atlas/webcast-submission.md).}
+
 `couch --broadcast-web-replay [ID|DIR] [--at MS]` plays recordings in the
 viewer: play, pause, speed, and a timeline that shows pauses as gaps, notes,
 strokes and who drove. With no argument it lists the recordings in Couch's

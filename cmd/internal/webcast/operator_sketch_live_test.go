@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/xianxu/pair/cmd/internal/broadcast"
+	core "github.com/xianxu/pair/cmd/internal/submission"
 	castassets "github.com/xianxu/pair/cmd/internal/webcast/assets"
 	"github.com/xianxu/pair/cmd/internal/webcast/board"
 	"github.com/xianxu/pair/cmd/internal/webcast/recorder"
@@ -242,6 +243,111 @@ func TestOperatorSketchLiveDrawing(t *testing.T) {
 	eval(world, `(async()=>{const s=__couchcastOperatorSketch;s.labelInput.value='Move this console control';await s.saveLabel();return true})()`)
 	waitKind("sketch-label")
 	wait("held scene exit", func() bool { return string(eval(world, `!globalThis.__couchcastPrivateSceneFrame`)) == "true" })
+	// The same bridge used by the manager must expose the exact finished shape
+	// before the chord can submit. No browser-side send action is added.
+	var previewState core.PreviewState
+	var previewDeliveryGeneration uint64
+	publishPreview := func(want int, empty ...bool) {
+		t.Helper()
+		// An unrelated delivery transition may refresh the same selected shapes.
+		// Exercise that new publication identity without replacing keyed cards.
+		previewDeliveryGeneration++
+		wait("acknowledged private submission preview", func() bool {
+			host, _, e := cast.SubmissionPreviewHost(ctx)
+			if e != nil {
+				return false
+			}
+			selected, e := cast.board.Selection()
+			if e != nil || len(selected.Sketches) != want {
+				return false
+			}
+			items := make([]core.PreviewItem, 0, len(selected.Sketches))
+			for _, v := range selected.Sketches {
+				items = append(items, core.PreviewItem{RecordingID: chrome.opts.Record.ID, SketchID: v.ID, Sequence: v.NextSequence, Digest: v.Digest})
+			}
+			if len(empty) > 0 && empty[0] {
+				items = nil
+			}
+			previewState, _ = core.NextPreview(previewState, core.PreviewHostChanged{Host: host})
+			previewState, _ = core.NextPreview(previewState, core.PreviewCandidatesChanged{Selection: core.PreviewSelection{Stamp: core.PreviewStamp{Board: selected.SketchGeneration, Delivered: previewDeliveryGeneration}, Items: items}})
+			var effects []core.PreviewEffect
+			previewState, effects = core.NextPreview(previewState, core.PreviewRefresh{})
+			for _, effect := range effects {
+				if publication, ok := effect.(core.PreviewPublish); ok {
+					if e = cast.PublishSubmissionPreview(ctx, publication.Publication); e != nil {
+						previewState, _ = core.NextPreview(previewState, core.PreviewPublishFailed{Publication: publication.Publication})
+						return false
+					}
+					previewState, _ = core.NextPreview(previewState, core.PreviewPublishAccepted{Publication: publication.Publication})
+				}
+			}
+			return previewState.Phase() == core.PreviewShown
+		})
+	}
+	publishPreview(1)
+	if got := string(eval(world, `(()=>{const root=__couchcastOperatorSketch.labelInput.getRootNode(),preview=root.querySelector('.sketch-submission-preview'),cards=preview.querySelectorAll('.sketch-submission-card'),canvas=cards[0]?.querySelector('canvas');if(preview.hidden||cards.length!==1||preview.querySelectorAll('button').length!==0||!preview.textContent.includes('Next submission: 1 sketches')||!preview.textContent.includes('Move this console control')||!canvas)return false;const pixels=canvas.getContext('2d').getImageData(0,0,canvas.width,canvas.height).data;let ink=0,min=canvas.width,max=-1;for(let y=0;y<canvas.height;y++)for(let x=0;x<canvas.width;x++)if(pixels[(y*canvas.width+x)*4+3]>20){ink++;min=Math.min(min,x);max=Math.max(max,x)}const thickness=x=>{let n=0;for(let y=0;y<canvas.height;y++)if(pixels[(y*canvas.width+x)*4+3]>20)n++;return n};const thin=thickness(Math.round(min+(max-min)*.25)),thick=thickness(Math.round(min+(max-min)*.75));globalThis.previewCard=cards[0];globalThis.previewCanvas=canvas;return ink>0&&thin>0&&thick>thin})()`)); got != "true" {
+		t.Fatalf("native pressure/count/note preview unavailable: %s", got)
+	}
+	// Completed watch-mode cards are also private open UI: periodic capture
+	// must defer before hiding their host, preserving both focus and card identity.
+	eval(world, `globalThis.previewIdleFocus=__couchcastOperatorSketch.labelInput.getRootNode().activeElement`)
+	for i := 0; i < 3; i++ {
+		if e := recorder.CaptureBackgroundScreenshot(ctx, chrome.conn, session, world, map[string]any{"format": "png"}, nil); !errors.Is(e, recorder.ErrBackgroundCaptureDeferred) {
+			t.Fatalf("completed preview background capture must defer: %v", e)
+		}
+	}
+	if got := string(eval(world, `(()=>{const root=__couchcastOperatorSketch.labelInput.getRootNode();return root.activeElement===previewIdleFocus&&root.querySelector('.sketch-submission-card')===previewCard&&previewCard.querySelector('canvas')===previewCanvas})()`)); got != "true" {
+		t.Fatalf("idle capture changed preview focus/identity: %s", got)
+	}
+	// Start an unfinished second sketch whose ink is inside the first stroke's
+	// bounds, preserving the existing original-node placement checks below.
+	clickTool("Sketch")
+	wait("second preview focus sketch", func() bool { return string(eval(world, `__couchcastOperatorSketch.state().phase`)) == `"drawing"` })
+	pen("mousePressed", 110, .2, 1)
+	pen("mouseMoved", 120, .2, 1)
+	pen("mouseReleased", 120, 0, 0)
+	wait("second stroke settled", func() bool {
+		return string(eval(world, `__couchcastOperatorSketch.state().slots.every(s=>!s.inflight&&!s.queued)`)) == "true"
+	})
+	clickTool("Done")
+	wait("second required label focus", func() bool {
+		return string(eval(world, `(()=>{const input=__couchcastOperatorSketch.labelInput;return !input.parentElement.hidden&&input.getRootNode().activeElement===input})()`)) == "true"
+	})
+	eval(world, `(()=>{const input=__couchcastOperatorSketch.labelInput;input.value='AB';input.setSelectionRange(1,1);globalThis.previewBlur=0;input.addEventListener('blur',()=>previewBlur++);return true})()`)
+	for i := 0; i < 3; i++ {
+		// Remote ordinary pointer traffic must neither replace the preview cards nor
+		// interrupt the real sketch editor. The recorder remains the sole writer.
+		selected, e := cast.board.Selection()
+		if e != nil {
+			t.Fatal(e)
+		}
+		if e = chrome.Emit(&recording.Stroke{ID: fmt.Sprintf("preview-remote-%d", i), Author: recording.Author{ID: "remote-preview", Color: "#00ff00"}, Color: "#00ff00", Pts: [][3]float64{{300, 300, 0}, {310, 310, 10}}}, selected.Document); e != nil {
+			t.Fatal(e)
+		}
+		if e = recorder.CaptureBackgroundScreenshot(ctx, chrome.conn, session, world, map[string]any{"format": "png"}, nil); !errors.Is(e, recorder.ErrBackgroundCaptureDeferred) {
+			t.Fatalf("preview label background capture: %v", e)
+		}
+		publishPreview(1)
+	}
+	if got := string(eval(world, `new Promise(resolve=>setTimeout(()=>{const input=__couchcastOperatorSketch.labelInput,root=input.getRootNode();resolve(root.activeElement===input&&input.selectionStart===1&&input.selectionEnd===1&&previewBlur===0&&root.querySelector('.sketch-submission-card')===previewCard&&previewCard.querySelector('canvas')===previewCanvas)},50))`)); got != "true" {
+		t.Fatalf("preview refresh/remote traffic stole editor focus or replaced cards: %s", got)
+	}
+	call("Input.insertText", map[string]any{"text": "x"}, nil)
+	if got := string(eval(world, `__couchcastOperatorSketch.labelInput.value`)); got != `"AxB"` {
+		t.Fatalf("native typing after preview updates: %s", got)
+	}
+	eval(world, `(async()=>{const s=__couchcastOperatorSketch;s.labelInput.value='Preview focus draft';await s.saveLabel();return true})()`)
+	wait("second sketch finished", func() bool { return string(eval(world, `!globalThis.__couchcastPrivateSceneFrame`)) == "true" })
+	publishPreview(2)
+	if got := string(eval(world, `(()=>{const p=__couchcastOperatorSketch.labelInput.getRootNode().querySelector('.sketch-submission-preview');return p.querySelectorAll('.sketch-submission-card').length===2&&p.textContent.includes('Preview focus draft')})()`)); got != "true" {
+		t.Fatalf("second finished shape missing from preview: %s", got)
+	}
+	// After dispatch suppresses every exact version, no empty panel should
+	// keep optional fidelity captures deferred; recorded ink remains unchanged.
+	publishPreview(2, true)
+	if got := string(eval(world, `(()=>{const root=__couchcastOperatorSketch.labelInput.getRootNode();return root.querySelector('.sketch-submission-preview').hidden&&!__couchcastCaptureBusy()})()`)); got != "true" {
+		t.Fatalf("empty preview still holds capture suppression: %s", got)
+	}
 	if err := recorder.CaptureBackgroundScreenshot(ctx, chrome.conn, session, world, map[string]any{"format": "png"}, &screenshot); err != nil || screenshot.Data == "" {
 		t.Fatalf("background capture did not resume after finished label: %v", err)
 	}
@@ -293,7 +399,7 @@ func TestOperatorSketchLiveDrawing(t *testing.T) {
 		t.Fatal(err)
 	}
 	projection := state.Sketches.Snapshot()
-	if len(projection.Sketches) != 1 || projection.Sketches[0].Label != "Move this console control" {
+	if len(projection.Sketches) != 2 || projection.Sketches[0].Label != "Move this console control" || projection.Sketches[1].Label != "Preview focus draft" {
 		t.Fatalf("console projection: %+v", projection)
 	}
 	for _, r := range records {

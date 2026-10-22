@@ -246,7 +246,9 @@ func (c *Chrome) startOperator(b *board.Board) {
 			}
 			if sketchRuntime != nil {
 				sketchRuntime.Reconcile(sketchTargets)
-				sketchRuntime.Turn(c.ctx)
+				if sketchRuntime.Turn(c.ctx) {
+					c.submissionPreviewDeliveryProgress()
+				}
 			}
 			retryC = nil
 			if originalsPending {
@@ -280,6 +282,7 @@ func (c *Chrome) operatorReply(session string, id int64, reply recorder.Operator
 	}
 }
 func (c *Chrome) refreshOperator() {
+	c.submissionPreviewDeliveryProgress()
 	select {
 	case c.operatorRefresh <- struct{}{}:
 	default:
