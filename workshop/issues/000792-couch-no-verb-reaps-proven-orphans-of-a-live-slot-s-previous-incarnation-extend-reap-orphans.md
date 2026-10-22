@@ -176,6 +176,12 @@ Claude on534166a6 failed an exact target with complete current ownership proof u
 
 The global current-completeness reuse may veto unrelated unknown evidence, but this log does not establish which condition failed. Add a bounded pure current refusal reason, carried only in the ephemeral proof and existing effect detail. It preserves the exact eligibility decision, sticky flag, all bounds and no retained history. Diagnose that observation before modifying eligibility; do not invent a root cause or register a safety flake. No native/suite/landing runner is active.
 
+### 2026-10-22 — diagnosed global detached veto and restored target relevance
+
+The single diagnostic Claude run on356cf510 failed with the bounded reason detached ownership unknown. Cleanup passed, writes81469440bytes stayed under96MiB; current delivery was not reached. Log /Volumes/TestScratch/tmp/pair-slot2/pair-792-native-diagnostic-claude.FWzOzN/native.log SHA256af795d6e3b69a102054535485d707e8c6c1cfb1d3ffe14b9e8194b0478cf3fe7. Codex was not started.
+
+Verified the composition defect rather than weakening the assertion: the global completeness helper applied to exact effects was treating unrelated detached uncertainty as relevant. A new real-handler test with unrelated unknown sdlcPID99 failed red with zero allowed target signals. Exact effects now keep full current census/slot completeness while passing the full detached-unknown set to the existing target-and-ancestor veto. The process-lifetime legacy fence remains global and unchanged. Relevant detached ancestors and unknown current owner after old-root death still veto TERM/KILL. Combined proof/reap/ownership/seed race selection passes couchcmd3.324s/core1.663s. This restores the already approved relevance contract, not a deadline or frame/output tolerance.
+
 ## Estimate
 
 Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md` against `baseline-v3.1.md`. Method A only. The source is marked stale by estimate-source; this is a provisional calibration, not a fitted total.

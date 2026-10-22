@@ -160,7 +160,10 @@ func (s *resourceSampler) run(ctx context.Context) {
 				// Monitor root-death evidence can remain useful while a current
 				// owner is unknown. A destructive proof must additionally establish
 				// complete ownership now; historical sticky refusal is independent.
-				reason := couchcore.ResourceOwnershipIncompleteReason(sample, selection, unknown)
+				// Detached unknowns are target-local for an exact effect: the pure
+				// decision checks the target and every ancestor below. In contrast,
+				// any detached unknown still sets the legacy whole-scan fence.
+				reason := couchcore.ResourceOwnershipIncompleteReason(sample, selection, nil)
 				proof := couchcore.ProvenOrphanProof{Table: sample.Table, Selection: selection, TableKnown: sample.TableKnown, InventoryComplete: reason == "", UnknownDetached: unknown, IncompleteReason: reason}
 				request.reply <- resourceSweep{proof: proof, err: collection.Err()}
 			} else {

@@ -350,3 +350,14 @@ func TestProvenOrphanSignalRefusesUnknownCurrentOwnerAfterOldRootDeath(t *testin
 		t.Fatalf("old root death authorized a child beneath an unproven current root: %+v signals%v", got, table.signals)
 	}
 }
+
+func TestProvenOrphanSignalIgnoresUnrelatedUnknownDetachedOwner(t *testing.T) {
+	s, reader, table := provenEffectService(t)
+	reader.mu.Lock()
+	reader.rows = append(reader.rows, procutil.Process{PID: 99, PPID: 1, Identity: "unrelated-detached", Name: "sdlc"})
+	reader.mu.Unlock()
+	got := s.handleProvenOrphanSignal(t.Context(), effectRequest())
+	if got.OrphanSignal == nil || got.OrphanSignal.Status != "sent" || len(table.signals) != 1 {
+		t.Fatalf("unrelated detached evidence revoked a complete target proof: %+v signals%v", got, table.signals)
+	}
+}
