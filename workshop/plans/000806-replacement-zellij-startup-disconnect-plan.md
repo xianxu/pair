@@ -78,14 +78,21 @@ Failure capture (and the native diagnostic control, via default-off testcouch Op
 
 ## Diagnostic tasks, after approval
 
-- [ ] Add failing tests in `cmd/internal/testcouch/startup_server_log_test.go` for server-log retention before cleanup, missing/unsafe paths, bounded tails, error/truncation reporting and no extra native query. Reuse existing private root tests and reader rather than inventing a second file boundary.
-- [ ] Implement the small test-harness capture in `startup_evidence.go` and failure collection order in `fleet.go`. Preserve all ownership and cleanup decisions. Capture the original failure before any diagnostic query can alter the observation.
+- [x] Add failing tests in `cmd/internal/testcouch/startup_server_log_test.go` for server-log retention before cleanup, missing/unsafe paths, bounded tails, error/truncation reporting and no extra native query. Reuse existing private root tests and reader rather than inventing a second file boundary.
+- [x] Implement the small test-harness capture in `startup_evidence.go` and failure collection order in `fleet.go`. Preserve all ownership and cleanup decisions. Capture the original failure before any diagnostic query can alter the observation.
 - [ ] Use the existing query observer where a controlled in-process context reaches the actual query; preserve bounded per-attempt timing/argv/exit evidence. Enumerate observed coverage explicitly. Do not invent cross-process completeness, add an ambient trace shim, or change child exec before bringing that additional instrumentation design to the hub.
-- [ ] Run `go test ./cmd/internal/testcouch -run '^TestStartupEvidence' -count=1`; run existing handoff budget/admission tests to establish the unchanged baseline. Audit any new repository-input reader certificate before broader verification.
-- [ ] On the committed diagnostic head, run one `PAIR_LIVE_RECOVERY_OWNER=1 go test ./cmd/internal/couchcmd -run '^TestLiveRecoveryOwnerReboot/claude$' -count=1 -v`, then the analogous Codex invocation, each with its normal96MiB package cap and separate retained log. Do not stage on :0 or use the live fleet.
+- [x] Run `go test ./cmd/internal/testcouch -run '^TestStartupEvidence' -count=1`; run existing handoff budget/admission tests to establish the unchanged baseline. Audit any new repository-input reader certificate before broader verification.
+- [x] On the committed diagnostic head, run one `PAIR_LIVE_RECOVERY_OWNER=1 go test ./cmd/internal/couchcmd -run '^TestLiveRecoveryOwnerReboot/claude$' -count=1 -v`, then the analogous Codex invocation, each with its normal96MiB package cap and separate retained log. Do not stage on :0 or use the live fleet.
 - [ ] If a failure is retained, propose and execute at most one causal contrast through the existing channel-controlled handoff and stateful Zellij seam, plus a private native control if necessary. A fabricated fake failure is not proof of the real initiating trigger; add a first-client state to the shared fake only once its native behavior is established.
 - [ ] Append exact identities, raw hashes, query coverage, chronology and classification to #806. Send the concrete correction choice and revised implementation/verification plan to the hub **before production code**. If still unclassified, report that limit instead of selecting a fix.
 
 ## Completion beyond this phase
 
 The issue remains open until its original Done when is satisfied: retained failing server evidence, causal regression through the real startup seam, an approved correction, and Claude/Codex public startup/reboot+delivery with exact cleanup. The later plan revision must enumerate affected consumers, state/effect ordering, counted cost, fake conformance and any mechanical class guard. Diagnostic logging alone does not close #806 (ARCH-PURPOSE). No persisted production format changes in this phase (ARCH-EVOLVE).
+
+
+## Revisions
+
+### 2026-10-22 — Bounded diagnostic samples completed
+
+On diagnostic headc90b43e6e99f29a8cd6dbf2546262752745d6972, both Claude and Codex reboot/delivery/cleanup passed with two bounded private server tails. No failed sample occurred, so no conditional causal contrast ran. Query coverage remains the public operation chronology plus shared server-log tails, not cross-process query attribution. Preserve the detailed receipts and hashes in the issue Log. No production correction is selected; return to the hub at the approval boundary. No additional native runs or production edits are authorized by these successful controls. Original completion criteria remain pending.
