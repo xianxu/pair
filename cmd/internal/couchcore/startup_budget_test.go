@@ -65,3 +65,32 @@ func TestTrackedStartupSharesDeadlineBeforeHelperAckAndRegistration(t *testing.T
 		}
 	})
 }
+
+// These convenience launch APIs have no caller deadline. Require their one
+// transported deadline to be the shared default selected during this call;
+// the interval brackets selection, rather than imposing a wall-clock budget.
+func startupDeadlineEnvForTest(t *testing.T, env []string, began, returned time.Time) string {
+	t.Helper()
+	var found string
+	for _, entry := range env {
+		raw, ok := strings.CutPrefix(entry, startupbudget.DeadlineEnv+"=")
+		if !ok {
+			continue
+		}
+		if found != "" {
+			t.Fatal("duplicate startup deadline")
+		}
+		deadline, err := startupbudget.Decode(raw)
+		if err != nil {
+			t.Fatalf("startup deadline: %v", err)
+		}
+		if deadline.Before(began.Add(startupbudget.Default)) || deadline.After(returned.Add(startupbudget.Default)) {
+			t.Fatalf("startup deadline %v not selected from shared fallback during call [%v, %v]", deadline, began, returned)
+		}
+		found = entry
+	}
+	if found == "" {
+		t.Fatal("startup deadline missing")
+	}
+	return found
+}

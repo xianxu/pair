@@ -2613,3 +2613,5 @@ and external temporary roots rather than relying on the host's TMPDIR.
 - #778 verification: Every new non-test Go helper must enter artifactpath's exhaustive source inventory, even when it owns no Pair session artifact. Run TestProductionArtifactReferencesAreExactlyClassified alongside reader inventory and lint before a full suite; classify the source through its ordinary inventory, never the known-violation quarantine.
 
 - #778 BR-1: after main integration or a compatibility fix, mark final verification pending in the active Plan checklist until the replacement exact-source suite completes. Keep older green receipts as history; review/suite overlap permits concurrent work, not a completed acceptance claim.
+
+- #773: when a launch adds a dynamic environment field, validate exactly one canonical value against the caller/fallback deadline, then retain exact ordered comparison of the full remaining environment. Do not drop arbitrary fields or weaken the profile/identity oracle merely to accept a timestamp. The fast reader-inventory check does not replace artifactpath's exhaustive production-source test.
