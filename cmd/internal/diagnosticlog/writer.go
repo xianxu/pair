@@ -475,10 +475,12 @@ func fileIdentity(st os.FileInfo) identity {
 	return identity{uint64(s.Dev), uint64(s.Ino)}
 }
 func matches(st os.FileInfo, g generation) error {
-	if fileIdentity(st) != g.Identity || st.Size() != g.Size || !st.ModTime().Equal(g.ModTime) {
-		return errors.New("diagnostic generation changed outside protocol")
+	observed := observedGeneration(st)
+	if observed.Identity.Device != g.Identity.Device {
+		return errors.New("diagnostic generation device changed during strict identity check")
 	}
-	return nil
+	_, err := compareCheckpoint(observed, g)
+	return err
 }
 func load(path string) (diskState, error) {
 	var s diskState
@@ -790,7 +792,7 @@ func recoverRotation(path string, s *diskState, o Options) error {
 		if e != nil {
 			return e
 		}
-		if e = matches(st, g); e != nil {
+		if e = matchesRecovery(st, g, "rotation"); e != nil {
 			return e
 		}
 		if err := o.checkContext(); err != nil {
@@ -807,7 +809,7 @@ func recoverRotation(path string, s *diskState, o Options) error {
 		}
 	} else if e != nil {
 		return e
-	} else if e = matches(st, g); e != nil {
+	} else if e = matchesRecovery(st, g, "rotation"); e != nil {
 		return e
 	}
 	if _, e := os.Lstat(path); !os.IsNotExist(e) {

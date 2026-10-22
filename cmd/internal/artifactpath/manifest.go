@@ -1291,6 +1291,8 @@ var NonArtifactSources = []string{
 	"cmd/internal/diagnosticlog/append.go",
 	"cmd/internal/diagnosticlog/append_reservation.go",
 	"cmd/internal/diagnosticlog/batch_model.go",
+	// #774: compares supplied metadata; owns no artifact pathname.
+	"cmd/internal/diagnosticlog/checkpoint_identity.go",
 	"cmd/internal/diagnosticlog/buffered.go",
 	"cmd/internal/diagnosticlog/policy.go",
 	"cmd/internal/wrapcmd/capture_buffer.go",

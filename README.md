@@ -1248,7 +1248,10 @@ default fact file is `~/.local/share/pair/couch/supervision.jsonl` (under the ac
 Pair data directory if configured). It records completed observations, not every
 message hold: inspect `couch --message-status ID --json` for a retained delivery's
 current waiting reason. Logger health instrumentation alone does not repair a
-historically frozen stream; #736's measured cause fix follows its live observation.
+historically frozen stream. The measured startup failure was a persisted device
+number changing after remount; #774 rebinds a fully checkpointed file only when
+inode, size and nanosecond mtime still match. Unknown tails and interrupted
+transactions remain refused with their cause; no lost facts are replayed.
 
 Wrapper diagnostics batch at64KiB or every five seconds while dirty; raw capture
 and its offset sidecar flush every250ms. Orderly shutdown drains both. A process
@@ -2431,6 +2434,13 @@ log before scratch cleanup. For manual Go runs, add `-artifacts -outputdir
 <owned-dir>` to retain the complete oracle files; successful calls remove theirs.
 The [oracle guide](tests/terminal-oracle/README.md) covers replay, headless controls
 and report limitations; a diagnostic pass does not establish a crash fix.
+
+For a standalone Zellij 0.45.1 lookup-race reproduction, run
+`bash scripts/repro/zellij-false-miss.sh 1000 4`. It uses three private sessions
+without Pair or Couch; see the [repro guide](scripts/repro/README.md) for counters
+and liveness limits. `make zellij-false-miss` explicitly runs its Python
+regressions followed by the default native diagnostic (1,000 queries/four
+workers). It is opt-in and is not part of `make test`.
 
 For disposable multi-slot Couch acceptance, run `make test-couch-fleet`. It uses
 the shared native fleet helper with real Zellij, Pair/wrappers and provisioned
