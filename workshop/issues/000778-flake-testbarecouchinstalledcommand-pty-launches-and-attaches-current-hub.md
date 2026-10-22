@@ -62,3 +62,7 @@ Alternatives: socket-only isolation is insufficient because census is host-wide;
 ### 2026-10-21 — concrete fixture-isolation acceptance
 
 Expand the original root-cause Done when into deterministic allocation, preserved admission, both constructor consumers, exclusive seed safety, lint enforcement and recorded verification. Preserve the known-flake history; closing retires its existing parent registration.
+
+### 2026-10-21 — deterministic root-cause RED
+
+Added regressions through the actual installedEnv and testcouch.allocateRoots constructors, then real IdentityStore.Allocate. Both fail on the intended condition: independent authorities each yield C1/N1/M1 and duplicate native name 📁1-1. Installed regression exits1 in0.207s; shared-fleet regression exits1 in0.224s. This reproduces the precondition independently of native scheduler timing. Existing admission checks remain unchanged. Helper implementation and pure lint rule are delegated as separate bounded file-owned tasks; main owns consumers and integration verification.

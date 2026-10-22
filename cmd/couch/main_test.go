@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/creack/pty"
+	"github.com/xianxu/pair/cmd/internal/couchidentity"
 	"github.com/xianxu/pair/cmd/internal/testpair"
 )
 
@@ -259,4 +260,35 @@ func repoRoot(t *testing.T) string {
 		t.Fatal(err)
 	}
 	return root
+}
+
+func TestInstalledEnvironmentTerminalIdentityIsolation(t *testing.T) {
+	seen := map[string]bool{}
+	for i := 0; i < 2; i++ {
+		values := map[string]string{}
+		for _, entry := range installedEnv(t, t.TempDir()) {
+			key, value, _ := strings.Cut(entry, "=")
+			values[key] = value
+		}
+		store := couchidentity.IdentityStore{HostDir: values["COUCH_IDENTITY_DIR"], StoreDir: values["COUCH_STORE_DIR"]}
+		request := couchidentity.AllocationRequest{Conversation: true, Terminal: true, RepositoryToken: "alpha"}
+		first, err := store.Allocate(t.Context(), request)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if seen[first.SessionName] {
+			t.Errorf("independent fixture authorities share native terminal name %q", first.SessionName)
+		}
+		seen[first.SessionName] = true
+		if first.C>>63 != 1 || first.N != 1 || first.M != 1 {
+			t.Errorf("first fixture allocation must be private high-range C and N=M=1: %+v", first)
+		}
+		next, err := store.Allocate(t.Context(), request)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if next.C != first.C || next.N != 2 || next.M != 2 {
+			t.Errorf("normal allocation must advance within one fixture: first=%+v next=%+v", first, next)
+		}
+	}
 }
