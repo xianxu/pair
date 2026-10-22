@@ -108,7 +108,7 @@ function fixture(text = 'frozen') {
     stats: () => ({ reads, builds, revoked, pauses, finished, applied }),
   };
 }
-test('held source reduces acknowledged prefix once, freezes animations and maps its own coordinates', async () => {
+test('held source validates acknowledged prefix, freezes animations and maps its own coordinates', async () => {
   const { createSketchScene } = await mod();
   const f = fixture('x'.repeat(40000));
   const s = createSketchScene({
@@ -211,4 +211,41 @@ test('renderer construction failure retires prepared private asset URLs', async 
   await assert.rejects(() => scene.prepare(f.source, { sketch: 's' }), /cannot render/);
   assert.equal(revoked, 1);
   assert.equal(scene.source, null);
+});
+
+test('held scene renders historical mutations in order before later SPA root replacement', async () => {
+  const { createSketchScene } = await mod();
+  const f = fixture();
+  const records = [...f.records.slice(0, -1),
+    { k: 'attr', t: 3, id: 7, name: 'class', v: 'old-root' },
+    { k: 'attr', t: 4, id: 7, name: 'style', v: 'color:red' },
+    { k: 'text', t: 5, id: 8, v: 'changed before replacement' },
+    { k: 'kids', t: 6, p: 2, c: [{ id: 20, y: 'el', n: 'body', c: [{ id: 21, y: 'text', v: 'new screen' }] }] },
+    { ...f.records.at(-1), t: 7 },
+  ];
+  const bytes = new TextEncoder().encode(records.map(r => JSON.stringify(r)).join('\n') + '\n');
+  let renderModel, applied = 0;
+  const scene = createSketchScene({ frame: f.frame,
+    readSource: async (_, offset, length) => bytes.slice(offset, offset + length),
+    rendererFactory(frame, model, resolve) {
+      renderModel = model;
+      const renderer = f.renderer(frame, model, resolve);
+      return { ...renderer, nodeAt: () => model.nodes.has(20) ? 20 : 0, apply(r) {
+        assert.equal(model.t, r.t, 'renderer must see this record time, not the final begin time');
+        if (r.k === 'attr') assert.equal(model.nodes.get(r.id)?.a?.[r.name], r.v, 'historical attribute node must still exist while rendered');
+        if (r.k === 'text') assert.equal(model.nodes.get(r.id)?.v, r.v);
+        if (r.k === 'kids') { assert.equal(model.nodes.has(7), false); assert.equal(model.nodes.get(21)?.v, 'new screen'); }
+        applied++;
+        renderer.apply(r);
+      } };
+    },
+  });
+  await scene.prepare({ ...f.source, time: 7, length: bytes.length }, { sketch: 's' });
+  assert.equal(applied, records.length);
+  assert.equal(renderModel.nodes.has(7), false);
+  assert.equal(scene.ready, true);
+  assert.equal(scene.snapshot().doc.c[0].c[0].c[0].v, 'new screen');
+  assert.deepEqual(await scene.hitTest([11,22]), { node: 20, box: [10,20,30,40] });
+  scene.dispose();
+  assert.equal(f.stats().revoked, 1);
 });

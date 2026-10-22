@@ -468,3 +468,10 @@ Live evidence stays private locally. First recording has first complete sketch t
 ### 2026-10-22 — current-view implementation admission
 
 TL668aa826 approved the consolidated plan; change-code completed exit0 with plan-quality round7 CLEAN. Estimate-quality INFO correctly named the newly uncosted current-view/bridge/freeze/codec and live qualifications; the Estimate section now explicitly appends42–55, derived whole-issue26.63h. Pending new-source suite/close/live acceptance remain unchanged. No claim that either live defect is fixed yet.
+
+
+### 2026-10-22 — sanitized live failures reproduced and fixed
+
+The accepted-begin/zero-stroke blocker now has a concrete independent cause: both held-scene adapters replayed historical renderer operations against an already-final reduced DOM. An earlier attribute/text operation targeting a subsequently removed SPA node threw in Renderer.drawAttr, so scene preparation failed and the drawing layer never armed. Both adapters now reconstruct a separate render model in record order before each renderer application, retaining final descriptor/asset validation. Controlled console and viewer negative controls were RED with the old loop and GREEN with ordered replay. Sanitized native SPA replacement followed by actual pen/Note/save/pending card passed4.894s; focused scene race passed1.552s. These are working-tree qualifications; final committed-source native evidence remains required.
+
+Unsent-tab-return separately reproduced a forgotten trusted original anchor after recorder Doc1→3. Retaining its weak binding while the bounded receiver still owns the original source identity restores actual repaint without changing recorded vectors or pending history. Native forced repaint/tab return passed in the same synthetic probe. Pair:0 stage clear completed successfully for #796 and its receipt to pair:4 is submitted. Current-view witness/selection/bridge implementation remains in progress; no renewed close, suite or operator acceptance is claimed.
