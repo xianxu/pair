@@ -453,7 +453,9 @@ time; a finished row keeps one result until its next action. A second action on
 a busy slot is refused with the running action's name. Other slots and the hub
 remain available. Select a busy row to wait for its new terminal; navigating
 elsewhere prevents its eventual completion from pulling focus back. On a failed
-row, `Ctrl+Y` copies its retained diagnostic; otherwise it copies the last notice.
+row, `Ctrl+Y` copies its retained diagnostic; otherwise a current capability
+diagnostic takes precedence over the last notice. Status text in chrome is limited
+to 40 display cells, with `…`; copying retains the full diagnostic.
 Recovery confirmations stay on their row until you select it to review them.
 
 Couch keeps agent-pane context titles and cmux activity heat titles current from
@@ -1727,9 +1729,12 @@ focus view explains how to tag a thread. The switcher remembers the last view us
 exits. Reopening clears search text but keeps the view. With text in the filter,
 Space is a literal search character; it does not toggle views.
 
-In the switcher, `Ctrl+Y` copies the full last retained status notice, including
-text clipped from the status row and after that row expires. Repeating it copies
-the same notice until another arrives. A failed or unconfirmed attempt keeps its
+In the switcher, `Ctrl+Y` copies a selected operation diagnostic/error first,
+then the current capability diagnostic, then the full last retained status notice.
+Chrome shows at most 40 display cells of a status; copying includes clipped text,
+and retained feed notices remain copyable after expiry. Repeating the copy uses
+the current capability diagnostic while one is displayed, or the same feed notice
+until another arrives. A failed or unconfirmed attempt keeps its
 original notice for **Ctrl+Y** retry even if a newer notice arrives; **Esc** dismisses
 the copy feedback without leaving the switcher. Navigation and background refreshes
 keep that feedback and ordinary operation errors independently visible.

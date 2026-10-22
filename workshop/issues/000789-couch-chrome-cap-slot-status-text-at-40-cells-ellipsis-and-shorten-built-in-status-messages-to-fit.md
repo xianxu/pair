@@ -34,20 +34,23 @@ crowd out every other tab. Two parts:
 1. **Display cap:** the chrome renders a slot's status text at most 40 display cells (rune-width aware), cut with
    `…`; the full text stays available where it already is (peek, the switcher or hover). One pure function,
    unit-tested, used by every place the chrome draws status text.
-2. **Producer clean-up:** list the status-text producers (agent status lines, wait notices, lifecycle labels) and
-   shorten their messages to fit 40 cells so the cap rarely bites; a test fails if a built-in status string exceeds
-   it.
+2. **Producer clean-up:** enumerate status-text producers (wait notices, lifecycle labels and cast actions),
+   and keep every built-in template, including its finite built-in names/glyphs/variants, within 40 cells.
+   Arbitrary operator names, paths, external errors and shared full diagnostic evidence remain unmodified
+   upstream; the display cap handles their expansion. Test actual finite variants and callback outputs as
+   well as source templates, so fixed values cannot disappear as if they were unbounded diagnostics.
 
 ## Done when
 
 - A 200-character status renders as 40 cells ending in `…`, with layout unchanged (test); full text still reachable.
-- No built-in status message exceeds 40 cells (test over the catalog).
+- No built-in template exceeds 40 cells, counting complete finite built-in variants such as cast/link names and capability glyphs/actions (source catalog plus runtime variant/callback tests). Arbitrary names, paths and error details, and the shared automatic-input-stall hub/desktop diagnostic, stay full upstream and receive the same 40-cell display cap.
+- Ctrl+Y copies the full current capability diagnostic ahead of an unrelated last feed notice; selected operation/error and held retry payload retain precedence. Full feed messages remain copyable after display clipping or expiry (tests).
 
 ## Plan
 
 - [x] Add a pure 40-cell sanitized/ellipsized chrome projection, used for both notice fields; retain the source text and use the existing Ctrl+Y copy action for full capability diagnostics too.
-- [x] Inventory notice producers, shorten built-in chrome instructions, and enforce their literal/template contribution with an AST-derived catalog; dynamic names, paths and diagnostic suffixes retain their full source text.
-- [x] Pin ASCII/CJK/combining/control inputs, shared legacy/two-row rendering, full-text copy and source-catalog negative controls; submit the required recorded check. Close and merge remain gated workflow steps, not implementation-checkbox evidence.
+- [ ] Inventory notice producers, shorten built-in chrome instructions, and enforce their literal/template contribution with an AST-derived catalog; dynamic names, paths and diagnostic suffixes retain their full source text.
+- [ ] Pin ASCII/CJK/combining/control inputs, shared legacy/two-row rendering, full-text copy and source-catalog negative controls; submit the required recorded check. Close and merge remain gated workflow steps, not implementation-checkbox evidence.
 
 ## Log
 
@@ -80,3 +83,9 @@ Final root status/notice/capability-copy/catalog/linear-work selection passed 3.
 TL receipt 99cf6f2f-0eb6-4d4b-ac27-4f406820728f approves landing on cell-level pins and tests with no stage window; the operator looks at the next restart onto main. No primary checkout changes are authorized or needed for this issue. Correction: #737 does not currently hold pair:0; its future live run remains in the operator queue.
 
 Recorded affected run on pushed 552007c635eeadaa74cef34467d589457f4d8815 selects the full suite because scripts/test-affected.py changed to register the fixed source-catalog preflight. Retained session63160, lease-1866031189, attempt966250dd27cfef1ce823807b98fe8242; queued normal FIFO position7 at submission. This is not a suite pass. Close review may overlap the queued check per tl-worker; landing still requires its passing record. Implementation checklist wording now distinguishes submitted verification from those remaining workflow gates.
+
+### 2026-10-22 — close round 1 correction (BR-1 through BR-4)
+
+REWORK found that the source catalog discards fixed selector/format substitutions and misses callback returns. The previous claim that source-template enforcement alone covered built-in messages was incomplete. Sweep capability glyph/action variants; webcast view-only/pointer/drive copy and not-ready variants; cast/code rotation variants; and status callbacks. Runtime matrices now form the enforcement boundary for finite program-owned substitutions; AST coverage complements them for direct/local literals. Arbitrary diagnostic substitutions remain unrestricted upstream as planned. The second Done-when clause is reconciled with that distinction and now explicitly requires full capability-copy precedence/recovery. This supersedes the former unconditional 'No built-in status message exceeds 40 cells' shorthand and its incomplete source-only interpretation.
+
+BR-2 retains the lifecycle count invariant while updating its remaining stale assertion. BR-3 updates both README copy contracts. The original queued run lease-1866031189 was canceled through sdlc before admission (session63160 exited1 with lock interrupted/context canceled), with no test result claimed; a corrected head receives a new recorded check. Close round1 did not finalize or publish codecomplete. All four findings remain pending verification in the next review.

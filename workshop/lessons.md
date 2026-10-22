@@ -2614,3 +2614,6 @@ and external temporary roots rather than relying on the host's TMPDIR.
 - #778 verification: Every new non-test Go helper must enter artifactpath's exhaustive source inventory, even when it owns no Pair session artifact. Run TestProductionArtifactReferencesAreExactlyClassified alongside reader inventory and lint before a full suite; classify the source through its ordinary inventory, never the known-violation quarantine.
 
 - #778 BR-1: after main integration or a compatibility fix, mark final verification pending in the active Plan checklist until the replacement exact-source suite completes. Keep older green receipts as history; review/suite overlap permits concurrent work, not a completed acceptance claim.
+
+- #789 BR-1/BR-2: A source-derived string catalog cannot infer every fixed value passed through selectors, formatting or callbacks. Enumerate finite built-in variants and test their actual output; keep source scans as a complementary guard. When shortening a producer family, run the concrete invariant tests too: a name-based selection for LifecycleNotice missed LifecycleDrainReportsOnlyUntargetedFacts.
+- #789 BR-3/BR-4: A display-only change can alter full-text recovery precedence. Sweep every user-facing copy contract, and reconcile Done-when with documented dynamic-input exemptions and new acceptance cases when appending the design revision.
