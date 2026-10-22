@@ -6,13 +6,11 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"strings"
 	"sync"
 	"testing"
 	"time"
 
 	"github.com/xianxu/pair/cmd/internal/couchcore"
-	"github.com/xianxu/pair/cmd/internal/testpair"
 	"github.com/xianxu/pair/internal/reporoot"
 )
 
@@ -30,92 +28,33 @@ const buildOutputLimit = 64 * 1024
 // global cache; Pair alone uses the existing testpair candidate resolver.
 func Build(t testing.TB) Binaries {
 	t.Helper()
-	ctx, cancel := context.WithTimeout(t.Context(), 180*time.Second)
-	defer cancel()
 	source, err := reporoot.Current()
 	if err != nil {
 		t.Fatal(err)
 	}
-	source, err = filepath.EvalSymlinks(source)
-	if err != nil {
-		t.Fatal(err)
-	}
-	b := Binaries{Source: source, Evidence: map[string]string{}}
-	tools := []struct {
-		name   string
-		target *string
-	}{
-		{"git", &b.Git}, {"sdlc", &b.SDLC}, {"weave", &b.Weave}, {"zellij", &b.Zellij}, {"nvim", &b.Nvim},
-	}
-	for _, tool := range tools {
-		*tool.target, err = resolveTool(tool.name)
-		if err != nil {
-			t.Fatalf("native Couch qualification requires installed %s: %v", tool.name, err)
-		}
-	}
-	goTool, err := resolveTool("go")
-	if err != nil {
-		t.Fatal(err)
-	}
-	scratch := ""
+	scratch := os.TempDir()
 	if info, e := os.Stat("/Volumes/TestScratch"); e == nil && info.IsDir() {
 		scratch = "/Volumes/TestScratch"
 	}
-	b.Dir, err = os.MkdirTemp(scratch, "couch-fleet-binaries-")
+	owner, err := BuildOwned(t.Context(), BuildConfig{Source: source, ScratchParent: scratch, Log: testBuildLog{t: t}})
+	if owner != nil {
+		t.Cleanup(func() {
+			ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+			defer cancel()
+			if e := owner.Close(ctx); e != nil {
+				t.Errorf("remove candidates: %v", e)
+			}
+		})
+	}
 	if err != nil {
 		t.Fatal(err)
 	}
-	// Register before returning any resource to a fleet owner, including failure paths.
-	owned := b.Dir
-	t.Cleanup(func() {
-		if err := os.RemoveAll(owned); err != nil {
-			t.Errorf("remove candidate binaries: %v", err)
-		}
-	})
-	b.Dir, err = filepath.EvalSymlinks(b.Dir)
-	if err != nil {
-		t.Fatal(err)
-	}
-	paths, err := candidatePaths(b.Dir)
-	if err != nil {
-		t.Fatal(err)
-	}
-	b.Couch, b.Pair, b.Helper, b.Fixture = paths["couch"], paths["pair"], paths["pair-launch-helper"], paths["fixture-agent"]
-	for _, target := range []struct{ path, pkg string }{
-		{b.Couch, "./cmd/couch"}, {b.Helper, "./cmd/pair-launch-helper"}, {b.Fixture, "./cmd/internal/testcouch/agentfixture/cmd"},
-	} {
-		if output, err := buildCommand(ctx, b.Source, goTool, "build", "-o", target.path, target.pkg); err != nil {
-			t.Fatalf("build %s: %v\n%s", target.pkg, err, output)
-		}
-		if _, err := resolveTool(target.path); err != nil {
-			t.Fatal(err)
-		}
-	}
-	b.Pair = testpair.AtContext(t, ctx, b.Pair)
-	if _, err := resolveTool(b.Pair); err != nil {
-		t.Fatal(err)
-	}
-	if head, err := buildCommand(ctx, b.Source, b.Git, "rev-parse", "HEAD"); err == nil {
-		b.Evidence["source-head"] = strings.TrimSpace(head)
-	}
-	for _, tool := range tools {
-		output, err := buildCommand(ctx, b.Source, *tool.target, "--version")
-		version := strings.TrimSpace(output)
-		if line, _, ok := strings.Cut(version, "\n"); ok {
-			version = line
-		}
-		if err != nil {
-			version = fmt.Sprintf("%s (%v)", version, err)
-		}
-		b.Evidence[tool.name] = version
-		t.Logf("native Couch tool %s: %s (%s)", tool.name, *tool.target, version)
-	}
-	if err := ctx.Err(); err != nil {
-		t.Fatalf("native Couch candidate build deadline: %v", err)
-	}
-	t.Logf("native Couch candidates: source=%s head=%s dir=%s", b.Source, b.Evidence["source-head"], b.Dir)
-	return b
+	return owner.Binaries
 }
+
+type testBuildLog struct{ t testing.TB }
+
+func (l testBuildLog) Write(p []byte) (int, error) { l.t.Log(string(p)); return len(p), nil }
 
 func candidatePaths(dir string) (map[string]string, error) {
 	if !filepath.IsAbs(dir) || filepath.Clean(dir) != dir || dir == string(filepath.Separator) {

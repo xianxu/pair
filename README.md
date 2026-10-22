@@ -2533,6 +2533,15 @@ models or credentials. Portable helper tests run normally; the native consumer
 opts in only through this target or `PAIR_NATIVE_COUCH_FLEET=1`.
 See [fleet ownership and evidence](atlas/couch-testing.md).
 
+External editor conformance consumers can build `make couch-conformance-bridge`
+and launch the absolute `bin/couch-conformance-bridge --scratch-parent ABS`
+(with optional `--couch ABS`). Use pipe stdin/stdout/stderr, read its single bounded JSON
+readiness line, and replace the whole client environment with Environment. Its
+Documents are registered parent/side Markdown fixtures; no consumer-owned Couch
+launcher is needed. Close editors, then close stdin or send TERM; exit0 confirms
+joined cleanup. See the [bridge contract](atlas/couch-testing.md#external-conformance-bridge-801).
+
+
 `tests/terminal-performance.py --help` describes isolated baseline/candidate
 measurements using real Pair terminal processes and independent screen receipts.
 Those timings include interpreter IPC and parsing; measured resource figures are

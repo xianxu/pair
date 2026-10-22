@@ -41,10 +41,10 @@ parley.nvim#405's real-producer acceptance depends on this bridge and #758. Per 
 
 ## Plan
 
-Durable implementation plan: [external Couch bridge](../plans/000801-external-couch-bridge-plan.md). Full flow, one atomic close; design/consumer confirmation pending.
+Durable implementation plan: [external Couch bridge](../plans/000801-external-couch-bridge-plan.md). Full flow, one atomic close; hub and consumer approval recorded in Revisions.
 
-- [ ] Confirm executable/envelope/bounds with parley.nvim:1 and obtain hub design approval.
-- [ ] Extract shared error-returning candidate/fleet owner seams; existing testing.TB wrappers retain behavior and cleanup.
+- [x] Confirm executable/envelope/bounds with parley.nvim:1 and obtain hub design approval.
+- [x] Extract shared error-returning candidate/fleet owner seams; existing testing.TB wrappers retain behavior and cleanup.
 - [ ] Implement pure protocol/lifecycle and bounded cancellable IO through the same stateful fake/native seam.
 - [ ] Add the thin executable/atomic build target, genuine native bridge and Parley consumer conformance, inventories and documentation.
 - [ ] Record checks, close review and land through sdlc.
@@ -98,3 +98,14 @@ total: 3.75
 ```
 
 Design1.42h×1.15 + implementation2.12h =3.753h, rounded3.75h. Queue waits and operator-controlled #739 shutdown are not implementation work in this estimate.
+
+
+### 2026-10-22 — implementation checkpoint; native acceptance pending
+
+Full change-code cleared after CLEAN plan-quality round2 and estimate-quality INFO (optimistic component estimates, no blocking finding). Implemented shared error-returning CandidateOwner/NewOwned, keeping the testing wrappers; pure protocol/reducer; actual native service adapter; cancellable owned pipes; thin atomic executable and bounded diagnostics. All implementation began after accepted design48cfe351. No full-suite or native acceptance is claimed yet.
+
+Meaningful RED controls included expired-owner admission, missing public APIs, missing selected build utilities, leaked Go metadata config, live scratch overlap reaching tool lookup, duplicate JSON admission, absent per-call deadline, and blocking stderr defeating cleanup. Targeted portable tests and race cohorts pass. The full unread-stderr regression failed with old blocking os.File.Write, then passed using one nonblocking syscall. Stdin/stdout/stderr are pipe protocol endpoints; unread stderr produces a prompt failed diagnostic sink rather than blocking teardown. No retry, goroutine or queue was added to output. Reader guard now recognizes the new native helper APIs; actual helper consumers use non-Go full fallback, while literal-only controls remain local fixtures. Artifact manifest lists the new qualification-only sources explicitly.
+
+First actual executable diagnostic run built candidates offline and started the genuine Claude fixture, then correctly refused duplicate PATH in the shared Fleet.Environment; exact owner cleanup passed. Captured log: /Volumes/TestScratch/tmp/pair-slot7/pair801-entry-smoke.log. This is diagnostic evidence, not acceptance or a source-complete pass. Root cause: testpair's defaults plus explicit overrides were represented as duplicate entries (exec used last-wins), and EnvironmentAt selected its shell helper from consumer cwd. Added failing regressions and fixed the shared fleet boundary to use the selected source helper with unique last-wins keys; no adapter workaround or ambient fallback. Final native rerun and external consumer handoff remain pending. #739 stays ready and unstaged under the hub's hold.
+
+Shared helper verification after the runtime environment correction: full cmd/internal/testcouch PASS42.052s; bridge/CLI/testpair portable checks and targeted race cohorts passed. The fast reader-inventory check is refreshed only for audited new/changed readers. Native qualification is next.

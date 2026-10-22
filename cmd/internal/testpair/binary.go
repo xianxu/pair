@@ -78,12 +78,15 @@ func place(ctx context.Context, destination, source string) error {
 	if err != nil {
 		return err
 	}
-	cmd := exec.CommandContext(ctx, "bash", filepath.Join(root, "tests/lib/pair-test-binary.sh"), destination)
-	cmd.Dir = root
-	cmd.Env = append(os.Environ(), "PAIR_TEST_BINARY="+source)
-	out, err := cmd.CombinedOutput()
+	bash, err := exec.LookPath("bash")
 	if err != nil {
-		return fmt.Errorf("%w: %s", err, out)
+		return err
 	}
-	return nil
+	return PlaceCandidate(ctx, Placement{Source: root, Destination: destination, Candidate: source, Bash: bash, Env: os.Environ()}, func(ctx context.Context, program string, args []string, dir string, env []string) (string, error) {
+		cmd := exec.CommandContext(ctx, program, args...)
+		cmd.Dir = dir
+		cmd.Env = env
+		out, err := cmd.CombinedOutput()
+		return string(out), err
+	})
 }
