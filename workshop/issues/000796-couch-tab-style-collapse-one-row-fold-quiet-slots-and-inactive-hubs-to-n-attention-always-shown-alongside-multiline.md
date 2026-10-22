@@ -169,3 +169,7 @@ The implementation and verification-submission checkboxes are complete. Recorded
 ### 2026-10-22 — BR-1 clarifies role and aggregation identity
 
 Pin primary and numbered hubs under the same approved current/inactive policy; collapse aggregation uses exact owner+group rather than multiline display runs. This corrects implementation coverage, not approved behavior or scope.
+
+### 2026-10-22 — operator stage refinement (TL02345065)
+
+Collapse only when at least three members of the exact owner/repository group are eligible to fold. One or two quiet members remain individual chips; active/attention/current-hub anchors remain protected and do not count toward that threshold. Preserve one aggregate per canonical repo and owner as displayed; investigate the observed echo pair rather than merging aliases or ownership domains. Add threshold and identity regressions, then restage for a second operator look. This supersedes the earlier any-positive-count folding policy; the one-row geometry, scarcity overflow and exact scoped-menu contracts remain unchanged. Prior stage was not accepted. The old queued suite on93b8b8b6 was canceled through its exact lease before executing to avoid spending priority capacity on the superseded policy; #789's independent lease is untouched.
