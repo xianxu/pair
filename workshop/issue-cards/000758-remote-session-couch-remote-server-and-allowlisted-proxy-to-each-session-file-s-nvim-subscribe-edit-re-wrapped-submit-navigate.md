@@ -1,6 +1,6 @@
 ---
 id: 000758
-status: codecomplete
+status: done
 created: 2026-10-20
 updated: 2026-10-22
 estimate_hours: 4.136
@@ -21,6 +21,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: be457f2be2f39f88610d131c03955aef84989843
         evidence_commit: 9d70ae43ed703146f8f993d8293fdc298aa99d27
+        landed_commit: 03e736c71e60ba1428e601a0bcb9d94f4c66f2e7
 ---
 
 # Couch-owned editor endpoint registry and lifecycle
