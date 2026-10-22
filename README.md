@@ -2534,8 +2534,9 @@ opts in only through this target or `PAIR_NATIVE_COUCH_FLEET=1`.
 See [fleet ownership and evidence](atlas/couch-testing.md).
 
 External editor conformance consumers can build `make couch-conformance-bridge`
-and launch the absolute `bin/couch-conformance-bridge --scratch-parent ABS`
-(with optional `--couch ABS`). Use pipe stdin/stdout/stderr, read its single bounded JSON
+and launch the absolute `bin/couch-conformance-bridge --scratch-parent /private/tmp`
+(with optional `--couch ABS`). The existing parent is shared; the producer creates
+and removes only its own private children. Use pipe stdin/stdout/stderr, read its single bounded JSON
 readiness line, and replace the whole client environment with Environment. Its
 Documents are registered parent/side Markdown fixtures; no consumer-owned Couch
 launcher is needed. Close editors, then close stdin or send TERM; exit0 confirms

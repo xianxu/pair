@@ -131,9 +131,9 @@ Files: create cmd/couch-conformance-bridge/main.go and main_test.go; modify Make
 
 - [x] Add argv/exit tests using fake tools, then the thin main and atomic build target. No global installation or new Couch production switch.
 - [x] Run normal package tests and `make test-affected-inventory`; add exact reader/artifact classifications where applicable, never broad exemptions. New fixture-owning reader certificates must name non-Go input fallback honestly.
-- [ ] Bounded opt-in native acceptance: actual public executable, shared fleet, real service roundtrip, complete env with native nvim, two registered scratch documents; EOF and TERM end through the owner and prove exact cleanup. Exercise both deterministic Claude and Codex fixture personalities internally without requiring a consumer flag. Test selected explicit candidate and default candidate construction. Retain exact source/tool versions, durations, outcome and cleanup evidence.
-- [ ] Send final contract/evidence to parley.nvim:1; coordinate its actual Lua driver invocation without modifying Parley's tree or duplicating teardown. Real-producer acceptance is not claimed from fakes or socket existence.
-- [ ] Push, run recorded affected/full verification, close through the binary-owned review, then `sdlc merge --yes` on SHIP. Hub owns project and acceptance decisions.
+- [x] Bounded opt-in native acceptance: actual public executable, shared fleet, real service roundtrip, complete env with native nvim, two registered scratch documents; EOF and TERM end through the owner and prove exact cleanup. Exercise both deterministic Claude and Codex fixture personalities internally without requiring a consumer flag. Test selected explicit candidate and default candidate construction. Retain exact source/tool versions, durations, outcome and cleanup evidence.
+- [x] Send final contract/evidence to parley.nvim:1; coordinate its actual Lua driver invocation without modifying Parley's tree or duplicating teardown. Real-producer acceptance is not claimed from fakes or socket existence.
+Workflow checkpoint (gate-owned, not an implementation checkbox): push, obtain recorded affected/full verification, close through the binary-owned review, then `sdlc merge --yes` on SHIP. Hub owns project and acceptance decisions.
 
 ## Architecture disposition
 
@@ -183,3 +183,13 @@ Tasks retain their red→minimal implementation→green→commit ordering and sa
 ### 2026-10-22 — constructor admission and remaining-root evidence
 
 The ad-hoc lifetime audit exposed two implementation gaps in the approved stop contract. Keep the existing separate admitted lifetime, but carry startup admission independently through OwnerConfig.AdmissionContext (nil defaults to the lifetime context). Check admission after candidate preparation and between constructor/installation effects; cancellation returns any partial owner for the same joined cleanup. This adds no executor, persistent state or visible recovery state. After fleet teardown is confirmed, recovery evidence selects a still-owned candidate directory rather than the removed fleet root. Add gated-constructor, post-build cancellation and cleanup-budget-exhaustion controls before another native run. Start failures also print the existing cached console frame through the bounded diagnostic sink, with no extra native query. Hub97f22b2d authorizes one subsequent bounded native run; no timeout extension or repeated startup probes.
+
+
+### 2026-10-22 — scratch parent clarification from real consumer setup
+
+Consumer7c555269 created an additional private cb-* directory under the selected temporary parent, which exceeded the conservative wrapper-socket limit and correctly refused with joined cleanup. The supported ScratchParent is an existing physical parent, not an extra consumer-created producer root: pass /private/tmp directly (native qualification used /Volumes/TestScratch directly). The producer atomically creates its own fresh0700 pc-* and couch-candidate-* children, then removes only those exact owned children through its owners. No caller rmdir of the shared parent and no silent relocation. Consumer/editor scratch remains separately owned. This clarifies the existing allocation contract; no implementation, bound, refusal or protocol change.
+
+
+### 2026-10-22 — consumer qualification and gate-owned completion
+
+Consumer738380b8 qualifies the actual existing Parley driver on native nvim0.12.5 and0.11.7, both joined EOF cleanup, using the same supported bridge. Evidence is retained in the issue. Implementation checkboxes are complete. The original final checkbox combined future recorded verification, close and landing with implementation; retain it as a gate-owned workflow instruction instead of falsely ticking a landing before it occurs. Required checks/review/SHIP/merge are unchanged. Current recorded suite lease-869401233 is queued on48162a9b; binary-owned review may overlap it per tl-worker, while landing still requires the exact-code recorded pass. No runtime change after eee3547f.

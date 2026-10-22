@@ -144,7 +144,12 @@ No production launch budget, retry or ownership rule changes.
 
 `make couch-conformance-bridge` atomically builds `bin/couch-conformance-bridge`.
 An external consumer launches its absolute path with `--scratch-parent ABS` and,
-optionally, `--couch ABS`. The executable finds its checkout from its physical
+optionally, `--couch ABS`. Use an existing short physical parent such as
+`/private/tmp` directly; do not add a private wrapper directory. The producer
+allocates fresh0700 `pc-*` and `couch-candidate-*` children and removes only
+those exact owned children. Neither caller nor producer removes the supplied
+parent. Overlong native socket placements refuse without relocation.
+The executable finds its checkout from its physical
 location, uses the shared `BuildOwned` and `NewOwned` implementations, and starts
 one genuine private steward. Its provisioned worker is not started. Native tools,
 including nvim, are selected once from invocation PATH; runtime PATH and all
