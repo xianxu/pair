@@ -12,6 +12,27 @@ the pty console, actor panel, notices, and complete local lifecycle shipped in
 
 ## What exists today
 
+### Wrapped tab bar (#779)
+
+`couchtty.RenderStatusBar` in `status_layout.go` plans at most two bottom rows.
+Groups stay together unless one original group exceeds a full line; a continued
+row starts with the full repository label. A wide bar preserves the existing
+one-row bytes and styles. Chrome/cast/capture controls remain at the start of
+row one, the attention badge at its right edge, and transient notices use free
+space on the final row. Beyond two rows, active chips precede hub/blocked/belled
+chips in retention priority, followed by ordinary chips; retained actors keep
+their original order. One whole final `+N` counts hidden actors, with `!` when
+attention chips are hidden. The bounded planner sanitizes/measures labels once
+and searches a stable priority prefix, O(B + A log A).
+
+The extra row reduces pane height only while used. A tiny host retains a body
+row and falls back to one chrome row; the active chip takes precedence over
+controls and may be clipped to a positive clickable span. If `LIVE ⏸` cannot be
+shown completely in its own style, broadcast frame admission fails closed.
+`RenderedStatusBar.Chips` carry a relative row as well as columns, from the same
+clipping pass that draws them. See [terminal ownership](terminal.md) for admitted
+versus confirmed geometry and [broadcast](broadcast.md) for trusted chrome rows.
+
 ### Slot scratch (#708)
 
 [Slot scratch](couch-scratch.md) maps optional TestScratch temp settings, the

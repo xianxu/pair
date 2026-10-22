@@ -159,6 +159,7 @@ func TestNoteOverlayOnlyOnPublicFrames(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	frame.ChromeRows = 1
 	if got := f.con.screenOverlay(frame, terminal.FramePublic); got.Cells[1*20+4].Content != broadcast.NoteGlyph {
 		t.Fatal("no 💭 on a public frame")
 	}
@@ -447,10 +448,11 @@ func TestNotesMenuDrawnOverMarks(t *testing.T) {
 	f.con.pnotes.menuOpen = true
 	f.con.pnotes.mu.Unlock()
 	frame := menuFrame(t, 80, 24)
+	frame.ChromeRows = 1
 	m := RenderNotesMenu([]broadcast.Note{{ID: 1, Text: "x"}}, 80, 24)
 	f.con.pmarks.mu.Lock()
 	f.con.pmarks.marks = broadcast.NewMarks()
-	f.con.pmarks.marks.Add([][2]int{{m.X + 10, m.Y + 1}}, 80, 24, 0, f.con.now())
+	f.con.pmarks.marks.Add([][2]int{{m.X + 10, m.Y + 1}}, 80, 24, 1, 0, f.con.now())
 	f.con.pmarks.mu.Unlock()
 	out := f.con.screenOverlay(frame, terminal.FramePublic)
 	if bg := out.Cells[(m.Y+1)*80+m.X+10].Style.Bg; bg == markTint {
@@ -490,6 +492,7 @@ func TestNotesMenuHoverGlowsItsNote(t *testing.T) {
 	waitFor(t, "hovered", func() bool { _, _, h := f.notesMenu(); return h == 1 })
 
 	frame := menuFrame(t, 80, 24)
+	frame.ChromeRows = 1
 	f.con.pnotes.mu.Lock()
 	style := f.con.pnotes.style
 	f.con.pnotes.mu.Unlock()

@@ -27,7 +27,7 @@ func (c *Console) keepNoteFrame(f terminal.Frame) {
 func (c *Console) noteLayoutLocked(f terminal.Frame) ScreenLayout {
 	var l ScreenLayout
 	for _, ch := range c.statusChips {
-		l.Chips = append(l.Chips, ColumnSpan{ch.Start, ch.End})
+		l.Chips = append(l.Chips, ch)
 	}
 	var p *pane
 	for _, candidate := range c.panes {
@@ -55,6 +55,12 @@ func (c *Console) anchorNote(n broadcast.Note, cols, rows int) broadcast.NoteAnc
 	// frame with the prior publication's chips or active slot.
 	c.publishMu.Lock()
 	defer c.publishMu.Unlock()
+	if c.presenter == nil {
+		return broadcast.NoteAnchor{Kind: broadcast.AnchorScreen}
+	}
+	if _, ok := c.confirmedChromeStatePublishing(); !ok {
+		return broadcast.NoteAnchor{Kind: broadcast.AnchorScreen}
+	}
 	c.anchors.mu.Lock()
 	f := c.anchors.frame
 	c.anchors.mu.Unlock()

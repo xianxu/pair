@@ -29,11 +29,12 @@ var (
 // continues (finger or button still down). Color is the marks' palette
 // index, 0..PointerColors-1; absent means 0 (#446).
 type PointBatch struct {
-	Cols   int      `json:"cols"`
-	Rows   int      `json:"rows"`
-	Down   bool     `json:"down"`
-	Color  int      `json:"color"`
-	Points [][2]int `json:"points"`
+	ChromeRows int      `json:"-"` // trusted current-frame geometry, set only after admission
+	Cols       int      `json:"cols"`
+	Rows       int      `json:"rows"`
+	Down       bool     `json:"down"`
+	Color      int      `json:"color"`
+	Points     [][2]int `json:"points"`
 }
 
 // ParsePointBatch reads a request body strictly: one JSON object with only

@@ -129,6 +129,16 @@ func (c *Console) routeInputEvent(event terminal.InputEvent) {
 }
 
 func (c *Console) routeMouseEvent(event terminal.InputEvent) {
+	// Geometry is usable only when the presenter has confirmed this exact hit map.
+	// Gesture cleanup still reaches its owner during an uncertain publication.
+	if !c.chromeConfirmed() {
+		switch event.Event.(type) {
+		case uv.MouseReleaseEvent, uv.MouseMotionEvent:
+			c.deliverPresenterInput(event.Event)
+		}
+		return
+	}
+
 	if wheel, ok := event.Event.(uv.MouseWheelEvent); ok {
 		m := uv.Mouse(wheel)
 		if m.Button == uv.MouseWheelUp || m.Button == uv.MouseWheelDown {
@@ -165,7 +175,7 @@ func (c *Console) routeMouseEvent(event terminal.InputEvent) {
 	if ok && !hit.Release {
 		button := mouseinput.BaseButton(hit.Button)
 		c.mu.Lock()
-		rows, cell, focusSpan, driveSpan := int(c.size.Rows), c.statusWebcast, c.statusWebFocus, c.statusWebDrive
+		rows, cell, focusSpan, driveSpan := int(c.size.Rows)-c.statusRows+1, c.statusWebcast, c.statusWebFocus, c.statusWebDrive
 		pointerLink, driveLink := c.statusWebPointerLink, c.statusWebDriveLink
 		c.mu.Unlock()
 		// Left clicks toggle capabilities; right clicks only copy stable links.
@@ -211,7 +221,7 @@ func (c *Console) routeMouseEvent(event terminal.InputEvent) {
 	// (#412); a right click anywhere else keeps going to the child.
 	if ok && !hit.Release && (hit.Button == 0 || hit.Button == 2) {
 		c.mu.Lock()
-		rows := int(c.size.Rows)
+		rows := int(c.size.Rows) - c.statusRows + 1
 		pointer, control, notes, webNotesSpan := c.statusPointer, c.statusControl, c.statusNotes, c.statusWebNotes
 		attention := c.statusAttention
 		c.mu.Unlock()
@@ -241,17 +251,21 @@ func (c *Console) routeMouseEvent(event terminal.InputEvent) {
 	if ok && !hit.Release && hit.Button == 0 {
 		c.mu.Lock()
 		rows, panel := int(c.size.Rows), c.focus.IsPanel()
+		top := rows - c.statusRows + 1
 		chips, extents, control := c.statusChips, c.menuExtents, c.statusControl
 		c.mu.Unlock()
-		if hit.Y == rows {
+		if hit.Y >= top && hit.Y <= rows {
 			// The broadcast cell is checked first: anywhere in its red span
 			// stops the broadcast (#395).
-			if control.Contains(hit.X - 1) {
+			if hit.Y == top && control.Contains(hit.X-1) {
 				c.toggleBroadcast()
 				return
 			}
-			if thread, ok := (RenderedStatusRow{Chips: chips}).ColumnToActor(hit.X - 1); ok {
-				c.switchToThread(thread)
+			for _, chip := range chips {
+				if chip.Row == hit.Y-top && hit.X-1 >= chip.Start && hit.X-1 < chip.End {
+					c.switchToThread(chip.Thread)
+					break
+				}
 			}
 			return
 		}
