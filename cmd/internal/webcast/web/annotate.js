@@ -491,7 +491,7 @@ export function mountAnnotation(doc, win, v, { root, box, stage, palette, who, c
     rail.style.right = `${at.right}px`;
     rail.hidden = !annotate || !(v.model && v.model.seg > 0 && !v.model.ended);
   };
-  function setMode(m) { transition({ type: 'mode', mode: m }); }
+  function setMode(m) { if (v.beforeAnnotationMode?.(m) === false) return; transition({ type: 'mode', mode: m }); }
 
   // Own strokes: drawn at once, posted every CHUNK_MS.
   const flush = () => {

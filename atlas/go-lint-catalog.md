@@ -202,6 +202,22 @@ and shell protocol correctness are outside its scope. Other commands and helpers
 are unaffected. Public scribe's generic-command exposure is tracked separately
 in #768; this fixture rule does not claim a production launch-policy fix.
 
+## Manual-clock delivery proof (#771)
+
+The Pair-local `manual-clock-rendezvous` rule is registered in
+`internal/repolint/local_catalog_test.go`, with its matcher in
+`manual_clock_match_test.go` and scanner cases in `manual_clock_rule_test.go`.
+It rejects buffered `chan time.Time` creation in `newManualClock` and the
+`manualClock.after` method. An unbuffered send proves the hub selected the timer;
+a subsequent request barrier proves its handler finished. A buffered send plus
+an unrelated request barrier provides no ordering between the two select cases.
+
+This is a direct syntax guard for the named fixture seam: it accepts omitted
+capacity or literal zero and rejects other capacity expressions. It does not
+resolve aliases, helpers or computed channel types. Real timers elsewhere are
+outside its scope. Findings and suppression use the shared catalog behavior;
+other consumers' shared catalog is unchanged.
+
 ## Fixture CLI group completion (#744)
 
 The Pair-local `fixture-cli-group-completion` rule is owned by

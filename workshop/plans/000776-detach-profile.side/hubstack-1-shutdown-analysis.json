@@ -1,0 +1,494 @@
+{
+  "base_sha": "eaa758a6f0cd38837655be5334400098849410ec",
+  "gesture_ns": 2302208333,
+  "gesture_started_ns": 1792610840737098000,
+  "gesture_ended_ns": 1792610843039321000,
+  "cleanup_confirmed": true,
+  "fleet_root": "/Volumes/TestScratch/pc-3657925727",
+  "fleet_root_exists": false,
+  "events": [
+    {
+      "event": "console.lifecycle.queue",
+      "thread": "menu\u00001\u0000leave",
+      "time_ns": 1792610840765324000,
+      "duration_ns": 35208,
+      "offset_from_gesture_start_ms": 28.226,
+      "duration_ms": 0.035208
+    },
+    {
+      "event": "leave.begin",
+      "thread": "/",
+      "time_ns": 1792610840765376000,
+      "offset_from_gesture_start_ms": 28.278
+    },
+    {
+      "event": "console.child.Close",
+      "time_ns": 1792610840878992000,
+      "started_ns": 1792610840878891000,
+      "duration_ns": 101125,
+      "offset_from_gesture_start_ms": 141.894,
+      "duration_ms": 0.101125
+    },
+    {
+      "event": "console.child.Close",
+      "time_ns": 1792610840881545000,
+      "started_ns": 1792610840881503000,
+      "duration_ns": 42375,
+      "offset_from_gesture_start_ms": 144.447,
+      "duration_ms": 0.042375
+    },
+    {
+      "event": "console.child.Close",
+      "time_ns": 1792610840897726000,
+      "started_ns": 1792610840897696000,
+      "duration_ns": 30375,
+      "offset_from_gesture_start_ms": 160.628,
+      "duration_ms": 0.030375
+    },
+    {
+      "event": "console.child.Close",
+      "time_ns": 1792610840922001000,
+      "started_ns": 1792610840921934000,
+      "duration_ns": 67416,
+      "offset_from_gesture_start_ms": 184.903,
+      "duration_ms": 0.067416
+    },
+    {
+      "event": "leave.end",
+      "thread": "/",
+      "time_ns": 1792610840997032000,
+      "duration_ns": 231654083,
+      "offset_from_gesture_start_ms": 259.934,
+      "duration_ms": 231.654083
+    },
+    {
+      "event": "whole_leave.process_cpu",
+      "time_ns": 1792610840997038000,
+      "user_cpu_ns": 143016000,
+      "system_cpu_ns": 270176000,
+      "offset_from_gesture_start_ms": 259.94
+    },
+    {
+      "event": "instrumentation",
+      "final": false,
+      "observer_ns": 433314,
+      "overflow": false,
+      "rows": 1333
+    },
+    {
+      "event": "flush.leave.data_sync_ns",
+      "time_ns": 1792610841003365000,
+      "duration_ns": 969666,
+      "offset_from_gesture_start_ms": 266.267,
+      "duration_ms": 0.969666
+    },
+    {
+      "event": "flush.leave.footer_write_ns",
+      "time_ns": 1792610841003367000,
+      "duration_ns": 28208,
+      "offset_from_gesture_start_ms": 266.269,
+      "duration_ms": 0.028208
+    },
+    {
+      "event": "flush.leave.total_ns",
+      "time_ns": 1792610841003367000,
+      "duration_ns": 6325958,
+      "offset_from_gesture_start_ms": 266.269,
+      "duration_ms": 6.325958
+    },
+    {
+      "event": "flush.leave.open_ns",
+      "time_ns": 1792610841003368000,
+      "duration_ns": 235208,
+      "offset_from_gesture_start_ms": 266.27,
+      "duration_ms": 0.235208
+    },
+    {
+      "event": "flush.leave.data_write_ns",
+      "time_ns": 1792610841003368000,
+      "duration_ns": 4502208,
+      "offset_from_gesture_start_ms": 266.27,
+      "duration_ms": 4.502208
+    },
+    {
+      "event": "flush.leave.footer_sync_ns",
+      "time_ns": 1792610841003369000,
+      "duration_ns": 472750,
+      "offset_from_gesture_start_ms": 266.271,
+      "duration_ms": 0.47275
+    },
+    {
+      "event": "flush.leave.close_ns",
+      "time_ns": 1792610841003369000,
+      "duration_ns": 6875,
+      "offset_from_gesture_start_ms": 266.271,
+      "duration_ms": 0.006875
+    },
+    {
+      "event": "flush.leave.finished_ns",
+      "time_ns": 1792610841003369000,
+      "duration_ns": 1792610841003362000,
+      "offset_from_gesture_start_ms": 266.271,
+      "NOTE": "duration_ns carries an absolute timestamp metadata value here; do not aggregate as duration"
+    },
+    {
+      "event": "flush.leave.started_ns",
+      "time_ns": 1792610841003369000,
+      "duration_ns": 1792610840997038000,
+      "offset_from_gesture_start_ms": 266.271,
+      "NOTE": "duration_ns carries an absolute timestamp metadata value here; do not aggregate as duration"
+    },
+    {
+      "event": "console.leave.completion_received",
+      "time_ns": 1792610841003425000,
+      "offset_from_gesture_start_ms": 266.327
+    },
+    {
+      "event": "console.teardown.Stop",
+      "time_ns": 1792610841003435000,
+      "started_ns": 1792610841003435000,
+      "duration_ns": 42,
+      "offset_from_gesture_start_ms": 266.337,
+      "duration_ms": 4.2e-05
+    },
+    {
+      "event": "console.teardown.shares",
+      "time_ns": 1792610841003451000,
+      "started_ns": 1792610841003436000,
+      "duration_ns": 15791,
+      "offset_from_gesture_start_ms": 266.353,
+      "duration_ms": 0.015791
+    },
+    {
+      "event": "console.teardown.input_close",
+      "time_ns": 1792610841003452000,
+      "started_ns": 1792610841003452000,
+      "duration_ns": 458,
+      "offset_from_gesture_start_ms": 266.354,
+      "duration_ms": 0.000458
+    },
+    {
+      "event": "console.teardown.cancel_reattach",
+      "time_ns": 1792610841003452000,
+      "started_ns": 1792610841003452000,
+      "duration_ns": 42,
+      "offset_from_gesture_start_ms": 266.354,
+      "duration_ms": 4.2e-05
+    },
+    {
+      "event": "console.teardown.workers_join",
+      "time_ns": 1792610841016078000,
+      "started_ns": 1792610841003453000,
+      "duration_ns": 12625667,
+      "offset_from_gesture_start_ms": 278.98,
+      "duration_ms": 12.625667
+    },
+    {
+      "event": "console.teardown.abandon_pending",
+      "time_ns": 1792610841016082000,
+      "started_ns": 1792610841016080000,
+      "duration_ns": 2500,
+      "offset_from_gesture_start_ms": 278.984,
+      "duration_ms": 0.0025
+    },
+    {
+      "event": "console.presenter.Release",
+      "time_ns": 1792610841016109000,
+      "started_ns": 1792610841016082000,
+      "duration_ns": 26167,
+      "offset_from_gesture_start_ms": 279.011,
+      "duration_ms": 0.026167
+    },
+    {
+      "event": "console.teardown.release",
+      "time_ns": 1792610841016113000,
+      "started_ns": 1792610841016082000,
+      "duration_ns": 30875,
+      "offset_from_gesture_start_ms": 279.015,
+      "duration_ms": 0.030875
+    },
+    {
+      "event": "console.teardown.traces_host_restore",
+      "time_ns": 1792610841016208000,
+      "started_ns": 1792610841016113000,
+      "duration_ns": 94875,
+      "offset_from_gesture_start_ms": 279.11,
+      "duration_ms": 0.094875
+    },
+    {
+      "event": "console.teardown.total",
+      "time_ns": 1792610841016210000,
+      "started_ns": 1792610841003435000,
+      "duration_ns": 12774500,
+      "offset_from_gesture_start_ms": 279.112,
+      "duration_ms": 12.7745
+    },
+    {
+      "event": "console.Run.return",
+      "time_ns": 1792610841016210000,
+      "offset_from_gesture_start_ms": 279.112
+    },
+    {
+      "event": "runConsole.Console.Run.return",
+      "time_ns": 1792610841016211000,
+      "offset_from_gesture_start_ms": 279.113
+    },
+    {
+      "event": "messages.Close.hubmemo.present",
+      "time_ns": 1792610841016230000,
+      "offset_from_gesture_start_ms": 279.132
+    },
+    {
+      "event": "messages.Close.cancel",
+      "time_ns": 1792610841016237000,
+      "started_ns": 1792610841016230000,
+      "duration_ns": 7250,
+      "offset_from_gesture_start_ms": 279.139,
+      "duration_ms": 0.00725
+    },
+    {
+      "event": "messages.worker.wait_watcher.return",
+      "time_ns": 1792610841016237000,
+      "offset_from_gesture_start_ms": 279.139
+    },
+    {
+      "event": "messages.worker.listings.return",
+      "time_ns": 1792610841016245000,
+      "offset_from_gesture_start_ms": 279.147
+    },
+    {
+      "event": "messages.worker.lifecycle_publisher.return",
+      "time_ns": 1792610841016246000,
+      "offset_from_gesture_start_ms": 279.148
+    },
+    {
+      "event": "messages.worker.service_loop_or_admission.return",
+      "time_ns": 1792610841016248000,
+      "offset_from_gesture_start_ms": 279.15
+    },
+    {
+      "event": "messages.worker.renicer.return",
+      "time_ns": 1792610841016249000,
+      "offset_from_gesture_start_ms": 279.151
+    },
+    {
+      "event": "messages.worker.resource_sampler.return",
+      "time_ns": 1792610841016326000,
+      "offset_from_gesture_start_ms": 279.228
+    },
+    {
+      "event": "messages.worker.archive.return",
+      "time_ns": 1792610841016329000,
+      "offset_from_gesture_start_ms": 279.231
+    },
+    {
+      "event": "messages.worker.stale.return",
+      "time_ns": 1792610841016333000,
+      "offset_from_gesture_start_ms": 279.235
+    },
+    {
+      "event": "messages.worker.scratch_maintenance.return",
+      "time_ns": 1792610841016335000,
+      "offset_from_gesture_start_ms": 279.237
+    },
+    {
+      "event": "messages.Close.server",
+      "time_ns": 1792610841016342000,
+      "started_ns": 1792610841016237000,
+      "duration_ns": 104500,
+      "offset_from_gesture_start_ms": 279.244,
+      "duration_ms": 0.1045
+    },
+    {
+      "event": "messages.Close.sessions",
+      "time_ns": 1792610841016437000,
+      "started_ns": 1792610841016343000,
+      "duration_ns": 94041,
+      "offset_from_gesture_start_ms": 279.339,
+      "duration_ms": 0.094041
+    },
+    {
+      "event": "messages.Close.broker",
+      "time_ns": 1792610841016448000,
+      "started_ns": 1792610841016438000,
+      "duration_ns": 10417,
+      "offset_from_gesture_start_ms": 279.35,
+      "duration_ms": 0.010417
+    },
+    {
+      "event": "messages.Close.stack",
+      "key": "5247",
+      "time_ns": 1792610841117631000,
+      "started_ns": 1792610841117262000,
+      "duration_ns": 364042,
+      "offset_from_gesture_start_ms": 380.533,
+      "duration_ms": 0.364042
+    },
+    {
+      "event": "messages.worker.resource_inventory.return",
+      "time_ns": 1792610843017509000,
+      "offset_from_gesture_start_ms": 2280.411
+    },
+    {
+      "event": "messages.Close.workers",
+      "time_ns": 1792610843017515000,
+      "started_ns": 1792610841016452000,
+      "duration_ns": 2001050250,
+      "offset_from_gesture_start_ms": 2280.417,
+      "duration_ms": 2001.05025
+    },
+    {
+      "event": "messages.Close.hubTargets",
+      "time_ns": 1792610843017515000,
+      "started_ns": 1792610843017515000,
+      "duration_ns": 208,
+      "offset_from_gesture_start_ms": 2280.417,
+      "duration_ms": 0.000208
+    },
+    {
+      "event": "messages.Close.facts",
+      "time_ns": 1792610843017520000,
+      "started_ns": 1792610843017516000,
+      "duration_ns": 4084,
+      "offset_from_gesture_start_ms": 2280.422,
+      "duration_ms": 0.004084
+    },
+    {
+      "event": "runConsole.messages.Close",
+      "time_ns": 1792610843017520000,
+      "started_ns": 1792610841016212000,
+      "duration_ns": 2001295709,
+      "offset_from_gesture_start_ms": 2280.422,
+      "duration_ms": 2001.295709
+    },
+    {
+      "event": "outer.capture.Close",
+      "time_ns": 1792610843017521000,
+      "started_ns": 1792610843017521000,
+      "duration_ns": 167,
+      "offset_from_gesture_start_ms": 2280.423,
+      "duration_ms": 0.000167
+    },
+    {
+      "event": "outer.lease.Close",
+      "time_ns": 1792610843017522000,
+      "started_ns": 1792610843017522000,
+      "duration_ns": 166,
+      "offset_from_gesture_start_ms": 2280.424,
+      "duration_ms": 0.000166
+    },
+    {
+      "event": "outer.runtime.Close",
+      "time_ns": 1792610843017834000,
+      "started_ns": 1792610843017522000,
+      "duration_ns": 312208,
+      "offset_from_gesture_start_ms": 2280.736,
+      "duration_ms": 0.312208
+    },
+    {
+      "event": "main.Run.return",
+      "time_ns": 1792610843017836000,
+      "offset_from_gesture_start_ms": 2280.738
+    },
+    {
+      "event": "main.crashreport.Finish",
+      "time_ns": 1792610843017889000,
+      "started_ns": 1792610843017836000,
+      "duration_ns": 52875,
+      "offset_from_gesture_start_ms": 2280.791,
+      "duration_ms": 0.052875
+    },
+    {
+      "event": "main.before_exit",
+      "time_ns": 1792610843017889000,
+      "offset_from_gesture_start_ms": 2280.791
+    },
+    {
+      "event": "instrumentation",
+      "final": true,
+      "observer_ns": 447521,
+      "overflow": false,
+      "rows": 48
+    },
+    {
+      "event": "host.gesture.begin",
+      "time_ns": 1792610840737098000,
+      "offset_from_gesture_start_ms": 0.0
+    },
+    {
+      "event": "host.cmd.Wait.return",
+      "time_ns": 1792610843021629000,
+      "offset_from_gesture_start_ms": 2284.531
+    },
+    {
+      "event": "host.pty.read_join",
+      "time_ns": 1792610843021635000,
+      "started_ns": 1792610843021631000,
+      "duration_ns": 4375,
+      "offset_from_gesture_start_ms": 2284.537,
+      "duration_ms": 0.004375
+    },
+    {
+      "event": "host.endpoint.EndInput",
+      "time_ns": 1792610843021741000,
+      "started_ns": 1792610843021645000,
+      "duration_ns": 96125,
+      "offset_from_gesture_start_ms": 2284.643,
+      "duration_ms": 0.096125
+    },
+    {
+      "event": "host.endpoint.Close",
+      "time_ns": 1792610843021742000,
+      "started_ns": 1792610843021741000,
+      "duration_ns": 834,
+      "offset_from_gesture_start_ms": 2284.644,
+      "duration_ms": 0.000834
+    },
+    {
+      "event": "host.stream.Close",
+      "time_ns": 1792610843021766000,
+      "started_ns": 1792610843021743000,
+      "duration_ns": 22375,
+      "offset_from_gesture_start_ms": 2284.668,
+      "duration_ms": 0.022375
+    },
+    {
+      "event": "host.terminal.done",
+      "time_ns": 1792610843021766000,
+      "offset_from_gesture_start_ms": 2284.668
+    },
+    {
+      "event": "host.gesture.end",
+      "time_ns": 1792610843039321000,
+      "offset_from_gesture_start_ms": 2302.223
+    },
+    {
+      "event": "instrumentation",
+      "final": true,
+      "observer_ns": 13667,
+      "overflow": false,
+      "rows": 8
+    }
+  ],
+  "final_flush": {
+    "close_ns": 8917,
+    "data_sync_ns": 641625,
+    "data_write_ns": 262166,
+    "failed": false,
+    "final": true,
+    "finished_ns": 1792610843019557000,
+    "footer_sync_ns": 610084,
+    "footer_write_ns": 104959,
+    "open_ns": 30125,
+    "stack_write_ns": 198375,
+    "started_ns": 1792610843017889000,
+    "total_ns": 1669750
+  },
+  "limits": [
+    "Metadata observers and added synchronized flushes add overhead; do not subtract a guessed constant.",
+    "SELF CPU spans Leave only and includes auxiliary goroutines, not per-thread CPU.",
+    "Final flush statistics sidecar is unsynced and its write lies between before_exit and cmd.Wait return.",
+    "Exact wall timestamps and monotonic gesture duration can differ by microseconds; preserve both.",
+    "Aggregate coordinator/query durations overlap; only match per-slot by explicit thread and contained outer phase, not broad coreStart overlap."
+  ]
+}

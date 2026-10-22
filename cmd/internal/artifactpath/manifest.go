@@ -725,6 +725,12 @@ var NonArtifactSources = []string{
 	"cmd/internal/couchschedule/calendar.go",
 	"cmd/internal/couchschedule/model.go",
 	"cmd/internal/couchschedule/status.go",
+	// #757 catalogue, report and HTTP front introduce no Pair artifact families.
+	"cmd/internal/mockserve/screens.go",
+	"cmd/internal/mockserve/check.go",
+	"cmd/internal/mockserve/front.go",
+	"cmd/internal/mockserve/front_origin.go",
+	"cmd/internal/mockserve/front_route.go",
 	"cmd/internal/mockserve/cli.go",
 	"cmd/internal/mockserve/page.go",
 	"cmd/internal/mockserve/project.go",
@@ -1068,6 +1074,31 @@ var NonArtifactSources = []string{
 	"cmd/internal/couchtty/codes_menu.go",
 	"cmd/internal/webcast/browser.go",
 	"cmd/internal/webcast/cast.go",
+	// #752 sketch wire/admission, ordered receipts, drawing witnesses and
+	// delivery journals live in memory or the existing recording stream.
+	"cmd/internal/strictjson/unicode.go",
+	"cmd/internal/webcast/board/sketch.go",
+	"cmd/internal/webcast/board/sketch_delivery.go",
+	"cmd/internal/webcast/board/sketch_wire.go",
+	"cmd/internal/webcast/board/writer_sketch.go",
+	"cmd/internal/webcast/drive/drawing.go",
+	"cmd/internal/webcast/recorder/sketch.go",
+	"cmd/internal/webcast/recording/sketch_anchors.go",
+	"cmd/internal/webcast/recording/sketch_source.go",
+	// #752 console/private-scene adapters use CDP scopes and opaque blobs;
+	// the scene script reads embedded viewer modules, not runtime artifacts.
+	"cmd/internal/webcast/chrome_operator_sketch.go",
+	"cmd/internal/webcast/chrome_operator_sketch_binding.go",
+	"cmd/internal/webcast/chrome_operator_sketch_wiring.go",
+	"cmd/internal/webcast/chrome_sketch_exclusion.go",
+	"cmd/internal/webcast/chrome_sketch_scene.go",
+	"cmd/internal/webcast/recorder/exclusion.go",
+	"cmd/internal/webcast/server_sketch.go",
+	"cmd/internal/webcast/sketch_scene_script.go",
+	// #752 bounded asset reads use recording.AssetName under the caller's
+	// recording directory: the existing #457/#459 recording-owned assets,
+	// removed with that recording, introduce no Pair artifact family.
+	"cmd/internal/webcast/cast_sketch.go",
 	// #523: capability admission, ordered stream operations and projections;
 	// cast lifetime state only, no new artifact paths.
 	"cmd/internal/webcast/board/annotation.go",
@@ -1340,6 +1371,8 @@ var NonArtifactSources = []string{
 	"cmd/internal/diagnosticlog/append.go",
 	"cmd/internal/diagnosticlog/append_reservation.go",
 	"cmd/internal/diagnosticlog/batch_model.go",
+	// #774: compares supplied metadata; owns no artifact pathname.
+	"cmd/internal/diagnosticlog/checkpoint_identity.go",
 	"cmd/internal/diagnosticlog/buffered.go",
 	"cmd/internal/diagnosticlog/policy.go",
 	"cmd/internal/wrapcmd/capture_buffer.go",
@@ -1737,6 +1770,9 @@ var NonArtifactSources = []string{
 	"cmd/internal/runtimebundle/plan.go",
 	"cmd/internal/runtimebundle/store.go",
 	"cmd/internal/runtimebundlegen/generate.go",
+	"cmd/internal/scribecmd/pty.go",
+	"cmd/internal/scribecmd/pty_darwin.go",
+	"cmd/internal/scribecmd/pty_other.go",
 	"cmd/internal/scribecmd/scribecmd.go",
 	"cmd/internal/sessioninventory/conformance.go",
 	"cmd/internal/sessioninventory/activity.go",

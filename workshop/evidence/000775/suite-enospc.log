@@ -1,0 +1,11 @@
+python3 -B tests/zellij-false-miss-test.py
+...............
+----------------------------------------------------------------------
+Ran 15 tests in 2.752s
+
+OK
+bash tests/lib/with-pair-test-binary.sh /Library/Developer/CommandLineTools/usr/bin/make test
+go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime
+open /Volumes/AgentScratch/go-build/b3/b3d78d8e5ec3b4af841011b54c9fc02be2cfafe561b2353cf48293a2da5cadaa-d: no space left on device
+make[1]: *** [runtimebundle-generate] Error 1
+make: *** [test] Error 2

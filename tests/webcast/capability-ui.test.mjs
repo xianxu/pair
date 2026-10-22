@@ -95,3 +95,40 @@ test('sketch bootstrap current control reaches driving UI without historical ctl
  h.rec({k:'ctl',driver:{id:'other',name:'Other'},pending:[]});
  assert.equal(ui.view().state,'other');
 });
+test('sketch suspension stops driving input without surrendering the seat', async () => {
+  const h = harness();
+  h.caps(false, true, 3);
+  const ui = mountDrive(h.doc, h.win, h.v, { viewer: 'me', key: 'key' });
+  h.rec({ k: 'ctl', driver: { id: 'me' }, pending: [] });
+  const layer = h.root.querySelector('.drive'),
+    keys = h.root.querySelector('.drive-keys');
+  ui.setSketching(true);
+  assert.equal(layer.classList.contains('on'), false);
+  keys.value = 'must not drive';
+  await h.event(keys, 'input');
+  assert.equal(h.posts.length, 0);
+  assert.equal(ui.view().state, 'driving');
+  ui.setSketching(false);
+  assert.equal(layer.classList.contains('on'), true);
+  keys.value = 'now drive';
+  await h.event(keys, 'input');
+  assert.equal(h.posts.at(-1).url, 'drive/input');
+});
+test('annotation semantic mode gate defers both toolbar and API changes', async () => {
+  const h = harness();
+  h.caps(true, false);
+  const modes = [];
+  h.v.beforeAnnotationMode = (mode) => {
+    modes.push(mode);
+    return false;
+  };
+  const ui = await mountAnnotate(h.doc, h.win, h.v);
+  ui.setMode('point');
+  assert.equal(ui.mode, 'watch');
+  await h.event(h.root.querySelector('.mode'), 'click');
+  assert.equal(ui.mode, 'watch');
+  assert.ok(modes.includes('point'));
+  h.v.beforeAnnotationMode = () => true;
+  ui.setMode('note');
+  assert.equal(ui.mode, 'note');
+});

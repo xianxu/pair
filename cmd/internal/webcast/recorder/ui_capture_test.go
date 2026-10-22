@@ -58,3 +58,20 @@ func TestCaptureScreenshotRequiresSuppressionAndRestores(t *testing.T) {
 		})
 	}
 }
+
+func TestBackgroundCaptureDefersBeforePixelsButKeepsSuppressionWhenAdmitted(t *testing.T) {
+	for _, confirm := range []bool{false, true} {
+		f := &uiCaller{confirm: confirm}
+		err := CaptureBackgroundScreenshot(context.Background(), f, "s", 7, map[string]any{"format": "png"}, nil)
+		if !confirm {
+			if !errors.Is(err, ErrBackgroundCaptureDeferred) {
+				t.Fatalf("deferred capture: %v", err)
+			}
+			if strings.Contains(strings.Join(f.calls, ","), "Page.captureScreenshot") {
+				t.Fatal("deferred capture read pixels")
+			}
+		} else if err != nil || strings.Join(f.calls, ",") != "Runtime.evaluate,Page.captureScreenshot,Runtime.evaluate,release" {
+			t.Fatalf("admitted capture lost privacy protocol: %v %v", err, f.calls)
+		}
+	}
+}

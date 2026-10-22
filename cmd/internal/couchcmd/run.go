@@ -1434,7 +1434,7 @@ func usageWith(w io.Writer, bindings []couchkeys.Binding) {
 	fmt.Fprintln(w, "couch - supervise agent actors, one per working tree")
 	fmt.Fprintln(w)
 	verbLine(w, launchVerb, "usage: couch [path ...] [--layout2|--layout3]")
-	verbLine(w, "mock", "       couch mock serve DIR [--port N] | mock use DIR mock-N")
+	verbLine(w, "mock", "       couch mock serve DIR [--port N] [--real URL] | mock use DIR mock-N | mock check DIR")
 	verbLine(w, "--list", "       couch --list")
 	verbLine(w, "--show", "       couch --show <thread>")
 	verbLine(w, "--reconcile", "       couch --reconcile repo:N")

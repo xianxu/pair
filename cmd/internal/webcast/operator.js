@@ -72,21 +72,24 @@ export function operatorTransport(report, win) {
   };
 }
 
-export function mountOperator({ host, root, report }, { annotate, palette, css }, doc = document, win = window) {
+export function mountOperator({ host, root, report }, { annotate, palette, css, sketch }, doc = document, win = window) {
   const style = doc.createElement('style');
   style.textContent = css + '\n.operator-box{position:fixed;inset:0;pointer-events:none}.note-dialog{pointer-events:auto}.annotate.operator-driving{visibility:hidden}.annotation-hint{max-width:120px;color:#222;background:#fff;border-radius:5px;font:12px/1.3 system-ui;text-align:right}.annotation-hint:empty{display:none}';
   root.appendChild(style);
   const box = doc.createElement('div'); box.className = 'operator-box'; root.appendChild(box);
   const transport = operatorTransport(report, win);
-  let callback = () => {}, revision = -1, strokeSeq = 0;
+  const callbacks = new Set();
+  const callback = (...args) => { for (const fn of callbacks) fn(...args); };
+  let revision = -1, strokeSeq = 0;
   // Only trusted CDP object references establish original identity. Paths and
   // matching text remain replacement evidence, never an original-node map.
   // Recorder IDs increase across documents; backend IDs are never used here.
   const originals = new Map();
-  let originalDocument = 0, visibleNodeIDs = new Set();
+  let originalDocument = 0, visibleNodeIDs = new Set(), sketchMount = null;
+  const wantsOriginal = (id) => visibleNodeIDs.has(id) || sketchMount?.receiver?.hasAnchor(originalDocument,id) === true;
   const view = {
     model: { seg: 0, docSeg: 0, notes: [] },
-    onRecord(fn) { callback = fn; },
+    onRecord(fn) { callbacks.add(fn); return () => callbacks.delete(fn); },
     toPage: (x, y) => [x + win.scrollX, y + win.scrollY],
     fromPage: (x, y) => [x - win.scrollX, y - win.scrollY],
     boxOf: () => null,
@@ -134,6 +137,12 @@ export function mountOperator({ host, root, report }, { annotate, palette, css }
     who: { id: () => 'operator', name: () => 'Operator', viewer: () => ({ id: 'operator', name: 'Operator' }) },
     colors: { get: () => picked, set: (n) => { picked = n; } },
   });
+  if (sketch?.mount) {
+    const mounted = sketchMount = sketch.mount({host,root,box,report,view,annotation:ui,palette,css:sketch.css,shellURL:sketch.shellURL},doc,win);
+    ui.sketch = mounted.tool;
+	win.__couchcastOperatorSketch = mounted.tool;
+  }
+  win.__couchcastCaptureBusy = () => ui.dialog.open || !!sketchMount?.tool.captureBusy();
   // #523 supplies this capability input through CDP in the isolated world.
   // Keep it independent of view snapshots; no switch or authority is added here.
   win.__couchcastAnnotationAllowed = (allowed, generation) => {
@@ -147,7 +156,7 @@ export function mountOperator({ host, root, report }, { annotate, palette, css }
   win.__couchcastOperatorReply = (reply) => transport.reply(reply);
   win.__couchcastOperatorMode = (mode) => { ui.setMode(mode); return ui.mode === mode; };
   win.__couchcastOperatorOriginal = (document, id, node) => {
-    if (document <= 0 || document !== originalDocument || !visibleNodeIDs.has(id) || node?.nodeType !== 1 || node.ownerDocument !== doc || !node.isConnected || node === host) return false;
+    if (document <= 0 || document !== originalDocument || !wantsOriginal(id) || node?.nodeType !== 1 || node.ownerDocument !== doc || !node.isConnected || node === host) return false;
     const previous = originals.get(id);
     // A dead weak reference still reserves its identity until the note retires.
     if (previous) return previous.deref() === node;
@@ -160,9 +169,9 @@ export function mountOperator({ host, root, report }, { annotate, palette, css }
     revision = snapshot.revision;
     if (snapshot.doc !== originalDocument) { originals.clear(); originalDocument = snapshot.doc; }
     visibleNodeIDs = new Set(snapshot.notes.map(note => note.at?.node));
-    for (const id of originals.keys()) if (!visibleNodeIDs.has(id)) originals.delete(id);
+    for (const id of originals.keys()) if (!wantsOriginal(id)) originals.delete(id);
     transport.setScope(snapshot.doc, snapshot.ended);
-    view.model = { seg: snapshot.seg, docSeg: snapshot.doc, paused: snapshot.paused, ended: snapshot.ended, driver: snapshot.driver, notes: snapshot.notes.map((note) => ({ note, seg: snapshot.doc, state: 'open' })) };
+    view.model = { seg: snapshot.seg, docSeg: snapshot.doc, paused: snapshot.paused, live: !snapshot.paused && !snapshot.ended, ended: snapshot.ended, driver: snapshot.driver, notes: snapshot.notes.map((note) => ({ note, seg: snapshot.doc, state: 'open' })) };
     callback({ k: 'view', t: snapshot.t }, view.model);
     for (const stroke of snapshot.strokes) {
       if (stroke.seq <= strokeSeq) continue;

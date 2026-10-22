@@ -1,0 +1,6 @@
+version=zellij-0.45.1 sessions=3 queries=1000 workers=4
+exit0_target_listed=0
+exit1_alive_confirmed=0
+exit1_liveness_unconfirmed=0
+other_nonzero=0
+cleanup=pass (private session sockets absent; root removed)

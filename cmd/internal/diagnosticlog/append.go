@@ -3,6 +3,7 @@ package diagnosticlog
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"io"
 	"os"
 	"syscall"
@@ -105,7 +106,7 @@ func recoverAppend(path string, s *diskState, o Options, durable bool) error {
 	}
 	written := st.Size() - intent.Before.Size
 	if fileIdentity(st) != intent.Before.Identity || written < 0 || written > int64(len(intent.Data)) {
-		return errors.New("diagnostic append identity or size changed")
+		return fmt.Errorf("diagnostic legacy-append recovery: %w", matches(st, intent.Before))
 	}
 	next := *s
 	next.Appending = nil
