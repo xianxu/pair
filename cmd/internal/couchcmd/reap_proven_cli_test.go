@@ -93,3 +93,22 @@ func TestReapProvenPreviewNamesExactTarget(t *testing.T) {
 		t.Fatalf("exit %d calls %+v text %s%s", code, calls, out.String(), errw.String())
 	}
 }
+
+func TestReapProvenUnqualifiedWitnessCannotFallBackToLegacyTree(t *testing.T) {
+	target := *effectTarget()
+	row := couchcore.ResourceProcessView{ResourceProvenance: couchcore.ResourceProvenance{ResourceRoot: couchcore.ResourceRoot{Key: target.Key, Slot: target.Slot, Thread: target.Thread}, Root: target.Root, Orphan: true, OrphanKnown: true}}
+	// Older/incomplete evidence is not eligible for the new guarded group, but
+	// that must not turn the same PID into a legacy expanding-tree candidate.
+	view := couchcore.ResourceView{Orphans: []couchcore.ResourceProcessView{row}, LeftRunning: []couchcore.LeftRunningOrphan{{Process: couchcore.ProcessIdentity{PID: target.Key.PID, Identity: target.Key.Identity}}}}
+	table := &fakeOrphanTable{rows: []launcher.ProcessRow{{PID: target.Key.PID, Identity: target.Key.Identity}}, ids: map[int]string{target.Key.PID: target.Key.Identity}, diesOn: map[int]syscall.Signal{target.Key.PID: syscall.SIGTERM}}
+	var sent []couchmessage.Request
+	var out, errw bytes.Buffer
+	code := runReapOrphansCLI(cliInvocation{messageOp: orphanReapOp, confirmed: true, jsonOutput: true}, testRT{dir: t.TempDir()}, &out, &errw, reapCLIStub(t, view, &sent), fastOrphanReaper(table))
+	var report orphanReapReport
+	if err := json.Unmarshal(out.Bytes(), &report); err != nil {
+		t.Fatal(err)
+	}
+	if code != 1 || len(table.signals) != 0 || len(report.Proven) != 1 || report.Proven[0].Status != orphanRefused || len(report.LeftRunning) != 0 {
+		t.Fatalf("exit%d signals%v report%+v", code, table.signals, report)
+	}
+}

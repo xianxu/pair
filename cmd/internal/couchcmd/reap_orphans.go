@@ -104,25 +104,21 @@ func runReapOrphansCLI(inv cliInvocation, rt Runtime, stdout, stderr io.Writer, 
 	for _, e := range result.Resources.Errors {
 		fmt.Fprintln(stderr, "Coverage:", rowtext.Sanitize(e))
 	}
-	targets := couchcore.ProvenOrphanTargets(*result.Resources)
-	keys := map[couchcore.ResourceProcessKey]bool{}
-	for _, t := range targets {
-		keys[t.Key] = true
-	}
+	targets, refused, protected := provenOrphanAdmission(*result.Resources)
 	var nvims []couchcore.OrphanNvim
 	for _, row := range result.Resources.OrphanNvim {
-		if !keys[row.Key] {
+		if !protected[row.Key.PID] {
 			nvims = append(nvims, row)
 		}
 	}
 	var left []couchcore.LeftRunningOrphan
 	for _, row := range result.Resources.LeftRunning {
-		if !keys[couchcore.ResourceProcessKey{PID: row.Process.PID, Identity: row.Process.Identity}] {
+		if !protected[row.Process.PID] {
 			left = append(left, row)
 		}
 	}
 	report := orphanReapReport{Confirmed: true, SampledAt: result.Resources.SampledAt}
-	report.Proven = reapProvenOrphans(ctx, socket, request, call, reaper, targets)
+	report.Proven = append(refused, reapProvenOrphans(ctx, socket, request, call, reaper, targets)...)
 	report.Outcomes = reapOrphanNvim(ctx, reaper, nvims)
 	report.LeftRunning = reapLeftRunning(ctx, reaper, left)
 
@@ -143,16 +139,22 @@ func refuseOrphanReap(inv cliInvocation, ctx context.Context, socket string, std
 		return 1
 	}
 	fmt.Fprintln(stderr, "couch: --reap-orphans ends processes and needs --confirm; nothing was signalled")
+	targets, proven, protected := provenOrphanAdmission(*result.Resources)
 	outcomes := make([]orphanReapOutcome, 0, len(result.Resources.OrphanNvim))
 	for _, row := range result.Resources.OrphanNvim {
+		if protected[row.Key.PID] {
+			continue
+		}
 		outcomes = append(outcomes, orphanReapOutcome{Row: row, Status: orphanRefused, Detail: "--confirm not given"})
 	}
 	left := make([]leftRunningReapOutcome, 0, len(result.Resources.LeftRunning))
 	for _, entry := range result.Resources.LeftRunning {
+		if protected[entry.Process.PID] {
+			continue
+		}
 		left = append(left, leftRunningReapOutcome{Entry: entry, Status: orphanRefused, Detail: "--confirm not given"})
 	}
-	var proven []provenOrphanReapOutcome
-	for _, target := range couchcore.ProvenOrphanTargets(*result.Resources) {
+	for _, target := range targets {
 		proven = append(proven, provenOrphanReapOutcome{Target: target, Status: orphanRefused, Detail: "--confirm not given"})
 	}
 	return finishOrphanReap(inv, stdout, stderr, orphanReapReport{SampledAt: result.Resources.SampledAt, Outcomes: outcomes, LeftRunning: left, Proven: proven})
@@ -321,4 +323,28 @@ func reapProvenOrphans(ctx context.Context, socket string, caller couchmessage.R
 		out = append(out, provenOrphanReapOutcome{Target: byKey[couchcore.ResourceProcessKey{PID: r.Step.PID, Identity: r.Step.Identity}], Status: r.Status, Detail: r.Detail})
 	}
 	return out
+}
+
+// Every reported orphan PID stays out of the legacy tree families, even when
+// its witness is incomplete or ambiguous. Losing eligibility cannot grant the
+// same process the broader fallback that the exact group deliberately forbids.
+func provenOrphanAdmission(view couchcore.ResourceView) ([]couchcore.ProvenOrphanTarget, []provenOrphanReapOutcome, map[int]bool) {
+	targets := couchcore.ProvenOrphanTargets(view)
+	eligible := map[couchcore.ResourceProcessKey]bool{}
+	for _, t := range targets {
+		eligible[t.Key] = true
+	}
+	protected := map[int]bool{}
+	seen := map[couchcore.ResourceProcessKey]bool{}
+	var refused []provenOrphanReapOutcome
+	for _, row := range view.Orphans {
+		protected[row.Key.PID] = true
+		if eligible[row.Key] || seen[row.Key] {
+			continue
+		}
+		seen[row.Key] = true
+		target := couchcore.ProvenOrphanTarget{Key: row.Key, Root: row.Root, Slot: row.Slot, Thread: row.Thread, Workspace: row.Workspace}
+		refused = append(refused, provenOrphanReapOutcome{Target: target, Status: orphanRefused, Detail: "incomplete or ambiguous orphan witness; inspect resources"})
+	}
+	return targets, refused, protected
 }

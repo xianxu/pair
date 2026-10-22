@@ -104,6 +104,14 @@ Source inspection then found an implementation lifetime defect: the worker reque
 
 No recorded suite is active. Checkpoint this source, run the complete native acceptance without further source edits, then push and queue the required recorded check. Any new concrete failure is classified before another run; no deadline tuning or validator weakening.
 
+### 2026-10-22 — refusal checkpoint and split native acceptance
+
+The committed-head39625e2c9 combined native invocation failed, rather than supplying a passing matrix. Claude passed its complete six-key reap, current-generation public delivery and exact cleanup (confirmed reap128.707ms). Codex missed replacement wrapper readiness after14.446s, before reap effects; cause remains unclassified alongside #773. The combined process also exceeded the unchanged96MiB ordinary write cap (162344960bytes). Retained log /Volumes/TestScratch/tmp/pair-slot2/pair-792-native-final.U2rlOV/native.log SHA2567fbd45732e2905afdd4bd72a53030ad92938cc621bb80c0ce29300012cc26ff0.
+
+A new deterministic regression reproduced an incomplete orphan witness being excluded from exact admission and then reaching the legacy LeftRunning tree for the same PID. Admission now protects every orphan-row PID against legacy fallback, reports incomplete/ambiguous witnesses as explicit refusals, and deduplicates preview through the same admission decision. TestReapProvenUnqualifiedWitnessCannotFallBackToLegacyTree failed red with a TERM signal, then the corrected reap CLI race selection passed1.530s. No target expansion or production bound changed.
+
+Authenticated hub approval8c0e8477-dcd4-495d-a6b9-ea4f95285957 permits one focused Go process per personality on this final source, preserving96MiB and every existing time/frame/output limit. Keep the startup miss unclassified; do not register the safety test as flaky. Checkpoint first, then final Claude/Codex runs, required recorded suite and close. No suite or landing runner is active.
+
 ## Estimate
 
 Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md` against `baseline-v3.1.md`. Method A only. The source is marked stale by estimate-source; this is a provisional calibration, not a fitted total.
