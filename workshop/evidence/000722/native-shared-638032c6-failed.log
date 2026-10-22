@@ -1,0 +1,208 @@
+PAIR_DRAIN_ACCEPTANCE=1 go test ./cmd/couch -run '^TestDisposableCouchDrainFlags$' -count=1 -v -timeout 4m
+=== RUN   TestDisposableCouchDrainFlags
+    drain_acceptance_test.go:35: native Couch tool git: /usr/bin/git (git version 2.54.0 (Apple Git-157))
+    drain_acceptance_test.go:35: native Couch tool sdlc: /Users/xianxu/workspace/ariadne/bin/sdlc (sdlc version path=/Users/xianxu/workspace/ariadne/bin/sdlc revision=f5aae36f628a4f9ea04439543f46995a45d61b37 modified=false)
+    drain_acceptance_test.go:35: native Couch tool weave: /Users/xianxu/workspace/ariadne/bin/weave (weave version dev)
+    drain_acceptance_test.go:35: native Couch tool zellij: /opt/homebrew/Cellar/zellij/0.45.1/bin/zellij (zellij 0.45.1)
+    drain_acceptance_test.go:35: native Couch tool nvim: /opt/homebrew/opt/nvim-0.11/bin/nvim (NVIM v0.11.7)
+    drain_acceptance_test.go:35: native Couch candidates: source=/Users/xianxu/workspace/worktree/pair-slot5/pair head=638032c6183d82aa72145d22825c422fcef7651a dir=/Volumes/TestScratch/couch-fleet-binaries-1094848169
+=== RUN   TestDisposableCouchDrainFlags/claude
+    drain_acceptance_test.go:38: native fleet isolation: root=/Volumes/TestScratch/pc-4053095905 run=66ec322711a5931527c459de2acffa17 agent=claude workers=2
+    drain_acceptance_test.go:113: drain native manifest: roots={Root:/Volumes/TestScratch/pc-4053095905 Mutable:map[artifacts:/Volumes/TestScratch/pc-4053095905/artifacts bin:/Volumes/TestScratch/pc-4053095905/bin cache:/Volumes/TestScratch/pc-4053095905/cache capacity:/Volumes/TestScratch/pc-4053095905/capacity claude:/Volumes/TestScratch/pc-4053095905/home/.claude codex:/Volumes/TestScratch/pc-4053095905/home/.codex config:/Volumes/TestScratch/pc-4053095905/config control:/Volumes/TestScratch/pc-4053095905/control data:/Volumes/TestScratch/pc-4053095905/data fleet:/Volumes/TestScratch/pc-4053095905/fleet home:/Volumes/TestScratch/pc-4053095905/home identity:/Volumes/TestScratch/pc-4053095905/identity queue:/Volumes/TestScratch/pc-4053095905/queue runtime:/Volumes/TestScratch/pc-4053095905/runtime sockets:/Volumes/TestScratch/pc-4053095905/sockets store:/Volumes/TestScratch/pc-4053095905/store tmp:/Volumes/TestScratch/pc-4053095905/tmp] Denied:[/Users/xianxu]} run=66ec322711a5931527c459de2acffa17 source=/Users/xianxu/workspace/worktree/pair-slot5/pair binaries=map[git:git version 2.54.0 (Apple Git-157) nvim:NVIM v0.11.7 sdlc:sdlc version path=/Users/xianxu/workspace/ariadne/bin/sdlc revision=f5aae36f628a4f9ea04439543f46995a45d61b37 modified=false source-head:638032c6183d82aa72145d22825c422fcef7651a weave:weave version dev zellij:zellij 0.45.1] runtime_budget=90s
+    drain_acceptance_test.go:226: drain public CLI actor=0 argv=["--drain" "--status" "--json"] stdout={"Drain":{"Rows":[]},"Code":"ok","Error":"","Receipt":null,"Actors":null}
+         stderr=
+    drain_acceptance_test.go:226: drain observed flag rows (requested posture only, never readiness): []
+    drain_acceptance_test.go:229: drain public CLI actor=0 argv=["--drain" "--json"] stdout={"DrainDeliveries":[{"Workspace":"fixture:1","Receipt":{"Message":{"Origin":"system","ID":"4b99d8c2-907a-400b-85dc-c12c79b2f91f","From":{"Slot":"fixture:0","Repository":"/Volumes/TestScratch/pc-4053095905/fleet/fixture/.git","Scope":"04f597ac89f077d4","Tag":"9223587240486109185-fixture-1","Session":"📁9223587240486109185-1","Nonce":"1d77fbebfb5bf80e69eb6e93c399bc2d","Agent":"claude","Version":"2.1.237 (Claude Code)","PID":64083,"Start":"1792655159.797233"},"To":{"Slot":"fixture:1","Repository":"/Volumes/TestScratch/pc-4053095905/fleet/fixture/.git","Scope":"30fe1853f56a1c26","Tag":"9223587240486109185-fixture-2","Session":"📁9223587240486109185-2","Nonce":"start-84ef44ab402c2386","Agent":"claude","Version":"2.1.237 (Claude Code)","PID":71390,"Start":"1792655168.50441"},"Body":"Drain: finish your current atomic step and wait for current background work to finish. Write where you stopped and the next step in the issue Log; commit and push the checkpoint, then end your turn and stay idle. Start no new work. While idle, keep receiving messages. For new work, reply once: 'acknowledge message received, will resume processing after drain is lifted'. Do not create courtesy acknowledgements or acknowledgement loops.","Deadline":"2026-10-22T00:47:48.419992-07:00","AcceptedAt":"2026-10-22T00:46:18.419992-07:00"},"Status":"queued","Detail":"position 1; waiting for recognized composer","RetainUntil":"2026-10-22T01:46:18.419992-07:00"}},{"Workspace":"fixture:2","Receipt":{"Message":{"Origin":"system","ID":"023c55c2-2e44-4369-a801-3b16d882616f","From":{"Slot":"fixture:0","Repository":"/Volumes/TestScratch/pc-4053095905/fleet/fixture/.git","Scope":"04f597ac89f077d4","Tag":"9223587240486109185-fixture-1","Session":"📁9223587240486109185-1","Nonce":"1d77fbebfb5bf80e69eb6e93c399bc2d","Agent":"claude","Version":"2.1.237 (Claude Code)","PID":64083,"Start":"1792655159.797233"},"To":{"Slot":"fixture:2","Repository":"/Volumes/TestScratch/pc-4053095905/fleet/fixture/.git","Scope":"6e39e4daec96d495","Tag":"9223587240486109185-fixture-3","Session":"📁9223587240486109185-3","Nonce":"start-6474817cedacdcf4","Agent":"claude","Version":"2.1.237 (Claude Code)","PID":79056,"Start":"1792655176.373794"},"Body":"Drain: finish your current atomic step and wait for current background work to finish. Write where you stopped and the next step in the issue Log; commit and push the checkpoint, then end your turn and stay idle. Start no new work. While idle, keep receiving messages. For new work, reply once: 'acknowledge message received, will resume processing after drain is lifted'. Do not create courtesy acknowledgements or acknowledgement loops.","Deadline":"2026-10-22T00:47:48.428863-07:00","AcceptedAt":"2026-10-22T00:46:18.428863-07:00"},"Status":"queued","Detail":"position 1; waiting for recognized composer","RetainUntil":"2026-10-22T01:46:18.428863-07:00"}}],"Drain":{"Rows":[{"Workspace":"fixture:1","Connected":true,"IdleMillis":3588,"Settled":true,"Picker":false,"Background":false},{"Workspace":"fixture:2","Connected":true,"IdleMillis":null,"Settled":false,"Picker":false,"Background":null}]},"Code":"ok","Error":"","Receipt":null,"Actors":null}
+         stderr=
+    drain_acceptance_test.go:230: drain observed flag rows (requested posture only, never readiness): [{Workspace:fixture:1 Connected:true IdleMillis:0x15b94f3264b0 Settled:0x15b94f3264b8 Picker:0x15b94f3264b9 Background:0x15b94f3264ba} {Workspace:fixture:2 Connected:true IdleMillis:<nil> Settled:0x15b94f3264c9 Picker:0x15b94f3264ca Background:<nil>}]
+    drain_acceptance_test.go:231: drain submitted receipt: &{Message:{Origin:system ID:4b99d8c2-907a-400b-85dc-c12c79b2f91f From:{Slot:fixture:0 Repository:/Volumes/TestScratch/pc-4053095905/fleet/fixture/.git Scope:04f597ac89f077d4 Tag:9223587240486109185-fixture-1 Session:📁9223587240486109185-1 Nonce:1d77fbebfb5bf80e69eb6e93c399bc2d Agent:claude Version:2.1.237 (Claude Code) PID:64083 Start:1792655159.797233} To:{Slot:fixture:1 Repository:/Volumes/TestScratch/pc-4053095905/fleet/fixture/.git Scope:30fe1853f56a1c26 Tag:9223587240486109185-fixture-2 Session:📁9223587240486109185-2 Nonce:start-84ef44ab402c2386 Agent:claude Version:2.1.237 (Claude Code) PID:71390 Start:1792655168.50441} Body:Drain: finish your current atomic step and wait for current background work to finish. Write where you stopped and the next step in the issue Log; commit and push the checkpoint, then end your turn and stay idle. Start no new work. While idle, keep receiving messages. For new work, reply once: 'acknowledge message received, will resume processing after drain is lifted'. Do not create courtesy acknowledgements or acknowledgement loops. Deadline:2026-10-22 00:47:48.419992 -0700 PDT AcceptedAt:2026-10-22 00:46:18.419992 -0700 PDT} Status:submitted Detail: RetainUntil:2026-10-22 01:46:19.424601 -0700 PDT}
+    drain_acceptance_test.go:181: drain independently accepted: actor=1 receipt=4b99d8c2-907a-400b-85dc-c12c79b2f91f input={PID:71575 Sequence:2 NativeID:dd2d3f25-5ed4-4994-a045-b9c7cf5e33ba Body:[Couch system; delivery 4b99d8c2-907a-400b-85dc-c12c79b2f91f]
+        Drain: finish your current atomic step and wait for current background work to finish. Write where you stopped and the next step in the issue Log; commit and push the checkpoint, then end your turn and stay idle. Start no new work. While idle, keep receiving messages. For new work, reply once: 'acknowledge message received, will resume processing after drain is lifted'. Do not create courtesy acknowledgements or acknowledgement loops. At:2026-10-22 07:46:18.59394 +0000 UTC}
+    drain_acceptance_test.go:231: drain submitted receipt: &{Message:{Origin:system ID:023c55c2-2e44-4369-a801-3b16d882616f From:{Slot:fixture:0 Repository:/Volumes/TestScratch/pc-4053095905/fleet/fixture/.git Scope:04f597ac89f077d4 Tag:9223587240486109185-fixture-1 Session:📁9223587240486109185-1 Nonce:1d77fbebfb5bf80e69eb6e93c399bc2d Agent:claude Version:2.1.237 (Claude Code) PID:64083 Start:1792655159.797233} To:{Slot:fixture:2 Repository:/Volumes/TestScratch/pc-4053095905/fleet/fixture/.git Scope:6e39e4daec96d495 Tag:9223587240486109185-fixture-3 Session:📁9223587240486109185-3 Nonce:start-6474817cedacdcf4 Agent:claude Version:2.1.237 (Claude Code) PID:79056 Start:1792655176.373794} Body:Drain: finish your current atomic step and wait for current background work to finish. Write where you stopped and the next step in the issue Log; commit and push the checkpoint, then end your turn and stay idle. Start no new work. While idle, keep receiving messages. For new work, reply once: 'acknowledge message received, will resume processing after drain is lifted'. Do not create courtesy acknowledgements or acknowledgement loops. Deadline:2026-10-22 00:47:48.428863 -0700 PDT AcceptedAt:2026-10-22 00:46:18.428863 -0700 PDT} Status:submitted Detail: RetainUntil:2026-10-22 01:46:19.432413 -0700 PDT}
+    drain_acceptance_test.go:181: drain independently accepted: actor=2 receipt=023c55c2-2e44-4369-a801-3b16d882616f input={PID:79225 Sequence:1 NativeID:aadb8e04-3322-42af-ada6-b002fce280e1 Body:[Couch system; delivery 023c55c2-2e44-4369-a801-3b16d882616f]
+        Drain: finish your current atomic step and wait for current background work to finish. Write where you stopped and the next step in the issue Log; commit and push the checkpoint, then end your turn and stay idle. Start no new work. While idle, keep receiving messages. For new work, reply once: 'acknowledge message received, will resume processing after drain is lifted'. Do not create courtesy acknowledgements or acknowledgement loops. At:2026-10-22 07:46:18.606962 +0000 UTC}
+    drain_acceptance_test.go:233: drain public CLI actor=1 argv=["--drain" "--status" "--json"] stdout={"Drain":{"Rows":[{"Workspace":"fixture:1","Connected":true,"IdleMillis":null,"Settled":false,"Picker":false,"Background":null},{"Workspace":"fixture:2","Connected":true,"IdleMillis":null,"Settled":false,"Picker":false,"Background":null}]},"Code":"ok","Error":"","Receipt":null,"Actors":null}
+         stderr=
+    drain_acceptance_test.go:233: drain observed flag rows (requested posture only, never readiness): [{Workspace:fixture:1 Connected:true IdleMillis:<nil> Settled:0x15b94f43ea99 Picker:0x15b94f43ea9a Background:<nil>} {Workspace:fixture:2 Connected:true IdleMillis:<nil> Settled:0x15b94f43eaa9 Picker:0x15b94f43eaaa Background:<nil>}]
+    drain_acceptance_test.go:234: drain public CLI actor=0 argv=["--send-to" "fixture:1" "--message" "ordinary-while-flagged-66ec322711a5931527c459de2acffa17"] stdout=bf395464-24b5-4df4-a940-d4c7206a3eba fixture:0 -> fixture:1 queued
+        position 1; waiting for recognized composer
+         stderr=
+    drain_acceptance_test.go:234: drain submitted receipt: &{Message:{Origin: ID:bf395464-24b5-4df4-a940-d4c7206a3eba From:{Slot:fixture:0 Repository:/Volumes/TestScratch/pc-4053095905/fleet/fixture/.git Scope:04f597ac89f077d4 Tag:9223587240486109185-fixture-1 Session:📁9223587240486109185-1 Nonce:1d77fbebfb5bf80e69eb6e93c399bc2d Agent:claude Version:2.1.237 (Claude Code) PID:64083 Start:1792655159.797233} To:{Slot:fixture:1 Repository:/Volumes/TestScratch/pc-4053095905/fleet/fixture/.git Scope:30fe1853f56a1c26 Tag:9223587240486109185-fixture-2 Session:📁9223587240486109185-2 Nonce:start-84ef44ab402c2386 Agent:claude Version:2.1.237 (Claude Code) PID:71390 Start:1792655168.50441} Body:ordinary-while-flagged-66ec322711a5931527c459de2acffa17 Deadline:2026-10-22 00:47:49.594954 -0700 PDT AcceptedAt:2026-10-22 00:46:19.594954 -0700 PDT} Status:submitted Detail: RetainUntil:2026-10-22 01:46:20.599191 -0700 PDT}
+    drain_acceptance_test.go:181: drain independently accepted: actor=1 receipt=bf395464-24b5-4df4-a940-d4c7206a3eba input={PID:71575 Sequence:3 NativeID:dd2d3f25-5ed4-4994-a045-b9c7cf5e33ba Body:[Couch peer from fixture:0; delivery bf395464-24b5-4df4-a940-d4c7206a3eba]
+        ordinary-while-flagged-66ec322711a5931527c459de2acffa17 At:2026-10-22 07:46:19.7645 +0000 UTC}
+    drain_acceptance_test.go:235: drain public CLI actor=1 argv=["--send-to" "fixture:0" "--message" "acknowledge message received, will resume processing after drain is lifted"] stdout=0ac30409-1f41-450a-9bbb-bb895b94ee2b fixture:1 -> fixture:0 queued
+        position 1; waiting for recognized composer
+         stderr=
+    drain_acceptance_test.go:235: drain submitted receipt: &{Message:{Origin: ID:0ac30409-1f41-450a-9bbb-bb895b94ee2b From:{Slot:fixture:1 Repository:/Volumes/TestScratch/pc-4053095905/fleet/fixture/.git Scope:30fe1853f56a1c26 Tag:9223587240486109185-fixture-2 Session:📁9223587240486109185-2 Nonce:start-84ef44ab402c2386 Agent:claude Version:2.1.237 (Claude Code) PID:71390 Start:1792655168.50441} To:{Slot:fixture:0 Repository:/Volumes/TestScratch/pc-4053095905/fleet/fixture/.git Scope:04f597ac89f077d4 Tag:9223587240486109185-fixture-1 Session:📁9223587240486109185-1 Nonce:1d77fbebfb5bf80e69eb6e93c399bc2d Agent:claude Version:2.1.237 (Claude Code) PID:64083 Start:1792655159.797233} Body:acknowledge message received, will resume processing after drain is lifted Deadline:2026-10-22 00:47:50.67642 -0700 PDT AcceptedAt:2026-10-22 00:46:20.67642 -0700 PDT} Status:submitted Detail: RetainUntil:2026-10-22 01:46:21.734222 -0700 PDT}
+    drain_acceptance_test.go:181: drain independently accepted: actor=0 receipt=0ac30409-1f41-450a-9bbb-bb895b94ee2b input={PID:64293 Sequence:3 NativeID:11172f16-88af-4f6f-8af9-a9548d12f68b Body:[Couch peer from fixture:1; delivery 0ac30409-1f41-450a-9bbb-bb895b94ee2b]
+        acknowledge message received, will resume processing after drain is lifted At:2026-10-22 07:46:20.880259 +0000 UTC}
+    drain_acceptance_test.go:246: drain current frame width30:
+        ┌ claude ─────────────────────
+        │                             
+        │─────────────────────────────
+        │❯                            
+        │─────────────────────────────
+        │⏵⏵ bypass permissions on (shi
+        │                             
+        │                             
+        │                             
+        │                             
+        │                             
+        │                             
+        │                             
+        │                             
+        │                             
+        │                             
+        │                             
+        │                             
+        └─────────────────────────────
+        1                             
+        ~                             
+        ~                             
+        ~                             
+        ~                             
+        ~                             
+        ~                             
+        ~                             
+        ~                             
+        ~                             
+        ~                             
+         Alt: <- history 0 < * [q=queu
+        drain 2  [fixture]  :1*  :2*  
+    drain_acceptance_test.go:246: drain current frame width120:
+        ┌ claude ─────────────────────                                                                                          
+        │                                                                                                                       
+        │─────────────────────────────                                                                                          
+        │❯                                                                                                                      
+        │─────────────────────────────                                                                                          
+        │⏵⏵ bypass permissions on (shi                                                                                          
+        │                                                                                                                       
+        │                                                                                                                       
+        │                                                                                                                       
+        │                                                                                                                       
+        │                                                                                                                       
+        │                                                                                                                       
+        │                                                                                                                       
+        │                                                                                                                       
+        │                                                                                                                       
+        │                                                                                                                       
+        │                                                                                                                       
+        │                                                                                                                       
+        └─────────────────────────────                                                                                          
+        1                                                                                                                       
+        ~                                                                                                                       
+        ~                                                                                                                       
+        ~                                                                                                                       
+        ~                                                                                                                       
+        ~                                                                                                                       
+        ~                                                                                                                       
+        ~                                                                                                                       
+        ~                                                                                                                       
+        ~                                                                                                                       
+        ~                                                                                                                       
+         Alt: <- history 0 < * [q=queu                                                                                          
+        drain 2  [fixture]  :1*  :2*                                                                                            
+    drain_acceptance_test.go:268: drain ordinary selected worker frame:
+        ┌ claude ────────────────────────────────── SCROLL:  0/171 ┐sh-3.2$                                                     
+        │                                                          │                                                            
+        │───────────────────────────────────────────────────────── │                                                            
+        │❯                                                         │                                                            
+        │───────────────────────────────────────────────────────── │                                                            
+        │⏵⏵fixture resize outside supported dimensions             │                                                            
+        │                                                          │                                                            
+        │                                                          │                                                            
+        │                                                          │                                                            
+        │                                                          │                                                            
+        │                                                          │                                                            
+        │                                                          │                                                            
+        │                                                          │                                                            
+        │                                                          │                                                            
+        │                                                          │                                                            
+        │                                                          │                                                            
+        │                                                          │                                                            
+        │                                                          │                                                            
+        └──────────────────────────────────────────────────────────┘                                                            
+        1                                                                                                                       
+        ~                                                                                                                       
+        ~                                                                                                                       
+        ~                                                                                                                       
+        ~                                                                                                                       
+        ~                                                                                                                       
+        ~                                                                                                                       
+        ~                                                                                                                       
+        ~                                                                                                                       
+        ~                                                                                                                       
+        ~                                                                                                                       
+         Alt: <- history 0 < * [q=queue] > 0 queued ->              [terminal 1]                                                
+        drain 2  fixture  [:1*]  :2*  · started fresh; previous TTY capture unavailable; use branch and issue evidence; any unpr
+    drain_acceptance_test.go:269: actor0 CLI[--undrain --json]: {ID: Stdout: Stderr: ExitCode:0 Error: Truncated:false CleanupUncertain:false} fixture CLI cleanup uncertain
+        context deadline exceeded
+        fixture CLI cancellation acknowledgment uncertain: context deadline exceeded; screen=┌ claude ────────────────────────────────── SCROLL:  0/171 ┐sh-3.2$                                                     
+        │                                                          │                                                            
+        │───────────────────────────────────────────────────────── │                                                            
+        │❯                                                         │                                                            
+        │───────────────────────────────────────────────────────── │                                                            
+        │⏵⏵fixture resize outside supported dimensions             │                                                            
+        │                                                          │                                                            
+        │                                                          │                                                            
+        │                                                          │                                                            
+        │                                                          │                                                            
+        │                                                          │                                                            
+        │                                                          │                                                            
+        │                                                          │                                                            
+        │                                                          │                                                            
+        │                                                          │                                                            
+        │                                                          │                                                            
+        │                                                          │                                                            
+        │                                                          │                                                            
+        └ [ EXIT CODE: 1 ] ────────────────────────────────────────┘                                                            
+        1                                                                                                                       
+        ~                                                                                                                       
+        ~                                                                                                                       
+        ~                                                                                                                       
+        ~                                                                                                                       
+        ~                                                                                                                       
+        ~                                                                                                                       
+        ~                                                                                                                       
+        ~                                                                                                                       
+        ~                                                                                                                       
+        ~                                                                                                                       
+         Alt: <- history 0 < * [q=queue] > 0 queued ->              [terminal 1]                                                
+        drain 2  fixture  [:1*]  :2*                                                                                            
+    fleet.go:402: native startup evidence before teardown: pane queries share diagnostic_deadline=2026-10-22T00:47:45.880540593-07:00
+        wrapper_log truncated=false read_error=<nil>
+        STARTUP-identity {"actualPID":64083,"PAIR_SCOPE_KEY":"04f597ac89f077d4","PAIR_TAG":"9223587240486109185-fixture-1","PAIR_SESSION_NAME":"📁9223587240486109185-1","PAIR_LAUNCH_NONCE":"1d77fbebfb5bf80e69eb6e93c399bc2d"}
+        STARTUP-identity {"actualPID":71390,"PAIR_SCOPE_KEY":"30fe1853f56a1c26","PAIR_TAG":"9223587240486109185-fixture-2","PAIR_SESSION_NAME":"📁9223587240486109185-2","PAIR_LAUNCH_NONCE":"start-84ef44ab402c2386"}
+        STARTUP-identity {"actualPID":79056,"PAIR_SCOPE_KEY":"6e39e4daec96d495","PAIR_TAG":"9223587240486109185-fixture-3","PAIR_SESSION_NAME":"📁9223587240486109185-3","PAIR_LAUNCH_NONCE":"start-6474817cedacdcf4"}
+        failure identities unavailable: openat store/launch-diagnostics/failures.json: no such file or directory
+        startup_sources=3 truncated=false
+        source scope="6e39e4daec96d495" tag="9223587240486109185-fixture-3"
+        ready_siblings=["agent-ready-9223587240486109185-fixture-3-claude.json"] truncated=false read_error=<nil>
+        expected_ready="agent-ready-9223587240486109185-fixture-3-claude.json" truncated=false read_error=<nil>
+        ready_identity tag="9223587240486109185-fixture-3" agent="claude" session="📁9223587240486109185-3" nonce="start-6474817cedacdcf4" pid=79225 matches_emitted=true
+        pane attribution: current observed identity; failed-attempt attribution unavailable
+        pane_dump session="📁9223587240486109185-3" pane="0" truncated=false query_error=<nil> output="\n─────────────────────────────────────────────────────────\n❯\n─────────────────────────────────────────────────────────\n⏵⏵fixture resize outside supported dimensions\n\n\n\n\n\n\n\n\n\n\n\n\n"
+        source scope="30fe1853f56a1c26" tag="9223587240486109185-fixture-2"
+        ready_siblings=["agent-ready-9223587240486109185-fixture-2-claude.json"] truncated=false read_error=<nil>
+        expected_ready="agent-ready-9223587240486109185-fixture-2-claude.json" truncated=false read_error=<nil>
+        ready_identity tag="9223587240486109185-fixture-2" agent="claude" session="📁9223587240486109185-2" nonce="start-84ef44ab402c2386" pid=71575 matches_emitted=true
+        pane attribution: current observed identity; failed-attempt attribution unavailable
+        pane_dump session="📁9223587240486109185-2" pane="0" truncated=false query_error=<nil> output="\n─────────────────────────────────────────────────────────\n❯\n─────────────────────────────────────────────────────────\n⏵⏵fixture resize outside supported dimensions\n\n\n\n\n\n\n\n\n\n\n\n\n"
+        source scope="04f597ac89f077d4" tag="9223587240486109185-fixture-1"
+        ready_siblings=["agent-ready-9223587240486109185-fixture-1-claude.json"] truncated=false read_error=<nil>
+        expected_ready="agent-ready-9223587240486109185-fixture-1-claude.json" truncated=false read_error=<nil>
+        ready_identity tag="9223587240486109185-fixture-1" agent="claude" session="📁9223587240486109185-1" nonce="1d77fbebfb5bf80e69eb6e93c399bc2d" pid=64293 matches_emitted=true
+        pane attribution: current observed identity; failed-attempt attribution unavailable
+        pane_dump session="📁9223587240486109185-1" pane="0" truncated=false query_error=<nil> output="\n─────────────────────────────────────────────────────────\n❯\n─────────────────────────────────────────────────────────\n⏵⏵fixture resize outside supported dimensions\n\n\n\n\n\n\n\n\n\n\n\n\n"
+    fleet.go:439: native failure evidence before root removal: ; read_error=<nil>
+    fleet.go:442: native wrapper evidence after join: wrapper_log truncated=false read_error=<nil>
+        STARTUP-identity {"actualPID":64083,"PAIR_SCOPE_KEY":"04f597ac89f077d4","PAIR_TAG":"9223587240486109185-fixture-1","PAIR_SESSION_NAME":"📁9223587240486109185-1","PAIR_LAUNCH_NONCE":"1d77fbebfb5bf80e69eb6e93c399bc2d"}
+        STARTUP-identity {"actualPID":71390,"PAIR_SCOPE_KEY":"30fe1853f56a1c26","PAIR_TAG":"9223587240486109185-fixture-2","PAIR_SESSION_NAME":"📁9223587240486109185-2","PAIR_LAUNCH_NONCE":"start-84ef44ab402c2386"}
+        STARTUP-identity {"actualPID":79056,"PAIR_SCOPE_KEY":"6e39e4daec96d495","PAIR_TAG":"9223587240486109185-fixture-3","PAIR_SESSION_NAME":"📁9223587240486109185-3","PAIR_LAUNCH_NONCE":"start-6474817cedacdcf4"}
+    fleet.go:460: native fleet cleaned: root=/Volumes/TestScratch/pc-4053095905 all owned generations absent; direct child and IO joined
+--- FAIL: TestDisposableCouchDrainFlags (120.82s)
+    --- FAIL: TestDisposableCouchDrainFlags/claude (112.21s)
+FAIL
+FAIL	github.com/xianxu/pair/cmd/couch	121.007s
+FAIL
+make: *** [test-drain-acceptance] Error 1

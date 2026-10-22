@@ -209,6 +209,14 @@ Coordination: ariadne#506 remains OPEN/unclaimed and already owns the new worker
 
 Authenticated TLde357e2c assigns ariadne#506 to ariadne:5 after #541 and explicitly requires it landed before watched live acceptance. Added the details-level cross-repo dependency (deps is not a tracker card field); no card mirror edited. ariadne:5 requested exact canonical notice text via a6427ee4. Supply source-pinned graceful/fast/undrain text and worker/steward response semantics; #739 remains its own startup/automation contract, never an inferred recovery permission from empty drain flags.
 
+### 2026-10-22 — shared-native run1 failed: consumer viewport below fixture contract
+
+Complete make test-drain-acceptance run on clean pushed638032c6183d82aa72145d22825c422fcef7651a exited2 in123.067s (Claude case112.21s including cleanup; Codex not started). Retained full log and original run manifest: workshop/evidence/000722/native-shared-638032c6-failed.log/json, SHA256fd79ab1be1fba5dab62e08e4d711ce6224854dfec8b19625262697495067fdec. Source tool/version manifest, genuine identities, public receipts/accepted bodies and current frames are in the log. Graceful notice, ordinary flagged work and exact worker ack submitted and independently appeared in actor input ledgers; selected worker1 frame has one drain2badge. No full acceptance claimed.
+
+The pre-cleanup pane capture explains the next undrain timeout: all3agent panes contain fixture resize outside supported dimensions. Shared agentfixture/run.go:217 rejects cols<20 (or rows<10), and the consumer resized the outer native Pair to30columns while Pair splits that geometry between panes. The exact transient child dimensions were not retained; the pane error proves the supported envelope was violated, rather than identifying which minimum was crossed. All fixture agents exited, so the next mailbox command could not execute and the90s caller deadline expired with typed cancellation uncertainty. The shared Close then proved all owned generations absent and joined child/IO before deleting the root; no live fleet effect. This is invalid consumer geometry, not a drain delivery-hold finding or a timeout-budget defect.
+
+Use80and120columns for native integration, within the existing fixture envelope; keep pure ConsoleDrainStatus tests across widths1..139, including narrow30. No fixture guard, product contract, public protocol or90s runtime change. Existing end-to-end later fast/lift/worker-delivery actions verify the agents survive resize. The original failed run remains the RED evidence for the invalid geometry; no new test that merely asserts the chosen constant is added. Refresh only the changed native-consumer certificate, run its cheap oracle/compile checks, commit/push, then rerun on the corrected clean source.
+
 ## Revisions
 
 ### 2026-10-19 — authenticated acknowledgement and shared queue ownership

@@ -233,7 +233,9 @@ func TestDisposableCouchDrainFlags(t *testing.T) {
 			flags(response(1, "--drain", "--status", "--json"), 2)
 			send(0, 1, "ordinary-while-flagged-"+fleet.RunID)
 			send(1, 0, drainAcceptanceAck)
-			for _, cols := range []uint16{30, 120} {
+			// Native Pair splits this width between panes; keep the agent fixture
+			// above its 20-column minimum. Pure renderer tests cover widths 1–139.
+			for _, cols := range []uint16{80, 120} {
 				if err := fleet.Resize(32, cols); err != nil {
 					t.Fatal(err)
 				}
