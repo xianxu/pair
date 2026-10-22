@@ -363,6 +363,8 @@ there is no schema bump. Decode checks the binding's types only, so one bad or
 newer-build binding refuses a resume (`resume-transcript-invalid`) and never hides
 the thread.
 
+New retained-raw editor endpoint state (#758) uses additive `RejectDuplicateKeysPreserveNumbers`, `SplitObjectPreserveNumbers` and `EncodeObjectPreserveNumbers`. These retain valid numeric tokens outside float64 range while checking syntax, duplicate keys and owned nullability. The caller decodes its exact owned fields into typed values; opaque child members stay raw. Existing strict readers keep their historical numeric acceptance. See [editor endpoint ownership](editor-endpoints.md).
+
 **Transcript binding.** `ThreadRecord.Transcript` (`threadrecord/transcript.go`)
 stores the agent's exact conversation. It keeps the native ID plus the root name
 and relative path that the ledger binding's authorization proof names. A native ID
