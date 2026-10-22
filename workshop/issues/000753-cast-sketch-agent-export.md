@@ -55,7 +55,7 @@ Primary surfaces: query/{sketch.go,render_sketch.go,surface.go,fake.go,cli.go,ev
 ## Plan
 
 - [x] Claim/start-plan after dependencies land; write the slice-specific execution plan.
-- [ ] Implement and verify the Spec and Done when through the normal SDLC gates.
+- [x] Implement and verify the Spec and Done when through the normal SDLC gates (local evidence below; recorded-suite and operator landing gates remain explicit).
 
 ## Log
 
@@ -95,6 +95,12 @@ Primary surfaces: query/{sketch.go,render_sketch.go,surface.go,fake.go,cli.go,ev
 - Final stable-candidate native fixture checks passed for Codex84.22s and Claude57.10s: each used four disposable personality actors, actual submitted receipts plus independent accepted-input logs, resize/detach/restart recovery and joined root/process/IO cleanup. Original combined working-tree attempt at f1e292a22 had a Codex startup admission timeout before delivery; retained as diagnostic with different source provenance, not registered or rewritten as a same-head flake. These checks do not claim real model image understanding or replace the operator's mixed sketch-chord smoke.
 - Added one production-wiring test from actual Cast.PrepareSubmission through the real durable Store lifecycle and a fresh reopen. Two delivered shapes retain original PNG bytes/dimensions, URL/IDs/note/pressure and exact global suppression; a third merely Prepared shape for another target remains sendable. ACK/Complete leaves the board's ink and candidate metadata unchanged. Focused Cast sketch group race passed2.375s. No new product code since the stable native candidate.
 - All implementation is locally checkpointed before the required recorded check. Reader inventory was rerun after the final integration test and passed; no new repair command was needed. Required recorded affected/suite, sole SDLC close review, hub-authorized stage/operator preview-and-submit acceptance and landing remain. TL owns the portfolio/project record, so close must use --no-project and report the outcome to hub.
+
+### 2026-10-21 20:08 PDT — retained recorded suite and close-review entry
+
+- Pushed candidate a7d5ab92d525127d77bc3caddd166d3f58664642 updates PR537. Independent parent verification passed full CDP race1.392s and focused real Cast sketch/store plus private projection race3.217s. Reader inventory passed immediately before close; source classifications and current private UI/transport changes are committed.
+- Required recorded affected check selected the full suite because the fresh checkout's runtimebundle embed graph is unavailable (existing generated-runtime graph fallback). It retained run lease-4062627020 on a7d5ab92, exec session91005; checkout /Volumes/TestScratch/local-checks/sdlc-local-3153519690; raw log /Users/xianxu/workspace/pair/.git/sdlc/test-stats/inflight/08ac650dff91d43b60f3a4e3d0409e76/run.log. It is queued normal FIFO position5 behind the current Ariadne holder; preserve it, do not start a duplicate. No passing recorded result is claimed.
+- Enter the sole SDLC close review while that retained check waits, as tl-worker explicitly permits. Any code fix invalidates the candidate and must receive final-head verification; a docs-only close/evidence descendant may reuse the existing source-equivalent recorded proof. Live operator preview-and-submit acceptance remains before landing, after hub-authorized staging; no real operator smoke is claimed.
 
 ## Estimate
 
