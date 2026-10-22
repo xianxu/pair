@@ -244,3 +244,44 @@ func (f *Fleet) Accepted(n int) ([]agentfixture.AcceptedInput, error) {
 	}
 	return result, nil
 }
+
+// Resources observes the private supervisor through the fixture's inherited
+// namespace using its fixed readonly command. It does not manufacture caller
+// credentials or alter generic CLI/frame/output limits.
+func (f *Fleet) Resources(ctx context.Context) (agentfixture.ResourceObservation, error) {
+	ctx, done, err := f.begin(ctx)
+	if err != nil {
+		return agentfixture.ResourceObservation{}, err
+	}
+	defer done()
+	control, err := f.actorDirectory(0)
+	if err != nil {
+		return agentfixture.ResourceObservation{}, err
+	}
+	id := fmt.Sprintf("resources-%d", nextCommand.Add(1))
+	if err = agentfixture.WriteCommand(control, agentfixture.Command{ID: id, Kind: agentfixture.Resources}); err != nil {
+		return agentfixture.ResourceObservation{}, err
+	}
+	var result agentfixture.Result
+	err = waitUntil(ctx, func() (bool, error) {
+		var e error
+		result, e = agentfixture.ReadResult(control, id)
+		if errors.Is(e, os.ErrNotExist) {
+			return false, nil
+		}
+		return e == nil, e
+	})
+	if err != nil {
+		f.record(RunEvent{Kind: "unknown", Error: "readonly fixture observation not joined: " + err.Error()})
+		return agentfixture.ResourceObservation{}, err
+	}
+	if err = agentfixture.RetireResult(control, id); err != nil {
+		return agentfixture.ResourceObservation{}, err
+	}
+	if result.Error != "" || result.ExitCode != 0 || result.CleanupUncertain || result.Truncated {
+		return agentfixture.ResourceObservation{}, fmt.Errorf("readonly fixture observation: %+v", result)
+	}
+	var observation agentfixture.ResourceObservation
+	err = json.Unmarshal([]byte(result.Stdout), &observation)
+	return observation, err
+}
