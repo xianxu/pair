@@ -212,7 +212,7 @@ func TestProvenOrphanSignalAuthenticatesCurrentOwningHub(t *testing.T) {
 }
 
 func TestProvenOrphanSignalRepeatsOwnershipVetoBeforeKill(t *testing.T) {
-	for _, kind := range []string{"current", "detached-unknown", "incomplete"} {
+	for _, kind := range []string{"current", "detached-unknown", "incomplete", "unknown-owner-after-root-death"} {
 		t.Run(kind, func(t *testing.T) {
 			s, reader, table := provenEffectService(t)
 			request := effectRequest()
@@ -224,6 +224,16 @@ func TestProvenOrphanSignalRepeatsOwnershipVetoBeforeKill(t *testing.T) {
 			if kind == "detached-unknown" {
 				rows[1].PPID = 1
 				rows[1].Name = "sdlc"
+			}
+			if kind == "unknown-owner-after-root-death" {
+				rows = rows[1:]
+				sampler := s.resources.Load()
+				previous := sampler.slots
+				sampler.slots = func() couchcore.ResourceSlotInventory {
+					inventory := previous()
+					inventory.Slots[0].OwnershipKnown = false
+					return inventory
+				}
 			}
 			reader.setRows(rows)
 			if kind == "incomplete" {
@@ -319,5 +329,24 @@ func TestProvenOrphanProofLossDisablesLaterLegacyAdmission(t *testing.T) {
 	exact := rig.s.handleProvenOrphanSignal(t.Context(), effectRequest())
 	if exact.OrphanSignal == nil || exact.OrphanSignal.Status != "sent" || len(table.signals) != 1 {
 		t.Fatalf("sticky legacy refusal disabled healthy exact proof: %+v signals%v", exact, table.signals)
+	}
+}
+
+func TestProvenOrphanSignalRefusesUnknownCurrentOwnerAfterOldRootDeath(t *testing.T) {
+	s, reader, table := provenEffectService(t)
+	reader.setRows([]procutil.Process{
+		{PID: 11, PPID: 20, Identity: "old-child", Name: "codex"},
+		{PID: 20, PPID: 1, Identity: "new-root", Name: "zellij"},
+	})
+	sampler := s.resources.Load()
+	previous := sampler.slots
+	sampler.slots = func() couchcore.ResourceSlotInventory {
+		inventory := previous()
+		inventory.Slots[0].OwnershipKnown = false
+		return inventory
+	}
+	got := s.handleProvenOrphanSignal(t.Context(), effectRequest())
+	if got.OrphanSignal == nil || got.OrphanSignal.Status != "refused" || len(table.signals) != 0 {
+		t.Fatalf("old root death authorized a child beneath an unproven current root: %+v signals%v", got, table.signals)
 	}
 }

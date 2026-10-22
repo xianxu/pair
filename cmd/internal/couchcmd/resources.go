@@ -157,7 +157,10 @@ func (s *resourceSampler) run(ctx context.Context) {
 			}
 			if request.proof {
 				sample, selection, unknown := s.collectOwnership(collection)
-				proof := couchcore.ProvenOrphanProof{Table: sample.Table, Selection: selection, TableKnown: sample.TableKnown, InventoryComplete: sample.InventoryComplete, UnknownDetached: unknown}
+				// Monitor root-death evidence can remain useful while a current
+				// owner is unknown. A destructive proof must additionally establish
+				// complete ownership now; historical sticky refusal is independent.
+				proof := couchcore.ProvenOrphanProof{Table: sample.Table, Selection: selection, TableKnown: sample.TableKnown, InventoryComplete: couchcore.ResourceOwnershipComplete(sample, selection, unknown), UnknownDetached: unknown}
 				request.reply <- resourceSweep{proof: proof, err: collection.Err()}
 			} else {
 				fresh := s.pass(collection)

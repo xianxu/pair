@@ -162,6 +162,14 @@ The startup barrier releases sampling only after the existing inventory seed att
 
 Checkpoint this source, qualify both focused native personalities with all bounds unchanged, then push/record the final check and full close. No recorded check or landing runner is active.
 
+### 2026-10-22 — current ownership edge and native partial oracle
+
+Claude on7eb4418e joined65.592s exit1: the CLI reported all six exact rows reaped alongside the newly approved legacy_refusal, but the old exit0 test assertion stopped before current delivery/remaining native assertions. Cleanup passed and writes81297408bytes stayed under96MiB. Keep this as failed acceptance, not a full pass. Log /Volumes/TestScratch/tmp/pair-slot2/pair-792-native-br2-claude.lhJ4Go/native.log SHA256a7eb06008053ff19561c9b896f1416e42397f19283870d5f8bf207cc869db1ce. Its first incomplete observation was not retained; do not invent a cause. Codex was not started.
+
+A new actual-handler red test reproduced TERM despite unknown current slot ownership after old-root death. Monitor positive root-death evidence was insufficient for destructive proof. The worker effect reply now reuses ResourceOwnershipComplete for its current proof, independently of the historical sticky flag. Direct TERM and between-TERM/KILL unknown-owner regressions pass; combined affected proof/reap/oracle race selection passes2.912s (prior broad selection3.651s). This enforces the existing complete-current-proof contract without more state/protocol/bounds.
+
+The native oracle now recognizes only the exact documented typed legacy partial, while preserving six unique exact reaped outcomes, native absence, current generation, delivery, joined completion and cleanup. Unknown refusal, transport loss, truncation or uncertain cleanup still fail. Small oracle regressions pass0.335s. Record updated reader certificates, checkpoint, then repeat both focused final-source acceptances and required recorded verification. No native/suite/landing runner remains.
+
 ## Estimate
 
 Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md` against `baseline-v3.1.md`. Method A only. The source is marked stale by estimate-source; this is a provisional calibration, not a fitted total.

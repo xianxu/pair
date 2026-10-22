@@ -207,16 +207,16 @@ func TestLiveProvenOrphanReap(t *testing.T) {
 				}
 			}
 			confirmedStarted := time.Now()
-			confirmed, err := fleet.ActorCLI(ctx, 0, "--reap-orphans", "--confirm", "--json")
+			confirmed, confirmedErr := fleet.ActorCLI(ctx, 0, "--reap-orphans", "--confirm", "--json")
 			confirmedElapsed := time.Since(confirmedStarted)
-			if err != nil || confirmed.ExitCode != 0 {
-				t.Fatalf("confirmed: %+v %v", confirmed, err)
-			}
 			// Decode through the actual CLI report so field identity and one result per
 			// frozen member are checked independently from native absence.
 			var report orphanReapReport
 			if err = json.Unmarshal([]byte(confirmed.Stdout), &report); err != nil {
 				t.Fatal(err)
+			}
+			if !provenConfirmedResult(confirmed, report, confirmedErr) {
+				t.Fatalf("confirmed did not produce a complete joined success or exact legacy refusal: %+v report=%+v %v", confirmed, report, confirmedErr)
 			}
 			if !report.Confirmed || len(report.Proven) != len(keys) {
 				t.Fatalf("confirmed multiplicity: %+v", report)
@@ -279,6 +279,54 @@ func TestLiveProvenOrphanReap(t *testing.T) {
 // fixture, never on unknown transport, truncation or cleanup failure.
 func provenPreviewRefusal(result agentfixture.Result, err error) bool {
 	return err != nil && strings.HasPrefix(result.ID, "cli-") && result.ExitCode == 1 && result.Error == "exit status 1" && !result.Truncated && !result.CleanupUncertain
+}
+
+// Exact cleanup may succeed while the independent legacy family conservatively
+// refuses. Accept only the documented typed refusal, with a fully joined CLI.
+func provenConfirmedResult(result agentfixture.Result, report orphanReapReport, err error) bool {
+	if !strings.HasPrefix(result.ID, "cli-") || result.Truncated || result.CleanupUncertain || !report.Confirmed || len(report.Outcomes) != 0 || len(report.LeftRunning) != 0 {
+		return false
+	}
+	if report.LegacyRefusal == "" {
+		return err == nil && result.ExitCode == 0 && result.Error == ""
+	}
+	return report.LegacyRefusal == orphanLegacyRefusal && provenPreviewRefusal(result, err)
+}
+
+func TestProvenConfirmedResultRequiresCorrelatedLegacyRefusal(t *testing.T) {
+	success := agentfixture.Result{ID: "cli-1"}
+	report := orphanReapReport{Confirmed: true}
+	if !provenConfirmedResult(success, report, nil) {
+		t.Fatal("rejected joined confirmed success")
+	}
+	partial := agentfixture.Result{ID: "cli-2", ExitCode: 1, Error: "exit status 1"}
+	report.LegacyRefusal = orphanLegacyRefusal
+	exitErr := errors.New("fixture CLI: exit status 1")
+	if !provenConfirmedResult(partial, report, exitErr) {
+		t.Fatal("rejected exact legacy refusal")
+	}
+	for _, tc := range []struct {
+		name   string
+		result agentfixture.Result
+		report orphanReapReport
+		err    error
+	}{
+		{"missing refusal", partial, orphanReapReport{Confirmed: true}, exitErr},
+		{"unknown refusal", partial, orphanReapReport{Confirmed: true, LegacyRefusal: "other refusal"}, exitErr},
+		{"refusal with exit zero", success, report, nil},
+		{"unjoined error", partial, report, nil},
+		{"transport failure", agentfixture.Result{ID: "cli-2", ExitCode: 1, Error: "read failed"}, report, exitErr},
+		{"truncation", agentfixture.Result{ID: "cli-2", ExitCode: 1, Error: "exit status 1", Truncated: true}, report, exitErr},
+		{"uncertain cleanup", agentfixture.Result{ID: "cli-2", ExitCode: 1, Error: "exit status 1", CleanupUncertain: true}, report, exitErr},
+		{"uncorrelated", agentfixture.Result{ExitCode: 1, Error: "exit status 1"}, report, exitErr},
+		{"foreign legacy outcome", partial, orphanReapReport{Confirmed: true, LegacyRefusal: orphanLegacyRefusal, Outcomes: []orphanReapOutcome{{}}}, exitErr},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if provenConfirmedResult(tc.result, tc.report, tc.err) {
+				t.Fatal("accepted incomplete or unrelated result")
+			}
+		})
+	}
 }
 
 func TestProvenPreviewRefusalRequiresJoinedTypedResult(t *testing.T) {
