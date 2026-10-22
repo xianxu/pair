@@ -182,6 +182,12 @@ The single diagnostic Claude run on356cf510 failed with the bounded reason detac
 
 Verified the composition defect rather than weakening the assertion: the global completeness helper applied to exact effects was treating unrelated detached uncertainty as relevant. A new real-handler test with unrelated unknown sdlcPID99 failed red with zero allowed target signals. Exact effects now keep full current census/slot completeness while passing the full detached-unknown set to the existing target-and-ancestor veto. The process-lifetime legacy fence remains global and unchanged. Relevant detached ancestors and unknown current owner after old-root death still veto TERM/KILL. Combined proof/reap/ownership/seed race selection passes couchcmd3.324s/core1.663s. This restores the already approved relevance contract, not a deadline or frame/output tolerance.
 
+### 2026-10-22 — final scoped-proof native acceptance passes
+
+Both focused native commands pass on924ea8b3a913fe193e34023c0ac929d6674a7931. Each accepts only the documented joined legacy-only partial, then proves all six unique exact outcomes reaped, independent native absence, unchanged current generation, accepted public delivery and complete owned-generation/direct-child/IO/private-root cleanup. Claude38.839s, confirmed102.468ms, writes81362944bytes; Codex42.083s, confirmed128.377ms, writes81559552bytes. All96MiB/time/frame/output bounds remain unchanged.
+
+Logs: /Volumes/TestScratch/tmp/pair-slot2/pair-792-native-scoped-claude.sHXxz3/native.log SHA2563763275b6ce4b1143548663f257ade67ab38b0fb07e2620cfe04c25141b808ef; /Volumes/TestScratch/tmp/pair-slot2/pair-792-native-scoped-codex.qqImeX/native.log SHA2561f342c503c547cdf5650a518bf7718a0ec753de32dd768e5b7acf1d66183168d. Source stayed frozen through both runs and reader audit passes. Required recorded suite remains pending; checkpoint this evidence, queue the final check and full close round3. The sole final issue Plan checkbox stays unchecked until its recorded verification passes. No native or landing runner remains.
+
 ## Estimate
 
 Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md` against `baseline-v3.1.md`. Method A only. The source is marked stale by estimate-source; this is a provisional calibration, not a fitted total.
