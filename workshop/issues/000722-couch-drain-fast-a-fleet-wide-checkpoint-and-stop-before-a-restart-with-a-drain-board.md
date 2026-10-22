@@ -303,6 +303,19 @@ Targeted drain checks PASS across core0.298s, couchcmd0.608s, couchmessage2.231s
 
 Reset final-code full-suite checkbox to pending: earlier suite and SHIP receipts remain historical and do not qualify this newer main integration. This is targeted preparation for watched staging only; future applicable recorded gates/re-close and watched acceptance remain required before landing. No new native matrix run, stage, real drain/queue control or merge landing performed. The shared #773 startup/re-registration evidence remains unclassified. Commit/push the integration, report its Git revision, then wait for the hub's explicit sdlc stage --build go after #753 releases pair:0.
 
+### 2026-10-22 — authorized stage/build verified; TL owns watched drain
+
+Authenticated TL e0be8efe authorizes sdlc stage --build after pair:9 clears #753; TL0edc5a39 approves tools:1 (Claude) and parley.nvim:3 (Codex), both idle/no live item. Parley:3 has TL's queued #409 assignment, which remains ordinary work if delivered during drain. Initial stage dry-run refused the live #753 lease; preserved it. Pair:9's submitted040aff6e confirmed its owned clear completed; only then ran sdlc stage --build. No abandoned-stage override or peer transaction interference.
+
+Stage session16167 completed exit0. Pair:0 in /Users/xianxu/workspace/pair stagedcc44f0658727c1d3a0796d3c431e3a6469a784a0; Git HEAD independently rechecked after build matches. Printed binary proof:
+
+    bin/couch vcs.revision=cc44f0658727c1d3a0796d3c431e3a6469a784a0 vcs.modified=false
+    bin/pair vcs.revision=cc44f0658727c1d3a0796d3c431e3a6469a784a0 vcs.modified=false
+    bin/pair-launch-helper vcs.revision=cc44f0658727c1d3a0796d3c431e3a6469a784a0 vcs.modified=false
+    bin/pair-slug vcs.revision=cc44f0658727c1d3a0796d3c431e3a6469a784a0 vcs.modified=false
+
+Pair:5 keeps its issue branch; fresh post-build peeks confirmed both proposed workers still have finished turns/empty composers and no background-job footer. Staged outcome and exact revision lines reached TL as submittedc81810e1. Keep #722's stage lease for operator activation and the TL-driven watched check; this build result does not prove a running supervisor has loaded it. No drain/undrain, queue, restart or recovery control sent by this slot; live acceptance and renewed final-code recorded/review gates still pending before merge. No current native full-pass or #773 root-cause claim. Next: receive the TL/operator's live result, retain exact evidence, and follow its disposition; do not independently drive or clear the stage before the watched run.
+
 ## Revisions
 
 ### 2026-10-19 — authenticated acknowledgement and shared queue ownership
