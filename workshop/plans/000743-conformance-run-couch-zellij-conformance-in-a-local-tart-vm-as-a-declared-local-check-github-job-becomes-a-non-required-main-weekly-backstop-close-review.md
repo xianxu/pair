@@ -273,3 +273,75 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-22T03:01:39-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 743 — conformance: run couch-zellij-conformance in a local Tart VM as a declared local check; GitHub job becomes a non-required main/weekly backstop |
+| repo | pair |
+| issue file | workshop/issues/000743-conformance-run-couch-zellij-conformance-in-a-local-tart-vm-as-a-declared-local-check-github-job-becomes-a-non-required-main-weekly-backstop.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | ab9af3e1635c0999b13e8536cd3c110db6b7a79f..ff5c82c98ce2889351953e758ed0eac95a16fb01 |
+| command | sdlc close --issue 743 |
+| reviewer | codex (openai; author openai) |
+| isolation | fenced |
+| timestamp | 2026-10-22T03:01:39-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+The interdiff preserves both sides of both conflict resolutions and introduces no new defects. Tracker changes record integration and verification without expanding scope. No prior finding requires reopening; BR-1 through BR-7 remain disposed.
+
+```findings
+{}
+```
+
+1. **Strengths**
+
+   - Both VM and Zellij reproducer targets survive in `Makefile.local:625`.
+   - VM and mock-server source inventories remain complete and disjoint in `cmd/internal/artifactpath/manifest.go:672`.
+   - The durable implementation plan is unchanged.
+
+2. **Critical findings:** None.
+
+3. **Important findings:** None.
+
+4. **Minor findings:** None.
+
+5. **Test coverage notes**
+
+   Independently passed the full artifactpath suite, affected-reader inventory check, 68 portable VM/provisioning/nightly tests, and 15 Zellij reproducer tests. Make dry-run confirms all resolved targets parse correctly. Live Tart execution and the full repository suite were not repeated.
+
+6. **Architectural notes**
+
+   - **ARCH-DRY — Pass:** Both inventories retain the existing shared classification mechanism.
+   - **ARCH-PURE — Pass:** No business logic or IO boundaries changed.
+   - **ARCH-PURPOSE — Pass:** Both resolutions preserve each side’s functionality.
+   - **ARCH-EVOLVE — Pass:** No persisted-format interpretation or writer changes.
+   
+   No new architectural or user-facing surface requires atlas or README updates.
+
+7. **Plan revision recommendations:** None.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"459f63de-6c63-4d87-8257-2a2405e23cbd","repository":"github.com/xianxu/pair","issue_id":"000743","recipe":"fix-review","round":11,"attempt":1,"agent":"codex","root":"/Volumes/TestScratch/review-checkouts/9dfa46d5b6ccd328","reviewed_head":"ff5c82c98ce2889351953e758ed0eac95a16fb01","slot":"pair:3","requested_at":"2026-10-22T10:00:33.926773Z"},"phase":"finished","pid":33093,"started_at":"2026-10-22T10:00:34.074222Z","finished_at":"2026-10-22T10:01:38.435534Z","session_id":"01a1630e-2828-7d52-853f-f784588c7529","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 3.528401208s
+head: "ff5c82c98ce2889351953e758ed0eac95a16fb01"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412
