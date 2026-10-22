@@ -281,3 +281,95 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000410
+
+---
+
+## Re-review — 2026-10-22T14:59:32-07:00 (REWORK)
+
+| field | value |
+|-------|-------|
+| issue | 796 — Couch: --tab-style collapse (one row; fold quiet slots and inactive hubs to +N, attention always shown) alongside multiline |
+| repo | pair |
+| issue file | workshop/issues/000796-couch-tab-style-collapse-one-row-fold-quiet-slots-and-inactive-hubs-to-n-attention-always-shown-alongside-multiline.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | d66407a76dc45888fd82e589c0a999f7f0fd5f65..435148c06892bc8db5d30aef95c70b1ca005ed93 |
+| command | sdlc close --issue 796 |
+| reviewer | codex (openai; author openai) |
+| isolation | fenced |
+| timestamp | 2026-10-22T14:59:32-07:00 |
+| verdict | REWORK |
+
+## Review
+
+```verdict
+verdict: REWORK
+confidence: high
+```
+
+The interdiff changes the approved folding policy after close: groups now fold only when at least three quiet members qualify. This is explicitly recorded as superseding earlier behavior, rather than correcting a prior finding. The narrow fix-review contract therefore requires a full `sdlc close`. Focused tests pass, and README/atlas updates accompany the changes.
+
+```findings
+findings:
+  - id: new
+    severity: Critical
+    kind: defect
+    family: boundary-review-scope
+    title: |
+      scope changed after close — run a full `sdlc close`
+    detail: |
+      workshop/plans/000796-collapse-tab-style-plan.md:151-153 introduces a three-member folding threshold and explicitly supersedes the earlier any-positive-count policy; cmd/internal/couchtty/status_collapse.go:49-52 implements it. Neither disposed prior finding requested this behavior change. Operator approval does not expand this fix-only review's coverage. Run a full `sdlc close` against the revised Spec and Plan before crossing the boundary.
+```
+
+1. **Prior findings**
+
+   No open findings require disposition. BR-1 and BR-2 remain previously addressed; neither is reopened.
+
+2. **Strengths**
+
+   - Grapheme tests compare measurement against physical `terminal.StyledRows` cells, providing an independent geometry oracle.
+   - `rowtext.Fit` delegates to shared grapheme-safe fitting, with allocation checks covering ordinary prefixes.
+   - New tests exercise the folding threshold, exact group identity, parked membership, focus-independent anchors, and count clicks.
+   - README and atlas both document the changed surface.
+
+3. **Critical findings**
+
+   - The scope change above blocks admission through this fix-only review. Remedy: run a full `sdlc close`.
+
+4. **Important and Minor findings**
+
+   None raised.
+
+5. **Test coverage notes**
+
+   Independently passed:
+
+   - `go test ./cmd/internal/textwidth ./cmd/internal/rowtext ./cmd/internal/couchtty -run 'Test(Grapheme|Fit|Collapse)' -count=1`
+   - Pinned-range `git diff --check`
+
+   No mutation tests or full repository suite were run. These results do not establish full-close acceptance of the expanded scope.
+
+6. **Architectural notes**
+
+   - **ARCH-DRY — pass:** Fitting shares one implementation and uses the existing terminal grapheme metric.
+   - **ARCH-PURE — pass:** Candidate selection and text measurement remain deterministic; projection changes stay in the Console boundary.
+   - **ARCH-PURPOSE — flag:** The newly selected policy requires full-boundary validation; the previous close cannot establish its acceptance.
+   - **ARCH-EVOLVE — pass:** This interdiff introduces no persisted-format changes.
+
+7. **Plan revision recommendations**
+
+   The new Revisions entry already records the policy change. Reconcile the main Spec/decision text with that threshold during the required full close; it still describes remaining quiet members becoming counts without stating the minimum.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"82b5b282-e73f-4b17-8691-736d4de0104a","repository":"github.com/xianxu/pair","issue_id":"000796","recipe":"fix-review","round":4,"attempt":1,"agent":"codex","root":"/Volumes/TestScratch/review-checkouts/c4111e20918b4711","reviewed_head":"435148c06892bc8db5d30aef95c70b1ca005ed93","slot":"pair:4","requested_at":"2026-10-22T21:58:36.519519Z"},"phase":"finished","pid":17849,"started_at":"2026-10-22T21:58:36.727598Z","finished_at":"2026-10-22T21:59:30.987526Z","session_id":"01a1659f-8b6a-7ef3-a40b-c3bf6deeec16","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 3.279532458s
+head: "435148c06892bc8db5d30aef95c70b1ca005ed93"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412

@@ -38,10 +38,13 @@ Design:
 - `couch --tab-style multiline|collapse` at launch (default `collapse`; `multiline` retains pair#779 behaviour); a runtime toggle
   key is a possible follow-up, not in scope.
 - **collapse:** one tab row. Within each repo group, show the active slot, every slot needing attention (amber
-  notification, red blocked), with the current hub (primary or numbered) and useful :0 anchors when space allows, and fold the rest into `+N`. Quiet
-  inactive hubs fold with their quiet workers. Proposed count interaction opens the switcher exactly scoped by
-  owner hub and group; no in-row expansion. At impossible widths retain the active/attention priority and mark
-  hidden attention in `+N !`; the active chip is never folded. These detailed choices await approval of the plan.
+  notification, red blocked), with launch-hub (primary or numbered) and useful :0 anchors independent of focus.
+  Known parked/non-live rows are excluded; queued/loading placeholders remain explicit. Fold eligible quiet live
+  members only AT three per exact owner/repository group: one or two stay explicit, exactly three folds.
+  Quiet inactive hubs may fold with quiet workers when that threshold is met. `+N` means hidden live members;
+  selecting one legitimately removes it from the count. Every character of the complete count opens the switcher
+  exactly scoped by owner hub and group; no in-row expansion. At impossible widths retain active/attention
+  priority and mark hidden attention in `+N !`; the active chip is never folded.
 - Reuse pair#779's measured packing, hit-map and chrome-row publication: collapse is a different input to the same
   packer, not a second renderer. The status-text cap (pair#789) applies in both modes.
 
@@ -51,8 +54,11 @@ Design:
 - Collapse maintains one chrome row across actor/attention updates and width changes whenever terminal height permits one chrome row; child-height and no-wrap-induced-resize regressions cover #810's mechanism. Physical terminal size changes still resize PTYs.
 
 - With `--tab-style collapse`, a fleet of N slots per group renders in one row: active plus attention slots shown,
-  the rest as `+N` (render test), and clicking `+N` opens that exact group in the switcher (test).
-- Primary and numbered hubs obey the same role policy: current hub retained when space allows; quiet inactive hub and workers produce one count per exact owner/group, independent of legacy display-run splits.
+  eligible quiet live members form `+N` only at three or more (two stays visible, exactly three folds). Known
+  parked/non-live rows never contribute. Counts and launch-hub anchors stay unchanged across outside-tab focus
+  changes; selecting a folded member legitimately changes the hidden count. Render/projection regressions cover these cases.
+- Clicking the plus and every digit of `+N` opens that exact group, using physical terminal cells after emoji aliases as the click oracle.
+- Primary and numbered hubs obey the same role policy: launch hub retained independently of focus when space allows; eligible quiet inactive hub/workers produce at most one count per exact owner/group when the threshold is met, independent of legacy display-run splits.
 - `multiline` is unchanged (existing tests).
 - Staged for an operator look.
 
@@ -154,6 +160,10 @@ Operator's first look was not accepted; follow-up covers threshold, live source 
 
 Corrected whole couchtty PASS64.736s; textwidth PASS0.063s; rowtext PASS0.068s. An intermediate width implementation broke TestMenu100Bounds (2462 allocations >1400); root allocation eliminated with original-prefix slices/ASCII fastpaths, existing budget unchanged, targeted performance pin green and included in whole tty pass. An earlier in-flight targeted run compiled before updated threshold fixtures exhausted its existing count wait and failed obsolete expectations; no pass/flake claim for that superseded snapshot. Inventory and whitespace checks pass. Whole couchcmd still running. Next commit/push corrected source, restage all4 binaries and submit a replacement recorded suite under TL's retained priority, then fixed review; operator second look remains required.
 
+### 2026-10-22 — full review requested after stage refinements
+
+Fix-only close round4 REWORK/BR-3: no functional findings, independently passed focused grapheme/fit/collapse tests; the new threshold/live policy must receive a full close review. Main Spec/Done-when and plan decision paragraphs reconciled with recorded operator revisions, preserving the revision history. Corrected staged source435148c06892bc8db5d30aef95c70b1ca005ed93 remains unchanged, all4 binaries verified modified=false. Whole couchcmd PASS130.577s. Recorded suite session90507/lease-1801226722/attemptb4b13e2a5d8973807f06c92257f9db8e, snapshot /Volumes/TestScratch/local-checks/sdlc-local-3536115088, admitted15:03 and running after restart. #789 session61444/lease-3428295058 still queued; no duplicates. Operator second look pending. Next full close, then require suite and operator acceptance before merge.
+
 ## Revisions
 
 ### 2026-10-22 — operator priority and default (TL0afd9a82)
@@ -187,3 +197,7 @@ The entire count chip, including every digit, opens the exact scoped menu. Root 
 ### 2026-10-22 — live source and focus-independent anchors (TL22b772d4)
 
 Counts continue to mean hidden live members, not total inventory. Parked/non-live inventory rows never enter collapse candidates; the shared menuRows view remains authoritative (a completed reattach may legitimately mark a row live). Unknown-inventory attached panes retain their existing attachment fallback; queued/loading placeholders never fold. Collapse anchors derive from the launching hub/owner, not the selected actor's owner; focus may change dimming but cannot change anchor policy. Selecting a hidden member legitimately removes it from +N, while switching between outside tabs preserves membership/counts. Pin a parked attached member and the same live group under two active hub tabs. Switcher inventory remains complete. The earlier OtherHub-derived anchor policy is superseded.
+
+### 2026-10-22 — BR-3 full-boundary validation
+
+Reconcile main contract prose with the approved stage refinements recorded above: threshold at three, live-only membership, launch-hub anchors independent of focus, hidden-live count semantics and whole-chip clicks. Run full sdlc close rather than the fix-only recipe because these are operator-directed policy changes after the earlier SHIP. No source delta or test rerun is needed for this documentation reconciliation.
