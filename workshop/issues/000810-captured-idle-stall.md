@@ -1,13 +1,13 @@
 ---
 id: 000810
-status: working
-deps: [791]
+status: blocked
+deps: [791, 796]
 github_issue:
 created: 2026-10-22
 updated: 2026-10-22
 estimate_hours:
 collaboration-mode: collaboration
-card_mirror: '5d6dd2f9b8a3197e888f087f520abe57257a7870' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '10f8bd26b8ffe1d339b2a16f7120db4f5657b24d' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-22T13:41:11-07:00
 claimant:
     operator: Xian Xu
@@ -26,25 +26,23 @@ Recurring Couch deliveries stall until operator input, before/after pair#735, pe
 
 ## Spec
 
-Recover queued peer delivery when a real terminal resize invalidates cursor visibility and the idle agent emits no repaint. After a short bounded wait, request one harmless native redraw through the wrapper's owned child group, then re-observe. Never type recovery input, invent cursor visibility, relax composer/frame/input/picker/automatic guards, or deliver before a qualified native empty-composer repaint. Target safe recovery within5 seconds when the installed agent honors the redraw request; ignored or failed requests remain explicitly unconfirmed and safely queued.
+Park recovery implementation until both #796 (collapse tab style by default, avoiding wrap-driven pane resizes) and #791 (delayed refusal/resize capture) land. If stalls recur after both, revisit from the capture evidence. Never type recovery input, invent cursor visibility, relax admission guards or deliver to an unconfirmed composer. A one-row geometry bounce is only a fallback candidate and requires explicit TL approval before implementation.
 
-Use the controlled resize-then-silence reproduction and sanitized native transition from #791. Its recordings cannot prove historical causation because resize events lack timestamps; TL accepts the controlled mechanism plus the operator's visible-slot/tab-wrap/keystroke evidence as sufficient to plan recovery. This replaces the earlier requirement to wait exclusively for a first failing capture. Implementation waits for #791 landing, on this independent main-based branch.
+The controlled resize-then-silence mechanism remains valid, but the first native capability experiment disproved the approved unchanged-size SIGWINCH approach for Claude2.1.308: one owned-group signal after a confirmed idle/quiet baseline produced no repaint within2 seconds. No production recovery was implemented. Historical causation is still unproved because old resize events lack timestamps.
 
 ## Done when
 
-- Controlled resize then silence recovers within5 seconds without operator bytes, for Claude and Codex stateful native fixtures and Claude batch admission; ignored/delayed/error responses preserve safe refusal.
-- Installed Claude and Codex isolated conformance proves the chosen redraw mechanism produces a fresh qualified empty composer, with versions/times and sanitized provenance. If it does not, stop and revise the plan before choosing another mechanism.
-- At most one request per actual resize, including repeated polls/head changes/no-op SIGWINCH; drafts, pickers, work, incomplete frames, pending human input and ended child lifetimes remain protected.
-- Real process-group lifetime tests and counted8/16 growth tests prove no redraw after owner revocation/reap, no discovered PID authority, and bounded work/state. Final recorded checks and mandatory review precede landing.
+- Both #791 and #796 land before recovery work resumes; only a recurring stall with new captured evidence triggers re-investigation.
+- Any later proposed mechanism has explicit TL approval, isolated Claude/Codex capability evidence and the controlled resize-then-silence red case.
+- A later implementation preserves cursor/composer/input safety, bounded work and owned child lifetime, and passes the normal verification/review/landing gates. No immediate recovery change is authorized while parked.
 
 ## Plan
 
-[Durable plan](../plans/000810-resize-repaint-plan.md), draft for TL approval before code.
+[Durable plan](../plans/000810-resize-repaint-plan.md). Its SIGWINCH design is superseded by the final parking decision; retain the measured negative and test strategy for a future evidence-based re-plan.
 
-- [ ] TL approves recovery design; parent #791 lands, then implementation gate.
-- [ ] Behavioral red and native capability check through existing shared harnesses.
-- [ ] Pure bounded recovery transition, child lifetime signal fence and safe re-observation.
-- [ ] Safety/growth/concurrency/conformance tests, atlas, recorded verification and close/landing.
+- [x] Claim and approve a bounded candidate recovery plan.
+- [x] Run the native capability experiment first and stop on the disproved premise.
+- [ ] Wait for #791 and #796 landing; investigate only if stalls recur with captured evidence, bringing any fallback mechanism to TL before code.
 
 ## Log
 
@@ -59,6 +57,18 @@ First start-plan refreshed ariadne ffd859eb5d7298b0844bc1c6876edad9b7574fd2→05
 
 Read-only discovery confirms signalChildWinch/ownedGroup/existing stdin peer poll are reusable seams. The unreaped leader is the lifetime fence; add serialized signal admission at that owner rather than PID liveness scans. Shared agentfixture honors every size notification, but real Claude2.1.308/Codex0.163.0 unchanged-geometry SIGWINCH redraw is unverified. Codex's JS launcher does not forward WINCH, so conformance must cover group signaling. No native agent launch, signal or #810 source edit has occurred. Durable plan covers bounded state, recovery/loss, one-request growth, stateful fakes and native capability stop condition. Await TL approval before code.
 
+- Authenticated approval4eb28919-f71c-41c0-ab9f-8fd610dfab6b: exact proposed one owned-group SIGWINCH after2s committed cursor invalidation, no PTY recovery bytes, fixed non-resetting sequence, stop/reap serialization, one request/invalidation. Native capability experiment is explicitly authorized now before #791 lands; production waits for parent. Conduct it as scratch overlay on the existing isolated native conformance harness, retaining joined group/PTY cleanup. If Claude or Codex ignores unchanged-size group SIGWINCH, stop and return to TL. #791 retained runner was rechecked alive after Couch restart, lease1905342880/session96595, FIFO13 at last poll.
+
+
+### 2026-10-22 — native capability failed; parked by TL
+
+Claude2.1.308 native experiment: `env PAIR810_AGENT=claude PAIR810_CAPTURE_DIR=/Volumes/TestScratch/tmp/pair810-native-redraw-vj17_yvk go test -overlay /Volumes/TestScratch/tmp/pair810-native-redraw-vj17_yvk/overlay.json ./cmd/internal/wrapcmd -run '^TestInvestigation810NativeRedraw$' -count=1 -timeout=60s -v` — behavioral FAIL8.298s, solely “unchanged-size SIGWINCH not honored: ignored”. Confirmed idle at13:57:40.424579-07:00, then2s quiet; one owned unreaped-leader group SIGWINCH at13:57:42.500054-07:00, unchanged120x38. No output/repaint in the following2s; native raw remains3722 bytes, request offset3722. Observer-only synthetic hide marker tested fresh native cursor evidence and was never sent to the PTY. Four setup bytes selected trust only for the disposable empty repo; recovery input and ALL post-request PTY bytes, including protocol replies, were0. Group/PTY cleanup returned nil. The scratch overlay reuses the existing isolated conformance helper and ownedGroup, retaining the leader until teardown before reaping; no real fleet slot was touched.
+
+Private raw SHA2568217851e8384d7be6c7afb877c401c6226994909d6cfb4c4ce09530aeba0432c; raw/JSON/overlay/test under the scratch path above. No raw screen or credentials committed. Native Codex was not launched because the explicit stop condition fired on Claude. No #810 production source changes or change-code gate; no geometry bounce attempted.
+
+Authenticated TL1e66b2d3-7981-4155-9929-76ad686f0bc1 parks this issue until #796 and #791 land. Keep the claim in pair:1 so the evidence/re-plan has an owner. Revisit only if stalls recur after both; one-row geometry bounce is a candidate requiring new explicit TL approval. Meanwhile land #791 when its retained recorded suite passes, then resume #807. Next: keep session96595/lease-1905342880 alive and poll it; no new #810 work. #737 remains parked/unstaged as before.
+
+
 ## Revisions
 
 ### 2026-10-22 — from capture wait to bounded repaint recovery
@@ -66,4 +76,6 @@ Read-only discovery confirms signalChildWinch/ownedGroup/existing stdin peer pol
 Original Spec waited for the first real failed-admission capture, then a recognition fix; original Done when required that first capture and its exact refusing condition. TL now accepts the controlled actual-resize→silence→cursor-hidden reproduction plus operator observations as enough to act. Current Spec/Done when replace that exclusive wait with harmless redraw and re-observation, retaining native capability proof and all input-safety guards. This is a separate recovery mechanism, not a footer recognizer change. Parent #791 dependency and land-first sequencing are explicit; no stacked development.
 
 
-- Authenticated approval4eb28919-f71c-41c0-ab9f-8fd610dfab6b: exact proposed one owned-group SIGWINCH after2s committed cursor invalidation, no PTY recovery bytes, fixed non-resetting sequence, stop/reap serialization, one request/invalidation. Native capability experiment is explicitly authorized now before #791 lands; production waits for parent. Conduct it as scratch overlay on the existing isolated native conformance harness, retaining joined group/PTY cleanup. If Claude or Codex ignores unchanged-size group SIGWINCH, stop and return to TL. #791 retained runner was rechecked alive after Couch restart, lease1905342880/session96595, FIFO13 at last poll.
+### 2026-10-22 — parking supersedes approved recovery implementation
+
+The preceding approved SIGWINCH design and five-second recovery contract are historical and unimplemented. Claude's negative native result activates its stop condition. Current Spec/Done when/Plan record the new dependency and evidence-based wait rather than claiming the failed mechanism works or silently replacing it. TL owns any fallback choice and approval.

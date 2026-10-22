@@ -107,3 +107,12 @@ ARCH-DRY: reuse the stdin owner, existing tick, signalChildWinch and shared nati
 ## Approval status
 
 Approved by TL4eb28919-f71c-41c0-ab9f-8fd610dfab6b. Native capability experiment may run now, before parent landing; production changes still wait for #791. No #810 production changes or native launches have run at this checkpoint. Signal support in installed agents remains an explicit unverified prerequisite; if it fails, bring a revised design instead of silently switching to geometry bouncing.
+
+
+## Revisions
+
+### 2026-10-22 — native SIGWINCH premise failed; implementation parked
+
+Claude2.1.308 ignored one unchanged-size owned-group SIGWINCH after2s confirmed quiet: no output/repaint within2s, zero post-request PTY bytes, joined cleanup nil, controlled capability assertion FAIL8.298s. Exact times/private evidence and raw hash are in the issue Log. Stopped before Codex and before production code as required.
+
+TL1e66b2d3-7981-4155-9929-76ad686f0bc1 supersedes this plan's implementation tasks: wait for #796's default collapse style and #791's capture to land, then revisit only if stalls recur with new capture evidence. The one-row geometry bounce remains a candidate requiring explicit TL approval. No automatic fallback or weakened cursor check is authorized. Keep the draft's ownership/test analysis as design history, not an executable approved recovery mechanism. Land #791 when its retained suite passes, then resume #807.
