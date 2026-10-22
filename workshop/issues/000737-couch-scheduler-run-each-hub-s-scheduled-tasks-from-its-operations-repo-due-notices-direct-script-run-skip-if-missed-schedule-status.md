@@ -240,6 +240,12 @@ Only textual conflict was NonArtifactSources in cmd/internal/artifactpath/manife
 
 Read the real ops task for the restart note without changing it: testscratch cron17 * * * *, timeout1m, machine scope, script_run true, heavy false. It inspects RAM-disk health/capacity/journal/Spotlight and Go-cache size; gcRemove=false, report only. Quiet0 is retained in history without a hub wake; warning10 wakes the hub. Status/history from ops show automatic source/last/next-due. No ops code/project edit or real task run was made here. Commit/push integration, then stage/build and report exact binary revisions plus the operator restart note.
 
+### 2026-10-21 evening — Operator defers stage/day to tomorrow
+
+Authenticated TL/operator delivery 466abd46-0cf7-4b06-a8d7-38efce6357af supersedes tonight's stage go: DO NOT stage tonight. Let landing order #777, #743, #738, #779 proceed; await TL go tomorrow for #737's real day. Main integration is completed locally at a8ae39df3fab0a7617e6aa887a3dfe16e4682e1e, including origin/main f2cd7108a, with all targeted scheduler/Console/core/history/artifact race checks and reader inventory passed as recorded above. No sdlc stage command or operator restart occurred.
+
+The already-started push terminated with `fatal: unable to access https://github.com/xianxu/pair.git/: Could not resolve host: github.com` (exit128). Keep the merge and this checkpoint local; do not retry publication while DNS is down. Push after network recovery, on TL's resumed sequence. No fresh recorded check was started, so no queued/running own suite lease needs preserving overnight. The pre-integration suite pass is retained evidence, not a full pass for the integrated tree. Restart note is prepared from actual ops/testscratch declaration (hourly minute17, one-minute timeout, quiet0/history, warning10/hub notice, GC report-only); send final note with verified staged binary revisions only after tomorrow's authorized build.
+
 ## Estimate
 
 Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md` against `baseline-v3.1.md`. Method A only; calibration currently marked stale/provisional by estimate-source. Already-scaled implementation hours use 40% of v2/v2.1 ranges; design uses the thorough-spec 0.2 multiplier, plus 0.5 library credit only for cron/kernel and bounded durable catalog/store. Familiarity 1.0; thorough-plan design buffer 15%. Passive day-long live observation is not focused ship time.
