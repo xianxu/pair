@@ -95,6 +95,16 @@ Whole-issue close round1 returned REWORK on pinned1ad3d3b8: BR-1 late negative l
 
 TL initially requested a small external bridge, then accepted the evidence that #408 never held a daemon and testcouch is Go/testing.TB-owned. Per TL5e43c052 filed unclaimed #801 (deps #758) for the Go shared owner/driver plus thin external wrapper, confirmed readiness/environment, EOF/TERM and exact Close/AssertCleaned. parley.nvim#405 may land M1 on fakes/native unit evidence; only real-producer acceptance waits for #801. No bridge implementation enters #758. #759 operator acceptance still takes dispatch priority.
 
+### 2026-10-22 — BR-1/BR-2/BR-3 corrections verified
+
+BR-1 RED reproduced successful-null from a late nil probe despite a successor. Nil/mismatch/dead/document-absent race cases now return stale while preserving the successor and avoiding a stale write; negative response and retirement share the authority lock.
+
+BR-2 RED reproduced near8MiB candidate refusal reported uncertain and poisoning despite no writer call. Store now returns an internal attempted-writer outcome without duplicate encoding; only invoked-writer errors poison. Typed encoded-capacity refusal maps to capacity through a private prewriter tag. Regression also caught a writer returning the same public capacity sentinel: it remains uncertain first and unavailable after poison, never misclassified as candidate capacity. Continued lookup, unregister, live/dead Sweep and retained unknown bytes pass after no-write refusal. Prewriter validation refusal is unavailable without poison.
+
+BR-3 stateful pending/current attachment fixture controls held, failed and canceled Superseded delivery. Durable publication and lookup select the successor before held notice completion; failed delivery preserves exact retry without another publication/notification; Close cancels and waits for held notification teardown. This required qualification tests, not a new production lifecycle. Native tuple/death qualification and held-owner-seam qualification are stated separately.
+
+Combined endpoint/couchcmd focused race passed10.776s/1.945s; repolint13.979s, artifactpath14.322s and reader inventory pass. No recorded full-suite pass or close approval is claimed; replacement suite and full re-close follow this checkpoint.
+
 ## Revisions
 
 ### 2026-10-22 — producer-only whole issue

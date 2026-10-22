@@ -2,12 +2,14 @@ package editorendpoint
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net"
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"sync"
 	"syscall"
 	"testing"
@@ -33,20 +35,66 @@ func (p *ownerProcess) ReadIdentity(pid int) (string, error) {
 	return p.identity, p.err
 }
 
-type ownerRPC struct {
-	mu       sync.Mutex
-	calls    int
-	nilReply bool
-	held     chan struct{}
-	started  chan struct{}
-	notices  []EndpointBinding
-	file     string
+type ownerEditorAttachment struct {
+	binding EndpointBinding
+	status  string
 }
 
+type ownerRPC struct {
+	mu             sync.Mutex
+	calls          int
+	nilReply       bool
+	replyFile      string
+	held           chan struct{}
+	started        chan struct{}
+	notices        []EndpointBinding
+	file           string
+	attachments    map[string]ownerEditorAttachment
+	noticeHeld     chan struct{}
+	noticeStarted  chan struct{}
+	noticeErr      error
+	noticeCanceled chan struct{}
+	noticeTeardown chan struct{}
+}
+
+func ownerAttachmentKey(b EndpointBinding) string {
+	return b.EditorIncarnation + ":" + b.DocumentID + ":" + b.AttachID
+}
+func (r *ownerRPC) stage(q RegisterRequest) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.attachments == nil {
+		r.attachments = map[string]ownerEditorAttachment{}
+	}
+	b := EndpointBinding{Namespace: q.Namespace, DocumentID: q.DocumentID, EditorIncarnation: q.EditorIncarnation, AttachID: q.AttachID, PID: q.PID, Socket: q.Socket, Buffer: q.Buffer, Mode: q.Mode, File: r.file}
+	r.attachments[ownerAttachmentKey(b)] = ownerEditorAttachment{binding: b, status: "pending"}
+}
+func (r *ownerRPC) accepted(b EndpointBinding) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.attachments[ownerAttachmentKey(b)] = ownerEditorAttachment{binding: b, status: "current"}
+}
+func (r *ownerRPC) attachment(b EndpointBinding) ownerEditorAttachment {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.attachments[ownerAttachmentKey(b)]
+}
 func (r *ownerRPC) Describe(ctx context.Context, q RegisterRequest) (*EditorDescription, error) {
 	r.mu.Lock()
 	r.calls++
 	held, started, nilReply := r.held, r.started, r.nilReply
+	d := EditorDescription{Namespace: q.Namespace, DocumentID: q.DocumentID, EditorIncarnation: q.EditorIncarnation, AttachID: q.AttachID, PID: q.PID, Socket: q.Socket, Buffer: q.Buffer, Mode: q.Mode, File: r.file}
+	if r.attachments != nil {
+		a, ok := r.attachments[ownerAttachmentKey(d)]
+		if !ok || a.status == "retired" {
+			nilReply = true
+		} else {
+			d = a.binding
+		}
+	}
+	if r.replyFile != "" {
+		d.File = r.replyFile
+	}
 	r.mu.Unlock()
 	if started != nil {
 		select {
@@ -64,12 +112,42 @@ func (r *ownerRPC) Describe(ctx context.Context, q RegisterRequest) (*EditorDesc
 	if nilReply {
 		return nil, nil
 	}
-	return &EditorDescription{Namespace: q.Namespace, DocumentID: q.DocumentID, EditorIncarnation: q.EditorIncarnation, AttachID: q.AttachID, PID: q.PID, Socket: q.Socket, Buffer: q.Buffer, Mode: q.Mode, File: r.file}, nil
+	return &d, nil
 }
-func (r *ownerRPC) Superseded(_ context.Context, b EndpointBinding) error {
+func (r *ownerRPC) Superseded(ctx context.Context, b EndpointBinding) error {
+	r.mu.Lock()
+	r.notices = append(r.notices, b)
+	held, started, failure, canceled, teardown := r.noticeHeld, r.noticeStarted, r.noticeErr, r.noticeCanceled, r.noticeTeardown
+	r.mu.Unlock()
+	if started != nil {
+		select {
+		case started <- struct{}{}:
+		default:
+		}
+	}
+	if held != nil {
+		select {
+		case <-held:
+		case <-ctx.Done():
+			if canceled != nil {
+				close(canceled)
+			}
+			if teardown != nil {
+				<-teardown
+			}
+			return ctx.Err()
+		}
+	}
+	if failure != nil {
+		return failure
+	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	r.notices = append(r.notices, b)
+	key := ownerAttachmentKey(b)
+	if a, ok := r.attachments[key]; ok && exact(a.binding, b) {
+		a.status = "retired"
+		r.attachments[key] = a
+	}
 	return nil
 }
 
@@ -115,7 +193,11 @@ func newOwnerFixture(t *testing.T) *ownerFixture {
 			return errors.New("ack lost after publication")
 		}
 		return nil
-	}}, RPC: f.rpc, Processes: f.proc, Resolve: func(context.Context, string) (string, error) { return f.rpc.file, nil }, Random: func() (string, error) { return docA, nil }}
+	}}, RPC: f.rpc, Processes: f.proc, Resolve: func(context.Context, string) (string, error) {
+		f.rpc.mu.Lock()
+		defer f.rpc.mu.Unlock()
+		return f.rpc.file, nil
+	}, Random: func() (string, error) { return docA, nil }}
 	f.o, e = NewEndpointOwner(context.Background(), f.cfg)
 	if e != nil {
 		t.Fatal(e)
@@ -231,40 +313,102 @@ func TestOwnerRegisterLaneAndObserverCancellation(t *testing.T) {
 		t.Fatal("notice was not exact displaced tuple")
 	}
 }
+
+// ownerHeldEvidence captures one negative observation before allowing the
+// successor to publish; later reads observe the healthy restored authority.
+type ownerHeldEvidence struct {
+	mu               sync.Mutex
+	kind             string
+	captured         bool
+	started, release chan struct{}
+	file             string
+	process          EndpointProcessSource
+}
+
+func (h *ownerHeldEvidence) hold(ctx context.Context, kind string) bool {
+	h.mu.Lock()
+	capture := h.kind == kind && !h.captured
+	if capture {
+		h.captured = true
+	}
+	h.mu.Unlock()
+	if !capture {
+		return false
+	}
+	close(h.started)
+	select {
+	case <-h.release:
+	case <-ctx.Done():
+	}
+	return true
+}
+func (h *ownerHeldEvidence) ReadIdentity(pid int) (string, error) {
+	if h.hold(context.Background(), "dead") {
+		return "", syscall.ESRCH
+	}
+	return h.process.ReadIdentity(pid)
+}
+func (h *ownerHeldEvidence) resolve(ctx context.Context, _ string) (string, error) {
+	if h.hold(ctx, "absent") {
+		return "", ErrDocumentNotRegistered
+	}
+	return h.file, nil
+}
 func TestOwnerLateNegativeLookupCannotRetireSuccessor(t *testing.T) {
-	f := newOwnerFixture(t)
-	if p := f.o.Register(context.Background(), f.request); p.Code != "ok" {
-		t.Fatal(p)
-	}
-	held := make(chan struct{})
-	started := make(chan struct{}, 1)
-	f.rpc.mu.Lock()
-	f.rpc.held = held
-	f.rpc.started = started
-	f.rpc.nilReply = true
-	f.rpc.mu.Unlock()
-	lookup := make(chan EndpointReply, 1)
-	go func() { lookup <- f.o.Lookup(context.Background(), f.request.Namespace, docA) }()
-	<-started
-	f.rpc.mu.Lock()
-	f.rpc.held = nil
-	f.rpc.started = nil
-	f.rpc.nilReply = false
-	f.rpc.mu.Unlock()
-	second := f.request
-	second.AttachID = "2"
-	if p := f.o.Register(context.Background(), second); p.Code != "ok" {
-		t.Fatal(p)
-	}
-	close(held)
-	<-lookup
-	if p := f.o.Lookup(context.Background(), f.request.Namespace, docA); p.Code != "ok" || p.EditorEndpoint.AttachID != "2" {
-		t.Fatalf("late lookup erased successor: %+v", p)
-	}
-	if f.writes != 2 {
-		t.Fatalf("stale retirement republished: %d", f.writes)
+	for _, kind := range []string{"nil", "mismatch", "dead", "absent"} {
+		t.Run(kind, func(t *testing.T) {
+			f := newOwnerFixture(t)
+			if p := f.o.Register(t.Context(), f.request); p.Code != "ok" {
+				t.Fatal(p)
+			}
+			held := make(chan struct{})
+			var release sync.Once
+			t.Cleanup(func() { release.Do(func() { close(held) }) })
+			started := make(chan struct{}, 1)
+			if kind == "nil" || kind == "mismatch" {
+				f.rpc.mu.Lock()
+				f.rpc.held, f.rpc.started = held, started
+				f.rpc.nilReply = kind == "nil"
+				if kind == "mismatch" {
+					f.rpc.replyFile = filepath.Join(f.request.Namespace, "other.md")
+				}
+				f.rpc.mu.Unlock()
+			} else {
+				evidence := &ownerHeldEvidence{kind: kind, started: started, release: held, file: f.rpc.file, process: f.proc}
+				f.o.cfg.Processes = evidence
+				f.o.cfg.Resolve = evidence.resolve
+			}
+			lookup := make(chan EndpointReply, 1)
+			go func() { lookup <- f.o.Lookup(t.Context(), f.request.Namespace, docA) }()
+			<-started
+			f.rpc.mu.Lock()
+			f.rpc.held, f.rpc.started = nil, nil
+			f.rpc.nilReply, f.rpc.replyFile = false, ""
+			f.rpc.mu.Unlock()
+			second := f.request
+			second.AttachID = "2"
+			if kind == "dead" {
+				second.EditorIncarnation = incB
+				second.PID++
+			}
+			current := f.o.Register(t.Context(), second)
+			if current.Code != "ok" {
+				t.Fatal(current)
+			}
+			release.Do(func() { close(held) })
+			if p := <-lookup; p.Code != "stale" || p.Changed || p.EditorEndpoint != nil {
+				t.Fatalf("late %s falsely confirmed absence: %+v", kind, p)
+			}
+			if p := f.o.Lookup(t.Context(), f.request.Namespace, docA); p.Code != "ok" || p.EditorEndpoint == nil || !exact(*p.EditorEndpoint, *current.EditorEndpoint) {
+				t.Fatalf("late %s erased successor: %+v", kind, p)
+			}
+			if f.writes != 2 {
+				t.Fatalf("stale retirement republished: %d", f.writes)
+			}
+		})
 	}
 }
+
 func TestOwnerCloseJoinsHeldNativeProbe(t *testing.T) {
 	f := newOwnerFixture(t)
 	f.rpc.held = make(chan struct{})
@@ -526,5 +670,239 @@ func TestOwnerPublicationErrorWireOutcomes(t *testing.T) {
 				}
 			})
 		}
+	}
+}
+
+func TestOwnerEncodedCapacityRefusalKeepsAuthorityUsable(t *testing.T) {
+	f := newOwnerFixture(t)
+	first := f.o.Register(t.Context(), f.request)
+	if first.Code != "ok" {
+		t.Fatal(first)
+	}
+	state, err := f.cfg.Store.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	state.Unknown = map[string]json.RawMessage{"retained": json.RawMessage(`""`)}
+	raw, err := EncodeEndpointState(state)
+	if err != nil {
+		t.Fatal(err)
+	}
+	state.Unknown["retained"] = json.RawMessage(`"` + strings.Repeat("x", MaxStateBytes-len(raw)-64) + `"`)
+	raw, err = EncodeEndpointState(state)
+	if err != nil || len(raw) != MaxStateBytes-64 {
+		t.Fatalf("near-capacity state bytes=%d err=%v", len(raw), err)
+	}
+	if err = f.cfg.Store.Publish(state); err != nil {
+		t.Fatal(err)
+	}
+	f.o.Close()
+	f.o, err = NewEndpointOwner(t.Context(), f.cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	before := f.writes
+	incoming := f.request
+	incoming.DocumentID = strings.Repeat("b", 32)
+	incoming.Buffer++
+	p := f.o.Register(t.Context(), incoming)
+	if p.Code != "capacity" || p.Changed || p.EditorEndpoint != nil || f.writes != before {
+		t.Fatalf("encoded-capacity refusal Code=%s Changed=%v writes=%d/%d", p.Code, p.Changed, f.writes, before)
+	}
+	saved, err := f.cfg.Store.Load()
+	if err != nil || saved.Revision != state.Revision || len(saved.Records) != 1 {
+		t.Fatalf("refusal changed authority revision=%d records=%d err=%v", saved.Revision, len(saved.Records), err)
+	}
+	if p = f.o.Lookup(t.Context(), f.request.Namespace, docA); p.Code != "ok" || p.EditorEndpoint == nil || p.EditorEndpoint.BindingGeneration != first.EditorEndpoint.BindingGeneration {
+		t.Fatalf("refusal poisoned lookup: Code=%s", p.Code)
+	}
+	if err = f.o.Sweep(t.Context()); err != nil {
+		t.Fatalf("refusal poisoned live sweep: %v", err)
+	}
+	b := first.EditorEndpoint
+	p = f.o.Unregister(t.Context(), UnregisterRequest{Version: 1, Namespace: b.Namespace, EditorIncarnation: b.EditorIncarnation, PID: b.PID, Entries: []UnregisterEntry{{DocumentID: b.DocumentID, AttachID: b.AttachID, BindingGeneration: b.BindingGeneration}}})
+	if p.Code != "ok" || !p.Changed || f.writes != before+1 {
+		t.Fatalf("refusal poisoned unregister: Code=%s Changed=%v writes=%d", p.Code, p.Changed, f.writes)
+	}
+	f.proc.err = syscall.ESRCH
+	if err = f.o.Sweep(t.Context()); err != nil {
+		t.Fatalf("refusal poisoned collection: %v", err)
+	}
+	saved, err = f.cfg.Store.Load()
+	if err != nil || len(saved.Records) != 0 || f.writes != before+2 {
+		t.Fatalf("post-refusal collection records=%d writes=%d err=%v", len(saved.Records), f.writes, err)
+	}
+	if string(saved.Unknown["retained"]) != string(state.Unknown["retained"]) {
+		t.Fatal("capacity handling changed retained unknown bytes")
+	}
+}
+
+func TestOwnerSupersededNoticeFollowsPublicationAndFailurePreservesRetry(t *testing.T) {
+	for _, fail := range []bool{false, true} {
+		t.Run(fmt.Sprintf("failed=%v", fail), func(t *testing.T) {
+			f := newOwnerFixture(t)
+			f.rpc.stage(f.request)
+			first := f.o.Register(t.Context(), f.request)
+			if first.Code != "ok" || first.EditorEndpoint == nil {
+				t.Fatal(first)
+			}
+			f.rpc.accepted(*first.EditorEndpoint)
+			second := f.request
+			second.AttachID = "2"
+			f.rpc.stage(second)
+			held, started := make(chan struct{}), make(chan struct{}, 1)
+			var release sync.Once
+			t.Cleanup(func() { release.Do(func() { close(held) }) })
+			f.rpc.mu.Lock()
+			f.rpc.noticeHeld, f.rpc.noticeStarted = held, started
+			if fail {
+				f.rpc.noticeErr = errors.New("editor notice failed")
+			}
+			f.rpc.mu.Unlock()
+			completed := make(chan EndpointReply, 1)
+			go func() { completed <- f.o.Register(t.Context(), second) }()
+			<-started
+			// Delivery has not completed, yet both the durable record and a fresh
+			// authoritative lookup must already select the pending successor.
+			saved, err := f.cfg.Store.Load()
+			if err != nil {
+				t.Fatal(err)
+			}
+			durable := selected(saved, docA)
+			if durable == nil || durable.AttachID != "2" || saved.Revision != 2 {
+				t.Fatalf("notice preceded publication: revision=%d binding=%+v", saved.Revision, durable)
+			}
+			if p := f.o.Lookup(t.Context(), second.Namespace, second.DocumentID); p.Code != "ok" || p.EditorEndpoint == nil || !exact(*p.EditorEndpoint, *durable) {
+				t.Fatalf("held notice hid successor: %+v", p)
+			}
+			if old := f.rpc.attachment(*first.EditorEndpoint); old.status != "current" {
+				t.Fatalf("held notice changed previous local attachment: %s", old.status)
+			}
+			if pending := f.rpc.attachment(*durable); pending.status != "pending" {
+				t.Fatalf("unacknowledged attachment status=%s", pending.status)
+			}
+			select {
+			case p := <-completed:
+				t.Fatalf("registration abandoned held notice: %+v", p)
+			default:
+			}
+			release.Do(func() { close(held) })
+			reply := <-completed
+			if reply.Code != "ok" || !reply.Changed || reply.EditorEndpoint == nil || !exact(*reply.EditorEndpoint, *durable) {
+				t.Fatalf("notification changed committed result: %+v", reply)
+			}
+			wantOld := "retired"
+			if fail {
+				wantOld = "current"
+			}
+			if old := f.rpc.attachment(*first.EditorEndpoint); old.status != wantOld {
+				t.Fatalf("notification result local status=%s want=%s", old.status, wantOld)
+			}
+			if pending := f.rpc.attachment(*durable); pending.status != "pending" {
+				t.Fatalf("old notification affected successor: %s", pending.status)
+			}
+			f.rpc.accepted(*reply.EditorEndpoint)
+			retry := f.o.Register(t.Context(), second)
+			if retry.Code != "ok" || retry.Changed || retry.EditorEndpoint == nil || !exact(*retry.EditorEndpoint, *durable) {
+				t.Fatalf("notice failure disrupted exact retry: %+v", retry)
+			}
+			f.rpc.mu.Lock()
+			notices := len(f.rpc.notices)
+			f.rpc.mu.Unlock()
+			if f.writes != 2 || notices != 1 {
+				t.Fatalf("retry repeated publication/notification: writes=%d notices=%d", f.writes, notices)
+			}
+		})
+	}
+}
+
+func TestOwnerCloseCancelsAndJoinsHeldSupersededNotice(t *testing.T) {
+	f := newOwnerFixture(t)
+	f.rpc.stage(f.request)
+	first := f.o.Register(t.Context(), f.request)
+	if first.Code != "ok" || first.EditorEndpoint == nil {
+		t.Fatal(first)
+	}
+	f.rpc.accepted(*first.EditorEndpoint)
+	second := f.request
+	second.AttachID = "2"
+	f.rpc.stage(second)
+	held, started := make(chan struct{}), make(chan struct{}, 1)
+	canceled, teardown := make(chan struct{}), make(chan struct{})
+	var release sync.Once
+	t.Cleanup(func() { release.Do(func() { close(teardown) }) })
+	f.rpc.mu.Lock()
+	f.rpc.noticeHeld, f.rpc.noticeStarted = held, started
+	f.rpc.noticeCanceled, f.rpc.noticeTeardown = canceled, teardown
+	f.rpc.mu.Unlock()
+	completed := make(chan EndpointReply, 1)
+	go func() { completed <- f.o.Register(t.Context(), second) }()
+	<-started
+	saved, err := f.cfg.Store.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	successor := selected(saved, docA)
+	if successor == nil || successor.AttachID != "2" {
+		t.Fatal("held notification began before publication")
+	}
+	closed := make(chan error, 1)
+	go func() { closed <- f.o.Close() }()
+	<-canceled
+	select {
+	case err := <-closed:
+		t.Fatalf("Close returned before notification teardown: %v", err)
+	default:
+	}
+	select {
+	case p := <-completed:
+		t.Fatalf("operation returned before notification teardown: %+v", p)
+	default:
+	}
+	release.Do(func() { close(teardown) })
+	if err := <-closed; err != nil {
+		t.Fatal(err)
+	}
+	reply := <-completed
+	if reply.Code != "ok" || reply.EditorEndpoint == nil || !exact(*reply.EditorEndpoint, *successor) {
+		t.Fatalf("canceled notification lost committed successor: %+v", reply)
+	}
+	saved, err = f.cfg.Store.Load()
+	if err != nil || saved.Revision != 2 || selected(saved, docA) == nil || !exact(*selected(saved, docA), *successor) {
+		t.Fatalf("shutdown rewrote committed publication: revision=%d err=%v", saved.Revision, err)
+	}
+	if f.rpc.attachment(*first.EditorEndpoint).status != "current" || f.rpc.attachment(*successor).status != "pending" {
+		t.Fatal("canceled old notification changed local attachment ownership")
+	}
+}
+
+func TestOwnerWriterErrorCannotMasqueradeAsCandidateCapacity(t *testing.T) {
+	f := newOwnerFixture(t)
+	f.o.cfg.Store.WriteFile = func(string, []byte, string) error { return ErrEndpointCapacity }
+	if p := f.o.Register(t.Context(), f.request); p.Code != "uncertain" {
+		t.Fatalf("attempted writer failure Code=%s", p.Code)
+	}
+	if p := f.o.Lookup(t.Context(), f.request.Namespace, docA); p.Code != "unavailable" {
+		t.Fatalf("poison classified as candidate refusal: Code=%s", p.Code)
+	}
+}
+
+func TestOwnerPrewriterStoreValidationIsUnavailableWithoutPoison(t *testing.T) {
+	f := newOwnerFixture(t)
+	if err := os.Chmod(f.request.Namespace, 0755); err != nil {
+		t.Fatal(err)
+	}
+	p := f.o.Register(t.Context(), f.request)
+	if err := os.Chmod(f.request.Namespace, 0700); err != nil {
+		t.Fatal(err)
+	}
+	if p.Code != "unavailable" || p.Changed || f.writes != 0 {
+		t.Fatalf("prewriter validation: Code=%s Changed=%v writes=%d", p.Code, p.Changed, f.writes)
+	}
+	if p = f.o.Lookup(t.Context(), f.request.Namespace, docA); p.Code != "ok" || p.EditorEndpoint != nil {
+		t.Fatalf("prewriter validation poisoned empty authority: Code=%s", p.Code)
+	}
+	if p = f.o.Register(t.Context(), f.request); p.Code != "ok" || !p.Changed || f.writes != 1 {
+		t.Fatalf("prewriter validation poisoned admission: Code=%s Changed=%v writes=%d", p.Code, p.Changed, f.writes)
 	}
 }

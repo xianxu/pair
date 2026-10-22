@@ -103,19 +103,26 @@ func (s EndpointStore) Load() (EndpointState, error) {
 }
 
 func (s EndpointStore) Publish(state EndpointState) error {
+	_, err := s.publish(state)
+	return err
+}
+
+// publish separates deterministic validation/encoding refusal from attempted
+// durable IO. The owner poisons only after a writer was actually invoked.
+func (s EndpointStore) publish(state EndpointState) (attempted bool, err error) {
 	if err := s.validate(); err != nil {
-		return err
+		return false, err
 	}
 	if state.Namespace != s.Namespace {
-		return errors.New("endpoint state namespace mismatch")
+		return false, errors.New("endpoint state namespace mismatch")
 	}
 	raw, err := EncodeEndpointState(state)
 	if err != nil {
-		return err
+		return false, err
 	}
 	write := s.WriteFile
 	if write == nil {
 		write = durablefile.WriteAtomicStaged
 	}
-	return write(s.Path, raw, s.Stage)
+	return true, write(s.Path, raw, s.Stage)
 }

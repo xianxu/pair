@@ -10,6 +10,9 @@ import (
 	"github.com/xianxu/pair/cmd/internal/strictjson"
 )
 
+// ErrEndpointCapacity is a deterministic encoded-state byte-cap refusal.
+var ErrEndpointCapacity = errors.New("endpoint state exceeds 8 MiB")
+
 func decodeObject(raw []byte, target any) (map[string]json.RawMessage, error) {
 	known := strictjson.KnownFields(reflect.TypeOf(target).Elem())
 	owned, unknown, e := strictjson.SplitObjectPreserveNumbers(raw, known, map[string]bool{"Current": true})
@@ -137,7 +140,7 @@ func EncodeEndpointState(s EndpointState) ([]byte, error) {
 		return nil, e
 	}
 	if len(raw) > MaxStateBytes {
-		return nil, errors.New("endpoint state exceeds 8 MiB")
+		return nil, ErrEndpointCapacity
 	}
 	return raw, nil
 }

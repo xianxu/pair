@@ -16,6 +16,10 @@ var ErrDocumentNotRegistered = errors.New("document not registered")
 // The owner retains the underlying poison so later operations are unavailable.
 var errEndpointPublication = errors.New("endpoint publication uncertain")
 
+// Capacity applies only to a candidate refused before durable IO, never to
+// an identically named error returned by an invoked writer or a poisoned owner.
+var errEndpointCandidateCapacity = errors.New("endpoint candidate capacity exceeded")
+
 type EndpointConfig struct {
 	Store     EndpointStore
 	RPC       EditorRPC
@@ -54,8 +58,13 @@ func NewEndpointOwner(ctx context.Context, cfg EndpointConfig) (*EndpointOwner, 
 	return &EndpointOwner{cfg: cfg, ctx: owned, cancel: cancel, state: state, admitted: make(chan struct{}, 65), registerLane: make(chan struct{}, 1), validation: make(chan struct{}, 4)}, nil
 }
 func endpointFailure(code string, e error) EndpointReply {
-	if code == "unavailable" && errors.Is(e, errEndpointPublication) {
-		code = "uncertain"
+	if code == "unavailable" {
+		switch {
+		case errors.Is(e, errEndpointPublication):
+			code = "uncertain"
+		case errors.Is(e, errEndpointCandidateCapacity):
+			code = "capacity"
+		}
 	}
 	p := EndpointReply{Version: 1, Code: code}
 	if e != nil {
@@ -117,8 +126,9 @@ func (o *EndpointOwner) snapshot() (EndpointState, error) {
 	return cloneState(o.state), nil
 }
 
-// publishLocked is the only publication site. Even a write error before rename
-// poisons this instance: only reopening the store can resolve durable evidence.
+// publishLocked is the only publication site. Only an invoked writer error
+// poisons this instance, including a write error before rename. Deterministic
+// pre-writer refusals leave authority usable; attempted IO requires reopening.
 func (o *EndpointOwner) publishLocked(next EndpointState, changed bool) error {
 	if o.closed || o.ctx.Err() != nil {
 		return errors.New("endpoint owner closed")
@@ -126,7 +136,13 @@ func (o *EndpointOwner) publishLocked(next EndpointState, changed bool) error {
 	if !changed {
 		return nil
 	}
-	if e := o.cfg.Store.Publish(next); e != nil {
+	if attempted, e := o.cfg.Store.publish(next); e != nil {
+		if !attempted {
+			if errors.Is(e, ErrEndpointCapacity) {
+				return fmt.Errorf("%w: %w", errEndpointCandidateCapacity, e)
+			}
+			return e
+		}
 		o.poison = e
 		return fmt.Errorf("%w: %w", errEndpointPublication, e)
 	}
@@ -257,11 +273,14 @@ func (o *EndpointOwner) negativeEvent(s EndpointState, r RegisterRequest, probe 
 	return nil
 }
 func (o *EndpointOwner) applyNegative(event *EndpointEvent) (bool, error) {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	return o.applyNegativeLocked(event)
+}
+func (o *EndpointOwner) applyNegativeLocked(event *EndpointEvent) (bool, error) {
 	if event == nil {
 		return false, nil
 	}
-	o.mu.Lock()
-	defer o.mu.Unlock()
 	if o.poison != nil {
 		return false, o.poison
 	}
@@ -412,7 +431,20 @@ func (o *EndpointOwner) Lookup(observer context.Context, namespace, document str
 		probed.kind = "mismatch"
 	}
 	if probed.kind != "alive" {
-		changed, negativeErr := o.applyNegative(o.negativeEvent(s, bindingRequest(*b), probed))
+		// Negative process/editor evidence belongs to the captured generation.
+		// Fence both its mutation and the resulting absence claim under one lock.
+		o.mu.Lock()
+		defer o.mu.Unlock()
+		if o.poison != nil {
+			return endpointFailure("unavailable", o.poison)
+		}
+		if o.closed || o.ctx.Err() != nil {
+			return endpointFailure("unavailable", errors.New("endpoint owner closed"))
+		}
+		if current := selected(o.state, document); current != nil && !exact(*current, *b) {
+			return endpointFailure("stale", nil)
+		}
+		changed, negativeErr := o.applyNegativeLocked(o.negativeEvent(s, bindingRequest(*b), probed))
 		if negativeErr != nil {
 			return endpointFailure("unavailable", negativeErr)
 		}
