@@ -574,3 +574,99 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000409
+
+---
+
+## Re-review — 2026-10-22T15:39:30-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 796 — Couch: --tab-style collapse (one row; fold quiet slots and inactive hubs to +N, attention always shown) alongside multiline |
+| repo | pair |
+| issue file | workshop/issues/000796-couch-tab-style-collapse-one-row-fold-quiet-slots-and-inactive-hubs-to-n-attention-always-shown-alongside-multiline.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 651e30092e7ca245e5537ba1450b7ea7eb36ddae..c3b09ebd717a6794f686bb72c1daea8d2b25d746 |
+| command | sdlc close --issue 796 |
+| reviewer | codex (openai; author openai) |
+| isolation | fenced |
+| timestamp | 2026-10-22T15:39:30-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+The pinned range matches the revised Spec and Plan. Default collapse, exact group counts, scoped navigation, one-row geometry, and explicit multiline compatibility are supported by code inspection and passing tests. No new blocking findings were identified.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      Exact identity aggregation and hub-role regressions pass; restoring the pre-fix collapse implementation makes the regression fail.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      The corrected Core concepts tables match production declarations and diff statuses; the Revisions passage correctly identifies unchanged geometry and menu machinery as reuse.
+  - id: BR-3
+    disposition: addressed
+    note: |
+      This review inspected the complete pinned range against the reconciled Spec and Plan, including threshold, live membership, launch anchors, physical clicks, and ownership styling.
+  - id: BR-4
+    disposition: addressed
+    note: |
+      Queued/loading placeholder regressions pass in both styles; restoring the pre-fix projection makes the collapse test fail with no placeholders.
+```
+
+1. **Strengths**
+
+   - Collapse aggregates by exact owner/repository identity and preserves actor cardinality through overflow.
+   - Count hit spans come from the drawing pass and use the existing confirmed-revision input fence.
+   - Physical-cell click tests cover every character of `+4` and `+12` after an emoji alias.
+   - README and atlas describe the new option, default, scope recovery, and geometry behavior.
+
+2. **Critical findings:** None.
+
+3. **Important findings:** None.
+
+4. **Minor findings:** None.
+
+5. **Test coverage notes**
+
+   Passed whole packages: `couchtty`, `couchcmd`, `textwidth`, `rowtext`, and `artifactpath`. Native geometry and multiline compatibility tests passed within those packages. Negative controls failed as expected for numbered hubs, pending placeholders, and inactive-owner styling. `git diff --check` passed; the checkout remained unchanged.
+
+   This review does not establish a full repository suite result or operator acceptance.
+
+6. **Architectural notes**
+
+   | Principle | Assessment |
+   |---|---|
+   | ARCH-DRY | Pass: shared packing, drawing, width measurement, and ownership styling. |
+   | ARCH-PURE | Pass: candidate preparation, packing, and scope filtering remain deterministic. |
+   | ARCH-PURPOSE | Pass: CLI wiring, counts, clicks, scoping, and geometry ship together. |
+   | ARCH-MOCK | Pass: existing injected doubles and native PTY tests cover the changed integration. |
+   | ARCH-CONSTRAINTS | Pass: instrumented work bounds cover N/2N workloads; no new background work. |
+   | ARCH-SECURE | Pass: sanitization and confirmed-geometry fences remain in the production path. |
+   | ARCH-ORDER | Pass: scope refresh, nested return, Escape, ordinary reopen, and stale-click behavior are exercised. |
+   | ARCH-FUNERAL | Pass: frame data is replaced and temporary menu scope has explicit reset paths; no durable artifacts added. |
+   | ARCH-EVOLVE | Pass: no persisted format changes. |
+
+7. **Plan revision recommendations:** None.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"7ade9039-b3f0-40d2-a8a2-a3739f67520b","repository":"github.com/xianxu/pair","issue_id":"000796","recipe":"milestone-review","round":7,"attempt":1,"agent":"codex","root":"/Volumes/TestScratch/review-checkouts/ec524abfb93fec17","reviewed_head":"c3b09ebd717a6794f686bb72c1daea8d2b25d746","slot":"pair:4","requested_at":"2026-10-22T22:37:20.105026Z"},"phase":"finished","pid":9239,"started_at":"2026-10-22T22:37:20.235638Z","finished_at":"2026-10-22T22:39:29.931683Z","session_id":"01a165c2-ff34-7980-8c20-04250ac23580","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 2.767267833s
+head: "c3b09ebd717a6794f686bb72c1daea8d2b25d746"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412
