@@ -353,3 +353,74 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-22T10:55:08-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 797 — Live reboot refuses owned pane as ambiguous |
+| repo | pair |
+| issue file | workshop/issues/000797-live-reboot-pane-owner.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 5dd027f15ac0f24f76b2c1188043642f71822f97..993b4106bb1ed8790c059e7fa247195361721b3f |
+| command | sdlc close --issue 797 |
+| reviewer | codex (openai; author openai) |
+| isolation | fenced |
+| timestamp | 2026-10-22T10:55:08-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: medium
+```
+
+The pinned range implements the ownership-preserving retirement order and carries the observed server generation through deletion. This full review covers the expanded lint-policy scope requested by BR-3. No blocking defects found. Native acceptance was not repeated; previously disposed findings remain closed.
+
+```findings
+dispose:
+  - id: BR-3
+    disposition: addressed
+    note: |
+      Plan lines 151–153 supersede narrow re-close with full close review. This whole-issue review inspected the expanded executable lint policy, its catalog registration, isolation repairs and regression tests; focused rule tests and the complete repolint package pass.
+```
+
+1. **Strengths**
+   - Session quiescence precedes added wrapper signals, preserving live ownership evidence (`recovery_slot_tree.go:103`).
+   - All three scoped deletion consumers share exact-owner handoff; unsupported deleters refuse (`artifactcollision.go:183`).
+   - Tests cover server replacement, PID reuse, invalid proofs, cancellation, and refusal without wrapper signals.
+   - Atlas updates describe both recovery behavior and the new lint convention.
+
+2. **Critical findings:** None.
+
+3. **Important findings:** None.
+
+4. **Minor findings:** None.
+
+5. **Test coverage notes:** Focused launcher, Couch recovery/ownership, diagnostic-evidence tests, complete repolint tests, and affected-reader inventory passed. Native Claude/Codex acceptance and the full repository suite were not rerun.
+
+6. **Architectural notes**
+   - **ARCH-DRY — pass:** shared deletion helper and existing authorized-quiescence loop.
+   - **ARCH-PURE — pass:** classification remains IO-free; effects use injected integration seams.
+   - **ARCH-PURPOSE — pass:** correction covers the causal ordering failure and all three scoped deletion consumers.
+   - **ARCH-EVOLVE — pass:** no persisted format or field-meaning changes.
+
+7. **Plan revision recommendations:** None.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"ef96ed59-ff78-4213-a29f-7e936ca61847","repository":"github.com/xianxu/pair","issue_id":"000797","recipe":"small-diff-review","round":5,"attempt":1,"agent":"codex","root":"/Volumes/TestScratch/review-checkouts/43776f778b1ee52a","reviewed_head":"993b4106bb1ed8790c059e7fa247195361721b3f","slot":"pair:2","requested_at":"2026-10-22T17:53:16.604724Z"},"phase":"finished","pid":91676,"started_at":"2026-10-22T17:53:16.723356Z","finished_at":"2026-10-22T17:55:08.07649Z","session_id":"01a164be-ef71-7923-8cbf-21d12e1c23a3","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 1.9688655s
+head: "993b4106bb1ed8790c059e7fa247195361721b3f"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000410

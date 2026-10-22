@@ -411,6 +411,109 @@ rounds:
       recipe: fix-review
       isolation: fenced
       blocked: true
+    - reviewer_runs:
+        - version: 1
+          intent:
+            disposable_root: true
+            id: ef96ed59-ff78-4213-a29f-7e936ca61847
+            repository: github.com/xianxu/pair
+            issue_id: "000797"
+            recipe: small-diff-review
+            round: 5
+            attempt: 1
+            agent: codex
+            root: /Volumes/TestScratch/review-checkouts/43776f778b1ee52a
+            reviewed_head: 993b4106bb1ed8790c059e7fa247195361721b3f
+            slot: pair:2
+            requested_at: "2026-10-22T17:53:16.604724Z"
+          phase: finished
+          pid: 91676
+          started_at: "2026-10-22T17:53:16.723356Z"
+          finished_at: "2026-10-22T17:55:08.07649Z"
+          session_id: 01a164be-ef71-7923-8cbf-21d12e1c23a3
+          outcome: returned
+      actual_inputs:
+        version: 1
+        method: active-time-v3-engagement-v1
+        repository: github.com/xianxu/pair
+        code_head: 993b4106bb1ed8790c059e7fa247195361721b3f
+        tracker_head: 9a44cb8887ac51b83c5ecb39f64b96529b8f8223
+        branch_point: 5dd027f15ac0f24f76b2c1188043642f71822f97
+        since: "2026-10-22T09:32:31-07:00"
+        until: "2026-10-22T10:52:50-07:00"
+        brain_root: /Users/xianxu/workspace/brain
+        gap_minutes: 15
+        commit_weight: 1
+        include_assistant: true
+        engagements:
+            - start: "2026-10-22T09:32:31-07:00"
+              end: "2026-10-22T10:52:50-07:00"
+              began: "2026-10-22T09:32:31-07:00"
+              roots:
+                - /Users/xianxu/workspace/worktree/pair-slot2/pair
+        sources:
+            - harness: codex
+              id: 01a15a8b-89c9-7e02-a733-8b52dd00ebac
+              slot: pair:2
+              cwd: /Users/xianxu/workspace/worktree/pair-slot2/pair
+              digest: b17bb8ff39110f568333eb8e330cef9c5eb2b4e45de9e848c8bf9ef0866ce345
+              started: "2026-10-20T18:21:51.812Z"
+              spawned: false
+              bytes: 59428114
+              windows:
+                - start: "2026-10-22T09:32:31-07:00"
+                  end: "2026-10-22T10:52:50-07:00"
+            - harness: codex
+              id: 01a16475-3ba3-7181-bc0e-60d420d8d5c8
+              slot: pair:2
+              cwd: /Users/xianxu/workspace/worktree/pair-slot2/pair
+              parent_id: 01a15a8b-89c9-7e02-a733-8b52dd00ebac
+              digest: 83c40badc1c8621551866f62f081a7143ca7010caf3553e5e2c0992b87cc9c76
+              started: "2026-10-22T16:32:47.212Z"
+              spawned: true
+              bytes: 2122032
+              windows:
+                - start: "2026-10-22T16:32:47.212Z"
+                  end: "2026-10-22T10:52:50-07:00"
+            - harness: codex
+              id: 01a1647d-d249-7852-951b-5c6fd3dbfa1f
+              slot: pair:2
+              cwd: /Users/xianxu/workspace/worktree/pair-slot2/pair
+              parent_id: 01a15a8b-89c9-7e02-a733-8b52dd00ebac
+              digest: 1965ce1ce85f43d1de7e301321783f46e2a23ff86ba03d7c483b1a593ebbd095
+              started: "2026-10-22T16:42:10.056Z"
+              spawned: true
+              bytes: 2133405
+              windows:
+                - start: "2026-10-22T16:42:10.056Z"
+                  end: "2026-10-22T10:52:50-07:00"
+        cuts:
+            - dispatched: "2026-10-22T10:11:51-07:00"
+              finalized: "2026-10-22T10:21:59-07:00"
+              finalizing: false
+            - dispatched: "2026-10-22T10:31:28-07:00"
+              finalized: "2026-10-22T10:33:54-07:00"
+              finalizing: false
+            - dispatched: "2026-10-22T10:39:35-07:00"
+              finalized: "2026-10-22T10:43:19-07:00"
+              finalizing: true
+            - dispatched: "2026-10-22T10:50:48-07:00"
+              finalized: "2026-10-22T10:52:07-07:00"
+              finalizing: false
+      "n": 5
+      timestamp: "2026-10-22T10:55:09-07:00"
+      dispatched: "2026-10-22T10:53:14-07:00"
+      agent: codex
+      reviewer: codex (openai; author openai)
+      dispose:
+        - id: BR-3
+          disposition: addressed
+          note: Plan lines 151–153 supersede narrow re-close with full close review. This whole-issue review inspected the expanded executable lint policy, its catalog registration, isolation repairs and regression tests; focused rule tests and the complete repolint package pass.
+          round: 5
+      recipe: small-diff-review
+      isolation: fenced
+      reviewed: 993b4106bb1ed8790c059e7fa247195361721b3f
+      blocked: false
 ---
 
 # Gate ledger — pair#797 (boundary-review)
@@ -453,6 +556,12 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-3** [Critical] `post-close-scope-change` (kind: defect) Scope changed after close — run a full sdlc close
   workshop/plans/000797-live-reboot-pane-owner-plan.md:147-149 adds a self-found isolation workstream, implemented as a new executable quit-trigger-private-home catalog rule at internal/repolint/local_catalog_test.go:15-19. Neither prior finding requested this behavior. Under the explicit fix-review scope rule, this addition requires a full sdlc close; the narrow review cannot authorize it. ARCH-PURPOSE: validate the expanded deliverable through the full boundary.
 
+## Round 5 — 2026-10-22T10:55:09-07:00 (codex) — passed
+
+### Disposed
+
+- BR-3 — addressed — Plan lines 151–153 supersede narrow re-close with full close review. This whole-issue review inspected the expanded executable lint policy, its catalog registration, isolation repairs and regression tests; focused rule tests and the complete repolint package pass.
+
 ## Open findings
 
-- **BR-3** [Critical] `post-close-scope-change` (kind: defect) Scope changed after close — run a full sdlc close
+(none — every finding has been disposed)
