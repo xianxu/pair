@@ -39,6 +39,7 @@ type menuRowFacts struct {
 	// Actor is what couchcore's resume/reboot admission table reads; the
 	// resumable and unusable phases offer exactly couchcore.ActorActions.
 	Actor          couchcore.ActorRowFacts
+	SwitchOffered  bool // core switchable classification with no pending continuation
 	AliasOffered   bool // menuAliasOffered
 	AddSlotOffered bool // menuAddSlotPath != ""
 }
@@ -57,6 +58,7 @@ func menuRowFactsOf(row couchcore.ActionableThreadSummary) menuRowFacts {
 	if request := row.Continuation; request != nil && request.Phase != checkpoint.Complete {
 		unfinished = request.Phase
 	}
+	f.SwitchOffered = unfinished == "" && row.Orphan == nil && !row.HasOpenPark && couchcore.SwitchableState(row.State, row.Reason)
 	switch row.State {
 	case couchcore.ThreadBusy:
 		f.Phase = menuPhaseBusy
@@ -134,6 +136,9 @@ func menuRowActions(f menuRowFacts) []string {
 		}
 		if couchcore.RecoverOffered(actions) {
 			items = append([]string{"recover"}, actions...)
+		}
+		if f.SwitchOffered {
+			items = append(items, "switch-agent")
 		}
 		// Adding a slot opens the start form for a new :1+ worktree and needs
 		// nothing from :0's agent, so a parked :0 offers it too (pair#402). It

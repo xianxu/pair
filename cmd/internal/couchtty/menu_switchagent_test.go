@@ -81,16 +81,15 @@ func TestSwitchAgentParametersContainFinalButtonsAndDispatchAcceptedPreview(t *t
 	}
 }
 
-func TestSwitchAgentFrameSurvivesOwnParkButRejectsUnrelatedLoss(t *testing.T) {
+func TestSwitchAgentFrameKeepsParkedDraftButRejectsUnknownLoss(t *testing.T) {
 	state := NewMenuState(menuThreads(), menuAddress("couch-one"))
 	state, _ = reduceKey(state, PanelKey{Kind: KeyTab})
 	state.Frames[len(state.Frames)-1].SelectedItem = "switch-agent"
 	state, _ = reduceKey(state, PanelKey{Kind: KeyEnter})
 	parked := menuThreads()
 	parked[0].State = couchcore.ThreadParked
-	// The switch's OWN park keeps the form (the switch is in flight); a park
-	// from elsewhere does not, because parked rows no longer offer
-	// switch-agent (#363).
+	// Both an in-flight park and a newly parked source keep the editable form;
+	// a fresh preview still fences any changed source before dispatch.
 	inFlight := state
 	setTestMenuOperation(&inFlight, MenuOperationOrigin{Operation: "switch-agent", Attempt: 1, Address: menuAddress("couch-one"), FrameInstance: state.CurrentFrame().Instance})
 	next, _ := ReduceMenu(inFlight, MenuEvent{Kind: MenuEventInventory, Inventory: parked, Generation: 1})
@@ -98,8 +97,8 @@ func TestSwitchAgentFrameSurvivesOwnParkButRejectsUnrelatedLoss(t *testing.T) {
 		t.Fatal("the switch's own park lost its form")
 	}
 	next, _ = ReduceMenu(state, MenuEvent{Kind: MenuEventInventory, Inventory: parked, Generation: 1})
-	if next.CurrentFrame().Kind == MenuFrameSwitchAgent {
-		t.Fatal("a source parked elsewhere retained the switch form")
+	if next.CurrentFrame().Kind != MenuFrameSwitchAgent {
+		t.Fatal("parking discarded the editable source form")
 	}
 	lost := menuThreads()
 	lost[0].State = couchcore.ThreadUnusable
@@ -246,7 +245,7 @@ func TestSwitchAgentParameterCursorUsesRunesAndRenderedCells(t *testing.T) {
 }
 
 func TestSlotSwitchAgentTargetsSelectedWorkspace(t *testing.T) {
-	for _, lifecycle := range []couchcore.ActionableThreadState{couchcore.ThreadLive} {
+	for _, lifecycle := range []couchcore.ActionableThreadState{couchcore.ThreadLive, couchcore.ThreadParked} {
 		t.Run(string(lifecycle), func(t *testing.T) {
 			row := groupedRow("/workspace/pair", 2, "slot-two")
 			row.State = lifecycle

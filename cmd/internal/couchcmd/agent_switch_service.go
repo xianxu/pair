@@ -103,9 +103,10 @@ func (g *switchServiceGuard) confirmVacantAgentSwitch(ctx context.Context, s *me
 }
 
 type agentSwitchService struct {
-	guard   *switchServiceGuard
-	prepare func(context.Context, couchcore.ThreadAddress, string, *[]string) (couchcore.PreparedAgentSwitch, error)
-	enqueue func(string, func(context.Context) (couchcore.OperationCall, error), func(), func(any, error)) error
+	resolveTarget func(context.Context, string) (couchcore.ThreadAddress, couchcore.WorkspaceIdentity, error)
+	guard         *switchServiceGuard
+	prepare       func(context.Context, couchcore.ThreadAddress, string, *[]string) (couchcore.PreparedAgentSwitch, error)
+	enqueue       func(string, func(context.Context) (couchcore.OperationCall, error), func(), func(any, error)) error
 }
 
 func (s *messageService) switchCaller(ctx context.Context, r couchmessage.Request) (couchmessage.Binding, error) {
@@ -152,21 +153,57 @@ func (s *messageService) handleAgentSwitch(ctx context.Context, r couchmessage.R
 		}
 	}
 	source, _, err := s.tailBinding(ctx, couchmessage.Request{Target: r.Target}, bindings)
-	if err != nil {
+	var address couchcore.ThreadAddress
+	token := ""
+	var authorize func(context.Context) error
+	switch {
+	case err == nil:
+		address = couchcore.ThreadAddress{RepoScope: source.Scope, Tag: couchcore.ThreadTag(source.Tag)}
+		live, ok := s.LivenessForThread(source.Scope, source.Tag)
+		if !ok || live.Binding != source {
+			return refuse(errors.New("switch-agent: source wrapper unavailable"))
+		}
+		token = switchSourceToken(live)
+		authorize = func(ctx context.Context) error { return s.authorizeHubBinding(ctx, caller, source) }
+	case errors.Is(err, couchmessage.ErrUnavailable) && service.resolveTarget != nil:
+		var identity couchcore.WorkspaceIdentity
+		address, identity, err = service.resolveTarget(ctx, r.Target)
+		if err != nil {
+			return refuse(err)
+		}
+		authorize = func(ctx context.Context) error {
+			currentAddress, current, err := service.resolveTarget(ctx, r.Target)
+			if err != nil {
+				return err
+			}
+			if currentAddress != address || current.WorktreeRoot != identity.WorktreeRoot || current.RepoIdentity != identity.RepoIdentity || current.PrimaryRoot != identity.PrimaryRoot {
+				return errors.New("switch-agent: retained slot selection changed; review it again")
+			}
+			origin, err := s.connectedWorkspace(ctx, caller)
+			if err != nil {
+				return err
+			}
+			if origin.WorktreeRoot == current.WorktreeRoot {
+				return errors.New("switch-agent: a caller cannot switch its own slot")
+			}
+			slot, ok := hubWorkspaceSlot(current)
+			if !ok {
+				return errors.New("switch-agent: target slot identity unavailable")
+			}
+			if s.authority.hubs != nil {
+				return authorizeHubMutation(origin, slot, s.authority.hubs.snapshot())
+			}
+			return ctx.Err()
+		}
+	default:
 		return refuse(err)
 	}
-	if source.Scope == caller.Scope && source.Tag == caller.Tag {
+	if address.RepoScope == caller.Scope && string(address.Tag) == caller.Tag {
 		return refuse(errors.New("switch-agent: a caller cannot switch its own slot"))
 	}
-	if err := s.authorizeHubBinding(ctx, caller, source); err != nil {
+	if err := authorize(ctx); err != nil {
 		return refuse(err)
 	}
-	address := couchcore.ThreadAddress{RepoScope: source.Scope, Tag: couchcore.ThreadTag(source.Tag)}
-	live, ok := s.LivenessForThread(source.Scope, source.Tag)
-	if !ok || live.Binding != source {
-		return refuse(errors.New("switch-agent: source wrapper unavailable"))
-	}
-	token := switchSourceToken(live)
 	var explicit *[]string
 	if argv, present := r.AgentArgs.Argv(); present {
 		explicit = &argv
@@ -184,7 +221,7 @@ func (s *messageService) handleAgentSwitch(ctx context.Context, r couchmessage.R
 				return err
 			}
 		}
-		if err := s.authorizeHubBinding(ctx, caller, source); err != nil {
+		if err := authorize(ctx); err != nil {
 			return err
 		}
 		return service.guard.ConfirmAgentSwitch(ctx, address, token, prepared.SourceEvidence())
@@ -230,7 +267,7 @@ func (s *slotOperations) existingSwitch(caller couchmessage.Binding, r couchmess
 func (s *messageService) installAgentSwitchService(console *couchtty.Console, c *couchcore.Couch, guard *switchServiceGuard) {
 	guard.service.Store(s)
 	lifecycleQueue := newLifecycleRemoteQueue(console, c)
-	s.switches.Store(&agentSwitchService{guard: guard, prepare: func(ctx context.Context, address couchcore.ThreadAddress, agent string, argv *[]string) (couchcore.PreparedAgentSwitch, error) {
+	s.switches.Store(&agentSwitchService{resolveTarget: c.ResolveAgentSwitchTarget, guard: guard, prepare: func(ctx context.Context, address couchcore.ThreadAddress, agent string, argv *[]string) (couchcore.PreparedAgentSwitch, error) {
 		if argv == nil {
 			return c.PrepareKnownAgentSwitch(ctx, address, agent)
 		}

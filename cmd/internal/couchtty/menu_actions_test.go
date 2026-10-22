@@ -140,6 +140,12 @@ func expectedRowActions(s menuRowShape) []string {
 		}
 		return []string{"detach", "relaunch", "park", "switch-agent", "reboot", "alias", "add-slot"}
 	case couchcore.ThreadParked, couchcore.ThreadDetached:
+		if s.state == couchcore.ThreadParked && !unfinished {
+			if s.slot {
+				return []string{"recover", "resume", "reboot", "switch-agent"}
+			}
+			return []string{"recover", "resume", "reboot", "switch-agent", "add-slot"}
+		}
 		// A stopped :0 still offers add slot: a new slot needs nothing from
 		// :0's agent (pair#402).
 		if !s.slot {
@@ -148,6 +154,9 @@ func expectedRowActions(s menuRowShape) []string {
 		return []string{"recover", "resume", "reboot"}
 	case couchcore.ThreadUnusable:
 		offers := expectedUnusableActions(s, unfinished)
+		if !unfinished && (couchcore.IsBindingFailure(s.reason) || s.reason == couchcore.ReasonSessionGone) {
+			offers = append(offers, "switch-agent")
+		}
 		// Ordinary unusable rows may additionally offer add slot.
 		if !s.slot && len(offers) > 0 && s.reason != couchcore.ReasonPathMissing && s.reason != couchcore.ReasonNeedsRelaunch && s.reason != couchcore.ReasonUnknown {
 			offers = append(offers, "add-slot")

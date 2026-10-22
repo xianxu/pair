@@ -25,6 +25,13 @@ func TestSwitchSourceEvidenceRequiresCoreClassificationAndExactRecord(t *testing
 			t.Fatal("vacancy proof accepted another source")
 		}
 	}
+	relabelled := prepared
+	relabelled.Address.Tag += "-other"
+	relabelled.SourceRevision++
+	relabelled.WorkingPath += "/other"
+	if !relabelled.SourceEvidence().MatchesRecord(source) {
+		t.Fatal("public preview edits changed core-owned source authority")
+	}
 	raw, err := json.Marshal(prepared)
 	if err != nil {
 		t.Fatal(err)

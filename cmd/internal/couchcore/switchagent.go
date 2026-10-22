@@ -64,7 +64,7 @@ type SwitchSourceEvidence struct {
 
 // SourceEvidence exposes the source mode already admitted by this preparation.
 func (p PreparedAgentSwitch) SourceEvidence() SwitchSourceEvidence {
-	return SwitchSourceEvidence{state: p.state, reason: p.sourceReason, address: p.Address, revision: p.SourceRevision, workingPath: p.WorkingPath}
+	return SwitchSourceEvidence{state: p.state, reason: p.sourceReason, address: p.record.Address, revision: p.record.Revision, workingPath: p.record.WorkingPath}
 }
 
 // Vacant is true only for an admitted non-live classification, never disconnect.
