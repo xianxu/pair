@@ -1,8 +1,10 @@
 package couchtty
 
 import (
+	"bytes"
 	"go/ast"
 	"go/parser"
+	"go/printer"
 	"go/token"
 	"os"
 	"path/filepath"
@@ -22,6 +24,33 @@ func statusCatalog(src string) ([]string, error) {
 		return nil, err
 	}
 	var out []string
+	// Source-defined callbacks are a producer class too; they need not be a
+	// FuncDecl or contain a direct setNotice call.
+	ast.Inspect(f, func(n ast.Node) bool {
+		lit, ok := n.(*ast.CompositeLit)
+		if !ok {
+			return true
+		}
+		typ, ok := lit.Type.(*ast.Ident)
+		if !ok || typ.Name != "webcastLink" {
+			return true
+		}
+		for _, elt := range lit.Elts {
+			if kv, ok := elt.(*ast.KeyValueExpr); ok {
+				if key, ok := kv.Key.(*ast.Ident); ok && key.Name == "missing" {
+					if callback, ok := kv.Value.(*ast.FuncLit); ok {
+						var b bytes.Buffer
+						_ = printer.Fprint(&b, token.NewFileSet(), callback)
+						messages, e := statusCatalog("package catalog; func capabilityNotice" + strings.TrimPrefix(b.String(), "func"))
+						if e == nil {
+							out = append(out, messages...)
+						}
+					}
+				}
+			}
+		}
+		return true
+	})
 	globals := map[string][]ast.Expr{}
 	for _, decl := range f.Decls {
 		if gen, ok := decl.(*ast.GenDecl); ok {
@@ -133,7 +162,7 @@ func statusCatalog(src string) ([]string, error) {
 			return nil
 		}
 		add := func(e ast.Expr) { out = append(out, literals(e, map[string]bool{})...) }
-		helper := fn.Name.Name == "capabilityNotice" || fn.Name.Name == "driveNotices" || fn.Name.Name == "driveFailure"
+		helper := fn.Name.Name == "capabilityNotice" || fn.Name.Name == "driveNotices" || fn.Name.Name == "driveFailure" || fn.Name.Name == "webcastLinkStatus" || fn.Name.Name == "castRotationNotice" || fn.Name.Name == "castGuessNotice"
 		ast.Inspect(fn.Body, func(n ast.Node) bool {
 			switch n := n.(type) {
 			case *ast.AssignStmt:
@@ -252,6 +281,10 @@ func TestStatusCatalogDiscoversActualProducerTemplates(t *testing.T) {
 		if !found {
 			t.Fatalf("missed overlong producer: %s; got %q", body, got)
 		}
+	}
+	callbacks, callbackErr := statusCatalog(`package p; var link=webcastLink{missing:func()string{return "` + long + `"}}`)
+	if callbackErr != nil || len(callbacks) == 0 || textwidth.Width(callbacks[0]) <= ChromeStatusCells {
+		t.Fatalf("missed callback: %q %v", callbacks, callbackErr)
 	}
 	got, err := statusCatalog(`package p; func unrelated(){ c.showMenu("` + long + `"); _=Detail{Body:"` + long + `"} }`)
 	if err != nil || len(got) != 0 {

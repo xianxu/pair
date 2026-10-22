@@ -54,4 +54,19 @@ func TestChromeCapabilityDiagnosticCopiesFullCurrentText(t *testing.T) {
 	if err != nil || string(got) != full {
 		t.Fatalf("copied %q, err %v; want full current capability diagnostic %q", got, err, full)
 	}
+	for _, held := range []bool{false, true} {
+		want := "selected operation error"
+		r.con.mu.Lock()
+		r.con.menu.Notice = errorMenuNotice(want)
+		if held {
+			want = "held original copy payload"
+			r.con.menu.CopyFeedback = CopyFeedback{Kind: CopyFeedbackFailed, payload: want}
+		}
+		r.con.mu.Unlock()
+		r.con.copyLastNotice()
+		got, err := os.ReadFile(clipboard)
+		if err != nil || string(got) != want {
+			t.Fatalf("held=%v copied %q, err %v; want priority payload %q", held, got, err, want)
+		}
+	}
 }

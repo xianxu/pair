@@ -431,8 +431,8 @@ func TestDriveFromCouch(t *testing.T) {
 	alien := c.con.statusWebDriveLink.Start + 1
 	c.con.mu.Unlock()
 	_, _ = fmt.Fprintf(c.stdin, "\x1b[<2;%d;24M\x1b[<2;%d;24m", alien, alien)
-	waitFor(t, "drive link copied", func() bool { return copies(c.consoleFixture, c.link) == 1 })
-	waitFor(t, "the drive link's notice", func() bool { return strings.Contains(c.notice(), "drive link copied") })
+	waitFor(t, "drive copied", func() bool { return copies(c.consoleFixture, c.link) == 1 })
+	waitFor(t, "the drive link's notice", func() bool { return strings.Contains(c.notice(), "drive copied") })
 	if strings.Contains(c.notice(), c.link) {
 		t.Fatalf("the notice shows the link: %q", c.notice())
 	}

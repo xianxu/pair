@@ -283,30 +283,33 @@ func (c *Console) focusWebcast() {
 // (pair#506): which it is, what its viewers may do, and why a cast whose
 // view-only link answered may still have none of this kind.
 type webcastLink struct {
-	name   string
-	kind   string // the link's label, broadcast.LinkView/LinkPointer/LinkDrive
-	grants string
+	name string
+	kind string // the link's label, broadcast.LinkView/LinkPointer/LinkDrive
 	// missing says why the cast has no such link; "" means it isn't ready.
 	missing func(*webcast.Cast) string
 }
 
 var (
-	webcastViewOnlyLink = webcastLink{name: "view-only", kind: broadcast.LinkView,
-		grants: "its viewers watch; 👆 copies the pointer link, 👽 the drive link."}
-	webcastPointerLink = webcastLink{name: "pointer", kind: broadcast.LinkPointer,
-		grants: "its viewers watch; pointing and notes require 👆 on.",
+	webcastViewOnlyLink = webcastLink{name: "view-only", kind: broadcast.LinkView}
+	webcastPointerLink  = webcastLink{name: "pointer", kind: broadcast.LinkPointer,
 		missing: func(*webcast.Cast) string {
-			return "This cast takes no notes (it isn't recorded), so it has no pointer link."
+			return "Pointer link needs recording."
 		}}
 	webcastDriveLink = webcastLink{name: "drive", kind: broadcast.LinkDrive,
-		grants: "its viewers can ask to drive when 👽 is on; you grant.",
 		missing: func(cast *webcast.Cast) string {
 			if cast != nil && cast.DriveOff() != "" {
-				return "This cast can't be driven: " + cast.DriveOff() + "."
+				return "Driving off: " + cast.DriveOff() + "."
 			}
 			return ""
 		}}
 )
+
+func webcastLinkStatus(l webcastLink, copied bool) string {
+	if copied {
+		return "Chrome " + l.name + " copied; hover for code."
+	}
+	return "Chrome " + l.name + " link not ready."
+}
 
 // copyWebcastLinkOf copies one of the cast's links. The notice never
 // contains the link: a screen broadcast would draw it to viewers.
@@ -326,13 +329,13 @@ func (c *Console) copyWebcastLinkOf(l webcastLink) {
 			return
 		}
 		// Every link is locked by its own code (pair#495).
-		c.setNotice("Chrome " + l.name + " link copied; hover for code.")
+		c.setNotice(webcastLinkStatus(l, true))
 	case u.LinkErr != nil:
 		c.setNotice("Chrome cast " + l.name + " link unavailable: " + u.LinkErr.Error())
 	case missing != "":
 		c.setNotice(missing)
 	default:
-		c.setNotice("Chrome cast " + l.name + " link is not ready yet.")
+		c.setNotice(webcastLinkStatus(l, false))
 	}
 }
 

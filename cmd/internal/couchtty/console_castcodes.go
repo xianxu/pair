@@ -394,7 +394,7 @@ func (c *Console) runCodesSelection() {
 	if len(links) > 1 {
 		what = "codes"
 	}
-	c.setNotice(fmt.Sprintf("%s %s changed; viewers disconnected.", kind.name(), what))
+	c.setNotice(castRotationNotice(kind, what))
 }
 
 // copyCastLink copies one of a cast's links, as its control's click does.
@@ -481,11 +481,7 @@ func (c *Console) onCodeRotated(kind castKind, attempt uint64, link string, r ca
 	c.codes.flash = &codeFlash{cast: kind, link: link, code: r.Code, at: at, start: now}
 	notice := ""
 	if r.Reason == castlock.ReasonGuessing {
-		if r.Capped {
-			notice = fmt.Sprintf("Code changed; link locked: rotate %s %s.", kind.name(), link)
-		} else {
-			notice = fmt.Sprintf("Wrong guesses: %s %s code changed.", kind.name(), link)
-		}
+		notice = castGuessNotice(kind, link, r.Capped)
 	}
 	c.codes.mu.Unlock()
 	// Publish before releasing the generation guard: an older callback must
@@ -613,4 +609,15 @@ func (c *Console) installCodesLayer() error {
 	return c.presenter.SetOperatorLayer(context.Background(), func(f terminal.Frame, class terminal.FrameClass) terminal.Frame {
 		return c.attentionLayer(c.codesLayer(f, class))
 	})
+}
+
+func castRotationNotice(kind castKind, what string) string {
+	return fmt.Sprintf("New %s %s; viewers off.", kind.name(), what)
+}
+
+func castGuessNotice(kind castKind, link string, capped bool) string {
+	if capped {
+		return fmt.Sprintf("%s %s code new; locked. Rotate.", kind.name(), link)
+	}
+	return fmt.Sprintf("%s %s code changed (guesses).", kind.name(), link)
 }
