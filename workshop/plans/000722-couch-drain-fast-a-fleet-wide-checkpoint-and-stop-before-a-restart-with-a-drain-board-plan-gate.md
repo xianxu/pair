@@ -114,6 +114,25 @@ reviewer_runs:
       finished_at: "2026-10-22T09:27:44.77713Z"
       session_id: 01a162ef-760b-7dd3-8c3b-971831d19ac7
       outcome: returned
+    - version: 1
+      intent:
+        id: ec7b6038-2324-4eaa-abf6-e4c45d009c70
+        repository: github.com/xianxu/pair
+        issue_id: "000722"
+        recipe: estimate-quality
+        round: 1
+        attempt: 1
+        agent: codex
+        root: /Users/xianxu/workspace/worktree/pair-slot5/pair
+        reviewed_head: 70fb8ba0d760ae36449557a0ed15acf68a563599
+        slot: pair:5
+        requested_at: "2026-10-22T18:28:20.467579Z"
+      phase: finished
+      pid: 51302
+      started_at: "2026-10-22T18:28:20.773835Z"
+      finished_at: "2026-10-22T18:28:59.489269Z"
+      session_id: 01a164df-0c86-7d53-aa3b-19dd037399de
+      outcome: returned
 gate: plan-quality
 issue: 722
 id_prefix: PQ
@@ -346,7 +365,32 @@ rounds:
       agent: codex
       reviewer: codex (openai; author openai)
       blocked: false
-content_hash: 0b02a805f1d35f1e94c68dac83587cac40621f0d29e8f5a83dc0fdc1ba0fbbe0
+    - reviewer_runs:
+        - version: 1
+          intent:
+            id: 2c4e1f29-ebe1-41c6-a994-85945bf3953d
+            repository: github.com/xianxu/pair
+            issue_id: "000722"
+            recipe: plan-quality
+            round: 9
+            attempt: 1
+            agent: codex
+            root: /Users/xianxu/workspace/worktree/pair-slot5/pair
+            reviewed_head: 70fb8ba0d760ae36449557a0ed15acf68a563599
+            slot: pair:5
+            requested_at: "2026-10-22T18:27:42.854652Z"
+          phase: finished
+          pid: 31696
+          started_at: "2026-10-22T18:27:43.153247Z"
+          finished_at: "2026-10-22T18:28:13.332084Z"
+          session_id: 01a164de-7b31-7ba3-baa4-86b092449912
+          outcome: returned
+      "n": 9
+      timestamp: "2026-10-22T11:28:14-07:00"
+      agent: codex
+      reviewer: codex (openai; author openai)
+      blocked: false
+content_hash: 1fccf57d46ab34283af3d9d8650fab4ea1a9196b8b995e6b1d31b5a2727ffe4e
 ---
 
 # Gate ledger — pair#722 (plan-quality)
@@ -392,6 +436,8 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - PQ-1 — addressed — The function-level verification strategy remains addressed; no prior finding is reopened.
 
 ## Round 8 — 2026-10-22T02:26:58-07:00 (codex) — passed
+
+## Round 9 — 2026-10-22T11:28:14-07:00 (codex) — passed
 
 ## Open findings
 

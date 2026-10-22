@@ -324,6 +324,8 @@ Root cause verified in code: default2s client/server transport wraps sequential 
 
 TL5f7e03f6 directs keep fleet-wide cross-hub contour, register operations/child receipts, immediate flag acknowledgment and independent per-target admission/status, then private proof and a fresh watched run. Reopened through setter to working. New appended plan Revision records state/recovery table, shared receipt lifecycle, bounded4-worker executor and ordering/cancellation proof, pending TL approval and renewed change-code. Stage remains retained unchanged on pair:0; do not land. Earlier suite/SHIP is superseded by this acceptance failure. Prior restart-resend report330a37f5 and diagnosis e392864e are both submitted. Previous terminal capture requested at recovery is unavailable (previous session descriptor absent); issue/plan/Git evidence remains the recovery record.
 
+Submitted TLd8fba425 approved the appended registered-operation design and directed change-code; add the failed-drain/successful-lift case and explicit harmless-lift wording. Plan report d23c3630 submitted. Production code remains unchanged pending the plan-quality gate.
+
 ## Revisions
 
 ### 2026-10-19 — authenticated acknowledgement and shared queue ownership

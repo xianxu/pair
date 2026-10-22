@@ -597,3 +597,8 @@ Status remains read-only for anyone. Flagged rows include latest notice state/ID
 - [ ] Push exact-source evidence, record the declared affected/full-suite result, run make test-affected-inventory before mandatory full re-close. Report SHIP and request authorized restage. Leave existing pair:0 stage untouched until TL authorizes replacement. Fresh operator-watched graceful drain/ordinary-work/ack/undrain on real Claude and Codex is required before landing; TL owns queue controls and recovery. No native rerun or timeout change is inferred from historical approval.
 
 This is a new public operation-status result and async ownership mechanism, so submit this state table and bounded executor design to TL before production code, then renew change-code's plan-quality gate. The command names, cross-hub contour, exact notice bodies and external queue ownership remain unchanged.
+
+
+### 2026-10-22 — TL approval and harmless unsolicited lift
+
+Submitted d8fba425 approves the registered-operation design above and renews change-code. Add a production-path regression where a target's drain admission failed but its later lift succeeds: cleared flags stay cleared, continuation is delivered and no checkpoint/recovery action is requested from a worker that never saw the drain. Keep the canonical lift opening, followed by an unconditional clarifying sentence: “If you received no drain notice, no checkpoint or recovery action is required.” Optional quoted note remains last. This clarifies a partial-delivery case without manufacturing knowledge that a particular agent read a notice. Update all exact-body tests and native expected bodies together; do not rerun the native matrix from historical authority.
