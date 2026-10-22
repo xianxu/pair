@@ -14,6 +14,7 @@ class El {
     this.style = {}; this.textContent = ''; this.className = ''; this.shadow = null;
   }
   setAttribute(k, v) { this.attrs[k] = v; }
+  getAttribute(k) { return this.attrs[k] ?? null; }
   appendChild(c) { this.children.push(c); return c; }
   addEventListener(n, fn) { (this.listeners[n] ||= []).push(fn); }
   attachShadow(opts) { this.shadowMode = opts.mode; this.shadow = new El('#shadow'); return this.shadow; }
@@ -45,6 +46,23 @@ function page({ top = true, readyState = 'complete', visible = true, focused = t
   const button = () => host()?.shadow.children.find((c) => c.tag === 'button');
   return { ctx, sent, run, fire, document, host, button };
 }
+
+test('background capture leaves an open operator UI visible and identical control refresh does no DOM writes',()=>{
+ const p=page();p.run();p.ctx.__couchcastSet(true,'');
+ let busy=true;p.ctx.__couchcastCaptureBusy=()=>busy;
+ assert.equal(p.ctx.__couchcastUI('acquire-background','shot',0),false);
+ assert.equal(p.host().hidden,false);
+ let writes=0;
+ const host=p.host(),button=p.button();let hidden=host.hidden,text=button.textContent;
+ Object.defineProperty(host,'hidden',{get:()=>hidden,set:v=>{writes++;hidden=v;}});
+ Object.defineProperty(button,'textContent',{get:()=>text,set:v=>{writes++;text=v;}});
+ host.style=new Proxy(host.style,{set:(o,k,v)=>{writes++;o[k]=v;return true;}});
+ const setAttribute=button.setAttribute.bind(button);button.setAttribute=(...args)=>{writes++;setAttribute(...args);};
+ for(let i=0;i<10;i++)p.ctx.__couchcastSet(true,'');
+ assert.equal(writes,0);
+ busy=false;assert.equal(p.ctx.__couchcastUI('acquire-background','shot',0),true);
+ assert.equal(host.hidden,true);p.ctx.__couchcastUI('release','shot',0);assert.equal(host.hidden,false);
+});
 
 test('nothing runs in a subframe', () => {
   const p = page({ top: false });

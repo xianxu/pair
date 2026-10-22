@@ -13,8 +13,9 @@ type AnnotationCleanup func(context.Context, uint64) error
 // AnnotationAdmission captures authority before reading a request body.
 // Its mutations recheck the permit at dispatch, including across Off/On cycles.
 type AnnotationAdmission struct {
-	board  *Board
-	permit capability.Permit
+	board                    *Board
+	permit                   capability.Permit
+	operatorSketchGeneration *uint64
 }
 
 type annotationAttempt struct {
@@ -47,6 +48,20 @@ func (b *Board) AdmitAnnotationGeneration(expected uint64) (AnnotationAdmission,
 	return b.admitAnnotationLocked()
 }
 
+// AdmitOperatorSketchGeneration is issued only to the trusted console sketch
+// ingress. Viewer annotation admission remains gated by its capability phase.
+func (b *Board) AdmitOperatorSketchGeneration(expected uint64) (AnnotationAdmission, error) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	if b.closed {
+		return AnnotationAdmission{}, ErrClosed
+	}
+	if expected != b.annotation.Generation {
+		return AnnotationAdmission{}, ErrDisabled
+	}
+	return AnnotationAdmission{board: b, operatorSketchGeneration: &expected}, nil
+}
+
 func (b *Board) admitAnnotationLocked() (AnnotationAdmission, error) {
 	if b.closed {
 		return AnnotationAdmission{}, ErrClosed
@@ -67,6 +82,15 @@ func (a AnnotationAdmission) Check() error {
 	}
 	a.board.mu.Lock()
 	defer a.board.mu.Unlock()
+	if a.operatorSketchGeneration != nil {
+		if a.board.closed {
+			return ErrClosed
+		}
+		if *a.operatorSketchGeneration != a.board.annotation.Generation {
+			return ErrDisabled
+		}
+		return nil
+	}
 	return a.board.admissionLocked(a.permit)
 }
 

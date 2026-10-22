@@ -7,6 +7,8 @@ representative evidence, not an exhaustive index.
 
 ## Proof and verification
 
+- A retry observing file absence does not prove an earlier unlink became durable. Before acknowledging idempotent removal, synchronize every admitted containing directory even for already-absent targets; test visible and durable state separately through failed fsync and crash recovery. (#777 plan gate)
+- Adding a public CLI verb requires updating every public command index, including README and embedded help/skill, alongside its detailed atlas contract. Audit those indexes together at the documentation boundary. (#777 BR-1)
 - Start a shutdown grace clock after delivering its triggering signal; allocating it earlier silently spends the grace under preemption. Pin signal/clock order and exactly-once cleanup through a deterministic clock factory. (#776)
 
 - Read the current gate evidence-reuse contract before canceling a queued check: a passing ancestor suite can serve a docs-only descendant. Cancel by exact run only when necessary; executable changes require new verification. (#776)
@@ -2534,6 +2536,28 @@ and external temporary roots rather than relying on the host's TMPDIR.
 
 - #742 live recheck: Exercise the reader's observeOutput before handleChunk in drive regressions. A render-only harness bypasses the activity-sequence fence and can pass while every native timer tick revokes admission. Interrupt proof uses operator-input generation plus freshly parsed work/composer/ownership; queued unparsed output cannot attest the old complete frame. Keep ordinary drives on their activity fence.
 
+- #752: Renew a lease at the ordered writer's successful persistence boundary, before replying; a held HTTP reply must not hide accepted activity from expiry. Use a mutation version as well as time to fence queued expiry, and recheck the idle deadline inside mutation admission. A global begin reservation ends at acceptance so a handoff can admit the next drawer while the previous response is held.
+
+- #752: A producer-side binding acknowledgment is valid only while the receiver retains the same eligibility lifetime. Coalesced clear→same-ID recreation can prune receiver proof without changing the producer ID set; invalidate affected acknowledgments at a ready anchor revision and defer attempts while its journal bootstrap is incomplete. Test the skipped intermediate state, not only sequential clear/rebind.
+
+- #752 BR-2: A shared tool needs authoritative lifecycle metadata on every adapter, including a console fed by synthetic view and render-journal records. Drawing permission loss alone does not update cached open-stroke status. Test interruption during contact, then original-owner label after authoritative sealing, across handoff/pause/expiry/clear/end.
+- #752 BR-3: Bounded streaming queues reserve a terminal path as well as data capacity. Saturation can occur synchronously inside pointer-up; preserve a truncated seal/reconciliation behind accepted data and never reread a contact that cancellation may have retired. Test both move-time and finish-time saturation.
+- #752 BR-4: Before review, cross-check every Core concepts path and status against the actual pinned diff, including reused interfaces and doubles. Planned file splits must not remain as nonexistent implementation locations.
+
+- #752 BR-6: Resolve mismatched presentation constants against the approved product contract before choosing a value. Pin the expected pressure outputs independently; a test that merely makes optimistic and durable paths agree can entrench the wrong design.
+- #752 BR-7: Core concepts classify named functions/types by actual effects and test dependencies, not by the file containing them. Separate a pure projection from its canvas caller and random epoch initialization, and audit every row after a repeated mapping finding.
+
+- #752 BR-8: Voluntary Done/Escape/tool changes must stop new capture while retaining the current asynchronous gesture, buffered terminal and immutable receipt identity until settlement; a released contact can still own an unresolved anchor. Promise completion is not receipt settlement after an unknown outcome. Keep label/tool completion behind one shared finishing owner, show bounded saving or accepted-work-kept failure with Check confirmation, and sweep both adapters across open/released contacts, delayed anchors, queued writes and uncertain replies with controlled-order tests. Hard authority/context retirement still fences late work.
+
+- #752 BR-9: Physical pointer release is not logical gesture retirement. Hold one accumulator token through asynchronous anchor/terminal drain, check it before successor allocation, and consume rejected tails until a fresh down. Derive all input/control admission from the same lifetime table, including Undo/Redo and setup rollback. Both success and failure completions must prove the original token, so a stale rejected anchor cannot cancel its successor; an unanchored canceled contact has no stroke-end receipt to invent. Test every ending on both adapters and measure real anchor latency before deciding whether a successor queue is needed.
+
+- #752 BR-10: Trace approved keyboard actions as well as visible buttons. Enter and Save must use one settlement-guarded handler, with IME/blank/repeat and held-ack coverage on each adapter; a label field plus working button does not deliver the specified keyboard control.
+
+- #752 console smoke: A disabled entry control needs a visible reason and recovery action at that control's surface. Distinguish adjacent same-icon controls by their owning status group; disabled Sketch must name Chrome's annotation toggle, and Done must derive availability from an actual sketch/preparation. Qualify the initial annotation-off state in real Chrome, not only enabled drawing; explicit display CSS must honor hidden read-only toolbars.
+
+- #752 console capture/focus: Privacy suppression that hides a UI host also removes its editor from the focus tree. Qualify screenshot capture while typing, with native focus/caret, blur and subsequent input checks; retained text is insufficient. Defer optional captures atomically across an open sketch/editor and preserve suppression for captures admitted. Test native toolbar hit targets/clicks, not only controller methods; unchanged refreshes must preserve DOM identity and avoid refocusing.
+
+- #752 BR-11: After operator smoke changes controls or prerequisites, update the complete user-facing usage passage as well as atlas and code. Trace every button name, permission prerequisite and capture qualification against the latest approved contract; historical design prose is not current instructions.
 - #761 suite: A new executable native-query fixture must use registered producer-specific shared reply cases and pass the complete zellijtest package before a suite. A focused fake-version test does not exercise TestEveryZellijFixtureReplyUsesProductionDecoder; run that contract with artifact/source-reader preflights whenever a test adds a shell or Python query producer.
 
 - #761 BR-1/BR-2: A native socket root can intentionally preserve symlink/parent traversal spelling. Never filepath.Join-clean it at a presence check; cover native-present/cleaned-absent and the reverse through actual admission. Unix socket fixtures must budget their complete path independently of inherited TMPDIR and qualify an intentionally long temp root; ordinary t.TempDir portability does not imply socket-path portability.
@@ -2566,6 +2590,7 @@ and external temporary roots rather than relying on the host's TMPDIR.
 
 - #744: Native transcript fixture producers must derive storage roots through sessioninventory.OSRuntime.NativeRoots (and WithCodexHome), just like consumers; run the native-authority shadow guard before the recorded suite. Do not exempt test helper production files from the guard.
 
+- #777: New production Go files need the exhaustive artifact-source classification even when they contain no Pair artifact paths. Run the artifactpath package before queuing the recorded suite; add non-artifact sources to NonArtifactSources rather than the legacy violation quarantine.
 - #757: A generic HTTP front must own active uploads, writes and hijacked sockets through cancellation and join; cancelling only the upstream request does not unblock an unfinished downstream upload. Preserve this with a causally ready incomplete-upload regression. Nested Go modules need explicit root-suite and fixed-preflight ownership; root go test ./... alone omits them.
 
 - #757 close review: test proxy Location rewrites by resolving each returned reference against a non-root front URL; comparing Location strings alone misses empty-root, query-only and network-path authority changes. Endpoint self-target checks must use the same pinned address and port as the dialer.
