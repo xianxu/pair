@@ -4091,6 +4091,13 @@ were not remembered. Failed attachment/registry adoption, automatic resume,
 warm attachment and recovery never learn merely because they ran. There is no
 durable retry/outbox after the disclosed adoption/publication crash gap.
 
+Migration and writer admission share one five-second context. Coordinator waits
+honor that context; busy nested-store attempts release the coordinator before
+waiting, preserving concurrent merges within the remaining budget. Publication
+runs on the existing lifecycle completion worker before operation/remote
+completion, while Console.Run continues input and rendering. Initial attachment
+runs before Run and queues any warning for first paint.
+
 ## Couch metadata and resolution
 
 Name, operator description, and agent-published summary are independent mutable

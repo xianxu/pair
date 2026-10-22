@@ -2654,6 +2654,8 @@ and external temporary roots rather than relying on the host's TMPDIR.
 
 - #728 M1 BR-1/2/3: a state migration includes its currently reachable presentation, repair documentation and old regression fixtures. If borrowing becomes active in M1, its donor/conflict labels ship in M1 even when broader form changes are deferred. Run complete affected packages before queuing the recorded suite; selected new-test patterns can miss old authority assertions.
 
+- #728 M1 BR-4: a deadline on preview does not bound the write after it. Hold competing writer/coordinator authority after preview releases its read lock; spend migration time first and assert writer admission uses only the remaining budget. Preserve concurrent serialization by releasing outer authority between bounded nested-lock attempts. Trace actual execution ownership before adding workers: a shared dispatcher can already be on lifecycle workers while its initial-start caller precedes the event loop.
+
 - #803 integrated-suite correction: enumerate transitive users of an OS adapter,
   not only packages edited by a seam migration. Stateful refusal fixtures must
   fault the entire physical-attempt budget; add transient recovery controls and
