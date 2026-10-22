@@ -90,16 +90,16 @@ Files: new `cmd/internal/zellijquery/{query,recovery,session_reply,socket}.go`
 and corresponding tests; adapt launcher `zellij.go`, `zellij_read_recovery.go`,
 `session_reply.go`, `zellij_socket.go` to retain aliases/forwarders.
 
-- [ ] Add a stateful executable-fixture regression through layout's actual OS
+- [x] Add a stateful executable-fixture regression through layout's actual OS
   reader: successful empty reply, valid pane listing, then independent valid
   confirmation. Run it before implementation and retain the expected failure.
-- [ ] Extract existing process/evidence/classification code without changing
+- [x] Extract existing process/evidence/classification code without changing
   session grammar or socket path semantics. Add supported implicit-session,
   geometry/tab and current-tab read shapes. Preserve existing public errors,
   observer fields and launcher tests through aliases/forwarders.
-- [ ] Implement colocated risky-function tests using the strategy table below;
+- [x] Implement colocated risky-function tests using the strategy table below;
   reuse shared Zellij reply serialization/catalog for executable producers.
-- [ ] Run `go test ./cmd/internal/zellijquery ./cmd/internal/launcher -run 'Zellij|SessionReply|SessionListing|Socket' -count=1` and commit the extraction.
+- [x] Run `go test ./cmd/internal/zellijquery ./cmd/internal/launcher -run 'Zellij|SessionReply|SessionListing|Socket' -count=1` and commit the extraction.
 
 ## Task 2: Route every in-scope Go consumer
 
@@ -109,21 +109,21 @@ wrapcmd/peer_viewport.go, launcher/osruntime.go and their colocated tests.
 Native conformance adapter:
 `layoutcmd/fullscreen_conformance_live_test.go:fullscreenLiveRuntime.queryContext`.
 
-- [ ] Replace direct query execution with the shared source. Preserve parent
+- [x] Replace direct query execution with the shared source. Preserve parent
   contexts, raw outputs/error diagnostics, last-known-state behavior and caller
   parsers; do not add independent retries to Confirm or ParsePanes.
-- [ ] Preserve launcher name-probe interpretation of original direct-exit
+- [x] Preserve launcher name-probe interpretation of original direct-exit
   diagnostics, and refusal for empty/unknown/collector failures after recovery.
-- [ ] Exercise layout panes and current-tab plus clip/focus/opener/liveness and
+- [x] Exercise layout panes and current-tab plus clip/focus/opener/liveness and
   name-probe adapters against stateful fixture schedules; retain existing native
   fixture authorities and explicit private environments.
-- [ ] Route `fullscreenLiveRuntime.queryContext` through the same production
+- [x] Route `fullscreenLiveRuntime.queryContext` through the same production
   source, supplying its session and explicit pane environment. Its observer logs
   each completed attempt's raw bounded streams; existing derived native-reply
   capture sees the final classified observation. No fixture retry loop is added.
-- [ ] Count work at 8/16 observations, including two-confirmation success,
+- [x] Count work at 8/16 observations, including two-confirmation success,
   exhaustion with zero effects, and cancellation with no later process spawn.
-- [ ] Sweep all production Go exec calls; leave mutations and raw diagnostics
+- [x] Sweep all production Go exec calls; leave mutations and raw diagnostics
   excluded explicitly. Update Pair lint to reject new direct query bypasses
   outside the shared owner and qualified diagnostics; test positive/negative
   syntax cases and document syntax-analysis limits.
@@ -146,12 +146,12 @@ Files: atlas/zellij-reply-safety.md, atlas/go-lint-catalog.md,
 artifactpath source inventory, fixed affected-reader certificates if required,
 this plan and the issue Log.
 
-- [ ] Map the new owner and remaining Lua follow-up explicitly in the atlas.
+- [x] Map the new owner and remaining Lua follow-up explicitly in the atlas.
   Classify all new production files and register actual reader-test inputs.
-- [ ] Run affected packages and races for the shared seam/adapters, full
+- [x] Run affected packages and races for the shared seam/adapters, full
   artifactpath, repolint, reader inventory, and shared Zellij fixture decoder
   preflights. No assertions/deadlines are weakened to get a pass.
-- [ ] Run the existing disposable native terminal-recovery/layout conformance
+- [x] Run the existing disposable native terminal-recovery/layout conformance
   entrypoint against the installed binary and retain actual attempts/evidence.
   Never touch the live Couch fleet or :0; #743's hosted CI is the external check.
 - [ ] Push via sdlc pr; run the recorded branch suite via local-check. Record

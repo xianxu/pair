@@ -49,7 +49,9 @@ diagnostic probes remain excluded. Lua consumers are explicitly deferred to
 
 - The layout consumer retries an empty successful reply within the existing bound, through the shared seam (test with
   a fake that returns empty once).
-- The live conformance test passes without any test-only retry; pair#743's hosted run goes green.
+- The live terminal-recovery conformance test passes through the production seam
+  without test-only retries. Per TL e9f8e0ca, pair:3 reruns #743's hosted CI after
+  #803 lands; that downstream rerun is not a pre-landing gate for this issue.
 - Every in-scope Go query consumer derives bounded read recovery from one
   lower-level owner without a launcher import cycle; the atlas names #804's
   remaining Lua exclusion and the raw-diagnostic exclusion explicitly.
@@ -83,7 +85,7 @@ total: 1.7935
 
 - [x] Claim, enter planning, and enumerate query consumers and existing retry authority.
 - [x] Settle the Go/Lua boundary with the hub, then checkpoint the executable plan before change-code.
-- [ ] Implement and qualify the approved shared seam, keeping strict confirmation and mutation behavior intact.
+- [x] Implement and qualify the approved shared seam, keeping strict confirmation and mutation behavior intact.
 - [ ] Record verification, close review, and land through SDLC; #759 operator acceptance takes precedence.
 
 ## Log
@@ -186,6 +188,22 @@ Recheck found the gap resolved. Final three-second two-worker fuzz campaigns
 passed: ReadKind 33,181 executions; CrossedReply 73,757; session validation 39,236.
 Recorded branch suite, SDLC close review and landing remain pending.
 
+### 2026-10-22 — branch suite and close admission
+
+Committed implementation 24a9162c73d0810e9bab16f9aa0753223c388c7c, pushed PR544.
+Recorded suite attempt 5b7bcd82655d564773c58af65b79f7af / lease-3328783035
+is retained on that exact code head. Final narrow post-format cleanup race guard
+passed (1.843s); reader inventory passed. TL e9f8e0ca grants two-hour priority,
+asks for close review next, and owns revocation on landing; pair:3 then reruns
+#743 hosted CI. Done when now states that approved downstream ordering explicitly.
+
+Close review overlaps the queued recorded suite under tl-worker's explicit rule:
+the final code head must still record a passing suite before landing; any review
+code fix gets fresh verification. The only unchecked Issue Plan row is the suite,
+review and landing workflow itself, so --no-plan-check acknowledges this overlap
+without claiming those gates passed. --no-project leaves the TL-owned project
+updates to the hub; neither flag waives suite, CI, review or merge validation.
+
 ## Revisions
 
 2026-10-22 — TL-approved scope refinement: "every query consumer" means every
@@ -197,3 +215,6 @@ added, and no caller's strict confirmation is relaxed.
 2026-10-22 — TL-approved ownership preservation: title's existing whole CLI group
 remains its cleanup owner via the documented inherited collector injection;
 default readers retain joined private query groups. No new ownership mechanism.
+
+2026-10-22 — TL e9f8e0ca confirms #743's hosted CI rerun follows #803 landing,
+owned by pair:3; local installed-native conformance qualifies this issue first.
