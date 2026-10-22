@@ -2656,3 +2656,23 @@ and external temporary roots rather than relying on the host's TMPDIR.
   fault the entire physical-attempt budget; add transient recovery controls and
   keep semantic mismatches non-retriable. Audit structural call-site manifests
   when a collector method changes, even when the effect remains read-only.
+
+- #809 MISTAKE CLASS: a test that asserts a wrapper's int exit code while passing
+  io.Discard as the wrapper's diagnostic writer cannot classify its own failure.
+  Every fatal site in such a wrapper collapses to the same int, so the assertion
+  reports the wrapper's abort as the subject's misbehavior ("child exit 42
+  propagated as 1" when the child never started) and the one string naming the
+  site is destroyed. Capture the diagnostic writer and assert it empty *first*,
+  separately, before asserting the int. Assessed as a mechanical rule for
+  ariadne's pkg/golint catalog and rejected: io.Discard is correct for most
+  writers, and telling a diagnostic sink from an output sink needs semantics the
+  catalog's Match funcs do not have, so any such rule fires on false positives.
+  Recorded here instead; a real rule would need its own ariadne issue.
+- #809: on darwin/arm64 a failing raw syscall can hand back a *negated* errno —
+  XNU's ptmx allocation race renders "errno -6" for ENXIO, and
+  errors.Is(err, syscall.ENXIO) is false for it, while an ordinary failure such
+  as ENOENT arrives positive. A guard written the obvious way compiles, reads
+  correctly, passes review, and never fires. Normalise the sign of
+  syscall.Errno before comparing, and measure the actual error rather than
+  assuming the platform's convention; the first harness here used unix.Open
+  (libSystem, positive) and so attributed a step it had not really exercised.
