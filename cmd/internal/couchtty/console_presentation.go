@@ -78,6 +78,12 @@ func (c *Console) statusModelLocked() StatusModel {
 		if !found {
 			continue
 		}
+		// A stale attached pane or queued reattach can outlive a parked row.
+		// Keep the switcher inventory, but collapse chrome represents live members.
+		if c.tabStyle == TabStyleCollapse && entry.Row.State != "" && !entry.Row.Live() {
+			continue
+		}
+		actor.CollapseAnchor = entry.Path == c.menu.Hub || entry.SlotNumber == 0 && (entry.OwnerHub == "" || entry.OwnerHub == c.menu.Hub)
 		actor.Label, actor.GroupKey, actor.SlotNumber, actor.Glyph, actor.Hub = entry.Label, entry.GroupKey, entry.SlotNumber, entry.Glyph, entry.Hub
 		actor.OwnerHub = entry.OwnerHub
 		model.Actors = append(model.Actors, actor)

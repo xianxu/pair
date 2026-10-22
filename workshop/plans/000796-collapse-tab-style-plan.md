@@ -45,6 +45,9 @@ Alternatives considered: only set maxRows=1 (reject: keeps every hub and provide
 | scopedRootThreads | cmd/internal/couchtty/menu_reattach.go | new |
 | visibleMenuRows / reorderMenuInventory | cmd/internal/couchtty/menu_reattach.go | modified |
 | renderRootMenuFrame | cmd/internal/couchtty/menu_render.go | modified |
+| Width | cmd/internal/textwidth/textwidth.go | modified |
+| Fit / nextCluster / printableASCII | cmd/internal/textwidth/textwidth.go | new |
+| Fit | cmd/internal/rowtext/rowtext.go | modified |
 
 TabStyle has one production default (collapse); legacy low-level render tests explicitly request multiline when that is their contract. Console defaults and CLI defaults derive from the same constant. Group identity owns no inventory; it references the existing presentation's owner/group keys. Candidates own per-frame actor cardinality and attention facts; emitted cells/spans die with that frame. A menu scope is optional root-frame state, not another inventory or a second owner resolver. Future style variants extend the enum/policy; no plugin framework is needed.
 
@@ -148,3 +151,13 @@ Corrected the complete concepts table against the implementation: StatusGroupID/
 ### 2026-10-22 — operator stage refinement (TL02345065)
 
 Collapse only when at least three members of the exact owner/repository group are eligible to fold. One or two quiet members remain individual chips; active/attention/current-hub anchors remain protected and do not count toward that threshold. Preserve one aggregate per canonical repo and owner as displayed; investigate the observed echo pair rather than merging aliases or ownership domains. Add threshold and identity regressions, then restage for a second operator look. This supersedes the earlier any-positive-count folding policy; the one-row geometry, scarcity overflow and exact scoped-menu contracts remain unchanged. Prior stage was not accepted. The old queued suite on93b8b8b6 was canceled through its exact lease before executing to avoid spending priority capacity on the superseded policy; #789's independent lease is untouched.
+
+### 2026-10-22 — whole count hit target (TL458efcf0)
+
+The entire count chip, including every digit, opens the exact scoped menu. Root cause is shared textwidth's hardcoded rune ranges: sofa+VS16 measured one column while terminal.StyledRows renders two, shifting following spans left. Replace that incomplete metric with the existing terminal grapheme metric and make rowtext fitting share grapheme-safe traversal. Pin actual terminal-cell columns rather than deriving test coordinates from the same faulty width helper, for +4 and +12 after an emoji alias. Shared textwidth/rowtext APIs retain their callers and sanitizer ownership; no hitbox padding or timeout change. The threshold is exactly AT three eligible members (two stays, three folds), confirmed by TLf6e4f6f0.
+
+### 2026-10-22 — live source and focus-independent anchors (TL22b772d4)
+
+Counts continue to mean hidden live members, not total inventory. Parked/non-live inventory rows never enter collapse candidates; the shared menuRows view remains authoritative (a completed reattach may legitimately mark a row live). Unknown-inventory attached panes retain their existing attachment fallback; queued/loading placeholders never fold. Collapse anchors derive from the launching hub/owner, not the selected actor's owner; focus may change dimming but cannot change anchor policy. Selecting a hidden member legitimately removes it from +N, while switching between outside tabs preserves membership/counts. Pin a parked attached member and the same live group under two active hub tabs. Switcher inventory remains complete. The earlier OtherHub-derived anchor policy is superseded.
+
+Validation of stage refinement: prepareCollapsedStatusChips is pinned by TestCollapseRequiresThreeQuietMembers (1/2 visible, exactly3/4 folded), TestCollapseAliasedHubAndOwnedRepositoryStayDistinct (actual PresentThreads plus exact scoped menu), and numbered hub/owner identity cases. statusModelLocked is pinned by TestCollapseLiveMembershipAndAnchorsDoNotFollowFocus (parked stale pane, two active owners); an old-anchor overlay fails on the second focus. Width/Fit/nextCluster/printableASCII are pinned by physical StyledRows grapheme oracle, clipping boundaries and zero-allocation prefix checks; rowtext.Fit delegates and retains existing sanitizer tests. Input routing is pinned using actual terminal.Cell coordinates for every character of +4/+12 after an emoji alias, plus the stale-revision guard. No production IO, timer or durable state added.

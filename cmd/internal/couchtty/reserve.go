@@ -34,6 +34,8 @@ type GroupCountSpan struct {
 type StatusActor struct {
 	// Folded is nonzero only for a per-frame synthetic group count.
 	Folded int
+	// CollapseAnchor is derived from the launching hub, independently of focus.
+	CollapseAnchor bool
 	// GroupKey identifies the primary checkout; SlotNumber is zero for ordinary
 	// tabs. The renderer shortens only after drawing this group's first member.
 	GroupKey   string

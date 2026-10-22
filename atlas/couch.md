@@ -22,8 +22,12 @@ The CLI applies it before child adoption and initial geometry.
 
 Collapse uses one bottom row. `status_collapse.go` prepares candidates from the
 existing presentation's hub/group identities: quiet slots and quiet inactive
-hubs fold into per-group counts; active and attention chips stay explicit when
-space permits. Counts carry actor cardinality, so later scarcity overflow never
+hubs fold into per-group counts only when at least three members can fold;
+one or two remain individual chips. Candidates exclude known parked/non-live
+rows; pending placeholders stay explicit. Anchors use the launching hub rather
+than the focused tab's owner. Counts mean hidden live members. Active and
+attention chips stay explicit
+when space permits. Counts carry actor cardinality, so later scarcity overflow never
 double-counts folded actors. The shared measured planner and drawing pass in
 `status_layout.go` and `reserve.go` retain active/attention chips first. At
 impossible widths the overflow marker includes `!` when hidden actors need
@@ -36,7 +40,10 @@ filtering. Scope remains through inventory refresh and nested action return;
 removed membership produces an empty scope rather than a broader list. Escape
 clears a text filter first, then the root scope. Opening the ordinary switcher
 clears both. Counts and actor chips publish row/column hit spans in the same
-confirmed chrome revision; clipped or absent counts have no action, and stale
+confirmed chrome revision. Shared `textwidth` measurement and fitting use the
+same grapheme metric as physical terminal cells, so the whole count, including
+every digit, is clickable even after emoji aliases. Clipped or absent counts
+have no action, and stale
 or stalled-paint geometry cannot open a different group.
 
 Explicit multiline preserves #779's measured packing across at most two rows.

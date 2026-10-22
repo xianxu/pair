@@ -40,11 +40,23 @@ func prepareCollapsedStatusChips(actors []StatusActor, work *statusLayoutWork) [
 			if work != nil {
 				work.Visits++
 			}
-			if actor.Active || actor.Bell || actor.Blocked || (actor.Hub || actor.SlotNumber == 0) && !actor.OtherHub {
-				result = append(result, actor)
+			if actor.Active || actor.Bell || actor.Blocked || actor.CollapseAnchor || actor.Placeholder {
 				kept++
 			} else {
 				folded++
+			}
+		}
+		// A singleton or pair is clearer as its real addresses than a menu count.
+		if folded < 3 {
+			result = append(result, members...)
+			continue
+		}
+		for _, actor := range members {
+			if work != nil {
+				work.Visits++
+			}
+			if actor.Active || actor.Bell || actor.Blocked || actor.CollapseAnchor || actor.Placeholder {
+				result = append(result, actor)
 			}
 		}
 		if folded > 0 {

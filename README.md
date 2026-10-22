@@ -1310,8 +1310,8 @@ captures use their separate age policy and exact reader protections.
 
 Couch defaults to `--tab-style collapse`: the tab bar stays on one row.
 It groups tabs by hub and repository, showing the active tab and slots needing
-attention while quiet slots and quiet inactive hubs fold into counts such as
-`pair +2`. Clicking a group count opens the switcher scoped to exactly that
+attention while groups with at least three collapsible quiet slots or inactive
+hubs fold into counts such as `pair +3`. One or two stay visible in full. Clicking a group count opens the switcher scoped to exactly that
 hub and repository group, including the slots folded into it. The scope survives
 refreshes and returning from an action. Escape clears a text filter first, then
 the group scope; opening the ordinary switcher starts with the full list.
