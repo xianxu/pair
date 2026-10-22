@@ -5,9 +5,9 @@ deps: [pair#758]
 github_issue:
 created: 2026-10-22
 updated: 2026-10-22
-estimate_hours:
+estimate_hours: 3.75
 collaboration-mode: collaboration
-card_mirror: 'e539e0cf7926def08f1e2519ef971072613544ae' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '5fd338a4700fe725dea17a988673ba10ffb649bd' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-22T07:20:32-07:00
 claimant:
     operator: Xian Xu
@@ -73,3 +73,28 @@ Hub0cdb7c57 approves subject to consumer confirmation; canonical consumerd0f4eb1
 ### 2026-10-22 — plan-quality round1 refinements, no implementation yet
 
 Automatic compact-design inference selected quick flow; re-ran with full flow to match the approved refactor's known code size. Plan-quality returned PQ-1 (candidate build isolation/provenance) and PQ-2 (function-level adversarial test strategies). Appended the explicit shared testpair.PlaceCandidate extraction, strict offline/allowlisted build config, checkout provenance and deliberate shared Go cache boundary; no installed Pair or ambient PAIR_TEST_BINARY in the strict path. Added the canonical named-function strategy table superseding illustrative test inventories. These refine the approved same-owner/isolation contract without adding a resolver, cache or executable protocol. Restart prompt arrived during review, but the review completed normally; no lost runner or duplicate dispatch. Re-run the gate before estimating/coding.
+
+
+## Estimate
+
+Produced via brain/data/life/42shots/velocity/estimate-logic-v3.1.md against baseline-v3.1.md, using the v2/v2.1 primitive procedure. Method A only, derived after plan-quality CLEAN round2. estimate-source marks calibration stale, so these hour values are provisional. Familiarity1.0: existing Go startup/fixture/ownership stack, not a novel runtime. Thorough plan discounts implementation-component design by0.2 and uses15% design buffer; issue/spec design is counted once without that discount. Implementation values below are already40% of v2/v2.1 rates, not scaled a second time.
+
+Breakdown in block order: issue/spec and consumer contract (raw0.8 design/0.2 implementation); two bounded shared refactors (candidate/testpair and Fleet ownership/reporting, each raw0.4/0.5); pure bridge model/protocol (raw1.0/0.8, design halved because existing standard-library JSON/context and shared owner cover the stack); runner/service/native IO integration (raw1.5/1.5); executable/atomic target (raw0.2/0.5); one native endpoint/conformance discovery surface (raw0/0.6, both nvim versions qualify the same API); atlas/docs (raw0.1/0.2); one close review (raw0/0.5). Tests are included in each implementation primitive, not charged again as a separate test phase. No external library search/dependency or cross-repo code change is needed; consumer coordination uses its existing driver and is included in issue/API work.
+
+```estimate
+model: estimate-logic-v3.1
+familiarity: 1.0
+item: issue-spec design=0.80 impl=0.08
+item: cross-cutting-refactor design=0.08 impl=0.20
+item: cross-cutting-refactor design=0.08 impl=0.20
+item: greenfield-go-module design=0.10 impl=0.32
+item: api-integration design=0.30 impl=0.60
+item: smaller-go-module design=0.04 impl=0.20
+item: real-api-discovery design=0.00 impl=0.24
+item: atlas-docs design=0.02 impl=0.08
+item: milestone-review design=0.00 impl=0.20
+design-buffer: 0.15
+total: 3.75
+```
+
+Design1.42h×1.15 + implementation2.12h =3.753h, rounded3.75h. Queue waits and operator-controlled #739 shutdown are not implementation work in this estimate.
