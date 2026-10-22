@@ -470,3 +470,71 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-22T07:26:34-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 792 — Couch: no verb reaps proven orphans of a live slot's previous incarnation; extend --reap-orphans |
+| repo | pair |
+| issue file | workshop/issues/000792-couch-no-verb-reaps-proven-orphans-of-a-live-slot-s-previous-incarnation-extend-reap-orphans.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 915cca376443ef2c0894af3541139203ede6a209..ea1bfa4cd5dce0acfe9b776a23b1ff71670b8bdf |
+| command | sdlc close --issue 792 |
+| reviewer | codex (openai; author openai) |
+| isolation | fenced |
+| timestamp | 2026-10-22T07:26:34-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+The interdiff contains documentation and tracker updates only. The atlas conflict resolution preserves main’s navigation and tab-bar description, while #792 remains documented in the linked Couch guide. Spec and Done when are unchanged; appended Revisions record verification and integration without changing scope. No open prior findings require disposition.
+
+```findings
+{}
+```
+
+1. **Strengths**
+   - `atlas/index.md:19` matches integrated main and retains the Couch guide link.
+   - `atlas/couch.md:5060` retains #792’s authority, exact-set scope, supervisor gates and partial-outcome documentation.
+   - Tracker revisions preserve earlier evidence and append integration history.
+
+2. **Critical findings:** None.
+
+3. **Important findings:** None.
+
+4. **Minor findings:** None.
+
+5. **Test coverage notes:** Required stat, name-status and full diff inspections completed. `git diff --check` passed. No runtime tests were rerun because executable code is unchanged; recorded suite results were not independently reproduced.
+
+6. **Architectural notes**
+   - **ARCH-DRY: Pass** — feature detail remains in the existing guide.
+   - **ARCH-PURE: Pass** — no logic or IO boundaries changed.
+   - **ARCH-PURPOSE: Pass** — integration preserves feature documentation and approved scope.
+   - **ARCH-EVOLVE: Pass** — tracker additions introduce no schema or field-meaning changes.
+
+   No new user-facing surface requires a README update.
+
+7. **Plan revision recommendations:** None.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"da3a0e4b-db6d-4dd4-8376-300614e9fa25","repository":"github.com/xianxu/pair","issue_id":"000792","recipe":"fix-review","round":6,"attempt":1,"agent":"codex","root":"/Volumes/TestScratch/review-checkouts/453d1175c7c67afb","reviewed_head":"ea1bfa4cd5dce0acfe9b776a23b1ff71670b8bdf","slot":"pair:2","requested_at":"2026-10-22T14:25:30.084534Z"},"phase":"finished","pid":75287,"started_at":"2026-10-22T14:25:30.255801Z","finished_at":"2026-10-22T14:26:33.259254Z","session_id":"01a16400-b66a-7380-a4c9-e95e65456e13","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 3.060479083s
+head: "ea1bfa4cd5dce0acfe9b776a23b1ff71670b8bdf"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412
