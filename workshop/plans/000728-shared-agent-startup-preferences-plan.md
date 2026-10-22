@@ -391,3 +391,7 @@ Core capability and form builders are local model/transport surfaces; preparatio
 ### 2026-10-22 — M2 typed restart boundary
 
 AgentSwitchIntent and pure ResolveAgentSwitchIntent in couchcore/switchagent.go distinguish switch-fresh from restart-prefer-resume. PreparedAgentSwitch carries that derived intent and binds it into its fingerprint. Same-agent preparation is admitted for editing/review, while M2 execution refuses before park with no fresh launch; M3 replaces that explicit internal refusal with the approved native-evidence decision. The form title/button say Restart with new parameters/Restart and do not claim a fresh conversation. This is the already approved M2/M3 boundary, not a new temporary restart policy. The branch remains unlanded until M3 and actual acceptance complete.
+
+### 2026-10-22 — Hub-approved synthetic limit fixture pending real live check
+
+Authenticated submitted hub8f80e938-12f1-4047-937d-583c57db6360 confirms no original Claude usage-limit recording was retained. Do not block acceptance on an unavailable artifact: combine generic unknown-idle/cleanup qualification with a fixture assembled from Claude's own limit-screen text, explicitly named synthetic in tests and Log. The operator's M3 live acceptance exercises the real force path. If a real quota screen occurs later, retain its actual bytes and replace the synthetic fixture in a follow-up. This changes the evidence source, not force permission or cleanup policy. The synthetic layout cannot be described as the original incident's capture.
