@@ -25,8 +25,8 @@ Recommended: Couch's single owner retains endpoint authority and retired-attempt
 | Name | Lives in | Status |
 |---|---|---|
 | EndpointBinding, EndpointRequest, EndpointReply | cmd/internal/editorendpoint/model.go | new |
-| EndpointState and endpoint transition function | cmd/internal/editorendpoint/state.go | new |
-| Endpoint codec with retained unknown fields | cmd/internal/editorendpoint/codec.go | new |
+| EndpointState and ApplyEndpointEvent | cmd/internal/editorendpoint/state.go | new |
+| DecodeEndpointState and EncodeEndpointState | cmd/internal/editorendpoint/codec.go | new |
 
 Namespace + DocumentID is one logical document. It has at most one current binding. A process incarnation owns many attachment attempts, at most 256 active, and each process/document pair retains one latest AttachID/status. A replacement terminally retires the displaced attempt: no fallback resurrection. Explicit reopen advances AttachID. These values, decision rules and codec tests perform no IO.
 
@@ -37,7 +37,8 @@ Namespace + DocumentID is one logical document. It has at most one current bindi
 | EndpointOwner | cmd/internal/editorendpoint/owner.go | new | serialized decisions, publication, pending operations and join |
 | EndpointStore | cmd/internal/editorendpoint/store.go | new | portable namespace-local durablefile storage |
 | EditorRPC | cmd/internal/editorendpoint/nvim.go | new | bounded fixed nvim callback queries/notifications |
-| EndpointProcessSource | cmd/internal/editorendpoint/process.go | new | injected procutil.Source identity-bracketed observations |
+| EndpointProcessSource and ClassifyEndpointProcess | cmd/internal/editorendpoint/process.go | new | injected error-preserving procutil.Source.ReadIdentity observations |
+| Source.ReadIdentity | cmd/internal/procutil/source.go | new | expose existing native per-PID identity plus error without changing Identity |
 | Stateful editor fixture | cmd/internal/editorendpoint/fixture_test.go | new | current/pending attachments, delayed RPC, death, replacement and retained channels |
 | endpoint CLI/service adapter | cmd/internal/couchcmd/editor_endpoint.go, editor_endpoint_service.go | new | bounded stdin JSON, private broker socket and runtime lifecycle |
 | Registration namespace projection | cmd/internal/sessionsync/registry.go; couchcmd/session_sync.go | modified | existing confirmed document register/lookup replies |
@@ -86,7 +87,7 @@ Unregister request includes Version, Namespace, EditorIncarnation, PID, and Entr
 
 Use only nvim_exec_lua with constant code, parameters passed in the API argument array, never interpolated Lua/Ex strings or shell commands. The [official Neovim API](https://neovim.io/doc/user/api/#nvim_exec_lua()) defines separate code/args and NIL results. Bound decoded native replies to 1 MiB before typed validation; close/join the owned connection on deadline, including partial frames. This API is consumed only through EditorRPC, not a generic browser-supplied call:
 
-- `return require("parley.remote_session").endpoint(...)`, args=[query]. Query contains Namespace, DocumentID, EditorIncarnation, AttachID, Buffer. Return exact tuple plus PID, Socket, File only for that pending/current live attachment; otherwise nil. Couch brackets with native identity reads and validates the private socket and canonical registered path. This proves initial endpoint identity even across PID/socket reuse; the producer supplies ProcessIdentity in ack.
+- `return require("parley.remote_session").endpoint(...)`, args=[query]. Query contains Namespace, DocumentID, EditorIncarnation, AttachID, Buffer. Return exact tuple plus PID, Socket, File only for that pending/current live attachment; otherwise nil. Couch brackets with error-preserving Source.ReadIdentity reads and validates the private socket and canonical registered path. This proves initial endpoint identity even across PID/socket reuse; the producer supplies ProcessIdentity in ack.
 - `return require("parley.remote_session").superseded(...)`, args=[notice]. Notice contains exact Namespace, DocumentID, EditorIncarnation, AttachID, BindingGeneration. Send only to the displaced endpoint after replacement publication, outside authority locks. Failure never rolls back current authority or grants an old binding a retry. No periodic Parley watcher.
 
 Parley validates all five notice identifiers, ignores stale/malformed notices, retires the matching advertised attachment, stops only its owned listener and notifies once. It cannot revoke built-in Neovim RPC methods on already-open channels. The future Couch adapter must gate every operation by binding generation and retire its old channels; any future typed editor methods must reject retired tuples. Notice-before-register-ack is retained as unconfirmed and compared against eventual ack before showing active. Notification is advisory: subsequent Couch adapter operations must check current binding generation and the editor's typed methods must reject retired attachments even on established RPC channels. A canceled/missing notice cannot grant old authority. #798 must linearize its final nonblocking enqueue against replacement; #758 does not expose remote dispatch.
@@ -104,6 +105,12 @@ Durable high-water evidence is retained until the exact process incarnation is p
 Couch owns stale binding/evidence cleanup, not another application's filesystem. Parley creates one process-owned physical 0700 runtime directory and private Unix sockets, unlinks only its own exact socket after listener shutdown, and removes its own empty directory at exit. Couch validates ownership/type/private parent, never recursively removes runtime directories or unlinks a registered path that might now belong to a newer editor. Crash-orphan runtime directory reclamation is outside endpoint authority: follow the existing application runtime-dir lifetime/OS cleanup; do not add arbitrary path deletion. Confirmed native endpoint liveness is not inferred from a leftover file.
 
 Persisted codec preserves unknown root/nested fields through register/replacement/unregister/cleanup/reopen, with strict known types, required fields, duplicates and byte bounds. Invalid or truncated authority refuses visibly, never resets to empty. Same-UID host programs are trusted; private IPC/socket permissions prevent other users, but do not sandbox hostile same-UID code. No browser registration endpoint or arbitrary RPC proxy is added.
+
+## Process-evidence seam (PQ-1)
+
+Existing procutil.Source.Identity at source.go:46 deliberately drops the native error; do not use it to infer death. Add the additive `Source.ReadIdentity(pid int) (string, error)` which returns the existing injected reader/nativeIdentity result unchanged for a valid positive PID; invalid PID is an explicit validation error, never native absence. Existing Identity/StrictIdentity consumers and equivalence tests retain their semantics; no host snapshot/table scan is needed.
+
+Pure `ClassifyEndpointProcess(expected string, observed string, err error)` produces alive (matching nonempty identity, nil error), replaced (different nonempty identity, nil error), dead (errors.Is ESRCH or os.ErrNotExist), or unknown (all other errors or empty identity without positive absence). Darwin nativeIdentity already performs its own signal-zero check for an empty sysctl result and returns ESRCH for a zombie; Linux's exact /proc/PID/stat reader returns os.ErrNotExist for absent/zombie. Preserve errors, including a nonempty birth plus terminal error; EPERM/EACCES, EIO, EINVAL, unsupported and malformed evidence remain unknown. Do not use broad command-read IsProcessGone for identity reads. Positive replaced/dead evidence retires only the captured process incarnation; application nil retires only the exact captured attachment. Before/after observations must both confirm the candidate birth to publish a new binding.
 
 ## Operating envelope and visible recovery
 
@@ -135,15 +142,29 @@ Actions: explicit open/reopen; retry identical uncertain operation; close editor
 - ARCH-FUNERAL: retained high-water evidence ends only on confirmed process incarnation death; fixed writer caps, bounded stages and joined handles; socket/runtime removal stays with its owning editor.
 - ARCH-EVOLVE: persisted root/nested unknown fields survive all rewrites; malformed authority refuses rather than becoming an empty registry.
 
+## Function-level test strategy (PQ-2)
+
+| Risky production function | Adversarial class and mechanical test strategy |
+|---|---|
+| ValidateEndpointRequest (model.go) | Fuzz bounded typed input/decimal counters and identifiers; invalid shapes cannot reach the transition function or publication seam. |
+| ApplyEndpointEvent (state.go) | Seeded/generated event sequences with an independent latest-authority oracle; inject retry, supersede, release, rename, restart and late completion, asserting at most one current binding and no terminal-attempt resurrection. |
+| DecodeEndpointState / EncodeEndpointState (codec.go) | Fuzz truncation/duplicates/known-field type errors; retain opaque root/nested sentinel values through actual decode/rewrite/reopen, and reject input/encoded writer limits. |
+| Source.ReadIdentity (procutil/source.go) / ClassifyEndpointProcess (process.go) | Exhaust typed native evidence including birth+terminal-error, PID reuse and permission/unsupported/empty/malformed uncertainty; assert errors survive and no Table call occurs; native child conformance confirms platform mapping. |
+| EndpointOwner.Register (owner.go) | Stateful storage/editor/process doubles hold each validation/publication/ack boundary; race replacement and cancellation against completion, assert exact generation/current authority and unchanged idempotent retry effects. |
+| EndpointOwner.Unregister / Lookup / Sweep | Compare exact captured tuple at retirement after held RPC/process observations; generated stale exits and successor installs cannot erase new authority; batch release performs one publish and no editor RPC. |
+| EndpointOwner.Close and EditorRPC.Describe / Superseded | Controlled partial frames, delayed completion and cancellation with owned joins; typed callbacks only, reply-byte/deadline caps, notification never grants authority or rolls back a published successor. |
+| runEditorEndpointCLI / handleEditorEndpoint (couchcmd integration) | Real private IPC and bounded stdin/reply fixtures validate all JSON exit codes and namespace isolation, including one outside-pane registered lookup; unchanged submit remains a legacy control. |
+| EndpointStore.Load / Publish | Portable real directory with controlled failed writes/rename/sync; exact retained bytes and blocked uncertainty across reopen; N8/16 publication counts/bytes and repeated-reopen state plateau defend declared bounds. |
+
+Nvim-native conformance and integration cases remain the separate final task below; they qualify the stateful seam rather than replace pure adversarial tests. Each behavior change starts with an observed failing test, then minimal implementation and GREEN/race verification.
+
 ## Tasks — single whole-issue producer boundary
 
 - [ ] Pin consolidated CLI/ack/callback contract with parley.nvim:1, record receipt and get hub plan approval. No implementation before change-code.
-- [ ] Add pure model tests first: desktop/headless order; exact retry, conflict, lower/equal superseded retry; explicit higher reopen; old unregister after new attach; path rename retains ID; generation/AttachID overflow and capacities. Run RED, implement minimal transitions, run GREEN and commit.
-- [ ] Add portable store tests first for unknown nested fields, truncate/duplicates/known-type errors, lost reply/restart after replacement, failed publication and fixed bounds. Run RED/GREEN; never heal damaged state by deleting it.
-- [ ] Add stateful process/editor fake through the same EditorRPC seam: PID reuse, socket reuse, attachment nil with live PID, timeout/unknown identity, held probes then replacement, held notice then newer attach, notice-before-ack and live channels after listener close. Assert independent effect and state oracles.
-- [ ] Implement owner integration and bounded command/notification lifetimes after the tests fail. No IO under pure transition/authority locks and no hidden unbounded goroutines.
-- [ ] Add actual private IPC/CLI tests: one-time outside-pane document lookup and Namespace, register+lost-ack retry, root mismatch, full EditorEndpoint ack, 256-item compare-unregister, offline/unknown refusals, one namespace cannot touch another. Existing outside-pane submit unchanged. Run RED/GREEN.
-- [ ] Add N8/16 counters and repeated explicit reopen plateau tests, positive-dead versus unavailable cleanup, exact generation fencing and crash/restart cases. Run focused race suites for editorendpoint/couchcmd/sessionsync.
+- [ ] Implement the named pure model/codec/classifier functions from the strategy table, with RED/GREEN at each function and independent authority/opaque-field oracles; commit each coherent unit.
+- [ ] Add error-preserving Source.ReadIdentity through the existing injected native reader; preserve existing public helpers and test exact positive-death versus unknown evidence without a host-table scan.
+- [ ] Implement the named portable store, owner, EditorRPC and CLI/service functions behind the stateful seams after their controlled-order tests fail. No IO under pure transition/authority locks; started operations are owned, canceled and joined.
+- [ ] Exercise N8/16 operations/publication bytes and fixed-state repeated reopening; then run focused race suites for editorendpoint, procutil, couchcmd and sessionsync. Preserve discovered failure evidence and fix the whole class.
 - [ ] Qualify fixed RPC calls against installed nvim in explicit empty-base private roots: two editor processes, several buffers, desktop supersession, old detach, live-PID buffer wipe, held notification, process death and cleanup. Shared disposable Couch harness only; no operator sessions, live socket roots or #759 stage changes.
 - [ ] Update atlas/README, artifactpath source/family classifications and affected-reader certificates individually; run repolint, artifactpath and make test-affected-inventory. Commit checkpoint, push, record required suite and close #758 through the normal whole-issue close.
 - [ ] On SHIP, enter normal merge; report the landed producer contract/commit to parley.nvim:1 and hub. #405 and #798 consume the landed producer; never stack on #759.
@@ -163,3 +184,7 @@ TL35c71a59 dispatches M1 producer because no endpoint API exists. #759 remains o
 TL79aac81f approves producer-only scope and whole-issue landing. Filed unclaimed #798 with dependencies #758, parley.nvim#405 and #759 for the original adapter/security-integration purpose. Removed the former M1/M2/M3 review rows; #758 closes once as an atomic producer. The original milestone decomposition above was a planning proposal, never implemented. #759 operator acceptance takes priority when called.
 
 Parley final contract confirmation7d43957e accepts the fields, monotone uint64 decimal-string AttachID, bounds/codes/deadlines, namespace/private-root ownership, live-PID nil retirement and notice-before-ack handling. Corrected the shared boundary: Parley retires advertised state and listener, but cannot revoke native built-in RPC on established connections. Generation-gated operations and channel retirement belong to the future Couch adapter (#798), with typed editor methods also rejecting retired tuples. No arbitrary-RPC revocation claim. Native SIGKILL leaves runtime directories/sockets; Parley is reviewing that cleanup separately with the TL. Couch never deletes those external paths.
+
+### 2026-10-22 — plan-quality round1 evidence and strategy corrections
+
+PQ-1: Source.Identity suppresses errors, so explicitly add Source.ReadIdentity returning the existing injected native result and ClassifyEndpointProcess with narrow identity-specific positive absence. All permission, unsupported, empty/malformed and ambiguous errno evidence remains unknown; no full-host snapshot or new native implementation. PQ-2: name risky functions and a mechanical adversarial strategy for each, compressing the former case inventories into generated invariants, fuzz/opaque round trips and controlled IO ordering. These refine execution of the approved producer scope without changing the pinned consumer contract. Parley3cfbb244 confirms its plan pins aa24764a and separately owns stable runtime-parent/PID+start marker cleanup after positive-dead evidence.

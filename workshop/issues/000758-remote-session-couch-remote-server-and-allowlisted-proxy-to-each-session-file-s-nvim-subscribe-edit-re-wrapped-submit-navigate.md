@@ -57,6 +57,10 @@ Read remote-session project/design and existing sessionsync namespace/registry/p
 
 2026-10-22: filed #798 successfully on origin, unclaimed; set #758 card title through sdlc to Couch-owned editor endpoint registry and lifecycle. Final consumer confirmation7d43957e recorded above, plan approved by TL79aac81f. Proceed to change-code after this durable checkpoint; no implementation or estimate yet.
 
+### 2026-10-22 — plan-quality round1 requires evidence-preserving process seam
+
+Initial unpinned change-code inferred quick from the short design despite this producer exceeding the implementation shell; reran with full flow for the approved durable plan, no code. Plan-quality round1 blocked PQ-1/PQ-2: Source.Identity drops native errors, and tests need named risky functions/strategies. Plan now specifies additive Source.ReadIdentity with original errors plus a narrow pure alive/replaced/dead/unknown classifier; existing consumers unchanged, no host-table scans. Named strategies use generated authority invariants, fuzzed strict/unknown-preserving codecs and controlled IO ordering/counts. No estimate or implementation before these clear.
+
 ## Revisions
 
 ### 2026-10-22 — producer-only whole issue
