@@ -403,6 +403,12 @@ Moved all new request-visible drain dependencies before the first listener publi
 
 Cancelled only queued lease-758217443 through local-check cancel before changing executable input; session61908 exited on cancellation and no suite had started. The new source requires a new recorded check; no old queue place or pass is transplanted. Additional embedded-guide audit found its old vague graceful bullet and missing latest-notice wording: independent guide assertions RED before aligning to the approved queued-work rule/status contract. No formatter or ariadne#506 notice vector changed. Stage is still cc44f065, untouched; final source check/re-close/watched rerun remain mandatory.
 
+### 2026-10-22 12:57 PDT — publication fix pushed; replacement check retained
+
+Git-confirmed source e3c7e6badda23964b0116310fff8cdb8c94291b1 is pushed and PR477 reports that exact head. Final focused drain/skill/shared-operation race set passed7.451s after the initialization fix and guide reconciliation; lint/artifact/inventory results above remain current. Recorded affected selection expanded to suite; retained session37048 owns lease-2074561176 on this source, started12:52:31 and still queued (latest observed position12). No suite has run yet; no duplicate check. Previous PR-update terminal is no longer retained, but a fresh authoritative PR read verifies the intended head. This docs-only checkpoint does not change the tested executable input.
+
+Reported the privately reproduced publication race/fix and current lease to TL as receipt96edacd6-e5aa-4c5d-b5f7-d2b08c3320c8, queued at publication; confirm submission rather than resend blindly. Final-source recorded pass, renewed close and watched acceptance remain pending; keep the runner and cc44f065 stage untouched.
+
 ## Revisions
 
 ### 2026-10-19 — authenticated acknowledgement and shared queue ownership
