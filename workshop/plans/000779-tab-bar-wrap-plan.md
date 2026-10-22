@@ -147,3 +147,17 @@ Targeted commands: go test ./cmd/internal/couchtty -run 'Test.*Status|Test.*Wrap
 - 2026-10-21 implementation clarification (ARCH-ORDER): confirmation snapshots also hold the existing publication lock through Presenter FIFO read and Console revision comparison; anchors already owning it use the no-lock Publishing helper. This realizes the approved atomic pending-map contract and fixes a measured close-click race without new state or timing policy. TL b07bf583 explicitly orders recorded suite and close while operator staging waits for pair:0; live acceptance still precedes landing.
 
 - 2026-10-21 BR-1 (core-concepts-code-traceability): corrected Core concepts and verification table names to delivered pure planner entities statusPacking, renderStatusBar and packStatusChips. These replace the provisional statusPlan/planStatusRows names; behavior and approved design are unchanged. Sweep found no other unqualified provisional planner entity references.
+
+- 2026-10-21: Made the approved operator qualification concrete below while the recorded suite waits. These steps exercise existing approved behavior; no implementation or release-order change. TL still owns the stage slot and acceptance.
+
+## Operator look after stage clearance
+
+Use a fresh Couch process built from the staged revision; the running supervisor keeps its old binary until restarted. The hub sequences this with #752 and #737.
+
+1. At a wide width, confirm the familiar single status row and full pane height. Narrow until groups occupy two rows; confirm the pane gives up exactly one additional row and the active chip remains visible.
+2. Click a slot on each row, then open the switcher and resize in both directions. Check the selected child and menu end above the actual chrome, with no stale row or flicker. Repeat with Claude and Codex slots.
+3. Narrow further until overflow appears. Active and attention chips take precedence over ordinary chips; any hidden attention is explicit in a whole +N ! marker. At an absurd width, the active fragment is still clickable and a marker is omitted if it cannot fit whole.
+4. Check that cast/Chrome controls and the attention badge stay on the first row, while a transient notice uses free space on the final row. Open an existing codes, notes or attention popup and resize; its box and clicks follow the composed geometry.
+5. If checking a disposable broadcast, confirm LIVE remains visible and private switcher contents stay hidden. Shrinking until LIVE cannot fit must stop frame admission through the existing visibility gate. Annotation controls are protected on the first chrome row, without unnecessarily blocking the second row.
+
+Record the operator's result in the issue Log before landing. A finding becomes a recorded fixture/regression and is fixed on this branch before restaging.
