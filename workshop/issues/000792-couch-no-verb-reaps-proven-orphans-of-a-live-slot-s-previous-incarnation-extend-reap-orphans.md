@@ -59,7 +59,7 @@ Hub pin 941a9381-a841-44ca-98b0-7e10a90936b3 approves authenticated owning hubs 
 - [x] Approve the durable plan and enter change-code through the full-flow gate.
 - [x] Add pure exact-target proof and strict protocol shapes; verify the negative authority/identity cases first.
 - [x] Implement the guarded exact executor and supervisor effect owner, with stateful transition and counted-cost tests.
-- [ ] Wire preview/confirmed CLI reporting, prove disposable public-command behavior, document and run the required recorded verification before the SDLC close review.
+- [x] Wire preview/confirmed CLI reporting, prove disposable public-command behavior, document and run the required recorded verification before the SDLC close review.
 
 ## Log
 
@@ -280,3 +280,7 @@ The retained merge runner entered the landing turn after #758 and exited1 on int
 Final combined-source verification is pending again, with its checklist reopened. Next run catalog/Godoc/artifact/reader preflights and focused service/reap tests, push, required recorded full fallback, narrow re-close with full-suite evidence, then re-enter merge. The previous integrated10m42s pass and round-six SHIP remain historical evidence of the earlier source. Native Claude/Codex acceptance remains applicable to unchanged reap behavior. The TL priority grant currently expires09:11:17; report the landing immediately for revocation.
 
 Second-integration preflights passed: full couchcmd102.263s, repolint12.167s, termcmd4.805s, artifactpath12.302s, reader certificate audit and whitespace check. Diff of all reap handlers, resource collection, exact executor, core proof and message protocol against the previous verified source is empty. No local-gate configuration delta against main. This checkpoint precedes the required combined-source recorded check.
+
+### 2026-10-22 — Second integrated full suite passed
+
+Retained lease-1873636436 survived the Couch restart, acquired capacity after379s and completed exit0 in11m55s on pushed source480ae560af75465fea37ace94dc28f773ca8ad7a. Recorded sdlc-local/suite; all packages and shell/editor checks complete, including couchcmd52.973s, couchcore179.425s, couchmessage28.036s, editorendpoint1.061s, launcher71.992s, termcmd2.637s and repolint7.623s. Log /Users/xianxu/workspace/pair/.git/sdlc/local-checks/480ae560af75465fea37ace94dc28f773ca8ad7a/suite.log; SHA25601f89296bb920d118e684b05bbd9441178c885d714795152d62360563289019a. No failures, reruns or waivers. Final verification checkbox is complete again. Next narrow re-close reviews the additive service field and command-guide conflict resolutions with this full-suite evidence, then a fresh merge runner; the previous runner exited on the conflict. TL extended the priority grant until10:28:11 and reserved pair:0's stage for #753, which this landing does not touch.
