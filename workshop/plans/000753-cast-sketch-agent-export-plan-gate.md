@@ -19,6 +19,25 @@ reviewer_runs:
       finished_at: "2026-10-22T02:13:21.790609Z"
       session_id: 01a16161-e237-7f33-bb66-192582ab999d
       outcome: returned
+    - version: 1
+      intent:
+        id: 7628a4fa-384c-4914-8be1-8dff09e64216
+        repository: github.com/xianxu/pair
+        issue_id: "000753"
+        recipe: estimate-quality
+        round: 1
+        attempt: 1
+        agent: codex
+        root: /Users/xianxu/workspace/worktree/pair-slot9/pair
+        reviewed_head: b7263356a95a5e7db9234da3efcd14a0a9577521
+        slot: pair:9
+        requested_at: "2026-10-22T16:37:47.437928Z"
+      phase: finished
+      pid: 96455
+      started_at: "2026-10-22T16:37:47.605223Z"
+      finished_at: "2026-10-22T16:38:33.436645Z"
+      session_id: 01a16479-d353-7592-b10b-f52ec506bc33
+      outcome: returned
 gate: plan-quality
 issue: 753
 id_prefix: PQ
@@ -129,7 +148,32 @@ rounds:
           note: Named production functions now carry adversarial input classes and mechanical verification strategies.
           round: 3
       blocked: false
-content_hash: cf23e36b147405c17f7b88b4d0904e0ae682a4788a34644c86dbb961cd475c60
+    - reviewer_runs:
+        - version: 1
+          intent:
+            id: 881861e3-36c0-4e9e-8423-31a275f74c0c
+            repository: github.com/xianxu/pair
+            issue_id: "000753"
+            recipe: plan-quality
+            round: 4
+            attempt: 1
+            agent: codex
+            root: /Users/xianxu/workspace/worktree/pair-slot9/pair
+            reviewed_head: b7263356a95a5e7db9234da3efcd14a0a9577521
+            slot: pair:9
+            requested_at: "2026-10-22T16:37:16.070837Z"
+          phase: finished
+          pid: 75818
+          started_at: "2026-10-22T16:37:16.243088Z"
+          finished_at: "2026-10-22T16:37:43.548251Z"
+          session_id: 01a16479-593c-72c1-8c56-0ab2fb2d8d38
+          outcome: returned
+      "n": 4
+      timestamp: "2026-10-22T09:37:43-07:00"
+      agent: codex
+      reviewer: codex (openai; author openai)
+      blocked: false
+content_hash: 70b4b05b1a1a3fe7bae52b819c92116a09a62ee3cd50be599f566429c5bafd72
 ---
 
 # Gate ledger — pair#753 (plan-quality)
@@ -159,6 +203,8 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 
 - PQ-1 — addressed — Explicit preview transitions, guarded freeze, publication identity and worker lifetime satisfy the state-ownership requirement.
 - PQ-2 — addressed — Named production functions now carry adversarial input classes and mechanical verification strategies.
+
+## Round 4 — 2026-10-22T09:37:43-07:00 (codex) — passed
 
 ## Open findings
 
