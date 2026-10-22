@@ -67,6 +67,13 @@ The three recorded failures reproduced unchanged in a targeted couchcmd run (61.
 
 An attempted hub-notice clipboard assertion correctly exposed that the asynchronous warm-worker borrowed notice can become the latest notice before the copy; it was removed rather than forcing production ordering or weakening latest-notice semantics. The stable initial-paint fixture owns the full-copy check; hub failure's original full dispatched error remains asserted. No production or fixture deadline changed. Corrected targeted three tests PASS2.204s; whole couchcmd package PASS114.700s, count1. Affected reader inventory and diff checks pass. Full repository suite remains pending on the forthcoming corrected pushed head; the previous failed suite is retained as failure evidence, never relabeled as a flake/pass. The existing merge runner is preserved awaiting the replacement local-check record.
 
+
+### 2026-10-22 — fix review SHIP and replacement suite queued
+
+Fixed-then-ship close round5 returned SHIP/high confidence, zero new or open findings. Reviewer independently passed the three corrected cases, whole couchcmd104.454s, reader inventory and whitespace checks; production behavior, Spec and Done-when are unchanged. SDLC published codecomplete bound to evidence commit6f4c3d3403bc283b40ac676aa610fcce9fddc58c and adopted measured actual2.37h.
+
+Replacement recorded full suite is already queued on pushed8727e94da57d888272eaa1a855a12e6b334f87ff: session80343, lease-40475742, attempt247075fa5a5ea07c61206b544f4d06d4, isolated checkout /Volumes/TestScratch/local-checks/sdlc-local-1857757870. Initial and latest observed normal FIFO position9; no tests have executed yet. Existing merge session46377/pid83174 remains retained first waiting for the passing local-check record, with no duplicate runner or queue changes. Next step is to consume that result, satisfy any real failure, and let the retained merge integrate/main-test/land. No stage is required. #796 remains unstarted pending this landing.
+
 ## Revisions
 
 ### 2026-10-22 — implementation scope
