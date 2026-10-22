@@ -1,13 +1,13 @@
 ---
 id: 000753
-status: codecomplete
+status: working
 deps: [pair#752]
 github_issue:
 created: 2026-10-20
 updated: 2026-10-22
 estimate_hours: 19.23
 collaboration-mode: collaboration
-card_mirror: '68416e9f65b7ebb05f5a6ccb4b22752a5faa3656' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '7921e13209e908463cb9ad1e4874c87995031808' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-21T18:40:37-07:00
 claimant:
     operator: Xian Xu
@@ -421,3 +421,10 @@ Authenticated TL a7274b6d-b64e-40f0-b1db-969c0cc4f4ba approves folding the disco
 ### 2026-10-22 — live-only submitted-feedback hiding (approved; supersedes ink-stays)
 
 Authority: TL8112fb61 and c78d3900 following the accepted shared-page recheck. On confirmed dispatched or resolved delivery, hide only the exact submitted sketch sequence+digest and annotation revision on every live console/viewer surface, including reconnect/bootstrap. Unsent feedback and later revisions remain visible. Failed, prepared and uncertain delivery does not hide anything. No recorded clear/delete, vector mutation, new recording event, format version or persistent acknowledgment registry. Existing conditional annotation resolution remains unchanged; display masking must work even when that resolution is waiting/refused. Historical query, rendering and replay do not consume the live mask. The earlier ink-stays acceptance/checklist clauses are superseded for live display only. Toolbar unification remains #808.
+
+
+### 2026-10-22 — current-view submission revision (operator rule; pending implementation plan approval)
+
+TLefac1218/d0326a9d/eaa94561 supersede oldest-compatible-first: only feedback actually visible in the current console view is selected; all other unsent notes/sketches remain N more. Shared screenshot is taken from the frozen current recorded view at submission, because a sketch takes time and can be revisited after other pages. Saved box-note crops remain box-draw-time evidence, which can intentionally capture a transient frame. Durable plan appends one consolidated third-delta design for a trusted completed-paint visibility witness feeding the existing private preview/freeze owner; no browser dispatch route or persisted registry. TL requests plan before code; no production changes started.
+
+Live evidence stays private locally. First recording has first complete sketch then two empty later begins and expiry; source clicks/text selections passed through. Second fixture likewise has a complete first shape, two saved notes (both selected by prior all-open-notes contract), and a later begin with no strokes. Sanitized fixtures will retain chronology, not page/private content. A native unsent-tab-return RED now shows accepted vectors and pending card retained but actual canvas loses ink after recorder Doc1→3 catches up and geometry forces repaint. Existing controlled completed-note/tab reachability tests pass11/11; direct masked→saved box note→next pen plus new draws after real tab activation pass, so those alone do not reproduce the other blocker. Same-context SPA/input investigation continues. Console permission slice published into unclaimed #808 Spec through supported issue publish after its prescribed resting-branch merge; #753 branch and both probes restored. Final executable suite lease-1877263215 retained until new code commits; renewed full-scope close and operator re-look will replace prior acceptance.
