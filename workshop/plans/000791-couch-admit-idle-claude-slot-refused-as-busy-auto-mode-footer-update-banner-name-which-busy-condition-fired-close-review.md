@@ -207,3 +207,87 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-22T13:44:58-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 791 — Couch delivery: capture delayed refusal evidence |
+| repo | pair |
+| issue file | workshop/issues/000791-couch-admit-idle-claude-slot-refused-as-busy-auto-mode-footer-update-banner-name-which-busy-condition-fired.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 4c695793916f7baa49f2666835b42e92ac03a647..e91611b3ecc8cc621bc572214b9235bef851e38a |
+| command | sdlc close --issue 791 |
+| reviewer | codex (openai; author openai) |
+| isolation | fenced |
+| timestamp | 2026-10-22T13:44:58-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+The pinned range satisfies the revised diagnostic-only Spec and resize addition. Capture timing, byte limits, lock boundaries, refusal safety, and coherent resize evidence are covered by passing tests. No new findings block shipping. The replay establishes a resize-without-repaint mechanism, while correctly leaving historical causation and recovery to #810. Recorded acceptance and landing gates remain separate obligations.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      TestPeerWaitCaptureFittingStyledRow passes at HEAD and fails with the pre-fix encoder through a temporary overlay: the fitting 37009-byte row is discarded. Temporary files were removed.
+  - id: BR-2
+    disposition: withdrawn
+    note: |
+      Locally inspected tracker commit 7ba6cc0eb5f81693864fc39260d0866794d87cab and its ownerless open #810 card; the pinned issue detail references #791. The current plan explicitly records subsequent authorization to proceed from controlled resize evidence.
+```
+
+1. **Strengths**
+
+   - Capture selection stays under the existing admission owner; encoding and writer invocation follow both unlocks (`peer_delivery.go:443`, `peer_wait_capture.go:214`).
+   - Whole-record JSON budgeting preserves fitting styled screens and explicitly marks truncation (`peer_wait_capture.go:96`).
+   - Screen, generation, and latest resize observation share one terminal lock (`terminal_model.go:339`).
+   - Native replay and controlled silence tests distinguish observed evidence from modeled failure (`peer_resize_test.go:217`). Atlas documents that distinction and diagnostic limitations.
+
+2. **Critical findings:** None.
+
+3. **Important findings:** None.
+
+4. **Minor findings:** None.
+
+5. **Test coverage notes**
+
+   Passed complete `wrapcmd`, `diagnosticlog`, `artifactpath`, and `internal/repolint` packages; targeted capture/resize race tests; encoder fuzzing (483 executions); affected-reader inventory; and diff whitespace checks. BR-1’s regression demonstrably fails without its correction. The checkout remains unchanged.
+
+6. **Architectural notes**
+
+   - **ARCH-DRY — pass:** Reuses existing refusal decisions, snapshots, polling, and diagnostic storage.
+   - **ARCH-PURE — pass:** Timing transition and encoding remain pure; dispatch and terminal operations form the IO boundary. Active concept-table entities exist at their stated paths.
+   - **ARCH-PURPOSE — pass:** Delivers the revised capture contract across personalities and Claude batch preparation without changing recognition.
+   - **ARCH-MOCK — pass:** Integration tests exercise production dispatch through stateful terminal/peer fixtures and the existing writer seam; no new external dependency.
+   - **ARCH-CONSTRAINTS — pass:** Fifteen-second threshold, once-per-head capture, fixed-size resize metadata, and 64 KiB record cap are exercised.
+   - **ARCH-SECURE — pass:** Evidence remains in the private local diagnostic stream; fixtures are sanitized and their committed hash matches.
+   - **ARCH-ORDER — pass:** Capture eligibility uses one transition function. Tests cover threshold/reset sequences, prepared/committed/aborted resize outcomes, duplicate resolution, and preservation of the decision’s observation.
+   - **ARCH-FUNERAL — pass:** No new worker or durable artifact family; existing bounded writer lifecycle and retention apply.
+   - **ARCH-EVOLVE — pass:** Resize evidence is additive diagnostic output; no persisted read-modify-write format or existing field meaning changes.
+
+7. **Plan revision recommendations:** None. The final revisions accurately supersede the historical restart/recognition proposal and describe the implemented diagnostic scope.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"fae18ece-a58e-4eb2-8940-28da2d1634cd","repository":"github.com/xianxu/pair","issue_id":"000791","recipe":"milestone-review","round":3,"attempt":1,"agent":"codex","root":"/Volumes/TestScratch/review-checkouts/894a15baa9cff273","reviewed_head":"e91611b3ecc8cc621bc572214b9235bef851e38a","slot":"pair:1","requested_at":"2026-10-22T20:41:17.265254Z"},"phase":"finished","pid":6950,"started_at":"2026-10-22T20:41:17.497194Z","finished_at":"2026-10-22T20:44:57.133551Z","session_id":"01a16558-c269-7e40-899f-6faee243e199","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 3.436113s
+head: "e91611b3ecc8cc621bc572214b9235bef851e38a"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000409
