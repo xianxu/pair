@@ -12,6 +12,8 @@ collaboration-mode: discussion
 
 **Tech stack:** Go, existing terminalModel/Ultraviolet cells, couchmessage private endpoints, diagnosticlog.BufferedWriter, captured native ANSI fixtures, shared testcouch harness.
 
+**Active scope:** The final 2026-10-22 revision below supersedes Tasks 1–4 and their restart/root-cause acceptance. The original proposal is preserved as design history. Implement the diagnostic-only revised tasks.
+
 ## Evidence and limits
 
 The operator reports recurring hub stalls before and after #735, perhaps twice daily. A session-file submit sometimes produces no immediate agent-bar message, or the hub unexpectedly goes quiet; a keystroke then flushes deliveries. Workers may also stall but that is unconfirmed. The update banner stays visible for hours while most delivery succeeds, so it cannot alone explain the symptom.
@@ -36,7 +38,7 @@ Claude's ruled-box recognizer does not inspect footer wording. Restart admission
 |---|---|---|
 | SettleEvidence | cmd/internal/wrapcmd/peer_settle.go | new |
 | SettleObservation | cmd/internal/couchmessage/settle_endpoint.go | new |
-| PeerWaitCaptureState / transition | cmd/internal/wrapcmd/peer_wait_capture.go | new |
+| PeerWaitCaptureState / advancePeerWaitCapture | cmd/internal/wrapcmd/peer_wait_capture.go | new |
 | PeerWaitEvidence | cmd/internal/wrapcmd/peer_wait_capture.go | new |
 | LiveRestartFacts / DecideLiveRestart | cmd/internal/couchcore/live_restart.go | modified |
 
@@ -138,3 +140,41 @@ Files: only the recognition/terminal/input source proved responsible by replay; 
 ## Architectural accounting
 
 ARCH-DRY/PURE: owner-derived evidence and pure diagnostic eligibility, no alternate recognition rules. ARCH-PURPOSE: both personalities, both refusal paths and intermittent-capture acceptance included. ARCH-MOCK: stateful existing terminal/endpoint/disposable-fleet seams, not call-count mocks. ARCH-CONSTRAINTS: one-second existing pending poll, 15s threshold, 64KiB record, counted growth, bounded reason query. ARCH-SECURE: authenticated exact binding, screen privacy, bounded encoding and no public raw transcripts. ARCH-ORDER: refusal snapshot and condition travel together; diagnostic completion never authorizes input; reconnect/quiet invalidation retain fences. ARCH-FUNERAL: existing bounded diagnostic lifecycle, no new files or workers. ARCH-EVOLVE: new endpoint response only for a new explicit request; existing frames and persisted formats unchanged; unsupported older wrappers visibly refuse without inferred reason.
+
+## Revisions
+
+### 2026-10-22 — TL approved diagnostic-only delivery now
+
+Authenticated approval 4333f27a-2f1d-4e8a-b9dd-039d84a610c0: land capture as #791 now; recognition fix becomes a follow-up waiting for the first real failing capture. No restart endpoint, new settle evidence/session transport, or recognition changes are in this delivery. Existing peer refusal details already name their precise conditions; capture records that exact detail. This supersedes original Tasks 1–4, original Core concepts tables, and original root-cause/live acceptance gate above. The scratch replays remain evidence, not a new fixture family or recognition deliverable.
+
+**Current Core concepts — pure:**
+
+| Name | Lives in | Status |
+|---|---|---|
+| PeerWaitCaptureState / advancePeerWaitCapture | cmd/internal/wrapcmd/peer_wait_capture.go | new |
+| PeerWaitEvidence / encodePeerWaitCapture | cmd/internal/wrapcmd/peer_wait_capture.go | new |
+
+The transition receives active-head ID, pre-paste status, refusal condition and time; it returns at most one capture effect per head after 15s. Its evidence owns an immutable terminal snapshot, flags and identity metadata. Encoder retains styled cells under a 64KiB complete-record limit, explicit truncation if needed. State ends with the delivery; records use existing wrap-events generation retention. No additional durable state or worker.
+
+**Current integration points:**
+
+| Name | Lives in | Status | Wraps |
+|---|---|---|---|
+| dispatchPeer | cmd/internal/wrapcmd/peer_delivery.go | modified | exact refused snapshot, existing clock and admission/mailbox locks |
+| peerRuntime | cmd/internal/wrapcmd/peer_runtime.go | existing | wires the proxy's already-open diagnostic owner |
+| wrap-events writer | cmd/internal/wrapcmd/diagnostic_writers.go; wrap.go | existing, reused | diagnosticlog.BufferedWriter and managed retention |
+
+Capture the snapshot used for composer refusal; early non-screen guards get one coherent snapshot at the refusal and identify its generation. Writer enqueue and JSON encoding happen after both locks are released. Reuse the existing queued poll (including Claude batch preparation) and injected d.now. No extra polling clock. Before the threshold bookkeeping is O(1), no extra screen copy. Capture once and suppress repeated refusal polls, failed writes and reason changes; reset for next head. Disabled diagnostics do not copy a screen. Preserve the 15s/64KiB envelope, full state/visible recovery tables and existing diagnostic privacy/retention rules above, except no new restart-query behavior.
+
+**Revised tasks (one close review boundary):**
+
+- [ ] File unclaimed follow-up for recognition, blocked on first failing capture and referencing #791. Update #791 Done-when with this approved narrowing.
+- [ ] Test first: force hidden-cursor refusal through production dispatchPeer. At 14.999s no record; at 15s exactly one PEER-wait record names cursor-hidden and includes the refused screen/cursor/complete/style evidence; repeated polls/reason changes do not duplicate it. Recover by native repaint, assert normal delivery and a fresh capture for a new head.
+- [ ] Unit-test advancePeerWaitCapture with generated event sequences asserting independent threshold/reset/once-per-head invariants; fuzz encodePeerWaitCapture over styled arbitrary cells, asserting valid JSON, explicit truncation, and complete-record byte cap. Stateful dispatch integration uses the existing terminal/peer seams across supported personalities and batch preparation, preserving input safety and proving both locks free at writer invocation.
+- [ ] Implement the bounded diagnostic state and encoding, hook capture selection into dispatchPeer without changing its safety decisions. Add counted 8/16 head and repeated-poll cases; screen copy/encode occurs once/head, zero filesystem IO under input locks. Existing BufferedWriter owns flush/close and residue bounds.
+- [ ] Run targeted race tests, full wrapcmd and diagnosticlog packages, artifactpath/reader inventory/repolint preflights. Register new production source in the normal manifest, not quarantine. Update atlas/couch.md and couch-testing.md with label/path, privacy, threshold, truncation and unavailable diagnostics.
+- [ ] Push final head, run recorded affected check (full suite if selected), close via SDLC mandatory review with exact forced-refusal/no-input/lock/cap evidence, then enter normal landing line. Native GUI staging only on TL authorization if the gates require it; no real-fleet sends or recognition acceptance claimed.
+
+### 2026-10-22 — PQ-1 risky-function contract
+
+Addressed the risky-function naming class in the active tables and task: advancePeerWaitCapture is the pure timing/reset transition; generated event sequences assert independent threshold and once-per-head invariants. encodePeerWaitCapture is the pure screen encoder; fuzz arbitrary styled cells with valid-JSON, explicit-truncation and whole-record-budget oracles. dispatchPeer remains the stateful integration boundary, with forced refusal and writer lock/failure assertions. Superseded historical case lists above are not a second executable test plan. Follow-up allocated as pair#810, unclaimed and waiting for first real capture.

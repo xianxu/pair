@@ -5,9 +5,9 @@ deps: []
 github_issue:
 created: 2026-10-21
 updated: 2026-10-22
-estimate_hours:
+estimate_hours: 1.019
 collaboration-mode: collaboration
-card_mirror: '83a12c22da554ca85018e52547321f3f7a4037ec' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: 'a32141e5d50c388b3855dff0ae6af58914a12eb6' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-22T12:23:59-07:00
 claimant:
     operator: Xian Xu
@@ -16,6 +16,7 @@ claimant:
     workspace: pair:1
     worktree: /Users/xianxu/workspace/worktree/pair-slot1/pair
     repository: github.com/xianxu/pair
+flow: {kind: full, provenance: operator}
 ---
 
 # Couch admit: idle Claude slot refused as busy (auto-mode footer / update banner?); name which busy condition fired
@@ -35,18 +36,35 @@ which of the three busy conditions fired; the refusal should name the one that d
 
 ## Done when
 
-- A captured screen fixture of an idle Claude composer with the auto-mode footer and the update banner is admitted as
-  idle (test); the same with text in the composer is refused (test).
-- The busy refusal names which condition fired (turn open / composer text / recent input).
+- A forced pre-paste refusal at the active delivery head produces exactly one local wrap-events diagnostic after 15 seconds, containing its refused screen and precise blocking condition; no early or repeated capture.
+- The complete encoded diagnostic is at most 64 KiB; any truncation is explicit. Encoding and writer IO occur outside admission/mailbox locks.
+- Tests show diagnostic failure leaves receipts/input safety unchanged, for Claude and Codex, including Claude batch preparation.
+- Recognition changes are tracked in an unclaimed follow-up waiting for the first real failing capture.
 
 ## Plan
 
-Implementation: [durable plan](../plans/000791-couch-admission-plan.md). Await TL approval before code.
+Implementation: [durable plan](../plans/000791-couch-admission-plan.md), final diagnostic-only revision approved by TL.
 
-- [ ] Preserve three native idle captures and isolate the actual transient refusal.
-- [ ] Explain restart refusals at admission and effect time from wrapper evidence.
-- [ ] Capture exact refused screen/condition after bounded active-delivery wait.
-- [ ] Fix a reproduced recognition defect; qualify safety, disposable acceptance and recorded checks.
+- [ ] File recognition follow-up and checkpoint approved diagnostic-only scope.
+- [ ] Forced-refusal tests first, bounded capture state/encoding and dispatch integration.
+- [ ] Lock/failure/cap/growth/personality tests, atlas and normal source inventory.
+- [ ] Recorded checks, mandatory close review, normal landing line.
+
+## Estimate
+
+Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md` against `baseline-v3.1.md`. Method A only; calibration reported stale by estimate-source, so provisional. Derived after plan-quality CLEAN (round 2). Familiar Go/terminal/BufferedWriter seams, no novel stack/library needed. Thorough approved design applies x0.2 design discount and +15% design buffer. Two smaller Go units cover eligibility/encoding with generated/fuzz tests and production dispatch/lock/failure tests respectively. Implementation picks 0.5h primitive upper endpoint x0.4; familiarity1.0. Spec0.5x0.2, state0.3x0.2, integration0.2x0.2, atlas0.1x0.2, review0.2x0.2 design.
+
+```estimate
+model: estimate-logic-v3.1
+familiarity: 1.0
+item: issue-spec design=0.10 impl=0.08
+item: smaller-go-module design=0.06 impl=0.20
+item: smaller-go-module design=0.04 impl=0.20
+item: atlas-docs design=0.02 impl=0.04
+item: milestone-review design=0.04 impl=0.20
+design-buffer: 0.15
+total: 1.019
+```
 
 ## Log
 - 10-21 22:0x (ops:0): **a Codex case, possibly the same class.** parley.nvim:3 (Codex, tag 1-parley-nvim-83) idle at an
@@ -84,3 +102,13 @@ Implementation: [durable plan](../plans/000791-couch-admission-plan.md). Await T
 ### 2026-10-22 — operator/TL expanded reproduction and capture scope
 
 The original auto-footer/banner-only acceptance is insufficient: recurring stalls survive #735, delivery usually works with the banner present, and a Codex case exists. Add bypass-footer/banner and banner-free controls, the captured Codex case, explicit actual refusal at restart admission/effect time, and bounded automatic capture of the refused screen/condition after a delivery wait threshold. Preserve draft/picker/unknown-state refusal. Completion requires a failing captured transition, regression and narrow fix, diagnostics failure/cap/ordering tests, and TL-coordinated real acceptance; passing static controls alone do not establish completion. Earlier Log entries remain historical evidence rather than an all-stalls root-cause claim.
+
+### 2026-10-22 — diagnostic-only approval
+
+TL authenticated approval 4333f27a-2f1d-4e8a-b9dd-039d84a610c0 explicitly makes capture the #791 deliverable now: forced refusal fires a capture at 15s, refusal names its condition, total record <=64KiB, existing wrap-events writer, no IO under admission locks. Recognition fix moves to an unclaimed follow-up waiting for the first failing capture. The broader proposed restart endpoint and static-fixture deliverables are superseded, not implemented.
+
+### 2026-10-22 — revised completion contract
+
+Supersedes original auto-mode/banner idle-admission Done-when and the earlier expanded root-cause acceptance: #791 now ships diagnostics only per TL. Current Done-when and Plan above reflect this approval; original contracts and rationale remain in Git/history and the durable plan's preceding sections. No recognition/safety-policy change or claim that the historical fault is fixed.
+
+- Filed recognition follow-up #810 (unclaimed, waiting for first real failing capture). Plan-quality round 1 requested named risky functions and strategy-based test contract (PQ-1); final revision now names advancePeerWaitCapture and encodePeerWaitCapture with generated-sequence and fuzz oracles. No production changes before gate acceptance.
