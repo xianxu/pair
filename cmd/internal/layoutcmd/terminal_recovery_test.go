@@ -110,7 +110,7 @@ func TestNewTerminalUnknownInventoryNeverCreates(t *testing.T) {
 				if mode == "malformed" {
 					raw = `[{`
 				}
-				f.SetFaults(zellijtest.Fault{Ordinal: 1, Reply: &raw})
+				f.SetFaults(zellijtest.Fault{Ordinal: 1, Reply: &raw}, zellijtest.Fault{Ordinal: 2, Reply: &raw}, zellijtest.Fault{Ordinal: 3, Reply: &raw})
 			case "missing-caller":
 				rt.caller = "999"
 			case "changed":

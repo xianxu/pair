@@ -3,12 +3,12 @@ package wrapcmd
 import (
 	"context"
 	"os"
-	"os/exec"
 	"strings"
 	"time"
 	"unicode"
 
 	uv "github.com/charmbracelet/ultraviolet"
+	"github.com/xianxu/pair/cmd/internal/zellijquery"
 )
 
 // pair#428: a delivery pastes only while the operator can see the composer.
@@ -62,7 +62,7 @@ func (p *proxy) composerInView() bool {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
-	dump, err := exec.CommandContext(ctx, "zellij", "action", "dump-screen", "-p", "terminal_"+pane).Output()
+	dump, err := (zellijquery.Source{}).Output(ctx, "action", "dump-screen", "-p", "terminal_"+pane)
 	if err != nil {
 		p.debug("PEER-view-fail", err.Error())
 		return true

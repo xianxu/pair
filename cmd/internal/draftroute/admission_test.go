@@ -41,7 +41,7 @@ func draftRoutingModel(draftID int) zellijtest.Model {
 }
 
 func TestRouteLuaRequiresConfirmedScopedUniqueDraft(t *testing.T) {
-	for _, scenario := range []string{"healthy", "wrong-kind-first", "wrong-kind-confirmation", "displaced-first", "changed-target", "missing-caller", "missing-draft", "ambiguous-draft", "changed-tab"} {
+	for _, scenario := range []string{"healthy", "one-crossed-first", "one-crossed-confirmation", "wrong-kind-first", "wrong-kind-confirmation", "displaced-first", "changed-target", "missing-caller", "missing-draft", "ambiguous-draft", "changed-tab"} {
 		t.Run(scenario, func(t *testing.T) {
 			f := zellijtest.New(t)
 			for _, entry := range f.Env() {
@@ -52,8 +52,12 @@ func TestRouteLuaRequiresConfirmedScopedUniqueDraft(t *testing.T) {
 			wrong := "CLIENT_ID ZELLIJ_PANE_ID RUNNING_COMMAND\n"
 			switch scenario {
 			case "wrong-kind-first":
-				f.SetFaults(zellijtest.Fault{Ordinal: 1, Reply: &wrong})
+				f.SetFaults(zellijtest.Fault{Ordinal: 1, Reply: &wrong}, zellijtest.Fault{Ordinal: 2, Reply: &wrong}, zellijtest.Fault{Ordinal: 3, Reply: &wrong})
 			case "wrong-kind-confirmation":
+				f.SetFaults(zellijtest.Fault{Ordinal: 2, Reply: &wrong}, zellijtest.Fault{Ordinal: 3, Reply: &wrong}, zellijtest.Fault{Ordinal: 4, Reply: &wrong})
+			case "one-crossed-first":
+				f.SetFaults(zellijtest.Fault{Ordinal: 1, Reply: &wrong})
+			case "one-crossed-confirmation":
 				f.SetFaults(zellijtest.Fault{Ordinal: 2, Reply: &wrong})
 			case "displaced-first":
 				body, err := json.Marshal(draftRoutingModel(3).Sessions["test"].Panes)
@@ -86,7 +90,7 @@ func TestRouteLuaRequiresConfirmedScopedUniqueDraft(t *testing.T) {
 			}
 			f.SetModel(model)
 			err := RouteLua(nativeRouteRuntime{caller: "4"}, "PairConfirmQuit", true)
-			if scenario == "healthy" {
+			if scenario == "healthy" || strings.HasPrefix(scenario, "one-crossed-") {
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -105,12 +109,25 @@ func TestRouteLuaRequiresConfirmedScopedUniqueDraft(t *testing.T) {
 						reads++
 					}
 				}
-				if reads != 2 {
-					t.Fatalf("queries=%+v; want exactly two reads", f.Queries())
+				wantReads := 2
+				if strings.HasPrefix(scenario, "one-crossed-") {
+					wantReads = 3
+				}
+				if reads != wantReads {
+					t.Fatalf("queries=%+v; want exactly %d reads", f.Queries(), wantReads)
 				}
 			} else {
-				if (scenario == "ambiguous-draft" || scenario == "missing-draft") && len(f.Queries()) != 1 {
-					t.Fatalf("invalid first target queried again: %+v", f.Queries())
+				wantReads := 2
+				switch scenario {
+				case "wrong-kind-first":
+					wantReads = 3
+				case "wrong-kind-confirmation":
+					wantReads = 4
+				case "missing-caller", "missing-draft", "ambiguous-draft":
+					wantReads = 1
+				}
+				if len(f.Queries()) != wantReads {
+					t.Fatalf("refusal queries=%+v; want exactly %d reads", f.Queries(), wantReads)
 				}
 				if err == nil || len(f.Effects()) != 0 {
 					t.Fatalf("uncertain route error=%v effects=%+v", err, f.Effects())

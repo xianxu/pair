@@ -1,21 +1,18 @@
 package couchcmd
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
-	"os/exec"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/xianxu/pair/cmd/internal/artifactpath"
 	"github.com/xianxu/pair/cmd/internal/couchcore"
 	"github.com/xianxu/pair/cmd/internal/procutil"
 	"github.com/xianxu/pair/cmd/internal/workbenchshortcut"
-	"github.com/xianxu/pair/cmd/internal/zellijexec"
 	"github.com/xianxu/pair/cmd/internal/zellijpane"
+	"github.com/xianxu/pair/cmd/internal/zellijquery"
 	"github.com/xianxu/pair/cmd/internal/zellijreply"
 )
 
@@ -26,17 +23,7 @@ type shortcutFocusArtifacts interface {
 }
 
 func queryShortcutClients(ctx context.Context, session string) ([]byte, error) {
-	cmd := exec.CommandContext(ctx, "zellij", "--session", session, "action", "list-clients")
-	// A short WaitDelay fails complete output whose copy lags under load
-	// (pair#613); the caller's context still bounds the query.
-	cmd.WaitDelay = time.Second
-	var stdout, stderr bytes.Buffer
-	cmd.Stdout, cmd.Stderr = &stdout, &stderr
-	err := zellijexec.Run(cmd)
-	if exit, ok := err.(*exec.ExitError); ok {
-		exit.Stderr = append([]byte(nil), stderr.Bytes()...)
-	}
-	return stdout.Bytes(), err
+	return (zellijquery.Source{}).Output(ctx, "--session", session, "action", "list-clients")
 }
 
 // Query only the exact thread's client focus, not list-panes' per-client union

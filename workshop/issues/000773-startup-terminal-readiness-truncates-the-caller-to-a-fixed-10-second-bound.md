@@ -183,3 +183,8 @@ Hub725b1995 authorized one fresh recorded full suite based on the existing #685 
 ### 2026-10-22 — authorized integrated-runtime rerun passed
 
 The single hub-authorized fresh recorded suite on0959aace92f7ea9b3b69b327cbe6a20a23455cd0 completed exit0 in12m6s: attempt4b42e6ed7c8af4526a196f8a61977aa8, lease-3589796458, saved .git/sdlc/local-checks/0959aace92f7ea9b3b69b327cbe6a20a23455cd0/suite.log, SHA prefix4b8660d9f349. This head equals integrated6d654228 plus only evidence/provenance/Log, and the only later branch change is this issue Log. The route-poke shell passed in the full run and every Go package completed; no skip, timeout change, manual status, flake identity invention or rerun beyond the one authorization. The earlier #685 failed attempt remains retained and linked above. Both additive conflict resolutions now have full integrated-runtime verification; narrow re-close and normal merge follow.
+
+
+### 2026-10-22 — noon freshness gate required newer main
+
+Narrow close refused before review because this branch lacked code landed by noon (main fb79d27bd), including the shared zellij-query consolidation across launcher and other callers. No verdict or completion was produced. Followed the integrate-gate recovery without a waiver: git merge origin/main completed without conflicts; main changed74 paths. Previous full-suite pass remains valid only for the previous integrated runtime. The newly integrated runtime requires a fresh pushed-head recorded suite, followed by narrow conflict re-close. No #773 design delta or failure reclassification.
