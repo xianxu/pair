@@ -2656,3 +2656,5 @@ and external temporary roots rather than relying on the host's TMPDIR.
   fault the entire physical-attempt budget; add transient recovery controls and
   keep semantic mismatches non-retriable. Audit structural call-site manifests
   when a collector method changes, even when the effect remains read-only.
+
+- #791 PQ-1: Active plan concept tables must name the production transition/encoder functions as well as their data types. State one adversarial test strategy per risky function (generated event sequences for timing/once/reset invariants, fuzzed styled data for valid bounded encoding); put case inventories in executable tests.

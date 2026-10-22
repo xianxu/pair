@@ -45,9 +45,9 @@ which of the three busy conditions fired; the refusal should name the one that d
 
 Implementation: [durable plan](../plans/000791-couch-admission-plan.md), final diagnostic-only revision approved by TL.
 
-- [ ] File recognition follow-up and checkpoint approved diagnostic-only scope.
-- [ ] Forced-refusal tests first, bounded capture state/encoding and dispatch integration.
-- [ ] Lock/failure/cap/growth/personality tests, atlas and normal source inventory.
+- [x] File recognition follow-up and checkpoint approved diagnostic-only scope.
+- [x] Forced-refusal tests first, bounded capture state/encoding and dispatch integration.
+- [x] Lock/failure/cap/growth/personality tests, atlas and normal source inventory.
 - [ ] Recorded checks, mandatory close review, normal landing line.
 
 ## Estimate
@@ -120,3 +120,5 @@ Supersedes original auto-mode/banner idle-admission Done-when and the earlier ex
 - Added advancePeerWaitCapture/PeerWaitCaptureState, encodePeerWaitCapture/PeerWaitEvidence, and terminalModel.SnapshotGeneration to retain copied cells and their exact generation. Diagnostic JSONL is bounded as a whole, including escaping/envelope/newline; bottom-first ANSI rows retain styles, and explicit truncation marks incomplete screens. Existing wrap-events BufferedWriter owns storage and lifecycle.
 - Forced capture/threshold/repeated-poll/recovery, early guards, generated state sequences, styled-screen replay, caps, Claude/Codex/Qoder and Claude batch preparation, disabled/failing writer and actual managed-file/lock tests pass under race (2.821s). Baseline #735/peer-wait controls pass (0.393s); repolint 17.016s and artifactpath 19.072s pass; affected-reader inventory check passes. Full wrapcmd/diagnosticlog race checks and bounded encoder fuzz are running; not yet claimed passed.
 - Follow-up #810 remains unclaimed and waits for the first real failing capture. #791 was retitled through the card setter to “Couch delivery: capture delayed refusal evidence”. #737 remains parked and unstaged.
+
+- Encoder fuzz completed PASS (2,408 executions, 6.820s). PR #546 opened; pushed code head b01de4e4d953b1574fe3340516a3dac914c47e58. Recorded affected lease-2648858986 is queued (initial position 11), exact-head checkout /Volumes/TestScratch/local-checks/sdlc-local-3376230752. Full wrapcmd/diagnosticlog race check remains running. Close review may overlap these checks under tl-worker policy; landing still requires successful final evidence. No manual main integration or live-stage action.
