@@ -27,10 +27,13 @@ type switchServiceGuard struct {
 
 // ConfirmAgentSwitch is shared by the human form and queued remote operations.
 // An empty token selects the form's current source, never bypasses its checks.
-func (g *switchServiceGuard) ConfirmAgentSwitch(ctx context.Context, address couchcore.ThreadAddress, source string) error {
+func (g *switchServiceGuard) ConfirmAgentSwitch(ctx context.Context, address couchcore.ThreadAddress, source string, evidence couchcore.SwitchSourceEvidence) error {
 	s := g.service.Load()
 	if s == nil {
 		return errors.New("switch-agent: supervisor unavailable")
+	}
+	if evidence.Vacant() {
+		return g.confirmVacantAgentSwitch(ctx, s, address, source, evidence)
 	}
 	live, ok := s.LivenessForThread(address.RepoScope, string(address.Tag))
 	if !ok || !s.isConnected(live.Binding) || source != "" && source != switchSourceToken(live) {
@@ -58,6 +61,45 @@ func (g *switchServiceGuard) ConfirmAgentSwitch(ctx context.Context, address cou
 		return errors.New("switch-agent: source changed while checking; retry switch")
 	}
 	return ctx.Err()
+}
+
+// The core's exact vacancy classification replaces only the live-wrapper gate.
+// Workspace/Git proof and retained selection must still survive both checks.
+func (g *switchServiceGuard) confirmVacantAgentSwitch(ctx context.Context, s *messageService, address couchcore.ThreadAddress, source string, evidence couchcore.SwitchSourceEvidence) error {
+	if source != "" {
+		return errors.New("switch-agent: live source changed; review the parked source again")
+	}
+	if s.authority.record == nil || s.authority.workspace == nil || s.authority.branch == nil {
+		return errors.New("switch-agent: vacant source verification unavailable")
+	}
+	current := func() error {
+		if live, ok := s.LivenessForThread(address.RepoScope, string(address.Tag)); ok && s.isConnected(live.Binding) {
+			return errors.New("switch-agent: vacant source reconnected; review it again")
+		}
+		record, err := s.authority.record(ctx, address)
+		if err != nil {
+			return err
+		}
+		if !evidence.MatchesRecord(record) {
+			return errors.New("switch-agent: vacant source changed; review it again")
+		}
+		return ctx.Err()
+	}
+	if err := current(); err != nil {
+		return err
+	}
+	identity, err := s.authority.workspace(ctx, evidence.WorkingPath())
+	if err != nil {
+		return err
+	}
+	git, err := s.authority.branch(ctx, identity.WorktreeRoot)
+	if err != nil {
+		return fmt.Errorf("switch-agent: Git state unknown: %w", err)
+	}
+	if git.Dirty {
+		return errors.New("switch-agent: source is dirty; ask it to commit first")
+	}
+	return current()
 }
 
 type agentSwitchService struct {
@@ -125,15 +167,15 @@ func (s *messageService) handleAgentSwitch(ctx context.Context, r couchmessage.R
 		return refuse(errors.New("switch-agent: source wrapper unavailable"))
 	}
 	token := switchSourceToken(live)
-	if err = service.guard.ConfirmAgentSwitch(ctx, address, token); err != nil {
-		return refuse(err)
-	}
 	var explicit *[]string
 	if argv, present := r.AgentArgs.Argv(); present {
 		explicit = &argv
 	}
 	prepared, err := service.prepare(ctx, address, r.Agent, explicit)
 	if err != nil {
+		return refuse(err)
+	}
+	if err = service.guard.ConfirmAgentSwitch(ctx, address, token, prepared.SourceEvidence()); err != nil {
 		return refuse(err)
 	}
 	guard := func(ctx context.Context) error {
@@ -145,7 +187,7 @@ func (s *messageService) handleAgentSwitch(ctx context.Context, r couchmessage.R
 		if err := s.authorizeHubBinding(ctx, caller, source); err != nil {
 			return err
 		}
-		return service.guard.ConfirmAgentSwitch(ctx, address, token)
+		return service.guard.ConfirmAgentSwitch(ctx, address, token, prepared.SourceEvidence())
 	}
 	return s.slotOps.admit(ctx, caller, r, func(key string, started func(), finished func(any, error)) error {
 		return service.enqueue(key, func(ctx context.Context) (couchcore.OperationCall, error) {

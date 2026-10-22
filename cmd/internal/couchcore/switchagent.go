@@ -17,7 +17,7 @@ var ErrSwitchResolutionChanged = errors.New("switch-agent: thread or path prefer
 // AgentSwitchGuard revalidates the coordinator's exact source binding and
 // settled state at execution and immediately before the first mutation.
 type AgentSwitchGuard interface {
-	ConfirmAgentSwitch(context.Context, ThreadAddress, string) error
+	ConfirmAgentSwitch(context.Context, ThreadAddress, string, SwitchSourceEvidence) error
 }
 
 type SwitchAgentRequest struct {
@@ -48,7 +48,36 @@ type PreparedAgentSwitch struct {
 	// claim its couch died mid-flight, so the preview admitted it and the commit
 	// then tried to park a thread with no agent and failed `park-incomplete`
 	// (#256 M2, round 3).
-	state ActionableThreadState
+	state        ActionableThreadState
+	sourceReason ThreadReason
+}
+
+// SwitchSourceEvidence carries only core's admitted classification. Its private
+// fields prevent serialized operation arguments from inventing vacancy proof.
+type SwitchSourceEvidence struct {
+	state       ActionableThreadState
+	reason      ThreadReason
+	address     ThreadAddress
+	revision    uint64
+	workingPath string
+}
+
+// SourceEvidence exposes the source mode already admitted by this preparation.
+func (p PreparedAgentSwitch) SourceEvidence() SwitchSourceEvidence {
+	return SwitchSourceEvidence{state: p.state, reason: p.sourceReason, address: p.Address, revision: p.SourceRevision, workingPath: p.WorkingPath}
+}
+
+// Vacant is true only for an admitted non-live classification, never disconnect.
+func (e SwitchSourceEvidence) Vacant() bool {
+	return e.state != ThreadLive && SwitchableState(e.state, e.reason)
+}
+
+// WorkingPath names the saved path whose current workspace must be verified.
+func (e SwitchSourceEvidence) WorkingPath() string { return e.workingPath }
+
+// MatchesRecord fences proof to the exact retained source generation and path.
+func (e SwitchSourceEvidence) MatchesRecord(record ThreadRecord) bool {
+	return e.address == record.Address && e.revision == record.Revision && e.workingPath == record.WorkingPath
 }
 
 type SwitchAgentOutcome string
@@ -297,7 +326,9 @@ func (c *Couch) prepareAgentSwitch(ctx context.Context, address ThreadAddress, a
 		RepoIdentity       string
 		Borrowed           *BorrowedArguments
 		Conflict           bool
-	}{record, resolution.Profile, own.Revision, repoIdentity, borrowed, own.Conflict}
+		SourceState        ActionableThreadState
+		SourceReason       ThreadReason
+	}{record, resolution.Profile, own.Revision, repoIdentity, borrowed, own.Conflict, state, reason}
 	raw, err := json.Marshal(evidence)
 	if err != nil {
 		return PreparedAgentSwitch{}, err
@@ -307,7 +338,7 @@ func (c *Couch) prepareAgentSwitch(ctx context.Context, address ThreadAddress, a
 		Address: address, SourceAgent: source, WorkingPath: record.WorkingPath, SourceRevision: record.Revision,
 		Profile: resolution.Profile, Fingerprint: hex.EncodeToString(digest[:]), record: persisted, repoIdentity: repoIdentity,
 		Configured: own.Found, Conflict: own.Conflict, Borrowed: borrowed,
-		state: state,
+		state: state, sourceReason: reason,
 	}, nil
 }
 
@@ -325,11 +356,24 @@ func (c *Couch) SwitchAgent(ctx context.Context, request SwitchAgentRequest) (_ 
 	if request.KnownConfig && request.Argv != nil {
 		return result, errors.New("switch-agent: saved configuration cannot include explicit arguments")
 	}
+	prepare := func() (PreparedAgentSwitch, error) {
+		if request.KnownConfig {
+			return c.PrepareKnownAgentSwitch(ctx, request.Address, request.Agent)
+		}
+		return c.PrepareAgentSwitch(ctx, request.Address, request.Agent, &request.Argv)
+	}
 	if c.SwitchGuard != nil || request.Source != "" {
 		if c.SwitchGuard == nil {
 			return result, errors.New("switch-agent: source guard unavailable")
 		}
-		if err := c.SwitchGuard.ConfirmAgentSwitch(ctx, request.Address, request.Source); err != nil {
+		source, err := prepare()
+		if err != nil {
+			return result, err
+		}
+		if source.Fingerprint != request.AcceptedFingerprint {
+			return result, ErrSwitchResolutionChanged
+		}
+		if err := c.SwitchGuard.ConfirmAgentSwitch(ctx, request.Address, request.Source, source.SourceEvidence()); err != nil {
 			return result, err
 		}
 	}
@@ -338,12 +382,7 @@ func (c *Couch) SwitchAgent(ctx context.Context, request SwitchAgentRequest) (_ 
 		return result, err
 	}
 	defer release()
-	var prepared PreparedAgentSwitch
-	if request.KnownConfig {
-		prepared, err = c.PrepareKnownAgentSwitch(ctx, request.Address, request.Agent)
-	} else {
-		prepared, err = c.PrepareAgentSwitch(ctx, request.Address, request.Agent, &request.Argv)
-	}
+	prepared, err := prepare()
 	if err != nil {
 		return result, err
 	}
@@ -382,7 +421,7 @@ func (c *Couch) SwitchAgent(ctx context.Context, request SwitchAgentRequest) (_ 
 		return result, err
 	}
 	if c.SwitchGuard != nil || request.Source != "" {
-		if err := c.SwitchGuard.ConfirmAgentSwitch(ctx, request.Address, request.Source); err != nil {
+		if err := c.SwitchGuard.ConfirmAgentSwitch(ctx, request.Address, request.Source, prepared.SourceEvidence()); err != nil {
 			return result, err
 		}
 	}
