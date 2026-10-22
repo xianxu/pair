@@ -125,3 +125,17 @@ removed by rollback), read errors and query errors remain explicit. File reads
 are confined through an opened private root, reject final symlinks and bound the
 wrapper tail to 64 KiB and each pane/native stream to 16 KiB. Pre-exec layout-shell
 stderr is not recorded by this collector.
+
+## Fixture identity authorities (#778)
+
+Private socket roots do not isolate a host-wide native server-name census. The
+installed-command fixture and `testcouch.allocateRoots` initialize each fresh
+identity authority through `testpair.SeedCouchIdentity`, then use the normal
+allocator for its one store and its conversation/terminal counters. The helper
+exclusively creates the bounded private registry; an existing authority refuses.
+Its high-range first C combines the live parent PID with a bounded process-local
+sequence, so concurrent fixture processes and fixtures within one process have
+distinct names independently of temporary-directory parents. The seed record is
+removed by the existing root owner. It is not a permanent identity scheme across
+PID reuse: crashed native residue still meets the unchanged fail-closed census.
+No production launch budget, retry or ownership rule changes.
