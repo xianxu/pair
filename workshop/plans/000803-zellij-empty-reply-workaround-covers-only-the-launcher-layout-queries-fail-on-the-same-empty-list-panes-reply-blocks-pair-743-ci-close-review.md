@@ -179,3 +179,80 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-22T10:38:29-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 803 — Zellij empty-reply workaround covers only the launcher; layout queries fail on the same empty list-panes reply (blocks pair#743 CI) |
+| repo | pair |
+| issue file | workshop/issues/000803-zellij-empty-reply-workaround-covers-only-the-launcher-layout-queries-fail-on-the-same-empty-list-panes-reply-blocks-pair-743-ci.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 88da59a210c0d39f093ccb7eecc3abba01a410ee..5c8da1498ea44cfc56a0a2081d26b320e7fe49e6 |
+| command | sdlc close --issue 803 |
+| reviewer | codex (openai; author openai) |
+| isolation | fenced |
+| timestamp | 2026-10-22T10:38:29-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+The interdiff correctly aligns integration tests with shared recovery while preserving strict confirmation, scoped effects, and refusal notifications. Production source is unchanged. The added revision records the correction without expanding scope. No new defects found.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      native_name_absence_test.go:56,77-85 retains refusal and expects three attempts only for requested_identity_present. The current test passes; restoring its old expectation through a temporary overlay fails with probe calls=3 want=1.
+```
+
+1. **Strengths**
+
+   - `draftroute/admission_test.go:54` distinguishes persistent crossed replies from transient recovery at either observation.
+   - `termcmd/admission_test.go:145` pins physical read counts while retaining scoped effects and zero-effect refusal checks.
+   - `termcmd/fullscreen_test.go:81` exhausts recovery before checking failure and broker notification.
+   - The effect manifest now matches the actual `Source.Output` call without broadening its exemption.
+
+2. **Critical findings:** None.
+
+3. **Important findings:** None.
+
+4. **Minor findings:** None.
+
+5. **Test coverage notes**
+
+   Full `draftroute`, `termcmd`, and `zellijreply` packages passed. BR-1’s targeted launcher test passed. Restoring the four earlier test files through a temporary overlay reproduced all four reported failures. Reader-certificate hashes and unchanged classifications verified; whitespace checks passed. Temporary files were removed and tracked files remain unchanged. The full repository suite was not run.
+
+6. **Architectural notes**
+
+   - **ARCH-DRY — Pass:** recovery remains shared; no production retry logic added.
+   - **ARCH-PURE — Pass:** integration fixtures exercise the production IO boundary; no pure-core changes.
+   - **ARCH-PURPOSE — Pass:** tests cover transient recovery and persistent refusal without relaxing semantic confirmation.
+   - **ARCH-EVOLVE — Pass:** certificate fields and dispositions are preserved; no format change.
+
+   No new architectural or user-facing surface requires atlas or README changes. The lessons-file rearrangement preserves existing content.
+
+7. **Plan revision recommendations:** None. The recorded correction matches the interdiff.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"9bca74e5-7baa-410e-9198-dc0b41c2e2a5","repository":"github.com/xianxu/pair","issue_id":"000803","recipe":"fix-review","round":3,"attempt":1,"agent":"codex","root":"/Volumes/TestScratch/review-checkouts/8e49124c33d6c45a","reviewed_head":"5c8da1498ea44cfc56a0a2081d26b320e7fe49e6","slot":"pair:6","requested_at":"2026-10-22T17:36:58.387794Z"},"phase":"finished","pid":39324,"started_at":"2026-10-22T17:36:58.61815Z","finished_at":"2026-10-22T17:38:29.023253Z","session_id":"01a164b0-02f5-7fe1-8afb-87783ad2256c","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 3.585031333s
+head: "5c8da1498ea44cfc56a0a2081d26b320e7fe49e6"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412

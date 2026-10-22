@@ -92,6 +92,7 @@ total: 1.7935
 ## Log
 
 ### 2026-10-22
+- 2026-10-22: closed — Post-close test-only correction: full draftroute (3.690s), termcmd (6.671s), zellijreply (0.183s) pass after reproduced integrated-suite failures; persistent crossed faults exhaust three attempts with zero effects, transient controls require three reads before scoped effects, semantic mismatch refusal unchanged; read-only Output inventory updated. Reader inventory and diff checks pass. Fresh recorded final suite queued on pushed 5c8da1498; tl-worker overlap allowed, passing final suite still mandatory before landing. --no-atlas because this delta changes tests only and existing seam atlas is current; --no-plan-check for pending workflow row; --no-project TL-owned. (fixed-then-ship); review verdict: SHIP
 - 2026-10-22: closed — BR-1 reproduced then fixed with refusal intact and case-specific three-attempt false-miss expectation; full launcher passed 69.348s, reader inventory and diff check passed. Earlier full adapters, race, fuzz and installed-native recovery conformance passed as recorded in Log. Replacement recorded suite queued on pushed 632ed7c31; tl-worker permits review overlap, final suite pass still required before landing. --no-plan-check acknowledges only pending suite/review/landing row; --no-project leaves project updates to TL. #743 hosted CI rerun follows landing per hub.; review verdict: SHIP
 
 Claimed by pair:6 and entered start-plan. The catch-up rebuilt the sibling
