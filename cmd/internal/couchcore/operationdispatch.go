@@ -2,7 +2,6 @@ package couchcore
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"strconv"
@@ -326,12 +325,12 @@ func CouchLiveOwnerExecutor(c *Couch) OperationExecutor {
 			}
 			var argv *[]string
 			if raw, present := a["argv"]; present {
-				var parameters []string
 				if len(raw) > 32768 {
 					return nil, fmt.Errorf("startup parameters exceed transport limit")
 				}
-				if err := json.Unmarshal([]byte(raw), &parameters); err != nil || parameters == nil {
-					return nil, fmt.Errorf("startup parameters must be a JSON string array")
+				parameters, err := DecodeArgumentArray([]byte(raw))
+				if err != nil {
+					return nil, err
 				}
 				argv = &parameters
 			}

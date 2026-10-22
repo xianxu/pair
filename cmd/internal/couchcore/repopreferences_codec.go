@@ -1,7 +1,6 @@
 package couchcore
 
 import (
-	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -45,28 +44,6 @@ func splitRepoJSON(raw []byte, known map[string]bool) (map[string]json.RawMessag
 
 func repoJSONValue(value any) json.RawMessage { raw, _ := json.Marshal(value); return raw }
 
-func decodeRepoArgv(raw []byte) ([]string, error) {
-	trimmed := bytes.TrimSpace(raw)
-	if len(trimmed) == 0 || trimmed[0] != '[' {
-		return nil, errors.New("repository preferences: arguments must be a string array")
-	}
-	var elements []json.RawMessage
-	if err := strictjson.Decode(raw, &elements); err != nil {
-		return nil, err
-	}
-	argv := make([]string, len(elements))
-	for i, element := range elements {
-		value := bytes.TrimSpace(element)
-		if len(value) == 0 || value[0] != '"' {
-			return nil, errors.New("repository preferences: argument must be a string")
-		}
-		if err := strictjson.Decode(element, &argv[i]); err != nil {
-			return nil, err
-		}
-	}
-	return argv, nil
-}
-
 func decodeLegacyPath(raw []byte) (PathLaunchPreference, error) {
 	var p PathLaunchPreference
 	owned, _, err := splitRepoJSON(raw, repoPathFields)
@@ -85,7 +62,7 @@ func decodeLegacyPath(raw []byte) (PathLaunchPreference, error) {
 		return p, err
 	}
 	for agent, value := range agentValues {
-		argv, err := decodeRepoArgv(value)
+		argv, err := DecodeArgumentArray(value)
 		if err != nil {
 			return p, err
 		}
@@ -145,7 +122,7 @@ func decodeRepoAgent(raw []byte) (RepoAgentArguments, error) {
 			return a, err
 		}
 	}
-	a.Argv, err = decodeRepoArgv(owned["argv"])
+	a.Argv, err = DecodeArgumentArray(owned["argv"])
 	if err != nil {
 		return a, err
 	}

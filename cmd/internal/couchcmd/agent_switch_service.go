@@ -62,7 +62,7 @@ func (g *switchServiceGuard) ConfirmAgentSwitch(ctx context.Context, address cou
 
 type agentSwitchService struct {
 	guard   *switchServiceGuard
-	prepare func(context.Context, couchcore.ThreadAddress, string) (couchcore.PreparedAgentSwitch, error)
+	prepare func(context.Context, couchcore.ThreadAddress, string, *[]string) (couchcore.PreparedAgentSwitch, error)
 	enqueue func(string, func(context.Context) (couchcore.OperationCall, error), func(), func(any, error)) error
 }
 
@@ -128,7 +128,11 @@ func (s *messageService) handleAgentSwitch(ctx context.Context, r couchmessage.R
 	if err = service.guard.ConfirmAgentSwitch(ctx, address, token); err != nil {
 		return refuse(err)
 	}
-	prepared, err := service.prepare(ctx, address, r.Agent)
+	var explicit *[]string
+	if argv, present := r.AgentArgs.Argv(); present {
+		explicit = &argv
+	}
+	prepared, err := service.prepare(ctx, address, r.Agent, explicit)
 	if err != nil {
 		return refuse(err)
 	}
@@ -147,8 +151,14 @@ func (s *messageService) handleAgentSwitch(ctx context.Context, r couchmessage.R
 		return service.enqueue(key, func(ctx context.Context) (couchcore.OperationCall, error) {
 			call := couchcore.OperationCall{Name: "switch-agent", Args: map[string]string{
 				"repo-scope": address.RepoScope, "tag": string(address.Tag), "agent": r.Agent,
-				"known-config": "true", "fingerprint": prepared.Fingerprint, "source": token,
+				"fingerprint": prepared.Fingerprint, "source": token,
 			}}
+			if explicit != nil {
+				raw, _ := json.Marshal(*explicit)
+				call.Args["argv"] = string(raw)
+			} else {
+				call.Args["known-config"] = "true"
+			}
 			call.FailureTarget = &couchcore.LifecycleFailureTarget{Address: address, Target: r.Target}
 			if err := guard(ctx); err != nil {
 				return call, err
@@ -169,7 +179,7 @@ func (s *slotOperations) existingSwitch(caller couchmessage.Binding, r couchmess
 	if !ok {
 		return couchmessage.Response{}, false
 	}
-	if old.Op != r.Op || old.Target != r.Target || old.Agent != r.Agent {
+	if old.Op != r.Op || old.Target != r.Target || old.Agent != r.Agent || old.IntentDigest != operationIntentDigest(r) {
 		return couchmessage.Response{Code: "id-conflict", Error: "request ID already names another operation"}, true
 	}
 	return couchmessage.Response{Code: "accepted", Operation: &old}, true
@@ -178,7 +188,12 @@ func (s *slotOperations) existingSwitch(caller couchmessage.Binding, r couchmess
 func (s *messageService) installAgentSwitchService(console *couchtty.Console, c *couchcore.Couch, guard *switchServiceGuard) {
 	guard.service.Store(s)
 	lifecycleQueue := newLifecycleRemoteQueue(console, c)
-	s.switches.Store(&agentSwitchService{guard: guard, prepare: c.PrepareKnownAgentSwitch,
+	s.switches.Store(&agentSwitchService{guard: guard, prepare: func(ctx context.Context, address couchcore.ThreadAddress, agent string, argv *[]string) (couchcore.PreparedAgentSwitch, error) {
+		if argv == nil {
+			return c.PrepareKnownAgentSwitch(ctx, address, agent)
+		}
+		return c.PrepareAgentSwitch(ctx, address, agent, argv)
+	},
 		enqueue: func(key string, prepare func(context.Context) (couchcore.OperationCall, error), started func(), finished func(any, error)) error {
 			return lifecycleQueue.Enqueue(key, "switch-agent", prepare, started, finished)
 		},

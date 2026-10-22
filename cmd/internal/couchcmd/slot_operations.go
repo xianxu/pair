@@ -176,7 +176,7 @@ func (s *slotOperations) admit(ctx context.Context, caller couchmessage.Binding,
 	if err := slotOperationConfirmation(r); err != nil {
 		return couchmessage.Response{Code: "confirmation-required", Error: err.Error()}
 	}
-	event := couchmessage.ReceiptEvent{Kind: couchmessage.ReceiptAdmit, IntentDigest: driveIntentDigest(r), CandidateKey: r.CandidateKey, RecoveryConfirmation: r.RecoveryConfirmation, ID: r.ID, Op: r.Op, Target: r.Target, Agent: r.Agent, ToHub: r.ToHub, Persist: r.Persist, At: s.now()}
+	event := couchmessage.ReceiptEvent{Kind: couchmessage.ReceiptAdmit, IntentDigest: operationIntentDigest(r), CandidateKey: r.CandidateKey, RecoveryConfirmation: r.RecoveryConfirmation, ID: r.ID, Op: r.Op, Target: r.Target, Agent: r.Agent, ToHub: r.ToHub, Persist: r.Persist, At: s.now()}
 	s.mu.Lock()
 	s.sweepLocked()
 	existing, held := s.receipts[key]

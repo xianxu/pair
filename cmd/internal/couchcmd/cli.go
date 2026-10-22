@@ -9,6 +9,7 @@ import (
 
 	"github.com/xianxu/pair/cmd/internal/agentdrive"
 	"github.com/xianxu/pair/cmd/internal/couchcore"
+	"github.com/xianxu/pair/cmd/internal/couchmessage"
 	"github.com/xianxu/pair/cmd/internal/mockserve"
 	"github.com/xianxu/pair/cmd/internal/webcast/query"
 )
@@ -71,7 +72,9 @@ type cliInvocation struct {
 	// body from it, so the parser stays free of IO.
 	messageFile string
 	// messageAgent narrows --send-to to slots running that agent.
-	messageAgent string
+	messageAgent   string
+	switchArgs     couchmessage.SwitchArguments
+	interruptFirst bool
 	// confirmed is --confirm on a slot operation whose declaration requires
 	// a confirmation (reboot).
 	candidateKey         string

@@ -2661,3 +2661,5 @@ and external temporary roots rather than relying on the host's TMPDIR.
   fault the entire physical-attempt budget; add transient recovery controls and
   keep semantic mismatches non-retriable. Audit structural call-site manifests
   when a collector method changes, even when the effect remains read-only.
+
+- #728 M2: optional argv is an intent, including its absence. Use one comparable presence-aware literal-array carrier, bind presence/content/consent in both early receipt replay and queued admission, and share strict element decoding across wire and internal dispatch; JSON null elements must not become empty strings.
