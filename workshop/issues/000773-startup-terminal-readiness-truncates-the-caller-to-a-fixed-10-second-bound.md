@@ -17,7 +17,7 @@ claimant:
     workspace: pair:7
     worktree: /Users/xianxu/workspace/worktree/pair-slot7/pair
     repository: github.com/xianxu/pair
-flow: {kind: quick, provenance: inferred, spec: "024ca5fa", done: "12c8a82c"}
+flow: {kind: full, provenance: inferred}
 ---
 
 # startup: terminal readiness truncates the caller to a fixed 10-second bound
@@ -51,6 +51,10 @@ Remaining gates: a passing corrected recorded suite, mandatory boundary review a
 
 ## Log
 
+
+
+- 2026-10-22: closed — BR-1 public warm entry RED0.286s missing deadline/10s cap then corrected public/warm cohort GREEN7.467s; exact30s deadline consumes2s preparation plus1s ack without renewal or interactive cancellation. BR-2 stage-age RED25s instead5s then controlled/race console GREEN. BR-3 delayed-preparation RED then causal warm/retire/retention controls GREEN with virtual budget consumption. Full core PASS308.418s/tty51.055s; race core4.530s/tty1.580s; lint/artifact/inventory pass. New shared native Claude/Codex matrix PASS131.25s on88f7326491b1 including delivery/detach/restart/all4 actors returned/exact joined cleanup, log97403cefee19. Corrected pushed head f3c423c6462058da7433262a1617a9fb42ab3386 is in new recorded affected/full check; result pending and mandatory before landing, review overlap permitted by tl-worker. Prior recorded green predates fixes and is not reused as final proof. Hub owns project; no stage/live-fleet operation.; review verdict: SHIP
+- 2026-10-22: flow upgraded quick → full — 481 added lines in code files (limit 100); an earlier round of this close already ran the full review
 2026-10-21: filed unclaimed by pair:5 per TL sequencing for #744. Trace: launcher/birthwatch.go birthBound10*time.Second; session_handoff_os.go passes it directly to coordinateTerminalHandoff; session_handoff.go applies context.WithTimeout(original caller,bound). Fleet caller allowed120s; separate LaunchOptions.BirthBound controls outer birth watch only; Couch registration default2m. CLI15s message is progress, not the budget.
 
 Retained native failure on exact code db791e3b82bb23242ecd5e8fdbebd550c9da8e04: Claude fixture:3 (allocated thread tag1-fixture-4), nonce operation-9923c3b354cb3f27bbbb015f499d4a66; stage registration, Pair before/after exit1. Last output says terminal admission unverified: expected agent-ready-1-fixture-4-claude.json missing, then context deadline exceeded. Operation prepare877ms/operation15.732s; TestDisposableCouchFleet FAIL52.90s; whole command56.322s. Exact cleanup passed; no same-head rerun has occurred. Evidence in #744 PR509 at workshop/evidence/000744/final-outcome-native-fail.log, final-outcome-run.json, final-outcome-result.json; logSHA256355723305828834b91e4c8b91a2374d32d87e3f3c180bc00174f8c9f34058b42. Evidence commit51a07ef3936625a00011008e8d043db10f412efe.

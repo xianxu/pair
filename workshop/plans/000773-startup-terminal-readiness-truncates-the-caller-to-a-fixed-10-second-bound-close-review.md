@@ -102,3 +102,94 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000411
+
+---
+
+## Re-review — 2026-10-22T07:19:05-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 773 — startup: terminal readiness truncates the caller to a fixed 10-second bound |
+| repo | pair |
+| issue file | workshop/issues/000773-startup-terminal-readiness-truncates-the-caller-to-a-fixed-10-second-bound.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 7702a3dddbfdb5c7d8a021bb8949df98f0a6b282..f3c423c6462058da7433262a1617a9fb42ab3386 |
+| command | sdlc close --issue 773 |
+| reviewer | codex (openai; author openai) |
+| isolation | fenced |
+| timestamp | 2026-10-22T07:19:05-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+The pinned range fulfills the startup-budget contract and resolves all three prior findings. Package tests and focused race checks passed. Each correction’s regression test failed when its fix was removed through a temporary Go overlay. No new blocking findings emerged.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      warm_attach.go selects and transports one absolute deadline while preserving interactive lifetime. TestPublicWarmAttachmentTransportsCallerStartupBudget passes and fails against the previous implementation, detecting missing transport, the ten-second helper timeout, and registration renewal. Helper tests separately cover delayed acknowledgement and pre-exec expiry.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      menu_operations.go retains stage-start time, preserves it on repeated reports, and uses it for row and notice rendering. TestMenuOperationStageAgeProjectsRowAndNotice passes; removing the timestamp correction reproduces the incorrect 25s readiness display.
+  - id: BR-3
+    disposition: addressed
+    note: |
+      General warm-failure fixtures no longer install the preparation-sensitive 200ms timer. Dedicated propagation controls use virtual time. TestTrackedWarmFailureInjectionSurvivesPreparationDelay passes; restoring the sentinel fails before the intended registration transition.
+```
+
+1. **Strengths**
+
+   - Deadline selection and strict exec encoding share one pure owner in `cmd/internal/startupbudget/budget.go`.
+   - Production handoff tests exercise readiness at virtual 12 seconds, cancellation, absent readiness, remaining-budget enforcement, and admitted-client survival.
+   - Console and remote progress retain stage age and reject stale updates.
+   - README and atlas document the fallback, separate lifetimes, recovery limits, and coordinated deployment.
+
+2. **Critical findings:** None.
+
+3. **Important findings:** None.
+
+4. **Minor findings:** None.
+
+5. **Test coverage notes**
+
+   - Passed complete packages: `startupbudget`, `couchmessage`, `couchtty`, `couchcore`, `launcher`, and `couchcmd`.
+   - Passed focused race checks across the five integration/progress packages and the admission-budget lint regression.
+   - All three temporary negative controls failed as expected; overlays were removed and the checkout remains unchanged.
+   - Retained cold/warm native logs match their recorded SHA-256 hashes and ancestor heads. Native acceptance was not rerun; the opt-in test compiled and skipped normally.
+
+6. **Architectural notes**
+
+   - **ARCH-DRY — pass:** Shared selector/default/codec; both launch owners reuse it.
+   - **ARCH-PURE — pass:** Deadline values and progress transitions remain separate from clock and IO glue.
+   - **ARCH-PURPOSE — pass:** Tracked launches, public warm attachment, and direct handoffs carry the startup budget.
+   - **ARCH-MOCK — pass:** Existing stateful runner/runtime seams exercise production boundaries; retained native conformance supplements them.
+   - **ARCH-CONSTRAINTS — pass:** Absolute startup bounds coexist with short query budgets; virtual-time tests check polling growth.
+   - **ARCH-SECURE — pass:** Transported deadlines receive bounded, canonical validation and are consumed before descendants launch.
+   - **ARCH-ORDER — pass:** Controlled cancellation/readiness/exit sequences preserve fail-closed admission and joined cleanup.
+   - **ARCH-FUNERAL — pass:** No new runtime artifact family; timer, observer, and child cleanup remain bounded.
+   - **ARCH-EVOLVE — pass:** No persisted-format change; ephemeral receipt compatibility limits are documented.
+
+7. **Plan revision recommendations:** None. The correction revision matches the delivered implementation.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"a0ca37da-1daf-4bb6-af4d-a55bc7629653","repository":"github.com/xianxu/pair","issue_id":"000773","recipe":"milestone-review","round":2,"attempt":1,"agent":"codex","root":"/Volumes/TestScratch/review-checkouts/beb50a2909b4ab64","reviewed_head":"f3c423c6462058da7433262a1617a9fb42ab3386","slot":"pair:7","requested_at":"2026-10-22T14:15:15.614014Z"},"phase":"finished","pid":55129,"started_at":"2026-10-22T14:15:15.705453Z","finished_at":"2026-10-22T14:19:04.594664Z","session_id":"01a163f7-5507-71f0-a0e8-910505da279a","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 1.779678833s
+head: "f3c423c6462058da7433262a1617a9fb42ab3386"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412
