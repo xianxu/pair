@@ -52,7 +52,7 @@ TL831e9502 confirms operator approval of the re-scoped plan: exclude the issuing
 - [x] Operator approved the re-scoped Revision through TL831e9502, excluding the issuing steward; reopened through the setter in canonical pair:5 after #622 landed. Renewed change-code follows.
 - [x] Remove the obsolete completion/persistence/control machinery; implement only transient flags, ordinary notices/status and undrain with tests.
 - [x] Qualify message/lifecycle independence, restart emptiness, truthful idle observations and one compact badge through normal tests and the bounded disposable installed composition.
-- [ ] Record the passing full suite on the final code. Mandatory close review, authorized staging and TL/operator-watched live acceptance remain subsequent workflow gates before ordinary landing.
+- [x] Record the passing full suite on the final code. Mandatory close review, authorized staging and TL/operator-watched live acceptance remain subsequent workflow gates before ordinary landing.
 
 ## Estimate
 
@@ -230,6 +230,12 @@ Implementation/native checklist now complete; required fresh recorded suite, ren
 ### 2026-10-22 — final-code recorded suite queued
 
 Published native-evidence head557da87cca104ea388821c10c1042760078251e4 to PR477; behavior is unchanged from native-qualified68c581ac. Required suite lease4130677290, attempt9b8b7c6dd0c1bf9a0e7f3921359c3fa4, is retained in session83028 on557da87c; checkout /Volumes/TestScratch/local-checks/sdlc-local-703820345. Initial position3 behind active ariadne:5 and queued ariadne work. Keep the runner; no continuation/restart/duplicate while queued or running. The ordinary affected-dispatch Python preflight passed13tests in12.955s before queueing. Full suite and close are still pending; no stage or live drain authorized.
+
+### 2026-10-22 — final-source recorded suite PASS
+
+Retained session83028 completed exit0. Required suite on pushed557da87cca104ea388821c10c1042760078251e4 passed695.370s (11m35s), after925.319s queue wait; attempt9b8b7c6dd0c1bf9a0e7f3921359c3fa4, lease4130677290. Full raw log and original completed attempt receipt retained as workshop/evidence/000722/suite-557da87c-pass.log/json; SHA256ce90f6852a4fc573f909b010601f25ddec55b446f106306aed49af4989c43fce recomputed and matched. No test failure, flake rerun or waiver. All Go packages passed, including cmd/couch6.899s, couchcmd52.279s, couchcore217.515s, couchmessage26.051s, couchtty41.321s, testcouch21.431s, wrapcmd57.769s and repolint6.801s. Ordinary shell/editor/Python groups passed; affected-config upstream-source qualification and real-docflow smoke reported their existing unavailable-peer-source skips, not new acceptance evidence. Native acceptance remains the separately recorded Claude/Codex pass on68c581ac; all subsequent changes are evidence/checklist only.
+
+Implementation verification checkbox now complete. Renew mandatory full close; historical persisted-drain SHIP does not apply. No stage/live action authorized, no live acceptance or landing claimed. ariadne#506 must land before the TL/operator-watched run. The old ariadne:4 notice/NoticeStarted contradiction remains NOT REPRODUCED/NOT ROOT-CAUSED, explicitly carried into close evidence rather than credited as fixed.
 
 ## Revisions
 
