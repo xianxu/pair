@@ -143,6 +143,11 @@ Replacement #796 recorded suite on93b8b8b655c07853c6bc3a1f3523903863680b40 is qu
 
 Reviewer accepted BR-1, independently passed focused CLI/scope/style/native/stale-input/broadcast/privacy/anchor checks, and verified the old-code mutation fails all four numbered cases. One new Critical BR-2 is documentation-only: the concepts table still named predicted files as modified although geometry/menu machinery was reused and the opener landed in a new file. Audited the entire table and recorded actual locations/new-versus-modified status, with unchanged reuse listed separately and a plan Revision. No code or tests changed; corrected stage93b8b8b6 and queued suite lease-521073252 remain valid and untouched. Re-close on this documentation correction; operator look may proceed on the same corrected stage.
 
+
+### 2026-10-22 — close SHIP and priority admission
+
+Close round3 EXIT0/SHIP, no open blocking findings; evidence commit844928d2ba0b145122c018026098fb1de0c920fb pushed. Reviewer accepted the corrected concept table and independently checked focused native/geometry/menu/privacy guards. TL granted #796 priority until16:13 (delivery031af089); retained suite lease-521073252 now reports fleet-blocking priority, position1 next to run. No duplicate or replacement runner started. Source/stage93b8b8b6 remains unchanged, all4 binaries previously verified modified=false. Full-suite pass and operator acceptance are still outstanding before landing. #789's separate integration snapshot/lease-3428295058 remains queued and preserved; return for fixed review and merge when its result arrives.
+
 ## Revisions
 
 ### 2026-10-22 — operator priority and default (TL0afd9a82)
