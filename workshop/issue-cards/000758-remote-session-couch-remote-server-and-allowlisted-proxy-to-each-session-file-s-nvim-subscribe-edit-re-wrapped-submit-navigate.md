@@ -15,7 +15,7 @@ claimant:
     repository: github.com/xianxu/pair
 ---
 
-# remote-session: Couch remote server and allowlisted proxy to each session file's nvim (subscribe, edit re-wrapped, submit, navigate)
+# Couch-owned editor endpoint registry and lifecycle
 
 ## Problem
 
