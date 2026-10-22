@@ -48,7 +48,9 @@ Implementation: [durable plan](../plans/000791-couch-admission-plan.md), final d
 - [x] File recognition follow-up and checkpoint approved diagnostic-only scope.
 - [x] Forced-refusal tests first, bounded capture state/encoding and dispatch integration.
 - [x] Lock/failure/cap/growth/personality tests, atlas and normal source inventory.
-- [ ] Recorded checks, mandatory close review, normal landing line.
+- [x] Run targeted capture/preflight checks and submit the recorded affected check on the pushed implementation.
+
+Acceptance remains pending the full package race result, recorded affected pass, SDLC close review and normal landing line; those gate-owned transitions are tracked in the Log, not claimed complete by this implementation checklist.
 
 ## Estimate
 
@@ -122,3 +124,9 @@ Supersedes original auto-mode/banner idle-admission Done-when and the earlier ex
 - Follow-up #810 remains unclaimed and waits for the first real failing capture. #791 was retitled through the card setter to “Couch delivery: capture delayed refusal evidence”. #737 remains parked and unstaged.
 
 - Encoder fuzz completed PASS (2,408 executions, 6.820s). PR #546 opened; pushed code head b01de4e4d953b1574fe3340516a3dac914c47e58. Recorded affected lease-2648858986 is queued (initial position 11), exact-head checkout /Volumes/TestScratch/local-checks/sdlc-local-3376230752. Full wrapcmd/diagnosticlog race check remains running. Close review may overlap these checks under tl-worker policy; landing still requires successful final evidence. No manual main integration or live-stage action.
+
+- First close attempt measured 0.45h (window 2026-10-22T12:23:59-07:00 to 12:47:08-07:00; 1 ownership interval, 6 admitted sessions, 216 sessions excluded without verified provenance), then refused before review because the Plan's last checkbox combined pending recorded checks, close review and landing. No review ran and no close finalized. Revised that row to the completed targeted-check/submission step and retained the pending acceptance transitions explicitly in prose/Log, rather than claiming they passed or waiving the plan gate.
+
+### 2026-10-22 — separate implementation from pending gate-owned acceptance
+
+The final Plan row now records targeted-check execution and recorded-check submission, which are complete. Actual check pass, close review and landing remain pending gate-owned transitions explicitly recorded above; the prior combined checkbox could not truthfully be checked before invoking close. No acceptance requirement was removed and no gate bypass was used.
