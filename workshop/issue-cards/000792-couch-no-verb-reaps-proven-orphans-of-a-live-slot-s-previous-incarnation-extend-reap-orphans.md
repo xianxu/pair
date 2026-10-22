@@ -13,14 +13,14 @@ claimant:
     workspace: pair:2
     worktree: /Users/xianxu/workspace/worktree/pair-slot2/pair
     repository: github.com/xianxu/pair
-actual_hours: 9.76
+actual_hours: 11.51
 tracker:
     version: 1
     completion:
-        token: close-4cfe0f4b062a
+        token: close-58b41792bc04
         repository: github.com/xianxu/pair
-        reviewed_head: ea1bfa4cd5dce0acfe9b776a23b1ff71670b8bdf
-        evidence_commit: e818fd740b556664fa991ec7d5709fd239d67f3c
+        reviewed_head: 09b3cf61c67b73f7caf0e4ca9c2f46ef073e9b2b
+        evidence_commit: f1d13a67f93b20196b55085785222ddf7301d608
 ---
 
 # Couch: no verb reaps proven orphans of a live slot's previous incarnation; extend --reap-orphans
