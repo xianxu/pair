@@ -12,6 +12,11 @@ import (
 // Copy the shared catalog before extending it: Pair rules must not alter the
 // upstream catalog used by sleepSites to identify existing sleep debt.
 var pairCatalog = append(append([]golint.Rule(nil), golint.Catalog...), golint.Rule{
+	Name:     "quit-trigger-private-home",
+	Incident: "pair#797",
+	Message:  "set a private HOME before in-process TriggerQuit/TriggerBoundQuit tests; a private data directory does not isolate compatibility quit markers",
+	Match:    quitTriggersWithoutPrivateHome,
+}, golint.Rule{
 	Name:     "fixture-cli-group-completion",
 	Incident: "pair#744",
 	Message:  "observe CLI process-group quiescence through cliGroupError after Wait; leader completion alone cannot acknowledge descendants",

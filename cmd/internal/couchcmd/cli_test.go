@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/xianxu/pair/cmd/internal/couchcore"
+	"github.com/xianxu/pair/cmd/internal/couchtty"
 	"github.com/xianxu/pair/cmd/internal/launcher"
 )
 
@@ -21,9 +22,9 @@ func TestParseCLI(t *testing.T) {
 		args []string
 		want cliInvocation
 	}{
-		{name: "bare", want: cliInvocation{kind: cliLaunch, path: ".", layout: couchcore.Layout3}},
-		{name: "path", args: []string{"../pair"}, want: cliInvocation{kind: cliLaunch, path: "../pair", hubPaths: []string{"../pair"}, layout: couchcore.Layout3}},
-		{name: "dash path", args: []string{"--", "-repo"}, want: cliInvocation{kind: cliLaunch, path: "-repo", hubPaths: []string{"-repo"}, layout: couchcore.Layout3}},
+		{name: "bare", want: cliInvocation{kind: cliLaunch, path: ".", layout: couchcore.Layout3, tabStyle: couchtty.DefaultTabStyle}},
+		{name: "path", args: []string{"../pair"}, want: cliInvocation{kind: cliLaunch, path: "../pair", hubPaths: []string{"../pair"}, layout: couchcore.Layout3, tabStyle: couchtty.DefaultTabStyle}},
+		{name: "dash path", args: []string{"--", "-repo"}, want: cliInvocation{kind: cliLaunch, path: "-repo", hubPaths: []string{"-repo"}, layout: couchcore.Layout3, tabStyle: couchtty.DefaultTabStyle}},
 		{name: "list", args: []string{"--list"}, want: cliInvocation{kind: cliList}},
 		{name: "recover plan", args: []string{"--recover-plan-from-sdlc"}, want: cliInvocation{kind: cliRecoverPlan}},
 		{name: "show", args: []string{"--show", "thread"}, want: cliInvocation{kind: cliShow, ref: "thread"}},

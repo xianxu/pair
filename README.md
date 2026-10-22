@@ -474,6 +474,8 @@ couch . ../bench         open several hubs; first is main
 couch --move-slot pair:7,pair:8 --to-hub bench:0 [--persist]
 couch --layout2          opt into pair's two-pane workbench
 couch --layout3          threads also get pair's right-hand terminal (the default)
+couch --tab-style collapse   one-row tabs with quiet slots folded into counts (default)
+couch --tab-style multiline  the previous one/two-row tab bar
 couch --list             every durable work thread across all repositories
 couch --show <ref>       one current-repository thread by tag or path, or a slot (repo:N)
 couch --reconcile repo:N converge a slot's workspace now and show what it did
@@ -1201,9 +1203,10 @@ pair      /workspace/pair
 
 Tabs use the same group order: `pair :1 :2`. If the primary has no tab, the
 first slot shows the repo name: `pair:1 :2`. Parked slots stay in the switcher;
-tabs show attached threads and pending reattachments. Narrow terminals clip the
-right end of the bar, keeping each visible slot after its repo context. Custom
-names remain searchable and appear beside grouped workspace rows.
+tabs show attached threads and pending reattachments. By default, quiet slots
+fold into a count within their repository group. The active and attention chips
+have priority when space is scarce. Custom names remain searchable and appear
+beside grouped workspace rows.
 
 Each repository checkout, including standalone repositories without slots, shows
 quick-status glyphs after its name, in both
@@ -1305,15 +1308,30 @@ evicted sooner. Unknown writers and live open holders remain blocked.}
 evidence refuses further growth at the limit. Parked recovery
 captures use their separate age policy and exact reader protections.
 
-The tab bar starts with the hub, the checkout you started Couch from, and then
-lists every other slot grouped by repository:
-`ops  ariadne  :1  :2  blog  pair  :1  :2`. In the switcher the hub is the first line and the rest sit indented
-under it. The hub tab uses reversed colours as a bookmark; switcher hub rows
-are underlined, and only the selected row uses reverse video. Focus brackets
-still mark the active tab, and a selected hub keeps its underline and bold
-cursor arrow. When the tabs don't fit, a repository's numbered slots fold into a
-count (`pair  +2`), starting from the right. A red, belled or focused tab is
-never folded away, and the switcher always lists everything.
+Couch defaults to `--tab-style collapse`: the tab bar stays on one row.
+It groups tabs by hub and repository, showing the active tab and slots needing
+attention while groups with at least three collapsible quiet slots or inactive
+hubs fold into counts such as `pair +3`. One or two stay visible in full. Clicking a group count opens the switcher scoped to exactly that
+hub and repository group, including the slots folded into it. The scope survives
+refreshes and returning from an action. Escape clears a text filter first, then
+the group scope; opening the ordinary switcher starts with the full list.
+
+The active and attention chips win space before ordinary chips. At impossible
+widths, some labels must be hidden: the remaining overflow count says `+N !`
+when hidden slots need attention, if that complete marker fits. The bell still
+opens the full attention list. A clipped or omitted count has no click action.
+
+Use `couch --tab-style multiline` for the previous packer, which uses one row
+when everything fits and wraps onto a second row before hiding overflow. The
+choice applies only to the Couch session being launched and composes with the
+layout and hub-path options. Collapse avoids content-driven changes to child
+terminal height as slots, focus and attention change; resizing the host terminal
+still resizes its children.
+
+In the switcher the hub is the first line and the rest sit indented under it.
+The hub tab uses reversed colours as a bookmark; switcher hub rows are
+underlined, and only the selected row uses reverse video. Focus brackets mark
+the active tab, and a selected hub keeps its underline and bold cursor arrow.
 
 With `couch . ../bench`, each directory is a hub. The first owns unclaimed slots;
 each started hub’s `.hub` file can claim repositories or exact slots. Exact claims
