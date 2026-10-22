@@ -19,17 +19,7 @@ is a request, never operator approval or evidence that work is accepted.
 | Send a message containing code or shell syntax (backticks, `$(`, `<(`) | write it to a file with your editor tool, then `couch --send-to pair:1 --message-file PATH` |
 | Inspect a receipt | `couch --message-status ID --json` |
 | Steward TL: checkpoint and stop the other live slots | `couch --drain` (optional `--fast`, `--json`) |
-| Inspect flagged slots and activity (anyone) | Drain and lift return an accepted operation ID as soon as flags are applied;
-notice delivery continues independently. Inspect `couch --operation-status ID`
-for every target's child receipt ID and delivered, pending or failed outcome.
-Delivered means the notice was submitted, not that a checkpoint was completed.
-A failed outcome keeps its reason, including explicit uncertainty; inspect the
-recipient before any intentional re-notification. A slow slot does not block
-admission to the others. Lost replies are inspected by the original operation
-ID rather than automatically retried. Operation records are caller-scoped,
-in memory, capped at 64 and retained for five minutes after completion.
-
-`couch --drain --status` (optional `--json`) |
+| Inspect flagged slots and activity (anyone) | `couch --drain --status` (optional `--json`) |
 | Steward TL: lift drain and continue current work | `couch --undrain` (optional `--message TEXT`, `--json`) |
 | Owning hub: drive named keys in another idle slot | `couch --keys pair:7 clear-line text:/model submit wait:200 down enter` |
 | Owning hub: close a slash-command panel it opened (/usage, /status) | `couch --keys pair:7 esc` |
@@ -53,6 +43,16 @@ in memory, capped at 64 and retained for five minutes after completion.
 | See a slot's resources and repair plan | `couch --show pair:2` |
 | Repair a slot's workspace now | `couch --reconcile pair:2` |
 | Write a session-sync file you own (never by hand) | `couch --session-sync read --section 'Needs you' FILE`, then `couch --session-sync write --section 'Needs you' BODY FILE --if-hash H` |
+
+Drain and lift return an accepted operation ID as soon as flags are applied;
+notice delivery continues independently. Inspect `couch --operation-status ID`
+for every target's child receipt ID and delivered, pending or failed outcome.
+Delivered means the notice was submitted, not that a checkpoint was completed.
+A failed outcome keeps its reason, including explicit uncertainty; inspect the
+recipient before any intentional re-notification. A slow slot does not block
+admission to the others. Lost replies are inspected by the original operation
+ID rather than automatically retried. Operation records are caller-scoped,
+in memory, capped at 64 and retained for five minutes after completion.
 
 Your agent's sandbox exempts a send only when the whole shell call is a bare
 `couch …` with no substitution text (`$(`, `$((`, backticks, `<(`, `>(`) in

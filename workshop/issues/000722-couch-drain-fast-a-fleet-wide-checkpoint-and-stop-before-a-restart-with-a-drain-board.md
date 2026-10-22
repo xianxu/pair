@@ -379,6 +379,12 @@ Private real-socket29-target RED before fix:2.000721125s deadline, nil operation
 
 The native consumer now follows operation IDs then independent child body receipts, but the native matrix was not rerun under TL's standing disposition. Pure/endpoint/real-socket tests qualify this fix; final recorded check, full close review and fresh watched acceptance remain pending. Stage cc44f065 on pair:0 is untouched; no live drain, queue, restart, restage or landing. Next: push the final fix, record affected (which policy may expand to suite), mandatory re-close after inventory, then report to TL for authorized restage and the watched rerun.
 
+### 2026-10-22 12:05 PDT — round8 review and corrected-head verification
+
+Full review round8 returned REWORK, no established Critical correctness finding. BR-6 records final-source verification pending and the reviewer's complete couchcore package hitting its existing10m timeout600.316s; no causal attribution was established. The other four complete internal packages, focused behavior/races, lint, inventory and oracles passed. Supply the exact-source managed full result before re-close; investigate if the core timeout recurs. No timer, write cap or gate weakened, and no native pass demanded.
+
+BR-7 (Minor) is a real embedded-doc defect: the first inline status-command anchor was inside the top command table. Added a contiguous public-index regression, RED on the broken row, then moved the paragraph below the complete table. Audited README and atlas placements as well; those already sit in their intended sections. Added the prevention rule to lessons. Because embedded Markdown changes executable input, cancelled only owned queued suite lease-2848868042 through local-check cancel (no suite had started; session92025 exited on cancellation), rather than pretending its old head qualifies the fix. Will record a fresh affected/full check on the corrected pushed head. Stage unchanged, no restage/live repeat/landing. The initial normal close refused the truthful unchecked verification row; the subsequent review used only no-plan-check for authorized overlap, with the suite still required. Further re-close waits for its passing record; no SHIP claimed from round-cap demotion.
+
 ## Revisions
 
 ### 2026-10-19 — authenticated acknowledgement and shared queue ownership

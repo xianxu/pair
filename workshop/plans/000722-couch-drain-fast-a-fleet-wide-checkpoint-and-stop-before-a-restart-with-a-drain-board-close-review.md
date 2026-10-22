@@ -687,3 +687,128 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-22T12:01:42-07:00 (REWORK)
+
+| field | value |
+|-------|-------|
+| issue | 722 — couch --drain [--fast]: a fleet-wide checkpoint-and-stop before a restart, with a drain board |
+| repo | pair |
+| issue file | workshop/issues/000722-couch-drain-fast-a-fleet-wide-checkpoint-and-stop-before-a-restart-with-a-drain-board.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | fea66e36b0d25b3e37f2dc70a084226a8ed1697a..a78eb50c243892e06ddde91147726edb0f0a75c4 |
+| command | sdlc close --issue 722 |
+| reviewer | codex (openai; author openai) |
+| isolation | fenced |
+| timestamp | 2026-10-22T12:01:42-07:00 |
+| verdict | REWORK |
+
+## Review
+
+```verdict
+verdict: REWORK
+confidence: medium
+```
+
+The asynchronous implementation matches the latest approved scope, and focused behavioral and race checks passed. SHIP is blocked by incomplete final-source verification: the broad package run timed out in `couchcore`, and the retained recorded suite predates this implementation. No drain correctness defect was established.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      Retain disposition: the superseding contract removes formal acknowledgements. Current grammar rejects --ack; ordinary acknowledgement text supplies no readiness authority.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      Retain disposition: the approved transient redesign removes the SDLC queue adapter and its dependency. Production drain code performs no queue operations.
+  - id: BR-3
+    disposition: addressed
+    note: |
+      Retain disposition: current fast drain is worker guidance through ordinary notices. The formatter, tests, README and atlas consistently describe supported worker-owned stopping rather than automatic merge cancellation.
+  - id: BR-4
+    disposition: addressed
+    note: |
+      Retain disposition: the obsolete coordinator is absent. Current parent phases use ApplyReceiptEvent and child transitions use ApplyDrainChildren, exercised by socket and ordering regressions.
+  - id: BR-5
+    disposition: withdrawn
+    note: |
+      Retain withdrawal: this review observed no physical-write budget violation. The separate package timeout below does not establish that previously withdrawn claim.
+findings:
+  - id: new
+    severity: Important
+    kind: unverifiable
+    family: boundary-verification-evidence
+    title: |
+      Final-source package verification remains unconfirmed
+    detail: |
+      workshop/plans/000722-fleet-drain-plan.md:597 requires a recorded declared affected/full-suite result before re-close, while the pinned issue at line 380 still records that check as pending. The attempted command go test ./cmd/internal/couchcore ./cmd/internal/couchmessage ./cmd/internal/couchcmd ./cmd/internal/couchtty ./cmd/internal/wrapcmd exited 1: couchcore panicked at its existing 10-minute timeout (600.316s); the other four packages passed. No causal attribution to this diff is established. Supply a successful recorded declared check covering a78eb50c's executable sources, with complete output, environment, duration and log hash; investigate the timeout if it reproduces. Historical ec88486f evidence predates the new executor and operation model.
+  - id: new
+    severity: Minor
+    kind: defect
+    family: documentation-structure
+    title: |
+      Embedded skill prose breaks the command table
+    detail: |
+      cmd/internal/couchcmd/skills/couch/SKILL.md:22 inserts a multiline operation explanation into a table cell, followed by a blank line and an orphaned command at line 32. Restore the status command as one complete row and move the explanatory paragraph below the complete table.
+```
+
+1. **Strengths**
+
+   - Parent and child identities are registered before flag publication; capacity refusal precedes posture changes.
+   - Controlled socket tests verify healthy-target progress while one target blocks, lost-reply recovery, caller isolation and ordered drain/lift notices.
+   - Four service-owned admission workers have independent deadlines and cancellation/join coverage.
+   - README and atlas document the new surface and distinguish notice delivery from checkpoint completion.
+
+2. **Critical findings**
+
+   None established.
+
+3. **Important findings**
+
+   Final-source verification remains unconfirmed, as detailed above. Resolve with recorded evidence before crossing the boundary.
+
+4. **Minor findings**
+
+   Repair the embedded skill table at `cmd/internal/couchcmd/skills/couch/SKILL.md:22`.
+
+5. **Test coverage notes**
+
+   - Passed focused drain/activity tests across core, messaging, CLI and console packages.
+   - Passed focused executor/operation/flag race checks.
+   - Passed affected-reader inventory, repository lint, artifact checks and acceptance-oracle tests.
+   - Complete messaging, CLI, console and wrapper packages passed; complete core package timed out.
+   - Historical native/suite log hashes matched metadata. No current native matrix rerun was attempted, respecting the latest plan.
+
+6. **Architectural notes**
+
+   - **ARCH-DRY — pass:** shared receipt reservation and ordinary broker delivery.
+   - **ARCH-PURE — pass:** current concept-map entities exist; reducers and projections have direct value-based tests.
+   - **ARCH-PURPOSE — pass:** implementation delivers transient posture and independent notice admission.
+   - **ARCH-MOCK — pass:** controlled endpoint seams exercise production transport and scheduling.
+   - **ARCH-CONSTRAINTS — pass:** worker count, pending capacity, child count and frame sizes are bounded.
+   - **ARCH-SECURE — pass:** authenticated mutations, strict request shapes and explicit uncertain outcomes.
+   - **ARCH-ORDER — pass:** reducer-owned child transitions and controlled ordering tests.
+   - **ARCH-FUNERAL — pass:** transient state, bounded receipt retention and joined workers.
+   - **ARCH-EVOLVE — pass:** no new persisted drain format; legacy drain bytes remain untouched.
+
+7. **Plan revision recommendations**
+
+   No design revision needed. Complete the latest verification checklist with exact-source evidence; retain authorized staging and watched acceptance as subsequent gates.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"724b5222-c276-4926-a27a-bd02577a93e2","repository":"github.com/xianxu/pair","issue_id":"000722","recipe":"milestone-review","round":8,"attempt":1,"agent":"codex","root":"/Volumes/TestScratch/review-checkouts/504d8b887770143b","reviewed_head":"a78eb50c243892e06ddde91147726edb0f0a75c4","slot":"pair:5","requested_at":"2026-10-22T18:49:34.698925Z"},"phase":"finished","pid":13618,"started_at":"2026-10-22T18:49:34.820173Z","finished_at":"2026-10-22T19:01:39.294369Z","session_id":"01a164f2-7abd-7a53-9ca0-a243116b3474","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 2.209785083s
+head: "a78eb50c243892e06ddde91147726edb0f0a75c4"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412
