@@ -300,3 +300,100 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-21T20:40:01-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 759 — remote-session: 👽 mode in the terminal cast behind Cloudflare Access, off by default, kill switch re-enabled only at the console, tagged remote submits |
+| repo | pair |
+| issue file | workshop/issues/000759-remote-session-mode-in-the-terminal-cast-behind-cloudflare-access-off-by-default-kill-switch-re-enabled-only-at-the-console-tagged-remote-submits.md |
+| boundary | milestone M2 |
+| milestone | M2 |
+| window | 8056e8edfd532750dc0cea82c29d6b791c2bd46f..752d2c38ea0d3284da31506872a6ed268f8b2adf |
+| command | sdlc milestone-close --issue 759 --milestone M2 |
+| reviewer | codex (openai; author openai) |
+| isolation | fenced |
+| timestamp | 2026-10-21T20:40:01-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+The pinned range satisfies the documented M2 boundary. BR-8 is addressed with reachable regression coverage and independently verified failing controls. No new blocking findings emerged. Document dispatch, provenance integration, and live operator acceptance remain explicitly assigned to M3.
+
+```findings
+dispose:
+  - id: BR-8
+    disposition: addressed
+    note: |
+      Protected opening preserves cleanup uncertainty independently of mount presence, and cancellation joins an existing close attempt. Regression tests pass at HEAD. In a disposable copy, removing supervisor cleanup-error consumption reproduced nil Join and CanReset=true; removing the hostClosing join failed its regression. The disposable copy was removed.
+```
+
+1. **Strengths**
+
+   - Cleanup failures now survive canceled opening and prevent reset: [supervisor.go](/Volumes/TestScratch/review-checkouts/bab8656804b275dd/cmd/internal/remotesession/supervisor.go:219).
+   - Protected transport distinguishes cleanup uncertainty from ordinary contention: [protected.go](/Volumes/TestScratch/review-checkouts/bab8656804b275dd/cmd/internal/broadcast/protected.go:113).
+   - Console reset has both decoded host-input coverage and a real broker/wrapper negative path.
+   - README and atlas document the new controls, configuration, security limits, and M2/M3 split.
+
+2. **Critical findings**
+
+   None.
+
+3. **Important findings**
+
+   None.
+
+4. **Minor findings**
+
+   None.
+
+5. **Test coverage notes**
+
+   Passed:
+
+   - Targeted Supervisor/Protected tests.
+   - Remote/Supervisor/Protected race tests across remotesession, broadcast, couchtty, and couchcmd.
+   - Complete remotesession, artifactpath, and repolint packages.
+   - `git diff --check`.
+
+   BR-8 controls failed when the corresponding fixes were removed. Tests cover failed listener cleanup, canceled opening, existing-close joining, blocked recovery, and reset refusal. The review checkout remains unchanged. No full repository suite or live Cloudflare/phone acceptance was claimed.
+
+6. **Architectural notes**
+
+   - **ARCH-DRY — pass:** reuses the guarded connector, named lease, and shared unwanted-owner cleanup rule.
+   - **ARCH-PURE — pass:** value policy and lifecycle decisions remain separate from transport, storage, and console IO.
+   - **ARCH-PURPOSE — pass:** delivers the revised M2 scope; unavailable document integration fails closed.
+   - **ARCH-MOCK — pass:** production seams support stateful tunnel and signed-issuer fixtures with portable storage. Live conformance remains an explicit acceptance obligation.
+   - **ARCH-CONSTRAINTS — pass:** request lanes, deadlines, session capacity, and counted lifecycle tests enforce relevant bounds.
+   - **ARCH-SECURE — pass:** verifies Access before dispatch, constrains origin/IP provenance, isolates capability display, and limits reset authority.
+   - **ARCH-ORDER — pass:** held completions exercise kill/open/reset ordering; cleanup uncertainty remains blocked.
+   - **ARCH-FUNERAL — pass:** connector, listener, request, session, and temporary-artifact ownership have teardown paths.
+   - **ARCH-EVOLVE — pass:** M2 reuses the existing additive latch format; preservation and strict-validation tests pass.
+
+   The core-concept tables match the delivered entities and separate future M3 work.
+
+7. **Plan revision recommendations**
+
+   None.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"8989756f-385d-429b-a2e1-f8c383f7db69","repository":"github.com/xianxu/pair","issue_id":"000759","recipe":"milestone-review","round":4,"attempt":1,"agent":"codex","root":"/Volumes/TestScratch/review-checkouts/bab8656804b275dd","reviewed_head":"752d2c38ea0d3284da31506872a6ed268f8b2adf","slot":"pair:6","requested_at":"2026-10-22T03:37:15.91833Z"},"phase":"finished","pid":53270,"started_at":"2026-10-22T03:37:16.195141Z","finished_at":"2026-10-22T03:39:59.768471Z","session_id":"01a161af-3ce8-72e3-95a8-83abc49f952e","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 3.612493875s
+head: "752d2c38ea0d3284da31506872a6ed268f8b2adf"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412
