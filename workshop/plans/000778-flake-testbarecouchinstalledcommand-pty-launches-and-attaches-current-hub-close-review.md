@@ -67,3 +67,86 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-21T23:55:55-07:00 (REWORK)
+
+| field | value |
+|-------|-------|
+| issue | 778 — flake: TestBareCouchInstalledCommand/pty_launches_and_attaches_current_hub |
+| repo | pair |
+| issue file | workshop/issues/000778-flake-testbarecouchinstalledcommand-pty-launches-and-attaches-current-hub.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 654e4cf0ca31c8f7aed298d3e0b5a6737b821206..b9ea92045914dc1017e4e59ab473c7c73c015fe8 |
+| command | sdlc close --issue 778 |
+| reviewer | codex (openai; author openai) |
+| isolation | fenced |
+| timestamp | 2026-10-21T23:55:55-07:00 |
+| verdict | REWORK |
+
+## Review
+
+```verdict
+verdict: REWORK
+confidence: high
+```
+
+The implementation passes the targeted review: both constructors share exclusive identity seeding, real allocation remains intact, and production admission and timeouts are unchanged. Whole-issue completion remains blocked by the required full-suite result on the integrated source: its receipt is still inflight.
+
+Done-when: current — it covers both constructors, allocator continuity, seed safety, PTY behavior, lint enforcement, and full-suite verification.
+
+```findings
+findings:
+  - id: new
+    severity: Important
+    kind: unverifiable
+    family: completion-requires-verification
+    title: |
+      Required full-suite pass is unavailable for the integrated source
+    detail: |
+      workshop/issues/000778-flake-testbarecouchinstalledcommand-pty-launches-and-attaches-current-hub.md:51 marks verification complete, but line 134 records the replacement suite as queued. Checking the host test-stats/attempts/fa50b4670ad83418945dc02f84c68676.json found no completed receipt; its inflight directory exists. The verified older pass, 54cda992757ffb884f353a200db8f185, covers f025dba4 before the operator-test integration. Family instances in this window are the checked Plan verification row and the outstanding final-source acceptance clause at line 45. Complete the existing run and provide its successful receipt plus matching raw-log hash for source d7198a27, whose executable source matches this head; otherwise fix failures and reverify.
+```
+
+1. **Strengths**
+
+   - Both authority constructors reuse `SeedCouchIdentity`; the collision fix covers the enumerated family.
+   - Exclusive creation preserves existing files, while bounds reject invalid seeds and allocator exhaustion.
+   - Constructor tests exercise the real allocator; the installed PTY assertion derives its expected tag from C.
+   - Atlas documents ownership and the AST guard’s limitations. No new user-facing command requires README changes.
+
+2. **Critical findings:** None.
+
+3. **Important findings:** The final-source full-suite evidence above. Finish the retained run and record its result before claiming completion.
+
+4. **Minor findings:** None.
+
+5. **Test coverage notes**
+
+   Independently passed affected packages (`testpair`, `testcouch`, `repolint`, `artifactpath`), installed PTY and pipe-refusal tests, constructor isolation, operator executable tests, focused seed race tests, and affected-reader inventory. Verified the older successful suite’s raw-log hash and retained native/compile-failure hashes. These establish useful evidence but do not replace the outstanding integrated suite.
+
+6. **Architectural notes**
+
+   - **ARCH-DRY: pass** — one helper serves both consumers.
+   - **ARCH-PURE: pass** — seed calculation and AST matching remain separate from fixture IO.
+   - **ARCH-PURPOSE: flag** — implementation scope is delivered; required completion evidence remains outstanding.
+   - **ARCH-EVOLVE: pass** — no production format change or existing-record rewrite is introduced.
+
+7. **Plan revision recommendations**
+
+   Add a `## Revisions` entry marking final integrated verification pending, then replace that status with the completed receipt and log hash when available.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"78c86080-faf8-479a-9818-ca2270bf3a63","repository":"github.com/xianxu/pair","issue_id":"000778","recipe":"small-diff-review","round":2,"attempt":1,"agent":"codex","root":"/Volumes/TestScratch/review-checkouts/f8f9caa8172f3cde","reviewed_head":"b9ea92045914dc1017e4e59ab473c7c73c015fe8","slot":"pair:5","requested_at":"2026-10-22T06:53:14.861163Z"},"phase":"finished","pid":37249,"started_at":"2026-10-22T06:53:15.026792Z","finished_at":"2026-10-22T06:55:53.49976Z","session_id":"01a16262-a94e-7e81-a352-341b12238112","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 3.054906875s
+head: "b9ea92045914dc1017e4e59ab473c7c73c015fe8"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412

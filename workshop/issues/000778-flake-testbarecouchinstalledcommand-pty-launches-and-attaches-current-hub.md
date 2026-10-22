@@ -48,7 +48,7 @@ Alternatives: socket-only isolation is insufficient because census is host-wide;
 
 - [x] Reproduce independent installed-environment name equality deterministically; retain the saved #775/#757 failure references and source trace.
 - [x] Add one exclusive fixture-authority initializer, apply it to installedEnv and testcouch roots, derive the installed launch expectation, and enforce both constructors in Pair's lint catalog with positive/negative tests.
-- [x] Run targeted allocator/constructor/PTY/lint checks and inventory preflight, and record a passing full suite. The SDLC close/landing receipts then own closure and retirement of the flake registration.
+- [ ] Run targeted allocator/constructor/PTY/lint checks and inventory preflight, and record a passing full suite. The SDLC close/landing receipts then own closure and retirement of the flake registration.
 
 ## Log
 
@@ -132,3 +132,9 @@ Existing operator unavailable/lifecycle executable tests then PASS10.027s, inclu
 ### 2026-10-21 23:54 — corrected integrated suite retained; renewed review
 
 Published final code d7198a27791bfac191552e79b19ea45ed6e93f40 to PR536. Fresh recorded suite lease3582875921, attemptfa50b4670ad83418945dc02f84c68676, checkout /Volumes/TestScratch/local-checks/sdlc-local-2671769656, is queued position1 behind ariadne:1. Keep session92771; no duplicate or restart while queued/running. Renew close review during the queue wait under tl-worker explicit overlap rule; the recorded pass on this final code still must precede landing, and any review code fix requires re-verification. No final suite pass or landing claimed yet.
+
+### 2026-10-21 23:57 — BR-1: integrated verification explicitly pending
+
+Renewed review independently passed affected packages, installed PTY/pipe refusal, constructor isolation, operator executables, focused seed races and reader inventory, with no code finding. It returned REWORK solely because final integrated source d7198a27 still has an inflight suite, while the Plan verification row retained its earlier checked state. Uncheck that row until lease3582875921 completes; the older f025dba4 full-suite pass remains historical evidence only. This is the completion-requires-verification family: both the active checklist and final-source acceptance clause remain outstanding. No new implementation behavior or test-head change. Record the completed matching receipt/log hash before claiming addressed and rerunning close.
+
+The close timing report adopted4.41h, including a dominant213.9m segment containing about187m of retained train waiting and periodic status polls. Filed ariadne#547 unclaimed to investigate conductor-owned wait attribution; do not hand-edit measured actuals or infer that all213.9m was pure waiting.
