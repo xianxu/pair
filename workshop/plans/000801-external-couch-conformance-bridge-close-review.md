@@ -105,3 +105,115 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-22T15:05:42-07:00 (REWORK)
+
+| field | value |
+|-------|-------|
+| issue | 801 — External hold-open Couch conformance bridge |
+| repo | pair |
+| issue file | workshop/issues/000801-external-couch-conformance-bridge.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 651e30092e7ca245e5537ba1450b7ea7eb36ddae..a7083ce3621a294233a8a513e4d93462d00ece7a |
+| command | sdlc close --issue 801 |
+| reviewer | codex (openai; author openai) |
+| isolation | fenced |
+| timestamp | 2026-10-22T15:05:42-07:00 |
+| verdict | REWORK |
+
+## Review
+
+```verdict
+verdict: REWORK
+confidence: high
+```
+
+All three prior findings are addressed, with regression evidence for both behavioral fixes. The bridge has clear ownership, bounded IO, and meaningful cancellation tests. One additional compatibility regression blocks shipping: the existing `Build(t)` wrapper ignores the suite-selected Pair executable and silently builds another.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      Exact-member decoding covers registration, nested document identity, and endpoint replies. Existing regression tests pass at head and fail when the pre-fix native.go is restored, including case-shadow and null-error controls.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      Build's default selection now uses the shared canonicalization helper. TestDefaultBuildConfigCanonicalizesTempAliasWithoutScratchVolume passes at head and fails with canonicalization removed; explicit aliases remain rejected before effects.
+  - id: BR-3
+    disposition: addressed
+    note: |
+      Plan lines 27-46 now identify Options, State/Event/Reduce, RunBridge, BridgeIO in run.go, and the concrete native/pipe/diagnostic adapters. The close BR-3 Revision also maps earlier strategy labels to implemented functions.
+findings:
+  - id: new
+    severity: Critical
+    kind: defect
+    family: legacy-wrapper-compatibility
+    title: |
+      Legacy Build ignores the suite-selected Pair candidate
+    detail: |
+      cmd/internal/testcouch/binaries.go:38 routes Build(t) through BuildOwned, whose owner_build.go:227 calls PlaceCandidate without Candidate; candidate.go:49 therefore supplies an empty PAIR_TEST_BINARY and rebuilds Pair. Previously Build used testpair.AtContext, honoring the suite candidate documented at README.md:2060-2069. Targeted qualification can consequently exercise a different executable from the one requested. An injected-tool regression fails on the pinned head and passes with the original Build implementation. ARCH-PURPOSE: preserve candidate-selection behavior at the testing wrapper while keeping standalone BuildOwned isolated from ambient candidate selection.
+      This is the 2nd finding in family `legacy-wrapper-compatibility`. Earlier rounds fixed instances. Do NOT fix this instance alone: state and enforce the rule that existing testing wrappers preserve legacy selection and ownership policies while standalone entrypoints use explicit isolated inputs. Sweep Build/New and candidate placement together. The affected Build consumer enumeration contains three direct callers across two packages: TestDisposableCouchFleet, TestDisposableCouchStartupBudget, and TestLiveProvenOrphanReap. Commit regression coverage for supplied-candidate reuse, unset-candidate fallback, candidate lifetime, and standalone isolation.
+```
+
+1. **Strengths**
+
+   - Readiness requires actual registration and successful public endpoint replies, with strict consumed fields and additive metadata tolerance.
+   - The pure reducer handles duplicate and late events; generated sequence tests assert independent invariants.
+   - Pipe cancellation and nonblocking diagnostics prevent unread output from indefinitely blocking cleanup.
+   - README and atlas updates cover the executable, environment replacement, bounds, and cleanup contract.
+
+2. **Critical findings**
+
+   The candidate-selection regression above violates the promised wrapper compatibility. Carry the legacy resolver’s selection explicitly through the shared placement seam, retaining strict standalone isolation.
+
+3. **Important findings**
+
+   None additional.
+
+4. **Minor findings**
+
+   None.
+
+5. **Test coverage notes**
+
+   Passed complete portable tests for `testcouch`, `testcouchbridge`, the bridge CLI, `testpair`, and `couchmessage`; bridge and CLI race tests also passed.
+
+   Both prior behavioral fixes produced failing regression tests when removed. The new compatibility test failed at head and passed with original Build behavior. Disposable test copies were removed; the reviewed checkout remains unchanged.
+
+   Retained native/consumer log hashes match their evidence records. Native qualification was not rerun during this review.
+
+6. **Architectural notes**
+
+   | Marker | Result |
+   |---|---|
+   | ARCH-DRY | Pass: shared fleet ownership and candidate-placement seams. |
+   | ARCH-PURE | Pass: options, readiness validation, and reducer tests require no IO. |
+   | ARCH-PURPOSE | **Flag:** legacy candidate-selection contract is lost. |
+   | ARCH-MOCK | Pass: injected owner, command, and pipe seams support controlled failures. |
+   | ARCH-CONSTRAINTS | Pass: absolute deadlines, output caps, and blocked-pipe controls. |
+   | ARCH-SECURE | Pass: strict response parsing and private runtime environment. |
+   | ARCH-ORDER | Pass: reducer-driven phases and causal cancellation tests. |
+   | ARCH-FUNERAL | Pass: joined cleanup removes owned roots; uncertainty retains evidence. |
+   | ARCH-EVOLVE | Pass: no persisted-format rewrite introduced; opaque response metadata remains tolerated. |
+
+7. **Plan revision recommendations**
+
+   Add a `## Revisions` entry defining the compatibility rule for testing wrappers versus standalone owners, enumerating the affected consumers, and naming the regression tests that enforce candidate selection and lifetime.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"7425ce25-1693-49f2-a410-f51e0bf5172d","repository":"github.com/xianxu/pair","issue_id":"000801","recipe":"milestone-review","round":2,"attempt":1,"agent":"codex","root":"/Volumes/TestScratch/review-checkouts/ea5be700998fe23d","reviewed_head":"a7083ce3621a294233a8a513e4d93462d00ece7a","slot":"pair:7","requested_at":"2026-10-22T22:01:51.515836Z"},"phase":"finished","pid":42558,"started_at":"2026-10-22T22:01:51.632722Z","finished_at":"2026-10-22T22:05:41.323822Z","session_id":"01a165a2-8479-79c2-aa34-86463ebf18b1","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 2.204567583s
+head: "a7083ce3621a294233a8a513e4d93462d00ece7a"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412

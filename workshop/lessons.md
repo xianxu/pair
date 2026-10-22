@@ -2669,3 +2669,5 @@ and external temporary roots rather than relying on the host's TMPDIR.
 - #801 BR-1: duplicate-key checks alone do not make encoding/json authority decoding strict: project exact required names, reject case-fold aliases and null scalar fields, then decode only the owned subset; preserve additive metadata without interpreting its numbers.
 - #801 BR-2: a strict extracted API must not accidentally tighten legacy wrapper defaults. Share default canonicalization across wrappers and test a real temp alias with the preferred scratch volume absent; explicit caller paths retain strict admission.
 - #801 BR-3: reconcile plan concept tables against actual exported symbols/files before close, including concrete native and IO adapters; illustrative names are not an implementation map.
+
+- #801 BR-4: extracting a strict standalone owner must preserve the old testing wrapper’s selection and ownership contract as a whole: suite-selected candidate, once-built process fallback, copied placement and separate source lifetime. Test supplied/unset selection and cleanup together; ambient isolation belongs at the standalone boundary, not as an accidental change to legacy wrappers.
