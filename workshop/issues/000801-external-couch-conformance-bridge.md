@@ -62,3 +62,8 @@ Durable implementation plan: [external Couch bridge](../plans/000801-external-co
 ### 2026-10-22 — planning catch-up seed recovery
 
 First start-plan catch-up regenerated .github/workflows/merge-check.yml and correctly refused a dirty resting branch (ariadne#557). Followed authenticated hub26eccf46: saved the920-byte diff to /Volumes/TestScratch/tmp/pair-slot7/pair801-ariadne557-seeded-94ukwvc8.patch, restored only that seeded file, then re-ran bare start-plan successfully. No workflow change is part of #801; local-gates verification is never self-applied.
+
+
+### 2026-10-22 — consumer contract confirmed and hub approval complete
+
+Hub0cdb7c57 approves subject to consumer confirmation; canonical consumerd0f4eb15 confirms all proposed bounds/argv/envelope with the parent-plus-side-doc layout now specified in the durable plan Revisions. Ordered Documents are artifacts/first.md and artifacts/first.side/second.md (type: side-doc, parent: ../first.md), with distinct registry IDs in Namespace. Keep invocation-PATH-selected native nvim for separate0.11.7/0.12.5 qualification; parent allows630s, closes editors before EOF and retains uncertain evidence. No additional envelope fields or CLI verbs. Proceed to plan-quality/change-code; no implementation before it clears. #739 is separately pushed ready at96062db5b1a73fe327f171b1e93e7a28966d1068 and remains unstaged per hub; it is never stacked into this branch.
