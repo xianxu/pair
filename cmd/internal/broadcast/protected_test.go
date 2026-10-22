@@ -355,6 +355,30 @@ func TestProtectedUsesExistingGuardAndNamedLease(t *testing.T) {
 	}
 }
 
+func TestProtectedFixtureOwnsShortSocketRootWithLongTemp(t *testing.T) {
+	long := filepath.Join(t.TempDir(), strings.Repeat("long-temp-", 12))
+	if err := os.MkdirAll(long, 0700); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("TMPDIR", long)
+	var root string
+	t.Run("owned listener", func(t *testing.T) {
+		root = shortDir(t)
+		listener, err := listenProtected(root)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := listener.Close(); err != nil {
+				t.Error(err)
+			}
+		})
+	})
+	if _, err := os.Stat(root); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("fixture left its owned root: %v", err)
+	}
+}
+
 type exitedProtectedFixture struct{ *FakeProtectedTunnel }
 
 func (f exitedProtectedFixture) Open(ctx context.Context, l net.Listener) (Handle, error) {

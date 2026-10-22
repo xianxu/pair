@@ -7,6 +7,8 @@ representative evidence, not an exhaustive index.
 
 ## Proof and verification
 
+- #759 M2 BR-5: A short allocation prefix does not bound a Unix socket path when MkdirTemp inherits a long TMPDIR. Use the shared canonical short-root owner, include the full socket suffix in the budget, qualify a long inherited parent, and prove cleanup. Pin shared fixture allocators in the local lint catalog.
+
 - #759 M1: classify actual owner types by their effects, including entropy and mutex-owned revocation; identify real pure predicates instead of naming a pure type the code never implements. Verify each delivered concept against its actual declaration and file, splitting rows by location. Generated lifecycle coverage needs an independent ownership oracle and held admission boundaries; a goroutine wave alone proves no ordering.
 
 - Start a shutdown grace clock after delivering its triggering signal; allocating it earlier silently spends the grace under preemption. Pin signal/clock order and exactly-once cleanup through a deterministic clock factory. (#776)

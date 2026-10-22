@@ -732,6 +732,313 @@ rounds:
       isolation: fenced
       reviewed: 2b756859f919eba69768c49f84a37f2b6773ea60
       blocked: false
+    - reviewer_runs:
+        - version: 1
+          intent:
+            disposable_root: true
+            id: 15e65b8e-c3ec-4409-92da-5170e3a6d62d
+            repository: github.com/xianxu/pair
+            issue_id: "000759"
+            recipe: milestone-review
+            round: 1
+            attempt: 1
+            agent: codex
+            root: /Volumes/TestScratch/review-checkouts/3a08aa98dd330c57
+            reviewed_head: 42aeb9140798b7d56d968af0986973da83df344c
+            slot: pair:6
+            requested_at: "2026-10-22T03:02:22.090869Z"
+          phase: finished
+          pid: 127
+          started_at: "2026-10-22T03:02:22.243445Z"
+          finished_at: "2026-10-22T03:06:05.390785Z"
+          session_id: 01a1618f-48aa-76d0-9b37-a50490e4a17e
+          outcome: returned
+      actual_inputs:
+        version: 1
+        method: active-time-v3-engagement-queue-v1
+        repository: github.com/xianxu/pair
+        code_head: 42aeb9140798b7d56d968af0986973da83df344c
+        tracker_head: 2d0ba304b5df8d59e442953e8d324ba70f7bdb38
+        branch_point: 6f1c0c8577746dd88ed0a2b57298caf3fd3e0d0d
+        since: "2026-10-21T01:17:25-07:00"
+        until: "2026-10-21T20:01:10-07:00"
+        brain_root: /Users/xianxu/workspace/brain
+        gap_minutes: 15
+        commit_weight: 1
+        include_assistant: true
+        engagements:
+            - start: "2026-10-21T01:17:25-07:00"
+              end: "2026-10-21T20:01:10-07:00"
+              began: "2026-10-21T01:17:25-07:00"
+              roots:
+                - /Users/xianxu/workspace/worktree/pair-slot6/pair
+        sources:
+            - harness: codex
+              id: 01a14b2c-9890-74f3-a738-58879659bef5
+              slot: pair:6
+              cwd: /Users/xianxu/workspace/worktree/pair-slot6/pair
+              digest: 948b9bf9bc8301220d720b975cabe9146f463c4a9780e0593c033c122222514e
+              started: "2026-10-17T18:42:56.865Z"
+              spawned: false
+              bytes: 93535260
+              windows:
+                - start: "2026-10-21T01:17:25-07:00"
+                  end: "2026-10-21T20:01:10-07:00"
+            - harness: codex
+              id: 01a15d89-a169-7cd2-9406-165d31bb6bfc
+              slot: pair:6
+              cwd: /Users/xianxu/workspace/worktree/pair-slot6/pair
+              parent_id: 01a14b2c-9890-74f3-a738-58879659bef5
+              digest: 229f06a727fc87097b39cb5bf3eeb0dd5421fb1ee4ecf391b3fb77a12cb2df39
+              started: "2026-10-21T08:17:43.497Z"
+              spawned: true
+              bytes: 907607
+              windows:
+                - start: "2026-10-21T08:17:43.497Z"
+                  end: "2026-10-21T20:01:10-07:00"
+            - harness: codex
+              id: 01a15d89-c0d9-73b3-ad3e-30eb355cce91
+              slot: pair:6
+              cwd: /Users/xianxu/workspace/worktree/pair-slot6/pair
+              parent_id: 01a14b2c-9890-74f3-a738-58879659bef5
+              digest: 3b682eadb3c40b674e9f0f1be401d16eafaa05b29a575894acb3f3a9ecd381d1
+              started: "2026-10-21T08:17:51.497Z"
+              spawned: true
+              bytes: 776410
+              windows:
+                - start: "2026-10-21T08:17:51.497Z"
+                  end: "2026-10-21T20:01:10-07:00"
+            - harness: codex
+              id: 01a15d92-c2c0-7452-9005-9f0932709c33
+              slot: pair:6
+              cwd: /Users/xianxu/workspace/worktree/pair-slot6/pair
+              parent_id: 01a14b2c-9890-74f3-a738-58879659bef5
+              digest: 9b41ad0acc298dcf0ee5bf7d7fb9495b312313eb4e5f9427bd11797cb77294fa
+              started: "2026-10-21T08:27:41.722Z"
+              spawned: true
+              bytes: 314006
+              windows:
+                - start: "2026-10-21T08:27:41.722Z"
+                  end: "2026-10-21T20:01:10-07:00"
+            - harness: codex
+              id: 01a15f24-5859-7ec1-82e7-fb5e8400f798
+              slot: pair:6
+              cwd: /Users/xianxu/workspace/worktree/pair-slot6/pair
+              parent_id: 01a14b2c-9890-74f3-a738-58879659bef5
+              digest: 12e9e5f81d984dbaf271ac59fa845f90bb96083c778e1641c509519ceab9e14b
+              started: "2026-10-21T15:46:19.964Z"
+              spawned: true
+              bytes: 730135
+              windows:
+                - start: "2026-10-21T15:46:19.964Z"
+                  end: "2026-10-21T20:01:10-07:00"
+            - harness: codex
+              id: 01a15f38-fdb4-7303-987f-6135f4bab39b
+              slot: pair:6
+              cwd: /Users/xianxu/workspace/worktree/pair-slot6/pair
+              digest: e267beb1c1f03db3a63daeed9c69841371e77333cafdbba9b66695aa6581393e
+              started: "2026-10-21T16:08:53.326Z"
+              spawned: false
+              bytes: 718469
+              windows:
+                - start: "2026-10-21T16:08:53.326Z"
+                  end: "2026-10-21T20:01:10-07:00"
+            - harness: codex
+              id: 01a15f3d-2459-7730-b0c5-4c4653a1f610
+              slot: pair:6
+              cwd: /Users/xianxu/workspace/worktree/pair-slot6/pair
+              digest: eaab9e42186411b1ee977c4c7f2f7d882f362bc9525036f9d56ff9b092418589
+              started: "2026-10-21T16:13:25.886Z"
+              spawned: false
+              bytes: 557947
+              windows:
+                - start: "2026-10-21T16:13:25.886Z"
+                  end: "2026-10-21T20:01:10-07:00"
+            - harness: codex
+              id: 01a15f3f-2ab4-75b0-9b7e-09a8c722eed8
+              slot: pair:6
+              cwd: /Users/xianxu/workspace/worktree/pair-slot6/pair
+              digest: c0a5d1a77fe6a020b287d4b477f265ade84ba239fb1fd4bab1fc84524bf7ba32
+              started: "2026-10-21T16:15:38.113Z"
+              spawned: false
+              bytes: 498949
+              windows:
+                - start: "2026-10-21T16:15:38.113Z"
+                  end: "2026-10-21T20:01:10-07:00"
+            - harness: codex
+              id: 01a15f55-59bd-7770-a306-ac6bcff40a16
+              slot: pair:6
+              cwd: /Users/xianxu/workspace/worktree/pair-slot6/pair
+              digest: ddced05de91003e084dfe223c2111af8d5f653607c735afdc4381b405e69e7ae
+              started: "2026-10-21T16:39:52.197Z"
+              spawned: false
+              bytes: 513630
+              windows:
+                - start: "2026-10-21T16:39:52.197Z"
+                  end: "2026-10-21T20:01:10-07:00"
+            - harness: codex
+              id: 01a15f55-cc00-7781-a1ad-cded8f1e13ae
+              slot: pair:6
+              cwd: /Users/xianxu/workspace/worktree/pair-slot6/pair
+              digest: 49c12f1dddd3b1ba45b76ca35fd082b16cb14b01299a5681cec229b3d9f2b606
+              started: "2026-10-21T16:40:21.051Z"
+              spawned: false
+              bytes: 478993
+              windows:
+                - start: "2026-10-21T16:40:21.051Z"
+                  end: "2026-10-21T20:01:10-07:00"
+            - harness: codex
+              id: 01a15f56-fc31-7962-82c4-5df123cb9eee
+              slot: pair:6
+              cwd: /Users/xianxu/workspace/worktree/pair-slot6/pair
+              digest: d79025ea7f3fab4a41b3f10c4161f8da54c3a1e2ce922ec06cc58e38d486bcd1
+              started: "2026-10-21T16:41:38.96Z"
+              spawned: false
+              bytes: 503867
+              windows:
+                - start: "2026-10-21T16:41:38.96Z"
+                  end: "2026-10-21T20:01:10-07:00"
+            - harness: codex
+              id: 01a15f57-bdca-78c1-9aa2-c8215b2a5ada
+              slot: pair:6
+              cwd: /Users/xianxu/workspace/worktree/pair-slot6/pair
+              parent_id: 01a14b2c-9890-74f3-a738-58879659bef5
+              digest: c40d48a254a41f95f4d73443d5d778c2c05693dad5ecf00e688c551c67830249
+              started: "2026-10-21T16:42:28.372Z"
+              spawned: true
+              bytes: 470181
+              windows:
+                - start: "2026-10-21T16:42:28.372Z"
+                  end: "2026-10-21T20:01:10-07:00"
+            - harness: codex
+              id: 01a15f6f-6cb2-76a1-9f8d-ad03228a1dba
+              slot: pair:6
+              cwd: /Users/xianxu/workspace/worktree/pair-slot6/pair
+              parent_id: 01a14b2c-9890-74f3-a738-58879659bef5
+              digest: fc65f564ea69e073d74bdc167bc008d875890b4d73acddc884435abd68198265
+              started: "2026-10-21T17:08:20.452Z"
+              spawned: true
+              bytes: 558180
+              windows:
+                - start: "2026-10-21T17:08:20.452Z"
+                  end: "2026-10-21T20:01:10-07:00"
+            - harness: codex
+              id: 01a15f86-bb18-7030-a44c-3328ff9d0870
+              slot: pair:6
+              cwd: /Users/xianxu/workspace/worktree/pair-slot6/pair
+              parent_id: 01a14b2c-9890-74f3-a738-58879659bef5
+              digest: a771fa8fe52cd10613e45c7b4a892ea11b5516be4db6b495088644d4ace20536
+              started: "2026-10-21T17:33:47.966Z"
+              spawned: true
+              bytes: 406808
+              windows:
+                - start: "2026-10-21T17:33:47.966Z"
+                  end: "2026-10-21T20:01:10-07:00"
+            - harness: codex
+              id: 01a15f96-84fc-7261-97a7-553e48f2d938
+              slot: pair:6
+              cwd: /Users/xianxu/workspace/worktree/pair-slot6/pair
+              parent_id: 01a14b2c-9890-74f3-a738-58879659bef5
+              digest: 104e313203fac9426215d84786d7b9a689757f22e8634e1afe9ed22ab7f3a05d
+              started: "2026-10-21T17:51:02.624Z"
+              spawned: true
+              bytes: 860927
+              windows:
+                - start: "2026-10-21T17:51:02.624Z"
+                  end: "2026-10-21T20:01:10-07:00"
+            - harness: codex
+              id: 01a15fa6-7a49-7ac3-95e6-f82528430f1d
+              slot: pair:6
+              cwd: /Users/xianxu/workspace/worktree/pair-slot6/pair
+              parent_id: 01a14b2c-9890-74f3-a738-58879659bef5
+              digest: 9c477816f67a169e566079dcfe841dfc8a3dd926e75221840079e7547c870c13
+              started: "2026-10-21T18:08:28.345Z"
+              spawned: true
+              bytes: 5323290
+              windows:
+                - start: "2026-10-21T18:08:28.345Z"
+                  end: "2026-10-21T20:01:10-07:00"
+            - harness: codex
+              id: 01a15fb2-92b8-7711-ae8e-631cf0e45fa6
+              slot: pair:6
+              cwd: /Users/xianxu/workspace/worktree/pair-slot6/pair
+              parent_id: 01a14b2c-9890-74f3-a738-58879659bef5
+              digest: 12399a699652aed9e2ade1c011707a0ac508ae134de6c9958afdf5524e079fed
+              started: "2026-10-21T18:21:41.01Z"
+              spawned: true
+              bytes: 2628013
+              windows:
+                - start: "2026-10-21T18:21:41.01Z"
+                  end: "2026-10-21T20:01:10-07:00"
+        queue_waits:
+            - attempt_id: a48be8a3166aeb1e17758d46293866cd
+              slot: pair:6
+              record_digest: 75dcffa3d6bf7ee4a156d18c6c1483ed0de963e3e1345a5998db9a564c36681b
+              start: "2026-10-21T20:44:59.554223Z"
+              end: "2026-10-21T22:12:14.38113Z"
+              queue_seconds: 5234.826907
+              raw_seconds: 5234.826907
+              exact: true
+            - attempt_id: 4a8f50e91e681565b1c866672b4c8be0
+              slot: pair:6
+              record_digest: 9c94f08f0d4ee37d639b0fd464b859966b6665f28d1b3f5aaa6af26d00093f99
+              start: "2026-10-21T22:29:38.122755Z"
+              end: "2026-10-21T23:37:32.147137Z"
+              queue_seconds: 4074.024382
+              raw_seconds: 4074.024382
+              exact: true
+        protected:
+            - issue: "776"
+              slot: pair:6
+              start: "2026-10-21T19:04:21.875Z"
+              end: "2026-10-21T19:56:16.989Z"
+            - issue: "776"
+              slot: pair:6
+              start: "2026-10-21T20:02:17.644Z"
+              end: "2026-10-21T13:05:15-07:00"
+            - issue: "776"
+              slot: pair:6
+              start: "2026-10-21T13:05:15-07:00"
+              end: "2026-10-21T13:08:17-07:00"
+            - issue: "776"
+              slot: pair:6
+              start: "2026-10-21T13:09:45-07:00"
+              end: "2026-10-21T20:42:21.211Z"
+        cuts:
+            - boundary: M1
+              dispatched: "2026-10-21T10:47:22-07:00"
+              finalized: "2026-10-21T10:49:45-07:00"
+              finalizing: false
+            - boundary: M1
+              dispatched: "2026-10-21T10:58:35-07:00"
+              finalized: "2026-10-21T11:00:49-07:00"
+              finalizing: false
+            - boundary: M1
+              dispatched: "2026-10-21T11:03:32-07:00"
+              finalized: "2026-10-21T11:05:07-07:00"
+              finalizing: true
+      "n": 4
+      timestamp: "2026-10-21T20:06:07-07:00"
+      dispatched: "2026-10-21T20:02:19-07:00"
+      agent: codex
+      reviewer: codex (openai; author openai)
+      findings:
+        - id: BR-5
+          severity: Important
+          title: Allocate a sufficiently short directory for the protected lease test
+          detail: 'cmd/internal/broadcast/protected_test.go:318 uses shortDir(t), which nests beneath the inherited TMPDIR; listenProtected then adds another directory and socket suffix. On this macOS host, go test ./cmd/internal/broadcast -run ''^TestProtectedUsesExistingGuardAndNamedLease$'' -count=1 consistently fails at line 326 with "protected Unix socket path too long", before exercising the guard or lease. ARCH-CONSTRAINTS: allocate an owned, cleaned-up short directory with room for the complete socket path. The same test passes with TMPDIR=/tmp; retain the production refusal for oversized paths.'
+          family: test-operating-envelope
+          round: 4
+        - id: BR-6
+          severity: Minor
+          title: Keep notification help beneath its command
+          detail: cmd/internal/couchcmd/run.go:1504 inserts --remote between the --notify synopsis and its three explanatory lines. Those lines now appear to describe --remote. Move the remote synopsis after the complete notification help block.
+          family: cli-help-context
+          round: 4
+      boundary: M2
+      recipe: milestone-review
+      isolation: fenced
+      blocked: true
 ---
 
 # Gate ledger — pair#759 (boundary-review)
@@ -772,6 +1079,16 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - BR-3 — addressed — Retained: publication.go uses canonical bounded staging slots; publication_test.go covers all four owners, interrupted recovery, foreign-file preservation, and unsafe-slot refusal.
 - BR-4 — addressed — The pinned before/after diff splits the former protocol.go row: plan lines 94–95 now place DocumentResult in documents.go, matching its declaration at documents.go:18. All delivered rows were checked against declarations and effects; the correction is recorded under Revisions at line 354. This is prose-only.
 
+## Round 4 — 2026-10-21T20:06:07-07:00 (codex) — BLOCKED
+
+### Raised
+
+- **BR-5** [Important] `test-operating-envelope` Allocate a sufficiently short directory for the protected lease test
+  cmd/internal/broadcast/protected_test.go:318 uses shortDir(t), which nests beneath the inherited TMPDIR; listenProtected then adds another directory and socket suffix. On this macOS host, go test ./cmd/internal/broadcast -run '^TestProtectedUsesExistingGuardAndNamedLease$' -count=1 consistently fails at line 326 with "protected Unix socket path too long", before exercising the guard or lease. ARCH-CONSTRAINTS: allocate an owned, cleaned-up short directory with room for the complete socket path. The same test passes with TMPDIR=/tmp; retain the production refusal for oversized paths.
+- **BR-6** [Minor] `cli-help-context` Keep notification help beneath its command
+  cmd/internal/couchcmd/run.go:1504 inserts --remote between the --notify synopsis and its three explanatory lines. Those lines now appear to describe --remote. Move the remote synopsis after the complete notification help block.
+
 ## Open findings
 
-(none — every finding has been disposed)
+- **BR-5** [Important] `test-operating-envelope` Allocate a sufficiently short directory for the protected lease test
+- **BR-6** [Minor] `cli-help-context` Keep notification help beneath its command

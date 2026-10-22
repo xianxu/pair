@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/xianxu/pair/cmd/internal/procutil"
+	"github.com/xianxu/pair/cmd/internal/testpair"
 	"github.com/xianxu/pair/cmd/internal/testwait"
 )
 
@@ -23,12 +24,7 @@ import (
 // unix socket path (t.TempDir can exceed macOS's 104-byte sun_path).
 func shortDir(t *testing.T) string {
 	t.Helper()
-	dir, err := os.MkdirTemp("", "cb")
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { os.RemoveAll(dir) })
-	return dir
+	return testpair.ShortRoot(t)
 }
 
 // fakeCloudflared writes an executable named cloudflared that runs body,

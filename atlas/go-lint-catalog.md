@@ -263,3 +263,18 @@ This narrow syntax guard detects deletion of the observation, including ordinary
 error paths and misleading comments. It does not prove ordering, control flow,
 exec.Cmd aliases or indirect calls; the real completion-path regressions cover
 success, signal, cancellation and leader-first descendants with open/closed pipes.
+
+
+## Broadcast socket fixture roots (#759 BR-5)
+
+The Pair-local `broadcast-short-root` rule is owned by
+`internal/repolint/broadcast_short_root_test.go` and registered in pairCatalog.
+It requires the shared broadcast `shortDir` allocator to return the imported
+`testpair.ShortRoot` directly. That owner chooses a canonical, private short
+root with cleanup and a budget for the complete Unix socket pathname, even
+when inherited TMPDIR is long. The protected-listener regression exercises
+a deliberately long temp parent and verifies listener/root cleanup.
+
+This guard pins one fixture seam syntactically; it does not analyze aliases,
+indirect helper calls, arbitrary allocations or Go control flow. The runtime
+regression proves the path budget; production oversized-path refusal is unchanged.

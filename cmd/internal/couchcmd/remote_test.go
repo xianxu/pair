@@ -12,6 +12,19 @@ import (
 	"github.com/xianxu/pair/cmd/internal/couchmessage"
 )
 
+func TestRemoteHelpKeepsNotificationDetailsTogether(t *testing.T) {
+	var out bytes.Buffer
+	usage(&out)
+	help := out.String()
+	notify := strings.Index(help, "couch --notify")
+	detail := strings.Index(help, "Only a live hub notifies")
+	end := strings.Index(help, "Uncertain write: do not retry automatically.")
+	remote := strings.Index(help, "couch --remote")
+	if notify < 0 || detail <= notify || end <= detail || remote <= end {
+		t.Fatal("notification details must precede the remote synopsis")
+	}
+}
+
 func TestRemoteCLIClosedActionsAndNoLink(t *testing.T) {
 	for _, action := range []string{"on", "off", "status"} {
 		inv, err := ParseCLI([]string{"--remote", action}, nil)

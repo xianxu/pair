@@ -303,3 +303,15 @@ Authenticated TLcd9681ea lifted the push hold. First M2 milestone-close refused 
 
 
 Combined-head qualification after the freshness merge: remote/supervisor/protected race checks PASS (remotesession4.567s, broadcast4.472s, couchtty1.919s, couchcmd2.036s); full repolint20.091s/artifactpath29.699s PASS; reader inventory --check PASS. PR538 opened through sdlc pr after DNS recovery. Queue exactly one recorded affected/full-fallback check on this pushed combined code, then overlap mandatory M2 boundary review per worker rules. No full-suite result or M2 completion claimed yet.
+
+
+### 2026-10-21 — M2 review round1, fixture portability and help corrections
+
+M2 review found no production security defect. BR-5 Important identified the shared broadcast shortDir helper's false path-budget assumption: os.MkdirTemp with an empty base inherits potentially long TMPDIR, so TestProtectedUsesExistingGuardAndNamedLease refused its socket before exercising guard/lease. BR-6 Minor found the new --remote synopsis split the --notify explanation. The binary returned FIX-THEN-SHIP but did NOT finalize because BR-5 remains open; therefore fixes require another milestone-close review, not a ledger bypass.
+
+Canceled only own queued recorded check lease-1415646751 through sdlc exact-run cancellation and joined it before edits. It never acquired suite capacity or ran tests; no test-failure/flake claim. New long-TMPDIR owned-listener regression RED0.248s (protected Unix socket path too long). New help-order regression RED0.385s. Shared shortDir now delegates to existing testpair.ShortRoot, fixing all broadcast fixture callers rather than only the reported lease test; that owner budgets canonical roots, prefers usable RAM scratch and registers cleanup. The new regression checks protected listener creation under a deliberately long parent and absence of its owned root after cleanup. Production socket-path refusal is unchanged. Moved remote help after the complete notify block. Focused protected/remote/notify race GREEN broadcast4.487s/couchcmd2.174s.
+
+Added the narrow Pair-local broadcast-short-root catalog rule to prevent the mechanical allocator regression; tests cover inherited allocation, t.TempDir, accepted imported helper and unrelated allocators. Atlas maps ownership and syntax limits. Audited changed reader inputs before updating only their per-file certificates; complete broadcast and catalog requalification pending below.
+
+
+Review corrections qualified: complete broadcast package PASS55.302s after the shared-root change; full repolint PASS17.332s and staged tracked-catalog/new-rule controls PASS4.737s; reader inventory --check PASS after individually re-auditing cloudflared/protected fixture readers and the new literal-AST rule test. Existing production oversized-path refusal controls remain in the passing broadcast set. Commit fixes/ledger/sidecar and queue exactly one replacement recorded check on the pushed corrected head. M2 remains unfinalized until the review disposes BR-5; no waiver or blind full-suite retry.
