@@ -41,9 +41,10 @@ Alternatives considered: only set maxRows=1 (reject: keeps every hub and provide
 | StatusGroupID / GroupCountSpan | cmd/internal/couchtty/reserve.go | new |
 | prepareCollapsedStatusChips / statusActorWeight | cmd/internal/couchtty/status_collapse.go | new |
 | RenderedStatusBar / renderStatusBar / prepareStatusChips | cmd/internal/couchtty/status_layout.go | modified |
-| MenuFrame / reduceKey | cmd/internal/couchtty/menu.go | modified |
+| MenuFrame / reduceRootKey | cmd/internal/couchtty/menu.go | modified |
 | scopedRootThreads | cmd/internal/couchtty/menu_reattach.go | new |
-| visibleMenuRows / reconcileRootSelection | cmd/internal/couchtty/menu_reattach.go | modified |
+| visibleMenuRows / reorderMenuInventory | cmd/internal/couchtty/menu_reattach.go | modified |
+| renderRootMenuFrame | cmd/internal/couchtty/menu_render.go | modified |
 
 TabStyle has one production default (collapse); legacy low-level render tests explicitly request multiline when that is their contract. Console defaults and CLI defaults derive from the same constant. Group identity owns no inventory; it references the existing presentation's owner/group keys. Candidates own per-frame actor cardinality and attention facts; emitted cells/spans die with that frame. A menu scope is optional root-frame state, not another inventory or a second owner resolver. Future style variants extend the enum/policy; no plugin framework is needed.
 
@@ -58,7 +59,7 @@ TabStyle has one production default (collapse); legacy low-level render tests ex
 | Chrome publication and clicks | cmd/internal/couchtty/terminal.go; terminal_input.go | modified | Presenter revision and mouse input |
 | openGroupSwitcher | cmd/internal/couchtty/console_group_menu.go | new | existing root-menu focus/refresh lifecycle |
 
-Reused unchanged: `console_chrome_layout.go` supplies birth/paint geometry through RenderStatusBar; `console_menu.go` supplies the existing show/refresh machinery. Style reaches both through the modified status-model projection, so those reused files require no diff.
+Reused unchanged: `console_chrome_layout.go` supplies birth/paint geometry through RenderStatusBar; `console_menu.go` supplies the existing show/refresh machinery. Style reaches both through the modified status-model projection, so those reused files require no diff. `reconcileRootSelection` in menu.go is also reused unchanged; modified visibleMenuRows supplies the exact scoped projection. Test helper reduceKey delegates to production ReduceMenu/reduceRootKey and is not a production entity.
 
 Use existing FakeHost, stateful FakeRunner, PresentThreads and disposable native test harnesses. No new external service, subprocess owner or persistence backend. Native geometry probes use exact event barriers and existing fixture cleanup, never timing as ordering.
 
@@ -108,7 +109,7 @@ Files: status_collapse.go/status_collapse_test.go; status_layout.go/status_layou
 
 Files: menu.go/menu_reattach.go and tests; console.go/console_menu.go; terminal.go/terminal_input.go; console_tabbar_mouse_test.go.
 
-- [x] Unit-test new `scopedRootThreads` (using `PresentThreads`) against equal labels across hubs and removed membership; guard: exact owner+group membership before text filtering, empty result never broadens. Unit-test `visibleMenuRows`/`reduceKey` against filter+scope combinations and nested returns; guard: selection remains visible, Escape clears filter then scope, ordinary reopen is global. Integration-test new `openGroupSwitcher` through `routeMouseEvent`/`commitChrome` with stale and stalled-writer revisions; guard: only confirmed drawn count opens scope, active child unchanged, zero action on absent span.
+- [x] Unit-test new `scopedRootThreads` (using `PresentThreads`) against equal labels across hubs and removed membership; guard: exact owner+group membership before text filtering, empty result never broadens. Unit-test `visibleMenuRows`/`ReduceMenu`/`reduceRootKey` against filter+scope combinations and nested returns; guard: selection remains visible, Escape clears filter then scope, ordinary reopen is global. Integration-test new `openGroupSwitcher` through `routeMouseEvent`/`commitChrome` with stale and stalled-writer revisions; guard: only confirmed drawn count opens scope, active child unchanged, zero action on absent span.
 - [x] Apply scope through existing PresentThreads membership before root text filtering; reuse root opener/reconciliation/refresh effects instead of replicating menu lifecycle. Publish count spans alongside statusChips under the same revision and guard all geometry input.
 - [x] Verify stale revision, stalled writer, clipped count and off-row click controls; retain keyboard/paste behavior. Commit.
 
