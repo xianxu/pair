@@ -1,13 +1,21 @@
 ---
 id: 000753
-status: open
+status: working
 deps: [pair#752]
 github_issue:
 created: 2026-10-20
-updated: 2026-10-20
+updated: 2026-10-21
 estimate_hours:
 collaboration-mode: collaboration
-card_mirror: '7da15003aa87cbccdad11b5b2f41ec51c01a1ec1' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '91fd0dc64275e82421b4731ba4af06191eee101d' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-21T18:40:37-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: Xian’s MacBook Pro
+    workspace: pair:9
+    worktree: /Users/xianxu/workspace/worktree/pair-slot9/pair
+    repository: github.com/xianxu/pair
 ---
 
 # cast-sketch: operator CLI queries and historical image export
@@ -17,6 +25,8 @@ card_mirror: '7da15003aa87cbccdad11b5b2f41ec51c01a1ec1' # card fields mirrored f
 Make approved sketch evidence usable by a coding agent through the operator’s local recording and CLI, including a historical pressure-faithful rendered image.
 
 ## Spec
+
+Current scope is the 2026-10-21 operator-submission revision below. It supersedes the older CLI-only/no-chord-extension clause while preserving historical rendering, privacy and no viewer-to-agent dispatch. The detailed proposal is in [the slice plan](../plans/000753-cast-sketch-agent-export-plan.md); TL review precedes implementation.
 
 Approved design: #750, workshop/plans/000750-cast-sketch-plan.md, especially its 2026-10-20 operator approval revision. This issue implements only its assigned slice. Start from main after dependencies land; write a slice-specific execution plan and pass the SDLC gates. No stacked branches.
 
@@ -36,9 +46,12 @@ Primary surfaces: query/{sketch.go,render_sketch.go,surface.go,fake.go,cli.go,ev
 - Existing fidelity tests pass after renderer extraction. No viewer-side agent submission is introduced.
 - README/atlas/shipped query guide explain private operator handoff and replay-rendered image limitations; SDLC checks/review pass.
 
+- Each submitted sketch includes its image (or an explicit qualified rendering limitation), attached note, original page URL, recording anchor handles and bounded declared element IDs/data-* attributes from the source DOM.
+- Sketch-only and mixed note/sketch operator submissions use the existing pinned-target transaction; no new browser-to-agent route. Frozen versions survive navigation, uncertain delivery and restart without false acknowledgment or automatic resending of delivered versions.
+
 ## Plan
 
-- [ ] Claim/start-plan after dependencies land; write the slice-specific execution plan.
+- [x] Claim/start-plan after dependencies land; write the slice-specific execution plan.
 - [ ] Implement and verify the Spec and Done when through the normal SDLC gates.
 
 ## Log
@@ -53,3 +66,15 @@ Primary surfaces: query/{sketch.go,render_sketch.go,surface.go,fake.go,cli.go,ev
   capped and listed nearest first). Pair needs no knowledge of what the attributes mean; apps opt in by marking their
   elements (e.g. echo's room/turn/agent data attributes), so an agent gets exact handles instead of guessing from a
   screenshot. Values are recorded as they were at sketch time (from the DOM recording), not re-read later.
+
+## Revisions
+
+### 2026-10-21 — operator-triggered sketch delivery
+
+TL dispatch cbb63f0f-6bb9-4256-bc49-0a4e49eb6e58 and confirmation 0f71ee20-807f-4bd3-9a96-1bb6699f93f5 prioritize #753 before #783 and require each shape's image, note, page URL and element IDs to reach the agent as the operator's submission. This supersedes the old CLI-only/no-submission-chord-extension restriction. Reuse the existing operator draft submission transaction and durable bundle; no browser-to-agent route or viewer dispatch is introduced. A shape means one finished sketch (which may contain multiple strokes sharing one label), matching #752's accepted flow; proposal includes the scope explicitly for TL review.
+
+The earlier generic element-identity addition remains: original anchor, ancestors through first declared ID, and nearest intersected recorded elements carry bounded id/data-* attributes with truncation facts. No application-specific meanings are inferred.
+
+### 2026-10-21 — design checkpoint
+
+#752 landed PR512 after operator acceptance and an integrated recorded suite pass; #771 landed PR527 via train254. This issue started from fresh main after those dependencies, not a stacked branch. Read-only audit identified existing submission selection, pinned-target delivery, durable publication/ack and replay renderer seams. Proposal preserves initial note crop semantics by adding typed sketch evidence, reuses the renderer behind a stateful fake, and derives delivered-version filtering from confirmed existing submission manifests rather than adding a recording event or acknowledgment sidecar (ARCH-DRY/ARCH-ORDER). Plan is pending TL review; no implementation or estimate is authorized yet.
