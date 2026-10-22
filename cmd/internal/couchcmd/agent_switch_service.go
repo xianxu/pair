@@ -5,11 +5,14 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
 	"sync/atomic"
 
 	"github.com/xianxu/pair/cmd/internal/couchcore"
 	"github.com/xianxu/pair/cmd/internal/couchmessage"
 	"github.com/xianxu/pair/cmd/internal/couchtty"
+	"github.com/xianxu/pair/cmd/internal/pathscope"
 )
 
 // The wrapper connection token changes even when a re-exec keeps its PID/nonce.
@@ -139,13 +142,30 @@ func inspectVacantSwitchSourceObserved(ctx context.Context, s *messageService, a
 	if s.authority.record == nil || s.authority.workspace == nil || s.authority.branch == nil {
 		return fail(errors.New("switch-agent: vacant source verification unavailable"))
 	}
-	if observed != nil && (force || observed.address != address || observed.workspace.WorktreeRoot != evidence.WorkingPath() || observed.workspace.RepoIdentity != evidence.RepositoryIdentity()) {
+	if observed != nil && (force || observed.address != address || observed.workspace.RepoIdentity != evidence.RepositoryIdentity()) {
 		return fail(errors.New("switch-agent: admission workspace does not match the prepared source"))
 	}
 	current := func() error {
 		if observed != nil {
 			if err := observed.recheck(ctx); err != nil {
 				return err
+			}
+			// A saved working directory can be nested beneath the verified Git
+			// root. Resolve it again around Git inspection so symlink drift,
+			// disappearance or a non-directory never inherits the observation.
+			physical, err := filepath.EvalSymlinks(evidence.WorkingPath())
+			if err != nil {
+				return fmt.Errorf("switch-agent: admission working path is unavailable: %w", err)
+			}
+			if !pathscope.Within(observed.workspace.WorktreeRoot, physical) {
+				return errors.New("switch-agent: admission working path is outside its workspace")
+			}
+			info, err := os.Stat(physical)
+			if err != nil {
+				return fmt.Errorf("switch-agent: admission working path is unavailable: %w", err)
+			}
+			if !info.IsDir() {
+				return errors.New("switch-agent: admission working path is not a directory")
 			}
 		}
 		if live, ok := s.LivenessForThread(address.RepoScope, string(address.Tag)); ok && s.isConnected(live.Binding) {

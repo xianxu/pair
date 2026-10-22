@@ -3,11 +3,15 @@ package couchcmd
 import (
 	"context"
 	"errors"
+	"os"
+	"path/filepath"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/xianxu/pair/cmd/internal/couchcore"
 	"github.com/xianxu/pair/cmd/internal/couchmessage"
+	"github.com/xianxu/pair/cmd/internal/sessioninventory"
 )
 
 type switchAdmissionObservationRig struct {
@@ -20,6 +24,65 @@ type switchAdmissionObservationRig struct {
 	workspace atomic.Int32
 	record    atomic.Int32
 	git       atomic.Int32
+}
+
+func TestSwitchAdmissionObservationAllowsNestedWorkingDirectory(t *testing.T) {
+	for _, kind := range []string{"nested", "symlink-escape", "file", "symlink-during-git", "missing-during-git"} {
+		t.Run(kind, func(t *testing.T) {
+			r := newSwitchAdmissionObservationRig(t)
+			before := r.cold.parked
+			next := before
+			next.Address.Tag += "-nested"
+			next.Revision = 1
+			next.WorkingPath = filepath.Join(before.StartingPath, "nested")
+			next.ParkHistory, next.VerifiedPark, next.PreviousSession = nil, nil, nil
+			var err error
+			switch kind {
+			case "symlink-escape":
+				err = os.Symlink(t.TempDir(), next.WorkingPath)
+			case "file":
+				err = os.WriteFile(next.WorkingPath, []byte("not a directory"), 0600)
+			default:
+				err = os.MkdirAll(next.WorkingPath, 0700)
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			proof, err := couchcore.TestOnlyTeardownProof(before, time.Now())
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := r.cold.c.Threads.ReplaceThreadExpected(before.Address, before.Revision, next, proof); err != nil {
+				t.Fatal(err)
+			}
+			r.cold.rt.artifacts.SetNativeBinding(next.Address, "claude", sessioninventory.BindingEstablished, "nested-native")
+			r.cold.rt.artifacts.SetPairSession(next.Address, "nested-session", false)
+			r.cold.parked = next
+			if kind == "symlink-during-git" || kind == "missing-during-git" {
+				outside := t.TempDir()
+				r.service.s.authority.branch = func(context.Context, string) (couchcore.SlotGitStatus, error) {
+					if err := os.Remove(next.WorkingPath); err != nil {
+						return couchcore.SlotGitStatus{}, err
+					}
+					if kind == "symlink-during-git" {
+						return couchcore.SlotGitStatus{}, os.Symlink(outside, next.WorkingPath)
+					}
+					return couchcore.SlotGitStatus{}, nil
+				}
+			}
+			response := switchCall(t, r.service, r.request(t, "codex"))
+			if kind == "nested" {
+				if response.Code != "accepted" || r.queue.count() != 1 {
+					t.Fatalf("nested working directory refused: %+v", response)
+				}
+				if r.resolved.Load() != 1 || r.workspace.Load() != 0 {
+					t.Fatal("nested directory repeated workspace probes")
+				}
+			} else if response.Code == "accepted" || r.queue.count() != 0 {
+				t.Fatalf("unsafe working directory admitted: %+v", response)
+			}
+		})
+	}
 }
 
 func newSwitchAdmissionObservationRig(t *testing.T) *switchAdmissionObservationRig {
