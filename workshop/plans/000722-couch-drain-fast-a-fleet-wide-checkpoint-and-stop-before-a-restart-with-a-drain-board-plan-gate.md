@@ -95,6 +95,25 @@ reviewer_runs:
       finished_at: "2026-10-22T07:29:19.855052Z"
       session_id: 01a16283-23a7-7e81-aac0-f12cea11de0a
       outcome: returned
+    - version: 1
+      intent:
+        id: 993d063b-83a6-4a72-9fd3-b3044ed60fe6
+        repository: github.com/xianxu/pair
+        issue_id: "000722"
+        recipe: estimate-quality
+        round: 1
+        attempt: 1
+        agent: codex
+        root: /Users/xianxu/workspace/worktree/pair-slot5/pair
+        reviewed_head: e428f83a11a10d3abf19e769eca22a1c5e3aaa6c
+        slot: pair:5
+        requested_at: "2026-10-22T09:27:02.452049Z"
+      phase: finished
+      pid: 47516
+      started_at: "2026-10-22T09:27:02.587688Z"
+      finished_at: "2026-10-22T09:27:44.77713Z"
+      session_id: 01a162ef-760b-7dd3-8c3b-971831d19ac7
+      outcome: returned
 gate: plan-quality
 issue: 722
 id_prefix: PQ
@@ -302,7 +321,32 @@ rounds:
           note: The function-level verification strategy remains addressed; no prior finding is reopened.
           round: 7
       blocked: false
-content_hash: 470e67925197c0c91b786f1839c518c03edcdbbda041fa14cbaf366598ca0306
+    - reviewer_runs:
+        - version: 1
+          intent:
+            id: f9eba385-e827-4666-965c-ef8c6c1e0dab
+            repository: github.com/xianxu/pair
+            issue_id: "000722"
+            recipe: plan-quality
+            round: 8
+            attempt: 1
+            agent: codex
+            root: /Users/xianxu/workspace/worktree/pair-slot5/pair
+            reviewed_head: e428f83a11a10d3abf19e769eca22a1c5e3aaa6c
+            slot: pair:5
+            requested_at: "2026-10-22T09:26:23.625293Z"
+          phase: finished
+          pid: 23830
+          started_at: "2026-10-22T09:26:23.764727Z"
+          finished_at: "2026-10-22T09:26:54.706237Z"
+          session_id: 01a162ee-de82-7510-88cf-f62c1f685c17
+          outcome: returned
+      "n": 8
+      timestamp: "2026-10-22T02:26:58-07:00"
+      agent: codex
+      reviewer: codex (openai; author openai)
+      blocked: false
+content_hash: 0b02a805f1d35f1e94c68dac83587cac40621f0d29e8f5a83dc0fdc1ba0fbbe0
 ---
 
 # Gate ledger — pair#722 (plan-quality)
@@ -346,6 +390,8 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 ### Disposed
 
 - PQ-1 — addressed — The function-level verification strategy remains addressed; no prior finding is reopened.
+
+## Round 8 — 2026-10-22T02:26:58-07:00 (codex) — passed
 
 ## Open findings
 
