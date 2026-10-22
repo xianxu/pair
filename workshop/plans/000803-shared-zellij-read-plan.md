@@ -32,8 +32,8 @@ This serves ARCH-DRY and ARCH-PURPOSE without a launcher/titlepoller cycle.
 | Socket presence | `cmd/internal/zellijquery/recovery.go` | modified (extracted) | exact Lstat; preserves native path spelling |
 | Go consumer adapters | launcher/layoutcmd/clipcmd/couchcmd/opener/titlepoller/wrapcmd | modified | shared source, existing caller-specific strict parsing |
 
-Source supports the existing injectable process runner, executable path and
-context-scoped observer. Each returned attempt result retains stdout, stderr and
+Source supports the existing injectable process runner, executable path, explicit
+child environment and context-scoped observer. Each returned attempt result retains stdout, stderr and
 the original process/collector error separately from the read-classification
 error. This is required by the session-name probe: direct native Clap/absence
 diagnostics may prove a length bound, while joined collection failures cannot.
@@ -94,12 +94,8 @@ and corresponding tests; adapt launcher `zellij.go`, `zellij_read_recovery.go`,
   session grammar or socket path semantics. Add supported implicit-session,
   geometry/tab and current-tab read shapes. Preserve existing public errors,
   observer fields and launcher tests through aliases/forwarders.
-- [ ] Pin pure classification cases: all allowed/unknown argv, complete wrong
-  kind, malformed same kind, exact diagnostics and unsafe socket spelling.
-- [ ] Pin actual collector schedules: empty/crossed then success, three-attempt
-  exhaustion, direct exit, joined collection failure, arbitrary stderr,
-  cancellation between attempts, identical effective deadlines and one event
-  per attempt. Reuse the shared Zellij reply serializer/catalog for new producers.
+- [ ] Implement colocated risky-function tests using the strategy table below;
+  reuse shared Zellij reply serialization/catalog for executable producers.
 - [ ] Run `go test ./cmd/internal/zellijquery ./cmd/internal/launcher -run 'Zellij|SessionReply|SessionListing|Socket' -count=1` and commit the extraction.
 
 ## Task 2: Route every in-scope Go consumer
@@ -107,6 +103,8 @@ and corresponding tests; adapt launcher `zellij.go`, `zellij_read_recovery.go`,
 Files: layoutcmd/layoutcmd.go, clipcmd/runtime.go,
 couchcmd/shortcut_focus.go, opener/runtime.go, titlepoller/runtime.go,
 wrapcmd/peer_viewport.go, launcher/osruntime.go and their colocated tests.
+Native conformance adapter:
+`layoutcmd/fullscreen_conformance_live_test.go:fullscreenLiveRuntime.queryContext`.
 
 - [ ] Replace direct query execution with the shared source. Preserve parent
   contexts, raw outputs/error diagnostics, last-known-state behavior and caller
@@ -116,12 +114,28 @@ wrapcmd/peer_viewport.go, launcher/osruntime.go and their colocated tests.
 - [ ] Exercise layout panes and current-tab plus clip/focus/opener/liveness and
   name-probe adapters against stateful fixture schedules; retain existing native
   fixture authorities and explicit private environments.
+- [ ] Route `fullscreenLiveRuntime.queryContext` through the same production
+  source, supplying its session and explicit pane environment. Its observer logs
+  each completed attempt's raw bounded streams; existing derived native-reply
+  capture sees the final classified observation. No fixture retry loop is added.
 - [ ] Count work at 8/16 observations, including two-confirmation success,
   exhaustion with zero effects, and cancellation with no later process spawn.
 - [ ] Sweep all production Go exec calls; leave mutations and raw diagnostics
   excluded explicitly. Update Pair lint to reject new direct query bypasses
   outside the shared owner and qualified diagnostics; test positive/negative
   syntax cases and document syntax-analysis limits.
+
+### Risky-function verification strategies
+
+| Function in zellijquery (extracted equivalent) | Adversarial input and mechanical guard |
+|---|---|
+| `ReadKind` (`zellijReadKind`) | Fuzz argv tokens and generated flag permutations; independent exact allowlist oracle rejects mutation/unknown/duplicate flags. |
+| `CrossedReply` (`crossedZellijReply`) | Fuzz native bytes seeded by shared typed envelopes; retry requires complete validation as a different kind and never arbitrary parse failure. |
+| `RetryableSessionLookupMiss` | Generate diagnostic/target/status mutations around native evidence; whole-stream equality plus validated target state/socket predicates fence retry eligibility. |
+| `ValidateSessionListing`, `SessionListingStates`, `ParseColoredSessionListing` | Retain existing parser tests and fuzz arbitrary Unicode/SGR/metadata; successful derivation requires complete strict validation and exact state identity. |
+| `ResolveZellijSocketRoot`, `AppendNativeSocketPath`, `SessionSocketPresent` | Generated spelling variants plus native-present/cleaned-absent fixtures; exact path bytes and Lstat socket type fence the one observation. |
+| `Source.ReadContext`, one-attempt collector | Stateful executable schedules and a controlled cancellation observer; assert at most three joined attempts, invariant deadline, exact raw error preservation and one observation per attempt. Count 8/16 healthy/recovery reads and confirmation work. |
+| `confirmWorkbenchPanesContext`, `fullscreenLiveRuntime.queryContext` | Inject empty/crossed native frames through the shared production source and compare independently confirmed facts; exhausted or invalid evidence permits zero mutation effects. |
 
 ## Task 3: Qualify and land atomically
 
@@ -148,3 +162,8 @@ this plan and the issue Log.
 2026-10-22: TL a27b640f approved Go-only scope and full flow. Lua consumers are
 split into an unclaimed dependent issue using a later thin CLI adapter. No Go
 consumer is deferred merely to retain the initial quick-flow size assumption.
+
+2026-10-22: PQ-1 explicitly includes the live fixture's queryContext in the
+production-seam migration, preserving its exact environment and attempt evidence.
+PQ-2 replaces prose classification/schedule inventories with named risky-function
+strategies and mechanical guards. The implementation scope and bounds are unchanged.
