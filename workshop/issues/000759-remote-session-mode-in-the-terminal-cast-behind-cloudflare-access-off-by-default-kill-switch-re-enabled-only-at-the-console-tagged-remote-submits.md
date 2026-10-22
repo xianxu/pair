@@ -88,6 +88,10 @@ Authenticated TL7c5b26ce-a932-4fb1-8d97-21c12f04fa05: APPROVED with changes. Upd
 
 - Plan-quality round2 closed PQ-1 but retained PQ-2 for duplicate prose unit-case inventories. Swept all M1–M3 steps to reference one named-function/adversarial-class/mechanical-guard table, named actual transcript functions and added server/lint functions. No policy change or implementation.
 
+### 2026-10-22 — shared retained-number helper coordination with #758
+
+TL6bf10860 approves #758's additive preserve-number duplicate checker, SplitObject and EncodeObject entry points as its producer-codec prerequisite, used only by new retained-raw endpoint state. Existing strict readers and pinned equivalence tests stay unchanged. #759 already carries the sibling preserve-number checker for its new stores. Whichever issue lands second must integrate the first's shared helper, reconcile signatures/semantics and delete the duplicate; no permanent parallel scanner (ARCH-DRY). This note changes no #759 executable source or operator acceptance hold.
+
 ## Revisions
 
 ### 2026-10-21 09:04 — approved current contract
