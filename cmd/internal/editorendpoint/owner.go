@@ -12,6 +12,10 @@ import (
 // leave cached authority intact because they do not prove a document is gone.
 var ErrDocumentNotRegistered = errors.New("document not registered")
 
+// Only the operation that attempted this publication has an uncertain outcome.
+// The owner retains the underlying poison so later operations are unavailable.
+var errEndpointPublication = errors.New("endpoint publication uncertain")
+
 type EndpointConfig struct {
 	Store     EndpointStore
 	RPC       EditorRPC
@@ -50,6 +54,9 @@ func NewEndpointOwner(ctx context.Context, cfg EndpointConfig) (*EndpointOwner, 
 	return &EndpointOwner{cfg: cfg, ctx: owned, cancel: cancel, state: state, admitted: make(chan struct{}, 65), registerLane: make(chan struct{}, 1), validation: make(chan struct{}, 4)}, nil
 }
 func endpointFailure(code string, e error) EndpointReply {
+	if code == "unavailable" && errors.Is(e, errEndpointPublication) {
+		code = "uncertain"
+	}
 	p := EndpointReply{Version: 1, Code: code}
 	if e != nil {
 		p.Error = e.Error()
@@ -121,7 +128,7 @@ func (o *EndpointOwner) publishLocked(next EndpointState, changed bool) error {
 	}
 	if e := o.cfg.Store.Publish(next); e != nil {
 		o.poison = e
-		return e
+		return fmt.Errorf("%w: %w", errEndpointPublication, e)
 	}
 	o.state = next
 	return nil
@@ -309,7 +316,11 @@ func (o *EndpointOwner) Register(observer context.Context, r RegisterRequest) En
 		if negativeErr != nil {
 			return endpointFailure("unavailable", negativeErr)
 		}
-		p := endpointFailure("unavailable", probed.err)
+		code := "unavailable"
+		if probed.kind == "absent" {
+			code = "not-registered"
+		}
+		p := endpointFailure(code, probed.err)
 		p.Changed = changed
 		return p
 	}
@@ -394,7 +405,7 @@ func (o *EndpointOwner) Lookup(observer context.Context, namespace, document str
 	}
 	b := selected(s, document)
 	if b == nil {
-		return endpointFailure("absent", nil)
+		return endpointFailure("ok", nil)
 	}
 	probed := o.probe(bindingRequest(*b), b.ProcessIdentity)
 	if probed.kind == "alive" && probed.file != b.File {
@@ -408,7 +419,7 @@ func (o *EndpointOwner) Lookup(observer context.Context, namespace, document str
 		if probed.kind == "unknown" {
 			return endpointFailure("unavailable", probed.err)
 		}
-		p := endpointFailure("absent", nil)
+		p := endpointFailure("ok", nil)
 		p.Changed = changed
 		return p
 	}

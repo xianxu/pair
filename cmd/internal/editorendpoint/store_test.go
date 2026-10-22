@@ -2,6 +2,7 @@ package editorendpoint
 
 import (
 	"bytes"
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"testing"
@@ -83,4 +84,41 @@ func endpointTestNamespace(t *testing.T) string {
 		t.Fatal(err)
 	}
 	return path
+}
+
+func TestEndpointStoreOpaqueNumbersSurviveActualReopenRewrite(t *testing.T) {
+	namespace := endpointTestNamespace(t)
+	store := EndpointStore{Namespace: namespace, Path: filepath.Join(namespace, "state.json"), Stage: filepath.Join(namespace, "stage.json")}
+	s := endpointOpaqueNumberState(t)
+	s.Namespace = namespace
+	for i := range s.Records {
+		s.Records[i].Binding.Namespace = namespace
+		if s.Records[i].Current != nil {
+			s.Records[i].Current.Namespace = namespace
+		}
+	}
+	if e := store.Publish(s); e != nil {
+		t.Fatal(e)
+	}
+	original, e := os.ReadFile(store.Path)
+	if e != nil {
+		t.Fatal(e)
+	}
+	reopened := EndpointStore{Namespace: namespace, Path: store.Path, Stage: store.Stage}
+	n, e := reopened.Load()
+	if e != nil {
+		t.Fatal(e)
+	}
+	if e = reopened.Publish(n); e != nil {
+		t.Fatal(e)
+	}
+	again, e := os.ReadFile(store.Path)
+	if e != nil || !bytes.Equal(original, again) {
+		t.Fatalf("actual reopen rewrite changed opaque numbers: %v", e)
+	}
+	for level, unknown := range []map[string]json.RawMessage{n.Unknown, n.Records[0].Unknown, n.Records[0].Binding.Unknown, n.Records[0].Current.Unknown} {
+		if !bytes.Equal(unknown["future"], s.Unknown["future"]) {
+			t.Fatalf("level%d number bytes changed", level)
+		}
+	}
 }

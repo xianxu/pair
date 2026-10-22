@@ -186,7 +186,7 @@ func TestOwnerLookupRetiresMovedDocumentGeneration(t *testing.T) {
 	}
 	f.rpc.file = filepath.Join(f.request.Namespace, "moved.md")
 	p := f.o.Lookup(context.Background(), f.request.Namespace, docA)
-	if p.EditorEndpoint != nil || p.Code != "absent" {
+	if p.EditorEndpoint != nil || p.Code != "ok" {
 		t.Fatalf("returned stale path: %+v", p)
 	}
 	p = f.o.Register(context.Background(), f.request)
@@ -390,7 +390,7 @@ func TestOwnerUnknownResolverRetainsButPositiveAbsenceRetires(t *testing.T) {
 	}
 	f.o.cfg.Resolve = func(context.Context, string) (string, error) { return "", ErrDocumentNotRegistered }
 	p = f.o.Lookup(context.Background(), f.request.Namespace, docA)
-	if p.Code != "absent" || !p.Changed || f.writes != 2 {
+	if p.Code != "ok" || !p.Changed || f.writes != 2 {
 		t.Fatalf("positive absence did not report durable retirement: %+v", p)
 	}
 	p = f.o.Register(context.Background(), f.request)
@@ -445,5 +445,86 @@ func TestOwnerValidationConcurrencyBound(t *testing.T) {
 	close(hold)
 	for i := 0; i < 5; i++ {
 		<-done
+	}
+}
+
+func TestOwnerConfirmedAbsenceReturnsSuccessfulNull(t *testing.T) {
+	for _, published := range []bool{false, true} {
+		t.Run(fmt.Sprint(published), func(t *testing.T) {
+			f := newOwnerFixture(t)
+			if published {
+				if p := f.o.Register(t.Context(), f.request); p.Code != "ok" {
+					t.Fatal(p)
+				}
+				f.rpc.nilReply = true
+			}
+			before := f.writes
+			p := f.o.Lookup(t.Context(), f.request.Namespace, docA)
+			if p.Version != 1 || p.Code != "ok" || p.Error != "" || p.EditorEndpoint != nil || p.Changed != published {
+				t.Fatalf("positive absence: %+v", p)
+			}
+			if f.writes-before != map[bool]int{false: 0, true: 1}[published] {
+				t.Fatalf("absence publications=%d", f.writes-before)
+			}
+		})
+	}
+}
+
+func TestOwnerMissingRegisteredDocumentIsNotRegistered(t *testing.T) {
+	f := newOwnerFixture(t)
+	f.o.cfg.Resolve = func(context.Context, string) (string, error) {
+		return "", fmt.Errorf("resolver: %w", ErrDocumentNotRegistered)
+	}
+	p := f.o.Register(t.Context(), f.request)
+	if p.Version != 1 || p.Code != "not-registered" || p.Changed || p.EditorEndpoint != nil || f.writes != 0 || f.rpc.calls != 0 || f.proc.reads != 0 {
+		t.Fatalf("missing document: %+v writes=%d rpc=%d process=%d", p, f.writes, f.rpc.calls, f.proc.reads)
+	}
+}
+
+func TestOwnerPublicationErrorWireOutcomes(t *testing.T) {
+	for _, operation := range []string{"register", "lookup", "unregister", "register-cleanup"} {
+		for _, after := range []bool{false, true} {
+			t.Run(fmt.Sprintf("%s/after=%v", operation, after), func(t *testing.T) {
+				f := newOwnerFixture(t)
+				var binding *EndpointBinding
+				if operation != "register" {
+					p := f.o.Register(t.Context(), f.request)
+					if p.Code != "ok" {
+						t.Fatal(p)
+					}
+					binding = p.EditorEndpoint
+				}
+				if after {
+					f.failAfter = true
+				} else {
+					f.fail = true
+				}
+				var p EndpointReply
+				switch operation {
+				case "register":
+					p = f.o.Register(t.Context(), f.request)
+				case "lookup":
+					f.rpc.nilReply = true
+					p = f.o.Lookup(t.Context(), f.request.Namespace, docA)
+				case "register-cleanup":
+					f.o.cfg.Resolve = func(context.Context, string) (string, error) { return "", ErrDocumentNotRegistered }
+					p = f.o.Register(t.Context(), f.request)
+				case "unregister":
+					p = f.o.Unregister(t.Context(), UnregisterRequest{Version: 1, Namespace: binding.Namespace, EditorIncarnation: binding.EditorIncarnation, PID: binding.PID, Entries: []UnregisterEntry{{DocumentID: binding.DocumentID, AttachID: binding.AttachID, BindingGeneration: binding.BindingGeneration}}})
+				}
+				if p.Version != 1 || p.Code != "uncertain" || p.Changed || p.EditorEndpoint != nil {
+					t.Fatalf("failed publication: %+v", p)
+				}
+				writes := f.writes
+				f.fail = false
+				f.failAfter = false
+				if p = f.o.Lookup(t.Context(), f.request.Namespace, docA); p.Code != "unavailable" || f.writes != writes {
+					t.Fatalf("poisoned lookup: %+v writes=%d/%d", p, f.writes, writes)
+				}
+				if p = f.o.Register(t.Context(), f.request); p.Code != "unavailable" || f.writes != writes {
+					t.Fatalf("poisoned registration: %+v writes=%d/%d", p, f.writes, writes)
+				}
+			})
+		}
 	}
 }

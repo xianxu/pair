@@ -12,7 +12,7 @@ import (
 
 func decodeObject(raw []byte, target any) (map[string]json.RawMessage, error) {
 	known := strictjson.KnownFields(reflect.TypeOf(target).Elem())
-	owned, unknown, e := strictjson.SplitObject(raw, known, map[string]bool{"Current": true})
+	owned, unknown, e := strictjson.SplitObjectPreserveNumbers(raw, known, map[string]bool{"Current": true})
 	if e != nil {
 		return nil, e
 	}
@@ -21,11 +21,14 @@ func decodeObject(raw []byte, target any) (map[string]json.RawMessage, error) {
 			return nil, fmt.Errorf("missing required field %s", k)
 		}
 	}
-	body, e := strictjson.EncodeObject(owned, nil, known)
+	body, e := strictjson.EncodeObjectPreserveNumbers(owned, nil, known)
 	if e != nil {
 		return nil, e
 	}
-	if e = strictjson.Decode(body, target); e != nil {
+	// Exact owned keys, required members, non-null values and all nested
+	// duplicates have already been checked. Typed Unmarshal retains raw child
+	// messages without imposing float64 range on their opaque future fields.
+	if e = json.Unmarshal(body, target); e != nil {
 		return nil, e
 	}
 	return unknown, nil
@@ -42,7 +45,7 @@ func encodeObject(value any, unknown map[string]json.RawMessage, override map[st
 	for k, v := range override {
 		owned[k] = v
 	}
-	return strictjson.EncodeObject(owned, unknown, strictjson.KnownFields(reflect.TypeOf(value)))
+	return strictjson.EncodeObjectPreserveNumbers(owned, unknown, strictjson.KnownFields(reflect.TypeOf(value)))
 }
 func rawArray(items [][]byte) []byte {
 	return append(append([]byte{'['}, bytes.Join(items, []byte{','})...), ']')

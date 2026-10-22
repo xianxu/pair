@@ -40,9 +40,9 @@ This issue is the producer only, independently landable before parley.nvim#405. 
 - Atlas/README/reader inventories, recorded suite and normal whole-issue review pass; producer lands for #405/#798.
 
 ## Plan
-- [ ] Pin final consumer contract and record approved producer-only split.
-- [ ] Implement pure model, portable store and stateful RPC/process seams with failing tests first.
-- [ ] Wire CLI/private IPC, Namespace projection, bounded lifetime and stale cleanup; qualify exact failure/order sequences and N8/16 cost bounds.
+- [x] Pin final consumer contract and record approved producer-only split.
+- [x] Implement pure model, portable store and stateful RPC/process seams with failing tests first.
+- [x] Wire CLI/private IPC, Namespace projection, bounded lifetime and stale cleanup; qualify exact failure/order sequences and N8/16 cost bounds.
 - [ ] Run private installed-nvim conformance, update atlas/README/inventories, record suite, close/review and land the producer.
 
 ## Log
@@ -70,6 +70,14 @@ The installed nvim client replaces the initially proposed Go RPC library, per TL
 TL6bf10860 approves the additive preserve-number duplicate checker plus SplitObject and EncodeObject entry points, only for new retained-raw endpoint state; existing strict readers and equivalence tests stay unchanged. This prerequisite is pending at this checkpoint. #759 has the sibling checker: whichever issue lands second must consolidate to the single shared helper and delete its duplicate (ARCH-DRY). Both issue Logs will record the coordination.
 
 Recovery screen unavailable on this fresh session; branch, plan and working diff are intact at e4d048845. Earlier test outcomes above are retained session evidence; new executable changes will receive fresh verification. No suite, review or merge runner is being claimed as surviving.
+
+### 2026-10-22 — numeric preservation and real-service wire regressions
+
+New regressions observed RED at retained unknown 1e9999 and at a real empty producer lookup through private Unix IPC/CLI (unexpected exit5). Added shared preserve-number structural/object entry points used only by endpoint retained state; known fields remain typed and existing strict/equivalence tests unchanged. Raw over/underflow exponents, exact fractions, negative zero and 400-digit integers survive all four object levels plus actual store reopen. Focused tests/race pass; codec fuzz passed123,288 executions. Shared checker decode.go is identical to #759's current implementation; its Log is updated and PR538 pushed at ec201f3b5.
+
+Corrected owner-to-wire outcomes: positive absence is ok/null, positive missing registration is not-registered, attempted publication failure is uncertain, and later poisoned-owner calls are unavailable. Controlled before/after write variants and actual private service empty/damaged-store checks defend this boundary. Combined focused race passed editorendpoint4.447s, strictjson1.079s, procutil1.167s, couchcmd1.921s. Strictjson package passed0.204s; artifactpath20.002s; repolint17.488s. An initial guard command named a nonexistent cmd/internal/repolint package; corrected to internal/repolint, no code workaround. Native reader re-audited after outcome assertion correction; no new repository inputs.
+
+Private native process-death collection qualification is being completed before the full recorded suite. No suite/review/landing pass is claimed yet.
 
 ## Revisions
 

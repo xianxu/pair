@@ -189,7 +189,6 @@ Parley final contract confirmation7d43957e accepts the fields, monotone uint64 d
 
 PQ-1: Source.Identity suppresses errors, so explicitly add Source.ReadIdentity returning the existing injected native result and ClassifyEndpointProcess with narrow identity-specific positive absence. All permission, unsupported, empty/malformed and ambiguous errno evidence remains unknown; no full-host snapshot or new native implementation. PQ-2: name risky functions and a mechanical adversarial strategy for each, compressing the former case inventories into generated invariants, fuzz/opaque round trips and controlled IO ordering. These refine execution of the approved producer scope without changing the pinned consumer contract. Parley3cfbb244 confirms its plan pins aa24764a and separately owns stable runtime-parent/PID+start marker cleanup after positive-dead evidence.
 
-## Revisions
 
 ### 2026-10-22 — approved implementation refinements
 
