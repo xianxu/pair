@@ -19,6 +19,25 @@ reviewer_runs:
       finished_at: "2026-10-22T19:35:15.812914Z"
       session_id: 01a1651b-b442-7021-b98d-2c53a590bd5e
       outcome: returned
+    - version: 1
+      intent:
+        id: b769c988-665d-4d8c-b5c4-2e694f6de7d9
+        repository: github.com/xianxu/pair
+        issue_id: "000791"
+        recipe: estimate-quality
+        round: 1
+        attempt: 1
+        agent: codex
+        root: /Users/xianxu/workspace/worktree/pair-slot1/pair
+        reviewed_head: 7473f5040b58cdb80c68111a29f8963a02c3d186
+        slot: pair:1
+        requested_at: "2026-10-22T20:31:34.517796Z"
+      phase: finished
+      pid: 21409
+      started_at: "2026-10-22T20:31:35.195416Z"
+      finished_at: "2026-10-22T20:32:07.792327Z"
+      session_id: 01a1654f-e2da-7dd0-9479-77e3f231ad18
+      outcome: returned
 gate: plan-quality
 issue: 791
 id_prefix: PQ
@@ -111,7 +130,37 @@ rounds:
       reviewer: codex (openai; author openai)
       blocked: false
       protocol_error: no valid findings block
-content_hash: b4476efba3507f8bbc4fbdd91f8d306e5b0ef860acfbbe3ec9971b3d44e6f669
+    - reviewer_runs:
+        - version: 1
+          intent:
+            id: 9e35b476-06ec-48aa-a00f-9eccc520b64e
+            repository: github.com/xianxu/pair
+            issue_id: "000791"
+            recipe: plan-quality
+            round: 4
+            attempt: 1
+            agent: codex
+            root: /Users/xianxu/workspace/worktree/pair-slot1/pair
+            reviewed_head: 7473f5040b58cdb80c68111a29f8963a02c3d186
+            slot: pair:1
+            requested_at: "2026-10-22T20:30:44.399384Z"
+          phase: finished
+          pid: 89604
+          started_at: "2026-10-22T20:30:44.649647Z"
+          finished_at: "2026-10-22T20:31:08.915651Z"
+          session_id: 01a1654f-1a8f-7c43-8a1d-5fd4bf6b8d71
+          outcome: returned
+      "n": 4
+      timestamp: "2026-10-22T13:31:28-07:00"
+      agent: codex
+      reviewer: codex (openai; author openai)
+      dispose:
+        - id: PQ-1
+          disposition: addressed
+          note: Named risky functions have concise adversarial strategies and mechanical invariants, including the resize addition.
+          round: 4
+      blocked: false
+content_hash: 0f3b576a68b7ef9bf53095280cadd6377883c08891dff155165a50b744e3d140
 ---
 
 # Gate ledger — pair#791 (plan-quality)
@@ -135,6 +184,12 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 ## Round 3 — 2026-10-22T12:34:32-07:00 (codex) — passed
 
 **Protocol error:** no valid findings block — this round contributed no findings.
+
+## Round 4 — 2026-10-22T13:31:28-07:00 (codex) — passed
+
+### Disposed
+
+- PQ-1 — addressed — Named risky functions have concise adversarial strategies and mechanical invariants, including the resize addition.
 
 ## Open findings
 
