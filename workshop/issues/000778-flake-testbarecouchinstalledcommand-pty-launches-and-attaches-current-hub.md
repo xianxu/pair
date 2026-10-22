@@ -17,6 +17,7 @@ claimant:
     worktree: /Users/xianxu/workspace/worktree/pair-slot5/pair
     repository: github.com/xianxu/pair
 flake_tests: [github.com/xianxu/pair/cmd/couch.TestBareCouchInstalledCommand]
+flow: {kind: quick, provenance: inferred, spec: "6653e200", done: "855df120"}
 ---
 
 # flake: TestBareCouchInstalledCommand/pty_launches_and_attaches_current_hub
