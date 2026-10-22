@@ -1,13 +1,13 @@
 ---
 id: 000738
-status: working
+status: codecomplete
 deps: [ariadne#517]
 github_issue:
 created: 2026-10-20
-updated: 2026-10-20
+updated: 2026-10-21
 estimate_hours:
 collaboration-mode: collaboration
-card_mirror: 'b43a4c223b737ec0123547c12006cd55be7cea1b' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '9fcf06252458c6863ba2e10c994706b943670677' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-20T19:58:34-07:00
 claimant:
     operator: Xian Xu
@@ -16,6 +16,8 @@ claimant:
     workspace: pair:7
     worktree: /Users/xianxu/workspace/worktree/pair-slot7/pair
     repository: github.com/xianxu/pair
+flow: {kind: quick, provenance: inferred, spec: "7a2c8147", done: "1f52dd3c"}
+actual_hours: 9.91
 ---
 
 # Affected package graph falls back to full suite before runtime bundle preparation
@@ -41,8 +43,9 @@ Trace the generated-runtime-bundle preparation prerequisite for affected package
 ## Plan
 
 - [x] Reproduce missing embed assets in a private clean checkout and trace the graph owner.
-- [ ] Wait for ariadne#517's bounded preparation seam to land.
-- [ ] Declare the existing runtime generator, qualify clean graph and broken-graph fallback, then obtain operator local-gates verification before landing.
+- [x] Wait for ariadne#517's bounded preparation seam to land.
+- [x] Declare the existing runtime generator and qualify clean graph plus broken-graph refusal against the current provider.
+- [x] Obtain operator local-gates verification before landing.
 
 ## Log
 
@@ -63,6 +66,29 @@ there cannot repair discovery. Filed unclaimed ariadne#517 for the provider seam
 The hub approved this dependency and parked #738 while assigning #736. No code,
 dummy embed, partial -e graph, or local-gates label was introduced.
 
+### 2026-10-21 — red/green consumer qualification
+- 2026-10-21: closed — Actual-provider clean archive qualification passed14.966s: missing embeds red, declared real generator then exact graph selection green, broken-import rejection. Default obsolete provider emits explicit dependency skip; no skip counted as qualification. Fast inventory and git diff --check passed. BR-1 README and atlas now distinguish ordinary preparation errors/timeouts and broken graph full-suite fallback from parent cancellation abort without a passing status, verified against actual provider localcheck_affected.go; appended Revision supersedes earlier narrative. Recorded attempt80323f0ee9a2368b32f90e3fdc3bff3b is running on final code4ee406f2; later changes only prose/review artifacts. Final recorded pass required before landing. Only unchecked Plan item remains operator local-gates verification; never self-label. Atlas updated; hub owns project. (done-when: contract moved since change-code; judged by the close review); review verdict: SHIP
+
+Quick change-code admitted after main integration. New actual-provider test
+failed before the declaration with missing bounded runtime preparation: nil.
+Added graph_prepare {command:[make,runtimebundle-generate],timeout_minutes:2}.
+Against the unmodified current ariadne source, the complete affected-config
+qualification passes (14.966 s), including native clean Pair archive missing
+embeds → actual declared generator → exact Go-only selection, plus a broken
+import that still fails graph loading. The archive contains tracked HEAD only,
+not generated files from this checkout. Fixture command groups are cancelled
+and reaped within their bounded scope; no foreground/native fleet is involved.
+
+The sibling slot's ariadne checkout predates #517, so its Config lacks
+GraphPrepare. Qualification now explicitly requires #517 source; implicit old
+providers are unavailable evidence and give the existing visible SkipTest with
+an actionable source override. An explicit incompatible source still fails.
+The successful measured qualification used ARIADNE_AFFECTED_SOURCE pointing at
+the current primary ariadne checkout; no provider source was modified. Normal
+fixture execution here therefore reports one source-unavailable skip; that is
+not claimed as successful qualification. The full recorded check remains due.
+
+
 ## Revisions
 
 ### 2026-10-20 — prepare at the graph owner
@@ -75,3 +101,78 @@ the generator or accepting an incomplete graph. After that provider lands,
 #738 declares that command in .sdlc/affected.json and tests a genuinely clean
 graph plus a broken-graph control. This is a local-gates path: the operator
 verifies and labels it; the worker never self-labels. No staging is requested.
+
+
+### 2026-10-21 — provider landed; bounded consumer adoption
+
+Hub2765f7be reports ariadne#517 landed and authorizes resuming this parked
+consumer while #739 waits. Current provider documents graph_prepare argv with
+a default two-minute bound in the pinned head checkout before LoadGoGraph;
+failures retain full-suite fallback. Declare make runtimebundle-generate with
+an explicit two-minute bound. Extend the existing actual-provider qualification
+test: a tracked-only private Pair archive has no generated embeds, fails the
+native graph before preparation, then the declared real generator makes the
+Go-only selection exact; a broken import after preparation still fails graph
+loading. Upstream#517 owns and tests fallback orchestration; do not duplicate it
+in Pair. No dummy embed or borrowed generated output (ARCH-DRY).
+
+The only runtime change is the repository's declaration, not a new state owner
+or artifact format. Existing disposable graph-checkout cleanup owns outputs.
+The guard explicitly protects .sdlc/*, so operator local-gates verification and
+label are required on the concrete PR; the worker never self-labels. Keep the
+branch separate from #739 and no pair:0 staging.
+
+
+### 2026-10-21 — reviewable protected declaration
+
+PR#513 contains the bounded declaration, the actual-provider test and atlas
+map. Recorded affected check on4ee406f27cc97e39db933fd3db8ee09ec92dba60
+fell back to the full suite under current main's still-absent declaration and
+is queued as attempt80323f0ee9a2368b32f90e3fdc3bff3b. No pass is claimed.
+Review may overlap the queued recorded check under tl-worker rules. The only
+remaining Plan item is operator local-gates verification; it stays unchecked,
+and CI/merge still require the operator label. No agent will apply it.
+
+
+### 2026-10-21 — close BR-1 documentation
+
+The first close found only the README missing the graph-preparation contract
+and its newer provider prerequisite. Documented the same-private-checkout
+generator, two-minute bound and conservative fallback, distinguishing basic
+affected support (#473) from preparation qualification (#517). No runtime or
+test change; the already queued recorded code check remains applicable.
+
+
+### 2026-10-21 — BR-1 cancellation distinction
+
+Correct the earlier broad fallback narrative: ordinary preparation errors,
+preparation timeout and broken graphs select the full suite. Cancelling the
+parent check instead aborts without recording a passing affected or suite
+status (provider localcheck_affected.go returns graph interrupted). README
+and atlas state this distinction; the earlier Revisions wording is superseded.
+No provider behavior, test or runtime declaration changes.
+
+
+### 2026-10-21 03:02 PDT — recorded verification and held landing
+
+Recorded attempt80323f0ee9a2368b32f90e3fdc3bff3b passed exit0 in11m54s
+on final code4ee406f27cc97e39db933fd3db8ee09ec92dba60; full-suite log
+SHA prefix887dc4dbe82c at .git/sdlc/local-checks/<code-head>/suite.log.
+Later changes are README/atlas, issue and review artifacts only. Default
+provider qualification visibly skipped its unavailable #517 source; explicit
+actual-provider qualification had passed separately. Close round3 is SHIP,
+BR-1 addressed with no blocking finding. PR#513 remains held for the operator
+local-gates-verified label; the unchecked Plan item is intentional. No agent
+has applied the label or bypassed CI.
+
+
+### 2026-10-21 — operator verification received; landing resumed
+
+Hub explicitly authorized resuming PR513 after #774. Fresh GitHub PR inspection confirms OPEN with local-gates-verified already applied by the operator; no agent label change. The last Plan item is now satisfied. Existing close is SHIP and recorded suite passed11m54s as above; resuming normal sdlc merge, which owns current-main integration and required checks.
+
+
+### 2026-10-22 — integration flake evidence and supported recovery
+
+Integrated head d97b0b24f9327b853a0391da8e94c9de75121e04 failed recorded suite attempt d6f342c66af6368129df356ee2f9d326 in12m16s only on testcouch.TestCommandWrappersJoinCanceledDescendants/provision (owned descendant still running; full log .git/sdlc/test-stats/failed/d6f342c66af6368129df356ee2f9d326.log, hash11df436e3409). Automatic main baseline6f1c0c85 passed11m52s, diagnostic only, hashd97752fe63c0. One exact-head targeted repeat passed0.297s; filed unclaimed #794 without weakening the assertion or changing source.
+
+Hub7918937a authorized one full recorded same-head evidence run. Attempt b9e96bbfdc4dd35f4bef6e1476815599 passed exit0 in10m29s, log .git/sdlc/local-checks/d97b0b24f9327b853a0391da8e94c9de75121e04/suite.log, SHA256 c02d90357d2e5de1a223bda9b14fe26985f53469994b58bf1361a9e7cc6e27a0. The binary first withheld success for the unexplained prior failure, as designed. sdlc flake register --issue794 then accepted these exact failed/passed attempt IDs for the top-level test; supported local-check republish on that saved passing attempt returned success. No manual status, blind retry or source modification. Re-enter normal merge, which owns new-main integration and its checks. If only registered #794 fails there, use the supported resume contract. #739 preparation follows this landing before #736/#773 per latest hub direction; no pair:0 staging without explicit go.

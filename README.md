@@ -2052,6 +2052,12 @@ answer with a wrong holder or process identity fails in both modes.
 Affected branch checks use `.sdlc/affected.json` and `make test-affected` once the
 installed SDLC supports ariadne#473. SDLC reads the declaration from main and
 supplies `SDLC_AFFECTED_GO_PKGS` (exact import paths) and `SDLC_AFFECTED_GROUPS`.
+With preparation-capable SDLC (ariadne#517), `graph_prepare` runs
+`make runtimebundle-generate` in the same private head checkout before loading
+the Go graph, with a two-minute bound. This creates the missing embedded runtime
+in a fresh checkout; it never borrows generated files. Preparation failure,
+timeout or a still-broken graph keeps the full-suite fallback. Parent-context
+cancellation aborts the check without recording a passing affected or suite status.
 Before close or re-close, run `make test-affected-inventory`. It audits tracked
 Go test readers without building Go or running the seeded guard tests, and is
 also the affected runner's first step. Failures name each reader and print its
@@ -2098,8 +2104,10 @@ the actual affected command in a disposable checkout.
 declaration regressions; landing still requires SDLC's full-suite evidence.
 
 The declaration regression consumes upstream parser/planner source from a sibling
-ariadne checkout or the installed Go module. Until ariadne#473 is available there,
-it reports an explicit dependency skip. Qualify an upstream candidate without
+ariadne checkout or the installed Go module. Basic affected selection requires
+ariadne#473; this preparation qualification requires ariadne#517. Until that
+preparation-capable source is available there, it reports an explicit dependency
+skip. Qualify an upstream candidate without
 changing that checkout using `ARIADNE_AFFECTED_SOURCE=/path/to/ariadne` and optional
 `ARIADNE_AFFECTED_REF=<local-git-ref>` with `make test-affected-config`; an explicitly
 requested unavailable source fails. Changes to this declaration require the

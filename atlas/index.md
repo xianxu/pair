@@ -33,6 +33,10 @@
 
 - `.sdlc/affected.json`, `scripts/test-affected.py` — affected branch checks
   consume ariadne#473's main-authoritative selection through `make test-affected`.
+  With ariadne#517, `graph_prepare` runs `make runtimebundle-generate` in the
+  same private graph checkout first, bounded to two minutes. Preparation errors
+  or timeouts and graph failure retain the full-suite fallback; parent
+  cancellation aborts without recording a pass. No generated files are borrowed.
   `make test-affected-inventory` reuses the reader audit before close and before
   affected execution; explicit per-file repair commands retain scanner coverage.
   Selected Go argv stays exact; fixed named source scanners run first for Go
