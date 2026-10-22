@@ -211,3 +211,70 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-22T14:31:21-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 809 — flake: TestRunPropagatesChildExitCode |
+| repo | pair |
+| issue file | workshop/issues/000809-flake-testrunpropagateschildexitcode.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 7b9440e8c92663f8ee189f54a1260e3043a78f07..1266347a901798d554eb428c2b65801d190923fb |
+| command | sdlc close --issue 809 |
+| reviewer | claude (anthropic; author anthropic) |
+| isolation | fenced |
+| timestamp | 2026-10-22T14:31:21-07:00 |
+| verdict | SHIP |
+
+## Review
+
+I'm finishing the review: tests pass and the last open finding (BR-4) checks out, so the verdict follows.
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+The only open finding from earlier rounds was BR-4, about doc claims naming the wrong measurement site. It is fixed at all five places it named. `pty_darwin.go:80-92` now gives the measurement once: the negated errno was seen at `syscall.Open` on `/dev/ptmx`, and the ioctls are normalised only as a precaution. That matches the Spec. The `rawENXIO` comment and the ENXIO test's doc comment now point back to that comment instead of repeating it. The atlas (`atlas/architecture.md:1351-1355`) and `workshop/lessons.md` still restate the measurement, but correctly now, with the precaution caveat. The Go-level behaviour is unchanged and I re-verified it here. `go vet` is clean on darwin and with `GOOS=linux`. The targeted tests pass: the ENXIO ride-out, the fatal-site diagnostics, `TestRunPropagatesChildExitCode` and the resize fixture. The only bare `pty.Open` left in the package is `pty_darwin_test.go:367`, the documented exception: it sits inside `startPTYWithOpen`'s own retry, so it is already bounded. I checked the comment's toolchain claim against Go 1.27.1: `syscall/asm_darwin_arm64.s` does issue raw `SVC $0x80`. Nothing new blocks shipping.
+
+1. **Strengths**
+   - `isTransientPTYAlloc` (`pty_darwin.go:93-103`) normalises the sign before comparing. It is pinned in both sign conventions, plus last-attempt recovery, running out of attempts, and an unrelated errno not being retried (`pty_darwin_test.go:137-186`).
+   - The test fix addresses why the bug could not be diagnosed: `runWithPTYReply` now returns Run's stderr, and `TestRunPropagatesChildExitCode` checks that it is empty before checking the exit code (`scribecmd_test.go:305-314`).
+   - There is one allocation primitive, `openPTY`/`openPTYRetry`, shared by production and fixtures. `pty_other.go` gets a two-line pass-through, so non-darwin behaviour is unchanged (ARCH-DRY).
+   - `TestRunFatalSitesExitOneWithDiagnostic` pins the log-open, pty-start and `cmd.Wait` fatal sites through the existing `start` seam; no new mocks were needed.
+2. **Critical:** none.
+3. **Important:** none.
+4. **Minor:** none new. The atlas and lessons.md restate the measurement rather than pointing to the code comment, but both are accurate now, so I don't count it as a defect.
+5. **Test coverage:** every `## Done when` clause is covered. The retry is production-side only, there is no test-side retry, no timeout was extended and no assertion was weakened. Retry recovery and running out of attempts are both exercised.
+6. **Architecture:**
+   - **ARCH-DRY: pass.** One shared opener.
+   - **ARCH-PURE: pass.** The classifier is pure, and the retry takes the opener as an injected function.
+   - **ARCH-PURPOSE: pass.** All fixtures were swept, and production `startPTY` is covered.
+   - **ARCH-EVOLVE: pass.** No persisted format changed. The affected-reader JSON only had its hashes refreshed.
+7. **Plan revisions:** none.
+
+```findings
+dispose:
+  - id: BR-4
+    disposition: addressed
+    note: |
+      All five sites verified: pty_darwin.go:80-92 states the measurement once (syscall.Open on /dev/ptmx, ioctls as a precaution only); the rawENXIO comment and test doc point to it; the atlas and lessons.md restate it correctly with the precaution caveat. Comment-only change, nothing behavioural to regress.
+```
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"5402068b-f958-4519-afba-a2fea00404ba","repository":"github.com/xianxu/pair","issue_id":"000809","recipe":"small-diff-review","round":3,"attempt":1,"agent":"claude","root":"/Volumes/TestScratch/review-checkouts/6998f4655fd79299","reviewed_head":"1266347a901798d554eb428c2b65801d190923fb","slot":"pair:8","requested_at":"2026-10-22T21:30:42.471459Z"},"phase":"finished","pid":10146,"started_at":"2026-10-22T21:30:42.591618Z","finished_at":"2026-10-22T21:31:20.699383Z","session_id":"583a2a4e-4f42-46ed-81cb-b0016dc19539","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 2.462715917s
+head: "1266347a901798d554eb428c2b65801d190923fb"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412

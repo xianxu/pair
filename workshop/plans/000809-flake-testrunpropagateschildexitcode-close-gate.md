@@ -175,6 +175,81 @@ rounds:
       isolation: fenced
       reviewed: b54e8064574d5962a25811704f3ad4998078a30a
       blocked: false
+    - reviewer_runs:
+        - version: 1
+          intent:
+            disposable_root: true
+            id: 5402068b-f958-4519-afba-a2fea00404ba
+            repository: github.com/xianxu/pair
+            issue_id: "000809"
+            recipe: small-diff-review
+            round: 3
+            attempt: 1
+            agent: claude
+            root: /Volumes/TestScratch/review-checkouts/6998f4655fd79299
+            reviewed_head: 1266347a901798d554eb428c2b65801d190923fb
+            slot: pair:8
+            requested_at: "2026-10-22T21:30:42.471459Z"
+          phase: finished
+          pid: 10146
+          started_at: "2026-10-22T21:30:42.591618Z"
+          finished_at: "2026-10-22T21:31:20.699383Z"
+          session_id: 583a2a4e-4f42-46ed-81cb-b0016dc19539
+          outcome: returned
+      actual_inputs:
+        version: 1
+        method: active-time-v3-engagement-v1
+        repository: github.com/xianxu/pair
+        code_head: 1266347a901798d554eb428c2b65801d190923fb
+        tracker_head: 8973fb5840deb9135f2893df9571a19d09a54bec
+        branch_point: 7b9440e8c92663f8ee189f54a1260e3043a78f07
+        since: "2026-10-22T12:41:48-07:00"
+        until: "2026-10-22T14:29:59-07:00"
+        brain_root: /Users/xianxu/workspace/brain
+        gap_minutes: 15
+        commit_weight: 1
+        include_assistant: true
+        engagements:
+            - start: "2026-10-22T12:41:48-07:00"
+              end: "2026-10-22T14:29:59-07:00"
+              began: "2026-10-22T12:41:48-07:00"
+              roots:
+                - /Users/xianxu/workspace/worktree/pair-slot8/pair
+        sources:
+            - harness: qoder
+              id: d0d6b474-f0bb-4817-a59c-ca5442029afe
+              slot: pair:8
+              cwd: /Users/xianxu/workspace/worktree/pair-slot8/pair
+              digest: 44198cfbf4ab5e4a7a38c689d4ad07fda875416efbc83eb269d7eac903d2affe
+              started: "2026-10-22T19:40:15.447Z"
+              spawned: false
+              bytes: 3097618
+              windows:
+                - start: "2026-10-22T12:41:48-07:00"
+                  end: "2026-10-22T14:29:59-07:00"
+        excluded_brain_sessions: 1
+        excluded_brain_minutes: 34.2714
+        cuts:
+            - dispatched: "2026-10-22T14:15:05-07:00"
+              finalized: "2026-10-22T14:16:38-07:00"
+              finalizing: false
+            - dispatched: "2026-10-22T14:21:33-07:00"
+              finalized: "2026-10-22T14:23:31-07:00"
+              finalizing: true
+      "n": 3
+      timestamp: "2026-10-22T14:31:22-07:00"
+      dispatched: "2026-10-22T14:30:40-07:00"
+      agent: claude
+      reviewer: claude (anthropic; author anthropic)
+      dispose:
+        - id: BR-4
+          disposition: addressed
+          note: 'All five sites verified: pty_darwin.go:80-92 states the measurement once (syscall.Open on /dev/ptmx, ioctls as a precaution only); the rawENXIO comment and test doc point to it; the atlas and lessons.md restate it correctly with the precaution caveat. Comment-only change, nothing behavioural to regress.'
+          round: 3
+      recipe: small-diff-review
+      isolation: fenced
+      reviewed: 1266347a901798d554eb428c2b65801d190923fb
+      blocked: false
 ---
 
 # Gate ledger — pair#809 (boundary-review)
@@ -206,6 +281,12 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-4** [Minor] `doc-claim-narrower-than-measurement` (kind: defect) Comments misattribute the measured negated errno to the ioctl raw-syscall path
   This is the 2nd finding in family doc-claim-narrower-than-measurement. The Spec measured -6 only at syscall.Open on /dev/ptmx, and TIOCPTYGNAME/GRANT/UNLK never failed. Instances: pty_darwin.go isTransientPTYAlloc comment "measured arriving from BOTH"; atlas/architecture.md:1351-1352 "measured from both ... and the raw ioctl syscalls"; pty_darwin_test.go rawENXIO comment, which says the ioctls are the production spelling's source; pty_darwin_test.go:128-131 "whichever of creack/pty's two syscall conventions happened to lose the race"; lessons.md "a failing raw syscall can hand back a negated errno". Rule: state where the errno came from once, in the isTransientPTYAlloc comment, matching the Spec (measured at the syscall.Open ptmx open; the ioctl path is covered as a precaution only). The other sites should point to that comment instead of restating it.
 
+## Round 3 — 2026-10-22T14:31:22-07:00 (claude) — passed
+
+### Disposed
+
+- BR-4 — addressed — All five sites verified: pty_darwin.go:80-92 states the measurement once (syscall.Open on /dev/ptmx, ioctls as a precaution only); the rawENXIO comment and test doc point to it; the atlas and lessons.md restate it correctly with the precaution caveat. Comment-only change, nothing behavioural to regress.
+
 ## Open findings
 
-- **BR-4** [Minor] `doc-claim-narrower-than-measurement` (kind: defect) Comments misattribute the measured negated errno to the ioctl raw-syscall path
+(none — every finding has been disposed)
