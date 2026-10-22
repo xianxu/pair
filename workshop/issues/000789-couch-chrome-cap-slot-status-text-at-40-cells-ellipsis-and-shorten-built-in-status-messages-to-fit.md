@@ -88,6 +88,13 @@ Retained merge session46377 survived restart and acquired admission after #773. 
 
 Next: finish merged-head targeted checks/inventory, commit and push this integration, record its authoritative full suite, then follow the requested fixed-then-ship close with full-suite evidence and re-enter sdlc merge. The prior runner has exited; no duplicate remains. #796 (default collapse, multiline option, #810 mechanism recorded in Spec) is still next after landing; #811 and #812 follow it.
 
+
+### 2026-10-22 — integration suite queued; authorized parallel planning
+
+Integrated-head startup three-test selection PASS1.466s, reader inventory and diff checks pass. Recorded integration suite onb2ed415eae449b0ef4d93c108e2520355c2430f7 is queued: session61444, lease-3428295058, attempta71b7262e10d47a252d630372095d2ff, isolated checkout /Volumes/TestScratch/local-checks/sdlc-local-3878503325. Initial normal FIFO position16; no full-suite result claimed. The prior merge runner has exited, so none can select or mutate this checkout on admission.
+
+TL6a768f10 explicitly authorizes starting #796 from main while this immutable snapshot suite waits. Preserve #789's branch and check session; return here when the result arrives, perform requested fixed-then-ship review with passing full-suite evidence, then re-enter merge. #796 plan first: collapse default, multiline available, and #810 resize/no-repaint stall mechanism documented. No stacked branch development.
+
 ## Revisions
 
 ### 2026-10-22 — implementation scope
