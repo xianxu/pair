@@ -7,6 +7,6 @@ estimate_hours:
 github_issue:
 ---
 
-# Couch: Ctrl+Backspace opens the attention list (like the bell) instead of jumping to a tab
+# Couch: Ctrl+Return opens the attention list (like the bell) instead of jumping to a tab
 
 ## Problem
