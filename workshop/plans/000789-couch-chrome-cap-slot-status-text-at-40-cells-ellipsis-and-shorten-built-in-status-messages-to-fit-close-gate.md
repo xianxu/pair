@@ -193,6 +193,122 @@ rounds:
       recipe: milestone-review
       isolation: fenced
       blocked: true
+    - reviewer_runs:
+        - version: 1
+          intent:
+            disposable_root: true
+            id: 24dd4f00-e767-4157-aa96-68559a721a82
+            repository: github.com/xianxu/pair
+            issue_id: "000789"
+            recipe: milestone-review
+            round: 3
+            attempt: 1
+            agent: codex
+            root: /Volumes/TestScratch/review-checkouts/eee6a9a3f04d1810
+            reviewed_head: c4b930ad27f9dbbc5810d87b49380cca5ecae691
+            slot: pair:4
+            requested_at: "2026-10-22T14:44:16.74361Z"
+          phase: finished
+          pid: 97890
+          started_at: "2026-10-22T14:44:16.900674Z"
+          finished_at: "2026-10-22T14:48:02.279831Z"
+          session_id: 01a16411-e70f-7933-82cc-e18bb3723cee
+          outcome: returned
+      actual_inputs:
+        version: 1
+        method: active-time-v3-engagement-v1
+        repository: github.com/xianxu/pair
+        code_head: c4b930ad27f9dbbc5810d87b49380cca5ecae691
+        tracker_head: bc336d38562c4b5da328d29e87a2e19a008c5fe4
+        branch_point: 5df9efb7d0df1a627f8d929895181fcf7b40ef73
+        since: "2026-10-22T06:59:35-07:00"
+        until: "2026-10-22T07:43:40-07:00"
+        brain_root: /Users/xianxu/workspace/brain
+        gap_minutes: 15
+        commit_weight: 1
+        include_assistant: true
+        engagements:
+            - start: "2026-10-22T06:59:35-07:00"
+              end: "2026-10-22T07:43:40-07:00"
+              began: "2026-10-22T06:59:35-07:00"
+              roots:
+                - /Users/xianxu/workspace/worktree/pair-slot4/pair
+        sources:
+            - harness: codex
+              id: 01a15a49-099a-71f3-872b-0c2ad747d4bc
+              slot: pair:4
+              cwd: /Users/xianxu/workspace/worktree/pair-slot4/pair
+              digest: 4a01933a70475a3b54b8d754b7c918d42b8532fb436920065ef9462475e8cadd
+              started: "2026-10-20T17:08:30.923Z"
+              spawned: false
+              bytes: 48674287
+              windows:
+                - start: "2026-10-22T06:59:35-07:00"
+                  end: "2026-10-22T07:43:40-07:00"
+            - harness: codex
+              id: 01a163ea-73ce-7920-a8e0-09745fc11c15
+              slot: pair:4
+              cwd: /Users/xianxu/workspace/worktree/pair-slot4/pair
+              parent_id: 01a15a49-099a-71f3-872b-0c2ad747d4bc
+              digest: 7d14928e0e02788709629ec2489da24e2ba1ea2fa996bbb9f9f2fef3b9f9ff0c
+              started: "2026-10-22T14:01:11.985Z"
+              spawned: true
+              bytes: 1750702
+              windows:
+                - start: "2026-10-22T14:01:11.985Z"
+                  end: "2026-10-22T07:43:40-07:00"
+            - harness: codex
+              id: 01a1640a-520b-79b0-b5b5-dfd2a46aee92
+              slot: pair:4
+              cwd: /Users/xianxu/workspace/worktree/pair-slot4/pair
+              parent_id: 01a15a49-099a-71f3-872b-0c2ad747d4bc
+              digest: dc7cd1e7dcdf5a21095b98bcc9c1b65fabec3247703b30bc8591cd3122edbc75
+              started: "2026-10-22T14:36:00.474Z"
+              spawned: true
+              bytes: 826505
+              windows:
+                - start: "2026-10-22T14:36:00.474Z"
+                  end: "2026-10-22T07:43:40-07:00"
+        cuts:
+            - dispatched: "2026-10-22T07:17:23-07:00"
+              finalized: "2026-10-22T07:19:30-07:00"
+              finalizing: false
+            - dispatched: "2026-10-22T07:28:54-07:00"
+              finalized: "2026-10-22T07:32:01-07:00"
+              finalizing: false
+      "n": 3
+      timestamp: "2026-10-22T07:48:03-07:00"
+      dispatched: "2026-10-22T07:44:14-07:00"
+      agent: codex
+      reviewer: codex (openai; author openai)
+      dispose:
+        - id: BR-1
+          disposition: withdrawn
+          note: The pinned Spec and Done-when explicitly exclude producer shortening and exhaustive catalog enforcement. The final diff removes that implementation and retains full upstream diagnostics. The prior finding is overtaken by this documented scope change, not resolved by a passing catalog.
+          round: 3
+        - id: BR-2
+          disposition: addressed
+          note: Lifecycle production wording and its assertion are both restored to baseline; neither appears in the final code diff. TestLifecycleDrainReportsOnlyUntargetedFacts passes.
+          round: 3
+        - id: BR-3
+          disposition: addressed
+          note: README.md:456 and :1732 now describe capability precedence and full-text recovery, matching console_menu.go:468-485. The clipboard regression verifies capability, selected-error and held-payload precedence.
+          round: 3
+        - id: BR-4
+          disposition: addressed
+          note: The pinned issue's Done-when now requires capped rendering and full-copy precedence while explicitly excluding producer cleanup, consistently with its revised Spec and final code.
+          round: 3
+      findings:
+        - kind: defect
+          id: BR-5
+          severity: Important
+          title: Two screen assertions still require text beyond the new display cap
+          detail: 'cmd/internal/couchtty/console_castcodes_test.go:98 waits for the 41-cell "Too many wrong codes on the LIVE view link"; console_menu_operation_test.go:145 expects "BORROWED ATTACH: lifecycle claim is open", but chrome now ends at "ope…". The full couchtty run fails both, and the resume test also fails independently. A temporary overlay disabling only the cap makes both pass. ARCH-PURPOSE: this is the 2nd finding in family producer-assertion-consistency, with two confirmed remaining sites. State the rule and sweep screen-level notice assertions: assert the bounded display independently, and check complete diagnostics through retained data or copying. Preserve the rotation security and attachment invariants; do not repair only these two instances.'
+          family: producer-assertion-consistency
+          round: 3
+      recipe: milestone-review
+      isolation: fenced
+      blocked: true
 ---
 
 # Gate ledger — pair#789 (boundary-review)
@@ -222,6 +338,20 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - BR-3 — addressed — The pinned README diff updates both passages at :456 and :1732 to describe capability precedence and full-text recovery. These match console_menu.go:468-487; the clipboard regression also verifies selected-error and held-payload precedence.
 - BR-4 — addressed — The pinned issue diff reconciles Done-when with finite built-in substitutions, dynamic diagnostic exemptions, capability-copy precedence and full-text recovery. These criteria agree with the revised Spec and the intended renderer/copy behavior.
 
+## Round 3 — 2026-10-22T07:48:03-07:00 (codex) — BLOCKED
+
+### Disposed
+
+- BR-1 — withdrawn — The pinned Spec and Done-when explicitly exclude producer shortening and exhaustive catalog enforcement. The final diff removes that implementation and retains full upstream diagnostics. The prior finding is overtaken by this documented scope change, not resolved by a passing catalog.
+- BR-2 — addressed — Lifecycle production wording and its assertion are both restored to baseline; neither appears in the final code diff. TestLifecycleDrainReportsOnlyUntargetedFacts passes.
+- BR-3 — addressed — README.md:456 and :1732 now describe capability precedence and full-text recovery, matching console_menu.go:468-485. The clipboard regression verifies capability, selected-error and held-payload precedence.
+- BR-4 — addressed — The pinned issue's Done-when now requires capped rendering and full-copy precedence while explicitly excluding producer cleanup, consistently with its revised Spec and final code.
+
+### Raised
+
+- **BR-5** [Important] `producer-assertion-consistency` (kind: defect) Two screen assertions still require text beyond the new display cap
+  cmd/internal/couchtty/console_castcodes_test.go:98 waits for the 41-cell "Too many wrong codes on the LIVE view link"; console_menu_operation_test.go:145 expects "BORROWED ATTACH: lifecycle claim is open", but chrome now ends at "ope…". The full couchtty run fails both, and the resume test also fails independently. A temporary overlay disabling only the cap makes both pass. ARCH-PURPOSE: this is the 2nd finding in family producer-assertion-consistency, with two confirmed remaining sites. State the rule and sweep screen-level notice assertions: assert the bounded display independently, and check complete diagnostics through retained data or copying. Preserve the rotation security and attachment invariants; do not repair only these two instances.
+
 ## Open findings
 
-- **BR-1** [Critical] `built-in-status-enforcement` Catalog passes while built-in status messages still exceed 40 cells
+- **BR-5** [Important] `producer-assertion-consistency` (kind: defect) Two screen assertions still require text beyond the new display cap

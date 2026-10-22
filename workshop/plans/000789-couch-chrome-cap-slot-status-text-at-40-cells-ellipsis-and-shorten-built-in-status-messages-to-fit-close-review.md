@@ -215,3 +215,118 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-22T07:48:03-07:00 (REWORK)
+
+| field | value |
+|-------|-------|
+| issue | 789 — Couch chrome: cap status text at 40 cells and preserve full copying |
+| repo | pair |
+| issue file | workshop/issues/000789-couch-chrome-cap-slot-status-text-at-40-cells-ellipsis-and-shorten-built-in-status-messages-to-fit.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 5df9efb7d0df1a627f8d929895181fcf7b40ef73..c4b930ad27f9dbbc5810d87b49380cca5ecae691 |
+| command | sdlc close --issue 789 |
+| reviewer | codex (openai; author openai) |
+| isolation | fenced |
+| timestamp | 2026-10-22T07:48:03-07:00 |
+| verdict | REWORK |
+
+## Review
+
+```verdict
+verdict: REWORK
+confidence: high
+```
+
+The display cap and full-copy behavior match the revised Spec and pass focused regressions. BR-1 is overtaken by the documented scope split. Shipping remains blocked by two stale screen assertions: the package tests still expect text beyond the new cap.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: withdrawn
+    note: |
+      The pinned Spec and Done-when explicitly exclude producer shortening and exhaustive catalog enforcement. The final diff removes that implementation and retains full upstream diagnostics. The prior finding is overtaken by this documented scope change, not resolved by a passing catalog.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      Lifecycle production wording and its assertion are both restored to baseline; neither appears in the final code diff. TestLifecycleDrainReportsOnlyUntargetedFacts passes.
+  - id: BR-3
+    disposition: addressed
+    note: |
+      README.md:456 and :1732 now describe capability precedence and full-text recovery, matching console_menu.go:468-485. The clipboard regression verifies capability, selected-error and held-payload precedence.
+  - id: BR-4
+    disposition: addressed
+    note: |
+      The pinned issue's Done-when now requires capped rendering and full-copy precedence while explicitly excluding producer cleanup, consistently with its revised Spec and final code.
+findings:
+  - id: new
+    severity: Important
+    kind: defect
+    family: producer-assertion-consistency
+    title: |
+      Two screen assertions still require text beyond the new display cap
+    detail: |
+      cmd/internal/couchtty/console_castcodes_test.go:98 waits for the 41-cell "Too many wrong codes on the LIVE view link"; console_menu_operation_test.go:145 expects "BORROWED ATTACH: lifecycle claim is open", but chrome now ends at "ope…". The full couchtty run fails both, and the resume test also fails independently. A temporary overlay disabling only the cap makes both pass. ARCH-PURPOSE: this is the 2nd finding in family producer-assertion-consistency, with two confirmed remaining sites. State the rule and sweep screen-level notice assertions: assert the bounded display independently, and check complete diagnostics through retained data or copying. Preserve the rotation security and attachment invariants; do not repair only these two instances.
+```
+
+1. **Strengths**
+
+   - Both notice fields use the shared projection in `reserve.go:365/:378`.
+   - Sanitization and width handling reuse existing helpers.
+   - Full diagnostics remain intact; copying preserves established error/retry precedence.
+   - README and atlas document the changed behavior.
+
+2. **Critical findings**
+
+   None.
+
+3. **Important findings**
+
+   Repair the screen-assertion family described above before closing.
+
+4. **Minor findings**
+
+   None.
+
+5. **Test coverage notes**
+
+   - Focused chrome, status, notice, copy and capability tests passed.
+   - Removing either new behavior through temporary overlays makes its regression fail.
+   - Lifecycle, artifact classification, affected-reader inventory and diff checks passed.
+   - Full couchtty testing failed the two stale assertions and timed out at 120 seconds. Additional clipboard/pointer timing failures passed independently.
+   - Temporary overlays were removed; checkout remains unchanged.
+
+6. **Architectural notes**
+
+   - **ARCH-DRY — pass:** one shared projection.
+   - **ARCH-PURE — pass:** deterministic projection with no IO.
+   - **ARCH-PURPOSE — flag:** revised functionality is delivered, but affected screen assertions remain unreconciled.
+   - **ARCH-MOCK — pass:** controlled browser and clipboard doubles use existing seams.
+   - **ARCH-CONSTRAINTS — pass:** bounded output and linear input processing.
+   - **ARCH-SECURE — pass:** sanitization precedes rendering.
+   - **ARCH-ORDER — pass:** held-payload and selected-error precedence remain intact.
+   - **ARCH-FUNERAL — pass:** no new durable runtime artifacts or background lifetimes.
+   - **ARCH-EVOLVE — pass:** no persisted-format changes.
+
+   No Core concepts table is present.
+
+7. **Plan revision recommendations**
+
+   Add a `## Revisions` entry requiring a sweep of screen-level notice assertions, separating bounded display expectations from full-diagnostic invariants, followed by package verification.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"24dd4f00-e767-4157-aa96-68559a721a82","repository":"github.com/xianxu/pair","issue_id":"000789","recipe":"milestone-review","round":3,"attempt":1,"agent":"codex","root":"/Volumes/TestScratch/review-checkouts/eee6a9a3f04d1810","reviewed_head":"c4b930ad27f9dbbc5810d87b49380cca5ecae691","slot":"pair:4","requested_at":"2026-10-22T14:44:16.74361Z"},"phase":"finished","pid":97890,"started_at":"2026-10-22T14:44:16.900674Z","finished_at":"2026-10-22T14:48:02.279831Z","session_id":"01a16411-e70f-7933-82cc-e18bb3723cee","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 2.59007675s
+head: "c4b930ad27f9dbbc5810d87b49380cca5ecae691"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000411
