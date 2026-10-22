@@ -487,3 +487,102 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-22T01:40:19-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 722 — couch --drain [--fast]: a fleet-wide checkpoint-and-stop before a restart, with a drain board |
+| repo | pair |
+| issue file | workshop/issues/000722-couch-drain-fast-a-fleet-wide-checkpoint-and-stop-before-a-restart-with-a-drain-board.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 0b605b1ee4ec9bda5a4d569708d25e0a857efd2f..903a134c3603877e6eedc662effa1b56448c5117 |
+| command | sdlc close --issue 722 |
+| reviewer | codex (openai; author openai) |
+| isolation | fenced |
+| timestamp | 2026-10-22T01:40:19-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+The pinned implementation matches the approved transient-flags Spec and superseding Plan revisions. No blocking defects found. README and atlas cover the new surface. The documented rule rollout and watched live acceptance remain required before landing.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      The approved redesign removes machine-parsed acknowledgements and readiness authority; ordinary replies no longer affect drain flags.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      No drain queue adapter or automatic SDLC operation remains; the former external dependency and its conformance requirement were retired by the approved redesign.
+  - id: BR-3
+    disposition: addressed
+    note: |
+      Current fast drain sends ordinary guidance and performs no queue cancellation; source and current documentation agree.
+  - id: BR-4
+    disposition: addressed
+    note: |
+      The coordinator and its phase/error mutation paths are absent. Current flag changes use the pure set helpers under the service mutex.
+  - id: BR-5
+    disposition: withdrawn
+    note: |
+      Withdrawal remains supported: this review completed uncached full couchcore and couchtty package runs successfully without changing write budgets.
+```
+
+1. **Strengths**
+
+   - Steward authorization, issuing-steward exclusion, and membership limits precede flag publication and notice admission (`cmd/internal/couchcmd/drain_wiring.go:63`).
+   - Undrain clears flags before sending notices, preserving the specified behavior when recipients disconnect or delivery fails (`cmd/internal/couchcmd/drain_wiring.go:81`).
+   - Idle projection requires positive quiescence evidence and preserves unknown values (`cmd/internal/couchcore/drain_board.go:40`).
+   - Native acceptance combines public receipts with independently accepted message bodies, actual wrapper registration, restart checks, and exact cleanup.
+
+2. **Critical findings:** None.
+
+3. **Important findings:** None.
+
+4. **Minor findings:** None.
+
+5. **Test coverage notes**
+
+   - Fresh focused drain tests passed across core, service, protocol, console, and CLI packages.
+   - Fresh complete runs passed for `couchcore`, `couchmessage`, `couchcmd`, `couchtty`, and `wrapcmd`.
+   - Both retained native-acceptance and recorded-suite log hashes match their manifests. Git confirms subsequent changes contain only tracker, plan, and evidence updates.
+   - Native acceptance was inspected through retained evidence, not rerun during this review. The older NoticeStarted discrepancy remains explicitly unresolved rather than credited as fixed.
+
+6. **Architectural notes**
+
+   - **ARCH-DRY — pass:** Reuses ordinary mailbox admission, receipts, authorization, and console publication.
+   - **ARCH-PURE — pass:** Set operations, projection, and formatting are deterministic; IO stays in service wiring.
+   - **ARCH-PURPOSE — pass:** Delivers the approved flag/notice/status/lift contract without restoring completion authority.
+   - **ARCH-MOCK — pass:** Reuses existing delivery seams and stateful fakes; native acceptance qualifies actual composition.
+   - **ARCH-CONSTRAINTS — pass:** Flags are capped, admission has a shared five-second budget, and status performs no new sampling.
+   - **ARCH-SECURE — pass:** Mutations require verified steward identity; request shapes and continuation text are validated.
+   - **ARCH-ORDER — pass:** Flag updates and publication are mutex-ordered; notice outcomes remain independent, including documented delayed-message limitations.
+   - **ARCH-FUNERAL — pass:** Flags end with service lifetime; receipts retain their existing lifecycle.
+   - **ARCH-EVOLVE — pass:** No drain persistence format is introduced; legacy bytes remain untouched.
+
+7. **Plan revision recommendations:** None. The later revisions explicitly supersede the historical coordinator design and preserve the remaining live-acceptance gates.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"3a753312-157e-433d-b234-95325e1e31fb","repository":"github.com/xianxu/pair","issue_id":"000722","recipe":"milestone-review","round":6,"attempt":1,"agent":"codex","root":"/Volumes/TestScratch/review-checkouts/0fabf8a0da2c91d9","reviewed_head":"903a134c3603877e6eedc662effa1b56448c5117","slot":"pair:5","requested_at":"2026-10-22T08:31:59.268119Z"},"phase":"finished","pid":64226,"started_at":"2026-10-22T08:31:59.48569Z","finished_at":"2026-10-22T08:40:18.993176Z","session_id":"01a162bd-0f99-7040-85fe-ca221bdafb12","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 3.090192458s
+head: "903a134c3603877e6eedc662effa1b56448c5117"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412
