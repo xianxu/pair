@@ -6,7 +6,9 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"os"
 	"sync"
+	"time"
 )
 
 var (
@@ -75,8 +77,8 @@ func (c *Conn) SyncEvents(ctx context.Context) error {
 // routes replies by id and queues events; one pump goroutine hands queued
 // events to the consumer in arrival order.
 type Conn struct {
-	w   io.WriteCloser
-	wmu sync.Mutex
+	w          io.WriteCloser
+	writeToken chan struct{}
 
 	mu        sync.Mutex
 	nextID    int64
@@ -97,18 +99,22 @@ type Conn struct {
 }
 
 // New starts a Conn reading frames from r (Chrome's fd 4) and writing
-// commands to w (Chrome's fd 3). The reader goroutine exits only when r
+// commands to w (Chrome's fd 3). Conn owns w: SetWriteDeadline must
+// interrupt Write when available; otherwise Close must interrupt an active
+// Write. Cancellation of a generic writer retires the connection. The reader
+// goroutine exits only when r
 // returns an error, which for a real pipe means Chrome closed its end.
 func New(r io.Reader, w io.WriteCloser) *Conn {
 	c := &Conn{
-		w:         w,
-		pending:   map[int64]chan Message{},
-		maxQueued: maxQueuedEvents,
-		signal:    make(chan struct{}, 1),
-		done:      make(chan struct{}),
-		closed:    make(chan struct{}),
-		events:    make(chan Event),
-		readDone:  make(chan struct{}), pumpDone: make(chan struct{}),
+		w:          w,
+		writeToken: make(chan struct{}, 1),
+		pending:    map[int64]chan Message{},
+		maxQueued:  maxQueuedEvents,
+		signal:     make(chan struct{}, 1),
+		done:       make(chan struct{}),
+		closed:     make(chan struct{}),
+		events:     make(chan Event),
+		readDone:   make(chan struct{}), pumpDone: make(chan struct{}),
 	}
 	go c.read(r, newFrameReader(r, maxFrame))
 	go c.pump()
@@ -126,6 +132,9 @@ func (c *Conn) Call(ctx context.Context, sessionID, method string, params, resul
 // CallSeq is Call, also returning the reply's place in the read order (see
 // Event.Seq); 0 when no reply came.
 func (c *Conn) CallSeq(ctx context.Context, sessionID, method string, params, result any) (uint64, error) {
+	if err := ctx.Err(); err != nil {
+		return 0, err
+	}
 	m := Message{Method: method, SessionID: sessionID}
 	if params != nil {
 		raw, err := json.Marshal(params)
@@ -151,13 +160,9 @@ func (c *Conn) CallSeq(ctx context.Context, sessionID, method string, params, re
 		c.forget(m.ID)
 		return 0, fmt.Errorf("cdp: %s: encode: %w", method, err)
 	}
-	c.wmu.Lock()
-	_, err = c.w.Write(frame)
-	c.wmu.Unlock()
-	if err != nil {
+	if err = c.writeFrame(ctx, frame); err != nil {
 		c.forget(m.ID)
-		c.fail(fmt.Errorf("cdp: write: %w", err))
-		return 0, fmt.Errorf("cdp: %s: %w", method, c.Err())
+		return 0, fmt.Errorf("cdp: %s: %w", method, err)
 	}
 
 	select {
@@ -176,6 +181,88 @@ func (c *Conn) CallSeq(ctx context.Context, sessionID, method string, params, re
 		c.forget(m.ID)
 		return 0, fmt.Errorf("cdp: %s: %w", method, c.Err())
 	}
+}
+
+type writeDeadlineSetter interface{ SetWriteDeadline(time.Time) error }
+
+// writeFrame owns both frame serialization and cancellation until the write's
+// callback is joined and its deadline reset. No next writer can inherit an old
+// callback or interrupt. A partial frame always retires the protocol stream.
+func (c *Conn) writeFrame(ctx context.Context, frame []byte) error {
+	select {
+	case c.writeToken <- struct{}{}:
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-c.done:
+		return c.Err()
+	}
+	defer func() { <-c.writeToken }()
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if err := c.Err(); err != nil {
+		return err
+	}
+	deadlineWriter, hasDeadline := c.w.(writeDeadlineSetter)
+	if hasDeadline {
+		deadline, _ := ctx.Deadline()
+		if err := deadlineWriter.SetWriteDeadline(deadline); err != nil {
+			return c.retireWrite(err)
+		}
+	}
+	callbackDone := make(chan struct{})
+	var interruptErr error
+	stop := context.AfterFunc(ctx, func() {
+		defer close(callbackDone)
+		if hasDeadline {
+			interruptErr = deadlineWriter.SetWriteDeadline(time.Now())
+			if interruptErr == nil {
+				return
+			}
+		}
+		// Generic owned transports promise Close interrupts Write. Closing is also
+		// the safe fallback when a declared deadline setter fails during cancel.
+		_ = c.retireWrite(errors.Join(ctx.Err(), interruptErr))
+	})
+	var n int
+	var err error
+	if err = ctx.Err(); err == nil {
+		n, err = c.w.Write(frame)
+	}
+	if !stop() {
+		<-callbackDone
+	}
+	if hasDeadline {
+		if resetErr := deadlineWriter.SetWriteDeadline(time.Time{}); resetErr != nil {
+			return c.retireWrite(errors.Join(err, resetErr))
+		}
+	}
+	if interruptErr != nil {
+		return c.retireWrite(errors.Join(err, interruptErr))
+	}
+	if n == len(frame) && err == nil {
+		// Reply cancellation does not corrupt a fully emitted frame.
+		return c.Err()
+	}
+	contextErr := ctx.Err()
+	if contextErr == nil {
+		if deadline, ok := ctx.Deadline(); ok && !time.Now().Before(deadline) {
+			contextErr = context.DeadlineExceeded
+		}
+	}
+	if n == 0 && hasDeadline && contextErr != nil && c.Err() == nil && (errors.Is(err, os.ErrDeadlineExceeded) || errors.Is(err, contextErr)) {
+		// No frame byte was emitted; after reset this owned pipe remains usable.
+		return contextErr
+	}
+	if err == nil {
+		err = io.ErrShortWrite
+	}
+	return c.retireWrite(errors.Join(err, contextErr))
+}
+func (c *Conn) retireWrite(err error) error {
+	c.fail(fmt.Errorf("cdp: write: %w", err))
+	closeErr := c.Close()
+	return errors.Join(c.Err(), closeErr)
 }
 
 func decodeReply(method string, reply Message, result any) error {

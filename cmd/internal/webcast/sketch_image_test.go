@@ -299,3 +299,23 @@ func TestLiveSketchImageCancellationJoinsChrome(t *testing.T) {
 		t.Fatalf("canceled browser retained resources: %v", entries)
 	}
 }
+
+func TestSketchImageAggregateContextBudget(t *testing.T) {
+	before := time.Now()
+	ctx, cancel := sketchImageContext(context.Background())
+	defer cancel()
+	after := time.Now()
+	deadline, ok := ctx.Deadline()
+	if !ok || deadline.Before(before.Add(30*time.Second)) || deadline.After(after.Add(30*time.Second)) {
+		t.Fatalf("missing aggregate30s deadline: %v %v", deadline, ok)
+	}
+	earlier := before.Add(time.Second)
+	parent, parentCancel := context.WithDeadline(context.Background(), earlier)
+	defer parentCancel()
+	child, childCancel := sketchImageContext(parent)
+	defer childCancel()
+	got, _ := child.Deadline()
+	if !got.Equal(earlier) {
+		t.Fatalf("render extended parent budget: %s", got)
+	}
+}

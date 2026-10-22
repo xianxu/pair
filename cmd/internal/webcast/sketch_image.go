@@ -35,7 +35,15 @@ type sketchImageRenderer struct {
 	active    sync.Mutex
 }
 
+// sketchImageContext bounds the whole serial batch, including CLI callers
+// without an inherited preparation deadline. Cleanup retains its own5+1s grace.
+func sketchImageContext(parent context.Context) (context.Context, context.CancelFunc) {
+	return context.WithTimeout(parent, 30*time.Second)
+}
+
 func (r *sketchImageRenderer) Render(ctx context.Context, b sketchimage.Batch) (images []sketchimage.Image, err error) {
+	ctx, cancel := sketchImageContext(ctx)
+	defer cancel()
 	if err = ctx.Err(); err != nil {
 		return nil, err
 	}
