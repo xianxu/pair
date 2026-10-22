@@ -1,6 +1,6 @@
 ---
 id: 000778
-status: working
+status: codecomplete
 created: 2026-10-21
 updated: 2026-10-21
 estimate_hours:
@@ -14,6 +14,14 @@ claimant:
     workspace: pair:5
     worktree: /Users/xianxu/workspace/worktree/pair-slot5/pair
     repository: github.com/xianxu/pair
+actual_hours: 1.11
+tracker:
+    version: 1
+    completion:
+        token: close-33fad97c2b01
+        repository: github.com/xianxu/pair
+        reviewed_head: d729188af8159560db1bfbf0d610fe0886eb5346
+        evidence_commit: 3df738ae2f44938620faed8069675622699276f7
 ---
 
 # flake: TestBareCouchInstalledCommand/pty_launches_and_attaches_current_hub
