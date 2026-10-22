@@ -186,6 +186,10 @@ Full close round7 EXIT0/SHIP, no new findings, all4 prior findings disposed; evi
 
 TL3c73d959 relayed the requested dimming look: "works well". Accepted staged sourcec3b09ebd717a6794f686bb72c1daea8d2b25d746; full close round7 already SHIP. Exact-source suite session47217/lease-3756798983 remains running in its isolated snapshot (shell checks passed, Go packages in progress), no final result yet. Land through sdlc merge only after its pass; grant remains until16:13. #789's isolated queued suite/branch preserved; finish789 next, then819, then811/812. No scope added.
 
+### 2026-10-22 — exact-source suite PASS; entering merge
+
+Recorded suite lease-3756798983/attemptbfdfebd4295f897beff7354e145fb08a completed EXIT0/PASS13m27s on accepted sourcec3b09ebd717a6794f686bb72c1daea8d2b25d746, log sha256 prefixa66ffed4fb69, retained .git/sdlc/local-checks/c3b09ebd717a6794f686bb72c1daea8d2b25d746/suite.log. Full close round7 SHIP and dimming operator acceptance TL3c73d959 recorded. No new code; entering sdlc merge promptly, let its admitted integration own main movement. #789's queued snapshot remains separate. Report landing PR547 and release stage only through sdlc after landing.
+
 ## Revisions
 
 ### 2026-10-22 — operator priority and default (TL0afd9a82)
