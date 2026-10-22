@@ -1,6 +1,6 @@
 ---
 id: 000752
-status: codecomplete
+status: done
 created: 2026-10-20
 updated: 2026-10-21
 estimate_hours: 10.63
@@ -21,6 +21,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: 4f0f3228eec3ae76481f3bc120f22c216bc38f7e
         evidence_commit: ddc2d031fc2adb7c7f18851b2dba6a839aea010f
+        landed_commit: 5fafe0f807a9076039a934f4f1d31c45fee637ae
 ---
 
 # cast-sketch: live console and driver drawing with pen pressure
