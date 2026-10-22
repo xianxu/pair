@@ -7,6 +7,18 @@ provenance; qualification and operator acceptance remain pending.
 #758 supplies the real document/nvim adapter after interface integration; private
 stateful backends qualify that seam without being exposed publicly.
 
+The operator has selected an embedded tsnet transport after the installed Mac
+extension denied both scratch and Downloads Unix sockets. That revision is not
+integrated or enrolled yet; the Cloudflare descriptions below map the held
+implementation being replaced. `tailnet_identity.go` supplies pure, exact-login
+and canonical-peer validation, including explicit expiry evidence. Validation
+alone authenticates no caller: the future adapter must bind WhoIs to the actual
+accepted connection. `tailnet_node.go` is the partial node/health IO seam;
+`tailnet_fake_test.go` models enrollment, watches, revocation and uncertain
+cleanup without starting a node. Native TLS, connection provenance, footprint
+and operator acceptance remain unqualified. The `eventTailnetUnavailable`
+reducer event shares the existing fail-closed revoke-before-cleanup transition.
+
 `cmd/internal/remotesession/state.go` decides lifecycle transitions without IO.
 A durable arm acknowledgement precedes opening. Kill fences admission before
 teardown; stale successful opens are disposed, while duplicate acknowledged

@@ -37,6 +37,7 @@ const (
 	eventResetStored
 	eventFailure
 	eventPoisoned // uncertain persistent authority or unconfirmed cleanup
+	eventTailnetUnavailable // expired, revoked or unknown node authentication
 )
 
 type remoteEvent struct {
@@ -143,7 +144,7 @@ func ReduceRemote(s remoteState, e remoteEvent) (remoteState, []remoteEffect) {
 			s.phase = phaseOff
 			s.joined = true
 		}
-	case eventFailure:
+	case eventFailure, eventTailnetUnavailable:
 		if e.attempt != s.attempt {
 			break
 		}

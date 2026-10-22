@@ -905,3 +905,23 @@ is not evidence of a direct WhoIs/ListenTLS authorization defect. Other listed
 and services filtering, outside the embedded feature. Reported to TL before
 dependency addition for the operator Go-upgrade decision. Independent authorized
 Go1.27.1 bump can proceed; dependency and enrollment remain gated.
+
+
+### 2026-10-22 — operator approves Go1.27.3 installation later; pure work proceeds
+
+TL ca5f4e9e relayed operator authorization for Go1.27.3 installation during
+the planned full shutdown for#739; TL will install and confirm. Target returns
+to exact tailscale.com v1.104.2 and Go1.27.3. Do not change the directive to
+1.27.3 or allow a toolchain download until that confirmation. Directive-only
+Go1.27.1 commit729246582127 is pushed onPR538 and its recorded suite remains
+lease-779340230/attempt40c81bb875dedee0ff366c6fbe41a503 (FIFO position15 at
+13:08). No dependency added before the directive-only verification.
+
+Change-code plan-quality CLEAN round6, estimate-quality INFO, exited0 with
+accepted-design commitd346f62d3. The old estimate's Cloudflare allocation needs
+a tsnet qualification update before dependency integration; no measurement or
+active-time value is invented here. TL a47a5ebb explicitly permits targeted
+pure-package RED/GREEN with installedGo1.27.1 and GOTOOLCHAIN=local: compile-free
+means no tsnet import or toolchain download. Preparing pure principal/reducer
+and stateful fake through this compiler. Operator enrollment remains separate
+and unstarted; no account, node or auth-key creation.

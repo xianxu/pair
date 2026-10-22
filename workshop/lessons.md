@@ -2668,3 +2668,5 @@ and external temporary roots rather than relying on the host's TMPDIR.
   fault the entire physical-attempt budget; add transient recovery controls and
   keep semantic mismatches non-retriable. Audit structural call-site manifests
   when a collector method changes, even when the effect remains read-only.
+
+- #759 tailnet fake review: when a stateful fake publishes ordered observations, serialize the authoritative state update with event publication. Releasing its owner lock between them lets an older healthy observation follow a newer revocation; test the held-publication interleaving, not only sequential status changes. This is an ordering invariant, not a syntactic lint pattern.
