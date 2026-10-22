@@ -102,6 +102,103 @@ rounds:
       recipe: small-diff-review
       isolation: fenced
       blocked: true
+    - reviewer_runs:
+        - version: 1
+          intent:
+            disposable_root: true
+            id: 05e71f80-8499-4887-9039-1a96976d9129
+            repository: github.com/xianxu/pair
+            issue_id: "000797"
+            recipe: small-diff-review
+            round: 2
+            attempt: 1
+            agent: codex
+            root: /Volumes/TestScratch/review-checkouts/c4d0865ba80089b9
+            reviewed_head: e93447cbaedb8696d93135ba7ae3a28c444efa5e
+            slot: pair:2
+            requested_at: "2026-10-22T17:31:30.605286Z"
+          phase: finished
+          pid: 95268
+          started_at: "2026-10-22T17:31:30.719444Z"
+          finished_at: "2026-10-22T17:33:53.29451Z"
+          session_id: 01a164ab-01aa-7a20-8100-75d8c280ded4
+          outcome: returned
+      actual_inputs:
+        version: 1
+        method: active-time-v3-engagement-v1
+        repository: github.com/xianxu/pair
+        code_head: e93447cbaedb8696d93135ba7ae3a28c444efa5e
+        tracker_head: b5e6ebb3d79e16e9a4374b6ee9263a2d293160c9
+        branch_point: 5dd027f15ac0f24f76b2c1188043642f71822f97
+        since: "2026-10-22T09:32:31-07:00"
+        until: "2026-10-22T10:30:27-07:00"
+        brain_root: /Users/xianxu/workspace/brain
+        gap_minutes: 15
+        commit_weight: 1
+        include_assistant: true
+        engagements:
+            - start: "2026-10-22T09:32:31-07:00"
+              end: "2026-10-22T10:30:27-07:00"
+              began: "2026-10-22T09:32:31-07:00"
+              roots:
+                - /Users/xianxu/workspace/worktree/pair-slot2/pair
+        sources:
+            - harness: codex
+              id: 01a15a8b-89c9-7e02-a733-8b52dd00ebac
+              slot: pair:2
+              cwd: /Users/xianxu/workspace/worktree/pair-slot2/pair
+              digest: 07c7d2f1f92fe185eb635bd0dce4fe441367be39ae57fe1cc606403646841996
+              started: "2026-10-20T18:21:51.812Z"
+              spawned: false
+              bytes: 58277520
+              windows:
+                - start: "2026-10-22T09:32:31-07:00"
+                  end: "2026-10-22T10:30:27-07:00"
+            - harness: codex
+              id: 01a16475-3ba3-7181-bc0e-60d420d8d5c8
+              slot: pair:2
+              cwd: /Users/xianxu/workspace/worktree/pair-slot2/pair
+              parent_id: 01a15a8b-89c9-7e02-a733-8b52dd00ebac
+              digest: 7d7aaf74b06bea8617cae1fd48a0d2bb0daf6ebfcaed5cec937fb08942757aeb
+              started: "2026-10-22T16:32:47.212Z"
+              spawned: true
+              bytes: 1960409
+              windows:
+                - start: "2026-10-22T16:32:47.212Z"
+                  end: "2026-10-22T10:30:27-07:00"
+            - harness: codex
+              id: 01a1647d-d249-7852-951b-5c6fd3dbfa1f
+              slot: pair:2
+              cwd: /Users/xianxu/workspace/worktree/pair-slot2/pair
+              parent_id: 01a15a8b-89c9-7e02-a733-8b52dd00ebac
+              digest: c39a0430194ed99e662436d5d589139751a17dbde11bdf6027ed429051c7e70a
+              started: "2026-10-22T16:42:10.056Z"
+              spawned: true
+              bytes: 1905220
+              windows:
+                - start: "2026-10-22T16:42:10.056Z"
+                  end: "2026-10-22T10:30:27-07:00"
+        cuts:
+            - dispatched: "2026-10-22T10:11:51-07:00"
+              finalized: "2026-10-22T10:21:59-07:00"
+              finalizing: false
+      "n": 2
+      timestamp: "2026-10-22T10:33:54-07:00"
+      dispatched: "2026-10-22T10:31:28-07:00"
+      agent: codex
+      reviewer: codex (openai; author openai)
+      dispose:
+        - id: BR-1
+          disposition: addressed
+          note: The pinned before/after diff separates PURE RecoveryTerminalPlan at plan:40 from INTEGRATION recoveryTerminalDriver.checkConfirmed at plan:48 and records the correction under Revisions at plan:135. This matches recovery_terminal_confirmed.go:95-99 and :278-291, where the validator reads readiness metadata through its injected reader. This is a prose-only correction.
+          round: 2
+        - id: BR-2
+          disposition: not-addressed
+          note: 'Verified the retained diagnostic log''s SHA256 bd819f74b2424feaa2cf0886e4571d5a4581732bc7b9f72afd547fa3f9155b73: it records successful Codex confirmation, replacement delivery and cleanup on 003e3ba8 with the diagnostic overlay. That measurement is valid, but does not explain the original startup disconnect. On pinned head e93447cb, PAIR_LIVE_RECOVERY_OWNER=1 go test ./cmd/internal/couchcmd -run ''^TestLiveRecoveryOwnerReboot/codex$'' -count=1 -timeout=5m failed at recovery_owner_live_test.go:112 after 30.706s: confirmation returned “recovery screen changed; refresh resume candidates,” nonce operation-9c891ab72f318d49ea9c781291ee0682. The old generation remained alive; cleanup confirmed all owned generations absent. Claude passed separately in 33.733s. The acceptance family now contains two observed Codex failure modes: replacement startup disconnect and pre-retirement capture-change refusal. Provide a diagnosis or measured environmental explanation and reproducible pinned-head acceptance without weakening either guard; another unexplained passing retry does not resolve the family.'
+          round: 2
+      recipe: small-diff-review
+      isolation: fenced
+      blocked: true
 ---
 
 # Gate ledger — pair#797 (boundary-review)
@@ -118,7 +215,13 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-2** [Critical] `boundary-acceptance-evidence` (kind: unverifiable) ARCH-PURPOSE: required native Codex reboot acceptance failed
   PAIR_LIVE_RECOVERY_OWNER=1 go test ./cmd/internal/couchcmd -run '^TestLiveRecoveryOwnerReboot/codex$' -count=1 -timeout=5m failed at recovery_owner_live_test.go:112 on head 003e3ba8. The old agent exited, but confirmation returned failed: Pair exited before registering (exit 1); retained output reports Lost connection to the Zellij server and terminal client exited before admission was verified. Cleanup confirmed all owned generations absent. This is the sole failed personality in the two-personality acceptance family; Claude passed. Diagnose this failure and provide measured pinned-head evidence establishing successful Codex confirmation, replacement delivery, and cleanup, or evidence explaining the environmental failure; package tests and prior logged passes do not resolve this observation.
 
+## Round 2 — 2026-10-22T10:33:54-07:00 (codex) — BLOCKED
+
+### Disposed
+
+- BR-1 — addressed — The pinned before/after diff separates PURE RecoveryTerminalPlan at plan:40 from INTEGRATION recoveryTerminalDriver.checkConfirmed at plan:48 and records the correction under Revisions at plan:135. This matches recovery_terminal_confirmed.go:95-99 and :278-291, where the validator reads readiness metadata through its injected reader. This is a prose-only correction.
+- BR-2 — not-addressed — Verified the retained diagnostic log's SHA256 bd819f74b2424feaa2cf0886e4571d5a4581732bc7b9f72afd547fa3f9155b73: it records successful Codex confirmation, replacement delivery and cleanup on 003e3ba8 with the diagnostic overlay. That measurement is valid, but does not explain the original startup disconnect. On pinned head e93447cb, PAIR_LIVE_RECOVERY_OWNER=1 go test ./cmd/internal/couchcmd -run '^TestLiveRecoveryOwnerReboot/codex$' -count=1 -timeout=5m failed at recovery_owner_live_test.go:112 after 30.706s: confirmation returned “recovery screen changed; refresh resume candidates,” nonce operation-9c891ab72f318d49ea9c781291ee0682. The old generation remained alive; cleanup confirmed all owned generations absent. Claude passed separately in 33.733s. The acceptance family now contains two observed Codex failure modes: replacement startup disconnect and pre-retirement capture-change refusal. Provide a diagnosis or measured environmental explanation and reproducible pinned-head acceptance without weakening either guard; another unexplained passing retry does not resolve the family.
+
 ## Open findings
 
-- **BR-1** [Critical] `core-concept-purity-classification` (kind: defect) ARCH-PURE: checkConfirmed is incorrectly classified as pure
 - **BR-2** [Critical] `boundary-acceptance-evidence` (kind: unverifiable) ARCH-PURPOSE: required native Codex reboot acceptance failed
