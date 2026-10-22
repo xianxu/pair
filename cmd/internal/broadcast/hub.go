@@ -308,7 +308,7 @@ func (h *Hub) takePending() {
 
 func (h *Hub) accept(o offered) {
 	h.pointerShown = PointerShown(o.frame)
-	h.current = CurrentFrame{Geometry: o.frame.Geometry, Class: o.class, PointerShown: h.pointerShown, OK: true}
+	h.current = CurrentFrame{Geometry: o.frame.Geometry, ChromeRows: o.frame.ChromeRows, Class: o.class, PointerShown: h.pointerShown, OK: true}
 	switch {
 	case !h.pointerShown && h.pointerWatch == watchShown:
 		h.pointerWatch = watchHidden
@@ -451,6 +451,7 @@ func (h *Hub) disarmPointerGrace() {
 
 // CurrentFrame describes the operator's latest frame.
 type CurrentFrame struct {
+	ChromeRows   int
 	Geometry     terminal.Geometry
 	Class        terminal.FrameClass
 	PointerShown bool // the active pointer marker was drawn

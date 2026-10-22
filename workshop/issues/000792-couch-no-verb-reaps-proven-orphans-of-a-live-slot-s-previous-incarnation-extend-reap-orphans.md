@@ -59,7 +59,7 @@ Hub pin 941a9381-a841-44ca-98b0-7e10a90936b3 approves authenticated owning hubs 
 - [x] Approve the durable plan and enter change-code through the full-flow gate.
 - [x] Add pure exact-target proof and strict protocol shapes; verify the negative authority/identity cases first.
 - [x] Implement the guarded exact executor and supervisor effect owner, with stateful transition and counted-cost tests.
-- [x] Wire preview/confirmed CLI reporting, prove disposable public-command behavior, document and run the required recorded verification before the SDLC close review.
+- [ ] Wire preview/confirmed CLI reporting, prove disposable public-command behavior, document and run the required recorded verification before the SDLC close review.
 
 ## Log
 
@@ -257,3 +257,9 @@ Round-four close is SHIP with zero new findings and all previous findings addres
 Replacement lease-2020441815 completed successfully on e6535a0c2c671bfeb3b1065ed279c269886829b0: exit0 in10m16s, recorded sdlc-local/suite. Both prior deterministic lint failures now pass (termcmd2.452s, repolint6.895s), with all remaining packages and shell/editor checks complete. Log /Users/xianxu/workspace/pair/.git/sdlc/local-checks/e6535a0c2c671bfeb3b1065ed279c269886829b0/suite.log; SHA256558727feaedf25ed7760ac48b3951f09d73ef6e2b080f751b3eb04f602e96865. No flake registration, blind retry or suite waiver. The immutable earlier failed record remains preserved.
 
 Final issue verification checklist is complete. The worker-authorized review/suite overlap is now resolved by the passing record before landing. Full close and narrow comment-only re-close both returned SHIP; native Claude/Codex proofs remain applicable to unchanged executable behavior. The original merge runner remains responsible for current-main integration, authoritative checks and landing.
+
+### 2026-10-22 — Landing integration and atlas conflict resolution
+
+The original merge runner exited1 while integrating origin/main at5df9efb7d0df1a627f8d929895181fcf7b40ef73 after #779 landed. SDLC preserved the branch and directed manual integration, required verification, fixed-then-ship re-close and re-entry. Repeated that merge as directed; its sole conflict is atlas/index.md, where both features extended the same Couch summary line. Kept the wrapped tab-bar description (#779) and exact previous-incarnation cleanup description (#792) together. All code and reader certificates merged automatically; no reap behavior changed in this resolution.
+
+The earlier e6535a0c recorded pass remains historical proof of that source. Final verification is pending again for the integrated source, and the final issue checkbox is reopened accordingly. Run the cheap catalog/Godoc/artifact/reader preflights, then the required integrated recorded check and narrow re-close. No merge or recorded-check runner remains active in this slot; re-enter only after those gates.

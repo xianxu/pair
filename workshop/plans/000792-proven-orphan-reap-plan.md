@@ -108,7 +108,7 @@ Files: reap_orphans.go / reap_orphans_test.go, messages.go; new reap_proven_live
 ### 4. Documentation and gates
 
 - [x] Update README, embedded Couch skill, atlas/couch.md resource/reap sections and index: authority, exact-set scope, no descendant discovery, partial outcomes and explicit recovery after uncertainty. Update the issue's final acceptance and Log without rewriting prior evidence.
-- [x] Run the complete artifactpath guard and affected-reader inventory audit before the recorded check. Classify any new reader using the per-reader regenerate command; no new quarantine or exemption. Run relevant public-command and identity/authority regressions, then the declared pushed-head `sdlc local-check run --name affected` (full fallback when selected).
+- [ ] Run the complete artifactpath guard and affected-reader inventory audit before the recorded check. Classify any new reader using the per-reader regenerate command; no new quarantine or exemption. Run relevant public-command and identity/authority regressions, then the declared pushed-head `sdlc local-check run --name affected` (full fallback when selected).
 - [ ] Complete required live acceptance agreed with the hub, SDLC close review, fix findings, land through sdlc merge, and report the PR and exact evidence. No stage on :0 without hub permission.
 
 ## Architectural decisions

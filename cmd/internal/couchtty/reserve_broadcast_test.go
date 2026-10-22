@@ -28,6 +28,7 @@ func rowFrame(t *testing.T, cols int, body string) terminal.Frame {
 	if err != nil {
 		t.Fatal(err)
 	}
+	f.ChromeRows = 1
 	return f
 }
 
