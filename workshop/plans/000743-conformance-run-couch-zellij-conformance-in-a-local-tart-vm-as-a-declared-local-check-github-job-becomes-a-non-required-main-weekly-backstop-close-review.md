@@ -345,3 +345,75 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-22T16:40:04-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 743 — conformance: run couch-zellij-conformance in a local Tart VM as a declared local check; GitHub job becomes a non-required main/weekly backstop |
+| repo | pair |
+| issue file | workshop/issues/000743-conformance-run-couch-zellij-conformance-in-a-local-tart-vm-as-a-declared-local-check-github-job-becomes-a-non-required-main-weekly-backstop.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 47926c5a01b082cb31db0e55d2ce39f5cfcc81c9..7fd996711dbfeed70263e272238bc85ea168b0c7 |
+| command | sdlc close --issue 743 |
+| reviewer | codex (openai; author openai) |
+| isolation | fenced |
+| timestamp | 2026-10-22T16:40:04-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+The interdiff repairs concurrent native-fixture logging while preserving transport assertions. Both conflict resolutions retain both sides’ entries. The plan revision records the fixture fix without changing scope. No prior finding requires reopening; BR-1 through BR-7 remain disposed.
+
+```findings
+{}
+```
+
+1. **Strengths**
+
+   - Per-invocation files and NUL framing preserve argument boundaries (`driver_darwin_test.go:35`).
+   - All five log consumers use the shared decoder; lifecycle coverage checks the exact run vector (`driver_darwin_test.go:128`).
+   - Atlas links and artifact-source classifications preserve both VM and editor-endpoint additions.
+
+2. **Critical findings:** None.
+
+3. **Important findings:** None.
+
+4. **Minor findings:** None.
+
+5. **Test coverage notes**
+
+   Independently passed affected-reader inventory, the full artifactpath suite, all six affected native tests, and concurrent-recording/lifecycle tests under the race detector. The new regression fails with the original fixture supplied through a temporary Go overlay and passes on the pinned head. The checkout remains unchanged. Full repository and live Tart runs were not repeated.
+
+6. **Architectural notes**
+
+   - **ARCH-DRY — Pass:** Recording consumers share decoding and command-count helpers.
+   - **ARCH-PURE — Pass:** Fixture IO remains within integration tests.
+   - **ARCH-PURPOSE — Pass:** The repair covers every consumer and retains isolation assertions.
+   - **ARCH-EVOLVE — Pass:** No production persisted-format behavior changes.
+
+   No new user-facing surface requires a README update; atlas resolution preserves both existing links.
+
+7. **Plan revision recommendations:** None.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"1b055ba7-fecb-426d-b441-8ac328b1c006","repository":"github.com/xianxu/pair","issue_id":"000743","recipe":"fix-review","round":12,"attempt":1,"agent":"codex","root":"/Volumes/TestScratch/review-checkouts/444de39ba97ced00","reviewed_head":"7fd996711dbfeed70263e272238bc85ea168b0c7","slot":"pair:3","requested_at":"2026-10-22T23:38:49.387642Z"},"phase":"finished","pid":65114,"started_at":"2026-10-22T23:38:49.54453Z","finished_at":"2026-10-22T23:40:03.383531Z","session_id":"01a165fb-4aea-7e83-95eb-645e4e224bd4","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 3.142326959s
+head: "7fd996711dbfeed70263e272238bc85ea168b0c7"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412
