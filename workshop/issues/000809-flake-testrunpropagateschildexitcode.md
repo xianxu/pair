@@ -17,6 +17,7 @@ claimant:
     worktree: /Users/xianxu/workspace/worktree/pair-slot8/pair
     repository: github.com/xianxu/pair
 flake_tests: [github.com/xianxu/pair/cmd/internal/scribecmd.TestRunPropagatesChildExitCode]
+flow: {kind: quick, provenance: inferred, spec: "4cca90d6", done: "a0bbe98b"}
 ---
 
 # flake: TestRunPropagatesChildExitCode
