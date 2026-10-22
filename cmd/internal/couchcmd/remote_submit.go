@@ -33,11 +33,10 @@ func (s *messageService) admitLocalSubmit(ctx context.Context, from couchmessage
 	if s.origins == nil || s.originErr != nil {
 		return refuse("remote origin evidence unavailable; inspect storage and restart Couch")
 	}
-	info, err := syncer.InspectRegistered(path)
-	if err != nil || info.ID != registration.ID || info.Owner != from.Slot {
-		return refuse("registered submit owner changed or unavailable; inspect registration")
-	}
-	marked, pending, err := s.origins.Inspect(info.ID)
+	// The caller and document owner have different roles: the verified caller
+	// submits to the selected recipient, which may own the document. Provenance
+	// follows registration identity, never sender/owner equality.
+	marked, pending, err := s.origins.Inspect(registration.ID)
 	if err != nil {
 		return refuse("remote origin evidence unavailable; inspect storage and restart Couch")
 	}
@@ -46,7 +45,11 @@ func (s *messageService) admitLocalSubmit(ctx context.Context, from couchmessage
 	}
 	if !marked {
 		return couchmessage.Response{}, false
-	} // Preserve legacy unmarked peer wire.
+	} // Preserve legacy unmarked peer wire without an extra content-read gate.
+	info, err := syncer.InspectRegistered(path)
+	if err != nil || info.ID != registration.ID {
+		return refuse("registered submit identity changed or unavailable; inspect registration")
+	}
 	// The conservative bit survives receipt and audit retention. M3 never clears
 	// it: pair#795 owns proof-based settlement and eventual forget recovery.
 	if err := s.origins.MarkSubmitted(info.ID); err != nil {

@@ -44,7 +44,7 @@ func TestQueuedSubmitRemainsOwedAfterRenameAndOldPathReuse(t *testing.T) {
 		a.endpoint = func(couchmessage.Binding) couchmessage.DeliveryEndpoint { return barrier }
 		return a
 	})
-	store := t.TempDir()
+	store := r.s.originNamespace
 	r.s.recordDeliveries(store)
 	r.s.deliveries.Load().now = now
 	from, to := r.connect(1), r.connect(2)

@@ -178,3 +178,21 @@ func TestLedgerMalformedFutureValueCannotHideLaterProvenance(t *testing.T) {
 		}
 	}
 }
+
+func TestRegisteredSubmitIdentitySurvivesRenameBeforeBrokerTimestamp(t *testing.T) {
+	id := "0123456789abcdef0123456789abcdef"
+	movedAt := t0.Add(time.Second)
+	paths := []PathInterval{{File: "/w/old.md", Spelling: "/w/old.md", From: t0, Until: &movedAt}, {File: "/w/new.md", Spelling: "/w/new.md", From: movedAt}}
+	rows := []Entry{{ID: "captured-before-rename", DocumentID: id, Head: "submitted: /w/old.md", At: movedAt.Add(time.Second), AddressedAt: movedAt.Add(time.Second)}}
+	canonical := func(path string) string { return path }
+	owed := OwedForRegistration(rows, State{}, "/w/new.md", id, paths, false, canonical)
+	if len(owed) != 1 || owed[0].ID != rows[0].ID {
+		t.Fatal("stable identity lost across rename/admission gap", owed)
+	}
+	if !SubmittedSinceForRegistration(rows, "/w/new.md", id, paths, t0, canonical) {
+		t.Fatal("round did not clear for same registered submit")
+	}
+	if got := OwedForRegistration(rows, State{}, "/w/old.md", "fedcba9876543210fedcba9876543210", nil, false, canonical); len(got) != 0 {
+		t.Fatal("replacement inherited oldID", got)
+	}
+}

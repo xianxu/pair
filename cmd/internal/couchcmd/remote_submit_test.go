@@ -2,14 +2,17 @@ package couchcmd
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
+	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/xianxu/pair/cmd/internal/couchmessage"
 	"github.com/xianxu/pair/cmd/internal/remotesession"
 	"github.com/xianxu/pair/cmd/internal/sessionsync"
+	"github.com/xianxu/pair/cmd/internal/testwait"
 )
 
 type provenanceServiceEndpoint struct{ serviceEndpointFake }
@@ -106,5 +109,71 @@ func TestLocalRemoteSubmitPendingForgetRefusesBeforeBroker(t *testing.T) {
 	response, handled := s.admitLocalSubmit(t.Context(), couchmessage.Binding{Slot: "pair:1"}, couchmessage.Request{Body: "submitted: " + file})
 	if !handled || response.Code != "refused" {
 		t.Fatalf("response=%+v handled=%v", response, handled)
+	}
+}
+
+type crossSlotProvenanceEndpoint struct {
+	provenanceServiceEndpoint
+	messages     chan couchmessage.Message
+	capabilities atomic.Int32
+}
+
+func (e *crossSlotProvenanceEndpoint) SupportsRemoteProvenance(context.Context) error {
+	e.capabilities.Add(1)
+	return nil
+}
+func (e *crossSlotProvenanceEndpoint) Deliver(ctx context.Context, m couchmessage.Message, _ func(couchmessage.Receipt)) (couchmessage.Receipt, error) {
+	select {
+	case e.messages <- m:
+		return couchmessage.Receipt{Status: couchmessage.Submitted}, nil
+	case <-ctx.Done():
+		return couchmessage.Receipt{}, ctx.Err()
+	}
+}
+func TestLocalSubmitDistinctCallerAndDocumentOwnerProductionService(t *testing.T) {
+	for _, marked := range []bool{false, true} {
+		t.Run(fmt.Sprint(marked), func(t *testing.T) {
+			endpoint := &crossSlotProvenanceEndpoint{messages: make(chan couchmessage.Message, 1)}
+			rig := newServiceRig(t, func(a messageAuthority) messageAuthority {
+				a.endpoint = func(couchmessage.Binding) couchmessage.DeliveryEndpoint { return endpoint }
+				return a
+			})
+			from, to := rig.connect(1), rig.connect(2)
+			path := filepath.Join(t.TempDir(), "recipient-owned.md")
+			if err := os.WriteFile(path, []byte("## Work\n\nowned by recipient\n"), 0600); err != nil {
+				t.Fatal(err)
+			}
+			registration, err := sessionsync.New(rig.s.originNamespace).Register(path, to.Slot)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if marked {
+				if err := rig.s.origins.MarkRemote(registration.Registration.ID); err != nil {
+					t.Fatal(err)
+				}
+			}
+			request := callerRequest(from, "send")
+			request.ID = "cross-slot"
+			request.Target = to.Slot
+			request.Body = sessionsync.SubmitPrefix + path
+			response := rig.s.handle(t.Context(), request)
+			if response.Code != "accepted" || response.Receipt == nil {
+				t.Fatalf("valid cross-slot submit refused: %+v", response)
+			}
+			select {
+			case message := <-endpoint.messages:
+				if message.From != from || message.To != to || message.RemoteEdited != marked || message.Origin != couchmessage.OriginPeer || message.RemoteSource != (couchmessage.RemoteSource{}) {
+					t.Fatalf("cross-slot provenance=%+v", message)
+				}
+				if marked && message.DocumentID != registration.Registration.ID {
+					t.Fatal("registered identity lost")
+				}
+				if !marked && (message.DocumentID != "" || endpoint.capabilities.Load() != 0) {
+					t.Fatal("unmarked peer wire changed")
+				}
+			case <-testwait.After(t):
+				t.Fatal("cross-slot submit not delivered")
+			}
+		})
 	}
 }

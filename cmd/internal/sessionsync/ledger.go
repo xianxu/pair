@@ -38,12 +38,16 @@ type Entry struct {
 	provenancePresent bool
 }
 
-// The ledger's bound (ARCH-FUNERAL): a slot's file is trimmed when it grows
-// past trimBytes, keeping at most keepRows rows younger than keepFor. One
+// The ledger's bound (ARCH-FUNERAL): trim before an append would cross
+// trimBytes, keeping at most keepRows rows younger than keepFor. One
 // file per slot address, so the store holds at most trimBytes plus one row
 // per slot. A row trimmed while still unfolded stops being owed; at 14 days
 // it is a dead thread, not a pending one. The size check is one stat per
-// append; only a trim reads the file.
+// preflight and one after append; only a trim reads the file. Failed retention
+// must stop growth: before adding a row that would cross trimBytes, trim first.
+// A failed post-append operation can leave at most one codec-bounded row of
+// overshoot; the next owner's preflight refuses before another append. Damaged
+// evidence is retained for inspection, never truncated to make progress.
 const (
 	trimBytes = 256 << 10
 	keepRows  = 512
@@ -112,6 +116,9 @@ func (l *Ledger) Append(slot string, e Entry) error {
 	if err := os.MkdirAll(l.Dir, 0o700); err != nil {
 		return err
 	}
+	if err := l.trim(p, len(line)+1); err != nil && !errors.Is(err, os.ErrNotExist) {
+		return err
+	}
 	f, err := os.OpenFile(p, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0o600)
 	if err != nil {
 		return err
@@ -126,15 +133,17 @@ func (l *Ledger) Append(slot string, e Entry) error {
 	if err := l.expireGap(slot); err != nil {
 		return err
 	}
-	return l.trim(p)
+	return l.trim(p, 0)
 }
 
 // trim rewrites a file past trimBytes, atomically, so a concurrent reader
 // sees the old file or the new one. Append opens the file per call, so the
-// next append lands in the new inode.
-func (l *Ledger) trim(p string) error {
+// next append lands in the new inode. Reserve includes the next encoded row
+// during preflight; zero is the post-append size check. Both use the same read,
+// validation and atomic publication path, so a failure cannot admit more data.
+func (l *Ledger) trim(p string, reserve int) error {
 	info, err := os.Stat(p)
-	if err != nil || info.Size() <= trimBytes {
+	if err != nil || info.Size()+int64(reserve) <= trimBytes {
 		return err
 	}
 	rows, err := readRows(p)

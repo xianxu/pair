@@ -88,7 +88,9 @@ func OwedForRegistration(rows []Entry, st State, file, documentID string, paths 
 				continue
 			}
 		} else {
-			matches := submitNames(r, p, self, paths, canonical)
+			// New rows carry the registration captured at admission. A rename
+			// before the broker timestamps the row cannot change that identity.
+			matches := r.DocumentID != "" || submitNames(r, p, self, paths, canonical)
 			if !matches {
 				continue
 			}
@@ -144,7 +146,7 @@ func SubmittedSinceForRegistration(rows []Entry, file, documentID string, paths 
 			continue
 		}
 		p, ok := SubmitPath(r.Head)
-		if ok && filepath.IsAbs(p) && r.At.After(at) && submitNames(r, p, self, paths, canonical) {
+		if ok && filepath.IsAbs(p) && r.At.After(at) && (r.DocumentID != "" || submitNames(r, p, self, paths, canonical)) {
 			return true
 		}
 	}

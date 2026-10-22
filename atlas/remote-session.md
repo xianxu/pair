@@ -169,6 +169,13 @@ provenance causes refusal/gap, never clean-local inference. Rollback to an old
 writer is unsupported for preserving the added facts; disable remote and retain
 provenance/transcripts before rollback.
 
+Local submit callers and document owners may be different slots; provenance
+follows the registration ID while existing sender/recipient routing remains
+intact. ID-bearing ledger rows retain attribution across rename/admission races;
+legacy rows still use historical pathname bindings. Ledger append preflights
+retention before crossing its byte threshold, so invalid evidence or failed
+retention cannot allow repeated growth, including after owner recreation.
+
 The agent's native transcript is the second paper trail. Private Claude/Codex
 native-format fixture producers through actual wrapper PTY input and production
 readers retain the exact header/body beyond turn eight; this is fixture
