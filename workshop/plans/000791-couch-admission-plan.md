@@ -222,7 +222,9 @@ Tasks (same single close boundary):
 - [x] Write a behavioral red asserting the emitted forced-refusal record contains the most recent attempt/completion times and requested geometry/outcome, including no-op and aborted cases. Add same-generation coherence assertions under concurrent resize/feed/snapshot.
 - [x] Implement fixed-size resize observation and coherent SnapshotDiagnostic, preserving SnapshotGeneration's API and all existing admission decisions. Carry the exact decision metadata through dispatch; early guards obtain a coherent current observation. Tests assert no IO under input/mailbox locks and whole-record <=64KiB with the extra fields.
 - [x] Risky-function strategy: PrepareResize/resolve generated sequences cover changed/no-op/abort/retry/invalid/closed and idempotent resolution; independent invariants pin completion ordering and screen invalidation. SnapshotDiagnostic concurrent stress pins screen dimensions/generation and the matching latest transaction; encoder fuzz continues valid-JSON/explicit-truncation/full-record bounds. Count 8/16 repeated resize/capture heads to retain constant metadata and once/head diagnostic work.
-- [ ] Run targeted race and complete changed packages plus preflights; update atlas evidence fields. If production code changes, cancel only the exact obsolete queued check through local-check, push and submit the replacement recorded check. Retain previous successful verification as history, not final-head proof. Re-close through SDLC and land only after the recorded pass and report of the resize investigation.
+- [x] Run targeted race and complete changed packages plus preflights; update atlas evidence fields; cancel only the exact obsolete lease, push and submit the replacement recorded check. Renewed full close review is SHIP.
+
+Recorded full-suite pass and normal landing remain pending gate-owned transitions, with retained lease and exact next action in the issue Log. No final-head recorded pass or landing is claimed.
 
 
 ### 2026-10-22 — follow-up recovery authorization
