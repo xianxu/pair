@@ -55,7 +55,7 @@ Primary surfaces: query/{sketch.go,render_sketch.go,surface.go,fake.go,cli.go,ev
 ## Plan
 
 - [x] Claim/start-plan after dependencies land; write the slice-specific execution plan.
-- [ ] Implement and verify the Spec and Done when through the normal SDLC gates (round1 REWORK fixes in progress; recorded-suite and operator landing gates remain explicit).
+- [x] Implement and locally verify the Spec and Done when; submit round1 corrections and exact-source native evidence to full close (recorded-suite and operator landing gates remain explicit).
 
 ## Log
 
