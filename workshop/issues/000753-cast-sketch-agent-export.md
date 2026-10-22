@@ -1,13 +1,13 @@
 ---
 id: 000753
-status: codecomplete
+status: working
 deps: [pair#752]
 github_issue:
 created: 2026-10-20
-updated: 2026-10-21
+updated: 2026-10-22
 estimate_hours: 8.4
 collaboration-mode: collaboration
-card_mirror: 'e98184d245e46c78285eaf2d0167a97f71ee5aef' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '7bfb8a2ba36aefe4e71970c65238c56d2660d2bc' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-21T18:40:37-07:00
 claimant:
     operator: Xian Xu
@@ -53,10 +53,15 @@ Primary surfaces: query/{sketch.go,render_sketch.go,surface.go,fake.go,cli.go,ev
 
 - Before sending, the console shows the selected count and shapes, oldest eight unsent first with visible N more; stale selected versions refuse rather than silently changing the displayed batch.
 
+- New submissions carry one full-visible-viewport image containing every selected unsent sketch with indexes matching its pending card, and no per-sketch PNGs; original note/URL/elements/anchors/pressure paths remain per sketch.
+- The oldest compatible recorded page/view supplies up to eight sketches; other unsent shapes remain visibly pending as N more. Context is fixed by the latest completed chosen sketch, never the current live page. Unprojectable chosen ink refuses preparation rather than disappearing.
+- One Pending feedback panel shows both annotation and sketch counts, and one existing transaction carries notes[] and sketches[]. Pointer state/UI/pixels never enter feedback. Actual annotation crop cards remain follow-up #805.
+- Previously staged per-sketch bundles remain readable and immutable; new shared-page variants are strictly typed/present, preserve nested unknown extensions, and fail closed in the old decoder.
+
 ## Plan
 
 - [x] Claim/start-plan after dependencies land; write the slice-specific execution plan.
-- [x] Implement and locally verify the Spec and Done when; submit review corrections and native evidence to full close (recorded-suite and operator landing gates remain explicit).
+- [ ] Implement and verify the approved 2026-10-22 shared viewport/feedback revision through plan-quality, revised estimate, TDD, full close, recorded checks and renewed operator acceptance; prior per-sketch functional smoke is baseline evidence only.
 
 ## Log
 
@@ -168,6 +173,13 @@ Primary surfaces: query/{sketch.go,render_sketch.go,surface.go,fake.go,cli.go,ev
 - Stage/build completed on pair:0 at efa5c3e22332569ad4d9b08c9dfe99ddf6d990f4; target HEAD independently matched. bin/couch, bin/pair, bin/pair-launch-helper and bin/pair-slug all verified that vcs.revision with vcs.modified=false. Neovim submission transaction/DOM checks also completed PASS. Submitted receipt9f31e6d4-27df-439c-9bca-4a7f96fe9ef8 delivered exact revisions and operator checklist: fresh Couch/cast, annotation off/no viewer driver, Sketch→draw→Note→Save label twice, inspect two preview thumbnails/count before chord, Shift+Ctrl+Alt+Return sends both images/notes/original URLs/facts, confirmed dispatch empties/advances preview while ink stays, a second short ordinary draft does not resend sketches. Wait for explicit live acceptance; no merge yet.
 - Exact staged-source full fallback check retained as lease-2747873196 (exec33111), checkout `/Volumes/TestScratch/local-checks/sdlc-local-1117579593`, attempt354b4d5c6117c12ba315204ddd1d05c3, log `/Users/xianxu/workspace/pair/.git/sdlc/test-stats/inflight/354b4d5c6117c12ba315204ddd1d05c3/run.log`, initially FIFO6. image_runtime owns read-only terminal result monitoring/reporting; parent does not split terminal consumption. After PASS: reader inventory, narrow re-close with integrated full-suite evidence for the additive registry conflict, then landing only after operator acceptance. Preserve the stage until smoke/landing settles.
 
+### 2026-10-22 — live feedback scope approved; stage released and planning reopened
+
+- Authenticated operator report8e034f38-b5a2-44a0-843b-6058623cf685 confirms sketches, both notes, URL, elements and resolved delivery arrived end to end, then changes the image contract to one full-screen context image. Framing4d04fb04-3599-4779-a843-8c505276daa8 separates ephemeral human-meeting pointer from annotation/sketch LLM feedback. This is a scope revision before landing, not a fix-only close.
+- Filed #805 unclaimed on main for mixed annotation crop cards/private saved-image preview; submitted hub report24246714-b697-4d44-a694-57307886e29f. Audit confirms saved note PNGs already use the original box intersected with viewport; the missing work is private crop thumbnails and exact displayed selection. Shared counts/note revision witnessing necessary for the approved Pending feedback panel enter #753; #805 will reuse them.
+- Submitted size/manifest proposal950615b6-8193-4c08-a0dc-9f4a00923174: provisional incremental5–8 focused hours for shared viewport image,6–9 for annotation crop-card flow, excluding queue/operator availability; no tracker estimate changed before revised plan-quality. TL approved a5b94b71-7cf8-4a19-927e-d9cbdfdd373e: full visible viewport, latest chosen finish context, oldest compatible page/view up to8 and N more, selected unsent ink only, numbered badges/cards, two typed lists, legacy readable/old decoder fail-closed. Durable Revisions/plan now supersede conflicting per-sketch submission clauses; local per-sketch query/export remains.
+- Per authorized release dd82fa75-7491-40f2-a715-0f3ce8200c3c, sdlc stage --clear succeeded without abandoned override: pair:0 back on main1ac392f482af532861166d5d95b9bc08ada785d0, all four binaries rebuilt/verified modified=false. Submitted clear report0c27d1b3-7bb0-47f8-b6a2-45048ae65bf0. No current stage; #722 may use pair:0. Used supported set-status working then start-plan for the approved scope revision; no code before change-code admits the revised plan.
+
 ## Estimate
 
 *Produced via brain/data/life/42shots/velocity/estimate-logic-v3.1.md against baseline-v3.1.md. Method A only. Calibration is marked stale by sdlc estimate-source; the derivation is provisional rather than a new calibration claim.*
@@ -201,6 +213,16 @@ total: 8.40
 ```
 
 ## Revisions
+
+### 2026-10-22 — approved shared-screen feedback contract (current authority)
+
+TL a5b94b71-7cf8-4a19-927e-d9cbdfdd373e approves this delta before implementation. It supersedes earlier per-sketch-image submission/any-page batching/Next submission title clauses; unchanged historical query and single-sketch CLI export retain their original source-begin behavior. POINTER is separate ephemeral presentation state, never submitted. ANNOTATION and SKETCH are two typed lists in the same operator feedback submission with one Pending feedback panel and both counts; existing target/prepare/begin/ACK/resolve authority remains.
+
+For new sketch-containing bundles add one root sketch_page object owning sketch-page.png, replay-rendered provenance, exact latest selected finish-record scene identity/viewport/scroll, full viewport transform/dimensions, limitations and page privacy. sketches[] retains each exact accepted version, author/note, original URL/title/source facts, element declarations, history boundary and original pressure paths/anchors; index1..N links each shape to its image badge and pending card. New variants omit legacy sketches[].image and own no sketch-N.png. Read old staged per-sketch bundles unchanged via an explicit exclusive legacy variant, reject mixed/incomplete representations, retain every unknown extension and every required/type guard, and keep old decoder refusal on the new variant. EvidenceFiles enumerates one shared image plus unchanged note crops. Already dispatched/resolved exact versions stay suppressed across targets regardless of image representation; ink remains.
+
+Select oldest compatible recorded page/view, at most eight sketches, count all other unsent sketches as N more. Full-screen means visible viewport, not the whole scrollable document. The latest completed chosen sketch fixes the exact image context prefix; later finishes replace that context boundary, while submission never consults a later live scene. Paint only selected unsent pressure paths and index badges. Refuse rather than silently omit selected ink that cannot be projected into that fixed context. No new finish-image archive, browser dispatch route, ACK registry, timer budget or pointer capture.
+
+Existing note inclusion/crop semantics remain; the eight limit applies to sketches, not a new total-feedback cap. Freeze exact displayed note IDs/revisions with both counts through the existing preview witness; note creation/edit/state changes invalidate it. Actual per-note crop cards and bounded private crop transport are #805, not this revision. Full plan-quality/revised calibrated estimate precede code, full close replaces prior acceptance after scope change, and a renewed real operator shared-image smoke precedes landing.
 
 ### 2026-10-21 — operator-triggered sketch delivery
 

@@ -4,6 +4,8 @@ collaboration-mode: discussion
 
 # #753 — Historical sketch evidence in operator submissions
 
+**Current execution contract:** the approved 2026-10-22 shared-screen revision under Revisions below supersedes the historical per-sketch submission/image and preview clauses. The earlier implementation and its CLI/export contracts remain the baseline, not instructions to send individual sketch PNGs in new bundles.
+
 > **For agentic workers:** Consult AGENTS.md Section 3 for execution strategy. This is a proposed full-flow plan; TL approval and change-code precede implementation.
 
 **Goal:** Let the operator submit finished sketches to the pinned coding agent, each with its historical rendered image, note, original page URL and exact recorded element identities; expose the same facts through local queries/export.
@@ -219,6 +221,12 @@ Files: board/submission.go, couchtty/console_submission.go, private operator pro
 
 
 ## Revisions
+
+### 2026-10-22 — shared visible-viewport feedback (approved; execution delta)
+
+Authority: TL a5b94b71-7cf8-4a19-927e-d9cbdfdd373e after the operator's end-to-end live check. One root-owned page image replaces individual submitted sketch images. It uses the latest completed chosen sketch's exact recorded finish context; selected unsent ink only, index badges matching cards, full visible viewport, oldest compatible page/view up to8 and all other unsent shapes counted as N more. Pointer/private UI are absent. Notes and sketches remain two typed lists in the existing single submission/ACK transaction; one Pending feedback title and both counts. Note crops remain saved draw-time evidence. Annotation crop cards/private PNG transport are separately filed unclaimed #805. Local single-sketch export remains source-begin/cropped; legacy staged bundles remain immutable/readable. No new writer, ACK owner, finish-frame archive or browser dispatch route (ARCH-DRY/ARCH-PURPOSE/ARCH-EVOLVE).
+
+New code is not admitted yet. Append the executable entity/function/state/constraint/task delta here, then commit and run change-code. Re-derive the formal total estimate only after revised plan-quality clears; previous estimate8.4h describes the baseline and the preliminary5–8h delta is not a fitted tracker total. Full issue close after this scope change must review the entire current contract, not a fix-only interdiff.
 
 2026-10-21 — BR-7 inventory completion: sketch privacy_rule remains its existing nullable/string/object union; when represented as a rule object, both origin and privacy are required. This preserves explicit null and diagnostic-string forms without treating a partial rule object as evidence. The complete fixture must exercise all declared-fact groups for sketches and present note.elements, so a skipped absent optional object cannot mask a required-field family.
 
