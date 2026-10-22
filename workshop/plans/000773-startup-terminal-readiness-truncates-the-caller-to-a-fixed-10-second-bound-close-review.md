@@ -193,3 +193,85 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-22T13:31:20-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 773 — startup: terminal readiness truncates the caller to a fixed 10-second bound |
+| repo | pair |
+| issue file | workshop/issues/000773-startup-terminal-readiness-truncates-the-caller-to-a-fixed-10-second-bound.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | d07bc74c751ddcbda4e9b7091c28e480ef9868f9..be30575e0c8d797c4babc08a478f00cdaebbf089 |
+| command | sdlc close --issue 773 |
+| reviewer | codex (openai; author openai) |
+| isolation | fenced |
+| timestamp | 2026-10-22T13:31:20-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+The interdiff preserves both sides of the conflict resolutions and introduces no runtime behavior change. Tracker revisions record verification and integration history without expanding scope. Focused tests, the complete artifactpath package, and the affected-reader inventory check passed.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      Previously disposed correction is unchanged; TestPublicWarmAttachmentTransportsCallerStartupBudget passes at the pinned head.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      Previously disposed correction is unchanged; TestMenuOperationStageAgeProjectsRowAndNotice passes at the pinned head.
+  - id: BR-3
+    disposition: addressed
+    note: |
+      Previously disposed correction is unchanged; TestTrackedWarmFailureInjectionSurvivesPreparationDelay passes at the pinned head.
+```
+
+1. **Strengths**
+
+   - `atlas/index.md:21` preserves main’s wrapped-tab documentation and #773’s startup deadline/progress mapping; both match `atlas/couch.md`.
+   - `cmd/internal/artifactpath/manifest.go:679` preserves both classification groups without weakening the inventory guard.
+   - The added native-failure capture matches its recorded SHA-256 and explicitly retains the unknown-cause limitation.
+
+2. **Critical findings:** None.
+
+3. **Important findings:** None.
+
+4. **Minor findings:** None.
+
+5. **Test coverage notes**
+
+   Passed `make test-affected-inventory`, the complete `artifactpath` package, and all three focused prior-finding regressions. `git diff --check` passed. No new executable correction required a negative control in this window. The full suite and native acceptance were not rerun during this review.
+
+6. **Architectural notes**
+
+   - **ARCH-DRY — pass:** Conflict resolution preserves existing classifications without duplicating behavior.
+   - **ARCH-PURE — pass:** No business logic or IO boundary changed.
+   - **ARCH-PURPOSE — pass:** Both resolutions retain main’s additions and #773’s intent; no scope expansion.
+   - **ARCH-EVOLVE — pass:** No persisted-format reader or writer changed; ledger history remains additive.
+
+7. **Plan revision recommendations:** None.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"9fc72d40-07bb-4a3e-b753-98f38b5408f7","repository":"github.com/xianxu/pair","issue_id":"000773","recipe":"fix-review","round":3,"attempt":1,"agent":"codex","root":"/Volumes/TestScratch/review-checkouts/cf5322dbb450c37a","reviewed_head":"be30575e0c8d797c4babc08a478f00cdaebbf089","slot":"pair:7","requested_at":"2026-10-22T20:30:01.216043Z"},"phase":"finished","pid":58929,"started_at":"2026-10-22T20:30:01.524382Z","finished_at":"2026-10-22T20:31:14.602127Z","session_id":"01a1654e-71d3-75e3-8dc9-1065d4b82cdc","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 2.985106167s
+head: "be30575e0c8d797c4babc08a478f00cdaebbf089"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412
