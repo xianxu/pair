@@ -664,10 +664,14 @@ confirmed dispatch. Prepared, pending and superseded are not delivery claims.
 Completed sketches join the same operator draft submission. One finished sketch
 may contain several strokes sharing one attached note. Read each sketch's
 `source.url`, `source.title`, `source.provenance: "recorded-dom"`, author, note,
-`elements`, and image transform/limitations. Its image has `replay-rendered`
-provenance: the original recorded source page plus selected accepted pressure ink,
-not live-tab pixels or a draw-time CDP crop. Uncaptured content and animation
-phase may differ. Original coordinates and pressure remain in `image.plan.paths`.
+`elements`, and image transform/limitations. New bundles reference one
+`sketch-page.png` through `sketch_page`: a replay-rendered full viewport at the
+latest selected finish, with only selected ink and numbered badges matching
+each sketch's `index`. Original coordinates and pressure remain in each sketch's
+`paths`, with its exact `finish` context. Legacy bundles retain per-sketch
+`sketch-N.png` images and `image.plan.paths`. Neither form is live-tab pixels or
+a draw-time CDP crop; uncaptured content and animation phase may differ. Apply
+the shared page's privacy decision as well as each item's before sharing it.
 
 The source `record_index` fixes the exact begin boundary; `history_record_index`
 fixes the accepted later history, including undo/redo and contextual truncation.
@@ -678,7 +682,10 @@ explicit bounds/truncation. Do not infer application meanings from these values.
 Ordinary notes also carry these facts at their recorded context/capture moment.
 
 The operator sees the next selection before the existing draft chord sends:
-the oldest eight unsent finished sketches at most, with a count of any remaining.
+the oldest compatible page and view, with at most eight unsent finished sketches
+and a count of any remaining. Incompatible shapes stay pending; unprojectable
+selected ink refuses the whole batch. The Pending feedback panel shows both
+annotation and sketch counts; pointer gestures never enter the submission.
 A changed or unavailable preview refuses preparation and asks the operator to
 review it again. Confirmed dispatched/resolved manifests acknowledge only their
 exact sketch versions, across targets. This does not clear ink; newer versions

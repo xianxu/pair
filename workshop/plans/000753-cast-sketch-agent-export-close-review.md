@@ -401,3 +401,140 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-22T10:20:39-07:00 (REWORK)
+
+| field | value |
+|-------|-------|
+| issue | 753 — cast-sketch: operator CLI queries and historical image export |
+| repo | pair |
+| issue file | workshop/issues/000753-cast-sketch-agent-export.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 39be359a3c55bcce5fd485548cd01e9d318d8b5e..d6c24469c2599d1a6d4ac45257afd8be8d9fa09f |
+| command | sdlc close --issue 753 |
+| reviewer | codex (openai; author openai) |
+| isolation | fenced |
+| timestamp | 2026-10-22T10:20:39-07:00 |
+| verdict | REWORK |
+
+## Review
+
+```verdict
+verdict: REWORK
+confidence: high
+```
+
+The implementation delivers historical queries, shared viewport evidence, durable delivery filtering, and an acknowledged feedback preview. Focused tests passed. One correctness defect blocks shipping: shared-page rendering silently reanchors ink to replacement elements despite the plan’s explicit refusal contract.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      Cancellation settles the exact publication through PreviewPublishFailed; controlled unchanged-refresh, terminal cancellation and expired-publication regressions passed.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      Selected facts reserve mandatory anchor capacity before ancestors/context; unselected-declaration and mandatory-handle budget regressions passed.
+  - id: BR-3
+    disposition: addressed
+    note: |
+      Zero is excluded from declared anchor identities; region-only Build/ContextAt regression passed, including under race detection.
+  - id: BR-4
+    disposition: addressed
+    note: |
+      Codec preflight rejects null numeric evidence before typed decoding; null-pressure and known-scalar regressions passed.
+  - id: BR-5
+    disposition: addressed
+    note: |
+      The corrected Core concepts inventory separates pure selection from Store IO and identifies the actual preview, export and renderer locations.
+  - id: BR-6
+    disposition: withdrawn
+    note: |
+      Retained native log SHA256 matches its evidence record; its source revision differs from pinned head only in evidence/tracker files. The log records passing shared-page, legacy rendering, cancellation and fidelity checks, with the stress-fixture qualification preserved.
+  - id: BR-7
+    disposition: addressed
+    note: |
+      Explicit required-member schemas are reachable through Store decoding; deletion, valid-zero, optional-omission and Store tampering regressions passed.
+findings:
+  - id: new
+    severity: Critical
+    kind: defect
+    family: historical-anchor-identity
+    title: |
+      Shared historical images silently move ink onto replacement elements
+    detail: |
+      cmd/internal/webcast/web/sketch-page-image.js:52 uses Renderer.placementOf without requiring the original recorded node. When that node is removed, annotation-placement.js:123-134 searches for a matching replacement. A read-only probe through the production Renderer.placementOf and preparePageInk removed node 7, inserted a different node with matching text, and successfully projected the original points onto the replacement. This contradicts plan line 295's explicit replaced-anchor refusal (ARCH-SECURE, ARCH-PURPOSE). Require connected original recorded-node identity for shared historical rendering and add a regression through the actual placement adapter; preserve the existing live annotation reanchoring policy.
+  - id: new
+    severity: Minor
+    kind: defect
+    family: handoff-contract-alignment
+    title: |
+      Agent-facing instructions retain obsolete per-sketch evidence references
+    detail: |
+      nvim/dom_submission_state.lua:43-44 describes sketch-N.png historical source images, while couchcmd/skills/couch/SKILL.md:667-670 directs readers to image.plan.paths. New shared items instead use sketch-page.png and sketch.paths. The canonical appended ReadingGuide and opening skill paragraph are correct, limiting the impact, but these conflicting instructions should distinguish shared and legacy variants (ARCH-PURPOSE). Update the emitted-prompt regression alongside the text.
+```
+
+1. **Strengths**
+
+   - Exact record ordinals prevent later same-timestamp mutations from entering historical image scenes.
+   - One `EvidenceFiles` inventory serves publication and Store validation for shared and legacy bundles.
+   - Preview state is opaque, with controlled cancellation and stale-acknowledgment tests.
+   - README and atlas updates cover the new commands, shared-image semantics, privacy, and retry behavior.
+
+2. **Critical findings**
+
+   - **Replacement-anchor acceptance:** [sketch-page-image.js:52](/Volumes/TestScratch/review-checkouts/cbf61589e9f832b6/cmd/internal/webcast/web/sketch-page-image.js:52). Add a strict original-node placement mode and test removal/replacement through the production adapter. The current preflight tests supply a callback that returns `null`, so they miss this behavior.
+
+3. **Important findings**
+
+   None.
+
+4. **Minor findings**
+
+   - Reconcile obsolete per-sketch instructions in the Lua handoff and shipped Couch guide, including the emitted-prompt regression.
+
+5. **Test coverage notes**
+
+   Passed:
+
+   - Complete submission, query, sketchimage, board, and CDP package tests.
+   - Focused webcast/couchtty sketch, submission, preview, feedback, replay, and Node tests.
+   - Focused race checks, plus complete CDP and submission-builder race tests.
+   - Neovim submission transaction, state, adapter, and transport checks.
+   - `git diff --check`.
+
+   The independent replacement-anchor probe reproduced the blocking defect. Native evidence was inspected and hash-checked; native Chrome tests were not rerun. The checkout remains unchanged.
+
+6. **Architectural notes**
+
+   - **ARCH-DRY — Pass:** shared file inventory, pressure painter, pixel fitting, and replay lifetime.
+   - **ARCH-PURE — Pass:** deterministic selection, validation, geometry, and preview transitions remain separate from IO.
+   - **ARCH-PURPOSE — Flag:** replacement-anchor acceptance violates the promised evidence contract; handoff instructions also need reconciliation.
+   - **ARCH-MOCK — Pass:** injected renderer/publisher seams, stateful fakes, portable Store fixtures, and retained native conformance.
+   - **ARCH-CONSTRAINTS — Pass:** explicit batch, image, recording, asset, and cleanup bounds.
+   - **ARCH-SECURE — Flag:** matching text does not establish recorded-node identity.
+   - **ARCH-ORDER — Pass:** publication identities and atomic freeze guard stale and canceled outcomes.
+   - **ARCH-FUNERAL — Pass:** scoped renderer resources and existing bounded Store lifecycle.
+   - **ARCH-EVOLVE — Pass:** strict variant validation and nested extension preservation have regression coverage.
+
+7. **Plan revision recommendations**
+
+   Add a `## Revisions` entry clarifying that shared historical placement requires the connected original recorded node; live annotation replacement matching remains a separate policy. Retain the existing refusal requirement and name the production-adapter regression.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"1c7433db-59e7-47b0-b653-b39692a8d3b4","repository":"github.com/xianxu/pair","issue_id":"000753","recipe":"milestone-review","round":5,"attempt":1,"agent":"codex","root":"/Volumes/TestScratch/review-checkouts/cbf61589e9f832b6","reviewed_head":"d6c24469c2599d1a6d4ac45257afd8be8d9fa09f","slot":"pair:9","requested_at":"2026-10-22T17:16:31.57146Z"},"phase":"finished","pid":20988,"started_at":"2026-10-22T17:16:31.801659Z","finished_at":"2026-10-22T17:20:38.566348Z","session_id":"01a1649d-4ab7-7d42-945d-aad964ee1af9","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 3.361764167s
+head: "d6c24469c2599d1a6d4ac45257afd8be8d9fa09f"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412

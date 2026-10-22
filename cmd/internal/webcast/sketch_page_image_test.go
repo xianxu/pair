@@ -149,3 +149,42 @@ func TestLiveSketchPageEightShapesAndHiddenPathRefusal(t *testing.T) {
 		t.Fatalf("preflight did not fail directly with indexed diagnostic: %v after %s", err, time.Since(started))
 	}
 }
+
+func TestLiveSketchPageRefusesMatchingReplacementOfRecordedAnchor(t *testing.T) {
+	bin := liveFidelityChrome(t)
+	b := pageImageBatch(t, 1)
+	const text = "Distinct recorded anchor heading"
+	var body recording.NodeID
+	for _, r := range b.Records {
+		if doc, ok := r.(*recording.Doc); ok {
+			body = doc.Tree.C[1].C[1].ID
+			original := &doc.Tree.C[1].C[1].C[0]
+			original.C = []recording.Node{{ID: 10001, Y: recording.YText, V: recording.Str(text)}}
+		}
+		if stroke, ok := r.(*recording.SketchStrokeBegin); ok {
+			stroke.At.Tag = "div"
+			stroke.At.Text = text
+		}
+	}
+	replacement := recording.Node{ID: 10002, Y: recording.YEl, N: "div", A: map[string]string{"style": "background:white;width:600px;height:400px"}, C: []recording.Node{{ID: 10003, Y: recording.YText, V: recording.Str(text)}}}
+	// Replace the recorded node between the stroke and its completed label. The
+	// different node has deliberately matching text/tag and visible geometry.
+	last := len(b.Records) - 1
+	records := append([]recording.Record(nil), b.Records[:last]...)
+	records = append(records, &recording.Kids{Header: recording.Header{T: b.Scene.T - 1}, P: body, C: []recording.Node{replacement}}, b.Records[last])
+	b.Records = records
+	views, err := query.New(records, nil).SketchesAt(b.Scene.T)
+	if err != nil {
+		t.Fatal(err)
+	}
+	b.Sketches = views
+	b.Finishes[0].RecordIndex = views[0].HistoryRecordIndex
+	b.Scene.SketchSourceFacts = b.Finishes[0]
+	if _, err := sketchimage.ValidatePageBatch(b); err != nil {
+		t.Fatal(err)
+	}
+	out, err := NewSketchPageImageRenderer(bin).RenderPage(context.Background(), b)
+	if err == nil || len(out.PNG) != 0 || !strings.Contains(err.Error(), "index 1") || !strings.Contains(err.Error(), "path p unavailable") {
+		t.Fatalf("replacement silently moved historical ink: bytes=%d err=%v", len(out.PNG), err)
+	}
+}

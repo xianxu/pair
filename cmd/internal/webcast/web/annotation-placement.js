@@ -110,10 +110,11 @@ export function createPlacement({document:documentOf,route,original=()=>null,sha
     const result={truncated,candidates:truncated?[]:nodes.filter(n=>n.nodeType===1).map(n=>facts(n,texts.get(n)?.text||''))};
     if(root===doc)cache=result;return result;
   };
-  return (note,{withClip=false}={})=>{
+  return (note,{withClip=false,originalOnly=false}={})=>{
     try {
       const at=note.at,doc=documentOf();if(!at||!doc||(at.route&&at.route!==route()))return null;
       const node=original(at.node,note);
+      if(originalOnly&&!node?.isConnected)return null;
       let chosen;
       if(node?.isConnected){
         // A reused recording ID with conflicting evidence never selects elsewhere.

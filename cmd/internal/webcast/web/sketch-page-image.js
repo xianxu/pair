@@ -41,6 +41,11 @@ export function preparePageInk(plan,shapes,placement) {
  });
  return {shapes:result,clipped};
 }
+// Historical export never substitutes a live-style matching replacement for
+// the recorded identity, even when that replacement has identical evidence.
+export function prepareHistoricalPageInk(plan,shapes,renderer){
+ return preparePageInk(plan,shapes,(p,s)=>renderer.placementOf({at:p.at,source:s.source},{withClip:true,originalOnly:true}));
+}
 async function start(){
  const responses=await Promise.all(['records','scene'].map(url=>fetch(url,{cache:'no-store'})));
  if(responses.some(r=>!r.ok))throw Error('historical page unavailable');
@@ -49,7 +54,7 @@ async function start(){
  const frame=document.getElementById('page');
  const replayer=new Replayer(records,hash=>`assets/${hash}`,inBrowser(frame));
  await replayer.replayAt(plan.scene.t,0);
- const ink=preparePageInk(plan,shapes,(p,s)=>replayer.renderer.placementOf({at:p.at,source:s.source},{withClip:true}));
+ const ink=prepareHistoricalPageInk(plan,shapes,replayer.renderer);
  const drawn=currentFrame(frame);drawn.style.transform=`scale(${plan.scale})`;
  const canvas=document.getElementById('ink');canvas.width=plan.width;canvas.height=plan.height;
  const g=canvas.getContext('2d'),toClient=(x,y)=>[(x-plan.region[0])*plan.scale,(y-plan.region[1])*plan.scale];

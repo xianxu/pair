@@ -628,6 +628,260 @@ rounds:
       isolation: fenced
       reviewed: 37ef740f65a78dc037696aa62189f71c58c8a22e
       blocked: false
+    - reviewer_runs:
+        - version: 1
+          intent:
+            disposable_root: true
+            id: 1c7433db-59e7-47b0-b653-b39692a8d3b4
+            repository: github.com/xianxu/pair
+            issue_id: "000753"
+            recipe: milestone-review
+            round: 5
+            attempt: 1
+            agent: codex
+            root: /Volumes/TestScratch/review-checkouts/cbf61589e9f832b6
+            reviewed_head: d6c24469c2599d1a6d4ac45257afd8be8d9fa09f
+            slot: pair:9
+            requested_at: "2026-10-22T17:16:31.57146Z"
+          phase: finished
+          pid: 20988
+          started_at: "2026-10-22T17:16:31.801659Z"
+          finished_at: "2026-10-22T17:20:38.566348Z"
+          session_id: 01a1649d-4ab7-7d42-945d-aad964ee1af9
+          outcome: returned
+      actual_inputs:
+        version: 1
+        method: active-time-v3-engagement-queue-v1
+        repository: github.com/xianxu/pair
+        code_head: d6c24469c2599d1a6d4ac45257afd8be8d9fa09f
+        tracker_head: 977a3247b842938ff57a72030af7c1c1333cc33e
+        branch_point: 39be359a3c55bcce5fd485548cd01e9d318d8b5e
+        since: "2026-10-21T18:40:37-07:00"
+        until: "2026-10-22T10:15:45-07:00"
+        brain_root: /Users/xianxu/workspace/brain
+        gap_minutes: 15
+        commit_weight: 1
+        include_assistant: true
+        engagements:
+            - start: "2026-10-21T18:40:37-07:00"
+              end: "2026-10-22T10:15:45-07:00"
+              began: "2026-10-21T18:40:37-07:00"
+              roots:
+                - /Users/xianxu/workspace/worktree/pair-slot9/pair
+        sources:
+            - harness: codex
+              id: 01a15e49-d730-7d33-b4b3-809814e36de7
+              slot: pair:9
+              cwd: /Users/xianxu/workspace/worktree/pair-slot9/pair
+              digest: 872f0fb227e9085660e889b1e38c45033b12e022108a89de362e679f0d4b2f04
+              started: "2026-10-21T11:47:40.397Z"
+              spawned: false
+              bytes: 32304754
+              windows:
+                - start: "2026-10-21T18:40:37-07:00"
+                  end: "2026-10-22T10:15:45-07:00"
+            - harness: codex
+              id: 01a1615b-b3b2-71d3-878e-78e13474733a
+              slot: pair:9
+              cwd: /Users/xianxu/workspace/worktree/pair-slot9/pair
+              digest: 875cc0385845359821419e9c1c22b64d19d3a1a1c51b8bd89a7644ade60bfd46
+              started: "2026-10-22T02:06:02.68Z"
+              spawned: false
+              bytes: 781349
+              windows:
+                - start: "2026-10-22T02:06:02.68Z"
+                  end: "2026-10-22T10:15:45-07:00"
+            - harness: codex
+              id: 01a1615f-3510-79f2-9cae-31cf36613788
+              slot: pair:9
+              cwd: /Users/xianxu/workspace/worktree/pair-slot9/pair
+              digest: c47b782ebe76c153ab719771b1df19f3a47df32607a4dfc8f027c6246cc3538d
+              started: "2026-10-22T02:09:52.302Z"
+              spawned: false
+              bytes: 462083
+              windows:
+                - start: "2026-10-22T02:09:52.302Z"
+                  end: "2026-10-22T10:15:45-07:00"
+            - harness: codex
+              id: 01a16161-37d2-7071-bfc4-bdb6afa7db78
+              slot: pair:9
+              cwd: /Users/xianxu/workspace/worktree/pair-slot9/pair
+              digest: 08a97e6e51d0b85438c720071e9692010efbf73613a778bae018f6757d5213af
+              started: "2026-10-22T02:12:03.967Z"
+              spawned: false
+              bytes: 465728
+              windows:
+                - start: "2026-10-22T02:12:03.967Z"
+                  end: "2026-10-22T10:15:45-07:00"
+            - harness: codex
+              id: 01a16161-e237-7f33-bb66-192582ab999d
+              slot: pair:9
+              cwd: /Users/xianxu/workspace/worktree/pair-slot9/pair
+              digest: e8b1541e3537a5f034fd0ec8963fa2ff873e31d2608ab45319e221eb5a788811
+              started: "2026-10-22T02:12:47.67Z"
+              spawned: false
+              bytes: 447786
+              windows:
+                - start: "2026-10-22T02:12:47.67Z"
+                  end: "2026-10-22T10:15:45-07:00"
+            - harness: codex
+              id: 01a16163-584d-7811-84e6-1ee39612fbb2
+              slot: pair:9
+              cwd: /Users/xianxu/workspace/worktree/pair-slot9/pair
+              parent_id: 01a15e49-d730-7d33-b4b3-809814e36de7
+              digest: ec3bc02690a7897f5ceb85f08bc74670fd1ea57fdc78b6540f83096f4df9e0d0
+              started: "2026-10-22T02:14:23.145Z"
+              spawned: true
+              bytes: 4689656
+              windows:
+                - start: "2026-10-22T02:14:23.145Z"
+                  end: "2026-10-22T10:15:45-07:00"
+            - harness: codex
+              id: 01a16171-a029-7232-b04f-7fdea9a0e516
+              slot: pair:9
+              cwd: /Users/xianxu/workspace/worktree/pair-slot9/pair
+              parent_id: 01a15e49-d730-7d33-b4b3-809814e36de7
+              digest: 077c4abbb372e2270874afa218d0cfc777ea6aaf0894735af8e40f0e09baae2e
+              started: "2026-10-22T02:29:59.009Z"
+              spawned: true
+              bytes: 5184954
+              windows:
+                - start: "2026-10-22T02:29:59.009Z"
+                  end: "2026-10-22T10:15:45-07:00"
+            - harness: codex
+              id: 01a16479-593c-72c1-8c56-0ab2fb2d8d38
+              slot: pair:9
+              cwd: /Users/xianxu/workspace/worktree/pair-slot9/pair
+              digest: 4045c6b50e88c6f7903347fc83b422f960be8e06cfcef1254a93dac4447e12aa
+              started: "2026-10-22T16:37:17.742Z"
+              spawned: false
+              bytes: 608560
+              windows:
+                - start: "2026-10-22T16:37:17.742Z"
+                  end: "2026-10-22T10:15:45-07:00"
+            - harness: codex
+              id: 01a16479-d353-7592-b10b-f52ec506bc33
+              slot: pair:9
+              cwd: /Users/xianxu/workspace/worktree/pair-slot9/pair
+              digest: 1594826f2a5e4f55f9edee4de6fffad1e33456a6ee0864d2ca6796094763d33f
+              started: "2026-10-22T16:37:48.561Z"
+              spawned: false
+              bytes: 550504
+              windows:
+                - start: "2026-10-22T16:37:48.561Z"
+                  end: "2026-10-22T10:15:45-07:00"
+            - harness: codex
+              id: 01a1647b-645c-7e42-9827-fa4c62413563
+              slot: pair:9
+              cwd: /Users/xianxu/workspace/worktree/pair-slot9/pair
+              digest: a059bd659f8629ff77cd0440ba095368c02c7ec2d449174fec9fab9b3f856df9
+              started: "2026-10-22T16:39:31.055Z"
+              spawned: false
+              bytes: 642807
+              windows:
+                - start: "2026-10-22T16:39:31.055Z"
+                  end: "2026-10-22T10:15:45-07:00"
+            - harness: codex
+              id: 01a1647b-e38b-7623-aee0-a413c4337961
+              slot: pair:9
+              cwd: /Users/xianxu/workspace/worktree/pair-slot9/pair
+              digest: e197fe43cac1eacc4727e9e560556d6831226adfb76ee4ec273dfddf071171fe
+              started: "2026-10-22T16:40:03.557Z"
+              spawned: false
+              bytes: 526243
+              windows:
+                - start: "2026-10-22T16:40:03.557Z"
+                  end: "2026-10-22T10:15:45-07:00"
+        queue_waits:
+            - attempt_id: 73583e3bf33e33f4d10db045e1492e42
+              slot: pair:9
+              record_digest: 9a8afc5345b4c1c93c00ef74801ebbd9fb61cd8c83ea0075fa3b0142059b9dac
+              start: "2026-10-22T03:47:16.877561Z"
+              end: "2026-10-22T04:10:56.123514Z"
+              queue_seconds: 1419.245953
+              raw_seconds: 1419.245953
+              exact: true
+            - attempt_id: 6e5ec36c332e27136f65a278d4410345
+              slot: pair:9
+              record_digest: f06313e24df9faed3bddfc98a1f8dccf413034a0ce96d7f725ddc047edb88cd2
+              start: "2026-10-22T04:23:02.411368Z"
+              end: "2026-10-22T04:55:40.697752Z"
+              queue_seconds: 1958.286384
+              raw_seconds: 1958.286384
+              exact: true
+            - attempt_id: fb1135928540e24dd58d6f6b8718bb52
+              slot: pair:9
+              record_digest: c8c012cd6262697df265a02d703e95378357ff8b89bc2f283853d651d27540ac
+              start: "2026-10-22T10:00:53.728898Z"
+              end: "2026-10-22T10:12:55.551601Z"
+              queue_seconds: 721.822703
+              raw_seconds: 721.822703
+              exact: true
+        cuts:
+            - dispatched: "2026-10-21T20:07:45-07:00"
+              finalized: "2026-10-21T20:13:18-07:00"
+              finalizing: false
+            - dispatched: "2026-10-21T20:35:23-07:00"
+              finalized: "2026-10-21T20:39:29-07:00"
+              finalizing: false
+            - dispatched: "2026-10-21T20:47:48-07:00"
+              finalized: "2026-10-21T20:50:42-07:00"
+              finalizing: true
+            - dispatched: "2026-10-21T21:23:35-07:00"
+              finalized: "2026-10-21T21:24:49-07:00"
+              finalizing: true
+      "n": 5
+      timestamp: "2026-10-22T10:20:40-07:00"
+      dispatched: "2026-10-22T10:16:28-07:00"
+      agent: codex
+      reviewer: codex (openai; author openai)
+      dispose:
+        - id: BR-1
+          disposition: addressed
+          note: Cancellation settles the exact publication through PreviewPublishFailed; controlled unchanged-refresh, terminal cancellation and expired-publication regressions passed.
+          round: 5
+        - id: BR-2
+          disposition: addressed
+          note: Selected facts reserve mandatory anchor capacity before ancestors/context; unselected-declaration and mandatory-handle budget regressions passed.
+          round: 5
+        - id: BR-3
+          disposition: addressed
+          note: Zero is excluded from declared anchor identities; region-only Build/ContextAt regression passed, including under race detection.
+          round: 5
+        - id: BR-4
+          disposition: addressed
+          note: Codec preflight rejects null numeric evidence before typed decoding; null-pressure and known-scalar regressions passed.
+          round: 5
+        - id: BR-5
+          disposition: addressed
+          note: The corrected Core concepts inventory separates pure selection from Store IO and identifies the actual preview, export and renderer locations.
+          round: 5
+        - id: BR-6
+          disposition: withdrawn
+          note: Retained native log SHA256 matches its evidence record; its source revision differs from pinned head only in evidence/tracker files. The log records passing shared-page, legacy rendering, cancellation and fidelity checks, with the stress-fixture qualification preserved.
+          round: 5
+        - id: BR-7
+          disposition: addressed
+          note: Explicit required-member schemas are reachable through Store decoding; deletion, valid-zero, optional-omission and Store tampering regressions passed.
+          round: 5
+      findings:
+        - kind: defect
+          id: BR-8
+          severity: Critical
+          title: Shared historical images silently move ink onto replacement elements
+          detail: cmd/internal/webcast/web/sketch-page-image.js:52 uses Renderer.placementOf without requiring the original recorded node. When that node is removed, annotation-placement.js:123-134 searches for a matching replacement. A read-only probe through the production Renderer.placementOf and preparePageInk removed node 7, inserted a different node with matching text, and successfully projected the original points onto the replacement. This contradicts plan line 295's explicit replaced-anchor refusal (ARCH-SECURE, ARCH-PURPOSE). Require connected original recorded-node identity for shared historical rendering and add a regression through the actual placement adapter; preserve the existing live annotation reanchoring policy.
+          family: historical-anchor-identity
+          round: 5
+        - kind: defect
+          id: BR-9
+          severity: Minor
+          title: Agent-facing instructions retain obsolete per-sketch evidence references
+          detail: nvim/dom_submission_state.lua:43-44 describes sketch-N.png historical source images, while couchcmd/skills/couch/SKILL.md:667-670 directs readers to image.plan.paths. New shared items instead use sketch-page.png and sketch.paths. The canonical appended ReadingGuide and opening skill paragraph are correct, limiting the impact, but these conflicting instructions should distinguish shared and legacy variants (ARCH-PURPOSE). Update the emitted-prompt regression alongside the text.
+          family: handoff-contract-alignment
+          round: 5
+      recipe: milestone-review
+      isolation: fenced
+      blocked: true
 ---
 
 # Gate ledger — pair#753 (boundary-review)
@@ -676,6 +930,26 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 
 ## Round 4 — 2026-10-21T21:24:49-07:00 (codex) — passed
 
+## Round 5 — 2026-10-22T10:20:40-07:00 (codex) — BLOCKED
+
+### Disposed
+
+- BR-1 — addressed — Cancellation settles the exact publication through PreviewPublishFailed; controlled unchanged-refresh, terminal cancellation and expired-publication regressions passed.
+- BR-2 — addressed — Selected facts reserve mandatory anchor capacity before ancestors/context; unselected-declaration and mandatory-handle budget regressions passed.
+- BR-3 — addressed — Zero is excluded from declared anchor identities; region-only Build/ContextAt regression passed, including under race detection.
+- BR-4 — addressed — Codec preflight rejects null numeric evidence before typed decoding; null-pressure and known-scalar regressions passed.
+- BR-5 — addressed — The corrected Core concepts inventory separates pure selection from Store IO and identifies the actual preview, export and renderer locations.
+- BR-6 — withdrawn — Retained native log SHA256 matches its evidence record; its source revision differs from pinned head only in evidence/tracker files. The log records passing shared-page, legacy rendering, cancellation and fidelity checks, with the stress-fixture qualification preserved.
+- BR-7 — addressed — Explicit required-member schemas are reachable through Store decoding; deletion, valid-zero, optional-omission and Store tampering regressions passed.
+
+### Raised
+
+- **BR-8** [Critical] `historical-anchor-identity` (kind: defect) Shared historical images silently move ink onto replacement elements
+  cmd/internal/webcast/web/sketch-page-image.js:52 uses Renderer.placementOf without requiring the original recorded node. When that node is removed, annotation-placement.js:123-134 searches for a matching replacement. A read-only probe through the production Renderer.placementOf and preparePageInk removed node 7, inserted a different node with matching text, and successfully projected the original points onto the replacement. This contradicts plan line 295's explicit replaced-anchor refusal (ARCH-SECURE, ARCH-PURPOSE). Require connected original recorded-node identity for shared historical rendering and add a regression through the actual placement adapter; preserve the existing live annotation reanchoring policy.
+- **BR-9** [Minor] `handoff-contract-alignment` (kind: defect) Agent-facing instructions retain obsolete per-sketch evidence references
+  nvim/dom_submission_state.lua:43-44 describes sketch-N.png historical source images, while couchcmd/skills/couch/SKILL.md:667-670 directs readers to image.plan.paths. New shared items instead use sketch-page.png and sketch.paths. The canonical appended ReadingGuide and opening skill paragraph are correct, limiting the impact, but these conflicting instructions should distinguish shared and legacy variants (ARCH-PURPOSE). Update the emitted-prompt regression alongside the text.
+
 ## Open findings
 
-(none — every finding has been disposed)
+- **BR-8** [Critical] `historical-anchor-identity` (kind: defect) Shared historical images silently move ink onto replacement elements
+- **BR-9** [Minor] `handoff-contract-alignment` (kind: defect) Agent-facing instructions retain obsolete per-sketch evidence references

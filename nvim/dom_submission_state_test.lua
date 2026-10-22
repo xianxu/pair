@@ -140,7 +140,7 @@ do
  step('prepared',{result={state='prepared',path='/bundle/submission.json',how_to_read='canonical guide',sketches=2,remaining=4}})
  step('current',{current=true});step('begun',{result={state='delivering'}})
  local effects=step('current',{current=true});local text=effects[1].text
- for _,part in ipairs({'Act on these','sketch-N.png','draw-time','replay-rendered','original','literal','privacy','2 sketches','4 more','canonical guide'})do
+ for _,part in ipairs({'Act on these','sketch-page.png','numbered','paths','latest selected finish','Legacy','sketch-N.png','draw-time','replay-rendered','original','literal','privacy','2 sketches','4 more','canonical guide'})do
   assert(text:find(part,1,true),'mixed evidence handoff missing '..part)
  end
  assert(not text:find('current pixels',1,true),'historical evidence called current pixels')

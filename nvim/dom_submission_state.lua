@@ -40,9 +40,11 @@ end
 local function agent_text(pending, result)
   local prefix = pending.text .. (pending.text ~= '' and '\n\n' or '')
   local text = prefix .. 'DOM evidence: read ' .. result.path .. ' (submission.json) for selected notes and sketches. '
-    .. 'Read referenced crop-N.png files for saved draw-time note pixels and sketch-N.png files for replay-rendered '
-    .. 'historical source pages with accepted sketch ink. Read each item’s original page URL, literal element IDs/data-* '
-    .. 'and historical recording handles. Apply each note or sketch’s privacy decision before quoting text or sharing images; '
+    .. 'Read referenced crop-N.png files for saved draw-time note pixels. New sketch bundles use sketch-page.png: '
+    .. 'one replay-rendered historical viewport at the latest selected finish, with numbered ink matching each sketch.index '
+    .. 'and original coordinates/pressure in paths. Legacy bundles use sketch-N.png and image.plan.paths. '
+    .. 'Read each item’s original page URL, literal element IDs/data-* and historical recording handles. '
+    .. 'Apply the full-page and each note or sketch’s privacy decision before quoting text or sharing images; '
     .. 'unavailable evidence and replay limitations are explicit.'
   local counts = sketch_counts(result)
   if counts then text = text .. ' ' .. counts .. '.' end
