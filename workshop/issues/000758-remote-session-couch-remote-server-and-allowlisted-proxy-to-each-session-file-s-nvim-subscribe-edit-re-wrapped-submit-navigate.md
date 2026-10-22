@@ -1,13 +1,13 @@
 ---
 id: 000758
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-10-20
 updated: 2026-10-22
 estimate_hours: 4.136
 collaboration-mode: collaboration
-card_mirror: '4d651715eb3071d5971c7e99348a29f8b91adaf8' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '5dc2e237eb60d0b14dc6fdfaef1665b6a0d45226' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-22T04:59:40-07:00
 claimant:
     operator: Xian Xu
@@ -17,6 +17,7 @@ claimant:
     worktree: /Users/xianxu/workspace/worktree/pair-slot6/pair
     repository: github.com/xianxu/pair
 flow: {kind: full, provenance: operator}
+actual_hours: 3.65
 ---
 
 # Couch-owned editor endpoint registry and lifecycle
