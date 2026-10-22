@@ -216,9 +216,9 @@ func checkPreviewControlOrder(t *testing.T, data []byte) {
 				shown = nil
 			}
 		case 6:
-			event = PreviewPrepare{host, stamp}
+			event = PreviewPrepare{Host: host, Stamp: stamp}
 		case 7:
-			event = PreviewPrepare{PreviewHost{ID: "retired"}, stamp}
+			event = PreviewPrepare{Host: PreviewHost{ID: "retired"}, Stamp: stamp}
 			shown = nil
 		case 8:
 			host = PreviewHost{}
