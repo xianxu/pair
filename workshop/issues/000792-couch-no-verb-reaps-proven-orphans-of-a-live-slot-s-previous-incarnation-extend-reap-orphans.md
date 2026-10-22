@@ -170,6 +170,12 @@ A new actual-handler red test reproduced TERM despite unknown current slot owner
 
 The native oracle now recognizes only the exact documented typed legacy partial, while preserving six unique exact reaped outcomes, native absence, current generation, delivery, joined completion and cleanup. Unknown refusal, transport loss, truncation or uncertain cleanup still fail. Small oracle regressions pass0.335s. Record updated reader certificates, checkpoint, then repeat both focused final-source acceptances and required recorded verification. No native/suite/landing runner remains.
 
+### 2026-10-22 — diagnose current proof refusal before changing eligibility
+
+Claude on534166a6 failed an exact target with complete current ownership proof unavailable, beyond the permitted legacy-only partial. The test stopped before current delivery; exact cleanup passed and writes81485824bytes remained under96MiB. No Codex run or blind retry. Log /Volumes/TestScratch/tmp/pair-slot2/pair-792-native-proof-claude.osb808/native.log SHA256f10eb9d13c8d3caca11c44cac733928ae87f929e76adfdbcf0440719d782060e.
+
+The global current-completeness reuse may veto unrelated unknown evidence, but this log does not establish which condition failed. Add a bounded pure current refusal reason, carried only in the ephemeral proof and existing effect detail. It preserves the exact eligibility decision, sticky flag, all bounds and no retained history. Diagnose that observation before modifying eligibility; do not invent a root cause or register a safety flake. No native/suite/landing runner is active.
+
 ## Estimate
 
 Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md` against `baseline-v3.1.md`. Method A only. The source is marked stale by estimate-source; this is a provisional calibration, not a fitted total.

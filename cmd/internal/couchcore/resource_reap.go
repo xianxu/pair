@@ -41,6 +41,7 @@ type ProvenOrphanProof struct {
 	Selection                     ResourceSelection
 	TableKnown, InventoryComplete bool
 	UnknownDetached               []ResourceProcessKey
+	IncompleteReason              string
 }
 
 func orphanTarget(p ResourceProvenance) ProvenOrphanTarget {
@@ -73,6 +74,9 @@ func DecideProvenOrphanSignal(target ProvenOrphanTarget, proof ProvenOrphanProof
 		return "refused", err.Error()
 	}
 	if !proof.TableKnown || !proof.InventoryComplete || len(proof.Table) > ResourceMaxTableRows || len(proof.Selection.Errors) > 0 {
+		if proof.IncompleteReason != "" {
+			return "refused", "complete current ownership proof unavailable: " + proof.IncompleteReason
+		}
 		return "refused", "complete current ownership proof unavailable"
 	}
 	rows := make(map[int]procutil.Process, len(proof.Table))
@@ -127,29 +131,42 @@ func DecideProvenOrphanSignal(target ProvenOrphanTarget, proof ProvenOrphanProof
 // loss sticky; this value only describes the supplied collection. Zombie death
 // is positive evidence even when its former generation can no longer be read.
 func ResourceOwnershipComplete(sample ResourceSample, selection ResourceSelection, unknown []ResourceProcessKey) bool {
-	if !sample.TableKnown || !sample.InventoryComplete || sample.InventoryOmitted != 0 ||
-		len(sample.Table) > ResourceMaxTableRows || len(sample.Slots) > ResourceMaxSlots ||
-		len(selection.Processes) > ResourceMaxProcesses || len(selection.Errors) != 0 || len(unknown) != 0 {
-		return false
+	return ResourceOwnershipIncompleteReason(sample, selection, unknown) == ""
+}
+
+// ResourceOwnershipIncompleteReason is bounded, current-collection diagnostics;
+// it retains neither the first historical loss nor native environment contents.
+func ResourceOwnershipIncompleteReason(sample ResourceSample, selection ResourceSelection, unknown []ResourceProcessKey) string {
+	if !sample.TableKnown || len(sample.Table) > ResourceMaxTableRows {
+		return "process census incomplete"
+	}
+	if !sample.InventoryComplete || sample.InventoryOmitted != 0 || len(sample.Slots) > ResourceMaxSlots {
+		return "slot census incomplete"
+	}
+	if len(selection.Processes) > ResourceMaxProcesses || len(selection.Errors) != 0 {
+		return "ownership classification incomplete"
+	}
+	if len(unknown) != 0 {
+		return "detached ownership unknown"
 	}
 	seen := make(map[int]bool, len(sample.Table))
 	for _, row := range sample.Table {
 		if row.PID <= 0 || seen[row.PID] || !row.Zombie && row.Identity == "" {
-			return false
+			return "process identity ambiguous or unavailable"
 		}
 		seen[row.PID] = true
 	}
 	slots := make(map[string]bool, len(sample.Slots))
 	for _, slot := range sample.Slots {
 		if !slot.OwnershipKnown || slot.Slot == "" || slots[slot.Slot] {
-			return false
+			return fmt.Sprintf("slot ownership ambiguous or unknown: %.64s", slot.Slot)
 		}
 		slots[slot.Slot] = true
 		for _, root := range slot.Roots {
 			if root.Key.PID <= 0 || root.Key.Identity == "" {
-				return false
+				return fmt.Sprintf("slot root identity unavailable: %.64s", slot.Slot)
 			}
 		}
 	}
-	return true
+	return ""
 }
