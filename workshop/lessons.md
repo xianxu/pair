@@ -2621,3 +2621,5 @@ and external temporary roots rather than relying on the host's TMPDIR.
 - #789 scope split: keep the hard layout invariant in the shared display projection, with full diagnostic recovery. A request to improve common wording should not turn into exhaustive static dataflow proof across every diagnostic origin; define a bounded wording cleanup separately when the cap already guarantees the operator's requirement.
 
 - #789 BR-5: Introducing a presentation cap changes every screen-level expectation for a long notice, even when producers remain unchanged. Sweep rendered-text assertions, retain full payload checks separately, and run the whole affected UI package; a name-based Status/Notice selection misses lifecycle and security feedback tests.
+
+- #789 suite: a shared Console renderer also changes caller-package screen fixtures. Audit and run couchcmd alongside couchtty before submitting a presentation cap; preserve full error/clipboard checks separately from bounded paint. Do not force asynchronous notice ordering merely to make the latest-notice clipboard point at an earlier event.

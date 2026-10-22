@@ -59,6 +59,13 @@ Retained suite session55007 completed with exit1: attempt f9b3e2af722df79bce43bf
 
 Drain requested an atomic checkpoint; it was lifted while inspecting these completed results. No queued work was restarted or reordered. Merge session46377/pid83174 remains retained, last position1, blocked on the missing passing local record (and the #803 fleet grant); it cannot land this failed head. Next step: reproduce the three couchcmd assertions, check their whole screen-assertion family, retain complete diagnostic recovery checks, then submit a corrected pushed head to the recorded suite and close review. #796 remains unstarted until #789 lands; #802 remains the separate unclaimed low-priority wording item.
 
+
+### 2026-10-22 — caller-package screen assertions corrected
+
+The three recorded failures reproduced unchanged in a targeted couchcmd run (61.851s). Read-only audit of all couchcmd terminal-write and decoded-screen assertions found two incompatible sites covering all three failures; other long path strings belong to switcher content or uncapped notification transport. Hub-startup tests now expect an independently written 40-cell ellipsis literal while retaining first-hub input/output usability, warm-worker counts, and the complete dispatched failure's injected cause, root and diagnostic-path facts. Initial borrowed-attachment paint expects its independent bounded literal, retains absence on failed adoption and warm-pass arming, and sends real Ctrl+Y through the existing Console input path to a private native pbcopy fixture to prove exact full start.Warning() recovery.
+
+An attempted hub-notice clipboard assertion correctly exposed that the asynchronous warm-worker borrowed notice can become the latest notice before the copy; it was removed rather than forcing production ordering or weakening latest-notice semantics. The stable initial-paint fixture owns the full-copy check; hub failure's original full dispatched error remains asserted. No production or fixture deadline changed. Corrected targeted three tests PASS2.204s; whole couchcmd package PASS114.700s, count1. Affected reader inventory and diff checks pass. Full repository suite remains pending on the forthcoming corrected pushed head; the previous failed suite is retained as failure evidence, never relabeled as a flake/pass. The existing merge runner is preserved awaiting the replacement local-check record.
+
 ## Revisions
 
 ### 2026-10-22 — implementation scope
