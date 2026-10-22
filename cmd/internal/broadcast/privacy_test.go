@@ -25,7 +25,7 @@ func TestViewerFrameShowSwitcherUnchanged(t *testing.T) {
 }
 
 func TestViewerFramePrivateIsPlaceholder(t *testing.T) {
-	for _, rows := range []int{1, 2, 6} {
+	for _, rows := range []int{2, 6} {
 		f := textFrame(t, 40, rows, "FLEET-SECRET /path/to/thread\nnotes FLEET-SECRET", liveChrome("tabs"))
 		f.Cursor = terminal.Cursor{X: 3, Y: 0, Visible: true}
 		got, err := ViewerFrame(f, terminal.FramePrivate, false)

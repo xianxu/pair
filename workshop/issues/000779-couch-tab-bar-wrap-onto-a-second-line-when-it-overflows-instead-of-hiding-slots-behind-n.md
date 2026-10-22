@@ -57,6 +57,16 @@ Claimed and start-plan completed in pair:4 after pair#757 landed (PR532). Includ
 
 Initial read-only audit: one-row assumptions exist in couchtty rendering/geometry/input/anchors, terminal composition/presenter resizing, and broadcast LIVE/pointer checks, private-frame filtering and annotation guards. This leaves the quick-flow code shell; prepare one atomic full-flow plan with pure packing and a shared trusted chrome-height contract before implementation. No product code written. Geometry and packing audits delegated read-only under AGENTS section3; plan approval will go through the hub. Private #757 GOCACHE removed; new Go calls use the repaired machine default on main SSD.
 
+Implementation checkpoint: full-flow change-code CLEAN; estimate review INFO is nonblocking. Qualification is included in Console/API fixtures and the two reserved operator UX rounds.
+
+Implemented measured two-row packing with row-aware spans and priority overflow; rectangular trusted Frame.ChromeRows/Presenter.ChromeState; Console atomic layout and pending revision maps; both-row input/anchors; trusted broadcast/viewer guards; and native PTY resizing. Existing publication mutex now also protects confirmation comparison through the Console hit-map read (ARCH-ORDER): without it a fully drawn Codes menu could lose a click between Presenter admission and Console commit. The existing Codes test reproduced repeated close failures; fixed Codes/pending-writer/stale-revision race stress passed20 repetitions in17.147s. No production polling, deadline changes or new workers.
+
+Observed RED pins include old one-row child size23 instead of22, two-row Compose refusal, unconfirmed wheel delivery, spoofed child LIVE, stale row anchoring, wrong JS guards and wide control overlap. Controlled-writer coverage admits pending extents, rejects clicks while partial writes persist, keeps keys/paste, and confirms the same revision after automatic repaint. Retained menus reflow against the composed frame. Old synthetic test frames now declare their trusted chrome rows, and control helpers locate line1 rather than the physical final line.
+
+Verification: full couchtty package PASS52.455s; terminal package PASS43.848s and focused race1.727s; broadcast package PASS48.606s and race145.241s; browser Node100/100PASS; seeded packing fuzz74,478 executions plus counted64/128 growth pins. Native Claude/Codex-labelled real PTYs PASS0.502s and race1.799s, checking selected/background kernel sizes80x7 ->18x6 ->80x7 and physical bottom output. Inventory and exhaustive artifact-source classification PASS. Direct exploratory package runs were stopped diagnostically after identifying obsolete test oracles; these are not recorded suite evidence. Final recorded check still required.
+
+TL b07bf583 authorizes suite and close meanwhile; pair:0 stage remains held until #752 lands, then TL will choose #779's short look versus #737's day. No staging or landing before that decision and live acceptance.
+
 ## Revisions
 
 - 2026-10-21: TL c5c04f63 approves full-flow shared trusted chrome height, row1 attention badge, final-row notices and clipped-but-clickable active at absurd widths. Attention must be prioritized over ordinary chips; overflow explicitly marks hidden attention (+N !). Durable plan records the full consumer sweep and awaits TL approval.
@@ -64,8 +74,6 @@ Initial read-only audit: one-row assumptions exist in couchtty rendering/geometr
 - 2026-10-21: TL a01bc13f approves the durable plan and authorizes change-code. Stage is explicitly sequenced after #752 lands and the hub clears pair:0; TL will coordinate with #737's live day. No code/estimate yet; full-flow plan-quality gate precedes the derived estimate.
 
 - 2026-10-21: PQ round1 found admitted-versus-painted geometry and tiny active/control priority underspecified. TL ba876ba6 approves revisioned pending/confirmed chrome input admission and active-first tiny fallback with fail-closed LIVE. Durable plan revised with controlled-writer strategy and named function guards; re-run plan-quality before estimating or coding.
-
-- Implementation checkpoint: change-code full-flow gate CLEAN; estimate review INFO is nonblocking. Qualification is included in Console/API fixtures and the two reserved operator UX rounds. Terminal rectangular composition/confirmation and pure measured packing have focused RED-to-GREEN evidence; Console two-row child reservation regression currently fails as expected (23 rows instead of22). Delegated source owners are terminal, packing and broadcast; root owns Console publication/input integration. No recorded check or merge runner is active.
 
 ## Estimate
 

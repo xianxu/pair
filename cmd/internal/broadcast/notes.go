@@ -121,14 +121,14 @@ func (b CellBox) within(cols, rows int) bool {
 // the grid, off the broadcast's controls). A box not within the grid has
 // none, so the loops only ever run over the grid, and stop at the first
 // spot found (a large box costs nothing past it).
-func firstPin(b CellBox, cols, rows int, taken func(cell) bool) (cell, bool) {
-	if !b.within(cols, rows) {
+func firstPin(b CellBox, cols, rows, chromeRows int, taken func(cell) bool) (cell, bool) {
+	if chromeRows <= 0 || chromeRows >= rows || !b.within(cols, rows) {
 		return cell{}, false
 	}
 	for row := b.Row; row < b.Row+b.H; row++ {
 		for col := b.Col + b.W - 2; col >= b.Col; col-- {
 			c := cell{col, row}
-			if NoteVisible(Note{Col: col, Row: row}, cols, rows) && (taken == nil || !taken(c)) {
+			if NoteVisible(Note{Col: col, Row: row}, cols, rows, chromeRows) && (taken == nil || !taken(c)) {
 				return c, true
 			}
 		}
@@ -137,8 +137,8 @@ func firstPin(b CellBox, cols, rows int, taken func(cell) bool) (cell, bool) {
 }
 
 // hasPin reports whether a box has a spot for its pin at all.
-func hasPin(b CellBox, cols, rows int) bool {
-	_, ok := firstPin(b, cols, rows, nil)
+func hasPin(b CellBox, cols, rows, chromeRows int) bool {
+	_, ok := firstPin(b, cols, rows, chromeRows, nil)
 	return ok
 }
 
@@ -179,7 +179,7 @@ type NoteBoard struct {
 // the first of the box's pin spots no open note's pin covers. At most
 // MaxNotesPerColor notes per color are open, and no two pins share a cell;
 // a box with no free spot is refused.
-func (b *NoteBoard) Add(n Note, cols, rows int) (Note, error) {
+func (b *NoteBoard) Add(n Note, cols, rows, chromeRows int) (Note, error) {
 	same := 0
 	for _, o := range b.notes {
 		if o.Color == n.Color {
@@ -189,7 +189,7 @@ func (b *NoteBoard) Add(n Note, cols, rows int) (Note, error) {
 	if same >= MaxNotesPerColor {
 		return Note{}, ErrNoteColorFull
 	}
-	pin, ok := firstPin(n.Box, cols, rows, b.pinTaken)
+	pin, ok := firstPin(n.Box, cols, rows, chromeRows, b.pinTaken)
 	if !ok {
 		return Note{}, ErrNoteOverlap
 	}
@@ -238,8 +238,8 @@ type NoteRequest struct {
 // ParseNote reads a note request strictly, as ParsePointBatch does: one
 // JSON object with exactly these fields
 // ({"cols","rows","box":[col,row,w,h],"color","text"}), integers in range, a
-// box on the grid at least the pin's two cells wide with somewhere for the
-// pin off the broadcast's controls, and plain text. The pin is the board's
+// box on the grid at least the pin's two cells wide, and plain text. Current
+// frame admission decides whether its pin can avoid the controls. The pin is the board's
 // to place (NoteBoard.Add). Its errors are fixed values that never echo
 // the input.
 func ParseNote(body []byte) (NoteRequest, error) {
@@ -271,7 +271,7 @@ func ParseNote(body []byte) (NoteRequest, error) {
 	cols, rows := *raw.Cols, *raw.Rows
 	n := Note{Box: CellBox{box[0], box[1], box[2], box[3]}, Color: *raw.Color, Text: *raw.Text}
 	if cols < 1 || rows < 1 || cols > maxPointGrid || rows > maxPointGrid ||
-		!hasPin(n.Box, cols, rows) || n.Color < 0 || n.Color >= PointerColors {
+		!n.Box.within(cols, rows) || n.Color < 0 || n.Color >= PointerColors {
 		return NoteRequest{}, ErrNoteRange
 	}
 	if !PlainText(n.Text) {
@@ -326,8 +326,8 @@ func PlainText(s string) bool {
 
 // NoteVisible reports whether n draws on a cols×rows grid: both of its cells
 // on the grid, and off the broadcast's controls.
-func NoteVisible(n Note, cols, rows int) bool {
-	return n.Col >= 0 && n.Row >= 0 && n.Col+1 < cols && n.Row < rows && !guarded(cell{n.Col, n.Row}, rows)
+func NoteVisible(n Note, cols, rows, chromeRows int) bool {
+	return n.Col >= 0 && n.Row >= 0 && n.Col+1 < cols && n.Row < rows && !guarded(cell{n.Col, n.Row}, rows, chromeRows)
 }
 
 // DrawNotes returns f with each visible note drawn: its box's edge cells
@@ -339,13 +339,15 @@ func NoteVisible(n Note, cols, rows int) bool {
 // With nothing to draw it returns f itself, uncopied.
 func DrawNotes(f terminal.Frame, notes []Note, style NoteStyle) terminal.Frame {
 	cols, rows := f.Geometry.Cols, f.Geometry.Rows
+	chromeRows := f.ChromeRows
 	var out terminal.Frame
 	copied := false
 	glow := map[cell]float64{}
 	glowColor := map[cell]int{}
 	chips := map[cell]bool{}
 	for _, n := range notes {
-		if !NoteVisible(n, cols, rows) || len(f.Cells) != cols*rows {
+		if !NoteVisible(n, cols, rows, chromeRows) || len(f.Cells) != cols*rows ||
+			guardedGlyph(f, cell{n.Col, n.Row}) || guardedGlyph(f, cell{n.Col + 1, n.Row}) {
 			continue
 		}
 		chips[cell{n.Col, n.Row}], chips[cell{n.Col + 1, n.Row}] = true, true
@@ -358,15 +360,16 @@ func DrawNotes(f terminal.Frame, notes []Note, style NoteStyle) terminal.Frame {
 				glow[c], glowColor[c] = t, n.Color
 			}
 		}
-		for _, c := range boxEdge(n.Box, cols, rows) {
+		for _, c := range boxEdge(n.Box, cols, rows, chromeRows) {
 			take(c, noteOutline)
 		}
-		for c, t := range noteGlow(n, cols, rows, flash) {
+		for c, t := range noteGlow(n, cols, rows, chromeRows, flash) {
 			take(c, t)
 		}
 	}
 	for _, n := range notes {
-		if !NoteVisible(n, cols, rows) || len(f.Cells) != cols*rows {
+		if !NoteVisible(n, cols, rows, chromeRows) || len(f.Cells) != cols*rows ||
+			guardedGlyph(f, cell{n.Col, n.Row}) || guardedGlyph(f, cell{n.Col + 1, n.Row}) {
 			continue
 		}
 		if !copied {
@@ -425,10 +428,10 @@ const noteOutline = 0.55
 
 // boxEdge is the cells of b's edge on a cols×rows grid (a grid that shrank
 // cuts it), never the broadcast's controls.
-func boxEdge(b CellBox, cols, rows int) []cell {
+func boxEdge(b CellBox, cols, rows, chromeRows int) []cell {
 	var out []cell
 	add := func(col, row int) {
-		if c := (cell{col, row}); col >= 0 && row >= 0 && col < cols && row < rows && !guarded(c, rows) {
+		if c := (cell{col, row}); col >= 0 && row >= 0 && col < cols && row < rows && !guarded(c, rows, chromeRows) {
 			out = append(out, c)
 		}
 	}

@@ -128,12 +128,12 @@ ARCH-DRY/PURE: one planner and one trusted geometry owner; existing styling and 
 
 ## Implementation tasks — one atomic close boundary
 
-- [ ] Pin RED pure packing/composition/guard regressions and record observed failures before implementation.
-- [ ] Implement pure measured planner and shared row rendering with counted complexity pins; run targeted planner/fuzz tests and commit.
-- [ ] Generalize compositor geometry/metadata and Presenter resizing; test one-row compatibility and one↔two transitions, then commit.
-- [ ] Propagate trusted chrome geometry through broadcast privacy, marks/notes and additive viewer frames; run Go/JS tests and actual-server conformance, then commit.
-- [ ] Integrate Console publication, child/menu sizing, row-aware local/remote input and anchors; run fake-host and native lifecycle tests, then commit.
-- [ ] Update atlas/couch.md, atlas/terminal.md/broadcast map as needed and index links; audit artifact/source-reader classifications for new files, run inventory and focused race/repolint checks.
+- [x] Pin RED pure packing/composition/guard regressions and record observed failures before implementation.
+- [x] Implement pure measured planner and shared row rendering with counted complexity pins; run targeted planner/fuzz tests and commit.
+- [x] Generalize compositor geometry/metadata and Presenter resizing; test one-row compatibility and one↔two transitions, then commit.
+- [x] Propagate trusted chrome geometry through broadcast privacy, marks/notes and additive viewer frames; run Go/JS tests and actual-server conformance, then commit.
+- [x] Integrate Console publication, child/menu sizing, row-aware local/remote input and anchors; run fake-host and native lifecycle tests, then commit.
+- [x] Update atlas/couch.md, atlas/terminal.md/broadcast map as needed and index links; audit artifact/source-reader classifications for new files, run inventory and focused race/repolint checks.
 - [ ] Stage the concrete built head for the operator via hub, record the live result; checkpoint/push and run recorded affected (or suite fallback), close once through SDLC, then merge through its retained runner and report landing.
 
 Targeted commands: go test ./cmd/internal/couchtty -run 'Test.*Status|Test.*Wrap|Test.*Chrome|Test.*Anchor' -count=1; go test ./cmd/internal/terminal ./cmd/internal/broadcast -count=1; scoped race runs for changed Console/Presenter/guard cases; existing Node viewer tests and make test-affected-inventory. Native test names are added beside the exact scenario, not a second full-suite loop. All source-reading tests receive per-reader audit/certificates after git add. Final recorded checks and CI remain mandatory.
@@ -143,3 +143,5 @@ Targeted commands: go test ./cmd/internal/couchtty -run 'Test.*Status|Test.*Wrap
 - 2026-10-21: TL a01bc13f-f20c-4084-86d5-2f1e85796a01 approves this full design and test set; proceed to change-code. Operator stage must wait until #752 lands because it currently holds pair:0; TL sequences the look with #737's live day. No staging before hub clears that dependency.
 
 - 2026-10-21: Plan-quality round1 PQ-1/PQ-2 and minor PQ-3: clarified admitted versus confirmed geometry through Presenter.ChromeState, pending Console revisions and dropped geometry-dependent actions during uncertain paint; preserved keyboard/paste and existing automatic retry. Tiny one-row active wins over controls as well as count; omitted/clipped LIVE fails closed. Compressed the verification contract into named risky functions and strategies. TL ba876ba6-14f8-4bdc-80a4-6ede8d57ed6a approves this refinement. No implementation yet.
+
+- 2026-10-21 implementation clarification (ARCH-ORDER): confirmation snapshots also hold the existing publication lock through Presenter FIFO read and Console revision comparison; anchors already owning it use the no-lock Publishing helper. This realizes the approved atomic pending-map contract and fixes a measured close-click race without new state or timing policy. TL b07bf583 explicitly orders recorded suite and close while operator staging waits for pair:0; live acceptance still precedes landing.
