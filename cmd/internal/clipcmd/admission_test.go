@@ -58,10 +58,10 @@ func TestClipboardAdmissionRefusesBeforeStaging(t *testing.T) {
 			switch kind {
 			case "wrong-kind":
 				raw := `{"active_swap_layout_name":null,"is_swap_layout_dirty":false}`
-				f.SetFaults(zellijtest.Fault{Ordinal: 1, Reply: &raw})
+				f.SetFaults(zellijtest.Fault{Ordinal: 1, Reply: &raw}, zellijtest.Fault{Ordinal: 2, Reply: &raw}, zellijtest.Fault{Ordinal: 3, Reply: &raw})
 			case "empty":
 				raw := ""
-				f.SetFaults(zellijtest.Fault{Ordinal: 1, Reply: &raw})
+				f.SetFaults(zellijtest.Fault{Ordinal: 1, Reply: &raw}, zellijtest.Fault{Ordinal: 2, Reply: &raw}, zellijtest.Fault{Ordinal: 3, Reply: &raw})
 			case "missing-draft":
 				session.Panes = session.Panes[:1]
 				model.Sessions["test"] = session
@@ -137,10 +137,10 @@ func TestAutoQuoteAdmissionUsesCombinedSourceContext(t *testing.T) {
 			switch scenario {
 			case "wrong-clients":
 				raw := `[]`
-				f.SetFaults(zellijtest.Fault{Ordinal: 1, Reply: &raw})
+				f.SetFaults(zellijtest.Fault{Ordinal: 1, Reply: &raw}, zellijtest.Fault{Ordinal: 2, Reply: &raw}, zellijtest.Fault{Ordinal: 3, Reply: &raw})
 			case "wrong-panes":
 				raw := "CLIENT_ID ZELLIJ_PANE_ID RUNNING_COMMAND\n"
-				f.SetFaults(zellijtest.Fault{Ordinal: 2, Reply: &raw})
+				f.SetFaults(zellijtest.Fault{Ordinal: 2, Reply: &raw}, zellijtest.Fault{Ordinal: 3, Reply: &raw}, zellijtest.Fault{Ordinal: 4, Reply: &raw})
 			case "changed-source":
 				s.Clients[0].PaneID = "terminal_1"
 				model.Sessions["test"] = s
@@ -183,9 +183,13 @@ func TestAutoQuoteAdmissionUsesCombinedSourceContext(t *testing.T) {
 			}
 			want := 4
 			switch scenario {
-			case "wrong-clients", "disagreeing-clients", "missing-client":
+			case "wrong-clients":
+				want = 3
+			case "wrong-panes":
+				want = 4
+			case "disagreeing-clients", "missing-client":
 				want = 1
-			case "wrong-panes", "missing-source", "missing-draft", "other-tab-draft", "ambiguous-draft", "unregistered-terminal":
+			case "missing-source", "missing-draft", "other-tab-draft", "ambiguous-draft", "unregistered-terminal":
 				want = 2
 			}
 			observations := 0
