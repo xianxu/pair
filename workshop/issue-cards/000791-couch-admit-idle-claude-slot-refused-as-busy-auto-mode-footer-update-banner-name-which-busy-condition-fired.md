@@ -13,14 +13,14 @@ claimant:
     workspace: pair:1
     worktree: /Users/xianxu/workspace/worktree/pair-slot1/pair
     repository: github.com/xianxu/pair
-actual_hours: 0.64
+actual_hours: 1.55
 tracker:
     version: 1
     completion:
-        token: close-48477a81494e
+        token: close-e8357eb5ddbf
         repository: github.com/xianxu/pair
-        reviewed_head: ecc76e29ec0cc2d0ca5252453ebe19883bdeca86
-        evidence_commit: 7ee1c86aab4bcfb5e14df0bfa8957c1da70eb810
+        reviewed_head: e91611b3ecc8cc621bc572214b9235bef851e38a
+        evidence_commit: 1060c67e65e546d8760dea8545e192278cfe9d29
 ---
 
 # Couch delivery: capture delayed refusal evidence
