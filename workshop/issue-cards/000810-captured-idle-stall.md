@@ -15,7 +15,7 @@ claimant:
     repository: github.com/xianxu/pair
 ---
 
-# Couch recognition: fix first captured idle-admission stall
+# Couch delivery: recover resize waits without typed input
 
 ## Problem
 
