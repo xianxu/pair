@@ -7,7 +7,7 @@ created: 2026-10-19
 updated: 2026-10-22
 estimate_hours: 14.947
 collaboration-mode: collaboration
-card_mirror: '8e84295da5844a64d117f3ef9f10f28ef12d01e6' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '7a1ef0ecda261d6c9a6d6857950f43e3fa130c08' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-19T23:16:03-07:00
 claimant:
     operator: Xian Xu
@@ -17,7 +17,7 @@ claimant:
     worktree: /Users/xianxu/workspace/worktree/pair-slot5/pair
     repository: github.com/xianxu/pair
 flow: {kind: full, provenance: operator}
-actual_hours: 16.33
+actual_hours: 17.18
 ---
 
 # couch --drain [--fast]: a fleet-wide checkpoint-and-stop before a restart, with a drain board
