@@ -1,13 +1,21 @@
 ---
 id: 000791
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-10-21
-updated: 2026-10-21
+updated: 2026-10-22
 estimate_hours:
 collaboration-mode: collaboration
-card_mirror: '88c31a9990e0871bc3f93fdf2342b1d9fe6dcc7a' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '83a12c22da554ca85018e52547321f3f7a4037ec' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-22T12:23:59-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: Xian’s MacBook Pro
+    workspace: pair:1
+    worktree: /Users/xianxu/workspace/worktree/pair-slot1/pair
+    repository: github.com/xianxu/pair
 ---
 
 # Couch admit: idle Claude slot refused as busy (auto-mode footer / update banner?); name which busy condition fired
@@ -58,3 +66,7 @@ which of the three busy conditions fired; the refusal should name the one that d
 - Latest observed ops:0 footer: `⏵⏵ bypass permissions on (shift+tab to cycle)       ✔ Update installed · Restart to update`. Read-only live capture at investigation start confirms an empty `❯` prompt between horizontal rules and that combined footer. Claude version in the authenticated dispatch identity: 2.1.304.
 - The update banner is confirmed for this observation and reported for echo:3; its presence on every earlier hub stall is unknown. Treat the earlier “cause pinned” entry as evidence of recovery after restart, not proof that the banner explains all stalls. Reproduce both Claude footer modes with the banner, compare banner-free controls, and investigate a possible second trigger including the Codex blank-line/warning-footer case.
 - TL dispatch and correction authenticated as submitted to this slot: 6af1c55a-9494-4f6e-8c48-b43e5a8c4c2a and c13682ef-f911-427f-93cc-cd9fe557d319. Plan goes to TL before production changes. #737 remains parked on its pushed issue branch awaiting a separate explicit stage go.
+
+- 12:23 operator clarification (authenticated dispatch 95e4c949-c196-485c-ac04-007c139910c9): intermittent, perhaps twice daily, with delivery otherwise working while the update banner remains for hours. Detection: session-file submit gives no immediate agent-bar message, or the usually busy hub goes quiet. Banner presence alone cannot explain this. Investigate redraw/resize/queued-message/spinner/turn-end transients. Add bounded automatic capture of the refused screen and precise blocking condition after a delivery wait threshold.
+- Claimed and started planning from current main, independently of #737. start-plan refreshed its ariadne substrate; weave generated an unrelated merge-check workflow change. Preserved that generated change in the named stash `#791: preserve unrelated weave refresh workflow output`, excluded from this issue.
+- Initial trace: live-restart admission consumes only a settled boolean and conflates its causes; peer delivery has separate pre-paste conditions and does not require the turn to be inactive. Claude footer wording is outside its ruled-box composer recognizer. Therefore do not equate restart-busy with a peer-delivery turn gate, and do not declare the banner the root cause without replay evidence.
