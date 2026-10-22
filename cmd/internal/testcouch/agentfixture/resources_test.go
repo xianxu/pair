@@ -40,7 +40,8 @@ func TestResourceObservationRetainsExactFactsWithinExistingCap(t *testing.T) {
 
 func resourceObservationSocketRoot(t *testing.T) string {
 	t.Helper()
-	//lint:allow tmp-literal — private RPC socket fixtures need a short root even with a long inherited TMPDIR; prefer TestScratch when mounted
+	// Private RPC socket fixtures need a short root even with a long inherited
+	// TMPDIR; prefer TestScratch when mounted.
 	parent := "/tmp"
 	if info, err := os.Stat("/Volumes/TestScratch"); err == nil && info.IsDir() {
 		parent = "/Volumes/TestScratch"

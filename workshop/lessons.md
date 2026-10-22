@@ -2618,3 +2618,5 @@ and external temporary roots rather than relying on the host's TMPDIR.
 - #792 BR-3: Unix socket fixtures must choose a short private namespace independently of inherited TMPDIR and retain cleanup. Test a deliberately long TMPDIR; shared value-flow lint follow-up is ariadne#549.
 
 - #792 BR-2 round three: destructive authority returned to a caller outlives admission. Route every signal through the current proof owner and serialize revocation with the final effect; refreshing admission alone leaves a later-loss window. A root that ends cannot authorize surviving descendants from remembered ancestry.
+
+- #792 recorded suite: run both internal/repolint and termcmd preflight packages before queuing a full suite. New declarations can displace a prior declaration's godoc, and obsolete lint suppressions are failures themselves. Move documentation with its owner and keep suppression directives only where the catalog reports a matching finding. Existing rules cover both classes.

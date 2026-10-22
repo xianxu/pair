@@ -56,16 +56,16 @@ type resourceSampler struct {
 	legacyGate sync.RWMutex
 }
 
-// resourceSweep is a reap's answer: the view one pass produced, and whether that
-// pass ran to completion. A pass cut short leaves the cache holding an older
-// view, and `fresh` is what stops that older view from being handed over as a
-// classification to kill from.
 type resourceRequest struct {
 	ctx   context.Context
 	proof bool
 	reply chan resourceSweep
 }
 
+// resourceSweep is a reap's answer: the view one pass produced, and whether that
+// pass ran to completion. A pass cut short leaves the cache holding an older
+// view, and `fresh` is what stops that older view from being handed over as a
+// classification to kill from.
 type resourceSweep struct {
 	proof         couchcore.ProvenOrphanProof
 	err           error

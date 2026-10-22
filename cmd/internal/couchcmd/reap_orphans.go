@@ -55,14 +55,14 @@ type orphanReapOutcome struct {
 	Detail string               `json:"detail,omitempty"`
 }
 
-// orphanReapReport is the verb's whole answer, confirmed or not: which pass
-// classified the rows, and one outcome each.
 type provenOrphanReapOutcome struct {
 	Target couchcore.ProvenOrphanTarget `json:"target"`
 	Status string                       `json:"status"`
 	Detail string                       `json:"detail,omitempty"`
 }
 
+// orphanReapReport is the verb's whole answer, confirmed or not: which pass
+// classified the rows, and one outcome each.
 type orphanReapReport struct {
 	LegacyRefusal string                    `json:"legacy_refusal,omitempty"`
 	Proven        []provenOrphanReapOutcome `json:"proven_orphans"`
