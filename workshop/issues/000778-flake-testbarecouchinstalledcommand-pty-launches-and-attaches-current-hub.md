@@ -78,3 +78,7 @@ Full targeted packages PASS: testpair5.666s, testcouch20.105s, repolint6.239s. S
 ### 2026-10-21 — native two-personality qualification PASS
 
 Committed sourcebf7be2e2e6b1371df6182287c83f3ddd2aa948b1 passed make test-couch-fleet in75.199s (Claude34.43s, Codex31.36s). Each genuine native fleet registered its steward and3workers, delivered/submitted the ordinary message with accepted-body proof, detached/restarted with all4actors returned, and proved owned generations absent plus joined child/IO cleanup. Retained completion tail and pinned manifest are workshop/evidence/000778/native-*; completion-tail SHA256c983b14df2c7a3ccc64e003aa97486480b7b12d67299c3d82af03c151cb6e739. This qualifies the high-C identity/session paths through both personalities without any live-fleet effect or retry. PR536 opened; full recorded suite and close/landing remain required.
+
+### 2026-10-21 — final-source recorded suite queued
+
+Recorded suite lease275330665 is retained on pushed sourceec3c6714 (PR536), attempt0afdfcfe7e70e8b1e2cd8bd438e8dc1e; fresh checkout /Volumes/TestScratch/local-checks/sdlc-local-4115531898. Initial queue position5, no execution yet. Native matrix and affected-package/inventory checks are green. Keep this runner; wait for its complete result, finish the final Plan checkbox, then close and merge without chasing newer main. No continuation/restart while this check is queued or running.
