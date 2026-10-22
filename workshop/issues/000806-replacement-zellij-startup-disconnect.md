@@ -1,6 +1,6 @@
 ---
 id: 000806
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-10-22
@@ -8,7 +8,15 @@ updated: 2026-10-22
 estimate_hours:
 severity: high
 collaboration-mode: collaboration
-card_mirror: 'c6eae03080ca1f1650c63a51a8a447bc5b1c8f84' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '74ef158e26de79ec542c005e4420b3dfc9540eba' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-22T15:25:37-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: Xian’s MacBook Pro
+    workspace: pair:2
+    worktree: /Users/xianxu/workspace/worktree/pair-slot2/pair
+    repository: github.com/xianxu/pair
 ---
 
 # Replacement Zellij disconnects before first wrapper startup
@@ -29,6 +37,13 @@ Retain and diagnose the new-session-before-first-wrapper disconnect through the 
 
 ## Plan
 
+Diagnostic proposal: [replacement startup diagnosis plan](../plans/000806-replacement-startup-diagnosis-plan.md). Await hub approval before changing code, including harness instrumentation.
+
+- [ ] Retain bounded private server evidence before cleanup and qualify its reader boundaries.
+- [ ] Run one bounded diagnostic per personality and, only with a captured failure, one causal contrast; preserve unknown outcomes.
+- [ ] Bring the measured cause and concrete correction choice to the hub; revise the implementation plan before production changes.
+- [ ] Complete the approved correction, causal regression, both-personality native acceptance and normal close/landing gates.
+
 ## Log
 
 Filed unassigned per authenticated ops:0 disposition5a670f4e-1ef7-49da-99ba-835f86d2814b while closing #797. The ownership fix passed native acceptance on both agents; the review's separate replacement-start failure remains recorded here rather than being classified as a safety-test flake.
@@ -42,3 +57,20 @@ Controlled diagnostic: exact reviewed003e3ba8 source in a detached disposable ch
 Hypothesis only: the documented Zellij0.45.1 birth race can panic when a global query connects before its first client initializes (launcher/session_handoff_os.go observeAdmission comment; atlas/couch.md cold-resume birth section). This matches the failure boundary, but there is no triggering query or panic evidence in the failed run. The new quiescence carries only old session -2's immutable server generation and finishes synchronously before Fresh launches distinct -3; it cannot authorize the replacement. Ordinary park also waits for the old helper to die. Investigate independent background/global queries and any unproved helper cleanup rather than assigning causation from wording alone. #773 may be related; its evidence remains independently unclassified.
 
 Read-only follow-up found independent query paths: message_service.go constructs ListingPoller(ZellijSource{}, messageListingInterval=1s) and starts its Run goroutine; immediate/periodic Refresh calls global list-sessions --no-formatting, with no birth-lease participation. Resource inventory seeding/lifecycle refresh also reaches SessionPresence/LivenessContext and current owner probes independently of terminal admission. The resource sampler itself and Git/filesystem hub prewarm do not issue Zellij queries; COUCH_RESOURCE_CADENCE=1s is not the listing cadence. These are concrete possible overlaps, not proof of the triggering query in the failed run.
+
+
+### 2026-10-22 — Claimed; evidence classification and diagnostic proposal
+
+Dispatched by authenticated ops:0 delivery6205eb4f-b97c-4655-b177-c2706eef19c3 after #797 landed as PR545. Claimed806, entered planning on its own main-based branch; no production or harness code changed and no new native probe ran. Start-plan's catch-up generated the known ariadne#557 seeded merge-check.yml diff. Per the authenticated fleet instructionf46bd9db-0a67-4b5a-b93f-19c51a3009eb, saved that exact diff at /Volumes/TestScratch/tmp/pair806-seeded-refresh.e7PLYt/merge-check.yml.patch, restored only that tracked workflow, and reran start-plan successfully. The older unrelated #797 workflow-refresh stash remains preserved. Seeded gate changes are not part of806.
+
+Read-only classification on main basee814b17f15f5f194119f41b209bc35f76285e1e7: original failure is pre-wrapper replacement transport loss, initiating cause still unknown. Rehashed the9233-byte failing log and10600-byte controlled-pass log; both match the SHA256 values recorded above. The successful trace contains Server not ready warnings and proceeds through first-client initialization; those warnings do not establish the original failure's cause. The failed root/server log cannot be recovered after its recorded cleanup. Private pane evidence rejects the mismatched old launch nonce; downstream registration cancellation follows Pair exit and is not the initiating event.
+
+Current-source census (read-only helper, no edits or native runs) identifies independently scheduled global queries from the message listing worker, resource inventory seed/refresh, console inventory, existing standalone title pollers, birth watchdog, and concurrent lifecycle/handoff work. The per-socket terminal flock and exact own-readiness admission gate do not cover all global readers. Couch-hosted wrappers skip the standalone title helper; resource sampling and Git prewarm are not native query sources. #803 supplies bounded collection/recovery and #773 supplies deadline ownership, neither supplies cross-query birth exclusion. No evidence yet identifies which, if any, query overlapped the failed replacement.
+
+The existing bare birth-race probe and upstream v0.45.1 RemoveClient optional-data unwrap support the early-connection hypothesis, not attribution. Do not run that older instrument unchanged: its shared log and name-based cleanup do not provide the private exact-generation proof required here. Proposed next step is diagnostic-only reuse of testcouch's root-confined reader: at most two8192-byte server-log captures around existing failure cleanup, one native Go invocation per personality with all existing bounds, then at most one controlled causal contrast after a retained failure. A single-poller patch, broader retry or deadline change would be speculative. See the durable plan for the full census, alternatives, state table, bounds and correction approval gate.
+
+## Revisions
+
+### 2026-10-22 — Diagnose before selecting a correction
+
+Current main includes #773/#803/#797, so the earlier hypothesis must be tested against the current shared boundaries. Preserve original Spec and Done when; add a bounded diagnostic phase and an explicit return to the hub before any production correction. No new runtime state, protocol or time budget is approved or inferred.
