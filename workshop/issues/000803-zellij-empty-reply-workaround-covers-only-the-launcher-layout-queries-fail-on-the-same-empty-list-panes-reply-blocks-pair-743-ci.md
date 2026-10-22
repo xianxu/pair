@@ -131,6 +131,61 @@ read/classification into independent zellijquery and keeps launcher compatibilit
 aliases. Original process/collector errors remain distinct from synthetic read
 classification so the name probe keeps its exact diagnostic authority.
 
+### 2026-10-22 — implementation and qualification checkpoint
+
+Plan-quality finished CLEAN with PQ-1/PQ-2 disposed; estimate-quality was INFO
+and change-code admitted full flow. The estimate's issue-spec item accounts for
+planning since claim; cross-cutting refactor covers adapter wiring, smaller Go
+module covers classifier/fuzz/lint checks, real-API discovery covers native
+qualification, and review covers active suite/gate execution and remediation.
+Machine queue wait is not implementation work.
+
+Extracted Source, strict session classifiers and native socket spelling into
+zellijquery. All Go consumers and the shared controlled-Zellij setup listing
+derive from it; launcher public error/observer APIs retain aliases. Layout's
+OS/Confirm regression first failed on empty JSON; launcher name-probe recovery
+first failed after one unanswered attempt. Both are green through the shared
+owner. Raw errors stay distinct from read classification, partial failure stdout
+is preserved, and direct exit stderr remains available to focus diagnostics.
+
+The title whole-group ownership test failed reproducibly when the new default
+collector isolated its child group. Authenticated TL 68b76271 approved the
+documented Source.Run=InheritedGroup injection, preserving title CLI EOF cleanup
+with one-second WaitDelay and unchanged read policy. Full titlepoller then passed
+(2.016s). Other adapter full packages passed: layout 10.507s, clip 23.593s,
+Couch 101.838s, opener 0.565s, wrapper 166.399s. Persistent refusal fixtures now
+inject the same transient fault through all three admitted attempts; their
+semantic refusal and zero-effect assertions remain unchanged. The native-reply
+capture resets each attempt so final success cannot retain an earlier error.
+
+New regression proofs also caught and fixed implicit-session argv borrowing a
+socket name, custom child environments borrowing the caller's socket namespace,
+invalid public reply-kind panic, and observer-time cancellation exposing a direct
+exit as diagnostic authority. The last read-context check preserves cancellation
+before returning or starting another attempt. Shared deadline/count and raw-error
+tests remain in the normal suite; independent confirmations count 2N healthy and
+6N recovery attempts at N=8/16.
+
+Disposable native `PAIR_LIVE_ZELLIJ=1 go test ./cmd/internal/layoutcmd -run
+'^TestTerminalRecoveryZellijConformance$' -count=1 -v` passed (1.79s test,
+1.938s package) through the actual production source. No live Couch, operator
+session, :0 build or network setup was touched. Artifactpath, repolint and shared
+Zellij reply-generator packages passed (20.137s / 17.316s / 27.345s), followed by
+an explicit reader-certificate re-audit. Earlier race checks across eight changed
+packages passed; final post-cancellation targeted race rerun is pending.
+
+The post-cancellation shared-query/launcher race run passed (20.895s / 42.277s),
+including native diagnostic provenance and the name-bound matrix. A final narrow
+check follows the duplicate-context-error formatting cleanup before commit.
+
+Fresh-eyes implementation check found no production correctness defect but
+required stronger promised fuzz oracles. Added an independent exact argv grammar
+and complete strict different-kind validation, observed RED for empty bytes
+misclassified as a complete session reply, then fixed that classifier guard.
+Recheck found the gap resolved. Final three-second two-worker fuzz campaigns
+passed: ReadKind 33,181 executions; CrossedReply 73,757; session validation 39,236.
+Recorded branch suite, SDLC close review and landing remain pending.
+
 ## Revisions
 
 2026-10-22 — TL-approved scope refinement: "every query consumer" means every
@@ -138,3 +193,7 @@ Go production consumer in #803; #804 owns the Lua integration. Expanded to full
 flow because moving the existing strict classifiers and all Go adapters exceeds
 the quick-flow production-line shell. No mutation or raw diagnostic retry is
 added, and no caller's strict confirmation is relaxed.
+
+2026-10-22 — TL-approved ownership preservation: title's existing whole CLI group
+remains its cleanup owner via the documented inherited collector injection;
+default readers retain joined private query groups. No new ownership mechanism.

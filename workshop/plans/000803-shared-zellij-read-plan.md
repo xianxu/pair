@@ -55,8 +55,11 @@ Do not add a caller-customizable retry predicate or a second retry loop.
 - dump-screen may validly be empty: route it through shared bounded collection
   but do not classify/retry screen text. Failure-only version reads and raw
   reproduction/latency probes are diagnostic exclusions, not decision consumers.
-- zellijexec.Run remains the one-attempt joined process-group collector.
-  Cancellation stops attempts and joins the current subprocess before return.
+- zellijexec.Run remains the default one-attempt joined process-group collector.
+  Source.Run can select InheritedGroup only when the caller already owns the
+  entire CLI group through EOF/shutdown. Cancellation stops attempts and joins
+  the current subprocess before return; the inherited collector leaves group
+  shutdown to that existing lifetime owner.
 - Confirm still requires two independently valid agreeing observations. Each
   observation may recover inside its own read; no mutation or comparison is retried.
 - No durable state or background worker is created. Buffered outputs and attempt
@@ -167,3 +170,8 @@ consumer is deferred merely to retain the initial quick-flow size assumption.
 production-seam migration, preserving its exact environment and attempt evidence.
 PQ-2 replaces prose classification/schedule inventories with named risky-function
 strategies and mechanical guards. The implementation scope and bounds are unchanged.
+
+2026-10-22: TL 68b76271 approved preserving the title CLI's whole-group owner
+through Source.Run=InheritedGroup (one-second WaitDelay). Default private query
+groups would otherwise escape its existing EOF cleanup. The API and atlas name
+that requirement; no new lifetime watcher or title shutdown redesign is added.

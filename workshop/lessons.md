@@ -2620,3 +2620,17 @@ and external temporary roots rather than relying on the host's TMPDIR.
 - #778 verification: Every new non-test Go helper must enter artifactpath's exhaustive source inventory, even when it owns no Pair session artifact. Run TestProductionArtifactReferencesAreExactlyClassified alongside reader inventory and lint before a full suite; classify the source through its ordinary inventory, never the known-violation quarantine.
 
 - #778 BR-1: after main integration or a compatibility fix, mark final verification pending in the active Plan checklist until the replacement exact-source suite completes. Keep older green receipts as history; review/suite overlap permits concurrent work, not a completed acceptance claim.
+# #803 — shared native read boundaries
+
+- A production seam migration must include live-conformance adapters that issue
+  their own native queries; otherwise a green production unit test can leave the
+  reported native failure on the old boundary. Preserve per-attempt streams and
+  reset final logical capture on each attempt.
+- Preserve an existing whole-process-group owner when introducing a shared
+  collector: a new private child group can escape the parent's EOF cleanup.
+  Make collector selection explicit and qualify descendant cleanup.
+- Bind native retry probes to the queried child's environment. An ambient
+  socket path cannot certify a query running in another namespace. Recheck
+  cancellation after observers before returning raw diagnostic authority.
+- Fuzz guards must assert their promised oracle: exact accepted argv grammar and
+  complete reply-kind validation, not just nonpanic or one mutation literal.
