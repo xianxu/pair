@@ -140,3 +140,8 @@ Final correction cohort: make test-affected-inventory PASS; whole testcouch36.03
 ### 2026-10-22 — close round2: prior fixes verified; wrapper policy regression
 
 Round2 independently reproduced RED for BR-1 and BR-2 by removing their fixes, and disposed BR-1/2/3 as addressed. New BR-4: Build no longer honors suite-selected PAIR_TEST_BINARY or the existing process-owned fallback; it rebuilds Pair by calling strict BuildOwned with no selected candidate. Restore selection through the existing resolver only in the legacy wrapper, keep standalone inputs isolated, and test selection plus source/copy cleanup lifetimes. Plan Revision states the class rule and enumerates three direct consumers. Hub report1eff9b59 sent. Cancelled still-queued lease-1942691207/attempt e106bd3540289b5c44fc1feb633c7402 through local-check cancel; terminal confirmed interrupted before tests, not a failure. No additional native invocation.
+
+
+### 2026-10-22 — stop and consolidate compatibility boundary
+
+Independent read-only Build/New/testpair sweep found legacy relative placement also tightened by the new strict PlaceCandidate API. No existing in-tree relative consumer is claimed, but preserving the API contract requires an explicit boundary adapter. This is the third compatibility delta; stopped incremental implementation and prepared a consolidated Revision in the durable plan for hub approval, naming the unchanged-wrapper duplication alternative and complete behavioral matrix. No suite or native run is active; both obsolete suite attempts were supported cancellations before tests. BR-4 current atomic work will be retained; no new relative-path shim until approval.
