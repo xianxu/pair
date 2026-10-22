@@ -214,3 +214,87 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-22T13:58:51-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 728 — couch --switch-agent refuses 'no saved configuration for codex' even after the operator's switch-form switch in that repo (echo) |
+| repo | pair |
+| issue file | workshop/issues/000728-couch-switch-agent-refuses-no-saved-configuration-for-codex-even-after-the-operator-s-switch-form-switch-in-that-repo-echo.md |
+| boundary | milestone M1 |
+| milestone | M1 |
+| window | 4a7ab2ca1a4c0b0d4aa34e8cada1d8c2917427bc..e7de5ca161079b427e7fe4726d3782ac03d35b95 |
+| command | sdlc milestone-close --issue 728 --milestone M1 |
+| reviewer | codex (openai; author openai) |
+| isolation | fenced |
+| timestamp | 2026-10-22T13:58:51-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: medium
+```
+
+M1’s repository preference authority, migration, marked borrowing, and final-adoption publication match the governing plan. BR-4 is addressed with passing regressions and a failing negative control. No new blocking defect was found. Confidence is limited by the full couchcore suite reaching its ten-minute timeout.
+
+```findings
+dispose:
+  - id: BR-4
+    disposition: addressed
+    note: |
+      repopreferences_adoption.go:56–62 shares one deadline across migration and publication; repopreferences_store.go:87–94 bounds writer admission. The competing-store/coordinator regressions and console input/render/remote-completion regression pass. Restoring blocking writer admission in a disposable checkout makes both contention cases fail at the deadline assertion. The temporary checkout was removed.
+```
+
+1. **Strengths**
+
+   - Publication follows successful console attachment and preserves the adopted child on storage failure (`couchcmd/run.go:1027`, `repopreferences_adoption.go:64`).
+   - Independent-store tests cover concurrent updates without losing unrelated repository or agent settings.
+   - The codec preserves unknown fields at every nesting level and rejects malformed known fields.
+   - README and atlas describe the delivered Couch authority and Pair’s independent standalone behavior.
+
+2. **Critical findings:** None.
+
+3. **Important findings:** None.
+
+4. **Minor findings:** None.
+
+5. **Test coverage**
+
+   Passed: preference-focused couchcore tests, BR-4 contention and responsiveness tests, stale-preview and nested-repository regressions, affected-reader inventory, and diff whitespace checks. Full couchcmd, couchtty, launcher, and threadrecord packages passed.
+
+   Full couchcore timed out after 600 seconds while retention/archive tests were active. Selected tests active at timeout passed in isolation; this review does **not** establish a green full couchcore run.
+
+6. **Architectural notes**
+
+   - **ARCH-DRY — pass:** one Couch preference authority; shared lock-wait helper.
+   - **ARCH-PURE — pass:** resolution, folding, borrowing, and codec logic remain separate from IO.
+   - **ARCH-PURPOSE — pass:** repository consumers use the new authority; active borrowing exposes provenance.
+   - **ARCH-MOCK — pass:** integration tests use existing injected Git/runner seams and private storage.
+   - **ARCH-CONSTRAINTS — pass:** bounded documents, discovery, arguments, and publication admission have regression coverage.
+   - **ARCH-SECURE — pass:** migration verifies identity and containment; persisted input is validated.
+   - **ARCH-ORDER — pass:** existing start transitions carry acceptance intent; publication occurs once after adoption.
+   - **ARCH-FUNERAL — pass:** bounded replacement storage introduces no growing publication queue or outbox.
+   - **ARCH-EVOLVE — pass:** nested unknown fields survive canonical rewrites.
+
+   M2/M3 lifecycle, editing, and native-resume acceptance remain outside this boundary.
+
+7. **Plan revision recommendations:** None; existing revisions cover the delivered file mapping and bounded-publication correction.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"ee782184-8afa-4c5c-8938-2abe6a21428b","repository":"github.com/xianxu/pair","issue_id":"000728","recipe":"milestone-review","round":3,"attempt":1,"agent":"codex","root":"/Volumes/TestScratch/review-checkouts/436e173051c20c61","reviewed_head":"e7de5ca161079b427e7fe4726d3782ac03d35b95","slot":"pair:3","requested_at":"2026-10-22T20:47:20.680067Z"},"phase":"finished","pid":24060,"started_at":"2026-10-22T20:47:20.931459Z","finished_at":"2026-10-22T20:58:50.412782Z","session_id":"01a1655e-4ef6-78f0-a656-9b40d4658bc1","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 3.277413s
+head: "e7de5ca161079b427e7fe4726d3782ac03d35b95"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000409

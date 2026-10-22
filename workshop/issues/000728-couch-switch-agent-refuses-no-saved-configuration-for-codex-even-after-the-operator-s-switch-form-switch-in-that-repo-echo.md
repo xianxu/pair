@@ -45,7 +45,7 @@ agent's last successful launch configuration in that repo. The refusal names exa
 
 The latest governing Revisions and [durable plan](../plans/000728-shared-agent-startup-preferences-plan.md#2026-10-21-0004--governing-couch-only-repository-preference-design) supersede the historical shared-store proposal. The operator approved the governing Couch-only plan and edited-resume/fresh-fallback revision on 2026-10-21 08:54; entering change-code before implementation.
 
-- [ ] M1 — Couch-owned repository arguments, bounded migration and explicitly accepted borrowed suggestions; Pair stays independent.
+- [x] M1 — Couch-owned repository arguments, bounded migration and explicitly accepted borrowed suggestions; Pair stays independent.
 - [ ] M2 — Editable field/provenance, explicit CLI arguments and guarded live/proven-vacant switching, with typed restart intent.
 - [ ] M3 — Edited same-native-conversation restart, visible missing-conversation fresh fallback and real acceptance.
 
@@ -88,6 +88,8 @@ total: 14.58
 
 ## Log
 
+
+- 2026-10-22: closed M1 — BR-4 shares original5s migration/writer context; controlled real store/coordinator contention spends migration budget then refuses with warning, unchanged bytes, live child and no later retry. Sixteen concurrent writers preserved; actual wired publication leaves input/render responsive and remote completion pending. Full couchcore483.600s/couchcmd153.782s/couchtty79.923s/repolint25.054s PASS; targeted core race14.201s and console race PASS; artifact/dead-symbol/inventory PASS. Recorded affected started on pushede7de5ca161079b427e7fe4726d3782ac03d35b95; final-head recorded pass still required before landing. Unchanged PTY teardown flake registered separately as#814 from verified round2 same-head fail/pass.; review verdict: SHIP
 ### 2026-10-20
 
 ## Log
