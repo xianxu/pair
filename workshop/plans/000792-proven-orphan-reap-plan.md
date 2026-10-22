@@ -114,3 +114,7 @@ Files: reap_orphans.go / reap_orphans_test.go, messages.go; new reap_proven_live
 ## Architectural decisions
 
 ARCH-DRY/PURE: reuse SelectResourceProcesses, existing caller/hub facts and Reaper cadence; target membership and outcome decisions are pure. ARCH-PURPOSE: include every proven process kind, not just an editor/agent subset, without touching the current incarnation. ARCH-MOCK: stateful tables and public disposable-Couch conformance model interactions and races. ARCH-CONSTRAINTS: budgets, caps and counted K/P/S costs are explicit. ARCH-SECURE: supervisor treats caller-supplied target bytes as claims; authority and identity are checked at each effect. ARCH-STATE: exact frozen set plus per-row progress preserves refusal/uncertainty and forbids resend/escalation after a lost reply. ARCH-FUNERAL: invocation-scoped plans only, no new persistent residue. ARCH-EVOLVE: no persisted schema change; wire fields are additive and operation shapes remain strict, with explicit unsupported handling for older supervisors.
+
+## Revisions
+
+- 2026-10-22 — Hub approval cea188f7-9b5c-4999-879d-59404fd1971a accepts the full design and selects disposable public-command conformance with Claude and Codex as live acceptance. No operator/:0 stage is needed; this supersedes the proposed stage-window request in tasks 3/4. The first real post-landing use belongs to ops-echo against echo:2's still-proven leftovers, not this test invocation.

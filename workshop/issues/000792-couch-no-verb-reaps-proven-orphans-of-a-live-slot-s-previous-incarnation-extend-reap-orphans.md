@@ -71,6 +71,8 @@ Code inspection: ResourceView.Orphans already contains exact positive provenance
 
 Asked the hub to pin the authority boundary in receipt eda16b29-ce04-4710-a5b2-4df4e17c03c8. Its submitted reply 941a9381-a841-44ca-98b0-7e10a90936b3 confirms owning authenticated hubs, no worker/other-hub permission, and the owner-only unbound operator CLI. The proposed full-flow plan keeps waits in the CLI and sends each guarded signal in the supervisor, with no new durable operation state. ARCH-DRY and ARCH-PURE preserve the existing provenance source and cadence; ARCH-SECURE and ARCH-STATE require current per-effect vetoes and explicit uncertainty. No implementation code changed and no estimate derived.
 
+Hub approved the complete plan in submitted receipt cea188f7-9b5c-4999-879d-59404fd1971a and directed change-code. Disposable public-command proof with Claude and Codex is sufficient; no operator stage is needed. The first real use after landing is ops-echo's cleanup of echo:2's still-proven 10-21 leftovers. Enter the full-flow gate before implementation; estimate remains deferred until plan-quality clears.
+
 ## Revisions
 
 - 2026-10-22 — Design inspection found descendant expansion and a missing caller authority boundary. Preserve the original incident and two acceptance requirements; add the approved hub/operator contract and adversarial acceptance cases, and link the full implementation plan. No relaxation of identity or live-incarnation protection.
