@@ -9,6 +9,7 @@ import (
 
 	"github.com/xianxu/pair/cmd/internal/agentdrive"
 	"github.com/xianxu/pair/cmd/internal/couchcore"
+	"github.com/xianxu/pair/cmd/internal/couchtty"
 	"github.com/xianxu/pair/cmd/internal/mockserve"
 	"github.com/xianxu/pair/cmd/internal/webcast/query"
 )
@@ -83,7 +84,8 @@ type cliInvocation struct {
 	// layout is the couch-wide pair layout to launch threads in. Set only on
 	// cliLaunch -- it is a property of the session being started, so the
 	// read-only forms reject the flag rather than carrying a meaningless value.
-	layout couchcore.Layout
+	layout   couchcore.Layout
+	tabStyle couchtty.TabStyle
 }
 
 // extractLayoutFlag strips layout flags before any shape check, mirroring
@@ -114,7 +116,7 @@ func extractLayoutFlag(args []string) (rest []string, layout couchcore.Layout, g
 
 // ParseCLI classifies the complete public argv vector without performing IO.
 // Registry presentation is the only authority for the hidden process boundary.
-func ParseCLI(args []string, operations []couchcore.Operation) (cliInvocation, error) {
+func ParseCLI(args []string, operations []couchcore.Operation) (inv cliInvocation, err error) {
 	// Message bodies are opaque argv values. Parse these closed forms before
 	// scanning layout flags, which could otherwise consume a literal body.
 	if len(args) > 0 {
@@ -160,6 +162,21 @@ func ParseCLI(args []string, operations []couchcore.Operation) (cliInvocation, e
 			return parseMessageCLI(args)
 		}
 	}
+	args, style, styleGiven, err := extractTabStyleFlag(args)
+	if err != nil {
+		return cliInvocation{}, err
+	}
+	defer func() {
+		if err != nil {
+			return
+		}
+		if inv.kind == cliLaunch {
+			inv.tabStyle = style
+		} else if styleGiven {
+			inv = cliInvocation{}
+			err = fmt.Errorf("--tab-style applies only to a Couch session launch")
+		}
+	}()
 	invalid := func(format string, values ...any) (cliInvocation, error) {
 		return cliInvocation{}, fmt.Errorf(format, values...)
 	}
@@ -455,4 +472,42 @@ func slotOperationFlag(flag string) string {
 		return flag
 	}
 	return "\x00not-a-slot-operation"
+}
+
+// extractTabStyleFlag preserves positional arguments and the quoted tail.
+func extractTabStyleFlag(args []string) (rest []string, style couchtty.TabStyle, given bool, err error) {
+	style = couchtty.DefaultTabStyle
+	for i := 0; i < len(args); i++ {
+		arg := args[i]
+		if arg == "--" {
+			rest = append(rest, args[i:]...)
+			break
+		}
+		var value string
+		switch {
+		case arg == "--tab-style":
+			if i+1 == len(args) {
+				return nil, 0, false, fmt.Errorf("--tab-style requires collapse or multiline")
+			}
+			i++
+			value = args[i]
+		case strings.HasPrefix(arg, "--tab-style="):
+			value = strings.TrimPrefix(arg, "--tab-style=")
+		default:
+			rest = append(rest, arg)
+			continue
+		}
+		if value == "" {
+			return nil, 0, false, fmt.Errorf("--tab-style requires collapse or multiline")
+		}
+		parsed, parseErr := couchtty.ParseTabStyle(value)
+		if parseErr != nil {
+			return nil, 0, false, parseErr
+		}
+		if given && parsed != style {
+			return nil, 0, false, fmt.Errorf("couch takes one tab style")
+		}
+		style, given = parsed, true
+	}
+	return rest, style, given, nil
 }

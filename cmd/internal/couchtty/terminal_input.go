@@ -253,6 +253,7 @@ func (c *Console) routeMouseEvent(event terminal.InputEvent) {
 		rows, panel := int(c.size.Rows), c.focus.IsPanel()
 		top := rows - c.statusRows + 1
 		chips, extents, control := c.statusChips, c.menuExtents, c.statusControl
+		groups := c.statusGroups
 		c.mu.Unlock()
 		if hit.Y >= top && hit.Y <= rows {
 			// The broadcast cell is checked first: anywhere in its red span
@@ -260,6 +261,12 @@ func (c *Console) routeMouseEvent(event terminal.InputEvent) {
 			if hit.Y == top && control.Contains(hit.X-1) {
 				c.toggleBroadcast()
 				return
+			}
+			for _, group := range groups {
+				if group.Row == hit.Y-top && hit.X-1 >= group.Start && hit.X-1 < group.End {
+					c.openGroupSwitcher(group.Group)
+					return
+				}
 			}
 			for _, chip := range chips {
 				if chip.Row == hit.Y-top && hit.X-1 >= chip.Start && hit.X-1 < chip.End {

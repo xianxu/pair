@@ -213,3 +213,17 @@ func TestSessionOwnerFreshChecksRefuseNewClaimant(t *testing.T) {
 		t.Fatal("fixture changed original generation")
 	}
 }
+
+func TestSessionOwnerRefusalNamesPaneAndCommandCause(t *testing.T) {
+	owner, _ := artifactpath.NewStorageOwner("/private/proof", "0123456789abcdef", "proof")
+	for _, tc := range []struct{ command, cause string }{
+		{"", "missing"},
+		{"nvim 'private-secret", "incomplete command quoting"},
+		{"nvim private-secret | cat", "ambiguous command operator"},
+	} {
+		got := ClassifySessionOwner(owner, []zellijpane.Pane{{ID: "17", PaneCommand: tc.command}})
+		if got.State != SessionOwnerUnknown || !strings.Contains(got.Diagnostic, "pane 17") || !strings.Contains(got.Diagnostic, tc.cause) || strings.Contains(got.Diagnostic, "private-secret") {
+			t.Fatalf("refusal lacks bounded pane/cause: %+v", got)
+		}
+	}
+}

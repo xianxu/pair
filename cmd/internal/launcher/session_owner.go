@@ -59,8 +59,11 @@ func ClassifySessionOwner(expected artifactpath.StorageOwner, panes []zellijpane
 			continue
 		}
 		args, err := splitObservedCommand(pane.PaneCommand)
-		if err != nil || len(args) == 0 {
-			return unknown("pane has no unambiguous actual command")
+		if err != nil {
+			return unknown(fmt.Sprintf("pane %s actual command is ambiguous: %v", pane.ID, err))
+		}
+		if len(args) == 0 {
+			return unknown(fmt.Sprintf("pane %s actual command is missing", pane.ID))
 		}
 		if args[0] == "exec" {
 			args = args[1:]

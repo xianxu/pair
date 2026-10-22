@@ -2665,8 +2665,23 @@ and external temporary roots rather than relying on the host's TMPDIR.
 
 - #792 landing: when an existing atlas guide already has an index link, put new feature detail in that guide. Appending feature clauses to its shared index summary creates avoidable landing conflicts; keep the index as a stable navigation map.
 
+- #797 BR-1: Separate immutable authorization data from its validator in core-concept tables. Trace every validator's injected readers before calling it PURE; a readiness-file reader remains IO even when the surrounding comparison uses a captured process snapshot.
+
+- #797: A private Pair DataDir does not isolate compatibility quit markers: TriggerQuit/TriggerBoundQuit writes through HOME/.cache/pair. In-process quit-trigger tests must isolate HOME as well as thread storage, including refusal cases that may acquire effects after future changes.
+
+- #797 BR-3: A post-close repair that adds a new executable lint policy expands the deliverable, even when production is unchanged. Use a full close review for that addition; narrow fix-review only covers repairs within its prior scope.
 - #803 integrated-suite correction: enumerate transitive users of an OS adapter,
   not only packages edited by a seam migration. Stateful refusal fixtures must
   fault the entire physical-attempt budget; add transient recovery controls and
   keep semantic mismatches non-retriable. Audit structural call-site manifests
   when a collector method changes, even when the effect remains read-only.
+
+- #796: A launch default change must make old behavior explicit in compatibility fixtures, including native subprocess tests. Sweep direct Console constructors and geometry assertions as well as shared helpers; preserve the old multiline native matrix while adding collapse. When an early known mismatch consumes the package deadline, rerun the corrected package before treating late teardown failures as independent flakes.
+
+- #796 BR-1: A presentation run is not necessarily an entity group: numbered hubs deliberately split legacy tab runs. Use role for hub policy and exact owner/group identity for aggregation; pin primary and numbered hubs under both current and inactive ownership before relying on shared display grouping.
+
+- #796 BR-2: Before close, reconcile the complete concepts table with actual file ownership and new/modified/reused status. A planned integration point can be reused unchanged while its projection changes elsewhere; document that relationship rather than forcing a source diff to satisfy a predicted path.
+
+- #796: Geometry tests must derive click coordinates from physical terminal cells, independently of layout's width helper. Emoji/VS16/ZWJ labels can pass self-consistent hit-map tests while their final cells are unclickable. Use the terminal's grapheme metric for measurement and fitting, preserve no-allocation fitting paths, and retain allocation-budget checks when replacing shared text helpers.
+
+- #796: When adding a display mode, parameterize established pending/reattach regressions over both modes. A legacy fixture that explicitly selects the compatibility mode cannot prove the new default preserves pending states. Count branches also need owner/style invariants from ordinary chips, not only correct text and hit spans.

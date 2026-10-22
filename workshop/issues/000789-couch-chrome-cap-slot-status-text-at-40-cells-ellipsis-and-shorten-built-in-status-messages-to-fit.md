@@ -100,6 +100,12 @@ TL6a768f10 explicitly authorizes starting #796 from main while this immutable sn
 
 Retained session61444/lease-3428295058/attempta71b7262e10d47a252d630372095d2ff completed EXIT0/PASS11m26s on integrated headb2ed415eae449b0ef4d93c108e2520355c2430f7, log SHA256 prefix7a1202907b41, retained .git/sdlc/local-checks/b2ed415eae449b0ef4d93c108e2520355c2430f7/suite.log. No cancellation, duplicate or unrecorded retry. #796 landed as PR547 and its stage clear completed with pair:0 atmain09c8964de39cdb5e6bd9db20601c232446af6949; pair:9 has the753 staging go. TL9536d81d directs789 next, then819 before811/812. Returning to this independent branch: run prescribed fixed-then-ship review with this passing full-suite evidence for the sole generated-reader-certificate integration conflict, then promptly sdlc merge so its turn owns further main integration. No stage needed for789 per existing TL waiver; no producer wording work or819 scope added.
 
+### 2026-10-22 — fixed review SHIP; newer-main atlas conflict
+
+Prescribed fixed close round6 EXIT0/SHIP, no findings, evidence58c2bc3852362edc3c0c6ba7737cf63edf78e23c published. Reviewer independently checked certificate/source hash, fixed_scanner coverage, all21 inventory tests and whitespace. Entered merge promptly; retained merge session4425 vouched ready, admitted, then EXIT1 on sole atlas/couch.md conflict integrating main09c8964de39cdb5e6bd9db20601c232446af6949. SDLC aborted that attempt and prescribed manual merge, full suite and fixed review.
+
+Reran one manual merge of that main. All source/test changes auto-merged; only the atlas introduction overlapped #796's new tab-style section with789's cap/copy description. Retained the complete collapse/multiline/geometry/scope description and added both-style40-cell/full-copy semantics; removed the obsolete unconditional two-row claim. Reader inventory PASS; integrated cap/collapse/owner/pending/copy selection PASS0.539s. Diff against incoming main passes whitespace; cached whole-merge check reports one existing main-owned trailing space in797's archived review, preserved unchanged rather than rewriting unrelated history. No code conflict or new design/source fix. Next commit/push this integration, record required exact-head suite, fixed review with pass, retry merge; no active merge runner remains. #819 waits for789 landing.
+
 ## Revisions
 
 ### 2026-10-22 — implementation scope

@@ -20,8 +20,22 @@ import (
 // What each consumer draws there stays with the consumer: couch renders actors,
 // termcmd renders tabs.
 
+// StatusGroupID names one presentation group under an owning hub.
+type StatusGroupID struct{ OwnerHub, GroupKey string }
+
+// GroupCountSpan is a complete drawn count and its exact switcher scope.
+// Empty Group means the ordinary unscoped switcher (global overflow).
+type GroupCountSpan struct {
+	Row, Start, End int
+	Group           StatusGroupID
+}
+
 // StatusActor is one chip on the row.
 type StatusActor struct {
+	// Folded is nonzero only for a per-frame synthetic group count.
+	Folded int
+	// CollapseAnchor is derived from the launching hub, independently of focus.
+	CollapseAnchor bool
 	// GroupKey identifies the primary checkout; SlotNumber is zero for ordinary
 	// tabs. The renderer shortens only after drawing this group's first member.
 	GroupKey   string
@@ -91,6 +105,7 @@ const dimSGR = "\x1b[2m"
 
 // StatusModel is everything the row shows.
 type StatusModel struct {
+	TabStyle  TabStyle
 	Broadcast BroadcastCell
 	Pointer   PointerCell
 	// Notes is the broadcast's open sticky notes (#447), drawn as 💭N after
@@ -173,8 +188,9 @@ func (s ColumnSpan) Contains(column int) bool { return column >= s.Start && colu
 // comfortable widths and disagree at exactly the narrow ones where clipping
 // happens -- the case a mis-mapped click is least catchable by eye (ARCH-DRY).
 type RenderedStatusRow struct {
-	Body  string
-	Chips []ChipSpan
+	Body        string
+	Chips       []ChipSpan
+	GroupCounts []GroupCountSpan
 	// Control is the broadcast cell's red span, from the same clipping pass;
 	// empty when no broadcast is running.
 	Control ColumnSpan
@@ -367,6 +383,7 @@ func renderStatusCells(width int, m StatusModel, cells []chipCell, planned bool,
 	prefixUsed := used
 	width = actorBudget
 	var chips []ChipSpan
+	var counts []GroupCountSpan
 	lead := 0
 	if used > 0 {
 		lead = 2
@@ -388,12 +405,12 @@ func renderStatusCells(width int, m StatusModel, cells []chipCell, planned bool,
 		if used > 0 {
 			gap = cellGap(cell)
 		}
-		if cell.actor < 0 {
+		if cell.actor < 0 || m.Actors[cell.actor].Folded > 0 {
 			// A count is drawn whole or not at all: `+` alone reads as nothing.
 			if used+textwidth.Width(gap+cell.label) > width {
 				break
 			}
-			if planned && m.Notice != "" {
+			if planned && cell.actor < 0 && m.Notice != "" {
 				// A planned overflow marker belongs at the final row's end.
 				// Let a transient notice use only the space before that marker.
 				savedWidth := width
@@ -406,7 +423,21 @@ func renderStatusCells(width int, m StatusModel, cells []chipCell, planned bool,
 					gap = "  "
 				}
 			}
-			appendText(gap+cell.label, "")
+			appendText(gap, "")
+			start := used
+			countStyle := ""
+			if cell.actor >= 0 && m.Actors[cell.actor].OtherHub {
+				countStyle = inactiveOwnerStyle(m.Palette, IdleFresh, baseDefault)
+			}
+			appendText(cell.label, countStyle)
+			if used > start && m.TabStyle == TabStyleCollapse {
+				group := StatusGroupID{}
+				if cell.actor >= 0 {
+					a := m.Actors[cell.actor]
+					group = StatusGroupID{OwnerHub: a.OwnerHub, GroupKey: a.GroupKey}
+				}
+				counts = append(counts, GroupCountSpan{Start: start, End: used, Group: group})
+			}
 			continue
 		}
 		appendText(gap, "")
@@ -443,7 +474,11 @@ func renderStatusCells(width int, m StatusModel, cells []chipCell, planned bool,
 			style += reverseSGR
 		}
 		if a.OtherHub && !m.Palette.NoColor {
-			style += "\x1b[2m"
+			if a.Placeholder || a.Blocked || a.Bell {
+				style += "\x1b[2m"
+			} else {
+				style += inactiveOwnerStyle(m.Palette, idle, baseDefault)
+			}
 		}
 		appendText(label, style)
 		for _, r := range a.Glyph {
@@ -453,9 +488,9 @@ func renderStatusCells(width int, m StatusModel, cells []chipCell, planned bool,
 				if a.Hub {
 					glyphStyle += reverseSGR
 				}
-			}
-			if a.OtherHub && !m.Palette.NoColor {
-				glyphStyle += "\x1b[2m"
+				if a.OtherHub {
+					glyphStyle += inactiveOwnerStyle(m.Palette, idle, base)
+				}
 			}
 			appendText(string(r), glyphStyle)
 		}
@@ -479,7 +514,7 @@ func renderStatusCells(width int, m StatusModel, cells []chipCell, planned bool,
 		appendText(badge, sgr)
 		attention = ColumnSpan{Start: start, End: used}
 	}
-	return RenderedStatusRow{Body: row.String(), Chips: chips, Control: control, Pointer: pointer, Notes: notes, Webcast: webcastSpan, WebFocus: webFocusSpan, WebPointerLink: webPointerLinkSpan, WebDriveLink: webDriveLinkSpan, WebNotes: webNotesSpan, WebDrive: webDriveSpan, Attention: attention}, prefixUsed, actorBudget
+	return RenderedStatusRow{Body: row.String(), Chips: chips, GroupCounts: counts, Control: control, Pointer: pointer, Notes: notes, Webcast: webcastSpan, WebFocus: webFocusSpan, WebPointerLink: webPointerLinkSpan, WebDriveLink: webDriveLinkSpan, WebNotes: webNotesSpan, WebDrive: webDriveSpan, Attention: attention}, prefixUsed, actorBudget
 }
 
 // AttentionGlyph leads the attention badge (pair#673).
@@ -587,7 +622,7 @@ func chipTail(a StatusActor, spinner uint8) string {
 
 // chipKept is a chip that width never folds away: the hub, which leads its
 // section, and every chip asking to be seen (active, red, belled).
-func chipKept(a StatusActor) bool { return a.Hub || a.Active || a.Blocked || a.Bell }
+func chipKept(a StatusActor) bool { return a.Folded == 0 && (a.Hub || a.Active || a.Blocked || a.Bell) }
 
 // fitChips lays the actors out in budget columns (pair#491). In full, a
 // group's first drawn member shows its label and later slots show `:N`. When
