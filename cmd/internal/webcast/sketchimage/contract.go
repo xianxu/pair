@@ -125,27 +125,7 @@ func Plan(h recording.SketchView, vp recording.Viewport, scroll [2]float64, limi
 	}
 	p.Clipped = left != x0 || top != y0 || right != x1 || bottom != y1
 	p.Region = recording.Box{left, top, right - left, bottom - top}
-	p.Scale = math.Min(1, math.Sqrt(float64(limits.MaxPixels)/(p.Region[2]*p.Region[3])))
-	size := func(scale float64) (int, int) {
-		return max(1, int(math.Ceil(p.Region[2]*scale))), max(1, int(math.Ceil(p.Region[3]*scale)))
-	}
-	p.Width, p.Height = size(p.Scale)
-	if p.Width > limits.MaxPixels/p.Height {
-		// Ceiling each side to a whole pixel can exceed the area estimate,
-		// especially for narrow crops. Fit the shared scale, never merely
-		// shrink dimensions while keeping an incompatible transform.
-		low, high := 0.0, p.Scale
-		for range 60 {
-			mid := (low + high) / 2
-			w, h := size(mid)
-			if w <= limits.MaxPixels/h {
-				low = mid
-			} else {
-				high = mid
-			}
-		}
-		p.Scale = low
-		p.Width, p.Height = size(low)
-	}
+	// Full-page and legacy crop outputs use one bounded pixel-fit authority.
+	p.Scale, p.Width, p.Height = fitPagePixels(p.Region[2], p.Region[3], limits.MaxPixels)
 	return p, nil
 }

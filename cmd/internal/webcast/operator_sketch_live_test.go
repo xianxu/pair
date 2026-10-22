@@ -261,15 +261,23 @@ func TestOperatorSketchLiveDrawing(t *testing.T) {
 			if e != nil || len(selected.Sketches) != want {
 				return false
 			}
-			items := make([]core.PreviewItem, 0, len(selected.Sketches))
+			candidates := make([]core.PreviewSketchCandidate, 0, len(selected.Sketches))
 			for _, v := range selected.Sketches {
-				items = append(items, core.PreviewItem{RecordingID: chrome.opts.Record.ID, SketchID: v.ID, Sequence: v.NextSequence, Digest: v.Digest})
+				candidates = append(candidates, core.PreviewSketchCandidate{Item: core.PreviewItem{RecordingID: chrome.opts.Record.ID, SketchID: v.ID, Sequence: v.NextSequence, Digest: v.Digest}, Source: v.Source, Finish: v.Finish})
 			}
 			if len(empty) > 0 && empty[0] {
-				items = nil
+				candidates = nil
+			}
+			notes := make([]core.PreviewNote, 0, len(selected.Notes))
+			for _, v := range selected.Notes {
+				notes = append(notes, core.PreviewNote{ID: v.ID, Revision: v.Revision})
+			}
+			selection, e := core.SelectFeedbackPreview(candidates, notes, nil, core.PreviewStamp{Board: selected.SketchGeneration, Delivered: previewDeliveryGeneration})
+			if e != nil {
+				t.Fatalf("native feedback selector: %v", e)
 			}
 			previewState, _ = core.NextPreview(previewState, core.PreviewHostChanged{Host: host})
-			previewState, _ = core.NextPreview(previewState, core.PreviewCandidatesChanged{Selection: core.PreviewSelection{Stamp: core.PreviewStamp{Board: selected.SketchGeneration, Delivered: previewDeliveryGeneration}, Items: items}})
+			previewState, _ = core.NextPreview(previewState, core.PreviewCandidatesChanged{Selection: selection})
 			var effects []core.PreviewEffect
 			previewState, effects = core.NextPreview(previewState, core.PreviewRefresh{})
 			for _, effect := range effects {
@@ -285,7 +293,7 @@ func TestOperatorSketchLiveDrawing(t *testing.T) {
 		})
 	}
 	publishPreview(1)
-	if got := string(eval(world, `(()=>{const root=__couchcastOperatorSketch.labelInput.getRootNode(),preview=root.querySelector('.sketch-submission-preview'),cards=preview.querySelectorAll('.sketch-submission-card'),canvas=cards[0]?.querySelector('canvas');if(preview.hidden||cards.length!==1||preview.querySelectorAll('button').length!==0||!preview.textContent.includes('Next submission: 1 sketches')||!preview.textContent.includes('Move this console control')||!canvas)return false;const pixels=canvas.getContext('2d').getImageData(0,0,canvas.width,canvas.height).data;let ink=0,min=canvas.width,max=-1;for(let y=0;y<canvas.height;y++)for(let x=0;x<canvas.width;x++)if(pixels[(y*canvas.width+x)*4+3]>20){ink++;min=Math.min(min,x);max=Math.max(max,x)}const thickness=x=>{let n=0;for(let y=0;y<canvas.height;y++)if(pixels[(y*canvas.width+x)*4+3]>20)n++;return n};const thin=thickness(Math.round(min+(max-min)*.25)),thick=thickness(Math.round(min+(max-min)*.75));globalThis.previewCard=cards[0];globalThis.previewCanvas=canvas;return ink>0&&thin>0&&thick>thin})()`)); got != "true" {
+	if got := string(eval(world, `(()=>{const root=__couchcastOperatorSketch.labelInput.getRootNode(),preview=root.querySelector('.sketch-submission-preview'),cards=preview.querySelectorAll('.sketch-submission-card'),canvas=cards[0]?.querySelector('canvas');if(preview.hidden||cards.length!==1||preview.querySelectorAll('button').length!==0||!preview.textContent.includes('Pending feedback: 1 sketches, 0 annotations')||!preview.textContent.includes('Move this console control')||!canvas)return false;const pixels=canvas.getContext('2d').getImageData(0,0,canvas.width,canvas.height).data;let ink=0,min=canvas.width,max=-1;for(let y=0;y<canvas.height;y++)for(let x=0;x<canvas.width;x++)if(pixels[(y*canvas.width+x)*4+3]>20){ink++;min=Math.min(min,x);max=Math.max(max,x)}const thickness=x=>{let n=0;for(let y=0;y<canvas.height;y++)if(pixels[(y*canvas.width+x)*4+3]>20)n++;return n};const thin=thickness(Math.round(min+(max-min)*.25)),thick=thickness(Math.round(min+(max-min)*.75));globalThis.previewCard=cards[0];globalThis.previewCanvas=canvas;return ink>0&&thin>0&&thick>thin})()`)); got != "true" {
 		t.Fatalf("native pressure/count/note preview unavailable: %s", got)
 	}
 	// Completed watch-mode cards are also private open UI: periodic capture
