@@ -74,6 +74,13 @@ Fixed-then-ship close round5 returned SHIP/high confidence, zero new or open fin
 
 Replacement recorded full suite is already queued on pushed8727e94da57d888272eaa1a855a12e6b334f87ff: session80343, lease-40475742, attempt247075fa5a5ea07c61206b544f4d06d4, isolated checkout /Volumes/TestScratch/local-checks/sdlc-local-1857757870. Initial and latest observed normal FIFO position9; no tests have executed yet. Existing merge session46377/pid83174 remains retained first waiting for the passing local-check record, with no duplicate runner or queue changes. Next step is to consume that result, satisfy any real failure, and let the retained merge integrate/main-test/land. No stage is required. #796 remains unstarted pending this landing.
 
+
+### 2026-10-22 — replacement full suite passed; retained landing ready
+
+Replacement attempt247075fa5a5ea07c61206b544f4d06d4 on8727e94da57d888272eaa1a855a12e6b334f87ff completed EXIT0 in12m7s, recorded as sdlc-local/suite. Passing log /Users/xianxu/workspace/pair/.git/sdlc/local-checks/8727e94da57d888272eaa1a855a12e6b334f87ff/suite.log, SHA256 prefix0ff964e18e4e. Retained merge session46377/pid83174 reports ready at6c95e1692 for PR543; latest hold is #773's fleet-blocking grant until14:32:08 local. No duplicate runner or queue change.
+
+TL authorized starting #811 from main only if the checkout switch cannot disturb #789. The suite is finished and was snapshot-isolated, but the existing unqualified merge runner reads branch selection after admission (per sdlc merge contract), so switching this checkout could select the wrong issue. Keep #789 checked out and preserve its runner. Next step: consume admission/integration results and land #789; then claim #811 (Ctrl+Return opens the attention list like the bell; Ctrl+Backspace remains previous tab), followed by #812 and #796.
+
 ## Revisions
 
 ### 2026-10-22 — implementation scope
