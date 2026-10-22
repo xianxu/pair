@@ -333,3 +333,71 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-21T21:24:48-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 753 — cast-sketch: operator CLI queries and historical image export |
+| repo | pair |
+| issue file | workshop/issues/000753-cast-sketch-agent-export.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 489393f492663d03bd7eaa82952ede6ed3e4a321..37ef740f65a78dc037696aa62189f71c58c8a22e |
+| command | sdlc close --issue 753 |
+| reviewer | codex (openai; author openai) |
+| isolation | fenced |
+| timestamp | 2026-10-21T21:24:48-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+The pinned interdiff fixes the two structural violations without changing production behavior or issue scope. No new defects found. No prior findings remain open; existing dispositions stand. The checkout is unchanged.
+
+```findings
+{}
+```
+
+1. **Strengths**
+   - The expiry test now waits on owned cancellation while retaining late-success rejection and refresh-recovery assertions (`cmd/internal/couchtty/console_submission_preview_test.go:393`).
+   - The cleanup comment correctly attaches to `closeJoined`; its budget and implementation remain unchanged (`cmd/internal/webcast/replay_image.go:176`).
+   - Existing repository guards cover both corrected classes.
+
+2. **Critical findings:** None.
+
+3. **Important findings:** None.
+
+4. **Minor findings:** None.
+
+5. **Test coverage:** Passed preview tests, the expiry regression under race detection, replay cleanup tests, godoc and catalog guards, affected-reader inventory, and diff whitespace checks. Full-suite and native acceptance were not rerun for this narrow window.
+
+6. **Architecture**
+   - **ARCH-DRY — pass:** Reuses existing guards and cancellation seam.
+   - **ARCH-PURE — pass:** No new business logic or IO coupling.
+   - **ARCH-PURPOSE — pass:** Both structural corrections are complete; no scope expansion.
+   - **ARCH-EVOLVE — pass:** No persisted-format changes.
+
+   No new user-facing or architectural surface requires README or atlas updates.
+
+7. **Plan revision recommendations:** None.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"39f83b2c-5183-46f4-99a0-dd10f0ad369c","repository":"github.com/xianxu/pair","issue_id":"000753","recipe":"fix-review","round":4,"attempt":1,"agent":"codex","root":"/Volumes/TestScratch/review-checkouts/0bb12c97bd990fee","reviewed_head":"37ef740f65a78dc037696aa62189f71c58c8a22e","slot":"pair:9","requested_at":"2026-10-22T04:23:40.295333Z"},"phase":"finished","pid":27949,"started_at":"2026-10-22T04:23:40.538714Z","finished_at":"2026-10-22T04:24:47.542095Z","session_id":"01a161d9-b952-7601-b9ce-a74a716b4d37","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 4.358177958s
+head: "37ef740f65a78dc037696aa62189f71c58c8a22e"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412
