@@ -51,7 +51,7 @@ Hub pin 941a9381-a841-44ca-98b0-7e10a90936b3 approves authenticated owning hubs 
 - A pid reused since the sweep is not signalled (identity fence test).
 - A current descendant beneath an old root and newly discovered/unproven children are not added to the confirmed exact set.
 - Caller replacement, hub reassignment, live ownership transfer and unknown evidence before either TERM or KILL veto that effect; canceled/lost-reply/failed signals retain explicit partial outcomes.
-- Preview and confirmed text/JSON report each admitted process once, including legacy overlap, and preserve the existing families. Public disposable-Couch conformance keeps the current Claude/Codex fixture slot alive and responsive.
+- Preview and confirmed text/JSON report each admitted process once, including legacy overlap. Existing legacy families remain available only until this Couch process first observes incomplete provenance; after that they refuse for its lifetime. Public disposable-Couch conformance keeps the current Claude/Codex fixture slot alive and responsive.
 
 ## Plan
 
@@ -142,6 +142,12 @@ Both focused native commands pass on48c6d6584e6744c6303f1efdfd13558140fcefd3 aft
 
 Checkpoint this evidence, queue the corrected-source affected check (full selection expected), and rerun full close because round1 was REWORK. The required recorded pass remains pending and the final Plan checkbox stays unchecked until it completes. No continuation/restart while the owned check is queued or running.
 
+### 2026-10-22 — round2 REWORK and approved omission-class re-plan
+
+Round2 verified BR-1 addressed but reproduced Critical BR-2 upstream selection/provenance loss. Real sampler/service/CLI red cases cover selection overflow, overflow then healthy, ownership conflict then healthy, and incomplete census: each reached legacy tree signalling of foreign oldPID11 plus current descendantPID12 and falsely reported success. Healthy recovery cases had no remaining coverage error. Important BR-3 independently reproduced the RPC fixture socket exceeding103bytes under long TMPDIR; a short private TestScratch-preferred fixture root fixes it, long-TMPDIR race pass1.229s.
+
+Canceled only queued owned suite lease-2781851290 via sdlc; it exited context-canceled before execution. No recorded suite or landing runner remains. Stopped production edits for the repeated omission family and asked the hub to pin the compatibility/state tradeoff. Authenticated08398b83-dc96-4884-8c39-48c93a17f479 prioritizes safety: one in-memory sticky flag, cleared only by a fresh Couch process, refuses legacy tree admission after any incomplete provenance. Exact proven reaping stays available; nothing is persisted. The durable plan now specifies the whole-class decision, typed refusal, compatibility and sequence/cost tests before implementation. No estimate is refitted.
+
 ## Estimate
 
 Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md` against `baseline-v3.1.md`. Method A only. The source is marked stale by estimate-source; this is a provisional calibration, not a fitted total.
@@ -169,3 +175,5 @@ total: 4.033
 - 2026-10-22 — PQ-1/2/3 refinement adds the missing detached-root evidence owner, a structurally enforced invocation transition model and production-function test strategies. The complete proof may require existing generation-cached environment reads; the earlier zero-environment-read claim is superseded. No new durable state, widened target set, role or deadline.
 
 - 2026-10-22 — Reconcile current Spec with the approved owning-hub/unbound-operator boundary (no machine-steward role) and completed design gate. The last Plan row now names pre-close acceptance; close, landing and the outcome report remain mandatory subsequent SDLC actions, recorded in the Log. No implementation scope or acceptance is relaxed.
+
+- 2026-10-22 — Hub pin08398b83 approves the BR-2 re-plan: one non-persisted, process-lifetime sticky legacy refusal after any incomplete provenance. This explicitly supersedes unchanged legacy execution in pathological incomplete/cap cases. Exact proven reaping remains available under full per-effect proof; no deadline/cap increase or persisted state.

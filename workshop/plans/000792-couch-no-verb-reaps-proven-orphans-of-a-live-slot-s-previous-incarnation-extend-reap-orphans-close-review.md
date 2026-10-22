@@ -92,3 +92,112 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-22T02:54:12-07:00 (REWORK)
+
+| field | value |
+|-------|-------|
+| issue | 792 — Couch: no verb reaps proven orphans of a live slot's previous incarnation; extend --reap-orphans |
+| repo | pair |
+| issue file | workshop/issues/000792-couch-no-verb-reaps-proven-orphans-of-a-live-slot-s-previous-incarnation-extend-reap-orphans.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 0b605b1ee4ec9bda5a4d569708d25e0a857efd2f..03d0c96e4f24b3ce6fcf82df47f334b573929766 |
+| command | sdlc close --issue 792 |
+| reviewer | codex (openai; author openai) |
+| isolation | fenced |
+| timestamp | 2026-10-22T02:54:12-07:00 |
+| verdict | REWORK |
+
+## Review
+
+```verdict
+verdict: REWORK
+confidence: high
+```
+
+BR-1’s projection fix is verified, including a failing test with the fix removed. A separate upstream selection limit still discards orphan protection and permits legacy tree signalling. That safety defect blocks shipping. A new socket fixture also fails under the review environment’s long `TMPDIR`.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      resources_projection.go filters both legacy families before truncation. The projection-to-CLI regressions pass at head; removing that filter in a disposable checkout makes all four overlap cases signal both the old PID and its current descendant. The disposable checkout was removed.
+findings:
+  - id: new
+    severity: Critical
+    kind: defect
+    family: incomplete-evidence-must-not-widen-authority
+    title: |
+      Selection truncation discards orphan protection before legacy admission
+    detail: |
+      reap_orphans.go:107 derives protection only from returned Orphans. Before projection, SelectResourceProcesses (resource.go:349-351) drops orphan rows when 8192 current-owned rows fill its selection, and AdvanceResources replaces remembered provenance with that truncated selection. A disposable regression through the real sampler, service and confirmed CLI produced zero orphan rows, retained the overlapping LeftRunning row, signalled old PID 11 and unproven child 12 through legacy reaping, and exited 0 despite coverage errors. This is the 2nd finding in family incomplete-evidence-must-not-widen-authority. Earlier rounds fixed instances; do not fix only this instance. Enforce the rule that incomplete evidence never widens signalling authority, including across sampler passes. Sweep table/slot limits and incomplete census, selection truncation/conflicts/unknown classification, cached/RPC projection, CLI admission and both legacy families. Preserve conservative exclusions independently of lossy selection, refusing when protection cannot be retained, and add sequence regressions.
+  - id: new
+    severity: Important
+    kind: defect
+    family: fixtures-must-enforce-platform-bounds
+    title: |
+      New RPC fixture exceeds the Unix socket path limit with long TMPDIR
+    detail: |
+      agentfixture/resources_test.go:42 creates its isolated root beneath inherited TMPDIR. In this review environment, TestResourceObservationUsesExistingPrivateRPCAndCallerCancellation fails at line 59 with “isolated message socket exceeds 103 bytes”; the same test passes with TMPDIR=/tmp. ARCH-CONSTRAINTS: use a short private fixture root, following couchmessage/transport_test.go:23, retain cleanup, and verify under a long TMPDIR.
+```
+
+1. **Strengths**
+
+   - Supervisor effects recheck caller authority, current ownership and exact process identity before each signal.
+   - The exact-reap reducer prevents escalation after uncertain replies and retains partial progress.
+   - README, atlas and embedded skill document authority, exact scope and recovery after uncertainty.
+
+2. **Critical findings**
+
+   - **ARCH-PURPOSE / ARCH-SECURE / ARCH-CONSTRAINTS:** [legacy admission](/Volumes/TestScratch/review-checkouts/02e5fea098bb3fd7/cmd/internal/couchcmd/reap_orphans.go:107) treats absence from a truncated orphan report as permission for broader cleanup. Protection must survive upstream selection loss as well as response projection.
+
+3. **Important findings**
+
+   - **ARCH-CONSTRAINTS:** [socket fixture root](/Volumes/TestScratch/review-checkouts/02e5fea098bb3fd7/cmd/internal/testcouch/agentfixture/resources_test.go:42) depends on inherited temporary-path length.
+
+4. **Minor findings**
+
+   None.
+
+5. **Test coverage notes**
+
+   - Targeted proof, protocol, executor, service, CLI and ownership tests passed, including race runs.
+   - Full `couchmessage`, `launcher` and `artifactpath` suites passed.
+   - Removing BR-1’s fix produced the expected unsafe signals.
+   - The new selection-cap regression failed against pinned head with signals to PIDs 11 and 12.
+   - Native Claude/Codex acceptance was inspected but not rerun. Recorded verification remains pending in the tracker.
+   - Disposable checkouts were removed; the reviewed checkout remains unchanged.
+
+6. **Architectural notes**
+
+   - **ARCH-DRY — pass:** shared classifier, ownership collection and cadence reused.
+   - **ARCH-PURE — pass:** decisions and invocation transitions are tested without IO; effects are injected.
+   - **ARCH-PURPOSE — flag:** selection omission bypasses exact-set protection.
+   - **ARCH-MOCK — pass:** stateful process worlds exercise production seams.
+   - **ARCH-CONSTRAINTS — flag:** selection overflow widens authority; socket fixture exceeds platform bounds.
+   - **ARCH-SECURE — flag:** missing projected ownership evidence permits legacy signalling.
+   - **ARCH-ORDER — flag:** truncated provenance replaces prior protection across sampler passes; the exact-reap invocation model itself passes.
+   - **ARCH-FUNERAL — pass:** invocation state is scoped; fixture residue belongs to fleet cleanup.
+   - **ARCH-EVOLVE — pass:** no production persisted-format change; wire additions are additive.
+
+7. **Plan revision recommendations**
+
+   Add a `## Revisions` entry extending the omission invariant across classification, provenance replacement, projection and CLI admission. Require overflow-and-recovery sequence tests proving that protection persists until authoritative evidence establishes the original generation is gone.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"5cd3e3bb-e9a6-4903-9dd3-e7a96e39c4df","repository":"github.com/xianxu/pair","issue_id":"000792","recipe":"milestone-review","round":2,"attempt":1,"agent":"codex","root":"/Volumes/TestScratch/review-checkouts/02e5fea098bb3fd7","reviewed_head":"03d0c96e4f24b3ce6fcf82df47f334b573929766","slot":"pair:2","requested_at":"2026-10-22T09:48:06.682902Z"},"phase":"finished","pid":37480,"started_at":"2026-10-22T09:48:06.827115Z","finished_at":"2026-10-22T09:54:11.4431Z","session_id":"01a16302-c0e2-7523-847c-b3a427221d31","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 2.736437667s
+head: "03d0c96e4f24b3ce6fcf82df47f334b573929766"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412

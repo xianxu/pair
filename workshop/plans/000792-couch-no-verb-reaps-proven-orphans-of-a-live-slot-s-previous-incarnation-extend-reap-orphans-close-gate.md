@@ -163,6 +163,182 @@ rounds:
       recipe: milestone-review
       isolation: fenced
       blocked: true
+    - reviewer_runs:
+        - version: 1
+          intent:
+            disposable_root: true
+            id: 5cd3e3bb-e9a6-4903-9dd3-e7a96e39c4df
+            repository: github.com/xianxu/pair
+            issue_id: "000792"
+            recipe: milestone-review
+            round: 2
+            attempt: 1
+            agent: codex
+            root: /Volumes/TestScratch/review-checkouts/02e5fea098bb3fd7
+            reviewed_head: 03d0c96e4f24b3ce6fcf82df47f334b573929766
+            slot: pair:2
+            requested_at: "2026-10-22T09:48:06.682902Z"
+          phase: finished
+          pid: 37480
+          started_at: "2026-10-22T09:48:06.827115Z"
+          finished_at: "2026-10-22T09:54:11.4431Z"
+          session_id: 01a16302-c0e2-7523-847c-b3a427221d31
+          outcome: returned
+      actual_inputs:
+        version: 1
+        method: active-time-v3-engagement-v1
+        repository: github.com/xianxu/pair
+        code_head: 03d0c96e4f24b3ce6fcf82df47f334b573929766
+        tracker_head: c069147fea8ce3dfa1b08348384d304ca8578820
+        branch_point: 0b605b1ee4ec9bda5a4d569708d25e0a857efd2f
+        since: "2026-10-22T00:59:38-07:00"
+        until: "2026-10-22T02:47:22-07:00"
+        brain_root: /Users/xianxu/workspace/brain
+        gap_minutes: 15
+        commit_weight: 1
+        include_assistant: true
+        engagements:
+            - start: "2026-10-22T00:59:38-07:00"
+              end: "2026-10-22T02:47:22-07:00"
+              began: "2026-10-22T00:59:38-07:00"
+              roots:
+                - /Users/xianxu/workspace/worktree/pair-slot2/pair
+        sources:
+            - harness: codex
+              id: 01a15a8b-89c9-7e02-a733-8b52dd00ebac
+              slot: pair:2
+              cwd: /Users/xianxu/workspace/worktree/pair-slot2/pair
+              digest: 1771cebe12f77cb1edf64b7be16bc92cec0f0ac743a25847c19e55b55fd20c22
+              started: "2026-10-20T18:21:51.812Z"
+              spawned: false
+              bytes: 43169153
+              windows:
+                - start: "2026-10-22T00:59:38-07:00"
+                  end: "2026-10-22T02:47:22-07:00"
+            - harness: codex
+              id: 01a162a0-6690-79e3-9b5a-619de5ccaa8b
+              slot: pair:2
+              cwd: /Users/xianxu/workspace/worktree/pair-slot2/pair
+              parent_id: 01a15a8b-89c9-7e02-a733-8b52dd00ebac
+              digest: 0f9210202d37a08e6da07bddeff96861e8b690fc03f1ec84bcce50739a1bb079
+              started: "2026-10-22T08:00:41.809Z"
+              spawned: true
+              bytes: 829943
+              windows:
+                - start: "2026-10-22T08:00:41.809Z"
+                  end: "2026-10-22T02:47:22-07:00"
+            - harness: codex
+              id: 01a162aa-fb4e-7970-91a6-42b9a6a9962e
+              slot: pair:2
+              cwd: /Users/xianxu/workspace/worktree/pair-slot2/pair
+              digest: 506543e9015d020fe1467994d6a43f96be26f341883044e5919b66645853e3f6
+              started: "2026-10-22T08:12:15.436Z"
+              spawned: false
+              bytes: 672111
+              windows:
+                - start: "2026-10-22T08:12:15.436Z"
+                  end: "2026-10-22T02:47:22-07:00"
+            - harness: codex
+              id: 01a162b2-0701-72e3-afe2-d6bf7832e7c0
+              slot: pair:2
+              cwd: /Users/xianxu/workspace/worktree/pair-slot2/pair
+              digest: 8c9d4f06007864e64d2cd1ed9b62bec64b0f274f1a24363b8aefe776caaf7251
+              started: "2026-10-22T08:19:57.343Z"
+              spawned: false
+              bytes: 472250
+              windows:
+                - start: "2026-10-22T08:19:57.343Z"
+                  end: "2026-10-22T02:47:22-07:00"
+            - harness: codex
+              id: 01a162b7-7095-7f20-9646-101dd7e10f0b
+              slot: pair:2
+              cwd: /Users/xianxu/workspace/worktree/pair-slot2/pair
+              digest: 2949391f4fd89b32dfc4645845c66181542120724d93c8c95a1e3d51c7124274
+              started: "2026-10-22T08:25:51.993Z"
+              spawned: false
+              bytes: 457013
+              windows:
+                - start: "2026-10-22T08:25:51.993Z"
+                  end: "2026-10-22T02:47:22-07:00"
+            - harness: codex
+              id: 01a162b8-2620-7f21-8b19-af572c33611a
+              slot: pair:2
+              cwd: /Users/xianxu/workspace/worktree/pair-slot2/pair
+              digest: f0f0d3fa15536c04b0d579eb9cbac47145cb6b43eafea4d07d96016236ab9c55
+              started: "2026-10-22T08:26:38.369Z"
+              spawned: false
+              bytes: 394000
+              windows:
+                - start: "2026-10-22T08:26:38.369Z"
+                  end: "2026-10-22T02:47:22-07:00"
+            - harness: codex
+              id: 01a162b9-18b9-77a0-b3c1-6f8f773de441
+              slot: pair:2
+              cwd: /Users/xianxu/workspace/worktree/pair-slot2/pair
+              parent_id: 01a15a8b-89c9-7e02-a733-8b52dd00ebac
+              digest: 02771ff534751bb26bdc672f847ba9a289de965837931675c2c00d45ad7f372e
+              started: "2026-10-22T08:27:40.154Z"
+              spawned: true
+              bytes: 3513840
+              windows:
+                - start: "2026-10-22T08:27:40.154Z"
+                  end: "2026-10-22T02:47:22-07:00"
+            - harness: codex
+              id: 01a162ba-f349-76d0-be3b-8d82d59eeaf5
+              slot: pair:2
+              cwd: /Users/xianxu/workspace/worktree/pair-slot2/pair
+              parent_id: 01a15a8b-89c9-7e02-a733-8b52dd00ebac
+              digest: fd358504726f78e8db2a52cc1a0ef634a356f5bc1ceed6412db47ed077ffd569
+              started: "2026-10-22T08:29:41.717Z"
+              spawned: true
+              bytes: 1386710
+              windows:
+                - start: "2026-10-22T08:29:41.717Z"
+                  end: "2026-10-22T02:47:22-07:00"
+            - harness: codex
+              id: 01a162bb-5658-7632-b1b2-6414b758cf4e
+              slot: pair:2
+              cwd: /Users/xianxu/workspace/worktree/pair-slot2/pair
+              parent_id: 01a15a8b-89c9-7e02-a733-8b52dd00ebac
+              digest: 5573a1f91fc0669683e653a141c7232b4147c1cb9bc68fcec70a8ca83233ca8e
+              started: "2026-10-22T08:30:07.029Z"
+              spawned: true
+              bytes: 941165
+              windows:
+                - start: "2026-10-22T08:30:07.029Z"
+                  end: "2026-10-22T02:47:22-07:00"
+        cuts:
+            - dispatched: "2026-10-22T02:36:52-07:00"
+              finalized: "2026-10-22T02:40:16-07:00"
+              finalizing: false
+      "n": 2
+      timestamp: "2026-10-22T02:54:12-07:00"
+      dispatched: "2026-10-22T02:48:03-07:00"
+      agent: codex
+      reviewer: codex (openai; author openai)
+      dispose:
+        - id: BR-1
+          disposition: addressed
+          note: resources_projection.go filters both legacy families before truncation. The projection-to-CLI regressions pass at head; removing that filter in a disposable checkout makes all four overlap cases signal both the old PID and its current descendant. The disposable checkout was removed.
+          round: 2
+      findings:
+        - kind: defect
+          id: BR-2
+          severity: Critical
+          title: Selection truncation discards orphan protection before legacy admission
+          detail: reap_orphans.go:107 derives protection only from returned Orphans. Before projection, SelectResourceProcesses (resource.go:349-351) drops orphan rows when 8192 current-owned rows fill its selection, and AdvanceResources replaces remembered provenance with that truncated selection. A disposable regression through the real sampler, service and confirmed CLI produced zero orphan rows, retained the overlapping LeftRunning row, signalled old PID 11 and unproven child 12 through legacy reaping, and exited 0 despite coverage errors. This is the 2nd finding in family incomplete-evidence-must-not-widen-authority. Earlier rounds fixed instances; do not fix only this instance. Enforce the rule that incomplete evidence never widens signalling authority, including across sampler passes. Sweep table/slot limits and incomplete census, selection truncation/conflicts/unknown classification, cached/RPC projection, CLI admission and both legacy families. Preserve conservative exclusions independently of lossy selection, refusing when protection cannot be retained, and add sequence regressions.
+          family: incomplete-evidence-must-not-widen-authority
+          round: 2
+        - kind: defect
+          id: BR-3
+          severity: Important
+          title: New RPC fixture exceeds the Unix socket path limit with long TMPDIR
+          detail: 'agentfixture/resources_test.go:42 creates its isolated root beneath inherited TMPDIR. In this review environment, TestResourceObservationUsesExistingPrivateRPCAndCallerCancellation fails at line 59 with “isolated message socket exceeds 103 bytes”; the same test passes with TMPDIR=/tmp. ARCH-CONSTRAINTS: use a short private fixture root, following couchmessage/transport_test.go:23, retain cleanup, and verify under a long TMPDIR.'
+          family: fixtures-must-enforce-platform-bounds
+          round: 2
+      recipe: milestone-review
+      isolation: fenced
+      blocked: true
 ---
 
 # Gate ledger — pair#792 (boundary-review)
@@ -177,6 +353,20 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-1** [Critical] `incomplete-evidence-must-not-widen-authority` (kind: defect) Response projection can route proven orphans through unguarded legacy tree reaping
   cmd/internal/couchcmd/message_service.go:980 projects the confirmed sweep before CLI admission. projectResourceView independently truncates Orphans and LeftRunning (resources_projection.go:66-72), but provenOrphanAdmission protects only PIDs in the received Orphans rows (reap_orphans.go:340-341). With enough orphan rows to exceed their section budget and a single LeftRunning entry overlapping an omitted orphan, that entry survives projection and reaches reapLeftRunning at line 123. It then uses local expanding-tree reaping without owning-hub or current-ownership checks, potentially signalling a foreign orphan and current or unproven descendants. ARCH-PURPOSE, ARCH-SECURE, and ARCH-CONSTRAINTS require omission to preserve protection. Remove all orphan overlaps from legacy families on the supervisor's complete view before projection, or preserve an independently complete exclusion set and refuse when it cannot fit. Add a regression through actual projection and CLI execution that proves zero legacy signals for an omitted overlapping orphan.
 
+## Round 2 — 2026-10-22T02:54:12-07:00 (codex) — BLOCKED
+
+### Disposed
+
+- BR-1 — addressed — resources_projection.go filters both legacy families before truncation. The projection-to-CLI regressions pass at head; removing that filter in a disposable checkout makes all four overlap cases signal both the old PID and its current descendant. The disposable checkout was removed.
+
+### Raised
+
+- **BR-2** [Critical] `incomplete-evidence-must-not-widen-authority` (kind: defect) Selection truncation discards orphan protection before legacy admission
+  reap_orphans.go:107 derives protection only from returned Orphans. Before projection, SelectResourceProcesses (resource.go:349-351) drops orphan rows when 8192 current-owned rows fill its selection, and AdvanceResources replaces remembered provenance with that truncated selection. A disposable regression through the real sampler, service and confirmed CLI produced zero orphan rows, retained the overlapping LeftRunning row, signalled old PID 11 and unproven child 12 through legacy reaping, and exited 0 despite coverage errors. This is the 2nd finding in family incomplete-evidence-must-not-widen-authority. Earlier rounds fixed instances; do not fix only this instance. Enforce the rule that incomplete evidence never widens signalling authority, including across sampler passes. Sweep table/slot limits and incomplete census, selection truncation/conflicts/unknown classification, cached/RPC projection, CLI admission and both legacy families. Preserve conservative exclusions independently of lossy selection, refusing when protection cannot be retained, and add sequence regressions.
+- **BR-3** [Important] `fixtures-must-enforce-platform-bounds` (kind: defect) New RPC fixture exceeds the Unix socket path limit with long TMPDIR
+  agentfixture/resources_test.go:42 creates its isolated root beneath inherited TMPDIR. In this review environment, TestResourceObservationUsesExistingPrivateRPCAndCallerCancellation fails at line 59 with “isolated message socket exceeds 103 bytes”; the same test passes with TMPDIR=/tmp. ARCH-CONSTRAINTS: use a short private fixture root, following couchmessage/transport_test.go:23, retain cleanup, and verify under a long TMPDIR.
+
 ## Open findings
 
-- **BR-1** [Critical] `incomplete-evidence-must-not-widen-authority` (kind: defect) Response projection can route proven orphans through unguarded legacy tree reaping
+- **BR-2** [Critical] `incomplete-evidence-must-not-widen-authority` (kind: defect) Selection truncation discards orphan protection before legacy admission
+- **BR-3** [Important] `fixtures-must-enforce-platform-bounds` (kind: defect) New RPC fixture exceeds the Unix socket path limit with long TMPDIR
