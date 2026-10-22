@@ -69,6 +69,10 @@ Private raw SHA2568217851e8384d7be6c7afb877c401c6226994909d6cfb4c4ce09530aeba043
 Authenticated TL1e66b2d3-7981-4155-9929-76ad686f0bc1 parks this issue until #796 and #791 land. Keep the claim in pair:1 so the evidence/re-plan has an owner. Revisit only if stalls recur after both; one-row geometry bounce is a candidate requiring new explicit TL approval. Meanwhile land #791 when its retained recorded suite passes, then resume #807. Next: keep session96595/lease-1905342880 alive and poll it; no new #810 work. #737 remains parked/unstaged as before.
 
 
+### 2026-10-22 — further operator recurrence before mitigation rollout
+
+Authenticated TL7bbaa056-5c99-4d47-b9c1-dd36cbadc844: the operator's hub wedged again at approximately14:0x with the two-line tab bar visible. #791's capture was not live, so no refused screen was saved. This is another operator observation consistent with the controlled mechanism, not captured proof of the exact live refusal or resize timing. Plan unchanged: keep #810 parked; #796's default collapse removes wrap-driven pane resizing, and #791 supplies future capture evidence. Revisit only if stalls recur after both land; any geometry-bounce fallback still requires explicit TL approval.
+
 ## Revisions
 
 ### 2026-10-22 — from capture wait to bounded repaint recovery
