@@ -89,6 +89,7 @@ Recorded suite must pass before landing. Stage for the TL-sequenced operator loo
 ## Log
 
 ### 2026-10-22
+- 2026-10-22: closed — BR-1 accepted round2: exact identity aggregation and numbered/current hub-role regressions plus old-code negative control. BR-2 addressed by complete concepts-table audit against actual production declarations: new opener/config files, modified projection/menu/renderer, unchanged geometry/menu reuse correctly named. Documentation-only delta; source/stage/suite snapshot unchanged. Whole couchtty PASS52.969s, couchcmd121.386s; native and guards independently passed round2. Corrected stage93b8b8b6 all4 binaries modified=false; suite lease-521073252 and operator acceptance pending, both required before landing.; review verdict: SHIP
 
 Claimed and started from main at TL6a768f10 while #789's isolated integration suite waits. No #789 commits are stacked here. #789 remains branch3306f2d16 with check session61444/lease-3428295058/attempta71b7262e10d47a252d630372095d2ff; return there for full-suite result, fixed review and merge. start-plan hit ariadne#557's generated workflow dirt: saved /tmp/pair796-seeded-merge-check.diff, restored only .github/workflows/merge-check.yml per TLc4e804fc, retried successfully; no seeded gate changes committed.
 

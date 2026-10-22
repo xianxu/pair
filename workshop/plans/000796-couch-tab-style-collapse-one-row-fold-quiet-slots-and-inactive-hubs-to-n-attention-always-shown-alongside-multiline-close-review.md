@@ -195,3 +195,89 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-22T14:42:58-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 796 — Couch: --tab-style collapse (one row; fold quiet slots and inactive hubs to +N, attention always shown) alongside multiline |
+| repo | pair |
+| issue file | workshop/issues/000796-couch-tab-style-collapse-one-row-fold-quiet-slots-and-inactive-hubs-to-n-attention-always-shown-alongside-multiline.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 651e30092e7ca245e5537ba1450b7ea7eb36ddae..1c75450c44a2e7e423dbc04a64352a15f943d9b3 |
+| command | sdlc close --issue 796 |
+| reviewer | codex (openai; author openai) |
+| isolation | fenced |
+| timestamp | 2026-10-22T14:42:58-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+The pinned implementation matches the approved collapse policy, and BR-2’s documentation correction matches the actual declarations and diff. Focused rendering, CLI, scope, native geometry, and safety checks passed. No new findings. Recorded-suite completion and operator acceptance remain separate landing gates.
+
+```findings
+dispose:
+  - id: BR-2
+    disposition: addressed
+    note: |
+      Inspected the pinned before/after plan diff. The table at workshop/plans/000796-collapse-tab-style-plan.md:55-62 now identifies openGroupSwitcher as new in console_group_menu.go, where its declaration exists at line 6, and explicitly lists console_chrome_layout.go and console_menu.go as reused unchanged, consistent with the base-to-head diff. The Revisions entry at lines 144-146 records the correction. Remaining table declarations and change statuses also match the implementation. This is a prose-only correction requiring no behavioral regression test.
+```
+
+1. **Strengths**
+
+   - Collapse reuses measured packing and drawing; count spans come from the actual drawing pass.
+   - Exact owner/group scoping precedes text filtering, and removed membership remains empty rather than broadening the switcher.
+   - Native tests cover both styles, selected and background PTY sizes, kernel geometry, and physical bottom-row output.
+   - README, help, and atlas explain the default, explicit multiline option, count navigation, and Escape recovery.
+
+2. **Critical findings:** None.
+
+3. **Important findings:** None.
+
+4. **Minor findings:** None.
+
+5. **Test coverage notes**
+
+   Independently passed:
+
+   - Collapse, numbered-hub role matrix, group menu, style parsing, and Console wiring tests.
+   - Legacy measured-layout tests, native style matrix, stale/pending chrome input guards, broadcast privacy and indicator checks, annotation anchors, and pointer geometry checks.
+   - `make test-affected-inventory` and pinned-range `git diff --check`.
+
+   This review did not rerun the whole repository suite.
+
+6. **Architectural notes**
+
+   - **ARCH-DRY — pass:** Shared packer, clipping, presentation membership, and default constant.
+   - **ARCH-PURE — pass:** Candidate preparation and scoped filtering remain deterministic; Console handles effects.
+   - **ARCH-PURPOSE — pass:** Default wiring, folding, count navigation, and stable geometry are delivered together.
+   - **ARCH-MOCK — pass:** Existing injected terminal/process doubles and native conformance fixtures cover the affected boundaries.
+   - **ARCH-CONSTRAINTS — pass:** Counted N/2N work tests exercise bounded planning; no new asynchronous work.
+   - **ARCH-SECURE — pass:** Sanitization and confirmed-revision input guards remain in the production path.
+   - **ARCH-ORDER — pass:** Existing menu transitions preserve scope across refresh/nested return and explicitly clear it on Escape or ordinary reopen.
+   - **ARCH-FUNERAL — pass:** New frame data and session-local scope have bounded lifetimes; no durable artifacts introduced.
+   - **ARCH-EVOLVE — pass:** No persisted-format changes.
+
+7. **Plan revision recommendations:** None; the corrected concepts table matches the code.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"16ff7c30-3638-4aee-8ad0-46d2668a79aa","repository":"github.com/xianxu/pair","issue_id":"000796","recipe":"milestone-review","round":3,"attempt":1,"agent":"codex","root":"/Volumes/TestScratch/review-checkouts/85ca065272aafa4b","reviewed_head":"1c75450c44a2e7e423dbc04a64352a15f943d9b3","slot":"pair:4","requested_at":"2026-10-22T21:41:30.242351Z"},"phase":"finished","pid":13710,"started_at":"2026-10-22T21:41:30.523486Z","finished_at":"2026-10-22T21:42:55.80049Z","session_id":"01a1658f-e3ec-7e82-92e0-45920910b160","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 8.2861955s
+head: "1c75450c44a2e7e423dbc04a64352a15f943d9b3"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000410
