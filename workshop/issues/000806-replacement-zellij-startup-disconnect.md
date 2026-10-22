@@ -37,7 +37,7 @@ Retain and diagnose the new-session-before-first-wrapper disconnect through the 
 
 ## Plan
 
-Diagnostic proposal: [replacement startup diagnosis plan](../plans/000806-replacement-startup-diagnosis-plan.md). Await hub approval before changing code, including harness instrumentation.
+Diagnostic proposal: [replacement startup diagnosis plan](../plans/000806-replacement-startup-diagnosis-plan.md). Diagnostic phase approved by ops:0; production correction still requires the follow-up approval described in the plan.
 
 - [ ] Retain bounded private server evidence before cleanup and qualify its reader boundaries.
 - [ ] Run one bounded diagnostic per personality and, only with a captured failure, one causal contrast; preserve unknown outcomes.
@@ -74,3 +74,5 @@ The existing bare birth-race probe and upstream v0.45.1 RemoveClient optional-da
 ### 2026-10-22 — Diagnose before selecting a correction
 
 Current main includes #773/#803/#797, so the earlier hypothesis must be tested against the current shared boundaries. Preserve original Spec and Done when; add a bounded diagnostic phase and an explicit return to the hub before any production correction. No new runtime state, protocol or time budget is approved or inferred.
+
+2026-10-22 diagnostic authorization: authenticated ops:0 delivery595ae402-f90b-498f-a7ca-b254b66ebac5 approved at most2x8192-byte private server-log snapshots before teardown and after joined producers; one current-bound96MiB native run each for Claude/Codex; at most one causal contrast after a retained failure; return with correction choice before any production change. Proceeding through change-code for this diagnostic scope only.
