@@ -158,7 +158,7 @@ func RenderMenuView(state MenuState, width, height int, now time.Time, color256 
 	}
 	frame := frames[len(frames)-1]
 	banners := renderedMenuCopyLines(state)
-	if notice := renderedMenuNotice(state); notice != "" {
+	if notice := renderedMenuNotice(state, now); notice != "" {
 		banners = append([]string{notice}, banners...)
 	}
 	// The frame windows its selection within the space left by all banners.
@@ -224,7 +224,7 @@ func clampExtents(extents []ActorExtent, drawn int) []ActorExtent {
 	return out
 }
 
-func renderedMenuNotice(state MenuState) string {
+func renderedMenuNotice(state MenuState, now time.Time) string {
 	notice := state.Notice
 	if notice.Text == "" {
 		if state.ProjectionPending {
@@ -239,6 +239,9 @@ func renderedMenuNotice(state MenuState) string {
 		return "error: " + notice.Text
 	}
 	if notice.Level == MenuNoticeProgress {
+		if _, job, ok := menuOperationForAttempt(state, notice.Owner.OperationAttempt); ok && job.Detail != "" {
+			notice.Text = menuOperationProgressText(state, job.Origin.Operation, job.Origin.Address) + " " + job.Detail + ", " + menuOperationElapsed(job, now).String()
+		}
 		return spinnerGlyph(state.SpinnerPhase) + " " + notice.Text + "…"
 	}
 	return notice.Text

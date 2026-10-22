@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/xianxu/pair/cmd/internal/launcher"
+	"github.com/xianxu/pair/cmd/internal/startupbudget"
 	"github.com/xianxu/pair/cmd/internal/zellijreply"
 )
 
@@ -28,6 +29,19 @@ func (c *Couch) attachListedTerminal(ctx context.Context, thread ThreadRecord, s
 }
 
 func (c *Couch) attachListedTerminalAdmitted(ctx, queryCtx context.Context, thread ThreadRecord, session string, opts ResumeOptions) (result ActorRecord, handle Handle, resultErr error) {
+	startup, startupDeadline, stopStartup, err := c.trackedStartupBudget(ctx, true)
+	if err != nil {
+		return result, handle, err
+	}
+	defer stopStartup()
+	startup, describeFailure := trackStartupProgress(startup)
+	defer func() {
+		if resultErr != nil {
+			resultErr = describeFailure(resultErr)
+		}
+	}()
+	queryCtx, stopQuery := context.WithDeadline(queryCtx, startupDeadline)
+	defer stopQuery()
 	// Timing is a context-only observation, not retained lifecycle state. Avoid
 	// timing allocations on ordinary Continue, and never report a cold claim.
 	var steps *launchSteps
@@ -35,28 +49,28 @@ func (c *Couch) attachListedTerminalAdmitted(ctx, queryCtx context.Context, thre
 		steps = newLaunchSteps(ctx, time.Time{})
 	}
 	for attempt := 1; attempt <= 2; attempt++ {
-		if err := ctx.Err(); err != nil {
+		if err := startup.Err(); err != nil {
 			return result, handle, errors.Join(resultErr, err)
 		}
-		result, handle, resultErr = c.attachListedTerminalOnce(ctx, queryCtx, thread, session, opts, steps)
+		result, handle, resultErr = c.attachListedTerminalOnce(ctx, startup, queryCtx, startupDeadline, thread, session, opts, steps)
 		if resultErr == nil {
 			return result, handle, nil
 		}
 		// A committed client or an unquiesced helper cannot be repeated without
 		// duplicating effects. Cancellation likewise owns cleanup, never retry.
 		var observationRefusal *terminalObservationRefusal
-		if errors.As(resultErr, &observationRefusal) || result.ID != "" || (handle != nil && handle.Alive()) || ctx.Err() != nil || queryCtx.Err() != nil {
-			return result, handle, errors.Join(resultErr, ctx.Err())
+		if errors.As(resultErr, &observationRefusal) || result.ID != "" || (handle != nil && handle.Alive()) || startup.Err() != nil || queryCtx.Err() != nil {
+			return result, handle, errors.Join(resultErr, startup.Err())
 		}
 		if attempt == 2 {
 			return result, handle, fmt.Errorf("attach to terminal %q failed after 2 attempts: %w", session, resultErr)
 		}
 		timer := time.NewTimer(100 * time.Millisecond)
 		select {
-		case <-ctx.Done():
+		case <-startup.Done():
 			timer.Stop()
 			steps.mark("attach-retry-backoff")
-			return result, handle, errors.Join(resultErr, ctx.Err())
+			return result, handle, errors.Join(resultErr, startup.Err())
 		case <-timer.C:
 		}
 		steps.mark("attach-retry-backoff")
@@ -64,7 +78,8 @@ func (c *Couch) attachListedTerminalAdmitted(ctx, queryCtx context.Context, thre
 	panic("unreachable attachment attempt")
 }
 
-func (c *Couch) attachListedTerminalOnce(ctx, queryCtx context.Context, thread ThreadRecord, session string, opts ResumeOptions, steps *launchSteps) (result ActorRecord, handle Handle, resultErr error) {
+func (c *Couch) attachListedTerminalOnce(ctx, startup, queryCtx context.Context, startupDeadline time.Time, thread ThreadRecord, session string, opts ResumeOptions, steps *launchSteps) (result ActorRecord, handle Handle, resultErr error) {
+	reportProgress(startup, "preparing attachment")
 
 	args := StartArgs{Worktree: Worktree(thread.StartingPath), Cwd: thread.WorkingPath}
 	if profile := thread.LatestLaunchProfile; profile != nil {
@@ -91,8 +106,9 @@ func (c *Couch) attachListedTerminalOnce(ctx, queryCtx context.Context, thread T
 	}
 	env := []string{"COUCH_TREE=" + string(args.Worktree), "COUCH_STORE_DIR=" + c.Namespace.Dir(), "COUCH_THREAD_SCOPE=" + thread.Address.RepoScope, "COUCH_THREAD_TAG=" + string(thread.Address.Tag), "COUCH_THREAD_RESUME=1", "PAIR_RETENTION_BACKGROUND=" + background, launcher.CouchSessionIntentEnv + "=" + string(intent), lease}
 	if c.SlotEnvironment != nil {
-		env = append(env, c.SlotEnvironment(ctx, thread)...)
+		env = append(env, c.SlotEnvironment(startup, thread)...)
 	}
+	env = append(env, startupbudget.DeadlineEnv+"="+startupbudget.Encode(startupDeadline))
 	dir := args.WorkingDir()
 	if !c.workingPathExists(thread) {
 		dir = string(filepath.Separator)
@@ -101,7 +117,7 @@ func (c *Couch) attachListedTerminalOnce(ctx, queryCtx context.Context, thread T
 	if err := c.confirmListedTerminal(queryCtx, thread, session); err != nil {
 		return ActorRecord{}, nil, err
 	}
-	finishRetention, err := c.beginResumeRetention(ctx, thread.Address, !opts.WarmOnly)
+	finishRetention, err := c.beginResumeRetention(startup, thread.Address, !opts.WarmOnly)
 	steps.mark("attach-admission")
 	if err != nil {
 		return ActorRecord{}, nil, err
@@ -113,7 +129,7 @@ func (c *Couch) attachListedTerminalOnce(ctx, queryCtx context.Context, thread T
 	if err := queryCtx.Err(); err != nil {
 		return ActorRecord{}, nil, &terminalObservationRefusal{err}
 	}
-	h, err := c.Runner.StartBlocked(ctx, dir, []string{"pair", launcher.CouchSessionFlag, "resume", string(thread.Address.Tag)}, env, 10*time.Second)
+	h, err := c.Runner.StartBlocked(ctx, dir, []string{"pair", launcher.CouchSessionFlag, "resume", string(thread.Address.Tag)}, env, time.Until(startupDeadline))
 	steps.mark("attach-spawn")
 	if err != nil {
 		return ActorRecord{}, nil, err
@@ -132,27 +148,25 @@ func (c *Couch) attachListedTerminalOnce(ctx, queryCtx context.Context, thread T
 		}
 		return ActorRecord{}, h, errors.Join(cause, cleanup)
 	}
-	if err := ctx.Err(); err != nil {
+	if err := startup.Err(); err != nil {
 		return abort(err, false)
 	}
 	if err := c.confirmListedTerminal(queryCtx, thread, session); err != nil {
 		return abort(err, false)
 	}
+	reportProgress(startup, "waiting for helper acknowledgement")
 	ackErr := h.Acknowledge()
 	steps.mark("attach-ack")
 	if ackErr != nil {
 		return abort(ackErr, true)
 	}
-	budget := pairRegistrationTimeout
-	if c.resumeRegistrationTimeout > 0 {
-		budget = c.resumeRegistrationTimeout
-	}
 	deadline := c.registrationDeadline
 	if deadline == nil {
 		deadline = context.WithTimeout
 	}
-	attachment, stopWatch := whileHelperAlive(ctx, h)
-	attachment, cancel := deadline(attachment, budget)
+	reportProgress(startup, "confirming terminal attachment")
+	attachment, stopWatch := whileHelperAlive(startup, h)
+	attachment, cancel := deadline(attachment, time.Until(startupDeadline))
 	// A public Continue borrows the listed terminal; lifecycle registration
 	// and wrapper ownership are neither prerequisites nor effects of attachment.
 	queryDeadline, _ := queryCtx.Deadline()
@@ -175,7 +189,7 @@ func (c *Couch) attachListedTerminalOnce(ctx, queryCtx context.Context, thread T
 	if err != nil {
 		return abort(fmt.Errorf("await Pair attachment %+v: %w", thread.Address, err), true)
 	}
-	if err := ctx.Err(); err != nil {
+	if err := startup.Err(); err != nil {
 		return abort(err, true)
 	}
 	actor := ActorRecord{ID: c.IDs.NewID(), Thread: thread.Address, Args: args, StartedAt: c.Clock.Now(), PID: h.PID(), Identity: h.Identity(), Shape: StartWarmReattach}

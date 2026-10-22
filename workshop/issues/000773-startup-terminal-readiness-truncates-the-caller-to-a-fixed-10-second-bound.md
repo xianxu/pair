@@ -44,7 +44,7 @@ Approved design: select one absolute startup deadline before the blocked helper 
 
 - [x] Approve the caller-owned startup/default/transport contract and production-boundary test plan.
 - [x] Record deterministic red probes, implement shared deadline selection and propagate it through helper, launcher, readiness and registration without renewal.
-- [x] Qualify cancellations, uncertain outcomes, exact generation and admitted-client lifetime; update inventory and architecture map.
+- [ ] Complete review corrections for public borrowed-client deadline transport, local stage timing and causal warm-adoption fixture controls; requalify the consumer class.
 - [x] Use the landed #744 shared disposable harness for cold native acceptance and pass required recorded verification.
 
 Remaining gates: mandatory boundary review and normal SDLC merge; no live-fleet/pair:0 operation is authorized by this check.
@@ -133,3 +133,17 @@ Audited all four sources: couchcore/startup_budget.go, couchcore/startup_progres
 ### 2026-10-22 — corrected recorded suite passed; close submitted
 
 Corrected head961a1f58d81c326b50b4726928f0f7fe4f55f779 passed full recorded suite attempt e33828c37ba00eb2c2c83a139f4d0dce / lease-126363276, exit0 in10m48s, log .git/sdlc/local-checks/961a1f58d81c326b50b4726928f0f7fe4f55f779/suite.log, SHA prefix737664b19b64. The runner completed normally, not lost. All previous inventory and env-oracle failures are fixed; no flake registration, status override or unchanged blind retry. Native Claude/Codex cold acceptance and exact cleanup passed as recorded above. Implementation/verification checkboxes now complete; fresh boundary review and normal merge remain required. Hub owns project and #739 staging/live rollout.
+
+
+### 2026-10-22 — close round1 REWORK; three consumer-class corrections
+
+The close review completed REWORK, so no completion card or merge was started. BR-1: public listed-terminal attachment bypasses launchTrackedThread and still used an untransported relative10s helper budget. BR-2: local menu progress showed operation age next to the current stage, although remote receipt progress used stage age. BR-3: the general warm-adoption fixture's200ms propagation sentinel now armed a real startup timer before preparation, preventing some intended causal failure routes. These are in-scope coverage gaps in the approved warm-attach/progress/failure-fixture sweep; no review bypass or premature #801 branch.
+
+Public entry regression first reproduced missing transported deadline and helper10s versus remaining28s after virtual preparation (RED0.286s). An initial cleanup-oracle error incorrectly called Cancel after acknowledgement and was corrected/repeated before production changes. Public attachment now selects one deadline before its helper preparation and existing retry loop, caps the existing short query without renewing it, transports the same absolute deadline, and passes remaining time to acknowledgement/confirmation. The helper's original interactive context remains separate. Retention preparation is startup-bound; its existing finalizer remains independently cleanup-owned. Added virtual delayed acknowledgement and exact final-deadline checks; focused warm/public admission cohort initially GREEN4.525s. Final cross-class verification still pending.
+
+Controlled console regression RED0.245s:20s preparation plus5s readiness rendered25s. Pure progress now retains stage-start time, preserves it on same-stage reports and resets only on a stage change; row and notice render the same age, with operation-age fallback and stale/terminal fencing. Targeted/race console cohorts GREEN0.326s/1.846s.
+
+Warm-adoption delayed-preparation controls reproduced the old200ms fixture causing acknowledge-time expiry rather than the named injected failure (RED2.093s). General fixture no longer sets the propagation sentinel; dedicated budget controls own their own clock/injection. Original warm/retire/ownership cohort GREEN6.650s and delayed-control GREEN1.586s before the public-attach correction. Public attachment's now-correct remaining duration additionally exposed an old exact200ms assertion (observed197.948ms); update that dedicated control to virtual time and deadline consumption rather than a renewed relative budget. No production cap increase or sleep. Corrected recorded verification and fresh review are required.
+
+
+Retention sentinel follow-up RED0.221s observed199.111ms instead of renewed200ms. Both dedicated controls now use synctest: consume virtual50ms preparation from the original200ms selection, assert identical absolute deadline and exact remaining duration, then causally expire before attachment/ownership observation. All retention controls GREEN0.928s. These are controlled fixture budgets, not production cap increases. Final full core/tty packages and race controls are running; no pass claimed until returned.

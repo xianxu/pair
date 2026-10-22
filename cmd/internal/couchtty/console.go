@@ -1925,7 +1925,7 @@ func (c *Console) runMenuOperation(effect MenuEffect) {
 		operationContext = context.WithValue(operationContext, menuOperationContextKey{}, menuOperationContext{origin: origin})
 		operationContext = couchcore.WithOperationProgress(operationContext, func(detail string) {
 			c.mu.Lock()
-			c.menu = updateOperationProgress(c.menu, origin.Attempt, detail)
+			c.menu = updateOperationProgress(c.menu, origin.Attempt, detail, time.Now())
 			c.mu.Unlock()
 			c.repaint()
 		})
