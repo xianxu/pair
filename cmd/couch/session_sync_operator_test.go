@@ -25,7 +25,8 @@ type operatorExecutable struct {
 func newOperatorExecutable(t *testing.T) operatorExecutable {
 	t.Helper()
 	bin, _ := installedExecutables(t)
-	f := operatorExecutable{bin: bin, env: installedEnv(t, filepath.Dir(bin))}
+	env, _ := installedEnv(t, filepath.Dir(bin))
+	f := operatorExecutable{bin: bin, env: env}
 	for _, entry := range f.env {
 		if value, ok := strings.CutPrefix(entry, "COUCH_ISOLATED_ROOT="); ok {
 			f.root = value
