@@ -27,8 +27,16 @@ export function preparePageInk(plan,shapes,placement) {
   });
   const p=paths[0].projected[0],size=20;
   if(plan.width<size||plan.height<size)fail('badge does not fit');
-  const badge={x:Math.max(0,Math.min(plan.width-size,(p[0]-plan.region[0])*plan.scale)),y:Math.max(0,Math.min(plan.height-size,(p[1]-plan.region[1])*plan.scale-size-4)),w:size,h:size};
-  if(badges.some(b=>overlaps(b,badge)))fail('badge overlaps another index');
+  // Nine fixed nearby candidates, at most eight prior-badge comparisons each.
+  // Clamping near an edge can collapse candidates; never retry duplicates.
+  const x=(p[0]-plan.region[0])*plan.scale,y=(p[1]-plan.region[1])*plan.scale-size-4;
+  const gap=size+4,seen=new Set();let badge;
+  for(const [dx,dy] of [[0,0],[1,0],[-1,0],[0,1],[1,1],[-1,1],[0,-1],[1,-1],[-1,-1]]){
+   const candidate={x:Math.max(0,Math.min(plan.width-size,x+dx*gap)),y:Math.max(0,Math.min(plan.height-size,y+dy*gap)),w:size,h:size};
+   const key=`${candidate.x},${candidate.y}`;if(seen.has(key))continue;seen.add(key);
+   if(!badges.some(b=>overlaps(b,candidate))){badge=candidate;break;}
+  }
+  if(!badge)fail('badge has no unobstructed nearby position');
   badges.push(badge);return {...s,paths,badge};
  });
  return {shapes:result,clipped};

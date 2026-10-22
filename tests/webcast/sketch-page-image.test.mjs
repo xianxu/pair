@@ -27,6 +27,18 @@ test('badges are bounded, ordered and never silently omitted or packed without l
  const out=preparePageInk(plan,[shape(1)],place);const b=out.shapes[0].badge;
  assert.ok(b.x>=0&&b.y>=0&&b.x+b.w<=plan.width&&b.y+b.h<=plan.height);
  assert.throws(()=>preparePageInk({...plan,width:10},[shape()],place),/badge/);
- assert.throws(()=>preparePageInk(plan,[shape(1),shape(2)],place),/badge/);
+ assert.throws(()=>preparePageInk({...plan,width:20,height:20},[shape(1),shape(2)],place),/index 2.*badge/);
  assert.throws(()=>preparePageInk(plan,[shape(2)],place),/index/);
+});
+
+test('shared starting points choose deterministic nearby distinct readable badges',()=>{
+ const input=Array.from({length:8},(_,i)=>shape(i+1));
+ const badges=preparePageInk(plan,input,place).shapes.map(s=>s.badge);
+ assert.deepEqual(preparePageInk(plan,input,place).shapes.map(s=>s.badge),badges);
+ assert.equal(new Set(badges.map(b=>`${b.x},${b.y}`)).size,8);
+ for(let i=0;i<badges.length;i++){
+  const a=badges[i];assert.equal(a.w,20);assert.equal(a.h,20);
+  assert.ok(a.x>=0&&a.y>=0&&a.x+a.w<=plan.width&&a.y+a.h<=plan.height);
+  for(const b of badges.slice(0,i))assert.ok(a.x>=b.x+b.w||b.x>=a.x+a.w||a.y>=b.y+b.h||b.y>=a.y+a.h);
+ }
 });

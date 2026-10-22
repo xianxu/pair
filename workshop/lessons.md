@@ -2632,3 +2632,6 @@ and external temporary roots rather than relying on the host's TMPDIR.
 - #778 verification: Every new non-test Go helper must enter artifactpath's exhaustive source inventory, even when it owns no Pair session artifact. Run TestProductionArtifactReferencesAreExactlyClassified alongside reader inventory and lint before a full suite; classify the source through its ordinary inventory, never the known-violation quarantine.
 
 - #778 BR-1: after main integration or a compatibility fix, mark final verification pending in the active Plan checklist until the replacement exact-source suite completes. Keep older green receipts as history; review/suite overlap permits concurrent work, not a completed acceptance claim.
+
+- #753 shared preview: when a complete admission witness changes, sweep every producer, including opt-in native fixtures. Construct integration witnesses through the production selector; a manually populated item list can correctly fail closed yet hide that mismatch behind a long retry. Keep close-time native evidence pinned to committed source.
+- #753 shared page: legible bundle indices need bounded alternate positions for ordinary overlapping design shapes. Test several identical starts as well as exhausted viewport space; a single collision should not refuse otherwise projectable ink when a fixed nearby position is available.
