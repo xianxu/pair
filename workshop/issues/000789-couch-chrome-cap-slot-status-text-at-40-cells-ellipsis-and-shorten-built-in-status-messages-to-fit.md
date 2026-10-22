@@ -16,7 +16,7 @@ claimant:
     workspace: pair:4
     worktree: /Users/xianxu/workspace/worktree/pair-slot4/pair
     repository: github.com/xianxu/pair
-flow: {kind: quick, provenance: inferred, spec: "5b879924", done: "e2fe8944"}
+flow: {kind: full, provenance: inferred}
 ---
 
 # Couch chrome: cap status text at 40 cells and preserve full copying
@@ -45,6 +45,10 @@ TL receipt58326574-1d4c-4767-b222-cfb4d5adddce splits the original request. Buil
 
 ## Log
 
+
+
+- 2026-10-22: closed — TL58326574 cap/full-copy-only scope; producer/catalog removed and #802 filed unclaimed. BR5 screen-assertion family swept: both known cases red→green, bounded screen + unmodified feed + actual clipboard assertions retain security and exact-handle invariants. Whole couchtty package PASS41.445s, count1, no#788; targeted fixes PASS1.042s. Reader inventory/diff checks pass; no source wording or fixture deadline changed. Recorded final suite352190cb queued lease-823433472, not claimed passing; landing awaits pass. No stage approved.; review verdict: SHIP
+- 2026-10-22: flow upgraded quick → full — an earlier round of this close already ran the full review
 ### 2026-10-21
 
 ## Revisions

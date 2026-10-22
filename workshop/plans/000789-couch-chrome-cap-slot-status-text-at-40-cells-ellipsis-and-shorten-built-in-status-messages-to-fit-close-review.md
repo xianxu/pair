@@ -330,3 +330,98 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000411
+
+---
+
+## Re-review — 2026-10-22T07:58:29-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 789 — Couch chrome: cap status text at 40 cells and preserve full copying |
+| repo | pair |
+| issue file | workshop/issues/000789-couch-chrome-cap-slot-status-text-at-40-cells-ellipsis-and-shorten-built-in-status-messages-to-fit.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 5df9efb7d0df1a627f8d929895181fcf7b40ef73..63749b7beef096449a9701ee0f95121984ae9d06 |
+| command | sdlc close --issue 789 |
+| reviewer | codex (openai; author openai) |
+| isolation | fenced |
+| timestamp | 2026-10-22T07:58:29-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+The implementation meets the revised cap-and-copy contract. BR-5 is addressed: both corrected screen tests preserve their original invariants, independently assert clipped display text, and verify complete diagnostic recovery. The full couchtty package passes; no new findings.
+
+```findings
+dispose:
+  - id: BR-5
+    disposition: addressed
+    note: |
+      console_castcodes_test.go:94 and console_menu_operation_test.go:111 now assert explicit bounded display strings and complete retained/copied diagnostics, while preserving rotation-generation, code-secrecy, exact-handle and projection invariants. Restoring each baseline test through temporary overlays reproduces its original failure. The complete couchtty package passes in 47.879s.
+```
+
+1. **Strengths**
+
+   - Both renderers share `ChromeStatusText` through `reserve.go:365/:378`.
+   - Sanitization precedes display-width clipping; source diagnostics remain complete.
+   - Copy selection preserves held-payload and selected-error precedence.
+   - README and atlas accurately describe the changed behavior.
+
+2. **Critical findings**
+
+   None.
+
+3. **Important findings**
+
+   None.
+
+4. **Minor findings**
+
+   None.
+
+5. **Test coverage notes**
+
+   - Full package: `go test ./cmd/internal/couchtty -count=1 -timeout=3m` passed.
+   - Removing the renderer cap makes ASCII, wide-rune and combining regressions fail.
+   - Removing capability-copy selection makes its regression copy the unrelated notice and fail.
+   - Restoring either prior screen assertion reproduces BR-5.
+   - Affected-reader inventory, artifact source-classification checks and diff whitespace checks passed.
+   - Temporary overlays were removed; checkout remains unchanged. Repository-wide tests were not run.
+
+6. **Architectural notes**
+
+   - **ARCH-DRY — pass:** one shared projection reuses existing text helpers.
+   - **ARCH-PURE — pass:** projection is deterministic and tested without IO.
+   - **ARCH-PURPOSE — pass:** revised display/copy scope is delivered; the whole affected UI package passes.
+   - **ARCH-MOCK — pass:** browser and clipboard tests use controlled existing seams.
+   - **ARCH-CONSTRAINTS — pass:** output is bounded; input processing remains linear.
+   - **ARCH-SECURE — pass:** terminal sanitization remains before rendering; clipboard fixtures isolate host state.
+   - **ARCH-ORDER — pass:** existing copy precedence and retry ownership remain intact.
+   - **ARCH-FUNERAL — pass:** no new durable runtime artifacts or background lifetimes.
+   - **ARCH-EVOLVE — pass:** no persisted-format changes.
+
+   No Core concepts table is present.
+
+7. **Plan revision recommendations**
+
+   None. The existing BR-5 revision states the display-versus-full-payload assertion rule and requires whole-package verification.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"7f572df3-d6af-4fda-ad58-3bfd78c51acd","repository":"github.com/xianxu/pair","issue_id":"000789","recipe":"milestone-review","round":4,"attempt":1,"agent":"codex","root":"/Volumes/TestScratch/review-checkouts/a83280c29f7923e1","reviewed_head":"63749b7beef096449a9701ee0f95121984ae9d06","slot":"pair:4","requested_at":"2026-10-22T14:56:26.256274Z"},"phase":"finished","pid":87980,"started_at":"2026-10-22T14:56:26.457927Z","finished_at":"2026-10-22T14:58:28.199751Z","session_id":"01a1641d-0917-7df2-8377-ded7f6b00bce","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 3.089591459s
+head: "63749b7beef096449a9701ee0f95121984ae9d06"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412
