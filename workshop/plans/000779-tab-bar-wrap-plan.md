@@ -134,7 +134,7 @@ ARCH-DRY/PURE: one planner and one trusted geometry owner; existing styling and 
 - [x] Propagate trusted chrome geometry through broadcast privacy, marks/notes and additive viewer frames; run Go/JS tests and actual-server conformance, then commit.
 - [x] Integrate Console publication, child/menu sizing, row-aware local/remote input and anchors; run fake-host and native lifecycle tests, then commit.
 - [x] Update atlas/couch.md, atlas/terminal.md/broadcast map as needed and index links; audit artifact/source-reader classifications for new files, run inventory and focused race/repolint checks.
-- [ ] Stage the concrete built head for the operator via hub, record the live result; checkpoint/push and run recorded affected (or suite fallback), close once through SDLC, then merge through its retained runner and report landing.
+- [x] Stage the concrete built head for the operator via hub and record acceptance; checkpoint/push, run the recorded branch check and close through SDLC. Landing proceeds next through the retained merge runner and its authoritative integrated suite.
 
 Targeted commands: go test ./cmd/internal/couchtty -run 'Test.*Status|Test.*Wrap|Test.*Chrome|Test.*Anchor' -count=1; go test ./cmd/internal/terminal ./cmd/internal/broadcast -count=1; scoped race runs for changed Console/Presenter/guard cases; existing Node viewer tests and make test-affected-inventory. Native test names are added beside the exact scenario, not a second full-suite loop. All source-reading tests receive per-reader audit/certificates after git add. Final recorded checks and CI remain mandatory.
 
@@ -151,6 +151,8 @@ Targeted commands: go test ./cmd/internal/couchtty -run 'Test.*Status|Test.*Wrap
 - 2026-10-21: Made the approved operator qualification concrete below while the recorded suite waits. These steps exercise existing approved behavior; no implementation or release-order change. TL still owns the stage slot and acceptance.
 
 - 2026-10-21 TL22868012: integrate current main before operator staging so the live supervisor retains accepted #752/#757/#776 features. Targeted Console checks precede replacement stage; the landing merge runs the authoritative integrated full suite. The initial0b0fa2db stage is superseded, with no operator acceptance claimed.
+
+- 2026-10-21 TL a97d61e8 relays operator acceptance ("works well") for stagedcc3a4df3225d38d56d7796e4f3e556bd4e01062c. Implementation/live qualification checklist is complete; the final row now distinguishes that completed boundary from the next controlled landing action. #789 owns the status-text cap follow-up; no further layout scope is added here.
 
 ## Operator look after stage clearance
 

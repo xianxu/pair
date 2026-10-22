@@ -87,6 +87,10 @@ Integrated wrap/status/chrome/anchor/resize/native Console targets PASS2.348s. B
 
 The earlier recorded11m20 suite covers the pre-integration runtime, not this new integrated tree. Per TL instruction, the landing merge owns the required integrated full suite. Push and replace the operator stage next; same three-step look.
 
+### 2026-10-21 — operator accepted
+
+TL a97d61e8 relays operator acceptance of stagedcc3a4df3225d38d56d7796e4f3e556bd4e01062c: "works well". Replacement stage includes main d2540fd6a, with all four built binaries reporting the staged revision and vcs.modified=false. Operator live qualification is complete; proceed through sdlc merge and its integrated suite. Follow-up status-text40-cell cap and shorter built-in messages are separately filed as #789, to take only after this landing. After landing clear the stage and verify pair:0 against freshly fetched origin/main (ariadne#537 freshness check), then report to hub.
+
 ## Revisions
 
 - 2026-10-21: TL c5c04f63 approves full-flow shared trusted chrome height, row1 attention badge, final-row notices and clipped-but-clickable active at absurd widths. Attention must be prioritized over ordinary chips; overflow explicitly marks hidden attention (+N !). Durable plan records the full consumer sweep and awaits TL approval.
