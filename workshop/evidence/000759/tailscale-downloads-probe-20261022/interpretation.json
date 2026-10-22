@@ -1,0 +1,14 @@
+{
+  "result": "failed-native-gate",
+  "observed_proxied_requests": 0,
+  "expected_response": "Pair private probe received. OK",
+  "operator_observed": "blank page",
+  "cause": "IPNExtension connect operation not permitted at exact Downloads Unix socket",
+  "termination": "Early SIGINT of identity-verified owned probe after repeated confirmed denial, top-level exit130; finally joined foreground child exit0. Raw result not-run is a fixture cancellation label, not the measured classification.",
+  "cleanup": {
+    "foreground_joined": true,
+    "serve_baseline_restored": true,
+    "socket_absent": true,
+    "downloads_directory_absent": true
+  }
+}

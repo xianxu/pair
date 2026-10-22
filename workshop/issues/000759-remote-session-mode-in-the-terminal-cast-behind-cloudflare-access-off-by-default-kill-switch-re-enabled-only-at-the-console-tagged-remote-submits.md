@@ -648,3 +648,51 @@ TL bb09d562 approved exactly one0700/0600 Downloads probe, armed only until the
 operator explicitly says ready, then a600s window. Even success requires operator
 review of a user-visible Downloads product socket and entitlement-update risk
 versus the root-daemon option. No product design acceptance is inferred.
+
+
+### 2026-10-22 — Downloads probe failed; exact cleanup complete
+
+Authenticated operator-ready57e75d63 opened the single approved probe at12:55:53
+PDT, maximum600s. URL readiness receipt a06c0eb7 was submitted. Physical0700
+Downloads directory and0600 socket were created only for this attempt; empty
+Serve baseline confirmed, one foregroundHTTPS epoch, noFunnel/TCP fallback.
+Operator reported blank iPhone page through TL3dab8619. Expected successful
+response was visible text Pair private probe received. OK. Zero proxied requests
+reached the socket, hence no proxy kernel identity or login/IP evidence. Native
+IPNExtension log at12:56:49/57/58 and12:57:25/28/29 explicitly denied connect
+to the exact Downloads Unix socket: operation not permitted. The direct local
+control still captured its own kernel PID/UID. Downloads entitlement therefore
+did not admit the tested private socket; native gate failed, no product code.
+
+Stopped the exact owned probe early after matching its PID/start/argv, with
+SIGINT. Its finally joined foregroundServe exit0, reader joined, socket and
+Downloads directory absent, original Serve configuration{} restored at12:58:04.
+Top-level probe exit130 and raw result not-run reflect KeyboardInterrupt, not
+an inconclusive socket outcome: repeated daemon denial is the measured failure.
+Retained source/events/output/error and explicit interpretation under
+workshop/evidence/000759/tailscale-downloads-probe-20261022/. No live cleanup
+outside owned paths, no daemon restart/reset, no further location experiments.
+TL f361e073 requested a read-only tsnet/root-daemon/authenticated-loopback
+comparison before an operator transport decision. Implementation remains held.
+
+
+### 2026-10-22 — transport options requested, decision pending
+
+TL f361e073 requested tsnet versus root tailscaled versus authenticated loopback
+before choosing. Recommendation sent as receipt08f12732: tsnet, subject to
+operator choice, a revised security/dependency plan and explicit node enrollment
+authorization. No code, dependency addition, auth key or node creation.
+
+| Option | Security boundary | Operator and alpha setup | Maintenance |
+| --- | --- | --- | --- |
+| tsnet | Couch owns a userspace tailnet node; HTTPS tailnet listener and its own LocalClient.WhoIs identify the accepted connection, not forwarded headers. Keep exact login allowlist; missing/tagged user identity denies. Persistent node keys and same-UID/root remain local trust limits. No Funnel or exposed LocalAPI. | One Couch node enrollment via browser login, possible device approval, HTTPS enabled, explicit0700 state and protected key files. Phone Tailscale login remains. Existing desktop app can coexist; no VPN replacement. Display actual assigned hostname, including collision handling. | Pair takes userspace network stack and transitive dependencies, pinned API/toolchain, security updates, lifecycle/state/expiry/revocation and measured build-size/startup/RSS costs. None of these costs have been measured yet. |
+| Open-source tailscaled | HTTPS Serve plus private Unix/kernel-peer boundary, still requiring a fresh native qualification. Unsandboxed root service expands host privilege. | Deliberate operator-managed install, login, existing-app transition/coexistence policy, service and upgrades; repeated by each alpha tester. | Avoids embedding the stack in Pair but adds privileged service administration and supported CLI/daemon version/mapping ownership. |
+| Loopback with independent authentication | Local processes can connect and forge identity headers. Requires independent cryptographic user authentication; a port or shortPIN cannot attest Tailscale identity. Verified tailnet IP would need an additional authenticated binding, not header trust. | Another credential/enrollment or identity-provider configuration for operator and alpha. Current app can remain. | Pair owns authentication/recovery/replay/CSRF/session controls plus proxy hardening. Potentially smaller dependencies, larger authentication design. |
+
+Primary references: https://pkg.go.dev/tailscale.com@v1.104.1/tsnet and
+https://tailscale.com/docs/reference/tsnet-server-api document per-process node,
+TLS tailnet listener and native WhoIs; https://tailscale.com/docs/concepts/macos-variants
+documents daemon packaging/privilege trade-offs. Recommendation is an engineering
+judgment, not live tsnet evidence. Existing transport-independent controls stay.
+No fallback is authorized by this comparison. The tested GUI Unix path remains
+blocked; any alternative needs an explicit revised plan before product code.
