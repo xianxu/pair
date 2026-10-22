@@ -43,6 +43,10 @@ type elementFactSource struct {
 	nodes     map[recording.NodeID]factNode
 	inspected int
 	truncated bool
+	// Attribute inspection is linear in input attributes. Retention is at most
+	// 20,000 node headers and 16 data-* string pairs plus one ID per node; string
+	// values are immutable and shared, while every retained map is privately owned.
+	attributes, declarations int
 }
 
 // DeclaredElementFactsAt owns its bounded values. Call at the evidence's source
@@ -55,7 +59,6 @@ func captureElementFacts(st *recording.State) elementFactSource {
 	if st == nil || st.Top == nil {
 		return out
 	}
-	bytes := 0
 	stack := []*recording.DOMNode{st.Top}
 	for len(stack) > 0 {
 		if out.inspected >= ElementFactsNodeLimit {
@@ -85,32 +88,51 @@ func captureElementFacts(st *recording.State) elementFactSource {
 		if p := n.ParentElement(); p != nil {
 			f.Parent = p.ID
 		}
-		keys := make([]string, 0, len(n.A))
-		for k := range n.A {
-			if k == "id" || strings.HasPrefix(k, "data-") {
-				keys = append(keys, k)
+		if id, ok := n.A["id"]; ok {
+			if len(id) <= 1024 {
+				f.ID = id
+				out.declarations++
+			} else {
+				f.Truncated = true
 			}
 		}
-		slices.Sort(keys)
-		attrs := 0
-		for _, k := range keys {
-			value := n.A[k]
-			if len(k) > 256 || len(value) > 1024 || bytes+len(k)+len(value) > ElementFactsByteLimit || k != "id" && attrs >= 16 {
+		// Keep only the lexicographically first 16 valid data attributes.
+		// A bounded insertion array avoids an input-sized key allocation/sort,
+		// and is deterministic despite Go map iteration order.
+		type attribute struct{ name, value string }
+		attrs := make([]attribute, 0, min(16, len(n.A)))
+		for name, value := range n.A {
+			out.attributes++
+			if !strings.HasPrefix(name, "data-") {
+				continue
+			}
+			if len(name) > 256 || len(value) > 1024 {
 				f.Truncated = true
 				continue
 			}
-			bytes += len(k) + len(value)
-			if k == "id" {
-				f.ID = value
-			} else {
-				if f.Data == nil {
-					f.Data = map[string]string{}
-				}
-				f.Data[k] = value
-				attrs++
+			pos := 0
+			for pos < len(attrs) && attrs[pos].name < name {
+				pos++
 			}
+			if len(attrs) == 16 {
+				f.Truncated = true
+				if pos == 16 {
+					continue
+				}
+				attrs = attrs[:15]
+			}
+			attrs = append(attrs, attribute{})
+			copy(attrs[pos+1:], attrs[pos:])
+			attrs[pos] = attribute{name, value}
 		}
-		out.truncated = out.truncated || f.Truncated
+		if len(attrs) > 0 {
+			f.Data = make(map[string]string, len(attrs))
+			for _, a := range attrs {
+				f.Data[a.name] = a.value
+			}
+			out.declarations += len(attrs)
+		}
+
 		v := factNode{fact: f}
 		if box, ok := st.Boxes[n.ID]; ok {
 			b := box
@@ -129,7 +151,40 @@ func factBytes(f ElementFact) int {
 }
 func (s elementFactSource) facts(anchors []recording.NodeID, ink *recording.Box) DeclaredElementFacts {
 	out := DeclaredElementFacts{Anchors: []ElementFact{}, Ancestors: []ElementFact{}, Intersections: []ElementFact{}, Truncated: s.truncated, InspectedNodes: s.inspected}
+	// Node zero is the absence of an anchor (region-only notes), never
+	// historical identity. Legal sketches contain at most 64 distinct anchors.
+	unique := make([]recording.NodeID, 0, min(len(anchors), ElementFactsCountLimit))
+	anchorSeen := map[recording.NodeID]bool{}
+	for _, id := range anchors {
+		if id <= 0 || anchorSeen[id] {
+			continue
+		}
+		anchorSeen[id] = true
+		if len(unique) == ElementFactsCountLimit {
+			out.Truncated = true
+			continue
+		}
+		unique = append(unique, id)
+	}
+	anchors = unique
+	missing := func(id recording.NodeID) ElementFact {
+		return ElementFact{Node: id, Unavailable: "element absent or outside source inspection bound"}
+	}
+	fallback := func(id recording.NodeID) ElementFact {
+		return ElementFact{Node: id, Unavailable: "declared facts byte limit", Truncated: true}
+	}
+	minimum := func(id recording.NodeID) int {
+		if _, ok := s.nodes[id]; !ok {
+			return factBytes(missing(id))
+		}
+		return factBytes(fallback(id))
+	}
+	reserved := 0
+	for _, id := range anchors {
+		reserved += minimum(id)
+	}
 	seen := map[recording.NodeID]bool{}
+	retained := 0
 	take := func(id recording.NodeID, mandatory bool) (ElementFact, bool) {
 		if seen[id] {
 			return ElementFact{}, false
@@ -138,29 +193,33 @@ func (s elementFactSource) facts(anchors []recording.NodeID, ink *recording.Box)
 		v, ok := s.nodes[id]
 		f := v.fact
 		if !ok {
-			f = ElementFact{Node: id, Unavailable: "element absent or outside source inspection bound"}
+			f = missing(id)
 		}
-		if !mandatory && len(seen) > ElementFactsCountLimit {
+		if !mandatory && retained >= ElementFactsCountLimit {
 			out.Truncated = true
 			return ElementFact{}, false
 		}
 		size := factBytes(f)
-		if out.Bytes+size > ElementFactsByteLimit {
+		if out.Bytes+size+reserved > ElementFactsByteLimit {
 			out.Truncated = true
 			if !mandatory {
 				return ElementFact{}, false
 			}
-			f = ElementFact{Node: id, Unavailable: "declared facts byte limit"}
+			f = fallback(id)
 			size = factBytes(f)
 		}
+		out.Truncated = out.Truncated || f.Truncated
 		out.Bytes += size
+		retained++
 		return f, true
 	}
 	for _, id := range anchors {
+		reserved -= minimum(id)
 		if f, ok := take(id, true); ok {
 			out.Anchors = append(out.Anchors, f)
 		}
 	}
+
 	for _, id := range anchors {
 		parent := s.nodes[id].fact.Parent
 		for depth := 0; parent != 0; depth++ {

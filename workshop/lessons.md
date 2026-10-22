@@ -2604,3 +2604,10 @@ and external temporary roots rather than relying on the host's TMPDIR.
 - #771 review: Check the branch patch for whitespace after generated prose is recorded; review transcripts can introduce blank-line spaces. Trim prose-only whitespace before publishing, while preserving byte-exact terminal recordings and upstream evidence.
 
 - #753 plan-quality: A visible acknowledgment gate needs one pure transition authority and an atomic freeze API, not merely promises about stale callbacks. Name production functions and their adversarial/mechanical test strategies; keep case enumeration in executable tests.
+
+- #753 BR-1: cancellation must settle an owned asynchronous operation through its state machine before processing identical-input wakes. Cover preloaded, duplicate and catchup notifications, joined teardown, and success returned after the original deadline.
+- #753 BR-2/3: spend an evidence budget in promised output-priority order, never during traversal of unselected inputs. Preserve mandatory handles before optional attributes, and exercise valid absent-anchor/region-only inputs when adding stricter evidence.
+- #753 BR-4: Go JSON decoding can accept null as a scalar zero. Preserving codecs must validate known scalar and tuple-member types explicitly while distinguishing intentionally nullable containers/pointers; unknown extensions remain raw JSON.
+- #753 BR-5/6: reconcile the final symbol/path and PURE/INTEGRATION inventory against actual source. Pin native conformance to committed source and retain raw output/hash; a restricted review environment's refusal needs supported-environment evidence, not a passing assertion or a timeout bump.
+
+- #753 ACK recovery: a successful idempotent durability confirmation must invalidate derived delivery caches even if the disposition was already visible. A failed acknowledgment may publish bytes before confirmation; compare against observed confirmation, not only the prior enum.

@@ -222,5 +222,9 @@ func noteElementFacts(st *recording.State, n *recording.Note) DeclaredElementFac
 	if region == nil {
 		region = n.At.Box
 	}
-	return DeclaredElementFactsAt(st, []recording.NodeID{n.At.Node}, region)
+	var anchors []recording.NodeID
+	if n.At.Node > 0 {
+		anchors = []recording.NodeID{n.At.Node}
+	}
+	return DeclaredElementFactsAt(st, anchors, region)
 }

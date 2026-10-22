@@ -5,6 +5,7 @@ import (
 	"errors"
 	"sync"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	core "github.com/xianxu/pair/cmd/internal/submission"
@@ -210,4 +211,287 @@ func TestSubmissionPreviewFreezesEightOldestAndRemaining(t *testing.T) {
 func watchSubmissionPreview(m *submissionManager, ctx context.Context, cast submissionPreviewCast) {
 	ctx, cancel := context.WithCancel(ctx)
 	m.runSubmissionPreview(ctx, m.newSubmissionPreviewRun(cast, cancel))
+}
+
+// A canceled publisher deliberately returns a late successful ACK only after
+// Release. The production manager must join it and retire its model operation
+// before starting another projection; scheduler timing cannot decide the test.
+type controlledPreviewPublication struct {
+	publication core.PreviewPublication
+	canceled    chan struct{}
+	release     chan struct{}
+}
+type controlledSubmissionPreview struct {
+	*submissionPreviewFake
+	calls chan *controlledPreviewPublication
+}
+
+func (f *controlledSubmissionPreview) PublishSubmissionPreview(ctx context.Context, p core.PreviewPublication) error {
+	call := &controlledPreviewPublication{publication: p, canceled: make(chan struct{}), release: make(chan struct{})}
+	f.calls <- call
+	select {
+	case <-ctx.Done():
+		close(call.canceled)
+		<-call.release
+	case <-call.release:
+	}
+	return nil
+}
+func controlledPreviewCall(t *testing.T, f *controlledSubmissionPreview) *controlledPreviewPublication {
+	t.Helper()
+	select {
+	case call := <-f.calls:
+		return call
+	default:
+		t.Fatal("no replacement publication; canceled operation remained Publishing")
+		return nil
+	}
+}
+func TestSubmissionPreviewSettlesCanceledOperationBeforeUnchangedRefresh(t *testing.T) {
+	for _, cause := range []string{"initial-host-wake", "duplicate-host", "receiver-catchup", "unchanged-candidates", "explicit-refresh"} {
+		t.Run(cause, func(t *testing.T) {
+			synctest.Test(t, func(t *testing.T) {
+				m, base, _ := newSubmissionManagerTest(t)
+				f := &controlledSubmissionPreview{submissionPreviewFake: newSubmissionPreviewFake(base), calls: make(chan *controlledPreviewPublication, 4)}
+				ctx, cancel := context.WithCancel(m.ctx)
+				defer cancel()
+				if cause == "initial-host-wake" {
+					f.updates <- struct{}{}
+				}
+				done := make(chan struct{})
+				go func() { defer close(done); watchSubmissionPreview(m, ctx, f) }()
+				synctest.Wait()
+				first := controlledPreviewCall(t, f)
+				if cause != "initial-host-wake" {
+					switch cause {
+					case "duplicate-host", "receiver-catchup":
+						f.updates <- struct{}{}
+					case "unchanged-candidates":
+						f.candidates <- struct{}{}
+					case "explicit-refresh":
+						m.mu.Lock()
+						m.previewRun.wake <- struct{}{}
+						m.mu.Unlock()
+					}
+					synctest.Wait()
+				}
+				select {
+				case <-first.canceled:
+				default:
+					t.Fatal("refresh did not cancel its publication")
+				}
+				if len(f.calls) != 0 {
+					t.Fatal("replacement started before canceled IO joined")
+				}
+				close(first.release) // Return a late successful ACK from canceled IO.
+				synctest.Wait()
+				second := controlledPreviewCall(t, f)
+				if second.publication.Operation() <= first.publication.Operation() || second.publication.Host() != first.publication.Host() || second.publication.Stamp() != first.publication.Stamp() {
+					t.Fatal("unchanged refresh reused identity or changed candidates")
+				}
+				m.mu.Lock()
+				phase := m.previewState.Phase()
+				selected, _ := f.SubmissionSelection()
+				_, freezeErr := m.freezeSubmissionPreview(f, selected)
+				m.mu.Unlock()
+				if phase != core.PreviewPublishing || freezeErr == nil {
+					t.Fatal("late canceled ACK enabled preparation")
+				}
+				// freeze refusal requests an explicit refresh. Consume it through the same
+				// cancellation path and acknowledge only the final exact operation.
+				synctest.Wait()
+				select {
+				case <-second.canceled:
+				default:
+					t.Fatal("refused prepare did not request refresh")
+				}
+				close(second.release)
+				synctest.Wait()
+				final := controlledPreviewCall(t, f)
+				close(final.release)
+				synctest.Wait()
+				m.mu.Lock()
+				phase = m.previewState.Phase()
+				m.mu.Unlock()
+				if phase != core.PreviewShown {
+					t.Fatalf("exact replacement ACK not Shown: %v", phase)
+				}
+				f.updates <- struct{}{}
+				f.candidates <- struct{}{}
+				synctest.Wait()
+				m.mu.Lock()
+				phase = m.previewState.Phase()
+				m.mu.Unlock()
+				if phase != core.PreviewShown || len(f.calls) != 0 {
+					t.Fatal("unchanged notification republished after Shown")
+				}
+				cancel()
+				synctest.Wait()
+				<-done
+			})
+		})
+	}
+}
+func TestSubmissionPreviewTerminalCancellationJoinsBeforeDispose(t *testing.T) {
+	for _, cause := range []string{"context", "hosts-closed", "candidates-closed"} {
+		t.Run(cause, func(t *testing.T) {
+			synctest.Test(t, func(t *testing.T) {
+				m, base, _ := newSubmissionManagerTest(t)
+				f := &controlledSubmissionPreview{submissionPreviewFake: newSubmissionPreviewFake(base), calls: make(chan *controlledPreviewPublication, 2)}
+				ctx, cancel := context.WithCancel(m.ctx)
+				defer cancel()
+				done := make(chan struct{})
+				go func() { defer close(done); watchSubmissionPreview(m, ctx, f) }()
+				synctest.Wait()
+				call := controlledPreviewCall(t, f)
+				switch cause {
+				case "context":
+					cancel()
+				case "hosts-closed":
+					close(f.updates)
+				case "candidates-closed":
+					close(f.candidates)
+				}
+				synctest.Wait()
+				select {
+				case <-call.canceled:
+				default:
+					t.Fatal("terminal event did not cancel IO")
+				}
+				select {
+				case <-done:
+					t.Fatal("worker returned before publication joined")
+				default:
+				}
+				close(call.release)
+				synctest.Wait()
+				<-done
+				m.mu.Lock()
+				phase := m.previewState.Phase()
+				run := m.previewRun
+				m.mu.Unlock()
+				if phase != core.PreviewStopped || run != nil || len(f.calls) != 0 {
+					t.Fatal("late successful ACK revived disposed worker")
+				}
+			})
+		})
+	}
+}
+
+func TestSubmissionPreviewExpiredPublicationCannotBecomeShown(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		m, base, _ := newSubmissionManagerTest(t)
+		f := &controlledSubmissionPreview{submissionPreviewFake: newSubmissionPreviewFake(base), calls: make(chan *controlledPreviewPublication, 2)}
+		ctx, cancel := context.WithCancel(m.ctx)
+		defer cancel()
+		done := make(chan struct{})
+		go func() { defer close(done); watchSubmissionPreview(m, ctx, f) }()
+		synctest.Wait()
+		expired := controlledPreviewCall(t, f)
+		time.Sleep(5 * time.Second) // Advance the unchanged production deadline in fake time.
+		synctest.Wait()
+		select {
+		case <-expired.canceled:
+		default:
+			t.Fatal("publication did not reach its deadline")
+		}
+		close(expired.release) // The transport replies success after its deadline.
+		synctest.Wait()
+		m.mu.Lock()
+		phase := m.previewState.Phase()
+		m.mu.Unlock()
+		if phase != core.PreviewDirty || len(f.calls) != 0 {
+			t.Fatalf("expired ACK became authoritative or retried without a trigger: %v", phase)
+		}
+		f.updates <- struct{}{}
+		synctest.Wait()
+		replacement := controlledPreviewCall(t, f)
+		close(replacement.release)
+		synctest.Wait()
+		m.mu.Lock()
+		phase = m.previewState.Phase()
+		m.mu.Unlock()
+		if phase != core.PreviewShown {
+			t.Fatal("explicit refresh did not recover expired publication")
+		}
+		cancel()
+		synctest.Wait()
+		<-done
+	})
+}
+
+func TestSubmissionPreviewLifetimeRetirementJoinsBeforeReplacement(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		m, base, _ := newSubmissionManagerTest(t)
+		f := &controlledSubmissionPreview{submissionPreviewFake: newSubmissionPreviewFake(base), calls: make(chan *controlledPreviewPublication, 2)}
+		ctx, cancel := context.WithCancel(m.ctx)
+		defer cancel()
+		done := make(chan struct{})
+		go func() { defer close(done); watchSubmissionPreview(m, ctx, f) }()
+		synctest.Wait()
+		first := controlledPreviewCall(t, f)
+		f.muPreview.Lock()
+		oldLife := f.life
+		f.life = make(chan struct{})
+		f.host.Generation++
+		newHost := f.host
+		f.muPreview.Unlock()
+		close(oldLife)
+		synctest.Wait()
+		select {
+		case <-first.canceled:
+		default:
+			t.Fatal("retired host did not cancel publication")
+		}
+		if len(f.calls) != 0 {
+			t.Fatal("replacement host published before old IO joined")
+		}
+		close(first.release)
+		synctest.Wait()
+		replacement := controlledPreviewCall(t, f)
+		if replacement.publication.Host() != newHost || replacement.publication.Operation() <= first.publication.Operation() {
+			t.Fatal("replacement reused retired host/operation")
+		}
+		close(replacement.release)
+		synctest.Wait()
+		m.mu.Lock()
+		phase := m.previewState.Phase()
+		m.mu.Unlock()
+		if phase != core.PreviewShown {
+			t.Fatal("new host ACK not Shown")
+		}
+		cancel()
+		synctest.Wait()
+		<-done
+	})
+}
+
+func TestSubmissionRetryOfVisibleAckInvalidatesDeliveredPreview(t *testing.T) {
+	m, _, target := newSubmissionManagerTest(t)
+	m.spawn = func(fn func()) { fn() }
+	if _, err := m.request(context.Background(), "prepare", "visible-ack", target); err != nil {
+		t.Fatal(err)
+	}
+	submissionWait(t, m, "visible-ack", target, "prepared")
+	if _, err := m.request(context.Background(), "begin", "visible-ack", target); err != nil {
+		t.Fatal(err)
+	}
+	// Model the visible on-disk disposition after a previous ACK whose directory
+	// durability confirmation was lost. The manager never observed a successful
+	// transition, so its delivered-version cache still has the old clock.
+	if _, err := m.store.Transition("visible-ack", target, core.Ack); err != nil {
+		t.Fatal(err)
+	}
+	wake := make(chan struct{}, 1)
+	m.mu.Lock()
+	m.previewRun = &submissionPreviewRun{wake: wake}
+	m.mu.Unlock()
+	if _, err := m.request(context.Background(), "ack", "visible-ack", target); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case <-wake:
+	default:
+		t.Fatal("confirmed retry retained stale delivered-version preview")
+	}
 }

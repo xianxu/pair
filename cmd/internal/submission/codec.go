@@ -13,28 +13,54 @@ import (
 type manifestDocument struct{ raw []byte }
 type manifestWire Submission
 
-// manifestSchema lists owned object fields, not an alternate value decoder.
-// The ordinary typed decoder remains responsible for known value types. A nil
-// child denotes an opaque scalar/map/tuple, whose contents have no struct fields.
+// manifestSchema declares the wire shapes of owned fields. The typed Go
+// decoder still owns numeric range/semantic validation; this preflight rejects
+// null and wrong-shaped values before json.Unmarshal can invent zero values.
+// Unknown extensions remain raw JSON, outside this schema and its authority.
 type manifestSchema struct {
-	fields      map[string]*manifestSchema
-	element     *manifestSchema
-	tupleLength int
-	nullable    bool
+	fields            map[string]*manifestSchema
+	element           *manifestSchema
+	tupleLength       int
+	scalar            byte // s:string, b:boolean, i:integer, n:number
+	nullable          bool
+	dictionary        bool
+	stringAlternative bool // PolicyEvidence's intentional string/object/null union
 }
 
-func objectSchema(fields string, children map[string]*manifestSchema) *manifestSchema {
+func scalarSchema(kind byte) *manifestSchema { return &manifestSchema{scalar: kind} }
+func objectSchema(stringsOnly string, children map[string]*manifestSchema) *manifestSchema {
 	s := &manifestSchema{fields: map[string]*manifestSchema{}}
-	for _, name := range strings.Fields(fields) {
-		s.fields[name] = nil
+	for _, name := range strings.Fields(stringsOnly) {
+		s.fields[name] = scalarSchema('s')
 	}
 	for name, child := range children {
 		s.fields[name] = child
 	}
 	return s
 }
-func arraySchema(element *manifestSchema) *manifestSchema { return &manifestSchema{element: element} }
-
+func typedObject(text, integers, unsigned, numbers, booleans string, children map[string]*manifestSchema) *manifestSchema {
+	s := objectSchema(text, children)
+	for _, group := range []struct {
+		names string
+		kind  byte
+	}{{integers, 'i'}, {unsigned, 'i'}, {numbers, 'n'}, {booleans, 'b'}} {
+		for _, name := range strings.Fields(group.names) {
+			s.fields[name] = scalarSchema(group.kind)
+		}
+	}
+	return s
+}
+func nullableSchema(s *manifestSchema) *manifestSchema {
+	copy := *s
+	copy.nullable = true
+	return &copy
+}
+func arraySchema(element *manifestSchema) *manifestSchema {
+	return &manifestSchema{element: element, nullable: true}
+}
+func stringMapSchema() *manifestSchema {
+	return &manifestSchema{element: scalarSchema('s'), dictionary: true, nullable: true}
+}
 func tupleSchema(length int, nullable bool) *manifestSchema {
 	return &manifestSchema{tupleLength: length, nullable: nullable}
 }
@@ -42,24 +68,25 @@ func tupleSchema(length int, nullable bool) *manifestSchema {
 var submissionSchema = makeSubmissionSchema()
 
 func makeSubmissionSchema() *manifestSchema {
-	privacy := objectSchema("origin privacy", nil)
+	privacy := nullableSchema(objectSchema("origin privacy", nil))
+	privacy.stringAlternative = true
 	author := objectSchema("id name color", nil)
-	page := objectSchema("url title provenance", nil)
-	viewport := objectSchema("w h dpr", nil)
-	anchor := objectSchema("tag classes stable route node kind path sel text", map[string]*manifestSchema{"box": tupleSchema(4, true)})
-	fact := objectSchema("node parent tag id data unavailable truncated", nil)
-	facts := objectSchema("truncated missing_layout inspected_nodes bytes", map[string]*manifestSchema{"anchors": arraySchema(fact), "ancestors": arraySchema(fact), "intersections": arraySchema(fact)})
-	path := objectSchema("id width truncated", map[string]*manifestSchema{"at": anchor, "pts": arraySchema(tupleSchema(3, false))})
-	plan := objectSchema("sketch region scale width height clipped", map[string]*manifestSchema{"paths": arraySchema(path), "region": tupleSchema(4, false)})
-	image := objectSchema("file provenance limitations", map[string]*manifestSchema{"plan": plan})
-	sketchSource := objectSchema("t record_index doc tab url title scroll provenance", map[string]*manifestSchema{"vp": viewport, "scroll": tupleSchema(2, false)})
-	sketch := objectSchema("id recording_id next_sequence digest note history_t history_record_index phase reason privacy privacy_origin", map[string]*manifestSchema{"privacy_rule": privacy, "author": author, "source": sketchSource, "elements": facts, "image": image})
+	page := nullableSchema(objectSchema("url title provenance", nil))
+	viewport := typedObject("", "w h", "", "dpr", "", nil)
+	anchor := typedObject("tag route kind sel text", "node", "", "", "", map[string]*manifestSchema{"box": tupleSchema(4, true), "classes": arraySchema(scalarSchema('s')), "path": arraySchema(scalarSchema('s')), "stable": stringMapSchema()})
+	fact := typedObject("tag id unavailable", "node parent", "", "", "truncated", map[string]*manifestSchema{"data": stringMapSchema()})
+	facts := typedObject("", "inspected_nodes bytes", "", "", "truncated missing_layout", map[string]*manifestSchema{"anchors": arraySchema(fact), "ancestors": arraySchema(fact), "intersections": arraySchema(fact)})
+	path := typedObject("id", "", "", "width", "truncated", map[string]*manifestSchema{"at": anchor, "pts": arraySchema(tupleSchema(3, false))})
+	plan := typedObject("sketch", "width height", "", "scale", "clipped", map[string]*manifestSchema{"paths": arraySchema(path), "region": tupleSchema(4, false)})
+	image := objectSchema("file provenance", map[string]*manifestSchema{"limitations": arraySchema(scalarSchema('s')), "plan": plan})
+	sketchSource := typedObject("tab url title provenance", "t record_index doc", "", "", "", map[string]*manifestSchema{"vp": viewport, "scroll": tupleSchema(2, false)})
+	sketch := typedObject("id recording_id digest note phase reason privacy privacy_origin", "history_t history_record_index", "next_sequence", "", "", map[string]*manifestSchema{"privacy_rule": privacy, "author": author, "source": sketchSource, "elements": facts, "image": image})
 	entry := objectSchema("selector element text kind role", nil)
-	boxText := objectSchema("region truncated scope skipped unavailable", map[string]*manifestSchema{"visible_text": arraySchema(entry), "accessible_names": arraySchema(entry)})
-	crop := objectSchema("file clipped_to_viewport box captured_at document unavailable", map[string]*manifestSchema{"settlement": objectSchema("status reason", nil), "box": tupleSchema(4, false)})
-	note := objectSchema("privacy privacy_origin capture_id source_document revision id text t element before replay", map[string]*manifestSchema{"privacy_rule": privacy, "page": page, "author": author, "elements": facts, "box_text": boxText, "at": anchor, "context": objectSchema("node landmark text", map[string]*manifestSchema{"box": tupleSchema(4, true)}), "crop": crop})
-	source := objectSchema("kind recording_id recording_path tab_id document", map[string]*manifestSchema{"page": page})
-	return objectSchema("privacy privacy_origin how_to_read version id delivery superseded", map[string]*manifestSchema{"privacy_rule": privacy, "target": objectSchema("scope tag session nonce", nil), "source": source, "notes": arraySchema(note), "sketches": arraySchema(sketch)})
+	boxText := typedObject("scope unavailable", "", "", "", "truncated", map[string]*manifestSchema{"region": tupleSchema(4, false), "visible_text": arraySchema(entry), "accessible_names": arraySchema(entry), "skipped": arraySchema(scalarSchema('s'))})
+	crop := typedObject("file captured_at unavailable", "document", "", "", "clipped_to_viewport", map[string]*manifestSchema{"settlement": nullableSchema(objectSchema("status reason", nil)), "box": tupleSchema(4, false)})
+	note := typedObject("privacy privacy_origin capture_id id text element replay", "source_document t", "revision", "", "", map[string]*manifestSchema{"privacy_rule": privacy, "page": page, "author": author, "elements": nullableSchema(facts), "box_text": boxText, "at": anchor, "before": arraySchema(scalarSchema('s')), "context": typedObject("text", "node landmark", "", "", "", map[string]*manifestSchema{"box": tupleSchema(4, true)}), "crop": crop})
+	source := typedObject("kind recording_id recording_path tab_id", "document", "", "", "", map[string]*manifestSchema{"page": page})
+	return typedObject("privacy privacy_origin how_to_read id delivery", "version", "", "", "superseded", map[string]*manifestSchema{"privacy_rule": privacy, "target": objectSchema("scope tag session nonce", nil), "source": source, "notes": arraySchema(note), "sketches": arraySchema(sketch)})
 }
 
 // DecodePreserving rejects duplicate keys and case aliases before decoding
@@ -100,17 +127,60 @@ func filterManifest(raw []byte, schema *manifestSchema) ([]byte, bool, error) {
 		return raw, false, nil
 	}
 	trimmed := bytes.TrimSpace(raw)
-	if schema.tupleLength > 0 {
-		if schema.nullable && bytes.Equal(trimmed, []byte("null")) {
+	if bytes.Equal(trimmed, []byte("null")) {
+		if schema.nullable {
 			return raw, false, nil
+		}
+		return nil, false, fmt.Errorf("null for nonnullable manifest value")
+	}
+	if len(trimmed) == 0 {
+		return nil, false, fmt.Errorf("empty manifest value")
+	}
+	if schema.scalar != 0 {
+		valid := false
+		switch schema.scalar {
+		case 's':
+			valid = trimmed[0] == '"'
+		case 'b':
+			valid = bytes.Equal(trimmed, []byte("true")) || bytes.Equal(trimmed, []byte("false"))
+		case 'n':
+			valid = trimmed[0] == '-' || trimmed[0] >= '0' && trimmed[0] <= '9'
+		case 'i':
+			valid = trimmed[0] == '-' || trimmed[0] >= '0' && trimmed[0] <= '9'
+			for _, c := range trimmed {
+				if c != '-' && (c < '0' || c > '9') {
+					valid = false
+					break
+				}
+			}
+		}
+		if !valid {
+			return nil, false, fmt.Errorf("wrong type for known manifest scalar")
+		}
+		return raw, false, nil
+	}
+	if schema.tupleLength > 0 {
+		if trimmed[0] != '[' {
+			return nil, false, fmt.Errorf("invalid fixed geometry tuple")
 		}
 		var tuple []json.RawMessage
 		if err := json.Unmarshal(raw, &tuple); err != nil || len(tuple) != schema.tupleLength {
 			return nil, false, fmt.Errorf("invalid fixed geometry tuple")
 		}
+		for i, v := range tuple {
+			if _, _, err := filterManifest(v, scalarSchema('n')); err != nil {
+				return nil, false, fmt.Errorf("geometry member %d: %w", i, err)
+			}
+		}
 		return raw, false, nil
 	}
-	if schema.fields != nil && len(trimmed) > 0 && trimmed[0] == '{' {
+	if schema.fields != nil || schema.dictionary {
+		if schema.stringAlternative && trimmed[0] == '"' {
+			return raw, false, nil
+		}
+		if trimmed[0] != '{' {
+			return nil, false, fmt.Errorf("wrong type for known manifest object")
+		}
 		var fields map[string]json.RawMessage
 		if err := json.Unmarshal(raw, &fields); err != nil {
 			return nil, false, err
@@ -118,6 +188,9 @@ func filterManifest(raw []byte, schema *manifestSchema) ([]byte, bool, error) {
 		extended := false
 		for name, value := range fields {
 			child, known := schema.fields[name]
+			if schema.dictionary {
+				child, known = schema.element, true
+			}
 			if !known {
 				for canonical := range schema.fields {
 					if strings.EqualFold(name, canonical) {
@@ -130,7 +203,7 @@ func filterManifest(raw []byte, schema *manifestSchema) ([]byte, bool, error) {
 			}
 			filtered, more, err := filterManifest(value, child)
 			if err != nil {
-				return nil, false, err
+				return nil, false, fmt.Errorf("manifest field %s: %w", name, err)
 			}
 			fields[name] = filtered
 			extended = extended || more
@@ -138,7 +211,10 @@ func filterManifest(raw []byte, schema *manifestSchema) ([]byte, bool, error) {
 		data, err := json.Marshal(fields)
 		return data, extended, err
 	}
-	if schema.element != nil && len(trimmed) > 0 && trimmed[0] == '[' {
+	if schema.element != nil {
+		if trimmed[0] != '[' {
+			return nil, false, fmt.Errorf("wrong type for known manifest array")
+		}
 		var elements []json.RawMessage
 		if err := json.Unmarshal(raw, &elements); err != nil {
 			return nil, false, err
@@ -147,7 +223,7 @@ func filterManifest(raw []byte, schema *manifestSchema) ([]byte, bool, error) {
 		for i, value := range elements {
 			filtered, more, err := filterManifest(value, schema.element)
 			if err != nil {
-				return nil, false, err
+				return nil, false, fmt.Errorf("manifest array member %d: %w", i, err)
 			}
 			elements[i] = filtered
 			extended = extended || more
@@ -155,7 +231,7 @@ func filterManifest(raw []byte, schema *manifestSchema) ([]byte, bool, error) {
 		data, err := json.Marshal(elements)
 		return data, extended, err
 	}
-	return raw, false, nil
+	return nil, false, fmt.Errorf("missing manifest wire schema")
 }
 
 // EncodePreserving overlays current owned fields onto their original wire

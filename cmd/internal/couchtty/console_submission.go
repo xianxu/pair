@@ -208,14 +208,14 @@ func (m *submissionManager) request(ctx context.Context, op, id string, target c
 		if !exists {
 			return couchmessage.SubmissionStatus{}, os.ErrNotExist
 		}
-		previousDelivery := s.Delivery
 		s, err = m.store.Transition(id, target, core.Ack)
 		if err != nil {
 			return couchmessage.SubmissionStatus{}, err
 		}
-		if previousDelivery == core.Delivering {
-			m.submissionDeliveredLocked()
-		}
+		// A prior ACK can already be visible after an uncertain durability
+		// confirmation. Every confirmed ACK, including that retry, invalidates
+		// the derived version cache; visibility alone wasn't an observed success.
+		m.submissionDeliveredLocked()
 		work = m.resolutionWork(s)
 		return m.status(s), nil
 	default:

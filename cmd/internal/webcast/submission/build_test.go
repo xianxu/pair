@@ -241,3 +241,36 @@ func TestNoteDeclaredIDsUseCaptureMomentAndRemainGeneric(t *testing.T) {
 		t.Fatalf("capture source lost original generic IDs: %+v", capture.Elements)
 	}
 }
+
+func TestRegionOnlyNoteBuildAndCaptureContextRetainRegionFacts(t *testing.T) {
+	b := recording.NewBuilder("region-note")
+	node := b.El("button", []string{"id", "region-control", "data-purpose", "save"})
+	b.Page(recording.SegLive, "https://source.test/", node)
+	region := recording.Box{10, 10, 40, 40}
+	b.At(1).Add(&recording.Layout{Boxes: map[recording.NodeID]recording.Box{node.ID: {15, 15, 20, 20}}})
+	b.At(10).Add(&recording.Note{ID: "region", Author: recording.Author{ID: "operator"}, Text: "Move this area", Region: &region})
+	selected := board.Selection{Document: 1, TabID: "tab1", Notes: []board.SelectedNote{{ID: "region"}}}
+	sub, _, err := Build(b.Recs, selected, "region-submission", target(), "/recording", nil)
+	if err != nil {
+		t.Fatalf("valid region-only note became unsendable: %v", err)
+	}
+	check := func(n core.Note) {
+		t.Helper()
+		if n.Elements == nil || len(n.Elements.Anchors) != 0 || len(n.Elements.Intersections) != 1 || n.Elements.Intersections[0].Node != node.ID || n.Elements.Intersections[0].ID != "region-control" {
+			t.Fatalf("region evidence changed: %+v", n.Elements)
+		}
+	}
+	check(sub.Notes[0])
+	// Saved captures carry the original requested region independently of a node.
+	note := sub.Notes[0]
+	note.BoxText = core.BoxText{Region: region}
+	captured, err := ContextAt(b.Recs, note, 5)
+	if err != nil {
+		t.Fatalf("region-only captured context: %v", err)
+	}
+	check(captured)
+	sub.Notes[0] = captured
+	if err = core.Validate(sub); err != nil {
+		t.Fatalf("region-only context no longer valid: %v", err)
+	}
+}

@@ -150,20 +150,26 @@ func (m *submissionManager) runSubmissionPreview(ctx context.Context, run *submi
 			case <-run.wake:
 				refresh = true
 			}
+			// Cancellation joins IO but also has to settle its exact model operation.
+			// Unchanged source notifications intentionally leave Host/Candidates alone;
+			// without Failed, Refresh cannot advance a retired Publishing operation.
+			accepted := !refresh && publishErr == nil && ioctx.Err() == nil
 			stop()
 			if refresh {
 				<-result
-				continue
 			}
 			m.mu.Lock()
 			if m.previewRun == run {
-				if publishErr == nil {
+				if accepted && ctx.Err() == nil {
 					m.previewState, _ = core.NextPreview(m.previewState, core.PreviewPublishAccepted{Publication: *publication})
 				} else {
 					m.previewState, _ = core.NextPreview(m.previewState, core.PreviewPublishFailed{Publication: *publication})
 				}
 			}
 			m.mu.Unlock()
+			if refresh {
+				continue
+			}
 		}
 		select {
 		case <-ctx.Done():
