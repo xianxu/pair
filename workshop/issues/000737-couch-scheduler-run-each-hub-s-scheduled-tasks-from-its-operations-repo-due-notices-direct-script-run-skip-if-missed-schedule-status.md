@@ -228,6 +228,10 @@ After authenticated Couch restart notice 8232f3c6-8fa5-4b55-9d85-bc844ac1ac53, v
 
 M3 SHIP, accepted disposable automatic Claude/Codex fixture proof and recorded full suite are now present. Still wait for TL's explicit stage authorization after #752 frees pair:0, then operator restart and TL-recorded real ops testscratch day. Whole-issue close/landing remains after the day; no stage, restart or real task mutation was performed by this slot.
 
+### 2026-10-21 — Stage handoff now follows #779
+
+Authenticated TL delivery ae132154-eb8f-4308-ad10-64343c74043e acknowledges the recorded suite pass and supersedes the prior #752 stage wait: pair:0 currently holds #779 for a short operator look. Hold staging until #779 is accepted/released and TL sends explicit go; then #737 gets the day-long stage. No action on pair:0 now.
+
 ## Estimate
 
 Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md` against `baseline-v3.1.md`. Method A only; calibration currently marked stale/provisional by estimate-source. Already-scaled implementation hours use 40% of v2/v2.1 ranges; design uses the thorough-spec 0.2 multiplier, plus 0.5 library credit only for cron/kernel and bounded durable catalog/store. Familiarity 1.0; thorough-plan design buffer 15%. Passive day-long live observation is not focused ship time.
