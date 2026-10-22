@@ -111,26 +111,26 @@ New residue is one invocation root plus candidate directory, created by its shar
 
 Files: modify testcouch/binaries.go, fleet.go, cleanup.go; add owner.go/owner_build.go and colocated tests.
 
-- [ ] Write red tests calling the error-returning API: caller-selected scratch, explicit Couch override, partial constructor/build failure, cancellation and retained cleanup failure. Prove no installed Pair fallback and no live-root overlap effects.
-- [ ] Run `go test ./cmd/internal/testcouch -run 'Owner|Candidate|Roots|Environment|Runtime|Cleanup' -count=1`; require the new APIs absent/red first.
-- [ ] Extract shared implementations; keep testing wrappers and every existing ownership/cleanup control. Native lifetime still belongs to Fleet, not a second executor.
-- [ ] Re-run focused tests plus the existing complete testcouch package; commit the isolated refactor.
+- [x] Write red tests calling the error-returning API: caller-selected scratch, explicit Couch override, partial constructor/build failure, cancellation and retained cleanup failure. Prove no installed Pair fallback and no live-root overlap effects.
+- [x] Run `go test ./cmd/internal/testcouch -run 'Owner|Candidate|Roots|Environment|Runtime|Cleanup' -count=1`; require the new APIs absent/red first.
+- [x] Extract shared implementations; keep testing wrappers and every existing ownership/cleanup control. Native lifetime still belongs to Fleet, not a second executor.
+- [x] Re-run focused tests plus the existing complete testcouch package; commit the isolated refactor.
 
 ### Task2 — pure protocol/lifecycle plus bounded IO runner
 
 Files: create testcouchbridge/options.go, readiness.go, model.go, run.go, io.go and colocated tests/stateful fake.
 
-- [ ] Write red table/sequence tests for the states, invalid paths, duplicate environment keys, no ambient overlay, malformed/oversized endpoint responses, output cap, early/repeated stop, failed/late readiness, deadline, producer death, failed cleanup and unread stdout.
-- [ ] Run `go test ./cmd/internal/testcouchbridge -count=1`; demonstrate missing protocol/transition behavior first.
-- [ ] Implement one reducer-owned runner using shared Fleet owner. Register the private documents and qualify the actual CLI response. No readiness from a listener stat. Bind socket derivation to the complete environment without process-global environment mutation.
-- [ ] Test fake N/2N byte work and service calls, joined cancellable pipe behavior, no effects after Stop, and root retention on uncertainty. Run focused race tests; commit.
+- [x] Write red table/sequence tests for the states, invalid paths, duplicate environment keys, no ambient overlay, malformed/oversized endpoint responses, output cap, early/repeated stop, failed/late readiness, deadline, producer death, failed cleanup and unread stdout.
+- [x] Run `go test ./cmd/internal/testcouchbridge -count=1`; demonstrate missing protocol/transition behavior first.
+- [x] Implement one reducer-owned runner using shared Fleet owner. Register the private documents and qualify the actual CLI response. No readiness from a listener stat. Bind socket derivation to the complete environment without process-global environment mutation.
+- [x] Test fake N/2N byte work and service calls, joined cancellable pipe behavior, no effects after Stop, and root retention on uncertainty. Run focused race tests; commit.
 
 ### Task3 — executable, native consumer and external handoff
 
 Files: create cmd/couch-conformance-bridge/main.go and main_test.go; modify Makefile.local; add native bridge conformance in cmd/couch or the bridge command; update README.md and atlas/couch.md/index.md.
 
-- [ ] Add argv/exit tests using fake tools, then the thin main and atomic build target. No global installation or new Couch production switch.
-- [ ] Run normal package tests and `make test-affected-inventory`; add exact reader/artifact classifications where applicable, never broad exemptions. New fixture-owning reader certificates must name non-Go input fallback honestly.
+- [x] Add argv/exit tests using fake tools, then the thin main and atomic build target. No global installation or new Couch production switch.
+- [x] Run normal package tests and `make test-affected-inventory`; add exact reader/artifact classifications where applicable, never broad exemptions. New fixture-owning reader certificates must name non-Go input fallback honestly.
 - [ ] Bounded opt-in native acceptance: actual public executable, shared fleet, real service roundtrip, complete env with native nvim, two registered scratch documents; EOF and TERM end through the owner and prove exact cleanup. Exercise both deterministic Claude and Codex fixture personalities internally without requiring a consumer flag. Test selected explicit candidate and default candidate construction. Retain exact source/tool versions, durations, outcome and cleanup evidence.
 - [ ] Send final contract/evidence to parley.nvim:1; coordinate its actual Lua driver invocation without modifying Parley's tree or duplicating teardown. Real-producer acceptance is not claimed from fakes or socket existence.
 - [ ] Push, run recorded affected/full verification, close through the binary-owned review, then `sdlc merge --yes` on SHIP. Hub owns project and acceptance decisions.
