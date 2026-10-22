@@ -130,6 +130,13 @@ Review REWORK/Critical BR-1 correctly found that legacy chipGroups deliberately 
 
 Collapse/status/scope/native selection PASS0.490s on the fix, including all six role cases and actor conservation. Fresh whole tty run session71345 is pending. The previous #796 suite lease-3791587181 was canceled while queued before execution, retaining #789's independent lease. No suite pass claimed. Staged bccaa4617a2fa49cf6a530cfab72fc04bb581b04 had all4 binaries verified modified=false, but TL was immediately told to hold that operator look until corrected restage; review did not finalize close. Prior released main e1636e71 differs from our base only in two workshop issue files, so accepted operator code remains present.
 
+
+### 2026-10-22 — BR-1 corrected stage and recorded suite
+
+Whole couchtty PASS52.969s on93b8b8b655c07853c6bc3a1f3523903863680b40; exact role/scarcity/scope/native selection PASS0.490s. Reader inventory and diff checks pass. Restaged on pair:0 through sdlc stage --build: couch, pair, pair-launch-helper and pair-slug all verify that exact revision with vcs.modified=false. TL received the corrected head and two-minute default/narrowing/count/Escape/multiline operator check; no acceptance claimed yet.
+
+Replacement #796 recorded suite on93b8b8b655c07853c6bc3a1f3523903863680b40 is queued: session38831, lease-521073252, attempta278fb06545111abc7fe0a1a1410829a, isolated checkout /Volumes/TestScratch/local-checks/sdlc-local-1119877122; initial/latest observed FIFO position18. The canceled prior lease had not executed; #789's distinct snapshot remains queued. Source frozen for close round2 and this suite. Next: review BR-1 disposition, receive operator look, require passing final recorded suite before landing.
+
 ## Revisions
 
 ### 2026-10-22 — operator priority and default (TL0afd9a82)
