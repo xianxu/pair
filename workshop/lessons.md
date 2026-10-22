@@ -2669,3 +2669,5 @@ and external temporary roots rather than relying on the host's TMPDIR.
 - #796 BR-2: Before close, reconcile the complete concepts table with actual file ownership and new/modified/reused status. A planned integration point can be reused unchanged while its projection changes elsewhere; document that relationship rather than forcing a source diff to satisfy a predicted path.
 
 - #796: Geometry tests must derive click coordinates from physical terminal cells, independently of layout's width helper. Emoji/VS16/ZWJ labels can pass self-consistent hit-map tests while their final cells are unclickable. Use the terminal's grapheme metric for measurement and fitting, preserve no-allocation fitting paths, and retain allocation-budget checks when replacing shared text helpers.
+
+- #796: When adding a display mode, parameterize established pending/reattach regressions over both modes. A legacy fixture that explicitly selects the compatibility mode cannot prove the new default preserves pending states. Count branches also need owner/style invariants from ordinary chips, not only correct text and hit spans.

@@ -425,7 +425,11 @@ func renderStatusCells(width int, m StatusModel, cells []chipCell, planned bool,
 			}
 			appendText(gap, "")
 			start := used
-			appendText(cell.label, "")
+			countStyle := ""
+			if cell.actor >= 0 && m.Actors[cell.actor].OtherHub {
+				countStyle = inactiveOwnerStyle(m.Palette, IdleFresh, baseDefault)
+			}
+			appendText(cell.label, countStyle)
 			if used > start && m.TabStyle == TabStyleCollapse {
 				group := StatusGroupID{}
 				if cell.actor >= 0 {
@@ -470,7 +474,11 @@ func renderStatusCells(width int, m StatusModel, cells []chipCell, planned bool,
 			style += reverseSGR
 		}
 		if a.OtherHub && !m.Palette.NoColor {
-			style += "\x1b[2m"
+			if a.Placeholder || a.Blocked || a.Bell {
+				style += "\x1b[2m"
+			} else {
+				style += inactiveOwnerStyle(m.Palette, idle, baseDefault)
+			}
 		}
 		appendText(label, style)
 		for _, r := range a.Glyph {
@@ -480,9 +488,9 @@ func renderStatusCells(width int, m StatusModel, cells []chipCell, planned bool,
 				if a.Hub {
 					glyphStyle += reverseSGR
 				}
-			}
-			if a.OtherHub && !m.Palette.NoColor {
-				glyphStyle += "\x1b[2m"
+				if a.OtherHub {
+					glyphStyle += inactiveOwnerStyle(m.Palette, idle, base)
+				}
 			}
 			appendText(string(r), glyphStyle)
 		}

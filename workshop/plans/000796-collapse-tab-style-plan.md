@@ -48,6 +48,8 @@ Alternatives considered: only set maxRows=1 (reject: keeps every hub and provide
 | Width | cmd/internal/textwidth/textwidth.go | modified |
 | Fit / nextCluster / printableASCII | cmd/internal/textwidth/textwidth.go | new |
 | Fit | cmd/internal/rowtext/rowtext.go | modified |
+| FadeStyle | cmd/internal/couchtty/idle_shade.go | modified |
+| inactiveOwnerStyle / blendedStyle | cmd/internal/couchtty/idle_shade.go | new |
 
 TabStyle has one production default (collapse); legacy low-level render tests explicitly request multiline when that is their contract. Console defaults and CLI defaults derive from the same constant. Group identity owns no inventory; it references the existing presentation's owner/group keys. Candidates own per-frame actor cardinality and attention facts; emitted cells/spans die with that frame. A menu scope is optional root-frame state, not another inventory or a second owner resolver. Future style variants extend the enum/policy; no plugin framework is needed.
 

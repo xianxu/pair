@@ -1940,7 +1940,7 @@ by its leading position, reverse-video tab chip (pair#521), and underlined switc
   hub keeps its standalone chip group.
   `[…]` still marks the active chip. Hub label, glyphs and brackets reverse
   their existing colours; red/attention/idle precedence stays the same. Gaps
-  and folded `+N` counts keep normal colours.
+  and folded `+N` counts retain their owner's inactive styling.
 - **Switcher:** the hub is the first line. Every other row, and the message
   lines under it, sits one indent level (2 spaces) deeper. The hub main row
   is underlined; only the selected row uses reverse video. A selected hub keeps
@@ -5355,3 +5355,11 @@ locks cannot retain an abandoned recovery worker; existing synchronous filesyste
 work and owned temporary cleanup finish before its reservation is released.
 Continuation, switch, detach, leave and direct recovery refusals reuse the same
 bounded exact-target advice without changing their ownership guards.
+
+Inactive-owner tab chips and per-owner collapse counts share `inactiveOwnerStyle`
+in `idle_shade.go`: quiet content blends at least50% toward the known terminal
+background (stronger idle fade stays stronger), quantized for256-color hosts.
+Without a palette, the existing faint rendition remains; NO_COLOR disables the
+owner fade. Attention, themed red and placeholder cues keep their precedence.
+Global overflow has no single owner and keeps its normal style. The shared
+renderer applies this to collapse and multiline without changing hit spans.
