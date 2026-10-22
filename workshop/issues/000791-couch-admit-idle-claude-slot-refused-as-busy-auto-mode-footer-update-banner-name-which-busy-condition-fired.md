@@ -86,6 +86,7 @@ total: 1.019
 ### 2026-10-21
 
 ### 2026-10-22 — recurring hub stalls; investigation dispatch
+- 2026-10-22: closed — TL-approved diagnostic-only delivery. BR-1 regression reproduced 37009-byte fitting styled row omission; exact escaped-JSON budgeting now passes it and all capture tests under race2.933s, fuzz400/6.498s. Prior full wrapper package PASS196.078s; diagnosticlog race PASS102.837s; corrected-source full wrapper package running; repolint36.564s/artifactpath21.673s pass. New-head recorded affected queued, landing waits. BR-2 measured tracker proof in Log/dispute confirms #810 open/unclaimed and awaiting first real capture. No recognition changes.; review verdict: SHIP
 
 - Operator report via ops:0: hub deliveries have repeatedly stalled until an operator keystroke, then flushed in a batch, both before and after #735 landed. The hub is where the operator watches; worker slots may have the same symptom, but that is not yet observed evidence. This is not a newly introduced hub-only failure.
 - Latest observed ops:0 footer: `⏵⏵ bypass permissions on (shift+tab to cycle)       ✔ Update installed · Restart to update`. Read-only live capture at investigation start confirms an empty `❯` prompt between horizontal rules and that combined footer. Claude version in the authenticated dispatch identity: 2.1.304.

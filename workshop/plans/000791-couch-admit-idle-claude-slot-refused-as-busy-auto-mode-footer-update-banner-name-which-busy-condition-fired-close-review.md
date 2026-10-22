@@ -104,3 +104,106 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-22T13:06:40-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 791 — Couch delivery: capture delayed refusal evidence |
+| repo | pair |
+| issue file | workshop/issues/000791-couch-admit-idle-claude-slot-refused-as-busy-auto-mode-footer-update-banner-name-which-busy-condition-fired.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 4c695793916f7baa49f2666835b42e92ac03a647..ecc76e29ec0cc2d0ca5252453ebe19883bdeca86 |
+| command | sdlc close --issue 791 |
+| reviewer | codex (openai; author openai) |
+| isolation | fenced |
+| timestamp | 2026-10-22T13:06:40-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+The pinned implementation satisfies the approved diagnostic-only scope. Capture preserves fitting screens, names the refusal, respects the 15-second threshold, and leaves delivery safety unchanged. Both prior findings are resolved; no new findings remain.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      The encoder now budgets actual escaped JSON bytes, including envelopes and newline. TestPeerWaitCaptureFittingStyledRow passes at HEAD and fails with the pre-fix encoder through a temporary overlay: “fitting 37009-byte JSON row was discarded: rows=0 truncated=true”. Temporary files were removed.
+  - id: BR-2
+    disposition: withdrawn
+    note: |
+      The supplied host evidence is corroborated locally: tracker commit 7ba6cc0eb5f81693864fc39260d0866794d87cab contains card d7f96db618cdea2cd2770c66f859d20e43262bb4 for open, ownerless #810. Its origin/main detail references #791 and explicitly requires waiting for the first real failed-admission capture before implementation.
+```
+
+1. **Strengths**
+
+   - [Capture dispatch](/Volumes/TestScratch/review-checkouts/1997963d945d653a/cmd/internal/wrapcmd/peer_delivery.go:445) releases both admission and mailbox locks before encoding and writer invocation.
+   - [Exact byte budgeting](/Volumes/TestScratch/review-checkouts/1997963d945d653a/cmd/internal/wrapcmd/peer_wait_capture.go:95) preserves fitting styled screens while bounding the entire JSONL record.
+   - Tests exercise threshold timing, duplicate suppression, recovery, failed/disabled diagnostics, Claude/Codex/Qoder, and Claude batch preparation.
+   - Atlas additions explain privacy, truncation, storage ownership, retention, and the deferred recognition work.
+
+2. **Critical findings**
+
+   None.
+
+3. **Important findings**
+
+   None.
+
+4. **Minor findings**
+
+   None.
+
+5. **Test coverage notes**
+
+   Passed during this review:
+
+   - Complete `wrapcmd` package: 134.270s.
+   - Complete `diagnosticlog` and `artifactpath` packages.
+   - Targeted capture tests under the race detector.
+   - Capture and existing wait/preflight tests.
+   - Encoder fuzzing: 342 executions.
+   - `make test-affected-inventory` and range whitespace checks.
+
+   The BR-1 regression demonstrably fails without the correction. Full-package race testing was not repeated; race coverage here was targeted.
+
+6. **Architectural notes for upcoming work**
+
+   - **ARCH-DRY — pass:** reuses existing refusal details, snapshots, polling, and diagnostic storage.
+   - **ARCH-PURE — pass:** timing and encoding remain directly testable pure functions.
+   - **ARCH-PURPOSE — pass:** delivers approved capture scope; recognition work is independently tracked.
+   - **ARCH-MOCK — pass:** production dispatch tests use existing stateful terminal/peer fixtures.
+   - **ARCH-CONSTRAINTS — pass:** once-per-head capture and whole-record limits bound additional work.
+   - **ARCH-SECURE — pass:** bounded evidence remains in local managed diagnostics.
+   - **ARCH-ORDER — pass:** capture state changes use the transition function; diagnostic failure never authorizes input.
+   - **ARCH-FUNERAL — pass:** existing writer close, rotation, and retention ownership apply.
+   - **ARCH-EVOLVE — pass:** additive diagnostic records introduce no lossy read-modify-write path.
+
+   Active concept-table entities exist at their documented paths. Atlas coverage is present. No new command, flag, keybinding, or configuration key requires a README change.
+
+7. **Plan revision recommendations**
+
+   None. The existing diagnostic-only and BR-1 revisions match the implementation.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"27efc22f-a58f-41da-ab9e-6e62bdcb40e4","repository":"github.com/xianxu/pair","issue_id":"000791","recipe":"milestone-review","round":2,"attempt":1,"agent":"codex","root":"/Volumes/TestScratch/review-checkouts/1997963d945d653a","reviewed_head":"ecc76e29ec0cc2d0ca5252453ebe19883bdeca86","slot":"pair:1","requested_at":"2026-10-22T20:02:39.185319Z"},"phase":"finished","pid":90171,"started_at":"2026-10-22T20:02:39.443167Z","finished_at":"2026-10-22T20:06:39.419331Z","session_id":"01a16535-633f-7e52-9718-37e1e964def6","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 6.082185625s
+head: "ecc76e29ec0cc2d0ca5252453ebe19883bdeca86"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412
