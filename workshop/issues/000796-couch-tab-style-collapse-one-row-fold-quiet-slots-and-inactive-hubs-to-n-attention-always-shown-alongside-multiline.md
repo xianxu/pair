@@ -67,6 +67,8 @@ Claimed and started from main at TL6a768f10 while #789's isolated integration su
 
 Read-only survey found existing chipKept keeps every hub and existing aggregate overflow has no click spans; collapse needs mode-specific candidate policy and count spans from the same clipping pass. A fuzzy switcher Filter cannot express exact owner+group identity. Proposed typed scope and count navigation are in the durable plan, awaiting TL approval. No implementation started.
 
+Plan-quality round1 REWORK/PQ-1: scenario inventories needed named production-function test strategies. Refined parser/extractor/CLI, collapse preparation/packing/drawing, scope filtering/reducer and revision-fenced opener coverage with adversarial inputs and mechanical guards. No policy change; implementation remains gated.
+
 ## Revisions
 
 ### 2026-10-22 — operator priority and default (TL0afd9a82)

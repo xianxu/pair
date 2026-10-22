@@ -85,7 +85,7 @@ ARCH-DRY: one draw/clipping pass, one presentation grouping authority, one style
 
 Files: new tab_style.go/tab_style_test.go; couchcmd cli.go, run.go, layout_cli_test.go or dedicated tab_style_cli_test.go; Console configuration in console.go.
 
-- [ ] Write red tables for bare/default, collapse, multiline, equals/separate values, paths/layout combinations, missing/bad/conflicting values, `--`, non-launch refusal and opaque message bodies.
+- [ ] Unit-test `ParseTabStyle` against empty/default, valid and invalid values; guard: typed result or explicit error. Unit-test `extractTabStyleFlag` with repeated/conflicting flags, missing values and `--`; guard: exact preserved argv and one selected style. Unit-test `ParseCLI` with launch/non-launch and opaque-message forms; guard: only launch carries style, message bytes unchanged. Add runtime wiring test around `runTypedOperation`/`consoleRunnerFor`; guard: first Console status model uses the requested style.
 - [ ] Run targeted parser tests, observe failure, implement the typed default and thin launch plumbing before Console adoption/first geometry. Do not put tab style in Couch's domain workbench Layout.
 - [ ] Verify actual runtime launch reaches selected Console policy; explicit multiline is not merely a parsed unused value. Commit with Agent/Coauthor trailers.
 
@@ -93,7 +93,7 @@ Files: new tab_style.go/tab_style_test.go; couchcmd cli.go, run.go, layout_cli_t
 
 Files: status_collapse.go/status_collapse_test.go; status_layout.go/status_layout_test.go; reserve.go/reserve_test.go.
 
-- [ ] Write red render matrices for multiple repos/hubs; active quiet slot; Bell/Blocked under inactive hub; dirty-only glyph; quiet inactive :0; all-quiet group; placeholders; ungrouped tabs; duplicate labels/ownership; Unicode and control bytes.
+- [ ] Unit-test new `prepareCollapsedStatusChips` against mixed active/Bell/Blocked/quiet/placeholder members and owner+group alias collisions; guard: exact per-group candidate identity, actor cardinality conservation and priority. Unit-test `packStatusChips`/`renderStatusBar` against required chips exceeding width, empty groups, wide/combining/control labels; guard: one row, active span retained, hidden-attention marker, no duplicate actor accounting, existing measured-work bounds. Unit-test `renderStatusCells` against clipped/omitted group counts; guard: only actually drawn complete count labels produce exact group spans and sanitization preserves width.
 - [ ] Build typed group/count candidates from original presentation members; keep count actor weights and hidden-attention facts. Feed shared measured packing and renderStatusCells. Distinguish per-group count cells from global scarcity markers so final-row notice placement does not treat every group count as the final overflow.
 - [ ] Emit count spans in the exact drawing/clipping pass, with row-relative coordinates and no action for absent/truncated marker. Preserve actor/control spans, full or clipped active, bell and LIVE policy.
 - [ ] Verify conservation: visible actors + per-group folded actor weights + global hidden actor weights equals original input actor count exactly once. Preserve explicit multiline byte/span fixtures. Run N/2N measured work pins and commit.
@@ -102,7 +102,7 @@ Files: status_collapse.go/status_collapse_test.go; status_layout.go/status_layou
 
 Files: menu.go/menu_reattach.go and tests; console.go/console_menu.go; terminal.go/terminal_input.go; console_tabbar_mouse_test.go.
 
-- [ ] Write red tests that a confirmed group count opens only matching owner+group rows and never switches actor. Include equal labels under different hubs, refresh removal, filter/selection, nested actions, Escape clearing and ordinary unscoped reopen.
+- [ ] Unit-test new `scopedRootThreads` (using `PresentThreads`) against equal labels across hubs and removed membership; guard: exact owner+group membership before text filtering, empty result never broadens. Unit-test `visibleMenuRows`/`reduceKey` against filter+scope combinations and nested returns; guard: selection remains visible, Escape clears filter then scope, ordinary reopen is global. Integration-test new `openGroupSwitcher` through `routeMouseEvent`/`commitChrome` with stale and stalled-writer revisions; guard: only confirmed drawn count opens scope, active child unchanged, zero action on absent span.
 - [ ] Apply scope through existing PresentThreads membership before root text filtering; reuse root opener/reconciliation/refresh effects instead of replicating menu lifecycle. Publish count spans alongside statusChips under the same revision and guard all geometry input.
 - [ ] Verify stale revision, stalled writer, clipped count and off-row click controls; retain keyboard/paste behavior. Commit.
 
@@ -126,3 +126,7 @@ No code before TL approves the policy decisions and this plan. #789's full-copy/
 ### 2026-10-22 — approved by TL3fa9a5f6
 
 All policy choices above approved. Run change-code and implement; stage for operator acceptance before landing.
+
+### 2026-10-22 — PQ-1 function-level test strategies
+
+Named the parser/extractor/CLI, collapse preparation/packer/drawing, exact scope filter/reducer and confirmed mouse opener functions. Each has an adversarial input class and mechanical oracle; conservation, counted work and deterministic publication barriers remain. This is a test-contract refinement, with no approved behavior delta.
