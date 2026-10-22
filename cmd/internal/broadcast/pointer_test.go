@@ -539,7 +539,7 @@ func TestPointerStreamsGetDistinctColors(t *testing.T) {
 	}
 	m := NewMarks()
 	for _, batch := range got {
-		m.Add(batch.Points, batch.Cols, batch.Rows, batch.Color, t0)
+		m.Add(batch.Points, batch.Cols, batch.Rows, batch.ChromeRows, batch.Color, t0)
 	}
 	frame := m.Overlay(livePointer(t, "operator screen"), t0)
 	if x, y := frame.Cells[40+3].Style.Bg, frame.Cells[40+13].Style.Bg; x == y || x != color.Color(markPalette[a].index) {

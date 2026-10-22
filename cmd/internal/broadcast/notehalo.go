@@ -84,7 +84,7 @@ func noteFlash(at, now time.Time) float64 {
 // noteGlow is the glow around n on a cols×rows grid: each cell's t (0 is the
 // full color), given the flash level. A cell faded all the way out is not
 // in it (the outer ring at rest), nor are the chip's own two cells, nor are cells off the grid or on the broadcast's controls.
-func noteGlow(n Note, cols, rows int, flash float64) map[cell]float64 {
+func noteGlow(n Note, cols, rows, chromeRows int, flash float64) map[cell]float64 {
 	out := map[cell]float64{}
 	const reach = 2 // whole rows inside noteGlowRows
 	for dy := -reach; dy <= reach; dy++ {
@@ -99,7 +99,7 @@ func noteGlow(n Note, cols, rows int, flash float64) map[cell]float64 {
 			}
 			d2 := float64(dx*dx)/4 + float64(dy*dy)
 			if (dx == 0 && dy == 0) || d2 > noteGlowRows*noteGlowRows ||
-				c.col < 0 || c.col >= cols || c.row < 0 || c.row >= rows || guarded(c, rows) {
+				c.col < 0 || c.col >= cols || c.row < 0 || c.row >= rows || guarded(c, rows, chromeRows) {
 				continue
 			}
 			rest := noteGlowFar
