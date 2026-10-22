@@ -5,9 +5,9 @@ deps: []
 github_issue:
 created: 2026-10-22
 updated: 2026-10-22
-estimate_hours:
+estimate_hours: 2.593
 collaboration-mode: collaboration
-card_mirror: '340e187a8a77842ca3e6f5a1ecd2d1facbda767f' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '72cf60263a100e63966fbba301b3d96607273ab4' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-22T13:53:50-07:00
 claimant:
     operator: Xian Xu
@@ -16,6 +16,7 @@ claimant:
     workspace: pair:4
     worktree: /Users/xianxu/workspace/worktree/pair-slot4/pair
     repository: github.com/xianxu/pair
+flow: {kind: full, provenance: operator}
 ---
 
 # Couch: --tab-style collapse (one row; fold quiet slots and inactive hubs to +N, attention always shown) alongside multiline
@@ -53,6 +54,27 @@ Design:
 - `multiline` is unchanged (existing tests).
 - Staged for an operator look.
 
+
+## Estimate
+
+Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md` against `baseline-v3.1.md`. Method A only; calibration is currently stale/provisional per sdlc estimate-source. Current-stack reuse is already available: measured renderer, PresentThreads, menu reducer, FakeHost/FakeRunner and native PTY harness; no greenfield external API or library discovery. Familiarity1.0 (same #779/#789 chrome area). Thorough approved plan earns design x0.2 for implementation primitives and15% design buffer; v3.1 implementation values are40% of v2 table units.
+
+Derivation, before buffer: issue/spec shaping design0.30+impl0.08; style parser/plumbing smaller module raw design0.30 x0.2=0.06, impl0.50 x0.4=0.20; collapse packing TUI raw design1.50 x0.2=0.30, impl1.00 x0.4=0.40; scoped menu TUI raw design1.00 x0.2=0.20, impl0.80 x0.4=0.32; geometry/caller integration cross-cutting raw design0.50 x0.2=0.10, impl0.50 x0.4=0.20; docs design0.10 x0.2=0.02, impl0.15 x0.4=0.06; close/stage review design0.20 x0.2=0.04, impl0.40 x0.4=0.16. Design subtotal1.02; implementation1.42; design buffer0.153; total2.593 focused hours. Machine queue time is excluded; native/default compatibility and operator iteration are the main uncertainty.
+
+```estimate
+model: estimate-logic-v3.1
+familiarity: 1.0
+item: issue-spec design=0.30 impl=0.08
+item: smaller-go-module design=0.06 impl=0.20
+item: tui-screen design=0.30 impl=0.40
+item: tui-screen design=0.20 impl=0.32
+item: cross-cutting-refactor design=0.10 impl=0.20
+item: atlas-docs design=0.02 impl=0.06
+item: milestone-review design=0.04 impl=0.16
+design-buffer: 0.15
+total: 2.593
+```
+
 ## Plan
 
 - [ ] Review and approve [durable plan](../plans/000796-collapse-tab-style-plan.md).
@@ -66,6 +88,8 @@ Design:
 Claimed and started from main at TL6a768f10 while #789's isolated integration suite waits. No #789 commits are stacked here. #789 remains branch3306f2d16 with check session61444/lease-3428295058/attempta71b7262e10d47a252d630372095d2ff; return there for full-suite result, fixed review and merge. start-plan hit ariadne#557's generated workflow dirt: saved /tmp/pair796-seeded-merge-check.diff, restored only .github/workflows/merge-check.yml per TLc4e804fc, retried successfully; no seeded gate changes committed.
 
 Read-only survey found existing chipKept keeps every hub and existing aggregate overflow has no click spans; collapse needs mode-specific candidate policy and count spans from the same clipping pass. A fuzzy switcher Filter cannot express exact owner+group identity. Proposed typed scope and count navigation are in the durable plan, awaiting TL approval. No implementation started.
+
+Plan-quality round2 CLEAN: PQ-1 addressed; no open blocking findings. Estimate derived only after this pass.
 
 Plan-quality round1 REWORK/PQ-1: scenario inventories needed named production-function test strategies. Refined parser/extractor/CLI, collapse preparation/packing/drawing, scope filtering/reducer and revision-fenced opener coverage with adversarial inputs and mechanical guards. No policy change; implementation remains gated.
 
