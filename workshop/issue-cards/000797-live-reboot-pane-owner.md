@@ -1,6 +1,6 @@
 ---
 id: 000797
-status: codecomplete
+status: done
 created: 2026-10-22
 updated: 2026-10-22
 estimate_hours:
@@ -22,6 +22,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: 993b4106bb1ed8790c059e7fa247195361721b3f
         evidence_commit: 2846810c195d47e79649f4b178d81754e3ded5b7
+        landed_commit: 25853cb89bbdc82ad1a44c95239ebf09a43bf05b
 ---
 
 # Live reboot refuses owned pane as ambiguous
