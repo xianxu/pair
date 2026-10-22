@@ -57,6 +57,25 @@ reviewer_runs:
       finished_at: "2026-10-22T16:40:46.290692Z"
       session_id: 01a1647b-e38b-7623-aee0-a413c4337961
       outcome: returned
+    - version: 1
+      intent:
+        id: a96e15f5-0d0f-4ae8-b5a6-24475f46d1c2
+        repository: github.com/xianxu/pair
+        issue_id: "000753"
+        recipe: estimate-quality
+        round: 1
+        attempt: 1
+        agent: codex
+        root: /Users/xianxu/workspace/worktree/pair-slot9/pair
+        reviewed_head: ab781876069d8e1678046079e9908101f64602f3
+        slot: pair:9
+        requested_at: "2026-10-22T18:13:30.49538Z"
+      phase: finished
+      pid: 59919
+      started_at: "2026-10-22T18:13:30.686636Z"
+      finished_at: "2026-10-22T18:14:07.992642Z"
+      session_id: 01a164d1-75c0-76b2-9860-a7072090d766
+      outcome: returned
 gate: plan-quality
 issue: 753
 id_prefix: PQ
@@ -226,7 +245,32 @@ rounds:
           note: Risky production functions have named adversarial inputs and mechanical verification strategies.
           round: 5
       blocked: false
-content_hash: 780310d992afc16b2ed8f3b3fcfb555b2d5f64f31251700f8f15d2fb0d1f36e3
+    - reviewer_runs:
+        - version: 1
+          intent:
+            id: e290980d-f985-41de-892d-f5d2a33b7af0
+            repository: github.com/xianxu/pair
+            issue_id: "000753"
+            recipe: plan-quality
+            round: 6
+            attempt: 1
+            agent: codex
+            root: /Users/xianxu/workspace/worktree/pair-slot9/pair
+            reviewed_head: ab781876069d8e1678046079e9908101f64602f3
+            slot: pair:9
+            requested_at: "2026-10-22T18:12:43.914398Z"
+          phase: finished
+          pid: 24899
+          started_at: "2026-10-22T18:12:44.119313Z"
+          finished_at: "2026-10-22T18:13:26.71815Z"
+          session_id: 01a164d0-bf92-7a21-807c-ac181f0f9609
+          outcome: returned
+      "n": 6
+      timestamp: "2026-10-22T11:13:27-07:00"
+      agent: codex
+      reviewer: codex (openai; author openai)
+      blocked: false
+content_hash: ded812de724285ea7fcde918eff376fc2689b719132dc40bc5c3297d907d9741
 ---
 
 # Gate ledger — pair#753 (plan-quality)
@@ -265,6 +309,8 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 
 - PQ-1 — addressed — Explicit transition ownership, exact feedback witnesses and atomic freeze remain specified.
 - PQ-2 — addressed — Risky production functions have named adversarial inputs and mechanical verification strategies.
+
+## Round 6 — 2026-10-22T11:13:27-07:00 (codex) — passed
 
 ## Open findings
 
