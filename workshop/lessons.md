@@ -2671,3 +2671,5 @@ and external temporary roots rather than relying on the host's TMPDIR.
 - #801 BR-3: reconcile plan concept tables against actual exported symbols/files before close, including concrete native and IO adapters; illustrative names are not an implementation map.
 
 - #801 BR-4: extracting a strict standalone owner must preserve the old testing wrapper’s selection and ownership contract as a whole: suite-selected candidate, once-built process fallback, copied placement and separate source lifetime. Test supplied/unset selection and cleanup together; ambient isolation belongs at the standalone boundary, not as an accidental change to legacy wrappers.
+
+- #801 consolidated compatibility: separate legacy policy from strict input admission at extraction boundaries. Preserve all legacy path normalization, suite/process candidate selection and source cleanup in thin adapters; assert real public-wrapper behavior with a joined self-exec test, not just a runner mock. Strict standalone calls must still clear ambient selection and reject noncanonical explicit paths.

@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/xianxu/pair/cmd/internal/couchcore"
+	"github.com/xianxu/pair/cmd/internal/testpair"
 	"github.com/xianxu/pair/internal/reporoot"
 )
 
@@ -29,13 +30,18 @@ const buildOutputLimit = 64 * 1024
 // global cache; Pair alone uses the existing testpair candidate resolver.
 func Build(t testing.TB) Binaries {
 	t.Helper()
+	ctx, cancel := context.WithTimeout(t.Context(), 180*time.Second)
+	defer cancel()
 	source, err := reporoot.Current()
 	if err != nil {
 		t.Fatal(err)
 	}
 	info, scratchErr := os.Stat("/Volumes/TestScratch")
 	cfg := defaultBuildConfig(source, testBuildLog{t: t}, os.TempDir(), scratchErr == nil && info.IsDir())
-	owner, err := BuildOwned(t.Context(), cfg)
+	// Preserve the suite/process-owned resolver only in this compatibility
+	// wrapper. Standalone BuildOwned never observes PAIR_TEST_BINARY.
+	selected := testpair.BinaryContext(t, ctx)
+	owner, err := buildOwned(ctx, cfg, buildDependencies{resolve: resolveTool, run: runCandidateBuild, pairCandidate: selected})
 	if owner != nil {
 		t.Cleanup(func() {
 			ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)

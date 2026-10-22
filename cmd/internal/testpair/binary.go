@@ -78,6 +78,13 @@ func place(ctx context.Context, destination, source string) error {
 	if err != nil {
 		return err
 	}
+	// Legacy callers selected relative outputs against the builder's checkout
+	// working directory. Normalize only in this adapter; standalone placement
+	// still requires an explicit absolute destination.
+	if !filepath.IsAbs(destination) {
+		destination = filepath.Join(root, destination)
+	}
+	destination = filepath.Clean(destination)
 	bash, err := exec.LookPath("bash")
 	if err != nil {
 		return err

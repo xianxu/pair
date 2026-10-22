@@ -52,8 +52,11 @@ func (o *CandidateOwner) Close(ctx context.Context) error {
 }
 
 type buildDependencies struct {
-	resolve func(string) (string, error)
-	run     testpair.Runner
+	// pairCandidate is selected by the legacy testing wrapper, never ambient
+	// policy in the standalone entrypoint. Its lifetime belongs to testpair.Run.
+	pairCandidate string
+	resolve       func(string) (string, error)
+	run           testpair.Runner
 }
 
 func BuildOwned(ctx context.Context, cfg BuildConfig) (*CandidateOwner, error) {
@@ -138,6 +141,10 @@ func buildOwned(parent context.Context, cfg BuildConfig, deps buildDependencies)
 	b := Binaries{Source: source, Evidence: map[string]string{}}
 	selected := map[string]string{}
 	toolNames := []string{"go", "bash", "dirname", "git", "sdlc", "weave", "zellij", "nvim", "cc", "c++"}
+	if deps.pairCandidate != "" {
+		// The unchanged central builder uses Python for candidate alias placement.
+		toolNames = append(toolNames, "python3")
+	}
 	if runtime.GOOS == "darwin" {
 		toolNames = append(toolNames, "clang", "clang++", "xcrun", "ld", "ar", "ranlib", "dsymutil")
 	}
@@ -224,7 +231,7 @@ func buildOwned(parent context.Context, cfg BuildConfig, deps buildDependencies)
 			return fail(e)
 		}
 	}
-	err = testpair.PlaceCandidate(ctx, testpair.Placement{Source: source, Destination: b.Pair, Bash: selected["bash"], Env: env}, deps.run)
+	err = testpair.PlaceCandidate(ctx, testpair.Placement{Source: source, Destination: b.Pair, Candidate: deps.pairCandidate, Bash: selected["bash"], Env: env}, deps.run)
 	if err != nil {
 		return fail(err)
 	}

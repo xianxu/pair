@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -35,5 +36,19 @@ func TestPlaceCandidateUsesExplicitCheckoutAndEnvironment(t *testing.T) {
 	})
 	if err != nil || !called {
 		t.Fatalf("placement: called=%v err=%v", called, err)
+	}
+}
+
+func TestPlaceCandidateStillRejectsUnnormalizedDestinations(t *testing.T) {
+	root := t.TempDir()
+	for _, destination := range []string{"aliases/pair", root + string(filepath.Separator) + "aliases" + string(filepath.Separator) + ".." + string(filepath.Separator) + "pair"} {
+		called := false
+		err := PlaceCandidate(t.Context(), Placement{Source: root, Destination: destination, Bash: "/bin/bash"}, func(context.Context, string, []string, string, []string) (string, error) {
+			called = true
+			return "", nil
+		})
+		if err == nil || called || !strings.Contains(err.Error(), "clean absolute paths") {
+			t.Fatalf("strict placement admitted unnormalized destination: err=%v called=%v", err, called)
+		}
 	}
 }

@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/xianxu/pair/internal/reporoot"
 )
 
 func TestMain(m *testing.M) {
@@ -254,5 +256,80 @@ func TestSharedBinaryShellContract(t *testing.T) {
 	cmd := exec.Command("bash", "../../../tests/lib/pair-test-binary-test.sh")
 	if out, err := cmd.CombinedOutput(); err != nil {
 		t.Fatalf("shell lifecycle: %v\n%s", err, out)
+	}
+}
+
+func TestLegacyPlacementNormalizesDestinationAtCheckoutBoundary(t *testing.T) {
+	original, err := reporoot.Current()
+	if err != nil {
+		t.Fatal(err)
+	}
+	builder, err := os.ReadFile(filepath.Join(original, "tests", "lib", "pair-test-binary.sh"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, form := range []string{"relative", "absolute-unclean"} {
+		for _, withContext := range []bool{false, true} {
+			name := "At"
+			if withContext {
+				name = "AtContext"
+			}
+			t.Run(form+"/"+name, func(t *testing.T) {
+				checkout := t.TempDir()
+				for _, dir := range []string{"tests/lib", "nested/caller", "aliases"} {
+					if err := os.MkdirAll(filepath.Join(checkout, dir), 0700); err != nil {
+						t.Fatal(err)
+					}
+				}
+				if err := os.WriteFile(filepath.Join(checkout, "go.mod"), []byte("module github.com/xianxu/pair\n"), 0600); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.WriteFile(filepath.Join(checkout, "tests", "lib", "pair-test-binary.sh"), builder, 0600); err != nil {
+					t.Fatal(err)
+				}
+				source := filepath.Join(t.TempDir(), "suite-pair")
+				body := []byte("#!/bin/sh\nexit 0\n")
+				if err := os.WriteFile(source, body, 0700); err != nil {
+					t.Fatal(err)
+				}
+				t.Setenv("PAIR_TEST_BINARY", source)
+				nested := filepath.Join(checkout, "nested", "caller")
+				t.Chdir(nested)
+				destination := filepath.Join("aliases", "pair")
+				expected := filepath.Join(checkout, destination)
+				if form == "absolute-unclean" {
+					destination = checkout + string(filepath.Separator) + "aliases" + string(filepath.Separator) + ".." + string(filepath.Separator) + "pair"
+					expected = filepath.Join(checkout, "pair")
+				}
+				var got string
+				if withContext {
+					got = AtContext(t, t.Context(), destination)
+				} else {
+					got = At(t, destination)
+				}
+				if got != destination {
+					t.Fatalf("returned destination %q; want unchanged %q", got, destination)
+				}
+				sourceInfo, err := os.Stat(source)
+				if err != nil {
+					t.Fatal(err)
+				}
+				placedInfo, err := os.Stat(expected)
+				if err != nil {
+					t.Fatalf("checkout-root placement missing: %v", err)
+				}
+				if !os.SameFile(sourceInfo, placedInfo) {
+					t.Fatal("legacy placement did not reuse exact suite candidate")
+				}
+				if form == "relative" {
+					if _, err := os.Stat(filepath.Join(nested, destination)); !os.IsNotExist(err) {
+						t.Fatalf("placement used caller cwd: %v", err)
+					}
+				}
+				if raw, err := os.ReadFile(source); err != nil || string(raw) != string(body) {
+					t.Fatalf("source candidate changed: %q %v", raw, err)
+				}
+			})
+		}
 	}
 }
