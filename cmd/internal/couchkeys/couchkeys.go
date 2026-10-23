@@ -77,7 +77,7 @@ var bindings = []Binding{
 		Encodings: [][]byte{{SwitchLegacy}, []byte("\x1b[32;5u")}},
 	{Action: ActionPrevious, Scope: ScopeEveryPane, Key: "Ctrl+Backspace", Help: "return to the previous Couch thread",
 		Encodings: [][]byte{{PreviousLegacy}, []byte("\x1b[127;5u")}},
-	{Action: ActionAttention, Scope: ScopeEveryPane, Key: "Ctrl+Return", Help: "open or close the attention list",
+	{Action: ActionAttention, Scope: ScopeEveryPane, Key: "Ctrl+Return", Help: "open or close the notification list (bell)",
 		Encodings: [][]byte{[]byte(CtrlReturnSequence), []byte("\x1b[13;5:1u"), []byte("\x1b[13;5:2u")}},
 	// Relaunch is taken from every pane (#284): Pair's own restart refuses under
 	// Couch, so passing it through left a key that confirmed and did nothing.
@@ -95,9 +95,9 @@ var bindings = []Binding{
 	// code (66) instead of the base key's (98).
 	{Action: ActionWebcast, Scope: ScopeEveryPane, Key: "Shift+Ctrl+Alt+b", Help: "open the cast Chrome; pressed again, go live or pause the cast",
 		Encodings: [][]byte{[]byte("\x1b[98;8u"), []byte("\x1b[66;8u")}},
-	// The attention list (pair#673): enhanced encoding only, like Ctrl+Alt+b
+	// The notification list (bell) (pair#673): enhanced encoding only, like Ctrl+Alt+b
 	// beside it. Its legacy form, ESC ^A, is also Esc-then-Ctrl+A.
-	{Action: ActionAttention, Scope: ScopeEveryPane, Key: "Ctrl+Alt+a", Help: "open the attention list: what waits on you, each item jumps to its slot",
+	{Action: ActionAttention, Scope: ScopeEveryPane, Key: "Ctrl+Alt+a", Help: "open the notification list (bell): what waits on you, each item jumps to its slot",
 		Encodings: [][]byte{[]byte("\x1b[97;7u")}},
 	pairChord(ScopeSwitcher, ActionDetach, workbenchshortcut.ChordAltD, "Alt+d", "detach every live thread and leave Couch; their sessions keep running"),
 	pairChord(ScopeSwitcher, ActionPark, workbenchshortcut.ChordAltX, "Alt+x", "shut down every live thread and leave Couch (asks first)"),

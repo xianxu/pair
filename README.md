@@ -1342,7 +1342,7 @@ the group scope; opening the ordinary switcher starts with the full list.
 The active and attention chips win space before ordinary chips. At impossible
 widths, some labels must be hidden: the remaining overflow count says `+N !`
 when hidden slots need attention, if that complete marker fits. The bell still
-opens the full attention list. A clipped or omitted count has no click action.
+opens the full notification list (bell). A clipped or omitted count has no click action.
 
 Use `couch --tab-style multiline` for the previous packer, which uses one row
 when everything fits and wraps onto a second row before hiding overflow. The
@@ -1444,14 +1444,14 @@ pages, or detouring manually to check a third thread, still brings you back to
 where you actually were. Returning home twice is deliberately a no-op: you are
 home, and there is nowhere to bounce to.
 
-`Ctrl-Return` opens or closes the **attention list**, exactly like `Ctrl+Alt+a`
+`Ctrl-Return` opens or closes the **notification list (bell)**, exactly like `Ctrl+Alt+a`
 or clicking the bell. It toggles from both an actor and the switcher; opening or
 closing it leaves the active thread, switcher selection and previous-thread
 history in place. With an empty list it stays put and says nothing is waiting.
 It no longer jumps to the newest page or accepts a switcher row. Ordinary
 `Enter` still selects a switcher row or the selected attention item.
 
-The **attention list** (pair#673) shows what is waiting on you, newest first. It holds three kinds of item: the hub's `couch --notify` messages,
+The **notification list (bell)** (pair#673) shows what is waiting on you, newest first. It holds three kinds of item: the hub's `couch --notify` messages,
 slots blocked on a permission prompt or picker, and slots whose turn ended with
 a question to you. While the list has items, the right end of the status row
 shows `🔔N`, red if a slot is blocked on a prompt; click it to open the list too.

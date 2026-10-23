@@ -256,6 +256,15 @@ whitespace checks pass. A new recorded affected check is due on this pushed
 source because generated help strings are compiled code, even though input
 behavior and the operator-accepted source remain unchanged.
 
+### 2026-10-23 — stage lease cleared for #812
+
+At the hub's explicit request (receipt 88c73bb2-37f9-4ca8-a305-7e65e9839af7),
+sdlc stage --clear completed EXIT0. Git verified pair:0 returned to clean main
+at eb5171b07c91b8784139a1ab8cd42f6cc35e8c66, matching origin/main; all five
+stage-verified binaries rebuilt at that revision with modified=false. Clear
+report 8a89d1dc-784c-459e-bdd2-5ee640321db0 is submitted. No #811 stage remains;
+pair:1 now has the hub's authority to stage #812. Do not touch its successor.
+
 ## Operator live check
 
 On a fresh Couch process using the staged revision (running sessions retain the

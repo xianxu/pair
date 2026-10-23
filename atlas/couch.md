@@ -31,7 +31,7 @@ when space permits. Counts carry actor cardinality, so later scarcity overflow n
 double-counts folded actors. The shared measured planner and drawing pass in
 `status_layout.go` and `reserve.go` retain active/attention chips first. At
 impossible widths the overflow marker includes `!` when hidden actors need
-attention (`+N !` when it fits); the bell still opens the full attention list.
+attention (`+N !` when it fits); the bell still opens the full notification list (bell).
 A tiny host prioritizes a clipped, clickable active span over fixed controls.
 
 A complete drawn group count opens the root switcher scoped to its exact owner
@@ -742,7 +742,7 @@ counts enter the existing COUCH_TRACE diagnostics as `notify-suppressed`, and
 ordinary BEL is unchanged. Each aggregate names the pane endpoint and cumulative
 count; a fresh attachment starts a new counter. No notification text is logged.
 
-**Attention list (pair#673, ephemeral lifecycle pair#733).** Ctrl+Return, Ctrl+Alt+a or the
+**Notification list (bell) (pair#673, ephemeral lifecycle pair#733).** Ctrl+Return, Ctrl+Alt+a or the
 status row's 🔔N badge opens the top-right panel. Enter/click opens and removes
 an item, `d` dismisses, and the always-visible Clear all row or `c` empties it.
 Three sources report facts through the message service: hub notifications,
@@ -3182,7 +3182,7 @@ then ignored it for backspace, so the CSI-u form decoded as a plain backspace;
 that is fixed as defence in depth, since the interceptor claims both encodings
 before the panel sees them but forwards paste content verbatim.
 
-`ctrl+return` toggles the existing **attention list** (`pair#811`), sharing
+`ctrl+return` toggles the existing **notification list (bell)** (`pair#811`), sharing
 `couchkeys.ActionAttention`, `HitAttention` and `Console.toggleAttention` with
 Ctrl+Alt+a and the bell. This applies from both actors and the switcher; the
 underlying focus, active thread, switcher selection, paging acknowledgements and
