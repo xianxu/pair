@@ -53,10 +53,10 @@ so slots park in parallel batches, not all at once nor one by one.
 
 Durable plan: [one-gesture full quit](../plans/000827-one-gesture-full-quit-plan.md).
 
-- [ ] Measure private real-store commit timings at15/30 slots before changing the threshold; choose within operator5–10s, stop if evidence contradicts it.
-- [ ] Retain fan-out/gates/nonce recovery; one proposed60s scheduling budget and at most3 safe drives per target. Synchronous durability cannot be forcibly interrupted.
-- [ ] Confirmed Alt+x automatically handles eligible stragglers, exits only after verified success, or leaves one exact unresolved-slot/recovery report.
-- [ ] Deterministic30-slot/N2N tests, physical shared-harness4/8-slot Claude/Codex check, normal recorded verification and close.
+- [x] Measure private real-store commit timings at15/30 slots before changing the threshold; choose within operator5–10s, stop if evidence contradicts it.
+- [x] Retain fan-out/gates/nonce recovery; one proposed60s scheduling budget and at most3 safe drives per target. Synchronous durability cannot be forcibly interrupted.
+- [x] Confirmed Alt+x automatically handles eligible stragglers, exits only after verified success, or leaves one exact unresolved-slot/recovery report.
+- [x] Deterministic30-slot/N2N tests, physical shared-harness4/8-slot Claude/Codex check, normal recorded verification and close.
 
 
 ## Log

@@ -116,9 +116,9 @@ Files: couchtty/console.go, console_run_menu_test.go, console_test.go; testcouch
 ### 5. Verification, documentation and landing
 
 - [x] Record before/after commit and full-quit measurements; distinguish controlled slow-stimulus evidence from naturally loaded native measurements.
-- [ ] Run targeted park/leave/relaunch, console and testcouch tests, appropriate race cohorts and internal/repolint. Full/affected evidence follows the repo's declared SDLC contract on the pushed final head.
+- [x] Run targeted park/leave/relaunch, console and testcouch tests, appropriate race cohorts and internal/repolint. Full/affected evidence follows the repo's declared SDLC contract on the pushed final head.
 - [x] Update atlas/couch.md and atlas/index.md for budgets, retry boundary and partial recovery. No project-file edits; report to TL.
-- [ ] Before close run make test-affected-inventory and audit any named reader; no bulk hash refresh. Use normal SDLC close review and merge, with live/operator check coordinated through TL if required.
+- [x] Before close run make test-affected-inventory and audit any named reader; no bulk hash refresh. Use normal SDLC close review and merge, with live/operator check coordinated through TL if required.
 
 ## Architecture review
 
