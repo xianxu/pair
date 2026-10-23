@@ -2701,6 +2701,9 @@ and external temporary roots rather than relying on the host's TMPDIR.
   keep semantic mismatches non-retriable. Audit structural call-site manifests
   when a collector method changes, even when the effect remains read-only.
 
+- #806 BR-1: Diagnostic reader tests do not prove lifecycle retention. Test the real cleanup caller across failure/success and option combinations, with controlled cancellation/join boundaries, root removal and repeated close; remove each capture call in a mutation check so missing wiring cannot remain green.
+
+- #806 BR-1 round2: Distinguish every teardown join in the regression: admitted requests joining does not prove native child/IO completion. Emit a final marker from the later producer and reject a mutation moving diagnostics across that specific join.
 - #743 native fixture: concurrent commands must record whole invocations independently. Per-argument shell printf appends can interleave even though each argument is correct; use unique records and NUL framing, compare the exact run vector, and count command fields rather than argument text. A two-command fixture regression pins empty, whitespace, newline and literal shell-looking arguments.
 - #801 ad-hoc lifetime audit: detaching an admitted resource's lifetime must not detach its constructor from cancellation. Carry startup admission separately, check it after subordinate builders, and gate each installation effect; successful construction must still survive the startup context ending.
 - #801 ad-hoc lifetime audit: after nested cleanup succeeds, recovery evidence must name the resource still owned. A deleted outer root must never hide a surviving candidate directory when the cleanup budget expires.
