@@ -1,8 +1,8 @@
 ---
 id: 000819
-status: codecomplete
+status: done
 created: 2026-10-22
-updated: 2026-10-22
+updated: 2026-10-23
 estimate_hours: 1.25375
 github_issue:
 started: 2026-10-22T16:54:59-07:00
@@ -21,6 +21,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: 98cfab5975758da5746d8cdd9e6af0248ad9297c
         evidence_commit: 9d25b6df22496ce4cfbacde1c67a8c0ac461b44b
+        landed_commit: 934caf3f59365c145c471cde85d8d70ff3d22fb6
 ---
 
 # Collapse tab bar: a one-glyph-per-slot state strip next to +N
