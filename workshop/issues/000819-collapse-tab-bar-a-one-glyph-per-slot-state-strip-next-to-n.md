@@ -68,3 +68,7 @@ Checkout state only, not agent idle/working. Reuse existing SlotGlyph evidence; 
 ### 2026-10-22 — TL plan approval (c4f6db71)
 
 Approved optional strip allocation after base packing, left-to-right using spare columns: each strip fits whole or the group remains plain +N; detail never displaces active/attention/counts/controls. One hit span, unchanged multiline. Proceed to change-code; the real staged operator look remains required before landing. #789 retained snapshot suite is independent and will be resumed for its fixed review/merge on result.
+
+### 2026-10-22 — Plan-quality refinement
+
+PQ-1 requested function-specific adversarial test strategies instead of prose case inventories. Compressed the durable plan accordingly; no product or architecture change. First gate refused before implementation; rerunning after the refinement. #789 suite remains independently queued.

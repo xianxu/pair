@@ -37,7 +37,7 @@ Transient notices retain the existing free-space policy: selected actor/count ce
 | chipsWidth / measureChipCells | cmd/internal/couchtty/reserve.go | modified wrapper / new counted shared measurement |
 | renderStatusCells | cmd/internal/couchtty/reserve.go | modified |
 
-CompactSlotGlyph consumes the existing closed glyph string and emits one allowed single-cell marker. Its implementation uses the existing private branch constant and dirty/diverged constants in their owning package; no duplicate branch-symbol definition and no Git probe. Unknown/empty/malformed strings produce the neutral marker rather than forwarding arbitrary text. Unit truth tables pin every existing full SlotGlyph output, combined dirty cases, unknown/control inputs and actual terminal grapheme widths.
+CompactSlotGlyph consumes the existing closed glyph string and emits one allowed single-cell marker. Its implementation uses the existing private branch constant and dirty/diverged constants in their owning package; no duplicate branch-symbol definition and no Git probe. Unknown/empty/malformed strings produce the neutral marker rather than forwarding arbitrary text. CompactSlotGlyph is tested over generated existing glyph grammar and arbitrary malformed strings, enforcing the fixed alphabet, priority and one-terminal-cell invariant.
 
 FoldedStateStrip is data, not an inventory. The existing exact-group pass derives it only from the members actually folded. Its order derives from PresentThreads, not map iteration or a new sort. Kept actors and placeholders contribute no marker. Store a compact string, at most three UTF-8 bytes per hidden member with this fixed alphabet; no retained slice of actors or new durable record.
 
@@ -84,21 +84,20 @@ ARCH-CONSTRAINTS: within existing actor/grid limits, A actors, G groups and B ex
 
 Files: core slotgit.go/slotgit_test.go; tty reserve.go, status_collapse.go and status_collapse_test.go.
 
-- [ ] Write red CompactSlotGlyph truth tables, including all two-part outputs and fixed one-cell terminal oracles; no IO.
-- [ ] Add minimal pure mapper beside the existing glyph grammar, with dirty/diverged/ahead-or-behind/branch priority and neutral fallback.
-- [ ] Add red collapse projection tests using unsorted inventory projected through PresentThreads: exact numeric slot order, exact owner/repo grouping, selected/attention/parked/pending exclusions and threshold2/3 behavior.
-- [ ] Retain the derived strip on the synthetic count only; validate len-in-cells equals hidden count. Test current/inactive numbered hubs and same display names under different identities.
+- [ ] CompactSlotGlyph: generate existing glyph combinations and arbitrary malformed strings; assert the closed marker alphabet, priority and one-terminal-cell output against an independent oracle, observing red before implementation.
+- [ ] prepareCollapsedStatusChips: generate inventories through PresentThreads; independently assert exact hidden live cardinality, numeric order, owner/repository identity and preserved-member exclusion under focus changes.
+- [ ] Implement the pure mapper and frame-local strip derivation, retaining existing grouping and threshold policy.
 - [ ] Run `go test ./cmd/internal/couchcore -run 'Test(CompactSlotGlyph|SlotGlyph)' -count=1` and focused collapse tests; expect PASS after observed red. Commit.
 
 ### Task 2 — spare-width admission, rendering and whole-chip navigation
 
 Files: tty status_layout.go, reserve.go, status_owner_fade_test.go, status_collapse_test.go, collapse_mouse_test.go; focused folded_state_strip_test.go if needed.
 
-- [ ] Add red width table covering exact full-strip fit, one column short, multiple groups, existing global +N !, tiny clipped-active fallback and broadcast/control prefix reservations. Assert base visible actors/counts match undecorated packing.
-- [ ] Reuse counted shared cell measurement, then admit complete strips into spare columns without reflow or changing actor selection.
-- [ ] Extend count drawing with the admitted strip and existing per-glyph/owner colour helpers. Test dark/light, unknown/NO_COLOR, amber priority and both plain/folded cases; explicit multiline is byte-for-byte unchanged.
-- [ ] Extend actual decoder tests using terminal.Cell coordinates for every digit, separator and every marker after emoji aliases; stale revision ignores all. Assert exact scoped membership, no direct actor switch, Escape recovery and no phantom clipped-strip span.
-- [ ] Count production visits at N/2N with one big group and many groups; preserve existing allocation/cost bounds. Run focused tests and full couchtty package, including native content/resize, physical glyph width, pending/live and guard regressions. Commit.
+- [ ] measureChipCells and decorateFoldedCounts: generate widths and grouped base packings; assert unchanged base selection, reserved-control bounds and complete-or-absent strips with left-to-right admission. Observe red before implementation.
+- [ ] renderStatusCells: generate admitted detail, palette and ownership combinations; assert terminal-cell bounds, existing glyph/owner styling, complete hit spans and unchanged multiline output.
+- [ ] Decode real physical cells through existing confirmed-frame input: assert every admitted count/strip cell opens exactly its owner/group, stale frames admit nothing, and Escape restores ordinary navigation.
+- [ ] Implement counted shared measurement, optional admission and complete-strip drawing through existing helpers and group navigation.
+- [ ] Count actual production visits at N/2N for adversarial group distributions; enforce existing allocation/cost bounds. Run focused tests and the full couchtty package, including its native geometry and guard regressions. Commit.
 
 ### Task 3 — document, stage and land
 
@@ -117,3 +116,9 @@ Files: README.md; atlas/couch.md; this plan and issue.
 ### 2026-10-22 — TL plan approval (c4f6db71)
 
 Approved optional strip allocation after base packing, left-to-right using spare columns: each strip fits whole or the group remains plain +N; detail never displaces active/attention/counts/controls. One hit span, unchanged multiline. Proceed to change-code; the real staged operator look remains required before landing. #789 retained snapshot suite is independent and will be resumed for its fixed review/merge on result.
+
+## Revisions
+
+### 2026-10-22 — PQ-1 function-test-strategy
+
+Compressed all task-level test inventories into named risky functions, adversarial input classes and mechanical invariants. The approved behavior, production seams, cost bounds, verification commands and staged operator requirement are unchanged.
