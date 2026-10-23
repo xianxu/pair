@@ -48,6 +48,8 @@ TL receipt58326574-1d4c-4767-b222-cfb4d5adddce splits the original request. Buil
 
 
 
+
+- 2026-10-23: closed — Train301 explicitly required main integration and re-close. Merged main05bca713e5dbc8826f1d4fedef39ca6cf0d9d70c cleanly with ort; zero conflicts and no source fixes. Integrated chrome/copy/collapse/config tests PASS0.641s; corrected native VM cancellation PASS0.262s; required affected-reader inventory PASS immediately before re-close without refresh. New exact-source recorded suite on973e424102d9 is submitted/pending; final recorded pass remains a landing gate. Prior full suite/resume and reviews remain historical evidence, not a claim on new integrated code. (fixed-then-ship); review verdict: SHIP
 - 2026-10-22: closed — TL58326574 cap/full-copy-only scope; producer/catalog removed and #802 filed unclaimed. BR5 screen-assertion family swept: both known cases red→green, bounded screen + unmodified feed + actual clipboard assertions retain security and exact-handle invariants. Whole couchtty package PASS41.445s, count1, no#788; targeted fixes PASS1.042s. Reader inventory/diff checks pass; no source wording or fixture deadline changed. Recorded final suite352190cb queued lease-823433472, not claimed passing; landing awaits pass. No stage approved.; review verdict: SHIP
 - 2026-10-22: flow upgraded quick → full — an earlier round of this close already ran the full review
 ### 2026-10-21

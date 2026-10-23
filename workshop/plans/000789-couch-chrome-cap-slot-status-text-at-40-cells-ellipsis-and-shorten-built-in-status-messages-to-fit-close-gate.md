@@ -1197,6 +1197,397 @@ rounds:
       isolation: fenced
       reviewed: 0d3a009eb73fd04ad76ea3423d97feb15599d5d3
       blocked: false
+    - reviewer_runs:
+        - version: 1
+          intent:
+            disposable_root: true
+            id: 44fa437f-87c0-472f-9f08-70820c5df5b1
+            repository: github.com/xianxu/pair
+            issue_id: "000789"
+            recipe: fix-review
+            round: 8
+            attempt: 1
+            agent: codex
+            root: /Volumes/TestScratch/review-checkouts/016c039551bb9447
+            reviewed_head: 973e424102d9dd2d3934f6a0cab0f73eaed24ce4
+            slot: pair:4
+            requested_at: "2026-10-23T10:04:29.530035Z"
+          phase: finished
+          pid: 11386
+          started_at: "2026-10-23T10:04:29.668706Z"
+          finished_at: "2026-10-23T10:05:25.827365Z"
+          session_id: 01a16838-1bf9-7500-9d7d-4f59a2fecab4
+          outcome: returned
+      actual_inputs:
+        version: 1
+        method: active-time-v3-engagement-queue-v1
+        repository: github.com/xianxu/pair
+        code_head: 973e424102d9dd2d3934f6a0cab0f73eaed24ce4
+        tracker_head: cd8f2225c554d1bf5fd043c09d4591bc96e9fca4
+        branch_point: 05bca713e5dbc8826f1d4fedef39ca6cf0d9d70c
+        since: "2026-10-22T06:59:35-07:00"
+        until: "2026-10-23T03:03:17-07:00"
+        brain_root: /Users/xianxu/workspace/brain
+        gap_minutes: 15
+        commit_weight: 1
+        include_assistant: true
+        engagements:
+            - start: "2026-10-22T06:59:35-07:00"
+              end: "2026-10-23T03:03:17-07:00"
+              began: "2026-10-22T06:59:35-07:00"
+              roots:
+                - /Users/xianxu/workspace/worktree/pair-slot4/pair
+        sources:
+            - harness: codex
+              id: 01a15a49-099a-71f3-872b-0c2ad747d4bc
+              slot: pair:4
+              cwd: /Users/xianxu/workspace/worktree/pair-slot4/pair
+              digest: 84a5777675fe44a8b1d8dd81d839631199c2e32ec6b243a7d403de9df819cffb
+              started: "2026-10-20T17:08:30.923Z"
+              spawned: false
+              bytes: 63365083
+              windows:
+                - start: "2026-10-22T06:59:35-07:00"
+                  end: "2026-10-23T03:03:17-07:00"
+            - harness: codex
+              id: 01a163ea-73ce-7920-a8e0-09745fc11c15
+              slot: pair:4
+              cwd: /Users/xianxu/workspace/worktree/pair-slot4/pair
+              parent_id: 01a15a49-099a-71f3-872b-0c2ad747d4bc
+              digest: 455588ab419559a2ca7ce7b67e4b43b3cd2ca1cb8d40134dc93418db54f92e13
+              started: "2026-10-22T14:01:11.985Z"
+              spawned: true
+              bytes: 1922788
+              windows:
+                - start: "2026-10-22T14:01:11.985Z"
+                  end: "2026-10-23T03:03:17-07:00"
+            - harness: codex
+              id: 01a1640a-520b-79b0-b5b5-dfd2a46aee92
+              slot: pair:4
+              cwd: /Users/xianxu/workspace/worktree/pair-slot4/pair
+              parent_id: 01a15a49-099a-71f3-872b-0c2ad747d4bc
+              digest: dc7cd1e7dcdf5a21095b98bcc9c1b65fabec3247703b30bc8591cd3122edbc75
+              started: "2026-10-22T14:36:00.474Z"
+              spawned: true
+              bytes: 826505
+              windows:
+                - start: "2026-10-22T14:36:00.474Z"
+                  end: "2026-10-23T03:03:17-07:00"
+            - harness: codex
+              id: 01a164d8-6243-7841-b9b8-204db36e7b7e
+              slot: pair:4
+              cwd: /Users/xianxu/workspace/worktree/pair-slot4/pair
+              parent_id: 01a15a49-099a-71f3-872b-0c2ad747d4bc
+              digest: 6e665565f0451a2228b8b73509106dcdfdab8d08d51e1417c847999d7dadb840
+              started: "2026-10-22T18:21:05.088Z"
+              spawned: true
+              bytes: 659518
+              windows:
+                - start: "2026-10-22T18:21:05.088Z"
+                  end: "2026-10-23T03:03:17-07:00"
+            - harness: codex
+              id: 01a16564-abcd-7f52-b53b-533c939acd96
+              slot: pair:4
+              cwd: /Users/xianxu/workspace/worktree/pair-slot4/pair
+              parent_id: 01a15a49-099a-71f3-872b-0c2ad747d4bc
+              digest: 36c3cabf0d4ed349af33eded13ec7d03f135f251783e2a2b7debf588a7fb38ff
+              started: "2026-10-22T20:54:18.993Z"
+              spawned: true
+              bytes: 689090
+              windows:
+                - start: "2026-10-22T20:54:18.993Z"
+                  end: "2026-10-23T03:03:17-07:00"
+            - harness: codex
+              id: 01a16569-0a73-7532-ae4c-e0c4a07548b9
+              slot: pair:4
+              cwd: /Users/xianxu/workspace/worktree/pair-slot4/pair
+              digest: 07472520371613b39db33c36a7472448b4f22d6fd7f785e68fdb04fd78701ed1
+              started: "2026-10-22T20:59:05.589Z"
+              spawned: false
+              bytes: 625007
+              windows:
+                - start: "2026-10-22T20:59:05.589Z"
+                  end: "2026-10-23T03:03:17-07:00"
+            - harness: codex
+              id: 01a1656a-a25b-7e63-96b1-494a6046626d
+              slot: pair:4
+              cwd: /Users/xianxu/workspace/worktree/pair-slot4/pair
+              digest: 127f9752538d0ef1cd77675240a4dfc7c6f0bda66e611c48cdcadbaf92acfc65
+              started: "2026-10-22T21:00:50.261Z"
+              spawned: false
+              bytes: 407911
+              windows:
+                - start: "2026-10-22T21:00:50.261Z"
+                  end: "2026-10-23T03:03:17-07:00"
+            - harness: codex
+              id: 01a1656b-af5d-74f1-bada-1c9814432d77
+              slot: pair:4
+              cwd: /Users/xianxu/workspace/worktree/pair-slot4/pair
+              digest: 5d94760ad73c39be75662a48ed6d8405dd62d6f7acce4b42b3b887071cb54040
+              started: "2026-10-22T21:01:59.115Z"
+              spawned: false
+              bytes: 389898
+              windows:
+                - start: "2026-10-22T21:01:59.115Z"
+                  end: "2026-10-23T03:03:17-07:00"
+            - harness: codex
+              id: 01a1656c-302e-7010-8042-920fc7e14739
+              slot: pair:4
+              cwd: /Users/xianxu/workspace/worktree/pair-slot4/pair
+              digest: 72ccee36d8802be5165115f716e208e66fe747a66f6fb742aeaf8b727c051c86
+              started: "2026-10-22T21:02:32.041Z"
+              spawned: false
+              bytes: 373620
+              windows:
+                - start: "2026-10-22T21:02:32.041Z"
+                  end: "2026-10-23T03:03:17-07:00"
+            - harness: codex
+              id: 01a1656d-64c8-70a1-a657-222047013c95
+              slot: pair:4
+              cwd: /Users/xianxu/workspace/worktree/pair-slot4/pair
+              parent_id: 01a15a49-099a-71f3-872b-0c2ad747d4bc
+              digest: fd9d30f0a03e19897730098094a3c0ff3e12abf910794816ca7c3307a11d79fc
+              started: "2026-10-22T21:03:50.584Z"
+              spawned: true
+              bytes: 1274106
+              windows:
+                - start: "2026-10-22T21:03:50.584Z"
+                  end: "2026-10-23T03:03:17-07:00"
+            - harness: codex
+              id: 01a1656d-eab6-7170-997a-ef8852471481
+              slot: pair:4
+              cwd: /Users/xianxu/workspace/worktree/pair-slot4/pair
+              parent_id: 01a15a49-099a-71f3-872b-0c2ad747d4bc
+              digest: 43019887ca0ae50fa09e8be66bdb0d2a07b2455df98759340b9b42996a2ff5b9
+              started: "2026-10-22T21:04:24.872Z"
+              spawned: true
+              bytes: 842375
+              windows:
+                - start: "2026-10-22T21:04:24.872Z"
+                  end: "2026-10-23T03:03:17-07:00"
+            - harness: codex
+              id: 01a16595-9541-75d3-904c-1ab19efc19a6
+              slot: pair:4
+              cwd: /Users/xianxu/workspace/worktree/pair-slot4/pair
+              parent_id: 01a15a49-099a-71f3-872b-0c2ad747d4bc
+              digest: 53f45ab54edf31345a25e38627df246493c34cb25e6af7b9dacf2226b92200ae
+              started: "2026-10-22T21:47:44.44Z"
+              spawned: true
+              bytes: 1141358
+              windows:
+                - start: "2026-10-22T21:47:44.44Z"
+                  end: "2026-10-23T03:03:17-07:00"
+            - harness: codex
+              id: 01a16611-d395-74d1-b1a0-50384d69c8b8
+              slot: pair:4
+              cwd: /Users/xianxu/workspace/worktree/pair-slot4/pair
+              digest: f6bcd944d065a344feb11de3d0b9f47606b9c1afa7aeb6fa17e061e83e2467d6
+              started: "2026-10-23T00:03:27.56Z"
+              spawned: false
+              bytes: 523425
+              windows:
+                - start: "2026-10-23T00:03:27.56Z"
+                  end: "2026-10-23T03:03:17-07:00"
+            - harness: codex
+              id: 01a16614-82f4-7ef2-8ed5-d4b6e8c868d2
+              slot: pair:4
+              cwd: /Users/xianxu/workspace/worktree/pair-slot4/pair
+              digest: c4e0939e1d7c2832172466bcbe4e4db7f424f7151063ddd0d5e4f4e7fdf5df6b
+              started: "2026-10-23T00:06:23.171Z"
+              spawned: false
+              bytes: 385650
+              windows:
+                - start: "2026-10-23T00:06:23.171Z"
+                  end: "2026-10-23T03:03:17-07:00"
+            - harness: codex
+              id: 01a16615-8820-76e0-b130-157d959fa387
+              slot: pair:4
+              cwd: /Users/xianxu/workspace/worktree/pair-slot4/pair
+              digest: ab88fea81f9e214d92f952d5a1024d9b92ddf12ea413a05dcc85609a1141517f
+              started: "2026-10-23T00:07:29.998Z"
+              spawned: false
+              bytes: 389213
+              windows:
+                - start: "2026-10-23T00:07:29.998Z"
+                  end: "2026-10-23T03:03:17-07:00"
+            - harness: codex
+              id: 01a16616-0029-7a60-a4d8-79921ef47ad8
+              slot: pair:4
+              cwd: /Users/xianxu/workspace/worktree/pair-slot4/pair
+              digest: 3b7311fdf465d34da51b5ce21ef92217133f9f8bc2b2fc076b6f07fc4e9f324f
+              started: "2026-10-23T00:08:00.718Z"
+              spawned: false
+              bytes: 401205
+              windows:
+                - start: "2026-10-23T00:08:00.718Z"
+                  end: "2026-10-23T03:03:17-07:00"
+            - harness: codex
+              id: 01a16616-b602-7663-b157-33d728734632
+              slot: pair:4
+              cwd: /Users/xianxu/workspace/worktree/pair-slot4/pair
+              parent_id: 01a15a49-099a-71f3-872b-0c2ad747d4bc
+              digest: 3e4324f8784207d8ec4473a5ade8cd7c2b78b362c3760d292ad9af3a1fd92325
+              started: "2026-10-23T00:08:46.957Z"
+              spawned: true
+              bytes: 598514
+              windows:
+                - start: "2026-10-23T00:08:46.957Z"
+                  end: "2026-10-23T03:03:17-07:00"
+        queue_waits:
+            - attempt_id: f9b3e2af722df79bce43bf1cf59e89dd
+              slot: pair:4
+              record_digest: cf8924e80635048ed44689bc2d31a2a179d91f780dd17f28c121f1ddd7ed5ad6
+              start: "2026-10-22T14:54:14.348702Z"
+              end: "2026-10-22T16:08:21.663188Z"
+              queue_seconds: 4447.314486
+              raw_seconds: 4447.314486
+              exact: true
+            - attempt_id: 247075fa5a5ea07c61206b544f4d06d4
+              slot: pair:4
+              record_digest: 67137ac1892837e9a40cf657ee7496a9e8dfaf072fef0ddc83db69129da891ae
+              start: "2026-10-22T18:26:39.312715Z"
+              end: "2026-10-22T19:26:33.452514Z"
+              queue_seconds: 3594.139799
+              raw_seconds: 3594.139799
+              exact: true
+            - attempt_id: a71b7262e10d47a252d630372095d2ff
+              slot: pair:4
+              record_digest: 581dc4281cba5e831c581d3893bec5fd7bb291f14a87cda8572026524b03a5ad
+              start: "2026-10-22T20:53:12.461626Z"
+              end: "2026-10-22T23:15:53.037825Z"
+              queue_seconds: 8560.576199
+              raw_seconds: 8560.576199
+              exact: true
+            - attempt_id: 94ffb98dd3384d51488e76e31ffeeb46
+              slot: pair:4
+              record_digest: 29c76e66410e950c71bc986c648ca68c9a7b21f6744c8f9752b8d6982ac64288
+              start: "2026-10-22T23:53:34.128157Z"
+              end: "2026-10-23T01:22:02.030971Z"
+              queue_seconds: 5307.902814
+              raw_seconds: 5307.902814
+              exact: true
+            - attempt_id: 04cb95c189fa4fe5b8267c7641d54b14
+              slot: pair:4
+              record_digest: 1357387e8118f843abe8ae3ea7ae8e1686ce712f5a195de41920b1c07578e9b6
+              start: "2026-10-23T05:07:54.991368Z"
+              end: "2026-10-23T06:39:05.013777Z"
+              queue_seconds: 5470.022409
+              raw_seconds: 5470.022409
+              exact: true
+        protected:
+            - issue: "796"
+              slot: pair:4
+              start: "2026-10-22T20:53:51.919Z"
+              end: "2026-10-22T14:26:21-07:00"
+            - issue: "796"
+              slot: pair:4
+              start: "2026-10-22T14:26:21-07:00"
+              end: "2026-10-22T21:57:38.900744Z"
+            - issue: "796"
+              slot: pair:4
+              start: "2026-10-22T20:54:18.994Z"
+              end: "2026-10-22T20:55:25.184Z"
+            - issue: "796"
+              slot: pair:4
+              start: "2026-10-22T20:59:06.841Z"
+              end: "2026-10-22T21:00:03.99Z"
+            - issue: "796"
+              slot: pair:4
+              start: "2026-10-22T21:00:51.325Z"
+              end: "2026-10-22T21:01:05.624Z"
+            - issue: "796"
+              slot: pair:4
+              start: "2026-10-22T21:02:00.255Z"
+              end: "2026-10-22T21:02:24.06Z"
+            - issue: "796"
+              slot: pair:4
+              start: "2026-10-22T21:02:34.116Z"
+              end: "2026-10-22T21:02:56.319Z"
+            - issue: "796"
+              slot: pair:4
+              start: "2026-10-22T21:03:50.585Z"
+              end: "2026-10-22T21:16:20.416Z"
+            - issue: "796"
+              slot: pair:4
+              start: "2026-10-22T21:04:24.873Z"
+              end: "2026-10-22T21:12:34.411Z"
+            - issue: "796"
+              slot: pair:4
+              start: "2026-10-22T21:47:44.442Z"
+              end: "2026-10-22T21:57:38.900744Z"
+            - issue: "796"
+              slot: pair:4
+              start: "2026-10-22T22:03:15.450593Z"
+              end: "2026-10-22T15:17:52-07:00"
+            - issue: "796"
+              slot: pair:4
+              start: "2026-10-22T15:20:30-07:00"
+              end: "2026-10-22T22:36:17.624Z"
+            - issue: "796"
+              slot: pair:4
+              start: "2026-10-22T22:03:15.450593Z"
+              end: "2026-10-22T22:10:42.376Z"
+            - issue: "796"
+              slot: pair:4
+              start: "2026-10-22T22:33:25.067Z"
+              end: "2026-10-22T22:33:41.619Z"
+            - issue: "819"
+              slot: pair:4
+              start: "2026-10-22T23:55:06.047Z"
+              end: "2026-10-23T00:13:38.178Z"
+            - issue: "819"
+              slot: pair:4
+              start: "2026-10-23T00:03:28.724Z"
+              end: "2026-10-23T00:04:14.544Z"
+            - issue: "819"
+              slot: pair:4
+              start: "2026-10-23T00:06:23.986Z"
+              end: "2026-10-23T00:06:44.662Z"
+            - issue: "819"
+              slot: pair:4
+              start: "2026-10-23T00:07:30.97Z"
+              end: "2026-10-23T00:07:55.173Z"
+            - issue: "819"
+              slot: pair:4
+              start: "2026-10-23T00:08:01.901Z"
+              end: "2026-10-23T00:08:25.569Z"
+            - issue: "819"
+              slot: pair:4
+              start: "2026-10-23T00:08:48.495Z"
+              end: "2026-10-23T00:10:02.167Z"
+        excluded_brain_sessions: 1
+        excluded_brain_minutes: 256.6123
+        cuts:
+            - dispatched: "2026-10-22T07:17:23-07:00"
+              finalized: "2026-10-22T07:19:30-07:00"
+              finalizing: false
+            - dispatched: "2026-10-22T07:28:54-07:00"
+              finalized: "2026-10-22T07:32:01-07:00"
+              finalizing: false
+            - dispatched: "2026-10-22T07:44:14-07:00"
+              finalized: "2026-10-22T07:48:03-07:00"
+              finalizing: false
+            - dispatched: "2026-10-22T07:56:23-07:00"
+              finalized: "2026-10-22T07:58:29-07:00"
+              finalizing: true
+            - dispatched: "2026-10-22T11:27:40-07:00"
+              finalized: "2026-10-22T11:30:29-07:00"
+              finalizing: true
+            - dispatched: "2026-10-22T16:47:38-07:00"
+              finalized: "2026-10-22T16:49:37-07:00"
+              finalizing: true
+            - dispatched: "2026-10-22T21:55:17-07:00"
+              finalized: "2026-10-22T21:58:06-07:00"
+              finalizing: true
+      "n": 8
+      timestamp: "2026-10-23T03:05:27-07:00"
+      dispatched: "2026-10-23T03:04:26-07:00"
+      agent: codex
+      reviewer: codex (openai; author openai)
+      recipe: fix-review
+      isolation: fenced
+      reviewed: 973e424102d9dd2d3934f6a0cab0f73eaed24ce4
+      blocked: false
 ---
 
 # Gate ledger — pair#789 (boundary-review)
@@ -1251,6 +1642,8 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 ## Round 6 — 2026-10-22T16:49:37-07:00 (codex) — passed
 
 ## Round 7 — 2026-10-22T21:58:06-07:00 (codex) — passed
+
+## Round 8 — 2026-10-23T03:05:27-07:00 (codex) — passed
 
 ## Open findings
 

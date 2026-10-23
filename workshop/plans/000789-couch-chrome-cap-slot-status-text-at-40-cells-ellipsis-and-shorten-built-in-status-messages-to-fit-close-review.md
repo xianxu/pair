@@ -644,3 +644,69 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-23T03:05:27-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 789 — Couch chrome: cap status text at 40 cells and preserve full copying |
+| repo | pair |
+| issue file | workshop/issues/000789-couch-chrome-cap-slot-status-text-at-40-cells-ellipsis-and-shorten-built-in-status-messages-to-fit.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 269dbf87502ec1d800d5ac0ef29773ab2076ea94..973e424102d9dd2d3934f6a0cab0f73eaed24ce4 |
+| command | sdlc close --issue 789 |
+| reviewer | codex (openai; author openai) |
+| isolation | fenced |
+| timestamp | 2026-10-23T03:05:27-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+The pinned interdiff only appends gate and review records. Issue changes record workflow progress: Spec, Done when, and Plan remain unchanged, and Revisions only gains status entries. No executable changes, conflict resolutions, or new defects occur in this window. No prior findings remain open.
+
+```findings
+{}
+```
+
+1. **Strengths**
+   - Existing gate and review records are preserved in order.
+   - Added records retain the accepted cap-and-copy scope.
+   - No new architectural or user-facing surface requires atlas or README updates.
+
+2. **Critical findings:** None.
+
+3. **Important findings:** None.
+
+4. **Minor findings:** None.
+
+5. **Test coverage notes:** Required stat, name-status, full patch, and issue-diff inspections completed. `git diff --check` passed. No runtime tests or regression inversions were needed for this record-only window; historical test claims were not treated as fresh verification.
+
+6. **Architectural notes**
+   - **ARCH-DRY — pass:** no duplicated executable logic introduced.
+   - **ARCH-PURE — pass:** no logic or IO boundaries changed.
+   - **ARCH-PURPOSE — pass:** additions preserve the accepted scope.
+   - **ARCH-EVOLVE — pass:** existing ledger content is preserved; no format or reader/writer changes.
+
+7. **Plan revision recommendations:** None.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"44fa437f-87c0-472f-9f08-70820c5df5b1","repository":"github.com/xianxu/pair","issue_id":"000789","recipe":"fix-review","round":8,"attempt":1,"agent":"codex","root":"/Volumes/TestScratch/review-checkouts/016c039551bb9447","reviewed_head":"973e424102d9dd2d3934f6a0cab0f73eaed24ce4","slot":"pair:4","requested_at":"2026-10-23T10:04:29.530035Z"},"phase":"finished","pid":11386,"started_at":"2026-10-23T10:04:29.668706Z","finished_at":"2026-10-23T10:05:25.827365Z","session_id":"01a16838-1bf9-7500-9d7d-4f59a2fecab4","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 2.651048167s
+head: "973e424102d9dd2d3934f6a0cab0f73eaed24ce4"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412
