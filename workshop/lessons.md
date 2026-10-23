@@ -2667,6 +2667,17 @@ and external temporary roots rather than relying on the host's TMPDIR.
   keep semantic mismatches non-retriable. Audit structural call-site manifests
   when a collector method changes, even when the effect remains read-only.
 
+- #801 ad-hoc lifetime audit: detaching an admitted resource's lifetime must not detach its constructor from cancellation. Carry startup admission separately, check it after subordinate builders, and gate each installation effect; successful construction must still survive the startup context ending.
+- #801 ad-hoc lifetime audit: after nested cleanup succeeds, recovery evidence must name the resource still owned. A deleted outer root must never hide a surviving candidate directory when the cleanup budget expires.
+- #801 integration: normalize a shared environment's explicit last-wins overrides at its source boundary before serializing it as a map; pin helper selection to the verified source rather than the external consumer's working directory.
+
+- #801 BR-1: duplicate-key checks alone do not make encoding/json authority decoding strict: project exact required names, reject case-fold aliases and null scalar fields, then decode only the owned subset; preserve additive metadata without interpreting its numbers.
+- #801 BR-2: a strict extracted API must not accidentally tighten legacy wrapper defaults. Share default canonicalization across wrappers and test a real temp alias with the preferred scratch volume absent; explicit caller paths retain strict admission.
+- #801 BR-3: reconcile plan concept tables against actual exported symbols/files before close, including concrete native and IO adapters; illustrative names are not an implementation map.
+
+- #801 BR-4: extracting a strict standalone owner must preserve the old testing wrapper’s selection and ownership contract as a whole: suite-selected candidate, once-built process fallback, copied placement and separate source lifetime. Test supplied/unset selection and cleanup together; ambient isolation belongs at the standalone boundary, not as an accidental change to legacy wrappers.
+
+- #801 consolidated compatibility: separate legacy policy from strict input admission at extraction boundaries. Preserve all legacy path normalization, suite/process candidate selection and source cleanup in thin adapters; assert real public-wrapper behavior with a joined self-exec test, not just a runner mock. Strict standalone calls must still clear ambient selection and reject noncanonical explicit paths.
 - #796: A launch default change must make old behavior explicit in compatibility fixtures, including native subprocess tests. Sweep direct Console constructors and geometry assertions as well as shared helpers; preserve the old multiline native matrix while adding collapse. When an early known mismatch consumes the package deadline, rerun the corrected package before treating late teardown failures as independent flakes.
 
 - #796 BR-1: A presentation run is not necessarily an entity group: numbered hubs deliberately split legacy tab runs. Use role for hub policy and exact owner/group identity for aggregation; pin primary and numbered hubs under both current and inactive ownership before relying on shared display grouping.

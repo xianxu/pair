@@ -2,6 +2,7 @@ package testcouch
 
 import (
 	"github.com/xianxu/pair/cmd/internal/couchidentity"
+	"github.com/xianxu/pair/internal/reporoot"
 	"os"
 	"path/filepath"
 	"strings"
@@ -61,13 +62,17 @@ func TestEnvironmentDoesNotInheritLiveAuthority(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer os.RemoveAll(p.Root)
-	env, err := runtimeEnvironment(p, "/owned/bin", "claude", "run-one", "/owned/source", "/owned/couch")
+	source := runtimeSourceForTest(t)
+	env, err := runtimeEnvironment(p, "/owned/bin", "claude", "run-one", source, "/owned/couch")
 	if err != nil {
 		t.Fatal(err)
 	}
 	values := map[string]string{}
 	for _, entry := range env {
 		key, value, _ := strings.Cut(entry, "=")
+		if _, duplicate := values[key]; duplicate {
+			t.Fatalf("runtime environment repeats key %s", key)
+		}
 		values[key] = value
 	}
 	for _, key := range []string{"COUCH_TREE", "COUCH_CALLER_BINDING", "ANTHROPIC_API_KEY", "ZELLIJ_SESSION_NAME"} {
@@ -112,5 +117,70 @@ func TestFactoryTerminalIdentityIsolation(t *testing.T) {
 		if allocated.C>>63 != 1 || allocated.N != 1 || allocated.M != 1 {
 			t.Errorf("first fleet allocation must have private high C and N=M=1: %+v", allocated)
 		}
+	}
+}
+
+func runtimeSourceForTest(t *testing.T) string {
+	t.Helper()
+	source, err := reporoot.Current()
+	if err != nil {
+		t.Fatal(err)
+	}
+	source, err = filepath.EvalSymlinks(source)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return source
+}
+
+func TestRuntimeEnvironmentUsesSelectedSourceOutsideCheckout(t *testing.T) {
+	source := runtimeSourceForTest(t)
+	foreign := t.TempDir()
+	if err := os.WriteFile(filepath.Join(foreign, "go.mod"), []byte("module github.com/xianxu/pair\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	helper := filepath.Join(foreign, "tests", "lib", "pair-test-env.sh")
+	if err := os.MkdirAll(filepath.Dir(helper), 0700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(helper, []byte("#!/bin/sh\nprintf ran > \"$0.ran\"\nprintf 'FOREIGN_ENV=wrong\\000'\n"), 0700); err != nil {
+		t.Fatal(err)
+	}
+	p, err := allocateRoots(t.TempDir(), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(p.Root)
+	t.Chdir(foreign)
+	env, err := runtimeEnvironment(p, "/owned/bin", "claude", "run-selected", source, "/owned/couch")
+	if err != nil {
+		t.Fatal(err)
+	}
+	selected := "PAIR_TEST_ENV_SCRIPT=" + filepath.Join(source, "tests", "lib", "pair-test-env.sh")
+	found := false
+	for _, entry := range env {
+		if entry == selected {
+			found = true
+		}
+		if strings.HasPrefix(entry, "FOREIGN_ENV=") {
+			t.Fatalf("cwd helper selected: %v", env)
+		}
+	}
+	if !found {
+		t.Fatalf("selected helper missing: %v", env)
+	}
+	if _, err := os.Stat(helper + ".ran"); !os.IsNotExist(err) {
+		t.Fatalf("foreign helper executed: %v", err)
+	}
+}
+
+func TestRuntimeEnvironmentMissingSelectedHelperNeverFallsBack(t *testing.T) {
+	p, err := allocateRoots(t.TempDir(), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(p.Root)
+	if _, err := runtimeEnvironment(p, "/owned/bin", "claude", "run-missing", t.TempDir(), "/owned/couch"); err == nil {
+		t.Fatal("missing selected helper fell back to current checkout")
 	}
 }
