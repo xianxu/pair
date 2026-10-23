@@ -1,6 +1,7 @@
 package couchtty
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/xianxu/pair/cmd/internal/couchcore"
@@ -12,19 +13,26 @@ func (r ordinaryResultWarning) Warning() string { return string(r) }
 
 func TestLifecycleSuccessResultAttentionUsesTypedWarningFacts(t *testing.T) {
 	target, archived := menuAddress("result-origin"), menuAddress("archived-origin")
-	start := couchcore.StartResult{Record: couchcore.ActorRecord{Thread: target, AttachmentNotice: "BORROWED ATTACH: client proof unavailable"}}
+	start := couchcore.StartResult{Record: couchcore.ActorRecord{Thread: target, AttachmentNotice: "BORROWED ATTACH: no unique retained client helper is identified; retained lifecycle state was preserved."}}
+	publicationFailure := couchcore.StartResult{Record: start.Record, Configuration: &couchcore.AcceptedConfiguration{}}
+	// An empty accepted profile takes the real failure path without storage IO.
+	(&couchcore.Couch{}).PublishAdoptedConfiguration(publicationFailure)
+	if !strings.Contains(publicationFailure.Warning(), "startup parameters were not remembered") {
+		t.Fatal("fixture did not publish a configuration failure")
+	}
 	for _, tc := range []struct {
 		name   string
 		value  interface{ Warning() string }
 		want   bool
 		thread couchcore.ThreadAddress
 	}{
-		{"adoption-warning", start, true, target},
+		{"borrowed-attachment", start, false, target},
+		{"configuration-publication-failure", publicationFailure, true, target},
 		{"archive-left-running", couchcore.ArchiveResult{Record: couchcore.ThreadRecord{Address: archived}, SessionNotStopped: true}, true, archived},
 		{"reboot-left-running", couchcore.RebootResult{Archived: archived, ArchiveOnly: true, SessionNotStopped: true}, true, archived},
-		{"reboot-adoption", couchcore.RebootResult{Start: start, Notice: "started fresh"}, true, target},
-		{"recovery-adoption", couchcore.RecoveryResumeResult{Start: start, Notice: "Continue"}, true, target},
-		{"switch-adoption", couchcore.SwitchAgentResult{Outcome: couchcore.SwitchStarted, Record: start.Record}, true, target},
+		{"reboot-borrowed-attachment", couchcore.RebootResult{Start: start, Notice: "started fresh"}, false, target},
+		{"recovery-borrowed-attachment", couchcore.RecoveryResumeResult{Start: start, Notice: "Continue"}, false, target},
+		{"switch-borrowed-attachment", couchcore.SwitchAgentResult{Outcome: couchcore.SwitchStarted, Record: start.Record}, false, target},
 		{"switch-cleanup", couchcore.SwitchAgentResult{Outcome: couchcore.SwitchStarted, Record: couchcore.ActorRecord{Thread: target}, Notice: "source cleanup refused; started fresh", CleanupWarning: "source cleanup refused"}, true, target},
 		{"reboot-adoption-and-archive", couchcore.RebootResult{Start: start, Archived: archived, SessionNotStopped: true}, true, archived},
 		{"park-retired-cleanup", couchcore.ParkRecoveryResult{Thread: couchcore.ThreadRecord{Address: target}, Diagnostic: "scrollback preservation incomplete"}, true, target},

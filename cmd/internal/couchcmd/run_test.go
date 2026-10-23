@@ -1913,7 +1913,13 @@ func TestCandidateResumeRetainsQueuedHubGuard(t *testing.T) {
 }
 
 func TestInitialHubBorrowedAttachmentNoticeAppearsOnFirstPaint(t *testing.T) {
-	for _, attachErr := range []error{nil, errors.New("attach refused")} {
+	for _, tc := range []struct {
+		attachErr          error
+		publicationFailure bool
+	}{
+		{nil, false}, {errors.New("attach refused"), false}, {nil, true},
+	} {
+		attachErr := tc.attachErr
 		host := hostty.NewFakeHost(ptychild.Size{Rows: 24, Cols: 160})
 		input, writer := io.Pipe()
 		console := couchtty.New(host, input)
@@ -1923,6 +1929,14 @@ func TestInitialHubBorrowedAttachmentNoticeAppearsOnFirstPaint(t *testing.T) {
 			t.Fatal(err)
 		}
 		start := couchcore.StartResult{Record: couchcore.ActorRecord{Thread: couchcore.ThreadAddress{RepoScope: "0123456789abcdef", Tag: "couch-0123456789abcdef"}, AttachmentNotice: "BORROWED ATTACH: old client is alive; retained lifecycle state was preserved."}, Handle: handle}
+		if tc.publicationFailure {
+			start.Configuration = &couchcore.AcceptedConfiguration{}
+			(&couchcore.Couch{}).PublishAdoptedConfiguration(start)
+			if !strings.Contains(start.Warning(), "startup parameters were not remembered") {
+				t.Fatal("missing publication failure fixture")
+			}
+		}
+
 		console.SetOperationDispatcher(func(call couchcore.OperationCall) (any, error) {
 			if call.Name != "attach" {
 				t.Fatalf("startup dispatched %s", call.Name)
@@ -1954,10 +1968,14 @@ func TestInitialHubBorrowedAttachmentNoticeAppearsOnFirstPaint(t *testing.T) {
 		case <-testwait.After(t):
 			t.Fatal("console did not stop")
 		}
-		visible := strings.Contains(host.Written(), start.Warning())
+		visible := strings.Contains(host.Written(), start.Record.AttachmentNotice)
 		if visible != (attachErr == nil) {
 			t.Fatalf("initial borrowed warning visible=%v after adoption error=%v; paint=%q", visible, attachErr, host.Written())
 		}
+		if got := strings.Contains(host.Written(), couchtty.AttentionGlyph+"1"); got != tc.publicationFailure {
+			t.Fatalf("initial borrowed/configuration attention=%v want%v", got, tc.publicationFailure)
+		}
+
 		if console.ReattachPassArmed() != (attachErr == nil) {
 			t.Fatal("warm pass arming did not follow successful adoption")
 		}

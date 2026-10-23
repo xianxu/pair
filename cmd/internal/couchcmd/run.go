@@ -969,9 +969,16 @@ func beginConsole(console *couchtty.Console, start couchcore.StartResult) error 
 	}
 	console.ArmReattachPass(start.Record.Thread)
 	if warning := start.Warning(); warning != "" {
-		// Startup adoption bypasses finishOperation; queue a standing notice
-		// for the first paint so slow startup cannot hide borrowed ownership.
-		console.Warn(couchtty.Notice{Kind: "status", Control: true, Thread: start.Record.Thread, Body: warning})
+		// Retained attachment ownership is routine restart feedback. A failed
+		// configuration publication remains actionable, independently of it.
+		started, _ := start.Started()
+		started.Record.AttachmentNotice = ""
+		notice := couchtty.Notice{Kind: "status", Control: true, Thread: start.Record.Thread, Body: warning}
+		if started.Warning() != "" {
+			console.Warn(notice)
+		} else {
+			console.Notify(notice)
+		}
 	}
 	return nil
 }

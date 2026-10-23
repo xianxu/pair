@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/xianxu/pair/cmd/internal/couchtty"
 	"github.com/xianxu/pair/cmd/internal/sessionsync"
 )
 
@@ -19,6 +20,12 @@ type sessionStaleWatcher struct {
 	state  staleReminderState
 	wake   chan struct{}
 	cursor int
+}
+
+func newConsoleSessionStaleWatcher(svc *messageService, store string, console *couchtty.Console) *sessionStaleWatcher {
+	// Skipped freshness checks are routine diagnostics; generated stale
+	// reminders keep their independent supervision/message owner.
+	return newSessionStaleWatcher(svc, store, func(text string) { console.Notify(couchtty.Notice{Kind: "status", Body: text}) })
 }
 
 func newSessionStaleWatcher(svc *messageService, store string, notice func(string)) *sessionStaleWatcher {

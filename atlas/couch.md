@@ -88,7 +88,7 @@ expiry. This projection owns no additional history.
 Explicit actionable asynchronous sources use `Console.Warn` and
 `publishWarningLocked` to retain a feed message and apply one existing
 `AttentionNotify` event. Sources include unexpected exits, crash/trace and hub
-failures, cleanup/stale/supervision warnings, failed continuations and actionable
+failures, cleanup/supervision warnings, failed continuations and actionable
 cast or lockout failures. Routine progress, success and key feedback remain
 feed-only; already-routed prompts, questions and hub notifications keep their
 existing owner. A relaunch-required background priority warning keeps the exact
@@ -98,8 +98,14 @@ warning without a connected hub remains one global attention item. Routine
 pointer safety/layout shutdown and scratch disk fallback/retry stay feed-only.
 Local queue, remote queue and direct-dispatch lifecycle attempts
 each retain one terminal diagnostic owner. `lifecycleCompletionWarningSource`
-projects typed successful-result cleanup/adoption/configuration facts; ordinary
-recovery guidance remains feed-only. Switch cleanup carries a transient
+projects typed successful-result cleanup/configuration facts; ordinary
+recovery guidance remains feed-only. Borrowed attachment ownership diagnostics
+remain feed-only at both initial startup and subsequent reattachment, preserving
+full switcher/clipboard text. Configuration-publication failures still raise
+attention independently of that routine attachment notice. Session freshness
+checks that are skipped also remain feed-only through
+`newConsoleSessionStaleWatcher`; generated stale reminders retain their existing
+supervision/message owner. Switch cleanup carries a transient
 non-serialized `CleanupWarning` fact rather than parsing its mixed Notice.
 No English-text severity matching or desktop side effect is
 introduced. `noticeAttention` bounds and sanitizes the event's text. Publication

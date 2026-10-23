@@ -2,6 +2,7 @@ package couchtty
 
 import (
 	"context"
+	"encoding/base64"
 	"errors"
 	"reflect"
 	"strings"
@@ -118,7 +119,7 @@ func TestConsoleMenuResumeLandsOnExactReturnedHandle(t *testing.T) {
 		t.Fatalf("resume effects = %+v", effects)
 	}
 	started, _ := attachStartResult(t, "resumed-actor", target)
-	started.Record.AttachmentNotice = "BORROWED ATTACH: lifecycle claim is open; retained client state was left unchanged."
+	started.Record.AttachmentNotice = "BORROWED ATTACH: an open lifecycle claim remains; retained lifecycle state was preserved."
 	started.Handle.(couchcore.TerminalHandle).Terminal().Feed([]byte("RESUMED-EXACT-SCREEN"))
 	setTestOps(f.con, func(name string, _ map[string]string) (any, error) {
 		if name != "resume" {
@@ -157,7 +158,21 @@ func TestConsoleMenuResumeLandsOnExactReturnedHandle(t *testing.T) {
 	// Inspecting the retained warning is an explicit switcher action, after the
 	// exact returned handle has landed and owns the actor screen.
 	f.con.openSwitcher()
-	waitFor(t, "borrowed attachment reason in switcher", func() bool { return strings.Contains(f.screenText(), "BORROWED ATTACH: lifecycle claim is open") })
+	waitFor(t, "borrowed attachment reason in switcher", func() bool {
+		return strings.Contains(f.screenText(), "BORROWED ATTACH: an open lifecycle claim remains")
+	})
+	if count := f.con.attentionCount(); count != 0 {
+		t.Fatalf("routine borrowed attachment raised %d attention items", count)
+	}
+	// The complete routine notice remains available through the real copy key.
+	t.Setenv("PATH", t.TempDir())
+	if _, err := f.stdin.Write([]byte{0x19}); err != nil {
+		t.Fatal(err)
+	}
+	encoded := base64.StdEncoding.EncodeToString([]byte(started.Warning()))
+	waitFor(t, "full borrowed attachment notice copied", func() bool {
+		return strings.Contains(f.host.Written(), "\x1b]52;c;"+encoded+"\x1b\\")
+	})
 
 }
 

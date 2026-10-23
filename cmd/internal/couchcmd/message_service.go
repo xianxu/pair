@@ -559,7 +559,7 @@ func startMessageService(console *couchtty.Console, c *couchcore.Couch, configur
 		wireNativeExitNotices(service, console)
 	}
 	watcher := newWaitWatcher(service, threshold, namespace)
-	stale := newSessionStaleWatcher(service, namespace, func(text string) { console.Warn(couchtty.Notice{Kind: "status", Body: text}) })
+	stale := newConsoleSessionStaleWatcher(service, namespace, console)
 	watcher.staleTick = stale.offer
 	service.workers.Add(2)
 	go func() { defer service.workers.Done(); stale.run(service.lifetime) }()

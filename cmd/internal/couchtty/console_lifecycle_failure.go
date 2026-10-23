@@ -64,6 +64,11 @@ func lifecycleCompletionWarningSource(value any, origin couchcore.ThreadAddress)
 	}
 	if child, ok := value.(couchcore.StartedChild); ok {
 		started, _ := child.Started()
+		// Borrowed attachment preserves retained state during an ordinary
+		// restart; it is inspectable feedback, not an operator obligation.
+		// Clear only that typed field on a copy so configuration-publication
+		// failures remain actionable without classifying warning text.
+		started.Record.AttachmentNotice = ""
 		if started.Warning() != "" {
 			selectSource(started.Record.Thread)
 		}

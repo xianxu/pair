@@ -39,6 +39,10 @@ type hubStartupRig struct {
 }
 
 func newHubStartupRig(t *testing.T, detached bool, beforeAdoption ...func(*hubStartupRig)) *hubStartupRig {
+	return newHubStartupOwnershipRig(t, detached, true, beforeAdoption...)
+}
+
+func newHubStartupOwnershipRig(t *testing.T, detached, retainedOwnership bool, beforeAdoption ...func(*hubStartupRig)) *hubStartupRig {
 	t.Helper()
 	root, err := filepath.EvalSymlinks(t.TempDir())
 	if err != nil {
@@ -67,9 +71,8 @@ func newHubStartupRig(t *testing.T, detached bool, beforeAdoption ...func(*hubSt
 	rt := newRT(t, append(append([]string(nil), paths...), ordinary)...)
 
 	rt.runner = couchcore.NewFakeRunner()
-	// A detached warm client needs one proven-dead retained helper. A record
-	// without any incarnation is intentionally BORROWED ATTACH, not normal
-	// successful reattachment, and must not pollute success/no-attention tests.
+	// Exercise both owned-helper repair and routine borrowed reattachment.
+	// Missing unique helper proof preserves lifecycle state and remains feedback.
 	ordinaryScope, err := launcher.ResolveRepoScope(ordinary)
 	if err != nil {
 		t.Fatal(err)
@@ -79,17 +82,25 @@ func newHubStartupRig(t *testing.T, detached bool, beforeAdoption ...func(*hubSt
 		t.Fatal(err)
 	}
 	profile := &couchcore.LaunchProfile{Agent: "claude", Argv: []string{}}
+	var incarnations []couchcore.ThreadIncarnation
+	if retainedOwnership {
+		incarnations = []couchcore.ThreadIncarnation{{PID: 5151, Identity: "old-ordinary", State: couchcore.IncarnationLive, LaunchProfile: profile}}
+	}
 	other, err := seed.Threads.CreateThread(couchcore.ThreadRecord{
 		SchemaVersion: couchcore.ThreadSchemaVersion,
 		Address:       couchcore.ThreadAddress{RepoScope: ordinaryScope.Key, Tag: "couch-0102030405060708"},
 		StartingPath:  ordinary, WorkingPath: ordinary, CreatedAt: time.Unix(1, 0).UTC(), Revision: 1,
 		LatestLaunchProfile: profile,
-		Incarnations:        []couchcore.ThreadIncarnation{{PID: 5151, Identity: "old-ordinary", State: couchcore.IncarnationLive, LaunchProfile: profile}},
+		Incarnations:        incarnations,
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
 	rt.artifacts.SetDetachedSession(other.Address, "pair-"+other.Address.RepoScope+"-"+string(other.Address.Tag))
+	if !retainedOwnership {
+		thread := seedDetachedThread(t, rt, paths[0])
+		rt.artifacts.SetDetachedSession(thread.Address, "pair-"+thread.Address.RepoScope+"-"+string(thread.Address.Tag))
+	}
 	if detached {
 		thread := seedDetachedThread(t, rt, paths[1])
 		rt.artifacts.SetDetachedSession(thread.Address, "pair-"+string(thread.Address.Tag))

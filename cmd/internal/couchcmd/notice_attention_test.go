@@ -265,3 +265,82 @@ func TestArchivePassFailureWarnsOnceWithoutDuplicatingFeedProjection(t *testing.
 		t.Fatal("archive failure or feed projection raised duplicate attention")
 	}
 }
+
+// Replays the ordinary restart class observed in the operator screenshot
+// 2026-10-23.09-44-47.240.jpg: multiple live sessions lack unique retained
+// helper proof. They still attach; their diagnostics must not fill the bell.
+func TestNormalMultiSlotBorrowedRestartHasNoAttention(t *testing.T) {
+	r := newHubStartupOwnershipRig(t, true, false)
+	if !strings.Contains(r.first.Warning(), "BORROWED ATTACH: no unique retained client helper") {
+		t.Fatalf("initial reattachment did not reproduce captured diagnostic: %q", r.first.Warning())
+	}
+	drained := make(chan struct{})
+	var once sync.Once
+	r.console.SetLifecycleObserver(func(o couchtty.LifecycleObservation) {
+		if o.Kind == "restart-drained" {
+			once.Do(func() { close(drained) })
+		}
+	})
+	var mu sync.Mutex
+	var warnings []string
+	actual := r.console.Ops()
+	r.console.SetOperationDispatcher(func(call couchcore.OperationCall) (any, error) {
+		result, err := actual(call)
+		if err == nil {
+			if w, ok := result.(interface{ Warning() string }); ok && strings.Contains(w.Warning(), "BORROWED ATTACH") {
+				mu.Lock()
+				warnings = append(warnings, w.Warning())
+				mu.Unlock()
+			}
+		}
+		return result, err
+	})
+	startExplicitHubs(r.console, r.hubs)
+	r.run(t)
+	select {
+	case <-drained:
+	case <-testwait.After(t):
+		t.Fatal("multi-slot reattachment did not drain")
+	}
+	r.await(t, "start-hub")
+	r.assertFirstUsable(t)
+	// A terminal command after restart-drained joins publication and repaint.
+	if _, err := r.input.Write([]byte("\x00")); err != nil {
+		t.Fatal(err)
+	}
+	screen := startupWarmScreen(t, 100, 30, r.host.Written)
+	testwait.Until(t, "startup switcher renders", func() bool { return strings.Contains(screen(), "threads") })
+	mu.Lock()
+	count := len(warnings)
+	mu.Unlock()
+	if count < 2 {
+		t.Fatalf("fixture reattached only %d borrowed results, want >=2 plus initial", count)
+	}
+	if strings.Contains(screen(), couchtty.AttentionGlyph) {
+		t.Fatalf("normal multi-slot borrowed restart raised attention: %s", screen())
+	}
+}
+
+func TestSessionFreshnessSkipDiagnosticsStayFeedOnly(t *testing.T) {
+	rig := newHubStartupRig(t, false)
+	rig.run(t)
+	rig.assertFirstUsable(t)
+	console, host, input := rig.console, rig.host, rig.input
+	r := newServiceRig(t)
+	r.restart(nil)
+	watcher := newConsoleSessionStaleWatcher(r.s, t.TempDir(), console)
+	for _, cause := range []string{
+		"open /fixture/ops/session.side/entry.md: no such file or directory",
+		"open /fixture/echo/workshop/projects/status.md: no such file or directory",
+	} {
+		watcher.diagnostic(errors.New(cause))
+	}
+	if _, err := input.Write([]byte("\x00")); err != nil {
+		t.Fatal(err)
+	}
+	screen := startupWarmScreen(t, 100, 30, host.Written)
+	testwait.Until(t, "freshness skip retained in switcher", func() bool { return strings.Contains(screen(), "freshness reminder skipped") })
+	if strings.Contains(screen(), couchtty.AttentionGlyph) {
+		t.Fatalf("routine freshness skip raised attention: %s", screen())
+	}
+}
