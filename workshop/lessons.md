@@ -2672,6 +2672,15 @@ and external temporary roots rather than relying on the host's TMPDIR.
 - #778 verification: Every new non-test Go helper must enter artifactpath's exhaustive source inventory, even when it owns no Pair session artifact. Run TestProductionArtifactReferencesAreExactlyClassified alongside reader inventory and lint before a full suite; classify the source through its ordinary inventory, never the known-violation quarantine.
 
 - #778 BR-1: after main integration or a compatibility fix, mark final verification pending in the active Plan checklist until the replacement exact-source suite completes. Keep older green receipts as history; review/suite overlap permits concurrent work, not a completed acceptance claim.
+
+- #789 BR-1/BR-2: A source-derived string catalog cannot infer every fixed value passed through selectors, formatting or callbacks. Enumerate finite built-in variants and test their actual output; keep source scans as a complementary guard. When shortening a producer family, run the concrete invariant tests too: a name-based selection for LifecycleNotice missed LifecycleDrainReportsOnlyUntargetedFacts.
+- #789 BR-3/BR-4: A display-only change can alter full-text recovery precedence. Sweep every user-facing copy contract, and reconcile Done-when with documented dynamic-input exemptions and new acceptance cases when appending the design revision.
+
+- #789 scope split: keep the hard layout invariant in the shared display projection, with full diagnostic recovery. A request to improve common wording should not turn into exhaustive static dataflow proof across every diagnostic origin; define a bounded wording cleanup separately when the cap already guarantees the operator's requirement.
+
+- #789 BR-5: Introducing a presentation cap changes every screen-level expectation for a long notice, even when producers remain unchanged. Sweep rendered-text assertions, retain full payload checks separately, and run the whole affected UI package; a name-based Status/Notice selection misses lifecycle and security feedback tests.
+
+- #789 suite: a shared Console renderer also changes caller-package screen fixtures. Audit and run couchcmd alongside couchtty before submitting a presentation cap; preserve full error/clipboard checks separately from bounded paint. Do not force asynchronous notice ordering merely to make the latest-notice clipboard point at an earlier event.
 # #803 — shared native read boundaries
 
 - #753 shared preview: when a complete admission witness changes, sweep every producer, including opt-in native fixtures. Construct integration witnesses through the production selector; a manually populated item list can correctly fail closed yet hide that mismatch behind a long retry. Keep close-time native evidence pinned to committed source.
@@ -2796,6 +2805,7 @@ and external temporary roots rather than relying on the host's TMPDIR.
 
 - #796: When adding a display mode, parameterize established pending/reattach regressions over both modes. A legacy fixture that explicitly selects the compatibility mode cannot prove the new default preserves pending states. Count branches also need owner/style invariants from ordinary chips, not only correct text and hit spans.
 
+- #789 integration: a package timeout can catch an innocent next test after an earlier failure spent the budget. Inspect preceding named failures and elapsed durations before attributing the final goroutine stack; screen assertions on newly integrated features must respect shared display caps and pin full diagnostics through their recovery action.
 - #823 PQ-2: Additive persisted JSON contracts require recursive duplicate-key rejection as well as strict owned-field presence/type checks and raw unknown-field preservation. Reuse strictjson split/encode helpers at each changed boundary; plain json.Unmarshal is not an authority validator.
 
 - #823 codec review: validate each positional tuple coordinate independently before ordering endpoints. A later end line does not make a negative end column valid; retain cross-line negative-column regression coverage.

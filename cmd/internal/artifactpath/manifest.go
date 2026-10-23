@@ -1325,6 +1325,8 @@ var NonArtifactSources = []string{
 	"cmd/internal/couchcore/operationdispatch.go",
 	"cmd/internal/couchcore/ops.go",
 	"cmd/internal/couchtty/console.go",
+	// #789: pure chrome text projection; no artifact paths.
+	"cmd/internal/couchtty/chrome_status.go",
 	"cmd/internal/couchtty/console_continuation.go",
 	// #488/#647 note anchors: deterministic Couch frame/layout; no artifact paths.
 	"cmd/internal/couchtty/console_noteanchor.go",
