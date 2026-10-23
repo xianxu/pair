@@ -76,7 +76,7 @@ Project `unified-editorial-interface`; implements the spec in ariadne (dependenc
 - [x] Run `sdlc change-code` for the full-flow plan-quality gate and derived estimate after TL approval.
 - [x] Pin contract fixtures/catalog; implement and test the pure snapshot compiler, additive fill and map migration.
 - [x] Integrate policy-bearing reads, scoped CAS and one guard across all agent-write paths; propagate per-span presentation through live/resumed consumers.
-- [ ] Expose the constrained migration command, update agent guidance/atlas, qualify agents, run recorded checks and close review.
+- [x] Expose the constrained migration command, update agent guidance/atlas, qualify agents, run recorded checks and close review.
 - [ ] Coordinate the #419 mixed-rendering check and TL-authorized operator smoke, then land and report.
 
 ## Estimate
@@ -135,7 +135,7 @@ total: 4.274
 ### 2026-10-22
 
 ### 2026-10-23 — Claimed and planned
-- 2026-10-23: closed — Post-close delta ca701df8 is documentation only: consolidate contentStep godoc; no executable statement changed. Existing TestNoDeclarationCarriesTwoStackedGodocs RED in recorded full-suite attempt627018dde13d0bd974c9a33b9d346e2c, GREEN after fix0.464s. Reader inventory PASS. Prior suite passed every other package/shell/Lua check; no flake/bypass used. Fresh recorded affected check queued on repair; landing waits its pass. Native executable behavior previously qualified d729 PASS38.692s, real-document read-only audit cleared. no-plan-check acknowledges current recorded checks and TL-deferred #419/operator acceptance/landing rows; TL authorizes merge only after suite pass, no staging. (fixed-then-ship); review verdict: SHIP
+- 2026-10-23: closed — Post-close delta ca701df8 is documentation only: consolidate contentStep godoc; no executable statement changed. Existing TestNoDeclarationCarriesTwoStackedGodocs RED in recorded full-suite attempt 627018dde13d0bd974c9a33b9d346e2c, GREEN after fix0.464s. Reader inventory PASS. Prior suite passed every other package/shell/Lua check; no flake/bypass used. Fresh recorded affected check queued on repair; landing waits its pass. Native executable behavior previously qualified d729 PASS38.692s, real-document read-only audit cleared. no-plan-check acknowledges current recorded checks and TL-deferred #419/operator acceptance/landing rows; TL authorizes merge only after suite pass, no staging. (fixed-then-ship); review verdict: SHIP
 - 2026-10-23: closed — BR-1 full source and Markdown structure preserved at d72901e10: full editorial/sessionsync/reviewapply PASS 0.254/12.465/0.595s, real-link/block rendering regressions and ready-referral controls pass, bounded N/2N tail/item joins pass, guard fuzz 11642exec/2s. README BR-2 accepted round2. Reader inventory PASS after per-file audits. Native exact-source e375 PASS22.386s after tracked Zellij startup flake835; d729 rerun underway. Recorded affected check queued on d729; landing requires final recorded pass. no-plan-check acknowledges only current close/recorded checks and post-close #419/TL smoke+landing rows remain pending; implementation complete, no other gate waived.; review verdict: SHIP
 
 Claim/start-plan completed in pair:9 on the issue branch. Read the landed #562 contract and pinned its producer
@@ -371,11 +371,11 @@ TL owns the project tick. No stage or :0 mutation is authorized or needed; suite
 
 ### 2026-10-23 — Recorded suite source-comment repair
 
-Recorded full suite on d72901e10 completed after a63-minute FIFO wait: FAIL solely in termcmd's existing
+Recorded full suite on d72901e10 completed after a 63-minute FIFO wait: FAIL solely in termcmd's existing
 TestNoDeclarationCarriesTwoStackedGodocs. contentStep retained an old whole-document presentation comment above
 its replacement opening. Consolidated the complete godoc to describe base-policy validation, per-piece presentation,
 direct side-doc/frontmatter exceptions and restamping. No executable statement changed. The existing regression is
-RED in saved attempt627018dde13d0bd974c9a33b9d346e2c (12m24s, logsha256225dba835c55) and GREEN after the comment repair.
+RED in saved attempt 627018dde13d0bd974c9a33b9d346e2c (12m24s, log sha256 225dba835c55) and GREEN after the comment repair.
 The other package, shell and Lua checks passed, including couchcore190.794s, sessionsync19.777s and couchcmd56.448s.
 This is not a flake; no failure registration/bypass or same-head green substitution is used. A new recorded suite and
 narrow post-close review are required on the repair. Server conformance's earlier DNS setup failure passed unchanged
@@ -383,20 +383,31 @@ on attempt2 (3m17s); no tests had started in that setup failure.
 
 ### 2026-10-23 — Narrow SHIP and refreshed native qualification
 
-Narrow close round4 SHIP/high confidence, no findings; evidencec4a6f4de6d4a33f6d93f923bd03c9a3c4e19cfc2,
-mirrore135a886d23efdda3e90ba0f289a6413b4d9da30. Reviewer independently passed the existing godoc guard and verified
+Narrow close round4 SHIP/high confidence, no findings; evidence c4a6f4de6d4a33f6d93f923bd03c9a3c4e19cfc2,
+mirror e135a886d23efdda3e90ba0f289a6413b4d9da30. Reviewer independently passed the existing godoc guard and verified
 that no executable statements, Spec, implementation plan or formats changed. Refreshed server CI is green.
 
-Both native fixture personalities passed on exacte135a886, in separate invocations: Claude PASS11.20s in the
+Both native fixture personalities passed on exact e135a886, in separate invocations: Claude PASS11.20s in the
 combined run; Codex PASS11.57s in the targeted Codex rerun (whole command19.475s). Guidance, mixed output/spans,
 protected refusal, migration and cleanup assertions pass for both. The combined run FAILED202.130s because Codex
 Zellij startup panicked before the agent; it is not claimed as a combined native pass. The targeted retry retains
-same-head fail→pass evidence for the already registered #835 Codex subtest. Earlierc4a6f4de Claude startup also
+same-head fail→pass evidence for the already registered #835 Codex subtest. Earlier c4a6f4de Claude startup also
 failed195.026s with the identical lib.rs:1462:26 Option::unwrap None signature. Every failed and successful root
 was fully joined/removed; no timeout/helper/product change or retry loop was added.
 
-Replacement recorded full suite lease-582773490 is queued onca701df8; later commits contain only close evidence,
+Replacement recorded full suite lease-582773490 is queued on ca701df8; later commits contain only close evidence,
 card mirrors and logs. Its pass is still required before the TL-authorized merge; no stage is permitted.
+
+### 2026-10-23 — Final recorded verification PASS
+
+Replacement recorded affected check selected the full suite on ca701df8b3784688405b889409d5aa9d9c13ed4d and
+PASSED (exit0, 11m31s), saved log sha256 prefix59d9b3bbd7b5. Owned run lease-582773490 completed and cleaned its
+checkout. The repaired termcmd package passed3.210s; all Go, Lua, shell and inventory checks passed. No known-flake
+substitution or waiver was needed. Later commits contain only review evidence, card mirrors and this log.
+
+Local implementation/verification row is complete. TL receipts631aff87 and7216d20a authorize merging on this pass,
+without staging; semantic operator acceptance belongs to the later end-to-end parley.nvim#419 check. The remaining
+coordination/landing row retains that external acceptance obligation rather than claiming an operator smoke ran.
 
 ## Revisions
 
