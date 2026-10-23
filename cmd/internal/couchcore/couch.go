@@ -711,6 +711,10 @@ func (c *Couch) failPostAckStart(address ThreadAddress, h Handle, shape StartSha
 // nonce identifies the start transaction to undo and is empty for the
 // live-record phase, which undoes an incarnation instead.
 func (c *Couch) applyStartCleanup(shape StartShape, address ThreadAddress, nonce string, h Handle, liveRecord bool) error {
+	return c.applyStartCleanupObserved(shape, address, nonce, h, liveRecord, nil)
+}
+
+func (c *Couch) applyStartCleanupObserved(shape StartShape, address ThreadAddress, nonce string, h Handle, liveRecord bool, receipt *startRollbackReceipt) error {
 	cleanupShape := shape
 	// Before exact registration, fresh CREATE may have refused because another
 	// session won the name. Stop only our helper; session presence is not ownership.
@@ -759,7 +763,7 @@ func (c *Couch) applyStartCleanup(shape StartShape, address ThreadAddress, nonce
 		case getErr != nil:
 			cleanupErr = errors.Join(cleanupErr, getErr)
 		case action == DurableRollback:
-			return errors.Join(cleanupErr, c.rollbackTrackedStart(current, nonce))
+			return errors.Join(cleanupErr, c.rollbackTrackedStartObserved(current, nonce, receipt))
 		default:
 			// A failed reattach is not activity, so the recorded time does not
 			// move. A fresh Background context, not the caller's: cleanup must
@@ -1156,11 +1160,7 @@ func (c *Couch) rollbackPristineStart(address ThreadAddress) error {
 }
 
 func (c *Couch) rollbackTrackedStart(thread ThreadRecord, nonce string) error {
-	deleteErr := c.Threads.DeleteStart(thread.Address, thread.Revision, nonce)
-	if deleteErr != nil {
-		return deleteErr
-	}
-	return c.releaseClaimIfThreadAbsent(thread.Address)
+	return c.rollbackTrackedStartObserved(thread, nonce, nil)
 }
 
 func (c *Couch) awaitThreadRegistration(ctx context.Context, address ThreadAddress) error {

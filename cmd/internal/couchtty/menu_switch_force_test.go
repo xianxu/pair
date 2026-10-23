@@ -67,7 +67,7 @@ func TestForceSwitchHasOneLocalConfirmation(t *testing.T) {
 				if len(effects) != 1 || effects[0].Operation != "switch-agent" {
 					t.Fatalf("one confirmation did not execute: %+v", effects)
 				}
-				if _, ok := effects[0].TypedPayload.(*couchcore.AgentSwitchForceConsent); !ok {
+				if _, ok := effects[0].TypedPayload.(*couchcore.AgentSwitchAcceptance); !ok {
 					t.Fatal("force was not local typed consent")
 				}
 				for key := range effects[0].Args {
@@ -144,5 +144,22 @@ func TestForceSwitchCancellationConcurrentSnapshotRender(t *testing.T) {
 			}
 			<-done
 		})
+	}
+}
+
+func TestSwitchAgentAcceptedEffectsCarryOpaqueAcceptance(t *testing.T) {
+	p := couchcore.PreparedAgentSwitch{Address: menuAddress("couch-one"), Profile: couchcore.LaunchProfile{Agent: "codex", Argv: []string{}}, Fingerprint: "accepted"}
+	ordinary := acceptedSwitchEffect(p)
+	if _, ok := ordinary.TypedPayload.(*couchcore.AgentSwitchAcceptance); !ok {
+		t.Fatal("ordinary acceptance lost local restart anchor transport")
+	}
+	state := forceSwitchConfirmationState()
+	state.Frames[len(state.Frames)-1].SelectedItem = "confirm-force"
+	_, effects := reduceKey(state, PanelKey{Kind: KeyEnter})
+	if len(effects) != 1 {
+		t.Fatal("force confirmation did not dispatch")
+	}
+	if _, ok := effects[0].TypedPayload.(*couchcore.AgentSwitchAcceptance); !ok {
+		t.Fatal("force acceptance lost local restart anchor transport")
 	}
 }

@@ -351,8 +351,8 @@ func CouchLiveOwnerExecutor(c *Couch) OperationExecutor {
 			if argv != nil {
 				args = *argv
 			}
-			force, _ := call.TypedPayload.(*AgentSwitchForceConsent)
-			return c.SwitchAgent(ctx, SwitchAgentRequest{Force: force, InterruptFirst: a["interrupt-first"] == "true", Address: address, Agent: a["agent"], KnownConfig: known, Argv: args, AcceptedFingerprint: a["fingerprint"], Source: a["source"]})
+			restart, force := acceptedAgentSwitchPayload(call.TypedPayload)
+			return c.SwitchAgent(ctx, SwitchAgentRequest{Restart: restart, Force: force, InterruptFirst: a["interrupt-first"] == "true", Address: address, Agent: a["agent"], KnownConfig: known, Argv: args, AcceptedFingerprint: a["fingerprint"], Source: a["source"]})
 		case "recovery-confirmation":
 			return c.ConfirmRecovery(ctx, a["token"])
 		case "reboot":
@@ -601,4 +601,19 @@ func exactParkRecoveryAddress(args map[string]string) (ThreadAddress, error) {
 		return ThreadAddress{}, err
 	}
 	return address, nil
+}
+
+// acceptedAgentSwitchPayload accepts only local typed authority. Legacy direct
+// force consent remains valid, while wire maps and decoded empty values confer
+// no restart or force permission.
+func acceptedAgentSwitchPayload(payload any) (*EditedRestartIntent, *AgentSwitchForceConsent) {
+	switch accepted := payload.(type) {
+	case *AgentSwitchAcceptance:
+		if accepted != nil {
+			return cloneEditedRestartIntent(accepted.restart), accepted.force
+		}
+	case *AgentSwitchForceConsent:
+		return nil, accepted
+	}
+	return nil, nil
 }

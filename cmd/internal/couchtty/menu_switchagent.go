@@ -106,7 +106,7 @@ func reduceSwitchAgentKey(state MenuState, key PanelKey) (MenuState, []MenuEffec
 			}
 			if frame.SelectedItem == "confirm-force" && frame.SwitchPrepared != nil && frame.SwitchPrepared.Force != nil {
 				effect := acceptedSwitchEffect(*frame.SwitchPrepared)
-				effect.TypedPayload = frame.SwitchPrepared.Force.Confirm()
+				effect.TypedPayload = frame.SwitchPrepared.AcceptAgentSwitch(true)
 				return dispatchMenuOperation(state, effect, frame.Thread)
 			}
 		}
@@ -345,6 +345,7 @@ func menuAliasOffered(thread couchcore.ActionableThreadSummary) bool {
 
 func acceptedSwitchEffect(p couchcore.PreparedAgentSwitch) MenuEffect {
 	effect := threadEffect("switch-agent", p.Address)
+	effect.TypedPayload = p.AcceptAgentSwitch(false)
 	raw, _ := json.Marshal(p.Profile.Argv)
 	effect.Args["agent"] = p.Profile.Agent
 	effect.Args["argv"] = string(raw)

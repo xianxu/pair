@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/xianxu/pair/cmd/internal/launcher"
@@ -28,6 +29,7 @@ type AgentSwitchInterruptGuard interface {
 }
 
 type SwitchAgentRequest struct {
+	Restart             *EditedRestartIntent     `json:"-"`
 	Force               *AgentSwitchForceConsent `json:"-"`
 	InterruptFirst      bool
 	KnownConfig         bool
@@ -69,6 +71,7 @@ type PreparedAgentSwitch struct {
 	Fingerprint    string                 `json:"fingerprint"`
 	record         ThreadRecord
 	repoIdentity   string
+	restart        *EditedRestartIntent
 	// state is the classification this preparation was ADMITTED on, carried to
 	// the commit so both decisions rest on one observation. SwitchAgent used to
 	// re-read `hasOccupiedIncarnation` to decide whether to park the source,
@@ -78,6 +81,30 @@ type PreparedAgentSwitch struct {
 	// (#256 M2, round 3).
 	state        ActionableThreadState
 	sourceReason ThreadReason
+}
+
+// AgentSwitchAcceptance carries owner-local accepted restart and force intent.
+// Its private fields cannot be recreated from serialized operation arguments.
+type AgentSwitchAcceptance struct {
+	restart *EditedRestartIntent
+	force   *AgentSwitchForceConsent
+}
+
+func (p PreparedAgentSwitch) AcceptAgentSwitch(force bool) *AgentSwitchAcceptance {
+	accepted := &AgentSwitchAcceptance{restart: cloneEditedRestartIntent(p.restart)}
+	if force && p.Force != nil {
+		accepted.force = p.Force.Confirm()
+	}
+	return accepted
+}
+
+func cloneEditedRestartIntent(intent *EditedRestartIntent) *EditedRestartIntent {
+	if intent == nil {
+		return nil
+	}
+	cloned := *intent
+	cloned.Profile = cloneLaunchProfile(intent.Profile)
+	return &cloned
 }
 
 // SwitchSourceEvidence carries only core's admitted classification. Its private
@@ -211,6 +238,10 @@ func (c *Couch) PrepareKnownAgentSwitch(ctx context.Context, address ThreadAddre
 }
 
 func (c *Couch) prepareAgentSwitch(ctx context.Context, address ThreadAddress, agent string, argv *[]string, known bool) (PreparedAgentSwitch, error) {
+	return c.prepareAgentSwitchAccepted(ctx, address, agent, argv, known, nil)
+}
+
+func (c *Couch) prepareAgentSwitchAccepted(ctx context.Context, address ThreadAddress, agent string, argv *[]string, known bool, accepted *EditedRestartIntent) (PreparedAgentSwitch, error) {
 	if ctx == nil {
 		ctx = context.Background()
 	}
@@ -349,8 +380,37 @@ func (c *Couch) prepareAgentSwitch(ctx context.Context, address ThreadAddress, a
 		source = record.LatestLaunchProfile.Agent
 	}
 	intent := ResolveAgentSwitchIntent(source, agent)
+	var nativeAnchor *string
+	fingerprintState, fingerprintReason := state, reason
+	if intent == SwitchIntentRestartPreferResume {
+		if accepted != nil && (accepted.Address != address || accepted.SourceRevision != record.Revision || accepted.Profile.Agent != resolution.Profile.Agent || (accepted.Profile.Argv == nil) != (resolution.Profile.Argv == nil) || !slices.Equal(accepted.Profile.Argv, resolution.Profile.Argv)) {
+			return PreparedAgentSwitch{}, ErrSwitchResolutionChanged
+		}
+		if accepted != nil {
+			expected := accepted.ExpectedNativeID
+			nativeAnchor = &expected
+			// Native absence may change parked into unusable/binding-lost.
+			// Preserve the accepted classification only in the fingerprint;
+			// every fresh admission and SourceEvidence still uses actual facts.
+			fingerprintState, fingerprintReason = accepted.SourceState, accepted.SourceReason
+		}
+		observed, err := c.resolveEditedRestartEvidence(ctx, record, nativeAnchor)
+		if err != nil {
+			return PreparedAgentSwitch{}, err
+		}
+		if observed.Kind != EditedRestartNativeFound && observed.Kind != EditedRestartNativeMissing {
+			return PreparedAgentSwitch{}, ErrSwitchResolutionChanged
+		}
+		if nativeAnchor == nil {
+			expected := observed.NativeID
+			nativeAnchor = &expected
+		}
+	} else if accepted != nil {
+		return PreparedAgentSwitch{}, ErrSwitchResolutionChanged
+	}
 	evidence := struct {
 		Intent             AgentSwitchIntent
+		NativeAnchor       *string
 		Record             ThreadRecord
 		Profile            LaunchProfile
 		PreferenceRevision uint64
@@ -359,15 +419,23 @@ func (c *Couch) prepareAgentSwitch(ctx context.Context, address ThreadAddress, a
 		Conflict           bool
 		SourceState        ActionableThreadState
 		SourceReason       ThreadReason
-	}{intent, record, resolution.Profile, own.Revision, repoIdentity, borrowed, own.Conflict, state, reason}
+	}{intent, nativeAnchor, record, resolution.Profile, own.Revision, repoIdentity, borrowed, own.Conflict, fingerprintState, fingerprintReason}
 	raw, err := json.Marshal(evidence)
 	if err != nil {
 		return PreparedAgentSwitch{}, err
 	}
 	digest := sha256.Sum256(raw)
+	fingerprint := hex.EncodeToString(digest[:])
+	if accepted != nil && accepted.SourceFingerprint != fingerprint {
+		return PreparedAgentSwitch{}, ErrSwitchResolutionChanged
+	}
+	var restart *EditedRestartIntent
+	if nativeAnchor != nil {
+		restart = &EditedRestartIntent{Address: address, SourceRevision: record.Revision, SourceFingerprint: fingerprint, SourceState: fingerprintState, SourceReason: fingerprintReason, Profile: cloneLaunchProfile(resolution.Profile), ExpectedNativeID: *nativeAnchor}
+	}
 	return PreparedAgentSwitch{
 		Intent: intent, Address: address, SourceAgent: source, WorkingPath: record.WorkingPath, SourceRevision: record.Revision,
-		Profile: resolution.Profile, Fingerprint: hex.EncodeToString(digest[:]), record: persisted, repoIdentity: repoIdentity,
+		Profile: resolution.Profile, Fingerprint: fingerprint, record: persisted, repoIdentity: repoIdentity, restart: restart,
 		Configured: own.Found, Conflict: own.Conflict, Borrowed: borrowed,
 		state: state, sourceReason: reason,
 	}, nil
@@ -389,9 +457,9 @@ func (c *Couch) SwitchAgent(ctx context.Context, request SwitchAgentRequest) (_ 
 	}
 	prepare := func() (PreparedAgentSwitch, error) {
 		if request.KnownConfig {
-			return c.PrepareKnownAgentSwitch(ctx, request.Address, request.Agent)
+			return c.prepareAgentSwitchAccepted(ctx, request.Address, request.Agent, nil, true, request.Restart)
 		}
-		return c.PrepareAgentSwitch(ctx, request.Address, request.Agent, &request.Argv)
+		return c.prepareAgentSwitchAccepted(ctx, request.Address, request.Agent, &request.Argv, false, request.Restart)
 	}
 	if request.InterruptFirst && c.SwitchGuard == nil {
 		return result, errors.New("switch-agent: cooperative interrupt guard unavailable")
@@ -425,8 +493,8 @@ func (c *Couch) SwitchAgent(ctx context.Context, request SwitchAgentRequest) (_ 
 	if prepared.Fingerprint != request.AcceptedFingerprint {
 		return result, ErrSwitchResolutionChanged
 	}
-	if prepared.Intent == SwitchIntentRestartPreferResume {
-		return result, errors.New("switch-agent: native restart with edited parameters is not available yet")
+	if prepared.Intent == SwitchIntentRestartPreferResume && request.Restart == nil {
+		return result, errors.New("switch-agent: accepted native restart intent is unavailable; review the parameters again")
 	}
 	if request.Force != nil {
 		if request.InterruptFirst {
@@ -485,9 +553,12 @@ func (c *Couch) SwitchAgent(ctx context.Context, request SwitchAgentRequest) (_ 
 			_, returnedErr = attempt.Finish(nil, returnedErr)
 		}
 	}()
-	profileRaw, err := launcher.BuildCouchFreshLaunchProfile(string(request.Address.Tag), request.Agent, prepared.Profile.Argv, string(AgentSourceExplicit), string(ArgvSourceExplicit))
-	if err != nil {
-		return result, err
+	profileRaw := ""
+	if prepared.Intent == SwitchIntentFresh {
+		profileRaw, err = launcher.BuildCouchFreshLaunchProfile(string(request.Address.Tag), request.Agent, prepared.Profile.Argv, string(AgentSourceExplicit), string(ArgvSourceExplicit))
+		if err != nil {
+			return result, err
+		}
 	}
 	if request.Force != nil {
 		guard, ok := c.SwitchGuard.(AgentSwitchForceGuard)
@@ -556,6 +627,9 @@ func (c *Couch) SwitchAgent(ctx context.Context, request SwitchAgentRequest) (_ 
 	if err := ctx.Err(); err != nil {
 		result.Outcome = SwitchStartFailed
 		return result, err
+	}
+	if prepared.Intent == SwitchIntentRestartPreferResume {
+		return c.executeEditedRestart(ctx, prepared, thread, request, SupervisorOwner{PID: owner.PID, Identity: owner.Identity}, nonce, result)
 	}
 	startedAt := c.Clock.Now()
 	thread, err = c.Threads.CommitStartClaim(thread.Address, thread.Revision, prepared.repoIdentity, startedAt, StartEvent{

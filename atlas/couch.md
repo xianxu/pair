@@ -4122,6 +4122,19 @@ runs on the existing lifecycle completion worker before operation/remote
 completion, while Console.Run continues input and rendering. Initial attachment
 runs before Run and queues any warning for first paint.
 
+Same-agent **Restart with new parameters** pins the preview's exact native ID
+through a private accepted intent, independently of edited selector-free argv.
+`editedrestart.go` decides at most one cold resume and one disclosed fresh
+fallback; `editedrestart_evidence.go` preserves exact missing versus changed or
+unknown evidence. `editedrestart_launch.go` consumes each request before the
+existing start-claim CAS and `launchTrackedThread`. A failed resume permits fresh
+only after authoritative absence, the exact existing cleanup owner's rollback
+receipt and fresh vacancy/admission. Replacement or prelaunch authorization
+refusal stays terminal even if a later read reports absence. The receipt is
+request-local; interrupted operations retain ordinary start reconciliation,
+which never reconstructs permission for fallback. Fresh success visibly reports
+`no previous conversation found; started fresh with the new parameters`.
+
 ## Couch metadata and resolution
 
 Name, operator description, and agent-published summary are independent mutable

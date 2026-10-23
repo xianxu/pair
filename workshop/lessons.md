@@ -2673,3 +2673,5 @@ and external temporary roots rather than relying on the host's TMPDIR.
 - #728 M2 BR-6: shallow frame copies share prepared preview pointers with render snapshots. Copy the preview value before replacing a field; never mutate nested shared reducer input. Exercise both cancellation routes concurrently with snapshot rendering under the race detector.
 
 - #728 admission fixture: install messageAuthority callbacks before starting the socket service. Even an unrelated field write can race a value-receiver read of the whole authority during EffectConnect. Inject mutable fault state through synchronized fakes; omit unused wrapper connections. The race suite owns the cross-field concurrency invariant.
+
+- #728 M3 ad-hoc review: a terminal authority/binding refusal cannot be erased by a later healthy or absent observation. Pin a one-shot replacement followed by absence at every later boundary; a fixture that keeps returning the replacement can accidentally refuse an unauthorized fallback and hide the bad transition. The pure decision and actual owner adapter must both preserve terminal evidence (ARCH-ORDER).

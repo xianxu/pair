@@ -379,6 +379,7 @@ func (s *messageService) handleAgentSwitch(ctx context.Context, r couchmessage.R
 				"repo-scope": address.RepoScope, "tag": string(address.Tag), "agent": r.Agent,
 				"fingerprint": prepared.Fingerprint, "source": token,
 			}}
+			call.TypedPayload = prepared.AcceptAgentSwitch(false)
 			if r.InterruptFirst {
 				call.Args["interrupt-first"] = "true"
 			}

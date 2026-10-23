@@ -990,15 +990,22 @@ func (s *ThreadStore) MarkIncarnationUnknown(address ThreadAddress, expected Pro
 // proven its pre-exec helper absent. Any concurrent metadata or state change
 // leaves the transaction occupied.
 func (s *ThreadStore) DeleteStart(address ThreadAddress, expectedRevision uint64, nonce string) error {
+	_, err := s.deleteStartResult(address, expectedRevision, nonce)
+	return err
+}
+
+// deleteStartResult returns the exact retained-record CAS result. Pristine
+// deletion has no retained record and returns a zero value on success.
+func (s *ThreadStore) deleteStartResult(address ThreadAddress, expectedRevision uint64, nonce string) (ThreadRecord, error) {
 	current, err := s.GetThread(address)
 	if err != nil {
 		if errors.Is(err, ErrThreadNotFound) {
-			return nil
+			return ThreadRecord{}, nil
 		}
-		return err
+		return ThreadRecord{}, err
 	}
 	if current.VerifiedPark != nil {
-		_, err := s.updateExistingThread(address, expectedRevision, func(record *ThreadRecord) error {
+		updated, err := s.updateExistingThread(address, expectedRevision, func(record *ThreadRecord) error {
 			if record.Reservation || record.VerifiedPark == nil || len(record.Incarnations) != 1 {
 				return fmt.Errorf("thread %+v is no longer parked start %q at revision %d", address, nonce, expectedRevision)
 			}
@@ -1010,7 +1017,7 @@ func (s *ThreadStore) DeleteStart(address ThreadAddress, expectedRevision uint64
 			record.Incarnations = nil
 			return nil
 		})
-		return err
+		return updated, err
 	}
 	if current.LatestLaunchProfile != nil {
 		// A record that has ever started successfully is durable history and is
@@ -1026,7 +1033,7 @@ func (s *ThreadStore) DeleteStart(address ThreadAddress, expectedRevision uint64
 		//
 		// threadHasMetadata already protects a NAMED record; this protects the
 		// unnamed one, whose LatestLaunchProfile nothing else guards.
-		_, err := s.updateExistingThread(address, expectedRevision, func(record *ThreadRecord) error {
+		updated, err := s.updateExistingThread(address, expectedRevision, func(record *ThreadRecord) error {
 			if record.Reservation || len(record.Incarnations) != 1 {
 				return fmt.Errorf("thread %+v is no longer start %q at revision %d", address, nonce, expectedRevision)
 			}
@@ -1038,9 +1045,9 @@ func (s *ThreadStore) DeleteStart(address ThreadAddress, expectedRevision uint64
 			record.Incarnations = nil
 			return nil
 		})
-		return err
+		return updated, err
 	}
-	return s.deleteThreadIf(address, func(record ThreadRecord) error {
+	err = s.deleteThreadIf(address, func(record ThreadRecord) error {
 		if record.Revision != expectedRevision || record.Reservation || threadHasMetadata(record) || len(record.Incarnations) != 1 {
 			return fmt.Errorf("thread %+v is no longer start %q at revision %d", address, nonce, expectedRevision)
 		}
@@ -1050,6 +1057,7 @@ func (s *ThreadStore) DeleteStart(address ThreadAddress, expectedRevision uint64
 		}
 		return nil
 	})
+	return ThreadRecord{}, err
 }
 
 func (s *ThreadStore) deleteThreadIf(address ThreadAddress, accept func(ThreadRecord) error) error {
