@@ -228,3 +228,71 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-23T01:53:19-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 728 — couch --switch-agent refuses 'no saved configuration for codex' even after the operator's switch-form switch in that repo (echo) |
+| repo | pair |
+| issue file | workshop/issues/000728-couch-switch-agent-refuses-no-saved-configuration-for-codex-even-after-the-operator-s-switch-form-switch-in-that-repo-echo.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 436cdffaabbac9789650b619b5467a05de79449e..03621d6f8d988983dd11f6aa91f4d45a918e610f |
+| command | sdlc close --issue 728 |
+| reviewer | codex (openai; author openai) |
+| isolation | fenced |
+| timestamp | 2026-10-23T01:53:19-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+The interdiff preserves both sides of the integration: switch-argument handling and tab-style configuration compile together, and the replay test matches the progress-aware callback API. Focused tests and reader-inventory validation pass. Tracker and plan additions record integration and verification without changing acceptance scope. No new defects found; no prior findings remain open.
+
+```findings
+{}
+```
+
+1. **Strengths**
+   - Both required CLI imports survive the conflict resolution (`cmd/internal/couchcmd/cli.go:12`).
+   - Callback adaptation preserves the existing intent-conflict and single-admission assertions (`cmd/internal/couchcmd/agent_switch_intent_test.go:30`).
+   - All three reader certificates match their source hashes and retain appropriate classifications.
+
+2. **Critical findings:** None.
+
+3. **Important findings:** None.
+
+4. **Minor findings:** None.
+
+5. **Test coverage notes:** Passed focused switch CLI, receipt, socket-argument and tab-style tests; `make test-affected-inventory`; and range whitespace checks. Full-suite and native acceptance results were not independently rerun. This window introduces no new runtime behavior requiring a new regression test.
+
+6. **Architectural notes**
+   - **ARCH-DRY — pass:** no duplicate logic introduced.
+   - **ARCH-PURE — pass:** no business logic or IO boundaries changed.
+   - **ARCH-PURPOSE — pass:** conflict resolutions preserve both feature families.
+   - **ARCH-EVOLVE — pass:** no persisted-format changes; certificate classifications remain unchanged.
+
+   No new surface requires README or atlas updates.
+
+7. **Plan revision recommendations:** None. The integration revision accurately describes the inspected changes.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"a52b091e-badb-4c59-9fb0-dbc98979c9a9","repository":"github.com/xianxu/pair","issue_id":"000728","recipe":"fix-review","round":9,"attempt":1,"agent":"codex","root":"/Volumes/TestScratch/review-checkouts/6ea07dc6c16878de","reviewed_head":"03621d6f8d988983dd11f6aa91f4d45a918e610f","slot":"pair:3","requested_at":"2026-10-23T08:51:55.532917Z"},"phase":"finished","pid":68985,"started_at":"2026-10-23T08:51:55.711571Z","finished_at":"2026-10-23T08:53:16.230595Z","session_id":"01a167f5-ac41-7211-bce5-b247790e12d0","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 2.58479075s
+head: "03621d6f8d988983dd11f6aa91f4d45a918e610f"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000411
