@@ -5,6 +5,7 @@ import json
 import importlib.util
 from pathlib import Path
 import unittest
+from unittest.mock import patch
 import os
 import sys
 import tempfile
@@ -15,8 +16,18 @@ spec.loader.exec_module(ci)
 
 
 class CoverageGateTest(unittest.TestCase):
+    def setUp(self):
+        self.enterContext(contextlib.redirect_stdout(io.StringIO()))
+
     def complete(self):
-        return [{"Action": "pass", "Test": name} for name in ci.REQUIRED]
+        events = []
+        for package, names in ci.REQUIRED_BY_PACKAGE.items():
+            events.append({"Action": "start", "Package": package})
+            for name in sorted(names):
+                events.extend([{"Action": "run", "Package": package, "Test": name},
+                               {"Action": "pass", "Package": package, "Test": name}])
+            events.append({"Action": "pass", "Package": package})
+        return events
 
     def test_malformed_output_joins_child_before_return(self):
         with tempfile.TemporaryDirectory() as scratch:
@@ -39,8 +50,8 @@ class CoverageGateTest(unittest.TestCase):
                                "stderr.txt": "snapshot", "stdout.raw": "partial"}.items():
                 (artifacts / name).write_text(body)
             (root / "unrelated-secret").write_text("OUTSIDE-ARTIFACTS")
-            program = "import json; print(json.dumps({'Action':'fail'})); raise SystemExit(7)"
-            with contextlib.redirect_stdout(captured), self.assertRaisesRegex(RuntimeError, "exited 7"):
+            program = "import sys; sys.stdout.write(%r); raise SystemExit(7)" % "".join(json.dumps(event) + "\n" for event in self.complete())
+            with contextlib.redirect_stderr(captured), self.assertRaisesRegex(RuntimeError, "exited 7"):
                 ci.qualify([sys.executable, "-c", program], os.environ.copy(), root)
         output = captured.getvalue()
         self.assertTrue(request in output, "complete request missing from failure log")
@@ -57,13 +68,25 @@ class CoverageGateTest(unittest.TestCase):
                 (artifact / "request.json").write_text("RETAIN-ONLY-ON-FAILURE")
                 command = [sys.executable, "-c", "import sys; sys.stdout.write(%r)" % "".join(json.dumps(event) + "\n" for event in events)]
                 output = io.StringIO()
-                with contextlib.redirect_stdout(output):
+                with contextlib.redirect_stderr(output):
                     if fails:
                         with self.assertRaises(RuntimeError):
                             ci.qualify(command, os.environ.copy(), root)
                     else:
                         ci.qualify(command, os.environ.copy(), root)
                 self.assertEqual("RETAIN-ONLY-ON-FAILURE" in output.getvalue(), fails)
+
+    def test_pass_without_run_or_package_identity_is_failure(self):
+        with self.assertRaises((ValueError, RuntimeError)):
+            ci.require_execution([{"Action": "pass", "Test": name} for name in ci.REQUIRED])
+
+    def test_production_stream_parses_each_event_once(self):
+        events = self.complete()
+        command = [sys.executable, "-c", "import sys; sys.stdout.write(%r)" % "".join(json.dumps(event) + "\n" for event in events)]
+        with tempfile.TemporaryDirectory() as scratch:
+            with patch.object(ci._validator.json, "loads", wraps=json.loads) as loads:
+                ci.qualify(command, os.environ.copy(), Path(scratch))
+            self.assertEqual(loads.call_count, len(events))
 
     def test_executed_required_tests(self):
         ci.require_execution(self.complete())
@@ -77,7 +100,7 @@ class CoverageGateTest(unittest.TestCase):
             ci.require_execution(self.complete()[1:])
 
     def test_terminal_recreation_must_actually_execute(self):
-        prior_tests = [e for e in self.complete() if e["Test"] != "TestTerminalRecoveryZellijConformance"]
+        prior_tests = [e for e in self.complete() if e.get("Test") != "TestTerminalRecoveryZellijConformance"]
         with self.assertRaisesRegex(RuntimeError, "TestTerminalRecoveryZellijConformance"):
             ci.require_execution(prior_tests)
 

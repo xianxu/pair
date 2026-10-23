@@ -34,6 +34,7 @@ func TestAgentShortcutInputConformanceLive(t *testing.T) {
 		t.Fatal(err)
 	}
 	base := t.TempDir()
+	setupShortcutSocketRoot(t)
 	t.Setenv("TMPDIR", "/tmp") // Keep Darwin Unix-socket paths below their limit.
 	for _, key := range []string{"HOME", "XDG_CONFIG_HOME", "XDG_DATA_HOME"} {
 		t.Setenv(key, t.TempDir())
@@ -235,4 +236,21 @@ func TestShortcutRawRecorder(t *testing.T) {
 		t.Fatal(err)
 	}
 	_, _ = io.Copy(capture, os.Stdin)
+}
+
+// The VM bootstrap and callers may provide long socket roots. This fixture
+// owns a short root independent of TMPDIR, including Darwin's /private alias.
+func setupShortcutSocketRoot(t *testing.T) {
+	t.Helper()
+	//lint:allow tmp-literal — native sockets append version/session names; a private short root must fit Darwin AF_UNIX even under a long inherited TMPDIR
+	root, err := os.MkdirTemp("/tmp", "p743-")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		if err := os.RemoveAll(root); err != nil {
+			t.Errorf("clean shortcut socket root: %v", err)
+		}
+	})
+	t.Setenv("ZELLIJ_SOCKET_DIR", root)
 }

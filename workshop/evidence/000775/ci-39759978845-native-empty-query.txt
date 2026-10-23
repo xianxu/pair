@@ -1,0 +1,10 @@
+CI evidence added from pair#743 investigation on 2026-10-22.
+Run: https://github.com/xianxu/pair/actions/runs/39759978845/job/119761443833
+PR515 head: eb34aba13180945a5b331e38eac1f2052f7bffc8
+Hosted synthetic merge: 8c153a69a81e259d14e6c28f01c23bb7719863d5
+Official checksum-verified Zellij0.45.1, macOS26.6.2/arm64.
+TestTerminalRecoveryZellijConformance failed at terminal_recovery_live_test.go:146.
+A list-panes --json --command --state --geometry query returned exit0, stdout0 bytes and stderr0 bytes. The preceding all-pane observation returned valid4996 bytes. Strict product admission rejected the empty response as invalid JSON before the recovery effect.
+The adjacent .log preserves selected unmodified GitHub log lines; the public run retains the complete source log. This matches the false-miss/empty-reply symptom family; it does not prove a specific upstream cause.
+Production audit: layoutcmd.OSRuntime.execZellijContext performs one zellijexec.Run. confirmWorkbenchPanesContext uses zellijreply.Confirm, whose contract is exactly two valid observations and no retry. ParsePanes rejects empty input. Launcher.ZellijSource.runContext separately has the temporary bounded3-attempt #748 workaround, explicitly scoped to launcher. No fixture-only retry or product change made.
+Local unchanged-head native targeted test passed2.980s using Homebrew Zellij0.45.1 (SHA256604c684330fe097bc1363ada020d1b9b0ad17caa48d633e838869dfe9fc49e9c), distinct from official CI binary. Not exact-binary/synthetic-merge fail-to-pass evidence and not CI recovery.

@@ -676,6 +676,30 @@ var SourceClassifications = []SourceClassification{
 // the artifact namespace requires an explicit SourceClassification.
 // pair:m5-concept pure
 var NonArtifactSources = []string{
+	// #743 VM request/image/launch ownership data is outside Pair artifacts.
+	"cmd/internal/vmcmd/cli.go",
+	"cmd/internal/vmcmd/provision.go",
+	"cmd/internal/vmcmd/driver.go",
+	"cmd/internal/vmcmd/driver_darwin.go",
+	"cmd/internal/vmcmd/driver_other.go",
+	"cmd/internal/vmcmd/host.go",
+	"cmd/internal/vmcmd/request.go",
+	"cmd/internal/vmcmd/image.go",
+	"cmd/internal/vmcmd/state.go",
+	"cmd/internal/vmcmd/runtime.go",
+	"cmd/internal/vmcmd/claim.go",
+	"cmd/internal/vmcmd/positions_unix.go",
+	"cmd/internal/vmcmd/positions_unsupported.go",
+	"cmd/internal/vmcmd/guest.go",
+	"cmd/internal/vmcmd/guest-run.sh",
+	"cmd/internal/vmcmd/process_unix.go",
+	"cmd/internal/vmcmd/process_observe_darwin.go",
+	"cmd/internal/vmcmd/process_observe_linux.go",
+	"cmd/internal/vmcmd/results.go",
+	"cmd/internal/vmcmd/process_other.go",
+	"cmd/internal/vmcmd/snapshot.go",
+	"cmd/internal/vmcmd/snapshot_darwin.go",
+	"cmd/internal/vmcmd/snapshot_other.go",
 	// #773 carries deadlines and progress through existing launch owners;
 	// these helpers neither name nor construct Pair artifact files.
 	"cmd/internal/couchcore/startup_budget.go",

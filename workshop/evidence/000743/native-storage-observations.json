@@ -1,0 +1,13 @@
+{
+  "qualified_image": {
+    "version": 1,
+    "os": "darwin",
+    "cpuCount": 4,
+    "arch": "arm64",
+    "memorySize": 8589934592
+  },
+  "virtual_disk_bytes": 50000000000,
+  "allocated_file_blocks_bytes": 33239814144,
+  "host_free_bytes_after_qualification": 352341831680,
+  "measurement_limit": "Per-file blocks include shared APFS COW extents; fleet-wide free-space samples do not establish unique VM physical peak. Provision/runner budgets remain 50GB virtual per clone, 2GiB host snapshot, 256MiB host artifacts."
+}
