@@ -1,13 +1,21 @@
 ---
 id: 000827
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-10-22
 updated: 2026-10-22
 estimate_hours:
 collaboration-mode: collaboration
-card_mirror: 'ec110b131e3848acfa0c2967c1d00281d41f56c3' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: 'bd6abadefc220a7959f7305cfc730a60b72a6435' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-22T23:31:37-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: Xian’s MacBook Pro
+    workspace: pair:6
+    worktree: /Users/xianxu/workspace/worktree/pair-slot6/pair
+    repository: github.com/xianxu/pair
 ---
 
 # Alt+x full quit needed three presses: park commits miss the 1 s deadline under load
@@ -42,8 +50,39 @@ so slots park in parallel batches, not all at once nor one by one.
 
 ## Plan
 
-- [ ]
+Durable plan: [one-gesture full quit](../plans/000827-one-gesture-full-quit-plan.md).
+
+- [ ] Measure private real-store commit timings at15/30 slots before changing the threshold; choose within operator5–10s, stop if evidence contradicts it.
+- [ ] Retain fan-out/gates/nonce recovery; one proposed60s scheduling budget and at most3 safe drives per target. Synchronous durability cannot be forcibly interrupted.
+- [ ] Confirmed Alt+x automatically handles eligible stragglers, exits only after verified success, or leaves one exact unresolved-slot/recovery report.
+- [ ] Deterministic30-slot/N2N tests, physical shared-harness4/8-slot Claude/Codex check, normal recorded verification and close.
+
 
 ## Log
 
 ### 2026-10-22
+
+
+### 2026-10-22 — claimed and plan proposed
+
+TL ee975c2b dispatched #827 while #759 awaits operator review. Card was unowned;
+claimed pair:6 and ran start-plan. #759 remains untouched at
+6019be87f98b434429c17d2787802abf6c98ad2e. Start-plan catch-up refreshed sibling
+ariadne and seeded an unrelated merge-check workflow diff (ariadne#557 class).
+Saved it at /Volumes/TestScratch/p827-plan.ogi77579/merge-check-seeded.patch,
+restored only that workflow, and reran start-plan successfully. No seeded change
+is included on this issue branch.
+
+Read-only trace confirms the1s limit is a POST-COMMIT elapsed check, followed by
+known-unpublished rollback; it is not a preemptive timer. Leave has one pass and
+no whole-operation deadline. Existing thread/park nonce ownership and Recover
+must govern any retries. Raising the shared constant must not accidentally
+change relaunch's separate1s diagnostic observation window.
+
+Proposed full-flow plan records a measurement-first10s provisional threshold,
+one60s overall scheduling/context budget, at most3 safe per-target drives with
+current fan-out, same-identity/nonce fences, exact partial reporting and no force
+quit on unresolved state. Non-cancellable durability remains joined and can
+exceed the logical deadline; no hard wall-time guarantee. No measurement numbers
+or operator-incident causal conclusion are invented. No implementation or native
+run started. Plan goes to TL before change-code.
