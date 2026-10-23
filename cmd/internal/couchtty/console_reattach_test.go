@@ -354,52 +354,60 @@ func statusModelOf(f *consoleFixture) StatusModel {
 // model: paintNow must add one placeholder per pending thread, after the
 // attached chips, the loading one flagged, labelled as its chip will be.
 func TestTheStatusModelCarriesAPlaceholderPerPendingThread(t *testing.T) {
-	f := newFixture(t, 24, 100)
-	root := consoleThread(f, "c1")
-	release := make(chan struct{})
-	f.con.SetOperationDispatcher(func(call couchcore.OperationCall) (any, error) {
-		if call.Name == "resume" {
-			<-release
-			return nil, errors.New("spawn failed")
-		}
-		return nil, nil
-	})
-	t.Cleanup(func() { close(release) })
-	f.con.ArmReattachPass(root)
-	now := time.Now()
-	f.con.SetActionableProvider(func(context.Context, []couchcore.LiveTTYObservation) ([]couchcore.ActionableThreadSummary, error) {
-		return []couchcore.ActionableThreadSummary{
-			{Address: root, State: couchcore.ThreadLive, LastActiveAt: now},
-			{Address: menuAddress("couch-first"), StartingPath: "/work/first", State: couchcore.ThreadDetached, LastActiveAt: now.Add(-time.Minute)},
-			{Address: menuAddress("couch-second"), StartingPath: "/work/second", State: couchcore.ThreadDetached, LastActiveAt: now.Add(-time.Hour)},
-		}, nil
-	})
-	waitFor(t, "the first thread loading", func() bool {
-		return f.con.menuSnapshot().Reattach.soleLoading() == menuAddress("couch-first")
-	})
+	for _, tc := range []struct {
+		name  string
+		style TabStyle
+	}{{"collapse", TabStyleCollapse}, {"multiline", TabStyleMultiline}} {
+		t.Run(tc.name, func(t *testing.T) {
+			f := newFixture(t, 24, 100)
+			f.con.SetTabStyle(tc.style)
+			root := consoleThread(f, "c1")
+			release := make(chan struct{})
+			f.con.SetOperationDispatcher(func(call couchcore.OperationCall) (any, error) {
+				if call.Name == "resume" {
+					<-release
+					return nil, errors.New("spawn failed")
+				}
+				return nil, nil
+			})
+			t.Cleanup(func() { close(release) })
+			f.con.ArmReattachPass(root)
+			now := time.Now()
+			f.con.SetActionableProvider(func(context.Context, []couchcore.LiveTTYObservation) ([]couchcore.ActionableThreadSummary, error) {
+				return []couchcore.ActionableThreadSummary{
+					{Address: root, State: couchcore.ThreadLive, LastActiveAt: now},
+					{Address: menuAddress("couch-first"), StartingPath: "/work/first", State: couchcore.ThreadDetached, LastActiveAt: now.Add(-time.Minute)},
+					{Address: menuAddress("couch-second"), StartingPath: "/work/second", State: couchcore.ThreadDetached, LastActiveAt: now.Add(-time.Hour)},
+				}, nil
+			})
+			waitFor(t, "the first thread loading", func() bool {
+				return f.con.menuSnapshot().Reattach.soleLoading() == menuAddress("couch-first")
+			})
 
-	model := statusModelOf(f)
-	var placeholders []StatusActor
-	for i, actor := range model.Actors {
-		if actor.Placeholder {
-			placeholders = append(placeholders, actor)
-			continue
-		}
-		if len(placeholders) > 0 {
-			t.Fatalf("attached chip %q at %d follows a placeholder; attached chips come first", actor.Label, i)
-		}
-	}
-	if len(placeholders) != 2 {
-		t.Fatalf("placeholders = %+v, want one per pending thread", placeholders)
-	}
-	first, second := placeholders[0], placeholders[1]
-	if first.Thread != menuAddress("couch-first") || !first.Loading || second.Thread != menuAddress("couch-second") || second.Loading {
-		t.Fatalf("placeholders = %+v, want couch-first loading then couch-second queued", placeholders)
-	}
-	// Labelled as the chip will be -- the starting path's repository -- so the
-	// label does not change when the thread arrives.
-	if first.Label != couchcore.Worktree("/work/first").Repo() || second.Label != couchcore.Worktree("/work/second").Repo() {
-		t.Fatalf("labels %q, %q; want each thread's repository", first.Label, second.Label)
+			model := statusModelOf(f)
+			var placeholders []StatusActor
+			for i, actor := range model.Actors {
+				if actor.Placeholder {
+					placeholders = append(placeholders, actor)
+					continue
+				}
+				if len(placeholders) > 0 {
+					t.Fatalf("attached chip %q at %d follows a placeholder; attached chips come first", actor.Label, i)
+				}
+			}
+			if len(placeholders) != 2 {
+				t.Fatalf("placeholders = %+v, want one per pending thread", placeholders)
+			}
+			first, second := placeholders[0], placeholders[1]
+			if first.Thread != menuAddress("couch-first") || !first.Loading || second.Thread != menuAddress("couch-second") || second.Loading {
+				t.Fatalf("placeholders = %+v, want couch-first loading then couch-second queued", placeholders)
+			}
+			// Labelled as the chip will be -- the starting path's repository -- so the
+			// label does not change when the thread arrives.
+			if first.Label != couchcore.Worktree("/work/first").Repo() || second.Label != couchcore.Worktree("/work/second").Repo() {
+				t.Fatalf("labels %q, %q; want each thread's repository", first.Label, second.Label)
+			}
+		})
 	}
 }
 

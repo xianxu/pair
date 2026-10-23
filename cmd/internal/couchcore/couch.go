@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"github.com/xianxu/pair/cmd/internal/checkpoint"
 	"github.com/xianxu/pair/cmd/internal/couchidentity"
+	"github.com/xianxu/pair/cmd/internal/startupbudget"
 	"github.com/xianxu/pair/cmd/internal/threadrecord"
 	"io"
 	"os"
@@ -408,7 +409,7 @@ func (c *Couch) resolveStartProfileWithStore(ctx context.Context, args StartArgs
 // The work inside the window must still stay BOUNDED (ARCH-CONSTRAINTS): #215
 // made name assignment O(1) after it grew with the fleet; if anything unbounded
 // moves back in, raising the number is the wrong fix.
-const pairRegistrationTimeout = 2 * time.Minute
+const pairRegistrationTimeout = startupbudget.Default
 
 // repoIdentityTimeout matches the 5s bound the deleted ExecPolicyResolver
 // applied to the subprocess this call replaced, so the envelope did not widen

@@ -16,9 +16,17 @@ import (
 )
 
 const nativeFixtureDir = "cmd/internal/couchcore/"
+const shortcutFixtureFile = "cmd/internal/couchcmd/shortcut_conformance_live_test.go"
 
-var nativeFixtureFiles = []string{"recovery_conformance_live_test.go", "park_lifecycle_live_test.go", "recovery_live_environment_test.go"}
+var nativeFixtureFiles = []string{"recovery_conformance_live_test.go", "park_lifecycle_live_test.go", "recovery_live_environment_test.go", shortcutFixtureFile}
 var nativeFixtureRoots = []string{"HOME", "XDG_CONFIG_HOME", "XDG_DATA_HOME", "XDG_CACHE_HOME", "XDG_RUNTIME_DIR", "ZELLIJ_SOCKET_DIR", "ZELLIJ_CONFIG_DIR"}
+
+func nativeFixturePath(name string) string {
+	if name == shortcutFixtureFile {
+		return name
+	}
+	return nativeFixtureDir + name
+}
 
 func nativeRootSources() map[string][]byte {
 	reads := ""
@@ -29,6 +37,36 @@ func nativeRootSources() map[string][]byte {
 		nativeFixtureFiles[0]: []byte("package fixture\nfunc TestRecoveryRealHelperAndSessionConformanceLive(){ setupRecoveryLiveEnvironment(t) }"),
 		nativeFixtureFiles[1]: []byte("package fixture\nfunc newRealParkConformance(){ setupRecoveryLiveEnvironment(t) }\nfunc startParkLifecycleHelper(){ cmd.Env = recoveryLiveChildEnvironment(t) }"),
 		nativeFixtureFiles[2]: []byte("package fixture\nfunc recoveryLiveChildEnvironment(){ return []string{" + reads + "} }"),
+		shortcutFixtureFile: []byte(`package fixture
+func TestAgentShortcutInputConformanceLive(){ setupShortcutSocketRoot(t) }
+func setupShortcutSocketRoot(){
+ root, err := os.MkdirTemp("/tmp", "p743-")
+ t.Cleanup(func(){ os.RemoveAll(root) })
+ t.Setenv("ZELLIJ_SOCKET_DIR", root)
+}`),
+	}
+}
+
+func TestNativeShortcutRootRule(t *testing.T) {
+	for _, c := range []struct{ name, old, replacement string }{
+		{"entry setup", "setupShortcutSocketRoot(t)", "omitted(t)"},
+		{"missing entry", "func TestAgentShortcutInputConformanceLive()", "func renamedEntry()"},
+		{"missing helper", "func setupShortcutSocketRoot()", "func renamedHelper()"},
+		{"short tmp root", `os.MkdirTemp("/tmp", "p743-")`, `os.MkdirTemp("", "p743-")`},
+		{"owned tmp root", `os.MkdirTemp("/tmp", "p743-")`, `os.MkdirAll("/tmp/p743", 0700)`},
+		{"socket environment", `t.Setenv("ZELLIJ_SOCKET_DIR", root)`, `t.Setenv("OMITTED_SOCKET", root)`},
+		{"socket ownership", `t.Setenv("ZELLIJ_SOCKET_DIR", root)`, `t.Setenv("ZELLIJ_SOCKET_DIR", "/tmp")`},
+		{"owned cleanup", `os.RemoveAll(root)`, `omitted(root)`},
+		{"registered cleanup", `t.Cleanup(func()`, `omitted(func()`},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			sources := nativeRootSources()
+			sources[shortcutFixtureFile] = []byte(strings.Replace(string(sources[shortcutFixtureFile]), c.old, c.replacement, 1))
+			got, err := nativeFixtureRootFindings(sources)
+			if err != nil || len(got) != 1 || got[0].Path != shortcutFixtureFile || got[0].Finding.Rule != "native-fixture-roots" || !strings.Contains(got[0].Finding.Message, "#743") {
+				t.Fatalf("shortcut omission escaped named local lint: %v %v", got, err)
+			}
+		})
 	}
 }
 
@@ -77,23 +115,34 @@ func TestNativeFixtureRootRule(t *testing.T) {
 func TestNativeFixtureRootReader(t *testing.T) {
 	sources := nativeRootSources()
 	reads := map[string]int{}
+	expected := map[string]string{}
+	for _, name := range nativeFixtureFiles {
+		expected[filepath.Join("repo", filepath.FromSlash(nativeFixturePath(name)))] = name
+	}
 	got, err := readNativeFixtureRoots("repo", func(path string) ([]byte, error) {
 		reads[path]++
-		return sources[filepath.Base(path)], nil
+		return sources[expected[path]], nil
 	})
-	if err != nil || len(got) != 0 || len(reads) != 3 {
+	if err != nil || len(got) != 0 || len(reads) != len(expected) {
 		t.Fatalf("read boundary: %v %v %v", got, err, reads)
 	}
 	for path, count := range reads {
-		if count != 1 || filepath.Dir(path) != filepath.Join("repo", filepath.FromSlash(nativeFixtureDir)) {
+		if _, known := expected[path]; count != 1 || !known {
 			t.Fatalf("unexpected source read: %q count=%d", path, count)
 		}
 	}
 	sources[nativeFixtureFiles[0]] = []byte("package fixture")
 	if findings, err := readNativeFixtureRoots("repo", func(path string) ([]byte, error) {
-		return sources[filepath.Base(path)], nil
+		return sources[expected[path]], nil
 	}); err != nil || len(findings) != 1 {
 		t.Fatalf("reader did not consume rule findings: %v %v", findings, err)
+	}
+	sources = nativeRootSources()
+	sources[shortcutFixtureFile] = []byte(strings.Replace(string(sources[shortcutFixtureFile]), "setupShortcutSocketRoot(t)", "omitted(t)", 1))
+	if findings, err := readNativeFixtureRoots("repo", func(path string) ([]byte, error) {
+		return sources[expected[path]], nil
+	}); err != nil || len(findings) != 1 || findings[0].Path != shortcutFixtureFile || !strings.Contains(findings[0].Finding.Message, "#743") {
+		t.Fatalf("reader did not consume second-directory rule findings: %v %v", findings, err)
 	}
 	sentinel := errors.New("unreadable source")
 	if _, err := readNativeFixtureRoots("repo", func(string) ([]byte, error) { return nil, sentinel }); !errors.Is(err, sentinel) {
@@ -102,7 +151,7 @@ func TestNativeFixtureRootReader(t *testing.T) {
 }
 
 // nativeFixtureRootFindings is deliberately a repository rule: its contract
-// crosses three Pair-specific files, outside the single-file shared catalog.
+// crosses Pair-specific fixture files, outside the single-file shared catalog.
 func nativeFixtureRootFindings(sources map[string][]byte) ([]locatedFinding, error) {
 	type function struct {
 		node *ast.FuncDecl
@@ -113,7 +162,7 @@ func nativeFixtureRootFindings(sources map[string][]byte) ([]locatedFinding, err
 	for _, name := range nativeFixtureFiles {
 		raw, ok := sources[name]
 		if !ok {
-			return nil, fmt.Errorf("native-fixture-roots: missing %s%s (#636)", nativeFixtureDir, name)
+			return nil, fmt.Errorf("native-fixture-roots: missing %s (#636, #743)", nativeFixturePath(name))
 		}
 		positions := token.NewFileSet()
 		parsed, err := parser.ParseFile(positions, name, raw, 0)
@@ -135,7 +184,11 @@ func nativeFixtureRootFindings(sources map[string][]byte) ([]locatedFinding, err
 		if line == 0 {
 			line = 1
 		}
-		findings = append(findings, locatedFinding{nativeFixtureDir + file, golint.Finding{Line: line, Rule: "native-fixture-roots", Message: message + " (#636)"}})
+		issue := "#636"
+		if file == shortcutFixtureFile {
+			issue = "#743"
+		}
+		findings = append(findings, locatedFinding{nativeFixturePath(file), golint.Finding{Line: line, Rule: "native-fixture-roots", Message: message + " (" + issue + ")"}})
 	}
 	inspect := func(file, name string, match func(ast.Node) bool) bool {
 		fn := functions[file+":"+name].node
@@ -200,13 +253,84 @@ func nativeFixtureRootFindings(sources map[string][]byte) ([]locatedFinding, err
 		})
 		require(nativeFixtureFiles[2], "recoveryLiveChildEnvironment", found, "recoveryLiveChildEnvironment: restore explicit "+root+" read")
 	}
+	entry := inspect(shortcutFixtureFile, "TestAgentShortcutInputConformanceLive", func(n ast.Node) bool {
+		call, ok := n.(*ast.CallExpr)
+		if !ok {
+			return false
+		}
+		name, ok := call.Fun.(*ast.Ident)
+		return ok && name.Name == "setupShortcutSocketRoot"
+	})
+	require(shortcutFixtureFile, "TestAgentShortcutInputConformanceLive", entry, "TestAgentShortcutInputConformanceLive: restore explicit setupShortcutSocketRoot call")
+	// Bind the socket environment and cleanup to the same owned short root.
+	owned := ""
+	inspect(shortcutFixtureFile, "setupShortcutSocketRoot", func(n ast.Node) bool {
+		assign, ok := n.(*ast.AssignStmt)
+		if !ok || len(assign.Lhs) != 2 || len(assign.Rhs) != 1 {
+			return false
+		}
+		call, ok := assign.Rhs[0].(*ast.CallExpr)
+		if !ok || !nativeFixtureCall(call, "os", "MkdirTemp") || len(call.Args) != 2 || !nativeFixtureLiteral(call.Args[0], "/tmp") || !nativeFixtureLiteral(call.Args[1], "p743-") {
+			return false
+		}
+		if root, ok := assign.Lhs[0].(*ast.Ident); ok && root.Name != "_" {
+			owned = root.Name
+		}
+		return false
+	})
+	usesOwned := func(expr ast.Expr) bool {
+		name, ok := expr.(*ast.Ident)
+		return ok && owned != "" && name.Name == owned
+	}
+	set := inspect(shortcutFixtureFile, "setupShortcutSocketRoot", func(n ast.Node) bool {
+		call, ok := n.(*ast.CallExpr)
+		return ok && nativeFixtureCall(call, "t", "Setenv") && len(call.Args) == 2 && nativeFixtureLiteral(call.Args[0], "ZELLIJ_SOCKET_DIR") && usesOwned(call.Args[1])
+	})
+	cleanup := inspect(shortcutFixtureFile, "setupShortcutSocketRoot", func(n ast.Node) bool {
+		call, ok := n.(*ast.CallExpr)
+		if !ok || !nativeFixtureCall(call, "t", "Cleanup") || len(call.Args) != 1 {
+			return false
+		}
+		closure, ok := call.Args[0].(*ast.FuncLit)
+		if !ok {
+			return false
+		}
+		found := false
+		ast.Inspect(closure.Body, func(n ast.Node) bool {
+			call, ok := n.(*ast.CallExpr)
+			if ok && nativeFixtureCall(call, "os", "RemoveAll") && len(call.Args) == 1 && usesOwned(call.Args[0]) {
+				found = true
+			}
+			return true
+		})
+		return found
+	})
+	require(shortcutFixtureFile, "setupShortcutSocketRoot", owned != "" && set && cleanup, "setupShortcutSocketRoot: restore owned short /tmp socket root, ZELLIJ_SOCKET_DIR assignment and registered cleanup")
 	return findings, nil
+}
+
+func nativeFixtureCall(call *ast.CallExpr, receiver, method string) bool {
+	selector, ok := call.Fun.(*ast.SelectorExpr)
+	if !ok || selector.Sel.Name != method {
+		return false
+	}
+	name, ok := selector.X.(*ast.Ident)
+	return ok && name.Name == receiver
+}
+
+func nativeFixtureLiteral(expr ast.Expr, want string) bool {
+	literal, ok := expr.(*ast.BasicLit)
+	if !ok {
+		return false
+	}
+	value, err := strconv.Unquote(literal.Value)
+	return err == nil && value == want
 }
 
 func readNativeFixtureRoots(root string, readFile func(string) ([]byte, error)) ([]locatedFinding, error) {
 	sources := map[string][]byte{}
 	for _, name := range nativeFixtureFiles {
-		source, err := readFile(filepath.Join(root, filepath.FromSlash(nativeFixtureDir+name)))
+		source, err := readFile(filepath.Join(root, filepath.FromSlash(nativeFixturePath(name))))
 		if err != nil {
 			return nil, fmt.Errorf("native-fixture-roots: read %s: %w", name, err)
 		}
@@ -221,8 +345,8 @@ func TestNativeFixtureRootRealSources(t *testing.T) {
 		t.Fatal(err)
 	}
 	sources := map[string]string{}
-	for _, name := range []string{"recovery_conformance_live_test.go", "park_lifecycle_live_test.go", "recovery_live_environment_test.go"} {
-		raw, err := os.ReadFile(filepath.Join(root, nativeFixtureDir, name))
+	for _, name := range nativeFixtureFiles {
+		raw, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(nativeFixturePath(name))))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -238,6 +362,10 @@ func TestNativeFixtureRootRealSources(t *testing.T) {
 		{"runtime root", "recovery_live_environment_test.go", `os.Getenv("XDG_RUNTIME_DIR")`, `os.Getenv("OMITTED_RUNTIME")`},
 		{"socket root", "recovery_live_environment_test.go", `os.Getenv("ZELLIJ_SOCKET_DIR")`, `os.Getenv("OMITTED_SOCKET")`},
 		{"config root", "recovery_live_environment_test.go", `os.Getenv("ZELLIJ_CONFIG_DIR")`, `os.Getenv("OMITTED_CONFIG")`},
+		{"shortcut setup", shortcutFixtureFile, "setupShortcutSocketRoot(t)", "omittedSocketRoot(t)"},
+		{"shortcut short root", shortcutFixtureFile, `os.MkdirTemp("/tmp", "p743-")`, `os.MkdirTemp("", "p743-")`},
+		{"shortcut environment", shortcutFixtureFile, `t.Setenv("ZELLIJ_SOCKET_DIR", root)`, `t.Setenv("OMITTED_SOCKET", root)`},
+		{"shortcut cleanup", shortcutFixtureFile, `os.RemoveAll(root)`, `omitted(root)`},
 	} {
 		t.Run(mutation.name, func(t *testing.T) {
 			changed := map[string]string{}

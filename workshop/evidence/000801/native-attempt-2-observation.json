@@ -1,0 +1,17 @@
+{
+  "kind": "tool-output observation; not a full raw capture",
+  "command": "PAIR_NATIVE_COUCH_BRIDGE=1 go test ./cmd/internal/testcouchbridge -run ^TestNativeCouchBridge$ -count=1 -v -timeout=12m",
+  "source_head_reported": "4b18b409a209717e02a28b5148e6dcacd1d20ebf",
+  "working_tree_delta": "test-only native absolute-path assertion plus .gitignore; runtime unchanged from source head",
+  "result": "FAIL",
+  "elapsed_seconds": 303.101,
+  "cohort": "claude",
+  "observation": "readiness EOF; bridge startup context deadline exceeded at fixed300s",
+  "root": "/Volumes/TestScratch/pc-3595554402",
+  "candidate_root": "/Volumes/TestScratch/couch-candidate-3397009107",
+  "wrapper_log": "openat control/wrapper-startup.log: no such file or directory",
+  "startup_sources": 0,
+  "cleanup": "all owned generations absent; direct child and IO joined; root removed",
+  "cause": "unclassified; cached console frame will be captured on the single hub-authorized next run",
+  "hub_authorization": "97f22b2d-ba87-4d3e-a811-7b541570895a"
+}

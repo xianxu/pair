@@ -36,6 +36,28 @@ func coordinateTerminalHandoff(ctx, queryCtx context.Context, rt TerminalHandoff
 	if bound <= 0 {
 		return 1, errors.New("terminal admission bound must be positive")
 	}
+	parent := queryCtx
+	if create {
+		parent = ctx
+	}
+	startup, cancel := context.WithTimeout(parent, bound)
+	defer cancel()
+	return coordinateTerminalHandoffContexts(ctx, queryCtx, startup, rt, create)
+}
+
+func coordinateTerminalHandoffContexts(ctx, queryCtx, startup context.Context, rt TerminalHandoffRuntime, create bool) (int, error) {
+	if err := startup.Err(); err != nil {
+		return 1, err
+	}
+	deadline, ok := startup.Deadline()
+	if !ok {
+		return 1, errors.New("terminal startup deadline is unavailable")
+	}
+	preflight, stopPreflight := context.WithDeadline(queryCtx, deadline)
+	stopStartupLink := context.AfterFunc(startup, stopPreflight)
+	defer stopStartupLink()
+	defer stopPreflight()
+	queryCtx = preflight
 	if err := queryCtx.Err(); err != nil {
 		return 1, err
 	}
@@ -61,6 +83,9 @@ func coordinateTerminalHandoff(ctx, queryCtx context.Context, rt TerminalHandoff
 	if err := ctx.Err(); err != nil {
 		return 1, err
 	}
+	if err := startup.Err(); err != nil {
+		return 1, err
+	}
 	clientCtx, stopClient := context.WithCancel(ctx)
 	defer stopClient()
 	client, err := rt.Start(clientCtx)
@@ -69,11 +94,7 @@ func coordinateTerminalHandoff(ctx, queryCtx context.Context, rt TerminalHandoff
 	}
 	exited := make(chan HandoffExit, 1)
 	go func() { exited <- client.Wait() }()
-	observerParent := queryCtx
-	if create {
-		observerParent = ctx
-	}
-	admitCtx, stopObserver := context.WithTimeout(observerParent, bound)
+	admitCtx, stopObserver := context.WithCancel(startup)
 	defer stopObserver()
 	admitted := make(chan error, 1)
 	go func() { admitted <- rt.Admit(admitCtx) }()
@@ -83,12 +104,15 @@ func coordinateTerminalHandoff(ctx, queryCtx context.Context, rt TerminalHandoff
 		// whose deadline is independent of the readiness wait.
 		stopClient()
 		stopObserver()
-		<-admitted
-		return exit.Code, errors.Join(exit.Err, errors.New("terminal client exited before admission was verified"))
+		observerErr := <-admitted
+		return exit.Code, errors.Join(exit.Err, observerErr, startup.Err(), ctx.Err(), errors.New("terminal client exited before admission was verified"))
 	case err = <-admitted:
 		stopObserver()
 		if err == nil && !create {
 			err = queryCtx.Err()
+		}
+		if err == nil {
+			err = startup.Err()
 		}
 		if err == nil {
 			err = ctx.Err()

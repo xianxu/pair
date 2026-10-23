@@ -642,15 +642,15 @@ func TestReapSuccessClosesItsConfirmation(t *testing.T) {
 func TestOperationProgressUpdatesOnlyItsOwnNotice(t *testing.T) {
 	state := MenuState{Notice: MenuNotice{Level: MenuNoticeProgress, Text: "recovering pair:6…", Owner: MenuProgressOwner{OperationAttempt: 7}}}
 	setTestMenuOperation(&state, MenuOperationOrigin{Operation: "recover", Attempt: 7})
-	next := updateOperationProgress(state, 7, "step 1/2: reaping orphaned server PID 9090")
+	next := updateOperationProgress(state, 7, "step 1/2: reaping orphaned server PID 9090", state.ObservedAt)
 	if !strings.Contains(next.Notice.Text, "step 1/2: reaping orphaned server PID 9090") || next.Notice.Level != MenuNoticeProgress {
 		t.Fatalf("notice = %+v", next.Notice)
 	}
-	if other := updateOperationProgress(state, 8, "stale"); other.Notice.Text != state.Notice.Text {
+	if other := updateOperationProgress(state, 8, "stale", state.ObservedAt); other.Notice.Text != state.Notice.Text {
 		t.Fatalf("another attempt's progress changed the notice: %q", other.Notice.Text)
 	}
 	state.Notice.Level = MenuNoticeError
-	if done := updateOperationProgress(state, 7, "late"); done.Notice.Text != state.Notice.Text {
+	if done := updateOperationProgress(state, 7, "late", state.ObservedAt); done.Notice.Text != state.Notice.Text {
 		t.Fatalf("progress overwrote a finished notice: %q", done.Notice.Text)
 	}
 }

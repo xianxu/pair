@@ -1,0 +1,6 @@
+{"Time":"2026-10-21T09:54:22.695157Z","Action":"start","Package":"github.com/xianxu/pair/cmd/internal/couchtty"}
+{"Time":"2026-10-21T09:54:22.731284Z","Action":"run","Package":"github.com/xianxu/pair/cmd/internal/couchtty","Test":"TestLiveConsoleNvimPreservesContentAndChrome"}
+{"Time":"2026-10-21T09:54:22.733112Z","Action":"output","Package":"github.com/xianxu/pair/cmd/internal/couchtty","Test":"TestLiveConsoleNvimPreservesContentAndChrome","Output":"=== RUN   TestLiveConsoleNvimPreservesContentAndChrome\n"}
+{"Time":"2026-10-21T09:54:22.733136Z","Action":"output","Package":"github.com/xianxu/pair/cmd/internal/couchtty","Test":"TestLiveConsoleNvimPreservesContentAndChrome","Output":"    console_live_test.go:81: pair743 deliberate known-bad completeness fixture\n"}
+{"Time":"2026-10-21T09:54:22.733159Z","Action":"output","Package":"github.com/xianxu/pair/cmd/internal/couchtty","Test":"TestLiveConsoleNvimPreservesContentAndChrome","Output":"--- SKIP: TestLiveConsoleNvimPreservesContentAndChrome (0.00s)\n"}
+{"Time":"2026-10-21T09:54:22.733161Z","Action":"skip","Package":"github.com/xianxu/pair/cmd/internal/couchtty","Test":"TestLiveConsoleNvimPreservesContentAndChrome","Elapsed":0}

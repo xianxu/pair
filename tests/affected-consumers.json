@@ -458,6 +458,24 @@
         "tests/lib/**",
         "tests/paint-gate-consumers-test.sh"
       ]
+    },
+    "test-vm-provision": {
+      "go": [],
+      "files": [
+        "Makefile*",
+        "scripts/vm/**"
+      ]
+    },
+    "test-vm-conformance": {
+      "go": [],
+      "files": [
+        "Makefile*",
+        ".sdlc/local-checks.json",
+        "tests/conformance-*.py",
+        "tests/conformance-paths.json",
+        "tests/native-terminal-ci*.py",
+        ".github/workflows/couch-zellij-conformance.yml"
+      ]
     }
   }
 }

@@ -1,0 +1,82 @@
+{
+  "command": [
+    "make",
+    "conformance-vm"
+  ],
+  "named_check_acceptance": false,
+  "runs": [
+    {
+      "after_digest": "df8b16b000aa1bcfc27cca6bba362cca98a6a8b2ef7f253fba1d3d8faf492e15",
+      "artifacts": "/Volumes/TestScratch/tmp/pair-slot3/pair743-m3-final-8ihqzgxl/known-bad-vm",
+      "before_digest": "df8b16b000aa1bcfc27cca6bba362cca98a6a8b2ef7f253fba1d3d8faf492e15",
+      "checkout": "/Volumes/TestScratch/tmp/pair-slot3/pair743-m3-final-8ihqzgxl/known-bad",
+      "fixture": "known-bad",
+      "host_exit": 2,
+      "host_source_unchanged": true,
+      "image": "pair-conformance-tahoe-20261021T044207.013507000",
+      "lane_claim_retained": false,
+      "runner_exit": 1,
+      "sentinel_preserved": true,
+      "snapshot_head": "f5f45b9ae627bf8d1591a9bbdb4021b8bb419552",
+      "validation_error": "conformance skip: TestLiveConsoleNvimPreservesContentAndChrome"
+    },
+    {
+      "after_digest": "3c523b3ab4839b93a058a630b032603031595ad50e2f91f5757d81328a3ab890",
+      "artifacts": "/Volumes/TestScratch/tmp/pair-slot3/pair743-m3-final-8ihqzgxl/clean-vm",
+      "before_digest": "3c523b3ab4839b93a058a630b032603031595ad50e2f91f5757d81328a3ab890",
+      "checkout": "/Volumes/TestScratch/tmp/pair-slot3/pair743-m3-final-8ihqzgxl/clean",
+      "fixture": "clean",
+      "host_exit": 0,
+      "host_source_unchanged": true,
+      "image": "pair-conformance-tahoe-20261021T044207.013507000",
+      "lane_claim_retained": false,
+      "runner_exit": 0,
+      "sentinel_preserved": true,
+      "snapshot_head": "f5f45b9ae627bf8d1591a9bbdb4021b8bb419552",
+      "validation": {
+        "events": 413,
+        "passed": {
+          "github.com/xianxu/pair/cmd/internal/couchcmd": [
+            "TestAgentShortcutInputConformanceLive/inherited-alt-f",
+            "TestAgentShortcutInputConformanceLive/inherited-alt-bracket",
+            "TestAgentShortcutInputConformanceLive/inherited-alt-plus",
+            "TestAgentShortcutInputConformanceLive/alt-up",
+            "TestAgentShortcutInputConformanceLive/alt-down",
+            "TestAgentShortcutInputConformanceLive/alt-left",
+            "TestAgentShortcutInputConformanceLive/alt-right",
+            "TestAgentShortcutInputConformanceLive/alt-h",
+            "TestAgentShortcutInputConformanceLive/alt-l",
+            "TestAgentShortcutInputConformanceLive/alt-x",
+            "TestAgentShortcutInputConformanceLive/reserved-shift-alt-t",
+            "TestAgentShortcutInputConformanceLive/reserved-shift-alt-left",
+            "TestAgentShortcutInputConformanceLive/reserved-shift-alt-right",
+            "TestAgentShortcutInputConformanceLive"
+          ],
+          "github.com/xianxu/pair/cmd/internal/couchcore": [
+            "TestParkLifecycleLiveIntentOnlyMutation",
+            "TestRecoveryRealHelperAndSessionConformanceLive/warm",
+            "TestRecoveryRealHelperAndSessionConformanceLive"
+          ],
+          "github.com/xianxu/pair/cmd/internal/couchtty": [
+            "TestLiveConsoleNvimPreservesContentAndChrome",
+            "TestLiveReservedRowSurvivesRealScrolling",
+            "TestNotificationPTYConformance",
+            "TestNativeConsoleWrapperZellij/direct-zellij-baseline",
+            "TestNativeConsoleWrapperZellij/wrapped-zellij",
+            "TestNativeConsoleWrapperZellij"
+          ],
+          "github.com/xianxu/pair/cmd/internal/launcher": [
+            "TestQuitLifecycleLive",
+            "TestTheAcceptorAgreesWithRealZellijLive",
+            "TestSessionQuiescenceLive",
+            "TestSessionDetachLive"
+          ],
+          "github.com/xianxu/pair/cmd/internal/layoutcmd": [
+            "TestTerminalRecoveryZellijConformance"
+          ]
+        }
+      }
+    }
+  ],
+  "source": "f5f45b9ae627bf8d1591a9bbdb4021b8bb419552"
+}

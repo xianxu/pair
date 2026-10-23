@@ -506,3 +506,8 @@ Authenticated hub514a1711-9463-4779-9818-6a4dec199f17 relays live operator confu
 ### 2026-10-22 22:12 — Whole-close BR-7/BR-8 contract enforcement
 
 Enforce the approved read-only pre-confirmation contract through the existing PreviewThreadContext in common preparation, covering ordinary form, known CLI and force offers across global and routed stores. Enumerate transitive reads and pin pending-journal refusal, byte preservation through cancellation, and absent-store/retention preservation. Source claim/register/park fixture setup must finish at the existing pre-Run hook before any Console observer; pin the adversarial observer ordering as well as actual queued Console acceptance. These corrections add no production state, retry, timeout or launch authority (ARCH-PURPOSE, ARCH-ORDER). Requeue recorded verification after the code change before whole close/landing.
+
+
+### 2026-10-23 — Integration conflict correction after whole-close SHIP
+
+Train294 held the car for conflicts. Integrate landed main, preserving both the switch-argument and tab-style CLI imports and main's progress-aware slot callback API in this branch's replay test. Re-audit and individually refresh the three merged reader records without changing their input classifications. No scope or acceptance change; require the integrated full suite and narrow fix review before re-entering merge (ARCH-DRY, ARCH-PURPOSE).

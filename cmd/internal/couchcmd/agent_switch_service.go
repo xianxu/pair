@@ -373,7 +373,7 @@ func (s *messageService) handleAgentSwitch(ctx context.Context, r couchmessage.R
 		}
 		return service.guard.confirmAgentSwitchAdmission(ctx, address, token, prepared.SourceEvidence(), r.InterruptFirst)
 	}
-	return s.slotOps.admit(ctx, caller, r, func(key string, started func(), finished func(any, error)) error {
+	return s.slotOps.admit(ctx, caller, r, func(key string, started func(), _ couchcore.OperationProgress, finished func(any, error)) error {
 		return service.enqueue(key, func(ctx context.Context) (couchcore.OperationCall, error) {
 			call := couchcore.OperationCall{Name: "switch-agent", Args: map[string]string{
 				"repo-scope": address.RepoScope, "tag": string(address.Tag), "agent": r.Agent,

@@ -281,7 +281,9 @@ func TestSpawnStartsPairAndRecordsTheActor(t *testing.T) {
 	t.Parallel()
 
 	env := newTestEnv(t, "/repo")
+	startupBegan := time.Now()
 	rec, h, err := env.Couch.Spawn(StartArgs{Worktree: "/repo"})
+	startupReturned := time.Now()
 	if err != nil {
 		t.Fatalf("Spawn: %v", err)
 	}
@@ -310,7 +312,8 @@ func TestSpawnStartsPairAndRecordsTheActor(t *testing.T) {
 		launcher.CouchLaunchProfileEnv + "=" + strings.TrimSpace(profileRaw),
 		"PAIR_USE_REPO_DEFAULT=1",
 	}
-	wantEnv = append(wantEnv, managedIntentEnvForTest(t, child.Env))
+	wantEnv = append(wantEnv, managedIntentEnvForTest(t, child.Env),
+		startupDeadlineEnvForTest(t, child.Env, startupBegan, startupReturned))
 	if !slices.Equal(child.Env, wantEnv) {
 		t.Fatalf("child env = %q, want %q", child.Env, wantEnv)
 	}

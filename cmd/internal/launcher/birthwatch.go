@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/xianxu/pair/cmd/internal/panebirth"
+	"github.com/xianxu/pair/cmd/internal/zellijreply"
 )
 
 // The create path's birth watch (#288). A zellij server can die before its
@@ -101,7 +102,9 @@ func watchBirth(ctx context.Context, rt Runtime, clock panebirth.Clock, evidence
 		case ctx.Err() != nil:
 			return birthStopped
 		}
-		sessions, probeErr := rt.SessionLiveness()
+		query, stopQuery := zellijreply.AdmissionContext(ctx)
+		sessions, probeErr := rt.SessionLivenessContext(query)
+		stopQuery()
 		if ctx.Err() != nil {
 			return birthStopped // the client ended while we asked: not ours to judge
 		}
@@ -119,21 +122,28 @@ func watchBirth(ctx context.Context, rt Runtime, clock panebirth.Clock, evidence
 // just before the blocking LaunchSession and is stopped and joined as soon as
 // it returns, so nothing it spawned outlives the call.
 func launchWatched(rt Runtime, clock panebirth.Clock, evidence, session, configDir, layout string, bound time.Duration) (int, birthVerdict, error) {
-	return launchWatchedContext(context.Background(), nil, rt, clock, evidence, session, configDir, layout, bound)
+	return launchWatchedContext(context.Background(), nil, nil, rt, clock, evidence, session, configDir, layout, bound)
 }
 
-func launchWatchedContext(lifetime, admission context.Context, rt Runtime, clock panebirth.Clock, evidence, session, configDir, layout string, bound time.Duration) (int, birthVerdict, error) {
+func launchWatchedContext(lifetime, startup, admission context.Context, rt Runtime, clock panebirth.Clock, evidence, session, configDir, layout string, bound time.Duration) (int, birthVerdict, error) {
+	var stopStartup context.CancelFunc
+	var err error
+	startup, stopStartup, err = terminalStartupContext(lifetime, startup)
+	if err != nil {
+		return 1, birthStopped, err
+	}
+	defer stopStartup()
 	if admission == nil {
 		var cancel context.CancelFunc
-		admission, cancel = context.WithTimeout(lifetime, zjTimeout)
+		admission, cancel = context.WithTimeout(startup, zjTimeout)
 		defer cancel()
 	}
 	launchCtx, abort := context.WithCancel(lifetime)
 	defer abort()
-	watchCtx, stopWatch := context.WithCancel(lifetime)
+	watchCtx, stopWatch := context.WithCancel(startup)
 	verdict := make(chan birthVerdict, 1)
 	go func() { verdict <- watchBirth(watchCtx, rt, clock, evidence, session, bound, abort) }()
-	code, err := rt.LaunchSessionContext(launchCtx, admission, session, configDir, layout)
+	code, err := rt.LaunchSessionContext(launchCtx, startup, admission, session, configDir, layout)
 	stopWatch()
 	return code, <-verdict, err
 }

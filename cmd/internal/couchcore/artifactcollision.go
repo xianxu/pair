@@ -167,16 +167,7 @@ func (c ScopedThreadArtifactCollisionChecker) Quiesce(address ThreadAddress) err
 	if err != nil {
 		return err
 	}
-	if !binding.Present {
-		return nil
-	}
-	if err := c.RevalidatePairSession(context.Background(), binding); err != nil {
-		return err
-	}
-	if c.Sessions == nil {
-		return errors.New("quiesce Pair session: nil session deleter")
-	}
-	return c.Sessions.DeleteSession(binding.Name)
+	return c.quiesceOwned(context.Background(), binding)
 }
 
 func (c ScopedThreadArtifactCollisionChecker) QuiesceNamed(ctx context.Context, address ThreadAddress, name string) error {
@@ -184,21 +175,28 @@ func (c ScopedThreadArtifactCollisionChecker) QuiesceNamed(ctx context.Context, 
 	if err != nil {
 		return err
 	}
-	if !binding.Present {
+	return c.quiesceOwned(ctx, binding)
+}
+
+// quiesceOwned carries the observed generation through deletion. A name-only
+// deleter cannot preserve that authority across its later server census.
+func (c ScopedThreadArtifactCollisionChecker) quiesceOwned(ctx context.Context, binding PairSessionBinding) error {
+	if binding.Owner != nil && binding.Owner.State == launcher.SessionOwnerAbsent {
 		return nil
+	}
+	if !binding.Present || binding.Owner == nil || binding.Owner.State != launcher.SessionOwnerOwned {
+		return errors.New("quiesce Pair session requires positive ownership")
 	}
 	if err := c.RevalidatePairSession(ctx, binding); err != nil {
 		return err
 	}
-	if c.Sessions == nil {
-		return errors.New("quiesce Pair session: nil session deleter")
+	owned, ok := c.Sessions.(interface {
+		DeleteOwnedSessionContext(context.Context, launcher.SessionOwnerObservation) error
+	})
+	if !ok {
+		return errors.New("quiesce Pair session: exact owned session deletion unavailable")
 	}
-	if contextual, ok := c.Sessions.(interface {
-		DeleteSessionContext(context.Context, string) error
-	}); ok {
-		return contextual.DeleteSessionContext(ctx, name)
-	}
-	return c.Sessions.DeleteSession(name)
+	return owned.DeleteOwnedSessionContext(ctx, *binding.Owner)
 }
 
 // scopedIndexRead is one ReadSessionNameIndex result: the shared legacy file's
@@ -644,17 +642,11 @@ func (c ScopedThreadArtifactCollisionChecker) TriggerBoundQuit(ctx context.Conte
 	if err := runtime.WriteQuitIntent(session, intent); err != nil {
 		return err
 	}
-	if c.Sessions == nil {
-		return errors.New("trigger Pair quit: nil session deleter")
-	}
-	if err := c.RevalidatePairSession(ctx, binding); err != nil {
-		return err
-	}
 	// Pair consumes the typed intent only after its blocking Zellij handoff
 	// returns. Couch intercepts Alt+x, so writing the intent alone cannot make
 	// that happen; quiescing this exact indexed session is the trigger that
 	// returns control to Pair's shared full-quit cleanup.
-	if err := c.Sessions.DeleteSession(session); err != nil {
+	if err := c.quiesceOwned(ctx, binding); err != nil {
 		return fmt.Errorf("trigger Pair quit for %q: %w", session, err)
 	}
 	return nil

@@ -327,8 +327,15 @@ type launchStep struct {
 // handedOff=false with the exit code already messaged on stderr.
 func runOnce(opts LaunchOptions, env Env, rt Runtime, stderr io.Writer) (launchStep, error) {
 	if opts.Args.CouchSession != nil {
+		startup, stopStartup, err := terminalStartupContext(opts.lifetimeContext(), opts.StartupContext)
+		if err != nil {
+			fmt.Fprintf(stderr, "pair: startup: %v\n", err)
+			return launchStep{code: 1}, nil
+		}
+		defer stopStartup()
+		opts.StartupContext = startup
 		var cancel context.CancelFunc
-		opts.queryContext, cancel = zellijreply.AdmissionContext(opts.lifetimeContext())
+		opts.queryContext, cancel = zellijreply.AdmissionContext(startup)
 		defer cancel()
 	}
 
@@ -829,6 +836,13 @@ func runCreate(opts LaunchOptions, env Env, rt Runtime, live []Session, decision
 		return launchStep{code: 1}, nil
 	}
 
+	startup, stopStartup, startupErr := terminalStartupContext(opts.lifetimeContext(), opts.StartupContext)
+	if startupErr != nil {
+		fmt.Fprintf(stderr, "pair: startup: %v\n", startupErr)
+		return launchStep{code: 1}, nil
+	}
+	defer stopStartup()
+	opts.StartupContext = startup
 	var defaultReady <-chan error
 	// Every new Couch wrapper needs readiness evidence, including cold resume.
 	// The native conversation survives resume; the wrapper incarnation does not.
@@ -1027,10 +1041,10 @@ func runCreate(opts LaunchOptions, env Env, rt Runtime, live []Session, decision
 	opts.startupTiming.handoff("create-handoff")
 	if opts.queryContext == nil {
 		var cancel context.CancelFunc
-		opts.queryContext, cancel = zellijreply.AdmissionContext(opts.lifetimeContext())
+		opts.queryContext, cancel = zellijreply.AdmissionContext(opts.StartupContext)
 		defer cancel()
 	}
-	code, verdict, err := launchWatchedContext(opts.lifetimeContext(), opts.queryContext, rt, opts.birthClock(), birthEvidence, session, configDir, layout, bound)
+	code, verdict, err := launchWatchedContext(opts.lifetimeContext(), opts.StartupContext, opts.queryContext, rt, opts.birthClock(), birthEvidence, session, configDir, layout, bound)
 	if err != nil {
 		restoreLayoutRecord(rt, dataDir, chosenTag, priorLayout)
 		fmt.Fprintf(stderr, "pair: failed to launch zellij session '%s': %v\n", session, err)

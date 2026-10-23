@@ -27,7 +27,7 @@ func TestSwitchAgentReceiptBindsCompleteIntentInBothAdmissionPaths(t *testing.T)
 					return []couchcore.RepositoryName{{Key: "/repo/.git", Dir: "pair"}}, nil
 				}, time.Now)
 				queued := 0
-				run := func(string, func(), func(any, error)) error { queued++; return nil }
+				run := func(string, func(), couchcore.OperationProgress, func(any, error)) error { queued++; return nil }
 				first := ops.admit(context.Background(), caller, original, run)
 				if first.Code != "accepted" {
 					t.Fatalf("initial admission: %+v", first)

@@ -89,7 +89,7 @@ func TestSwitcherIndentsTheHubSection(t *testing.T) {
 }
 
 func hubActor(label, group string, n int) StatusActor {
-	return StatusActor{Label: label, GroupKey: group, SlotNumber: n, Thread: menuAddress(label)}
+	return StatusActor{Label: label, GroupKey: group, SlotNumber: n, Thread: menuAddress(label), CollapseAnchor: n == 0}
 }
 
 func hubModel() []StatusActor {
