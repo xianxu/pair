@@ -166,8 +166,9 @@ func TestEditedRestartConsoleRemoteAdoption(t *testing.T) {
 			for _, adoption := range []string{"adopted", "attach-refused", "publication-refused"} {
 				t.Run(agent+"/"+mode+"/"+adoption, func(t *testing.T) {
 					cold, service, hub, hubs := newEditedRestartConsoleAcceptanceRig(t, agent)
-					// Keep the complete combined notice visible in this fake host,
-					// including the storage diagnostic's private temporary path.
+					assertCopied := noticeCopyAssertion(t, cold.console)
+					// A wide host retains controls; notice text still has the
+					// same 40-cell display cap, independently of host width.
 					cold.host.SetSize(ptychild.Size{Rows: 24, Cols: 512})
 					// Admission creates the private accepted anchor while found; the
 					// real queued operation must honor subsequent positive absence.
@@ -294,10 +295,23 @@ func TestEditedRestartConsoleRemoteAdoption(t *testing.T) {
 						t.Fatalf("remote receipt lost combined notices: %+v", receipt)
 					}
 					if receipt.Warning != "" {
-						testwait.Until(t, "visible edited restart notices", func() bool {
-							written := cold.host.Written()
-							return (mode != "fresh" || strings.Contains(written, couchcore.EditedRestartFallbackNotice)) && (adoption != "publication-refused" || strings.Contains(written, "startup parameters were not remembered"))
+						// Independent display oracles; the full combined receipt
+						// above and actual clipboard below retain both notices.
+						visible := "started, but startup parameters were no…"
+						if mode == "fresh" {
+							visible = "no previous conversation found; started…"
+						}
+						testwait.Until(t, "visible bounded edited restart notice", func() bool {
+							return strings.Contains(cold.host.Written(), visible)
 						})
+						// Ctrl+Y belongs to the switcher; actor focus forwards it.
+						if _, err := cold.input.Write([]byte{0}); err != nil {
+							t.Fatal(err)
+						}
+						testwait.Until(t, "switcher copy action", func() bool {
+							return strings.Contains(cold.host.Written(), "Ctrl+Y copy last notice")
+						})
+						assertCopied(cold.input, receipt.Warning)
 					}
 					result := <-completed
 					if result.Warning() != receipt.Warning {

@@ -55,6 +55,13 @@ their original order after priority selection; the final overflow counts hidden
 actors and flags hidden attention. Labels are sanitized/measured once, with
 O(B + A log A) bounded planning shared by both styles.
 
+Both styles share `ChromeStatusText`, which projects transient and capability
+notices to at most40 display cells, including an ellipsis, after terminal
+sanitization. Feed and diagnostic records retain full text; switcher Ctrl+Y
+copies held retries, selected failures, current capability diagnostics, then the
+last feed notice. Producers retain complete upstream wording; common wording
+cleanup is tracked separately in #802.
+
 Collapse keeps child height constant across changes in actor content, focus and
 attention, removing #810's content-driven one/two-row resize trigger. Physical
 host-size changes still resize PTYs. Multiline's extra row reduces pane height

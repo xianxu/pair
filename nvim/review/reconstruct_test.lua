@@ -65,5 +65,33 @@ eq(#om.highlights, 0, 'marker proposal has no change highlight')
 eq(#om.diagnostics, 1, 'marker proposal keeps diagnostic')
 eq(om.diagnostics[1].lnum, 0, 'marker proposal diagnostic line')
 
+local mixed = M.decorate({
+  {new='a',presentation='direct'}, {new='b',presentation='highlight'},
+  {new='c',presentation='propose'}, {new='d'},
+}, 'abcd', 'new', 'direct')
+eq(#mixed.highlights, 1, 'resume honors explicit highlight and inherited direct')
+eq(#mixed.diagnostics, 2, 'resume suppresses direct diagnostics')
+
+-- Shared producer/consumer contract: hashes and coordinates are checked by Go;
+-- Lua retains presentation and opaque fields through commit serialization.
+local Record = dofile(here .. 'record.lua')
+local Watch = dofile(here .. 'round_watch.lua')
+local f = assert(io.open('cmd/internal/sessionsync/testdata/editorial-rounds/presentation.json', 'rb'))
+local fixtures = vim.json.decode(f:read('*a')); f:close()
+for _, fixture in ipairs(fixtures) do
+  local records = fixture.records
+  if records then
+    records = Record.extract_from_body(Record.embed_in_body('fixture', records))
+    eq(records[1].future.keep[2], 2, 'opaque record metadata survives')
+    local resumed = M.decorate(records, fixture.result, 'new')
+    local live = Watch.decorations(fixture.round)
+    eq(#resumed.highlights, #live.hl, 'mixed fixture live/resume ink agrees')
+    eq(#resumed.diagnostics, #live.diags, 'mixed fixture live/resume diagnostics agree')
+  end
+  for i, span in ipairs(fixture.round.spans) do
+    eq(M.presentation(span, fixture.round.presentation), fixture.expected_effective[i], fixture.name .. ' fallback')
+  end
+end
+
 if fails > 0 then os.exit(1) end
 print('reconstruct_test ok')

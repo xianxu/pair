@@ -453,7 +453,9 @@ time; a finished row keeps one result until its next action. A second action on
 a busy slot is refused with the running action's name. Other slots and the hub
 remain available. Select a busy row to wait for its new terminal; navigating
 elsewhere prevents its eventual completion from pulling focus back. On a failed
-row, `Ctrl+Y` copies its retained diagnostic; otherwise it copies the last notice.
+row, `Ctrl+Y` copies its retained diagnostic; otherwise a current capability
+diagnostic takes precedence over the last notice. Status text in chrome is limited
+to 40 display cells, with `…`; copying retains the full diagnostic.
 Recovery confirmations stay on their row until you select it to review them.
 
 Couch keeps agent-pane context titles and cmux activity heat titles current from
@@ -518,12 +520,24 @@ couch --session-sync read --frontmatter FILE [--json]
 couch --session-sync write --frontmatter BODYFILE FILE --if-hash H
                          light: read or replace the complete leading --- block only; preserves body bytes
                          (including Updated) and unread body edits in diff, even without a previous baseline
+couch --session-sync read --all FILE --json
+                         the captured source/hash plus Read.Editorial: independently inherited collaboration,
+                         presentation and processing settings, briefs, scope/frontier and instruction. Region
+                         ranges use complete-document byte offsets, even on section reads. Section hashes are
+                         opaque: reuse the returned token; document or ancestor policy changes also stale it.
 couch --session-sync apply EDITS.json FILE --if-hash H [--fold ID] [--json]
                          a precise edit: {old, occurrence, new, explain} records applied all or none (edits-invalid
-                         lists each bad record); under presentation: propose Couch writes per-line accept/reject
+                         lists each bad record); under a region's presentation-mode: propose Couch writes per-line accept/reject
                          markers (propose-too-large / propose-unencodable mean: use a side-doc proposal);
                          frontmatter, side-doc links answering a marker and their folds apply directly, and
-                         presentation / collaboration-mode are operator-owned
+                         all canonical mode keys, processing-instruction, readable legacy aliases/maps and
+                         immediately adjacent heading mode comments are operator-owned in every display mode
+couch --session-sync migrate-editorial FILE [--json]
+couch --session-sync migrate-editorial FILE --confirm --if-hash H [--json]
+                         operator-run exact preview, then confirmation using its full source SHA256. Converts
+                         legacy section maps to heading comments and fills missing canonical defaults while
+                         preserving aliases and opaque metadata. No supplied body or automatic review migration;
+                         held locks, stale source, conflicts, unmatched names and multiple legacy modes refuse.
 couch --session-sync round FILE --json
                          the last agent round (every changing agent write keeps one), with reasons from apply,
                          and whether the operator's next submit has cleared it; parley highlights it
@@ -584,6 +598,32 @@ couch --message-status ID [--json]      inspect a receipt by full ID or unique v
 couch --skill            print the bundled agent coordination skill
 couch --adopt-store /absolute/store     preview adoption of an existing store
 ```
+
+Registered Markdown uses independent editorial settings. Without settings, the
+defaults are `collaboration-mode: discussion`, `presentation-mode: highlight`
+and `processing-mode: free-form`. Frontmatter sets document defaults;
+`processing-instruction` adds the operator's instruction. A mode comment on the
+line immediately after an ATX heading overrides the named settings for that
+section and its descendants; omitted settings inherit independently:
+
+```markdown
+---
+collaboration-mode: discussion
+presentation-mode: highlight
+processing-mode: free-form
+---
+# Draft
+<!-- presentation-mode: propose; processing-mode: copy-edit -->
+Text to review.
+```
+
+These settings and attached comments belong to the operator. Agents read the
+resolved policy through session-sync and preserve its source. To migrate a
+legacy document, the operator first runs `couch --session-sync migrate-editorial
+FILE --json`, inspects the exact preview, then confirms with `--confirm --if-hash
+H` using that preview's full source hash. See the
+[editorial policy map](atlas/couch-agentic-documents.md) for inheritance and
+compatibility details.
 
 `couch --keys` and `couch --set-model` require a verified owning hub and one
 other exact live slot with an idle, empty agent composer. The separate Neovim
@@ -1808,9 +1848,12 @@ focus view explains how to tag a thread. The switcher remembers the last view us
 exits. Reopening clears search text but keeps the view. With text in the filter,
 Space is a literal search character; it does not toggle views.
 
-In the switcher, `Ctrl+Y` copies the full last retained status notice, including
-text clipped from the status row and after that row expires. Repeating it copies
-the same notice until another arrives. A failed or unconfirmed attempt keeps its
+In the switcher, `Ctrl+Y` copies a selected operation diagnostic/error first,
+then the current capability diagnostic, then the full last retained status notice.
+Chrome shows at most 40 display cells of a status; copying includes clipped text,
+and retained feed notices remain copyable after expiry. Repeating the copy uses
+the current capability diagnostic while one is displayed, or the same feed notice
+until another arrives. A failed or unconfirmed attempt keeps its
 original notice for **Ctrl+Y** retry even if a newer notice arrives; **Esc** dismisses
 the copy feedback without leaving the switcher. Navigation and background refreshes
 keep that feedback and ordinary operation errors independently visible.

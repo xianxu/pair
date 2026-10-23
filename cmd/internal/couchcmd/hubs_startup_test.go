@@ -224,11 +224,12 @@ func testHubStartupLaterFailure(t *testing.T, warmFirst bool) {
 	}
 	startExplicitHubs(r.console, r.hubs)
 	r.run(t)
-	if call := r.await(t, "start-hub"); call.err == nil || !strings.Contains(call.err.Error(), "isolated second hub launch refusal") {
+	call := r.await(t, "start-hub")
+	if call.err == nil || !strings.Contains(call.err.Error(), "isolated second hub launch refusal") || !strings.Contains(call.err.Error(), r.paths[1]) || !strings.Contains(call.err.Error(), "diagnostics ") {
 		t.Fatalf("second launch did not report its injected refusal: %v", call.err)
 	}
 	waitWarmAcceptance(t, "visible hub refusal and retry action", func() bool {
-		return strings.Contains(r.host.Written(), "hub failed; open it in the switcher to retry:")
+		return strings.Contains(r.host.Written(), "hub failed; open it in the switcher to …")
 	})
 	r.assertFirstUsable(t)
 	waitWarmAcceptance(t, "warm worker starts despite failed hub", func() bool { r.mu.Lock(); defer r.mu.Unlock(); return len(r.children) == 2 })
