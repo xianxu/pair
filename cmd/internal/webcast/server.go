@@ -20,7 +20,7 @@ import (
 	"github.com/xianxu/pair/cmd/internal/webcast/recording"
 )
 
-//go:embed web/index.html web/viewer.js web/viewer.css web/model.js web/sketch-model.js web/render.js web/css.js web/annotate.js web/annotation-policy.js web/annotation-anchor.js web/annotation-placement.js web/capture-draft.js web/annotate.css web/placeholders.js web/drive.js web/drive.css web/replay.js web/replay.css web/replayer.js web/fidelity.html web/fidelity.js web/sketch-policy.js web/sketch-render.js web/sketch-delivery.js web/sketch-scene.js web/sketch.js web/sketch.css
+//go:embed web/index.html web/viewer.js web/viewer.css web/model.js web/sketch-model.js web/render.js web/css.js web/annotate.js web/annotation-policy.js web/annotation-anchor.js web/annotation-placement.js web/capture-draft.js web/annotate.css web/placeholders.js web/drive.js web/drive.css web/replay.js web/replay.css web/replayer.js web/fidelity.html web/fidelity.js web/sketch-image.html web/sketch-image.js web/sketch-page-image.js web/sketch-policy.js web/sketch-render.js web/sketch-delivery.js web/sketch-scene.js web/sketch.js web/sketch.css web/feedback-mask.js web/feedback-visibility.js
 var webFS embed.FS
 
 // contentSecurityPolicy: the page runs only its own script, talks only to
@@ -31,12 +31,16 @@ var webFS embed.FS
 const contentSecurityPolicy = "default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline' blob:; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; frame-ancestors 'none'"
 
 var assets = map[string]struct{ file, contentType string }{
-	"sketch-policy.js":   {"web/sketch-policy.js", "text/javascript; charset=utf-8"},
-	"sketch-render.js":   {"web/sketch-render.js", "text/javascript; charset=utf-8"},
-	"sketch-delivery.js": {"web/sketch-delivery.js", "text/javascript; charset=utf-8"},
-	"sketch-scene.js":    {"web/sketch-scene.js", "text/javascript; charset=utf-8"},
-	"sketch.js":          {"web/sketch.js", "text/javascript; charset=utf-8"},
-	"sketch.css":         {"web/sketch.css", "text/css; charset=utf-8"},
+	"feedback-mask.js":     {"web/feedback-mask.js", "text/javascript; charset=utf-8"},
+	"sketch-image.html":    {"web/sketch-image.html", "text/html; charset=utf-8"},
+	"sketch-image.js":      {"web/sketch-image.js", "text/javascript; charset=utf-8"},
+	"sketch-page-image.js": {"web/sketch-page-image.js", "text/javascript; charset=utf-8"},
+	"sketch-policy.js":     {"web/sketch-policy.js", "text/javascript; charset=utf-8"},
+	"sketch-render.js":     {"web/sketch-render.js", "text/javascript; charset=utf-8"},
+	"sketch-delivery.js":   {"web/sketch-delivery.js", "text/javascript; charset=utf-8"},
+	"sketch-scene.js":      {"web/sketch-scene.js", "text/javascript; charset=utf-8"},
+	"sketch.js":            {"web/sketch.js", "text/javascript; charset=utf-8"},
+	"sketch.css":           {"web/sketch.css", "text/css; charset=utf-8"},
 
 	"":                {"web/index.html", "text/html; charset=utf-8"},
 	"viewer.js":       {"web/viewer.js", "text/javascript; charset=utf-8"},
@@ -208,9 +212,12 @@ func (s *Server) events(w http.ResponseWriter, r *http.Request, link castLink) {
 	states, cancel := s.browser.Subscribe()
 	defer cancel()
 	var annotations, driving <-chan capability.Snapshot
+	var feedback <-chan board.LiveFeedbackMask
 	if s.board != nil {
 		ch, cancel := s.board.board.SubscribeAnnotationCapability()
 		annotations = ch
+		defer cancel()
+		feedback, cancel = s.board.board.SubscribeFeedbackMask()
 		defer cancel()
 	}
 	if s.drive != nil {
@@ -245,8 +252,26 @@ func (s *Server) events(w http.ResponseWriter, r *http.Request, link castLink) {
 		lastCapabilities = &next
 		return stream.Event("capabilities", next)
 	}
+	// The subscription owns an initial full mask. Deliver it before any
+	// recorded catch-up can paint submitted ink on a reconnecting viewer.
+	if feedback != nil {
+		mask, open := <-feedback
+		if !open {
+			feedback = nil
+		} else if !stream.Event("feedback", mask) {
+			return
+		}
+	}
 	for {
 		select {
+		case mask, open := <-feedback:
+			if !open {
+				feedback = nil
+				continue
+			}
+			if !stream.Event("feedback", mask) {
+				return
+			}
 		case _, open := <-annotations:
 			if !open {
 				annotations = nil

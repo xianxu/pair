@@ -1,5 +1,6 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
+import {preparePageInk,prepareHistoricalPageInk} from '../../cmd/internal/webcast/web/sketch-page-image.js';
 import {createPlacement} from '../../cmd/internal/webcast/web/annotation-placement.js';
 function fixture() {
  const win={innerWidth:800,innerHeight:600,scrollX:0,scrollY:0,getComputedStyle:n=>n.style};
@@ -19,6 +20,15 @@ test('live region follows connected original geometry; hidden ancestors and miss
  assert.deepEqual(f.place(f.note),[120,120,80,40]);
  for(const [key,value] of [['display','none'],['visibility','hidden'],['opacity','0'],['contentVisibility','hidden']]){f.main.style[key]=value;assert.equal(f.place(f.note),null,key);delete f.main.style[key];}
  f.anchor.rect.width=0;assert.equal(f.place(f.note),null);
+});
+
+test('paint witness uses the same chosen node and geometry without a second matcher',()=>{
+ const f=fixture(),chosen=[];
+ const place=createPlacement({document:()=>f.doc,route:()=>f.note.at.route,original:()=>f.anchor,locator:node=>{chosen.push(node);return [0,-1,2];}});
+ assert.deepEqual(place(f.note,{withWitness:true}),{box:f.note.region,clip:[0,0,800,600],locator:[0,-1,2]});
+ assert.deepEqual(chosen,[f.anchor]);assert.deepEqual(place(f.note),f.note.region);
+ const unavailable=createPlacement({document:()=>f.doc,route:()=>f.note.at.route,original:()=>f.anchor,locator:()=>{throw Error('not recorded');}});
+ assert.deepEqual(unavailable(f.note,{withWitness:true}),{box:f.note.region,clip:[0,0,800,600],locator:null},'unavailable witness must preserve ordinary painting geometry');
 });
 test('SPA replacement must be unique, same route and conflict checked; hidden original never jumps',()=>{
  const f=fixture(); f.main.childNodes=[]; f.anchor.parentNode=null;
@@ -99,4 +109,34 @@ test('sketch source identity proves an original node without note membership',as
  assert.deepEqual(renderer.placementOf(f.note),[10,20,100,50]);
  renderer.model.docSeg=2;assert.equal(renderer.placementOf(f.note),null);
  renderer.model.docSeg=1;renderer.model.tab.id='other';assert.equal(renderer.placementOf(f.note),null);
+});
+
+test('historical originalOnly refuses replacement matching while live placement retains it',async()=>{
+ const {Renderer}=await import('../../cmd/internal/webcast/web/render.js');const f=fixture();
+ f.note.at.node=7;delete f.note.region;f.note.source={doc:1,tab:'t',t:3};
+ const renderer=Object.create(Renderer.prototype);Object.assign(renderer,{frame:{contentDocument:f.doc},model:{url:f.note.at.route,docSeg:1,tab:{id:'t'},t:4,notes:[]},dom:new Map([[7,f.anchor]]),ids:new WeakMap([[f.anchor,7]]),shadows:new Map()});
+ const strict=()=>renderer.placementOf(f.note,{withClip:true,originalOnly:true});
+ assert.deepEqual(strict(),{box:[10,20,100,50],clip:[0,0,800,600]});
+ f.main.childNodes=[];f.anchor.parentNode=null;const replacement=f.el('p',f.main,{},'Distinct article heading');replacement.rect.left=200;
+ assert.deepEqual(renderer.placementOf(f.note),[200,20,100,50]);
+ assert.throws(()=>preparePageInk({scene:{doc:1,tab:'t',t:4},region:[0,0,800,600],scale:1,width:800,height:600},[{index:1,id:'s',source:f.note.source,paths:[{id:'p',at:f.note.at,width:4,pts:[[30,30,1],[50,40,1]]}]}],strict),/index 1.*unavailable/);
+ assert.equal(strict(),null);
+});
+
+test('historical page production adapter requires connected original identity in every case',async()=>{
+ const {Renderer}=await import('../../cmd/internal/webcast/web/render.js');
+ for(const failure of ['connected','missing','disconnected','hidden','conflicting','wrongdoc','wrongtab']){
+  const f=fixture();f.note.at.node=7;delete f.note.region;f.note.source={doc:1,tab:'t',t:3};
+  const renderer=Object.create(Renderer.prototype);Object.assign(renderer,{frame:{contentDocument:f.doc},model:{url:f.note.at.route,docSeg:1,tab:{id:'t'},t:4,notes:[]},dom:new Map([[7,f.anchor]]),ids:new WeakMap([[f.anchor,7]]),shadows:new Map()});
+  const replacement=f.el('p',f.main,{},'Distinct article heading');replacement.rect.left=200;
+  if(failure==='missing')renderer.dom.delete(7);
+  if(failure==='disconnected'){f.main.childNodes=f.main.childNodes.filter(n=>n!==f.anchor);f.anchor.parentNode=null;}
+  if(failure==='hidden')f.anchor.style.display='none';
+  if(failure==='conflicting')f.anchor.childNodes[0].nodeValue='Different heading';
+  if(failure==='wrongdoc')renderer.model.docSeg=2;
+  if(failure==='wrongtab')renderer.model.tab.id='other';
+  const run=()=>prepareHistoricalPageInk({scene:{doc:1,tab:'t',t:4},region:[0,0,800,600],scale:1,width:800,height:600},[{index:1,id:'s',source:f.note.source,paths:[{id:'p',at:f.note.at,width:4,pts:[[30,30,1],[50,40,1]]}]}],renderer);
+  if(failure==='connected')assert.deepEqual(run().shapes[0].paths[0].projected,[[30,30,1],[50,40,1]]);
+  else assert.throws(run,/index 1.*path p unavailable/,failure);
+ }
 });

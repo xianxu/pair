@@ -2650,6 +2650,18 @@ and external temporary roots rather than relying on the host's TMPDIR.
 - #775: A new executable Zellij double must use the shared reply serializer and producer-specific catalog, including malformed/non-query envelopes as explicit classified faults. Run TestEveryZellijFixtureReplyUsesProductionDecoder and the reader-inventory preflight before queuing the full suite; source registration alone cannot certify independent wire serialization.
 - #771 review: Check the branch patch for whitespace after generated prose is recorded; review transcripts can introduce blank-line spaces. Trim prose-only whitespace before publishing, while preserving byte-exact terminal recordings and upstream evidence.
 
+- #753 plan-quality: A visible acknowledgment gate needs one pure transition authority and an atomic freeze API, not merely promises about stale callbacks. Name production functions and their adversarial/mechanical test strategies; keep case enumeration in executable tests.
+
+- #753 BR-1: cancellation must settle an owned asynchronous operation through its state machine before processing identical-input wakes. Cover preloaded, duplicate and catchup notifications, joined teardown, and success returned after the original deadline.
+- #753 BR-2/3: spend an evidence budget in promised output-priority order, never during traversal of unselected inputs. Preserve mandatory handles before optional attributes, and exercise valid absent-anchor/region-only inputs when adding stricter evidence.
+- #753 BR-4: Go JSON decoding can accept null as a scalar zero. Preserving codecs must validate known scalar and tuple-member types explicitly while distinguishing intentionally nullable containers/pointers; unknown extensions remain raw JSON.
+- #753 BR-5/6: reconcile the final symbol/path and PURE/INTEGRATION inventory against actual source. Pin native conformance to committed source and retain raw output/hash; a restricted review environment's refusal needs supported-environment evidence, not a passing assertion or a timeout bump.
+
+- #753 ACK recovery: a successful idempotent durability confirmation must invalidate derived delivery caches even if the disposition was already visible. A failed acknowledgment may publish bytes before confirmation; compare against observed confirmation, not only the prior enum.
+
+- #753 BR-7: strict persisted evidence has two independent dimensions: a present member's type and a required member's presence. Inventory both explicitly, then delete every required field in regression tests, including fields whose legitimate zero/false/empty values pass semantic validation. Preserve intentional legacy omissions and nullable containers separately.
+
+- #753 recorded suite: run the existing repository-wide godoc/catalog guards after extracting declarations or adding concurrency regressions. Keep a function's godoc adjacent when inserting constants; inside synctest, block on the owned deadline/cancellation event rather than a fixed virtual sleep. Existing structural guards enforce both classes; add no quarantine or duplicate rule.
 - #779 staging: a long-lived SHIP branch may predate accepted live features. Compare its ancestry with current main before restarting the operator’s supervisor; an approved stage slot does not establish baseline freshness. Integrate accepted main changes, run targeted integration checks, and keep the full suite owned by the landing turn.
 - #778: Separate private socket roots still collide when independent fixture identity authorities reset to the same native name and admission uses a host-wide census. Seed fixture authorities through one shared initializer, preserve the real allocator and refusal, and prove distinct names through actual constructors. Temp basenames alone are not cross-parent uniqueness. Validate fixture seed extrema against the allocator's next step, including its exhausted-counter refusal.
 
@@ -2658,6 +2670,11 @@ and external temporary roots rather than relying on the host's TMPDIR.
 - #778 BR-1: after main integration or a compatibility fix, mark final verification pending in the active Plan checklist until the replacement exact-source suite completes. Keep older green receipts as history; review/suite overlap permits concurrent work, not a completed acceptance claim.
 # #803 — shared native read boundaries
 
+- #753 shared preview: when a complete admission witness changes, sweep every producer, including opt-in native fixtures. Construct integration witnesses through the production selector; a manually populated item list can correctly fail closed yet hide that mismatch behind a long retry. Keep close-time native evidence pinned to committed source.
+- #753 shared page: legible bundle indices need bounded alternate positions for ordinary overlapping design shapes. Test several identical starts as well as exhausted viewport space; a single collision should not refuse otherwise projectable ink when a fixed nearby position is available.
+
+- #753 BR-8: Historical evidence must require the connected original recorded identity; live replacement matching can silently move ink to a different node. Test the actual Renderer adapter with a matching replacement plus connected, missing, hidden, conflicting and document/tab controls, and replay a real replacement record before the selected finish.
+- #753 BR-9: A submission format change must sweep generated agent prompts and embedded skills as well as the canonical reading guide. Explicitly distinguish shared-page and legacy per-sketch image paths, original vectors, privacy and batch context; exercise the emitted prompt through the real transaction path.
 - A production seam migration must include live-conformance adapters that issue
   their own native queries; otherwise a green production unit test can leave the
   reported native failure on the old boundary. Preserve per-attempt streams and
@@ -2690,6 +2707,9 @@ and external temporary roots rather than relying on the host's TMPDIR.
 
 - #792 landing: when an existing atlas guide already has an index link, put new feature detail in that guide. Appending feature clauses to its shared index summary creates avoidable landing conflicts; keep the index as a stable navigation map.
 
+- #753 BR-10: Transport uncertainty must not erase confirmed display knowledge while its model stays visible. Test the outage interval, not only eventual reconnect; preserve the revision fence and install a validated replacement atomically. Sweep inactive/omitted/stale full-view producers and hold historical catch-up prefixes below known confirmed evidence, while keeping newer current feedback visible.
+
+- #753 BR-11: A handoff-format change sweeps assertions as well as emitted guides: shared sketch_page provenance/index/paths/privacy and explicitly legacy per-sketch paths must agree in both ReadingGuide and the embedded skill tests. Run couchcmd plus submission guide tests before queuing final verification.
 - #797 BR-1: Separate immutable authorization data from its validator in core-concept tables. Trace every validator's injected readers before calling it PURE; a readiness-file reader remains IO even when the surrounding comparison uses a captured process snapshot.
 
 - #797: A private Pair DataDir does not isolate compatibility quit markers: TriggerQuit/TriggerBoundQuit writes through HOME/.cache/pair. In-process quit-trigger tests must isolate HOME as well as thread storage, including refusal cases that may acquire effects after future changes.

@@ -95,6 +95,12 @@ func (c *Chrome) deliverOperatorPermission(target operatorTarget, p *operatorPer
 	}
 }
 
+// inactiveOperatorView retires page visibility without losing confirmed display
+// knowledge. Reuse the same snapshot's mask so its notes cannot cross a revision.
+func inactiveOperatorView(view board.OperatorView) board.OperatorView {
+	return board.OperatorView{Revision: view.Revision, FeedbackMask: view.FeedbackMask, Notes: []*recording.Note{}, Strokes: []board.OperatorStroke{}}
+}
+
 // A single worker owns operator delivery. Views coalesce and replies have a
 // bounded queue; lost replies are reconciled by request ID, never by resubmitting.
 func (c *Chrome) startOperator(b *board.Board) {
@@ -227,7 +233,7 @@ func (c *Chrome) startOperator(b *board.Board) {
 					name, value = "__couchcastOperatorReply", reply.reply
 				} else if !target.active {
 					delete(originals, key)
-					value = board.OperatorView{Revision: view.Revision, Notes: []*recording.Note{}, Strokes: []board.OperatorStroke{}}
+					value = inactiveOperatorView(view)
 				}
 				data, _ := json.Marshal(value)
 				ctx, cancel := context.WithTimeout(c.ctx, callTimeout)
@@ -246,7 +252,9 @@ func (c *Chrome) startOperator(b *board.Board) {
 			}
 			if sketchRuntime != nil {
 				sketchRuntime.Reconcile(sketchTargets)
-				sketchRuntime.Turn(c.ctx)
+				if sketchRuntime.Turn(c.ctx) {
+					c.submissionPreviewDeliveryProgress()
+				}
 			}
 			retryC = nil
 			if originalsPending {
@@ -280,6 +288,7 @@ func (c *Chrome) operatorReply(session string, id int64, reply recorder.Operator
 	}
 }
 func (c *Chrome) refreshOperator() {
+	c.submissionPreviewDeliveryProgress()
 	select {
 	case c.operatorRefresh <- struct{}{}:
 	default:

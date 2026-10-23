@@ -1,5 +1,5 @@
 import { mountSketch } from './web/sketch.js';
-import { createSketchDisplay } from './web/sketch-render.js';
+import { createSketchDisplay, paintSketchPaths } from './web/sketch-render.js';
 import { createSketchDelivery, createSketchTransfer } from './web/sketch-delivery.js';
 
 // One context owns this transport. Its operation permissions survive timeout
@@ -66,6 +66,7 @@ export function mountOperatorSketch({host,root,box,report,view,annotation,palett
   const transport=createOperatorSketchTransport(envelope=>report({t:'sketch',request:envelope}),win,()=>authority.generation);
   let tool;
   const receiver=createOperatorSketchReceiver(payload=>{tool?.reconcileSketches({authoritative:true,clear:payload.batch?.patches.some(p=>p.clear===true)});tool?.refresh();});
+  const submissionPreview=createOperatorSubmissionPreview({root,receiver},doc);
   const ask=(kind,body={},epoch=authority.epoch)=>transport.ask(kind,body,epoch,kind==='scene-prepare'?60000:5000);
   const bounds=()=>box.getBoundingClientRect();
   const scale=()=>ready?.vp?Math.min(bounds().width/ready.vp.w,bounds().height/ready.vp.h):1;
@@ -134,16 +135,98 @@ export function mountOperatorSketch({host,root,box,report,view,annotation,palett
   win.__couchcastSketchReply=reply;
   win.__couchcastSketchDelivery=deliver;
   win.__couchcastSketchAuthority=updateAuthority;
+  win.__couchcastSketchSubmissionPreview=submissionPreview.publish;
   const resize=()=>{if(disposed)return;layoutScene();tool.refresh({geometry:true});};
   const dispose=()=>{
-    if(disposed)return;disposed=true;tool.dispose();receiver.retire();transport.close();unRecord?.();style.remove();
+    if(disposed)return;disposed=true;submissionPreview.dispose();tool.dispose();receiver.retire();transport.close();unRecord?.();style.remove();
     if(win.__couchcastSketchReply===reply)delete win.__couchcastSketchReply;
     if(win.__couchcastSketchDelivery===deliver)delete win.__couchcastSketchDelivery;
     if(win.__couchcastSketchAuthority===updateAuthority)delete win.__couchcastSketchAuthority;
+    if(win.__couchcastSketchSubmissionPreview===submissionPreview.publish)delete win.__couchcastSketchSubmissionPreview;
     if(view.beforeAnnotationMode===beforeMode)view.beforeAnnotationMode=previousBeforeMode;
     win.removeEventListener?.('resize',resize);win.removeEventListener?.('pagehide',dispose);
   };
   win.addEventListener('resize',resize);
   win.addEventListener('pagehide',dispose,{once:true});
-  return {tool,dispose,transport,receiver,scene};
+  return {tool,dispose,transport,receiver,scene,captureBusy:()=>!disposed&&(tool.captureBusy()||submissionPreview.captureBusy())};
+}
+
+
+// A read-only projection of the manager's frozen candidate identities. The
+// receiver owns accepted paths; this view never sends, selects an agent or
+// acknowledges a delivery. Go additionally fences its exact board generation.
+export function createOperatorSubmissionPreview({root,receiver},doc){
+  const panel=doc.createElement('section'),heading=doc.createElement('div'),list=doc.createElement('div');
+  panel.className='sketch-submission-preview';heading.className='sketch-submission-count';list.className='sketch-submission-cards';
+  panel.setAttribute('aria-label','Pending feedback');
+  panel.style.cssText='position:fixed;right:12px;bottom:90px;width:224px;max-height:42vh;overflow:auto;z-index:36;pointer-events:auto;background:#202124;color:#fff;border:1px solid #777;border-radius:6px;padding:8px;font:12px sans-serif';
+  panel.hidden=true;panel.append(heading,list);root.append(panel);
+  let disposed=false,last=null,fingerprint=null,cards=new Map(),noteCount=0;
+  const uint=value=>typeof value==='string'&&/^(0|[1-9][0-9]{0,19})$/.test(value)&&BigInt(value)<=18446744073709551615n;
+  const copyAck=()=>structuredClone(last);
+  function card(key,item,paths,note){
+    const node=doc.createElement('div'),canvas=doc.createElement('canvas'),label=doc.createElement('div'),index=doc.createElement('div');
+    node.className='sketch-submission-card';node.dataset.version=key;
+    node.style.cssText='margin-top:6px;border-top:1px solid #555;padding-top:6px';
+    canvas.width=200;canvas.height=88;canvas.setAttribute('aria-label',`Sketch ${item.id}`);
+    canvas.style.cssText='display:block;width:200px;height:88px;background:#fff;border-radius:3px';
+    label.className='sketch-submission-note';label.textContent=note;label.style.cssText='white-space:pre-wrap;overflow-wrap:anywhere;margin-top:4px';
+    const g=canvas.getContext?.('2d');if(!g)throw Error('Sketch preview image unavailable.');
+    let left=Infinity,top=Infinity,right=-Infinity,bottom=-Infinity;
+    for(const path of paths)for(const point of path.pts){const r=path.width/2;left=Math.min(left,point[0]-r);top=Math.min(top,point[1]-r);right=Math.max(right,point[0]+r);bottom=Math.max(bottom,point[1]+r);}
+    const width=Math.max(1,right-left),height=Math.max(1,bottom-top),scale=Math.min(184/width,72/height);
+    const offsetX=(200-width*scale)/2,offsetY=(88-height*scale)/2;
+    paintSketchPaths(g,paths,{scale,toClient:(x,y)=>[offsetX+(x-left)*scale,offsetY+(y-top)*scale]});
+    index.className='sketch-submission-index';node.append(index,canvas,label);return node;
+  }
+  function publish(value){
+    if(disposed)throw Error('Submission preview context retired.');
+    if(typeof value?.host!=='string'||!value.host||!uint(value.generation)||!uint(value.revision)||!uint(value.operation))throw Error('Invalid submission preview identity.');
+    if(last){
+      if(BigInt(value.generation)<BigInt(last.generation))return copyAck();
+      if(value.generation===last.generation){
+        if(value.host!==last.host)throw Error('Conflicting submission preview host.');
+        if(BigInt(value.revision)<BigInt(last.revision)||BigInt(value.operation)<BigInt(last.operation))return copyAck();
+      }
+    }
+    if(!uint(value.stamp?.board)||!uint(value.stamp?.delivered)||!Array.isArray(value.items)||value.items.length>8||!Number.isSafeInteger(value.remaining)||value.remaining<0||value.remaining>256)throw Error('Invalid submission preview selection.');
+    const noteRemaining=value.note_remaining===undefined?0:value.note_remaining;
+    if(!Array.isArray(value.notes)||!Number.isSafeInteger(noteRemaining)||noteRemaining<0)throw Error('Invalid annotation preview selection.');
+    const noteIDs=new Set();
+    for(const note of value.notes){
+      if(typeof note?.id!=='string'||!note.id||!uint(note.revision)||noteIDs.has(note.id))throw Error('Invalid annotation preview revision.');
+      noteIDs.add(note.id);
+    }
+    const seen=new Set();
+    for(const item of value.items){
+      if(typeof item?.recording_id!=='string'||!item.recording_id||typeof item.id!=='string'||!item.id||!Number.isSafeInteger(item.next_sequence)||item.next_sequence<1||typeof item.digest!=='string'||!(/^[0-9a-f]{64}$/i.test(item.digest))||seen.has(item.id))throw Error('Invalid submission preview version.');
+      seen.add(item.id);
+    }
+    const ack={notes:value.notes.map(note=>({id:note.id,revision:note.revision})),page:value.page===undefined?null:structuredClone(value.page),host:value.host,generation:value.generation,revision:value.revision,operation:value.operation,stamp:{board:value.stamp.board,delivered:value.stamp.delivered},items:value.items.map(item=>({recording_id:item.recording_id,id:item.id,next_sequence:item.next_sequence,digest:item.digest})),remaining:value.remaining,note_remaining:noteRemaining,cursor:structuredClone(value.cursor),accepted:true};
+    const nextFingerprint=JSON.stringify(ack);
+    if(last&&value.generation===last.generation&&(value.revision===last.revision||value.operation===last.operation)){
+      if(nextFingerprint!==fingerprint)throw Error('Conflicting submission preview publication.');
+      return copyAck();
+    }
+    const cursor=receiver.cursor();
+    if(typeof value.cursor?.epoch!=='string'||cursor.epoch!==value.cursor.epoch||cursor.seq!==value.cursor.seq)throw Error('Sketch preview receiver has not caught up to the required cursor.');
+    const paths=receiver.paths(),chosen=[];
+    for(const [position,item] of value.items.entries()){
+      const meta=receiver.metadata(item.id),ink=paths.filter(path=>path.sketch===item.id);
+      if(!meta||!['complete','interrupted'].includes(meta.phase)||!meta.label?.trim()||!ink.length)throw Error('Selected sketch preview is unavailable.');
+      const key=JSON.stringify([item.recording_id,item.id,item.next_sequence,item.digest]);
+      const node=cards.get(key)||card(key,item,ink,meta.label),index=String(position+1),badge=node.querySelector('.sketch-submission-index');
+      if(node.dataset.index!==index)node.dataset.index=index;
+      if(badge.textContent!==`Sketch ${index}`)badge.textContent=`Sketch ${index}`;
+      chosen.push({key,node});
+    }
+    const nextCards=new Map(chosen.map(({key,node})=>[key,node]));
+    for(const [key,node] of cards)if(!nextCards.has(key))node.remove();
+    // Do not move stable keyed nodes on an identical metadata refresh.
+    if(chosen.some(({node},i)=>list.children[i]!==node))for(const {node} of chosen)list.append(node);
+    const count=`Pending feedback: ${chosen.length} sketches, ${value.notes.length} annotation${value.notes.length===1?'':'s'}${value.remaining?`, ${value.remaining} more sketches`:''}${noteRemaining?`, ${noteRemaining} more annotations`:''}`;
+    if(heading.textContent!==count)heading.textContent=count;
+    noteCount=value.notes.length;panel.hidden=chosen.length===0&&noteCount===0&&value.remaining===0&&noteRemaining===0;cards=nextCards;last=ack;fingerprint=nextFingerprint;return copyAck();
+  }
+  return {publish,captureBusy:()=>!disposed&&!panel.hidden&&(cards.size>0||noteCount>0),dispose(){if(disposed)return;disposed=true;cards.clear();last=null;panel.remove();}};
 }
