@@ -27,7 +27,7 @@ type hubAutomationOwner struct {
 	mu      sync.Mutex
 	state   couchcore.HubAutomation
 	startup couchcore.StartupKind
-	missing []string
+	missing []string // startup snapshot, never a current-liveness claim
 	epochs  map[string]uint64
 }
 
@@ -192,7 +192,7 @@ func runAutomationCLI(inv cliInvocation, rt Runtime, stdout, stderr io.Writer, c
 	}
 	fmt.Fprintf(stdout, "%s: hub automation %s (startup: %s)\n", status.Hub, state, status.Startup)
 	for _, hub := range status.MissingHubs {
-		fmt.Fprintln(stdout, "missing hub:", hub)
+		fmt.Fprintln(stdout, "missing at startup:", hub)
 	}
 	return 0
 }

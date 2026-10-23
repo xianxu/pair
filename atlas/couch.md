@@ -16,7 +16,13 @@ the pty console, actor panel, notices, and complete local lifecycle shipped in
 
 `couchcore/startup_policy.go` classifies one read-only bulk session observation.
 Implicit startup only warm-attaches surviving hubs; missing or unknown hubs stay
-in the switcher. Explicit lifecycle operations keep their existing authority.
+in the switcher. After a cold start, no hub is launched automatically by design:
+choose Resume from disk on its retained row, or Ctrl+Space → Start with its hub
+directory if no row exists. Normal warm reattachment is unchanged. The retained
+startup notice names this recovery path. The `missing at startup:` field in
+automation status is the initial observation, not a live inventory; manually
+attaching a hub does not erase that startup history. Explicit lifecycle operations
+keep their existing authority.
 `couchcmd/automation.go` owns per-hub memory policy, initialized on only for a
 positively surviving hub. Its authenticated CLI controls the caller's own hub;
 the switcher's Ctrl+G can control any configured hub. Turning automation off

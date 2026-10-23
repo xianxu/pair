@@ -603,3 +603,19 @@ func TestBareOutsideCheckoutDoesNotGuessHubOwnership(t *testing.T) {
 		t.Fatalf("outside checkout invented hub: %v %v %v", hubs, roots, err)
 	}
 }
+
+func TestStartupSummaryMissingHubNamesExplicitRecovery(t *testing.T) {
+	for _, kind := range []couchcore.StartupKind{couchcore.StartupFullShutdown, couchcore.StartupUnknown, couchcore.StartupNormal} {
+		observation := couchcore.StartupObservation{Kind: kind, Hubs: map[string]couchcore.StartupHubObservation{"/ops": {}}, MissingHubs: []string{"/ops"}}
+		text := startupSummary(observation, "/ops")
+		for _, want := range []string{"switcher", "Resume from disk", "Ctrl+Space", "Start"} {
+			if !strings.Contains(text, want) {
+				t.Fatalf("%s missing-hub notice gives no recovery %q: %s", kind, want, text)
+			}
+		}
+	}
+	observation := couchcore.StartupObservation{Kind: couchcore.StartupNormal, Hubs: map[string]couchcore.StartupHubObservation{"/ops": {Survived: true}}}
+	if text := startupSummary(observation, "/ops"); strings.Contains(text, "Resume from disk") {
+		t.Fatalf("surviving hub was told to recover: %s", text)
+	}
+}

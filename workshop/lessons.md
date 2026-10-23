@@ -2736,3 +2736,5 @@ and external temporary roots rather than relying on the host's TMPDIR.
 - #796: Geometry tests must derive click coordinates from physical terminal cells, independently of layout's width helper. Emoji/VS16/ZWJ labels can pass self-consistent hit-map tests while their final cells are unclickable. Use the terminal's grapheme metric for measurement and fitting, preserve no-allocation fitting paths, and retain allocation-budget checks when replacing shared text helpers.
 
 - #796: When adding a display mode, parameterize established pending/reattach regressions over both modes. A legacy fixture that explicitly selects the compatibility mode cannot prove the new default preserves pending states. Count branches also need owner/style invariants from ordinary chips, not only correct text and hit spans.
+
+- #739 live acceptance: label immutable startup observations as history in persistent status output. A recovered actor must not appear currently missing because its startup absence was retained. Startup safety notices must name the explicit recovery action as well as explain what automation was suppressed.

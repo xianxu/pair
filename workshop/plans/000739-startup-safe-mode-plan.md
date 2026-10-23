@@ -160,9 +160,9 @@ Files: new worker_start_notice.go/test; session protocol/transport/registry and 
 
 - [x] Update README/atlas/index and shipped Couch skill/help for automation controls, initial state, status/report surface, suppression loss and the two worker notice lifetimes. tl-lead first-message rule is a separately owned ariadne issue, not Couch parsing.
 - [ ] Audit source readers; run make test-affected-inventory and git diff --check; push tested head, run recorded local-check affected (known #738 graph fallback may select full suite). Classify failures; no gate waiver or blind rerun.
-- [ ] Close once via SDLC fresh review after verification. Estimate only after plan-quality passes; no single-pass milestone tags.
-- [ ] Hub/operator coordinate disposable-fleet acceptance and real restart: measured input/launch/notice counts and focus, plus manual automation controls and scheduled-run predicate. No real slot/restart/stage without concrete hub authorization. Record the agreed live evidence before claiming acceptance.
-- [ ] On SHIP, sdlc merge --yes, verify Git/PR outcome, report hub and stop. Hub owns project updates.
+Gate-owned workflow: close via SDLC fresh review after verification. Estimate only after plan-quality passes; no single-pass milestone tags.
+- [x] Record coordinated operator full-shutdown and explicit-enable acceptance; retain private socket/count/negotiation evidence for non-duplication and the explicit second-lander scheduler seam (see acceptance Revision below).
+Gate-owned workflow: on SHIP, sdlc merge --yes, verify Git/PR outcome, report hub and stop. Hub owns project updates.
 
 ## Architecture and lifecycle
 
@@ -314,3 +314,10 @@ remain canonical after off; the guard governs only new mailbox mutations.
 ### 2026-10-22 — operator-approved maintenance during the acceptance shutdown
 
 Per hub b6bfeab3, pair:0 remains with #753 until the explicit #739 stage go. The coordinated full-shutdown checklist now includes the operator deleting the old AgentScratch volume and running brew upgrade go (1.27.1→1.27.3) while Couch is fully down, before starting Couch again. After restart, the hub dispatches one rebuild per slot. Those are operator machine changes, not worker commands. Then verify retained startup status plus automation OFF, followed by the first genuine operator message and the TL's explicit automation ON unless told to keep it off. No implicit flip, no replay, and no change to positively surviving normal-restart ON semantics.
+
+
+### 2026-10-22 — coordinated full-shutdown acceptance and recovery wording
+
+Hub4339b063 supplies the actual operator result on staged eccddab6: full-shutdown/OFF, no cold hub startup, manual hub recovery, explicit TL enable after the first operator message and confirmed ON. This is the now-completed live rollout; the historical placeholder for future private-fleet execution must not claim an unrun matrix. Existing private real-socket cross-supervisor and count/negotiation tests retain their own concrete evidence, and #737 second-lander behavior remains explicitly unclaimed. Close/merge are mandatory gate actions, not implementation checkboxes that could be falsely completed before the gate runs.
+
+Acceptance follow-ups preserve all state/authority: startupSummary names the switcher Resume from disk / Ctrl+Space Start recovery; runAutomationCLI labels immutable original MissingHubs as missing at startup. HubAutomationStatus's wire fields are unchanged and documented as history. Tests cover missing full-shutdown/unknown/mixed startup versus a surviving normal hub, plus the actual live three-line CLI fixture. These are wording defects, not evidence of failed hub attach and not a new liveness resolver. Read-only classification/report to hub precedes the fixes. Stage clears through SDLC; run recorded verification and narrow re-close for later merge/conflict/wording changes before landing.

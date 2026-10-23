@@ -76,7 +76,9 @@ this distinction and the per-Couch-lifetime alternative in the durable plan.
 - [x] Qualify safe startup classification and attachment-only selection for all hubs.
 - [x] Keep startup lifecycle summaries out of hub composers and preserve a usable switcher.
 - [x] Add wrapper-owned one-shot worker orientation through negotiated session reporting.
-- [ ] Verify counts, compatibility and coordinated live behavior; close and land once.
+- [x] Verify counts, compatibility and coordinated live behavior.
+
+Finish recorded verification, the narrow re-close and landing through their SDLC gates; these future gate actions are not pre-ticked implementation claims.
 
 Durable plan: [startup safe mode](../plans/000739-startup-safe-mode-plan.md).
 
@@ -715,3 +717,22 @@ Merged targeted cohort PASS: couchcmd4.515s, couchcore2.706s, couchtty0.612s, co
 Final operator checklist: (1) fully shut down Couch and its slots, not a supervisor-only restart with surviving hubs; while fully down the operator deletes AgentScratch and runs brew upgrade go1.27.1→1.27.3. (2) start Couch on the verified #739 staged build. Observe one startup status line and automation OFF; cold missing hubs remain parked, with Ctrl+Space explicit Start form if needed to bring the TL up. From each tested hub couch --automation status must show OFF; no automatic hub composer input, while operator input and worker reports remain deliverable. (3) send the TL the first genuine message; unless it says keep automation off, the TL explicitly runs couch --automation on and confirms ON, with a fresh generated occurrence and no replay. Couch does not parse that message or flip itself. The hub coordinates one rebuild per slot after the Go upgrade. Normal surviving-hub restart is intentionally ON and is a separate scenario. Await the operator’s result; no close/merge authorized by staging alone.
 
 Stage/build completed exit0 on pair:0 at eccddab6adfbf6e0ef0e3c6b1c6aa3f0dd222d9b. Verified pair:0 HEAD again after build and its clean tree. Binaries couch, couch-conformance-bridge, pair, pair-launch-helper and pair-slug each report that exact vcs.revision and vcs.modified=false. Sent the full five-step operator checklist as Couch receipt0c8236f3. Stage stays held for operator full-shutdown acceptance; worker performs no AgentScratch deletion, Go upgrade or live restart. Next after authorized restart: reread this Log, rebuild this slot once with upgraded Go when hub instructs, await actual smoke result, and reconcile the outstanding normal-restart/worker-cue disposable qualification and final recorded/re-close requirements before any landing. No merge runner or background suite is active here. This post-stage Log commit changes only evidence, not the staged binary pin.
+
+
+## Revisions
+
+### 2026-10-22 — operator shutdown acceptance and historical status wording
+
+Authenticated hub4339b063 reports actual full shutdown around21:15 on staged eccddab6: startup classified full-shutdown, automation OFF, workers parked and no cold hub start; operator manually attached ops and ops-echo, then the TL enabled automation after the first message and status confirmed ON. That is the approved live full-shutdown/explicit-enable acceptance. Worker launch delivered its generic cue in this session. Existing real-private-socket cross-supervisor/negotiation regressions remain the evidence for surviving-wrapper non-duplication; no unrun disposable-fleet matrix or scheduled-run implementation is claimed. #737 remains second-lander wiring per the existing contract. Hub directs stage clear, close and landing after two acceptance follow-ups.
+
+Cold missing hubs are intentionally not resumed by startup; make the existing retained message name explicit switcher recovery (Resume from disk on a retained hub, Ctrl+Space Start if absent), with no change to lifecycle authority. Classify the apparent missing-after-attach defect: owner.missing is an immutable startup observation, not a current liveness view. Preserve that snapshot/protocol field, label CLI rows missing at startup, and document the distinction instead of adding live polling or attach-triggered policy transitions. The complete live three-line stdout from authenticated hubfe9ff602 is retained as a fixture in automation_cli_test.go. New regressions failed before these wording fixes (couchcmd0.569s). Existing tests and docs now defend historical semantics and actionable recovery.
+
+The final issue checkbox mixed verified behavior with future close/land operations. Record the verified behavior as complete and keep those gates as separate mandatory workflow instructions, not an advance claim of landing. The coordinated actual operator shutdown/enable result supersedes the held rollout entry; portable count/session tests retain their own scope. No gate or native coverage is fabricated.
+
+### 2026-10-22 — post-upgrade recovery and stage clear
+
+Go reports1.27.3. Rebuilt this slot once with make build; bin/couch confirms Go1.27.3. Authenticated hub6725a312 lifts the freeze and permits suites/landings. queue status still printed helper inspect exit2; reported once as requested. Hubc901ab67 classified it as known display-only version skew (ariadne:3 fixing); suite admission is separate and remains usable. No workaround, duplicate run or repeated incident report.
+
+Stage clear completed exit0: pair:0 restored clean main at54a02d7aa3971f50987bcef321de6534d8d566a9; all five built binaries report that exact revision, modified=false. The current running supervisor remains the already-accepted staged build until its next restart. Local startup/automation/cue/commit/group cohort PASS after fixes: couchcmd9.252s, core25.215s, tty1.246s, message0.233s, wrapcmd1.425s; reader inventory PASS. No suite or merge runner survives from before shutdown; start one fresh recorded check on the pushed corrected code, then narrow re-close with that full-suite evidence, and land on SHIP. No more pair:0 staging is needed for these bounded wording corrections.
+
+Final exact-live-fixture and startup-summary cohort PASS0.373s; focused CLI/summary/owner race PASS1.534s. make test-affected-inventory passes on the final edited readers without hash changes or waivers. Build and stage clear both finished; no pending pre-shutdown runner was resumed. Commit/push this coherent correction, then record a full suite because the narrow re-close also covers earlier code-conflict resolutions; do not substitute an unrun affected subset as full-suite evidence.

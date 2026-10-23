@@ -275,6 +275,7 @@ func startupSummary(startup couchcore.StartupObservation, launchHub string) stri
 	}
 	if len(startup.MissingHubs) > 0 {
 		text += "; missing hubs: " + strings.Join(startup.MissingHubs, ", ")
+		text += "; recover in switcher: Resume from disk on a retained hub, or Ctrl+Space Start if absent"
 	}
 	text += fmt.Sprintf("; verified parked: %d", startup.ParkedCount)
 	if startup.ParkedUnknown {

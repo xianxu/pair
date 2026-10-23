@@ -7,6 +7,8 @@ import "fmt"
 type HubAutomation struct{ hubs map[string]bool }
 
 // HubAutomationStatus is the explicit control's view, not a lifecycle authority.
+// Startup and MissingHubs describe the original startup observation, not current
+// attachment or health; explicit recovery does not rewrite that history.
 type HubAutomationStatus struct {
 	Hub         string   `json:"hub"`
 	Enabled     bool     `json:"enabled"`
