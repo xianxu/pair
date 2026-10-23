@@ -133,3 +133,10 @@ Round2 kept BR-1 open with a valid counter-mutation: moving final capture after 
 Lifecycle GREEN2.875s. An overlay moving the final capture immediately after idle/admitted-call join deterministically fails all three selected paths with “final capture preceded native producer and IO join” and missing final bytes; RED2.804s. Evidence: /Volumes/TestScratch/tmp/pair-slot2/pair806-native-join-mutation.0QA2PY/red.log. Canceled still-queued lease-1086463358 through sdlc because the regression source changed; it joined with no test result. Final required verification remains pending until the new source is pushed and queued.
 
 Final lifecycle test including joined child exit status PASS7.080s; complete package PASS40.378s, repolint PASS8.455s, termcmd PASS3.624s. Reader audit and diff whitespace check clean.
+
+
+### 2026-10-22 — Final branch suite PASS; re-enter landing
+
+Retained lease-1088989676 completed on23c008e9aecc51ee5ef6dcebc1fa97607d3d2f9f: required suite exit0 in10m35s, recorded sdlc-local/suite, full log SHA256347903a3eabc817d2b35e1eba584adde73c555b1779d11b08440152be0f5898a. Log: /Users/xianxu/workspace/pair/.git/sdlc/local-checks/23c008e9aecc51ee5ef6dcebc1fa97607d3d2f9f/suite.log. No failure, retry or waiver. Original runner survived Couch restarts and retained its FIFO place throughout the wait. This supersedes the earlier pending-suite notes; executable source has not changed since the reviewed/tested head. Close round3 is SHIP with BR-1 addressed and no open findings. PR549 CI was green before this documentation receipt.
+
+During the wait, authenticated dispatch48a143ee authorized independent #162 planning on a separate main-based branch. Its scope/census checkpoint071a07810659d7063124c202142814ef258df072 is pushed; no162 code exists. Returned to806 only after that checkpoint was clean. Re-enter sdlc merge now; its integration and final CI gates remain mandatory. Causal follow-up820 remains unclaimed and waits for a retained failure.
