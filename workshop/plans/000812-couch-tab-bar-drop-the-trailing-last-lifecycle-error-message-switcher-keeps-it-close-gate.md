@@ -1005,6 +1005,214 @@ rounds:
       isolation: fenced
       reviewed: 5eb99587cf9010715c99837953d7b81cd4d2eae4
       blocked: false
+    - reviewer_runs:
+        - version: 1
+          intent:
+            disposable_root: true
+            id: c8381809-2bdf-4b70-9af5-c1fb1f9bc525
+            repository: github.com/xianxu/pair
+            issue_id: "000812"
+            recipe: milestone-review
+            round: 7
+            attempt: 1
+            agent: codex
+            root: /Volumes/TestScratch/review-checkouts/07c927a292e92b08
+            reviewed_head: 6582490dac8db921ce44f864b9875cd32eb0195c
+            slot: pair:1
+            requested_at: "2026-10-23T17:02:51.727052Z"
+          phase: finished
+          pid: 88108
+          started_at: "2026-10-23T17:02:51.906446Z"
+          finished_at: "2026-10-23T17:06:41.12786Z"
+          session_id: 01a169b7-23b6-7fe1-808b-4f29b250d6e5
+          outcome: returned
+      actual_inputs:
+        version: 1
+        method: active-time-v3-engagement-queue-v1
+        repository: github.com/xianxu/pair
+        code_head: 6582490dac8db921ce44f864b9875cd32eb0195c
+        tracker_head: 5dfa4c1e369207c2a4dcd100f5c8afb22f613557
+        branch_point: c0dbb32decc052500172ded01ff36e3fa8e49cc9
+        since: "2026-10-23T05:01:56-07:00"
+        until: "2026-10-23T10:01:46-07:00"
+        brain_root: /Users/xianxu/workspace/brain
+        gap_minutes: 15
+        commit_weight: 1
+        include_assistant: true
+        engagements:
+            - start: "2026-10-23T05:01:56-07:00"
+              end: "2026-10-23T10:01:46-07:00"
+              began: "2026-10-23T05:01:56-07:00"
+              roots:
+                - /Users/xianxu/workspace/worktree/pair-slot1/pair
+        sources:
+            - harness: codex
+              id: 01a15fbb-6812-71c3-b0f5-b4651b817396
+              slot: pair:1
+              cwd: /Users/xianxu/workspace/worktree/pair-slot1/pair
+              digest: 9d47dddaaed8ceb6f36b918923e7c81d68934959ede7a0980086dcaaaad510f7
+              started: "2026-10-21T18:31:20.491Z"
+              spawned: false
+              bytes: 31755202
+              windows:
+                - start: "2026-10-23T05:01:56-07:00"
+                  end: "2026-10-23T10:01:46-07:00"
+            - harness: codex
+              id: 01a168a8-b55a-7a73-8097-1ac736feaf5d
+              slot: pair:1
+              cwd: /Users/xianxu/workspace/worktree/pair-slot1/pair
+              digest: 06c8f98592b07caa7e74f16b9ceacb0a17b13596b7a74f6364075a3d9793593b
+              started: "2026-10-23T12:07:29.699Z"
+              spawned: false
+              bytes: 561161
+              windows:
+                - start: "2026-10-23T12:07:29.699Z"
+                  end: "2026-10-23T10:01:46-07:00"
+            - harness: codex
+              id: 01a168ab-54df-7c01-8ac0-4585962b813f
+              slot: pair:1
+              cwd: /Users/xianxu/workspace/worktree/pair-slot1/pair
+              digest: f1b522d6e7d3e8c92b0590d06eab78c08e472aca9d08b5a0fda076944c0eac45
+              started: "2026-10-23T12:10:21.706Z"
+              spawned: false
+              bytes: 412483
+              windows:
+                - start: "2026-10-23T12:10:21.706Z"
+                  end: "2026-10-23T10:01:46-07:00"
+            - harness: codex
+              id: 01a168ad-70cc-7cd1-9eef-d36c47c664ea
+              slot: pair:1
+              cwd: /Users/xianxu/workspace/worktree/pair-slot1/pair
+              digest: 11cfa55d1f5b7c87394a55b661e1498c15abc3d97aceafe93a733e68452e472b
+              started: "2026-10-23T12:12:39.913Z"
+              spawned: false
+              bytes: 424029
+              windows:
+                - start: "2026-10-23T12:12:39.913Z"
+                  end: "2026-10-23T10:01:46-07:00"
+            - harness: codex
+              id: 01a168ae-07ac-7712-b1f5-80a3ecf73c25
+              slot: pair:1
+              cwd: /Users/xianxu/workspace/worktree/pair-slot1/pair
+              digest: 0499eb9ff178ec31a8fa1698ec22703a2fefbea34cb49e6389f997c29fef30ae
+              started: "2026-10-23T12:13:18.617Z"
+              spawned: false
+              bytes: 365523
+              windows:
+                - start: "2026-10-23T12:13:18.617Z"
+                  end: "2026-10-23T10:01:46-07:00"
+            - harness: codex
+              id: 01a168ae-eb19-7db2-9fcb-2a5b77f384f0
+              slot: pair:1
+              cwd: /Users/xianxu/workspace/worktree/pair-slot1/pair
+              parent_id: 01a15fbb-6812-71c3-b0f5-b4651b817396
+              digest: 2d267aa4923b553fadaf141cbcb46a16ad846e6a49ff38c2e32a72e7b3e67837
+              started: "2026-10-23T12:14:16.434Z"
+              spawned: true
+              bytes: 1992488
+              windows:
+                - start: "2026-10-23T12:14:16.434Z"
+                  end: "2026-10-23T10:01:46-07:00"
+            - harness: codex
+              id: 01a168af-1978-7970-9324-ac1dace7b00e
+              slot: pair:1
+              cwd: /Users/xianxu/workspace/worktree/pair-slot1/pair
+              parent_id: 01a15fbb-6812-71c3-b0f5-b4651b817396
+              digest: b0fc83d9781ccdc30eeda4ee77db2a29f121fdf300b3aeb6ffa10f7806564caa
+              started: "2026-10-23T12:14:28.316Z"
+              spawned: true
+              bytes: 3290635
+              windows:
+                - start: "2026-10-23T12:14:28.316Z"
+                  end: "2026-10-23T10:01:46-07:00"
+            - harness: codex
+              id: 01a168f6-01b2-7aa3-b3c0-67debe4daad0
+              slot: pair:1
+              cwd: /Users/xianxu/workspace/worktree/pair-slot1/pair
+              parent_id: 01a15fbb-6812-71c3-b0f5-b4651b817396
+              digest: 0c1d0ae21040a374c3416c80fa50a5ac75d3687b8e1534136867b2c5b0356b4b
+              started: "2026-10-23T13:31:55.288Z"
+              spawned: true
+              bytes: 1715274
+              windows:
+                - start: "2026-10-23T13:31:55.288Z"
+                  end: "2026-10-23T10:01:46-07:00"
+            - harness: codex
+              id: 01a169a2-892e-7aa1-99ee-56a1e2521d87
+              slot: pair:1
+              cwd: /Users/xianxu/workspace/worktree/pair-slot1/pair
+              parent_id: 01a15fbb-6812-71c3-b0f5-b4651b817396
+              digest: 2f38b4bb095bde423e24e25154b1bcc5187f50a96605e46db78931da720ce68f
+              started: "2026-10-23T16:40:22.169Z"
+              spawned: true
+              bytes: 914527
+              windows:
+                - start: "2026-10-23T16:40:22.169Z"
+                  end: "2026-10-23T10:01:46-07:00"
+        queue_waits:
+            - attempt_id: c4af0d6972bf28d7255e8b19512cd5e2
+              slot: pair:1
+              record_digest: 3ff1b2e2024a67d6774df9aaa87cbca0fdca8b3121ab1092f1c98f016b4f1fac
+              start: "2026-10-23T13:49:53.538987Z"
+              end: "2026-10-23T14:57:17.843417Z"
+              queue_seconds: 4044.30443
+              raw_seconds: 4044.30443
+              exact: true
+        excluded_brain_sessions: 1
+        excluded_brain_minutes: 15.241266666666666
+        cuts:
+            - dispatched: "2026-10-23T05:34:34-07:00"
+              finalized: "2026-10-23T05:37:50-07:00"
+              finalizing: false
+            - dispatched: "2026-10-23T05:48:56-07:00"
+              finalized: "2026-10-23T05:55:18-07:00"
+              finalizing: false
+            - dispatched: "2026-10-23T06:20:19-07:00"
+              finalized: "2026-10-23T06:30:41-07:00"
+              finalizing: false
+            - dispatched: "2026-10-23T06:38:32-07:00"
+              finalized: "2026-10-23T06:41:59-07:00"
+              finalizing: false
+            - dispatched: "2026-10-23T06:50:27-07:00"
+              finalized: "2026-10-23T06:54:08-07:00"
+              finalizing: true
+            - dispatched: "2026-10-23T09:33:06-07:00"
+              finalized: "2026-10-23T09:35:21-07:00"
+              finalizing: true
+      "n": 7
+      timestamp: "2026-10-23T10:06:42-07:00"
+      dispatched: "2026-10-23T10:02:49-07:00"
+      agent: codex
+      reviewer: codex (openai; author openai)
+      dispose:
+        - id: BR-1
+          disposition: addressed
+          note: Local queue diagnostics preserve exact origin and publish once. Reversing Warn to Notify makes both cleanup and diagnostic-persistence regressions fail.
+          round: 7
+        - id: BR-2
+          disposition: addressed
+          note: Typed warning callbacks separate actionable failures from informational reports. Reversing the informational callback makes the real healthy-fidelity regression fail.
+          round: 7
+        - id: BR-3
+          disposition: addressed
+          note: Renicer warnings retain exact binding and once ownership. Reversing Warn to Notify makes the integration regression fail awaiting publication.
+          round: 7
+        - id: BR-4
+          disposition: addressed
+          note: Corrected tab-row oracles and startup fixtures match the contract. Targeted code-menu, guessing, exact-handle resume, and hub-startup regressions pass.
+          round: 7
+        - id: BR-5
+          disposition: addressed
+          note: The helper acknowledges current terminal publication before input. Removing that wait fails both helper-first and historical-badge regressions.
+          round: 7
+        - id: BR-6
+          disposition: addressed
+          note: Exit assertions observe exact warning publication; absence controls join completion. Controlled-order and affected regression tests pass repeated race checks.
+          round: 7
+      recipe: milestone-review
+      isolation: fenced
+      reviewed: 6582490dac8db921ce44f864b9875cd32eb0195c
+      blocked: false
 ---
 
 # Gate ledger — pair#812 (boundary-review)
@@ -1083,6 +1291,17 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - BR-4 — addressed — Retained prior disposition; the corrected regression oracles and fixtures are unchanged.
 - BR-5 — addressed — Retained prior disposition; warning publication synchronization is unchanged.
 - BR-6 — addressed — Retained prior disposition; unexpected-exit publication acknowledgment and completion joins are unchanged.
+
+## Round 7 — 2026-10-23T10:06:42-07:00 (codex) — passed
+
+### Disposed
+
+- BR-1 — addressed — Local queue diagnostics preserve exact origin and publish once. Reversing Warn to Notify makes both cleanup and diagnostic-persistence regressions fail.
+- BR-2 — addressed — Typed warning callbacks separate actionable failures from informational reports. Reversing the informational callback makes the real healthy-fidelity regression fail.
+- BR-3 — addressed — Renicer warnings retain exact binding and once ownership. Reversing Warn to Notify makes the integration regression fail awaiting publication.
+- BR-4 — addressed — Corrected tab-row oracles and startup fixtures match the contract. Targeted code-menu, guessing, exact-handle resume, and hub-startup regressions pass.
+- BR-5 — addressed — The helper acknowledges current terminal publication before input. Removing that wait fails both helper-first and historical-badge regressions.
+- BR-6 — addressed — Exit assertions observe exact warning publication; absence controls join completion. Controlled-order and affected regression tests pass repeated race checks.
 
 ## Open findings
 

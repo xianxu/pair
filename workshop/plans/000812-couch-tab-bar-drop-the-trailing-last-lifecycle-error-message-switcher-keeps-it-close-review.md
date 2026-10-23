@@ -641,3 +641,105 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-23T10:06:42-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 812 — Couch tab bar: drop the trailing last lifecycle/error message (switcher keeps it) |
+| repo | pair |
+| issue file | workshop/issues/000812-couch-tab-bar-drop-the-trailing-last-lifecycle-error-message-switcher-keeps-it.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | c0dbb32decc052500172ded01ff36e3fa8e49cc9..6582490dac8db921ce44f864b9875cd32eb0195c |
+| command | sdlc close --issue 812 |
+| reviewer | codex (openai; author openai) |
+| isolation | fenced |
+| timestamp | 2026-10-23T10:06:42-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+The pinned change satisfies the revised Spec and Plan: both tab-bar layouts omit general messages, the switcher retains display/copy behavior, and actionable warnings use existing attention ownership. The restart-noise correction preserves configuration and cleanup alerts while keeping routine diagnostics feed-only. No new findings. This review does not establish the separately tracked recorded-suite or live-acceptance prerequisites for landing.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      Local queue diagnostics preserve exact origin and publish once. Reversing Warn to Notify makes both cleanup and diagnostic-persistence regressions fail.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      Typed warning callbacks separate actionable failures from informational reports. Reversing the informational callback makes the real healthy-fidelity regression fail.
+  - id: BR-3
+    disposition: addressed
+    note: |
+      Renicer warnings retain exact binding and once ownership. Reversing Warn to Notify makes the integration regression fail awaiting publication.
+  - id: BR-4
+    disposition: addressed
+    note: |
+      Corrected tab-row oracles and startup fixtures match the contract. Targeted code-menu, guessing, exact-handle resume, and hub-startup regressions pass.
+  - id: BR-5
+    disposition: addressed
+    note: |
+      The helper acknowledges current terminal publication before input. Removing that wait fails both helper-first and historical-badge regressions.
+  - id: BR-6
+    disposition: addressed
+    note: |
+      Exit assertions observe exact warning publication; absence controls join completion. Controlled-order and affected regression tests pass repeated race checks.
+```
+
+1. **Strengths**
+
+   - Removing `StatusModel.Notice` makes trailing general messages unavailable to both rendering layouts.
+   - [menuSnapshotLocked](/Volumes/TestScratch/review-checkouts/07c927a292e92b08/cmd/internal/couchtty/console_menu.go:54) derives switcher text from existing history, preserving operation/copy precedence without another history owner.
+   - [publishWarningLocked](/Volumes/TestScratch/review-checkouts/07c927a292e92b08/cmd/internal/couchtty/console.go:2356) commits feed and attention under consistent locking, then repaints after unlocking.
+   - README and atlas document the changed presentation, navigation, warning classification, and routine-restart exceptions.
+
+2. **Critical findings:** None.
+
+3. **Important findings:** None.
+
+4. **Minor findings:** None.
+
+5. **Test coverage notes**
+
+   Passed targeted tests across couchtty, couchcmd, couchcore, webcast, and recorder; additional renderer/copy/startup regressions; three repeated race runs of ordering and restart-noise tests; affected-reader inventory; and range whitespace checks.
+
+   Seven temporary-overlay reversal checks failed as expected, including all three latest noise corrections. Attention fuzzing passed 1,764 executions. Repository files remain unchanged. No full-suite or live-acceptance result is claimed.
+
+6. **Architectural notes**
+
+   - **ARCH-DRY — Pass:** Existing Feed and AttentionList remain authoritative.
+   - **ARCH-PURE — Pass:** Projection/rendering helpers stay pure; console integration owns publication and repaint.
+   - **ARCH-PURPOSE — Pass:** Producer enumeration covers actionable siblings and explicit routine-feedback exclusions.
+   - **ARCH-MOCK — Pass:** Changed integrations exercise existing stateful fakes; no new external dependency.
+   - **ARCH-CONSTRAINTS — Pass:** Text bounds, attention capacity/expiry, and bounded projections remain enforced.
+   - **ARCH-SECURE — Pass:** Attention text is sanitized and bounded; source identity is explicit; lockout tests check secret-safe wording.
+   - **ARCH-ORDER — Pass:** Publication is atomic under the existing owner; controlled ordering tests and completion joins cover changed behavior.
+   - **ARCH-FUNERAL — Pass:** Existing notification eviction/expiry owns warning lifetime; no new durable artifacts.
+   - **ARCH-EVOLVE — Pass:** No persisted-format change; `CleanupWarning` explicitly excludes serialization.
+
+7. **Plan revision recommendations:** None. Existing revisions cover the final classification changes and qualification sequencing.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"c8381809-2bdf-4b70-9af5-c1fb1f9bc525","repository":"github.com/xianxu/pair","issue_id":"000812","recipe":"milestone-review","round":7,"attempt":1,"agent":"codex","root":"/Volumes/TestScratch/review-checkouts/07c927a292e92b08","reviewed_head":"6582490dac8db921ce44f864b9875cd32eb0195c","slot":"pair:1","requested_at":"2026-10-23T17:02:51.727052Z"},"phase":"finished","pid":88108,"started_at":"2026-10-23T17:02:51.906446Z","finished_at":"2026-10-23T17:06:41.12786Z","session_id":"01a169b7-23b6-7fe1-808b-4f29b250d6e5","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 2.605610958s
+head: "6582490dac8db921ce44f864b9875cd32eb0195c"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412
