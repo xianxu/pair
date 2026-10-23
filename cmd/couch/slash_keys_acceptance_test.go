@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -109,6 +110,13 @@ func TestDisposableSlashKeys(t *testing.T) {
 				}
 				return r
 			}
+			waitSupervisorIdle()
+			baseline, err := fleet.Accepted(1)
+			if err != nil && !errors.Is(err, os.ErrNotExist) {
+				t.Fatal(err)
+			}
+			// Startup may submit the supervisor's restart notice. Freeze the
+			// settled journal, then require exactly one appended command.
 			assertAccepted := func() (bool, error) {
 				accepted, err := fleet.Accepted(1)
 				if errors.Is(err, os.ErrNotExist) {
@@ -117,15 +125,14 @@ func TestDisposableSlashKeys(t *testing.T) {
 				if err != nil {
 					return false, err
 				}
-				if len(accepted) == 0 {
+				if len(accepted) <= len(baseline) {
 					return false, nil
 				}
-				if len(accepted) != 1 || accepted[0].Body != "/model" {
-					return false, fmt.Errorf("expected exactly one /model submission: %+v", accepted)
+				if len(accepted) != len(baseline)+1 || accepted[len(baseline)].Body != "/model" || len(baseline) > 0 && !reflect.DeepEqual(accepted[:len(baseline)], baseline) {
+					return false, fmt.Errorf("expected unchanged baseline plus exactly one /model submission: %+v", accepted)
 				}
 				return true, nil
 			}
-			waitSupervisorIdle()
 			receipt := keys("clear-line", "text:/model", "enter")
 			if err := waitFleet(ctx, assertAccepted); err != nil {
 				t.Fatal(err)
