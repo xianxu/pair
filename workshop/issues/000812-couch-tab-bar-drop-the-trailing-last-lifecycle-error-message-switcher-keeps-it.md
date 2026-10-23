@@ -56,6 +56,8 @@ needs the operator's attention goes through the notification (attention list / `
 
 ## Operator check (after TL stage go)
 
+Original checklist below is superseded by the TL live-evidence allocation in Revisions; exit and detached-target cases use deterministic tests.
+
 1. Open the staged disposable Couch in collapse, then multiline mode; confirm only controls and slot chips use the tab bar, with no trailing message.
 2. Trigger the prepared disposable exit/error; open the bell and confirm one readable warning. Normal progress and success should add none.
 3. Open the switcher and press Ctrl+Y; confirm the retained message is visible and its full text copies, while operation and copy feedback keep precedence.
@@ -197,6 +199,15 @@ Authenticated Couch restart9cff332a-717a-4146-b23b-4e70c69dd224 prompted retaine
 
 Use the existing continuation notice category already used by the other continuation failures, instead of inventing a scan-specific category or broadening the artifact inventory. One production literal changes; episode suppression/source/body behavior stays the same. Artifact classification GREEN2.923s; warning episode/publication ordering race x10 PASS3.347s; make test-affected-inventory PASS. Next commit/push, fresh recorded suite on corrected head, and narrow post-close review. No stage/go/live acceptance has occurred. Updated restart report21eb7d70-2192-4a76-af4c-0aff4f75c29b submitted to hub.
 
+
+### 2026-10-23 — staged build and TL live-evidence allocation
+
+Authenticated TL stage gobda966e4-a6d1-4b04-8516-35059ffa9bab. First stage refused #811's held lease without effects; TL e7b13fc1-02ea-4a24-b04e-660ced3f8b18 confirmed holder clear. sdlc stage --build succeeded on pair:0 at3dedd7b6de3cb3d0944d08e2e00fa81883d98f07. bin/couch, couch-conformance-bridge, pair, pair-launch-helper and pair-slug each verified that exact vcs.revision with vcs.modified=false. Independent post-build target Git HEAD equals staged pin and target/source are clean. Restart note/checklist e59e68e9-3588-40f7-8b4a-af2e839ac843 submitted. Existing processes retain old binary until operator restart; live acceptance not yet claimed.
+
+TL be810f58-06be-43c0-ad23-910fa12dd692 explicitly allocates live proof to tab bar, global startup-warning selection, switcher Ctrl+Y and attached hub notification selection; no available disposable worker and no new slot for this. Exit and detached-target evidence is deterministic, not live: TestUnexpectedExitRaisesExactWarning covers exact retained source/body with assertion-first/publication-first and forced unlock-to-Warn overlay; TestGlobalAndDetachedAttentionOpenSwitcher covers global/detached navigation instead of focused actor. These pass in repeated/race and complete package proof recorded above, and review SHIP independently reversed the exit oracle. Do not report these two cases as operator-tested.
+
+Global trigger sent to TL: start staged Couch with COUCH_INPUT_TRACE=/dev/null/pair812-input.trace plus normal launch arguments; failed trace open raises a genuine global warning, no trace opened. Attached trigger from authenticated ops:0: couch --notify --title '812 attached-target check' 'Select this item: it should open ops:0 exactly.' Existing CLI has no arbitrary/global/detached injection. These are TL-triggered, operator-observed; no worker killed/provisioned. Live results pending. Retained recorded suite lease-4010227337 on5eb99587cf9010715c99837953d7b81cd4d2eae4 remains queued, now first in line; terminal session34961 retained, log .git/sdlc/test-stats/inflight/f8a5f237aa232d426ddc445512650b0d/run.log. Next inspect suite to completion and wait for TL/operator live result; no merge until both pass. Stage remains pinned at3dedd7b6, irrespective of this evidence-only follow-up commit.
+
 ## Revisions
 
 ### 2026-10-23 — BR-3/BR-4 exhaustive completion
@@ -235,3 +246,14 @@ item: ux-rename-iteration design=0.06 impl=0.12
 design-buffer: 0.15
 total: 1.7435
 ```
+
+### 2026-10-23 — TL allocates live and deterministic acceptance evidence
+
+TL be810f58-06be-43c0-ad23-910fa12dd692 replaces the setup-heavy original live checklist with these four operator observations, after restart on the staged build:
+
+1. Check collapse and multiline tab bars have no trailing message text.
+2. Select the TL-triggered global startup trace warning; the switcher opens.
+3. In the switcher, check retained message visibility and full Ctrl+Y copy, preserving operation/copy feedback precedence.
+4. Select the TL's attached-target notification; ops:0 opens exactly.
+
+Unexpected exit and detached-target navigation remain covered by deterministic controlled-order/race/native console fixtures, explicitly not operator-tested. No new disposable slot is created. Recorded-suite proof and these four live observations remain required before landing; acceptance results are pending.

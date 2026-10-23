@@ -247,3 +247,7 @@ The publication acknowledgment rule applies to every async warning assertion, in
 | Legacy persistence negative | Actual new-event badge; service/console shutdown before disk comparison |
 
 Remaining assertions invoke synchronous handlers before observing state: crash installation, supervision callback, explicit lifecycle completion, archive tick, renicer and independent barrier, scratch metadata setup, trace setters, cast-start completion handlers, current/stale guessing callbacks, webcast recovery updates, continuation scan, pointer visibility stop, typed result handling, direct publication/expiry/bounds/projection. No asynchronous negative relies solely on phase.
+
+### 2026-10-23 — TL live-evidence allocation
+
+Authenticated TL be810f58-06be-43c0-ad23-910fa12dd692 chooses live checks for tab-bar layouts, global startup-warning selection, retained switcher message/full Ctrl+Y, and attached hub notification selection. TL triggers the warnings; operator only observes/selects. No spare disposable worker is available and no new slot is created. Unexpected-exit exact-source publication and detached-target navigation use the deterministic controlled-order/race/native Console regressions, not a claimed live check. This allocates evidence without waiving those behaviors. Actual operator results and recorded full-suite pass remain pending before landing.
