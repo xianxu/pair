@@ -10,6 +10,7 @@ import (
 	"reflect"
 	"strings"
 	"sync"
+	"syscall"
 	"testing"
 	"time"
 
@@ -424,6 +425,33 @@ func TestStartupSummaryDescribesMissingHubAndAutomation(t *testing.T) {
 	}
 }
 
+// startupPaintBarrierHost exposes the distinction between bytes reaching the
+// host and the presenter completing the startup frame. It changes no production seam.
+type startupPaintBarrierHost struct {
+	*hostty.FakeHost
+	entered   chan struct{}
+	release   chan struct{}
+	cancelled chan struct{}
+	once      sync.Once
+}
+
+func (h *startupPaintBarrierHost) WriteContext(ctx context.Context, p []byte) (int, error) {
+	n, err := h.FakeHost.WriteContext(ctx, p)
+	if err != nil || !bytes.Contains(p, []byte("startup: normal")) {
+		return n, err
+	}
+	h.once.Do(func() {
+		close(h.entered)
+		select {
+		case <-h.release:
+		case <-ctx.Done():
+			close(h.cancelled)
+		}
+		err = ctx.Err()
+	})
+	return n, err
+}
+
 func TestRunConsoleObservesStartupBeforeArmingProducers(t *testing.T) {
 	hubs, defs, _ := moveFixture(t)
 	paths := []string{defs[0].Root, defs[1].Root, defs[2].Root}
@@ -436,7 +464,7 @@ func TestRunConsoleObservesStartupBeforeArmingProducers(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	host := hostty.NewFakeHost(ptychild.Size{Rows: 30, Cols: 160})
+	host := &startupPaintBarrierHost{FakeHost: hostty.NewFakeHost(ptychild.Size{Rows: 30, Cols: 160}), entered: make(chan struct{}), release: make(chan struct{}), cancelled: make(chan struct{})}
 	console := couchtty.New(host, strings.NewReader(""))
 	beforeArm := 0
 	rt.artifacts.SessionPresenceHook = func([]couchcore.ThreadAddress) error {
@@ -447,10 +475,32 @@ func TestRunConsoleObservesStartupBeforeArmingProducers(t *testing.T) {
 	}
 	var output bytes.Buffer
 	done := make(chan int, 1)
-	go func() { done <- runConsole(console, c, couchcore.StartResult{}, &output, hubs) }()
-	t.Cleanup(console.Stop)
-	waitWarmAcceptance(t, "startup console notice painted", func() bool { return strings.Contains(host.Written(), "startup: normal") })
-	console.Stop()
+	go func() {
+		done <- runConsole(console, c, couchcore.StartResult{}, &output, hubs)
+		close(done)
+	}()
+	t.Cleanup(func() {
+		console.Stop()
+		select {
+		case <-done:
+		case <-testwait.After(t):
+			t.Error("startup console cleanup did not join Run")
+		}
+	})
+	select {
+	case <-host.entered:
+	case <-testwait.After(t):
+		t.Fatal("startup frame did not reach held write")
+	}
+	select {
+	case code := <-done:
+		t.Fatalf("console exited %d before startup paint was released", code)
+	default:
+	}
+	// Queue a normal host termination while the startup paint is held. Only
+	// Run handles it, after publication; Stop would cancel the paint itself.
+	host.Terminate(syscall.SIGTERM)
+	close(host.release)
 	select {
 	case code := <-done:
 		if code != 0 {
@@ -458,6 +508,11 @@ func TestRunConsoleObservesStartupBeforeArmingProducers(t *testing.T) {
 		}
 	case <-testwait.After(t):
 		t.Fatal("startup console did not stop")
+	}
+	select {
+	case <-host.cancelled:
+		t.Fatal("startup paint cancelled before release")
+	default:
 	}
 	if beforeArm != 1 {
 		t.Fatalf("bulk startup observations before producers=%d", beforeArm)
