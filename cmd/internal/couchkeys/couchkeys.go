@@ -28,7 +28,7 @@ const PreviousLegacy = 0x08
 
 // CtrlReturnSequence is Ctrl+Return under the Kitty protocol: codepoint 13
 // with Ctrl's modifier bitmask 4 encoded as 4+1. It has no legacy form because
-// CR is ordinary Return; unsupported hosts retain the bell/attention shortcut.
+// CR is ordinary Return; on hosts without enhanced keys, click the bell.
 const CtrlReturnSequence = "\x1b[13;5u"
 
 // Scope is where Couch acts on a chord.

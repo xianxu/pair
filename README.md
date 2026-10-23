@@ -1425,8 +1425,8 @@ keyboard disambiguation its shortcuts require on supporting terminals, including
 after child output and thread replay. `Ctrl-Return` accepts the Kitty protocol's
 `CSI 13;5u`, explicit press (`CSI 13;5:1u`) and repeat (`CSI 13;5:2u`); release
 does not toggle. On unsupported terminals it remains indistinguishable from plain
-`Return`, which Couch forwards unchanged. Use `Ctrl+Alt+a` or click the bell
-to open attention there. While displaying an actor, Couch forwards every other
+`Return`, which Couch forwards unchanged. Click the bell to open the notification
+list on those terminals; `Ctrl+Alt+a` also requires enhanced key encoding. While displaying an actor, Couch forwards every other
 keyboard chord to the focused Pair pane. The agent reserves only the three
 terminal-tab chords described above; paste content stays literal. That includes
 `Alt+h`: in the draft it opens Pair's help, which lists Couch's keys first when

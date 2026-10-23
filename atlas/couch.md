@@ -3200,8 +3200,9 @@ The chord uses Kitty keyboard disambiguation (`couchkeys.CtrlReturnSequence`,
 The presenter owns one keyboard-protocol stack entry per screen it presents on
 and restores both at release (`atlas/terminal.md`, #279). Child protocol
 negotiation stays in the endpoint and determines child input encoding. Plain
-Return still reaches the agent; on terminals without enhanced keys, use
-Ctrl+Alt+a or the bell for attention. Paste content remains literal.
+Return still reaches the agent; on terminals without enhanced keys, click the
+bell to open the notification list. Ctrl+Alt+a also requires enhanced encoding.
+Paste content remains literal.
 Physical-key tests cover child protocol changes and both main/alternate screens;
 production-input regressions cover all three encodings from actor/switcher focus,
 ordinary Enter, and both encodings of previous-thread navigation.

@@ -265,6 +265,21 @@ stage-verified binaries rebuilt at that revision with modified=false. Clear
 report 8a89d1dc-784c-459e-bdd2-5ee640321db0 is submitted. No #811 stage remains;
 pair:1 now has the hub's authority to stage #812. Do not touch its successor.
 
+### 2026-10-23 — close round 1: BR-1 documentation fallback corrected
+
+The mandatory small-diff review independently passed complete couchkeys/couchtty,
+focused race, inventory and whitespace checks, and found one Important issue:
+unsupported-terminal guidance recommended Ctrl+Alt+a, which is enhanced-only
+just like Ctrl+Return. Close was NOT finalized (BR-1 family
+fallback-matches-terminal-capabilities). Corrected both README and atlas cases
+to the bell click, explicitly qualified Ctrl+Alt+a, and clarified the chord's
+source comment. Swept this window's fallback claims and added the lesson rule.
+No executable behavior changed; this is a real finding, not a disputed gate.
+The original final-source affected runner remains retained; no cancellation or
+passing retry is being used to hide a failure. Next: re-review the correction
+and let the existing recorded check complete before the publish gate determines
+any additional verification required by its source-provenance contract.
+
 ## Operator live check
 
 On a fresh Couch process using the staged revision (running sessions retain the
