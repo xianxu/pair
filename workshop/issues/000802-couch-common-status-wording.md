@@ -69,6 +69,7 @@ Not taken: the repeated "Viewers need its code: hover … to see it" suffix (fiv
 Split from #789 at the TL's direction; low priority, unclaimed. #789 lands cap plus full-copy only. Pair:4 takes #796 after #789, not this cleanup.
 
 ### 2026-10-23
+- 2026-10-23: closed — go test ./cmd/internal/couchcmd ./cmd/internal/couchtty -count=1 green (106s/48s); go vet clean; make test-affected-inventory green; boundary-review Important finding (embedded SKILL.md old wording) fixed in 4c0239406 with a repo-wide restatement sweep; cap and full-copy behavior untouched.; review verdict: SHIP
 
 Claimed and planned as rung 3 at the hub's direction. #789 is still unlanded (PR 543 open), so this branch carries design only until it lands; code starts on the merged tree. The seven strings cover the issue's three starting points: wait notice, lifecycle labels, cast feedback. The repeated viewers-code suffix was rejected as the catalog scope #789 removed. No estimate: this is inside the quick-flow shell.
 
