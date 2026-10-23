@@ -1,0 +1,16 @@
+{
+	"Path": "tailscale.com",
+	"Version": "v1.104.2",
+	"Info": "/Users/xianxu/go/pkg/mod/cache/download/tailscale.com/@v/v1.104.2.info",
+	"GoMod": "/Users/xianxu/go/pkg/mod/cache/download/tailscale.com/@v/v1.104.2.mod",
+	"Zip": "/Users/xianxu/go/pkg/mod/cache/download/tailscale.com/@v/v1.104.2.zip",
+	"Dir": "/Users/xianxu/go/pkg/mod/tailscale.com@v1.104.2",
+	"Sum": "h1:zBbSW0tI4Xi2PhrZEl9yt6oWay3l8A+M8scsTnZpyAk=",
+	"GoModSum": "h1:D+gqEyJjFnwIaojBLaKxUbOfEO3cRXOaFaOZ5BIvYqs=",
+	"Origin": {
+		"VCS": "git",
+		"URL": "https://github.com/tailscale/tailscale",
+		"Hash": "e26db7a5797683ec99ad1516c40b628c7f2dfd71",
+		"Ref": "refs/tags/v1.104.2"
+	}
+}

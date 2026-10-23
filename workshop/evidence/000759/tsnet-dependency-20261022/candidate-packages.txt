@@ -1,0 +1,461 @@
+github.com/xianxu/pair/cmd/internal/tailmarkup github.com/xianxu/pair 
+github.com/xianxu/pair/cmd/internal/agentdrive github.com/xianxu/pair 
+github.com/xianxu/pair/cmd/internal/nativeid github.com/xianxu/pair 
+github.com/xianxu/pair/cmd/internal/strictjson github.com/xianxu/pair 
+github.com/xianxu/pair/cmd/internal/artifactpath github.com/xianxu/pair 
+github.com/charmbracelet/x/ansi/parser github.com/charmbracelet/x/ansi v0.11.8
+github.com/clipperhouse/uax29/v2/graphemes github.com/clipperhouse/uax29/v2 v2.7.0
+github.com/clipperhouse/displaywidth github.com/clipperhouse/displaywidth v0.11.0
+github.com/lucasb-eyer/go-colorful github.com/lucasb-eyer/go-colorful v1.4.1
+github.com/mattn/go-runewidth github.com/mattn/go-runewidth v0.0.24
+github.com/charmbracelet/x/ansi github.com/charmbracelet/x/ansi v0.11.8
+golang.org/x/sys/unix golang.org/x/sys v0.48.0
+github.com/charmbracelet/x/term github.com/charmbracelet/x/term v0.2.2
+github.com/xo/terminfo github.com/xo/terminfo v1.0.0
+github.com/charmbracelet/colorprofile github.com/charmbracelet/colorprofile v0.4.3
+github.com/charmbracelet/x/ansi/kitty github.com/charmbracelet/x/ansi v0.11.8
+github.com/charmbracelet/x/termios github.com/charmbracelet/x/termios v0.1.1
+github.com/charmbracelet/x/windows github.com/charmbracelet/x/windows v0.2.2
+github.com/muesli/cancelreader github.com/muesli/cancelreader v0.2.2
+github.com/rivo/uniseg github.com/rivo/uniseg v0.4.7
+golang.org/x/sync/errgroup golang.org/x/sync v0.23.0
+github.com/charmbracelet/ultraviolet github.com/charmbracelet/ultraviolet v0.0.0-20260811164956-006e29f97886
+github.com/xianxu/pair/cmd/internal/castlock github.com/xianxu/pair 
+github.com/xianxu/pair/cmd/internal/procutil github.com/xianxu/pair 
+github.com/charmbracelet/ultraviolet/screen github.com/charmbracelet/ultraviolet v0.0.0-20260811164956-006e29f97886
+github.com/charmbracelet/x/exp/ordered github.com/charmbracelet/x/exp/ordered v0.1.0
+github.com/charmbracelet/x/vt/ansiparser github.com/charmbracelet/x/vt v0.0.0-20260510215043-e3181689be6b
+github.com/charmbracelet/x/vt github.com/charmbracelet/x/vt v0.0.0-20260510215043-e3181689be6b
+github.com/xianxu/pair/cmd/internal/notifyosc github.com/xianxu/pair 
+github.com/xianxu/pair/cmd/internal/ttyio github.com/xianxu/pair 
+github.com/xianxu/pair/cmd/internal/terminal github.com/xianxu/pair 
+github.com/xianxu/pair/cmd/internal/textwidth github.com/xianxu/pair 
+github.com/xianxu/pair/cmd/internal/broadcast github.com/xianxu/pair 
+github.com/xianxu/pair/cmd/internal/checkpoint github.com/xianxu/pair 
+github.com/xianxu/ariadne/pkg/workspace github.com/xianxu/ariadne v0.0.0-20261018104241-81c832d5e000
+github.com/xianxu/ariadne/pkg/layergraph github.com/xianxu/ariadne v0.0.0-20261018104241-81c832d5e000
+github.com/xianxu/pair/cmd/internal/durablefile github.com/xianxu/pair 
+github.com/xianxu/pair/cmd/internal/couchidentity github.com/xianxu/pair 
+github.com/xianxu/pair/cmd/internal/commitoutcome github.com/xianxu/pair 
+github.com/xianxu/pair/cmd/internal/osfs github.com/xianxu/pair 
+github.com/xianxu/pair/cmd/internal/storagegc github.com/xianxu/pair 
+github.com/xianxu/pair/cmd/internal/diagnosticlog github.com/xianxu/pair 
+github.com/xianxu/pair/cmd/internal/adapt github.com/xianxu/pair 
+github.com/xianxu/pair/cmd/internal/ctxmeter github.com/xianxu/pair 
+github.com/xianxu/pair/cmd/internal/sessionledger github.com/xianxu/pair 
+github.com/xianxu/pair/cmd/internal/sessioninventory github.com/xianxu/pair 
+github.com/xianxu/pair/cmd/internal/continuationcmd github.com/xianxu/pair 
+github.com/xianxu/pair/cmd/internal/lifetimelease github.com/xianxu/pair 
+github.com/xianxu/pair/cmd/internal/pairlifecycle github.com/xianxu/pair 
+github.com/xianxu/pair/cmd/internal/panebirth github.com/xianxu/pair 
+github.com/xianxu/pair/cmd/internal/readiness github.com/xianxu/pair 
+github.com/xianxu/pair/cmd/internal/resumeform github.com/xianxu/pair 
+github.com/xianxu/pair/cmd/internal/reviewcmd github.com/xianxu/pair 
+github.com/xianxu/pair/cmd/internal/sessionwatch github.com/xianxu/pair 
+github.com/xianxu/pair/cmd/internal/threadrecord github.com/xianxu/pair 
+github.com/xianxu/pair/cmd/internal/zellijpane github.com/xianxu/pair 
+github.com/xianxu/pair/cmd/internal/workbenchshortcut github.com/xianxu/pair 
+github.com/xianxu/pair/cmd/internal/zellijexec github.com/xianxu/pair 
+github.com/xianxu/pair/cmd/internal/zellijreply github.com/xianxu/pair 
+github.com/xianxu/pair/cmd/internal/zellijquery github.com/xianxu/pair 
+github.com/xianxu/pair/cmd/internal/launcher github.com/xianxu/pair 
+github.com/xianxu/pair/cmd/internal/orientation github.com/xianxu/pair 
+github.com/creack/pty github.com/creack/pty v1.1.24
+github.com/xianxu/pair/cmd/internal/ansi github.com/xianxu/pair 
+github.com/xianxu/pair/cmd/internal/ptychild github.com/xianxu/pair 
+github.com/xianxu/pair/cmd/internal/rowtext github.com/xianxu/pair 
+github.com/xianxu/pair/cmd/internal/scrollbackcmd github.com/xianxu/pair 
+github.com/xianxu/pair/cmd/internal/slugline github.com/xianxu/pair 
+github.com/xianxu/pair/cmd/internal/couchcore github.com/xianxu/pair 
+github.com/xianxu/pair/cmd/internal/runtimebundle/manifestmodel github.com/xianxu/pair 
+github.com/xianxu/pair/cmd/internal/runtimebundle github.com/xianxu/pair 
+github.com/xianxu/pair/cmd/internal/keyhelp github.com/xianxu/pair 
+github.com/xianxu/pair/cmd/internal/couchkeys github.com/xianxu/pair 
+github.com/xianxu/pair/cmd/internal/pathscope github.com/xianxu/pair 
+github.com/xianxu/pair/internal/reporoot github.com/xianxu/pair 
+github.com/xianxu/pair/cmd/internal/webcast/recording github.com/xianxu/pair 
+github.com/xianxu/pair/cmd/internal/webcast/notes github.com/xianxu/pair 
+github.com/xianxu/pair/cmd/internal/submission github.com/xianxu/pair 
+github.com/xianxu/pair/cmd/internal/couchmessage github.com/xianxu/pair 
+github.com/xianxu/pair/cmd/internal/couchscratch github.com/xianxu/pair 
+github.com/xianxu/pair/cmd/internal/couchsingleton github.com/xianxu/pair 
+github.com/skip2/go-qrcode/bitset github.com/skip2/go-qrcode v0.0.0-20200617195104-da1b6568686e
+github.com/skip2/go-qrcode/reedsolomon github.com/skip2/go-qrcode v0.0.0-20200617195104-da1b6568686e
+github.com/skip2/go-qrcode github.com/skip2/go-qrcode v0.0.0-20200617195104-da1b6568686e
+github.com/xianxu/pair/cmd/internal/notifytransport github.com/xianxu/pair 
+github.com/xianxu/pair/cmd/internal/layoutcmd github.com/xianxu/pair 
+github.com/xianxu/pair/cmd/internal/clipcmd github.com/xianxu/pair 
+golang.org/x/term golang.org/x/term v0.46.0
+github.com/xianxu/pair/cmd/internal/hostty github.com/xianxu/pair 
+github.com/xianxu/pair/cmd/internal/mouseinput github.com/xianxu/pair 
+github.com/go-jose/go-jose/v4/cipher github.com/go-jose/go-jose/v4 v4.1.4
+github.com/go-jose/go-jose/v4/json github.com/go-jose/go-jose/v4 v4.1.4
+github.com/go-jose/go-jose/v4 github.com/go-jose/go-jose/v4 v4.1.4
+golang.org/x/oauth2/internal golang.org/x/oauth2 v0.37.0
+golang.org/x/oauth2 golang.org/x/oauth2 v0.37.0
+github.com/coreos/go-oidc/v3/oidc github.com/coreos/go-oidc/v3 v3.21.0
+github.com/xianxu/pair/cmd/internal/remotesession github.com/xianxu/pair 
+github.com/xianxu/pair/cmd/internal/terminalcapture github.com/xianxu/pair 
+github.com/xianxu/pair/cmd/internal/threadactivity github.com/xianxu/pair 
+github.com/xianxu/pair/cmd/internal/cdp github.com/xianxu/pair 
+golang.org/x/image/math/f64 golang.org/x/image v0.46.0
+golang.org/x/image/draw golang.org/x/image v0.46.0
+golang.org/x/image/riff golang.org/x/image v0.46.0
+golang.org/x/image/vp8 golang.org/x/image v0.46.0
+golang.org/x/image/vp8l golang.org/x/image v0.46.0
+golang.org/x/image/webp golang.org/x/image v0.46.0
+github.com/xianxu/pair/cmd/internal/webcast/assets github.com/xianxu/pair 
+github.com/xianxu/pair/cmd/internal/webcast/capability github.com/xianxu/pair 
+github.com/xianxu/pair/cmd/internal/webcast/board github.com/xianxu/pair 
+github.com/xianxu/pair/cmd/internal/webcast/drive github.com/xianxu/pair 
+github.com/xianxu/pair/cmd/internal/webcast/fidelity github.com/xianxu/pair 
+github.com/xianxu/pair/cmd/internal/webcast/notedraft github.com/xianxu/pair 
+github.com/xianxu/pair/cmd/internal/webcast/recorder github.com/xianxu/pair 
+github.com/xianxu/pair/cmd/internal/webcast/query github.com/xianxu/pair 
+github.com/xianxu/pair/cmd/internal/webcast/submission github.com/xianxu/pair 
+github.com/xianxu/pair/cmd/internal/webcast github.com/xianxu/pair 
+github.com/xianxu/pair/cmd/internal/couchtty github.com/xianxu/pair 
+github.com/xianxu/pair/cmd/internal/crashreport github.com/xianxu/pair 
+github.com/xianxu/pair/cmd/internal/editorendpoint github.com/xianxu/pair 
+github.com/xianxu/pair/cmd/internal/historyarchive github.com/xianxu/pair 
+golang.org/x/net/html/atom golang.org/x/net v0.59.0
+golang.org/x/net/html golang.org/x/net v0.59.0
+github.com/xianxu/pair/cmd/internal/mockserve github.com/xianxu/pair 
+github.com/xianxu/pair/cmd/internal/sessionsync github.com/xianxu/pair 
+github.com/xianxu/pair/cmd/internal/contextcmd github.com/xianxu/pair 
+github.com/xianxu/pair/cmd/internal/zellijsession github.com/xianxu/pair 
+github.com/xianxu/pair/cmd/internal/titlepoller github.com/xianxu/pair 
+github.com/xianxu/pair/cmd/internal/couchcmd github.com/xianxu/pair 
+golang.org/x/sys/cpu golang.org/x/sys v0.48.0
+github.com/tailscale/wireguard-go/tun github.com/tailscale/wireguard-go v0.0.0-20260928213032-417aef361226
+go4.org/mem go4.org/mem v0.0.0-20240501181205-ae6ca9944745
+github.com/go-json-experiment/json github.com/go-json-experiment/json v0.0.0-20260820222146-c27c302e5fc3
+github.com/go-json-experiment/json/jsontext github.com/go-json-experiment/json v0.0.0-20260820222146-c27c302e5fc3
+tailscale.com/feature/buildfeatures tailscale.com v1.104.2
+tailscale.com/tailcfg/nodecap tailscale.com v1.104.2
+tailscale.com/tailcfg/peercap tailscale.com v1.104.2
+tailscale.com/types/views tailscale.com v1.104.2
+tailscale.com/types/dnstype tailscale.com v1.104.2
+tailscale.com/util/nocasemaps tailscale.com v1.104.2
+tailscale.com/util/vizerror tailscale.com v1.104.2
+tailscale.com/types/ipproto tailscale.com v1.104.2
+golang.org/x/crypto/curve25519 golang.org/x/crypto v0.57.0
+golang.org/x/crypto/blake2b golang.org/x/crypto v0.57.0
+golang.org/x/crypto/internal/alias golang.org/x/crypto v0.57.0
+golang.org/x/crypto/internal/poly1305 golang.org/x/crypto v0.57.0
+golang.org/x/crypto/salsa20/salsa golang.org/x/crypto v0.57.0
+golang.org/x/crypto/nacl/secretbox golang.org/x/crypto v0.57.0
+golang.org/x/crypto/nacl/box golang.org/x/crypto v0.57.0
+tailscale.com/types/structs tailscale.com v1.104.2
+tailscale.com/types/tkatype tailscale.com v1.104.2
+tailscale.com/util/bufiox tailscale.com v1.104.2
+golang.org/x/exp/constraints golang.org/x/exp v0.0.0-20260908205506-85c1c2202aba
+tailscale.com/util/mak tailscale.com v1.104.2
+tailscale.com/util/set tailscale.com v1.104.2
+tailscale.com/types/lazy tailscale.com v1.104.2
+tailscale.com/util/testenv tailscale.com v1.104.2
+tailscale.com/types/key tailscale.com v1.104.2
+tailscale.com/types/opt tailscale.com v1.104.2
+tailscale.com/util/dnsname tailscale.com v1.104.2
+tailscale.com/util/slicesx tailscale.com v1.104.2
+tailscale.com/tailcfg tailscale.com v1.104.2
+tailscale.com/util/ctxkey tailscale.com v1.104.2
+tailscale.com/client/tailscale/apitype tailscale.com v1.104.2
+tailscale.com tailscale.com v1.104.2
+tailscale.com/version tailscale.com v1.104.2
+tailscale.com/drive tailscale.com v1.104.2
+tailscale.com/kube/kubetypes tailscale.com v1.104.2
+tailscale.com/syncs tailscale.com v1.104.2
+tailscale.com/types/result tailscale.com v1.104.2
+tailscale.com/util/lineiter tailscale.com v1.104.2
+tailscale.com/version/distro tailscale.com v1.104.2
+tailscale.com/envknob tailscale.com v1.104.2
+github.com/go-json-experiment/json/v1 github.com/go-json-experiment/json v0.0.0-20260820222146-c27c302e5fc3
+tailscale.com/types/logger tailscale.com v1.104.2
+tailscale.com/types/persist tailscale.com v1.104.2
+tailscale.com/feature tailscale.com v1.104.2
+tailscale.com/feature/favorites/pintype tailscale.com v1.104.2
+tailscale.com/feature/serviceclientprefs/serviceclient tailscale.com v1.104.2
+tailscale.com/atomicfile tailscale.com v1.104.2
+tailscale.com/tsconst tailscale.com v1.104.2
+tailscale.com/tstime tailscale.com v1.104.2
+tailscale.com/util/cibuild tailscale.com v1.104.2
+github.com/coder/websocket/internal/bpool github.com/coder/websocket v1.8.15
+github.com/coder/websocket/internal/errd github.com/coder/websocket v1.8.15
+github.com/coder/websocket/internal/util github.com/coder/websocket v1.8.15
+github.com/coder/websocket github.com/coder/websocket v1.8.15
+tailscale.com/metrics tailscale.com v1.104.2
+go4.org/netipx go4.org/netipx v0.0.0-20260823151212-3075585bcbeb
+tailscale.com/net/netaddr tailscale.com v1.104.2
+tailscale.com/net/tsaddr tailscale.com v1.104.2
+tailscale.com/tsweb/varz tailscale.com v1.104.2
+tailscale.com/util/rands tailscale.com v1.104.2
+tailscale.com/tsweb tailscale.com v1.104.2
+tailscale.com/util/eventbus tailscale.com v1.104.2
+tailscale.com/util/usermetric tailscale.com v1.104.2
+tailscale.com/health tailscale.com v1.104.2
+github.com/x448/float16 github.com/x448/float16 v0.8.4
+github.com/fxamacker/cbor/v2 github.com/fxamacker/cbor/v2 v2.9.3
+filippo.io/edwards25519/field filippo.io/edwards25519 v1.2.0
+filippo.io/edwards25519 filippo.io/edwards25519 v1.2.0
+github.com/hdevalence/ed25519consensus github.com/hdevalence/ed25519consensus v0.2.0
+golang.org/x/crypto/argon2 golang.org/x/crypto v0.57.0
+golang.org/x/crypto/blake2s golang.org/x/crypto v0.57.0
+tailscale.com/tka tailscale.com v1.104.2
+tailscale.com/ipn/ipnstate tailscale.com v1.104.2
+tailscale.com/types/empty tailscale.com v1.104.2
+tailscale.com/types/preftype tailscale.com v1.104.2
+tailscale.com/util/syspolicy/pkey tailscale.com v1.104.2
+tailscale.com/util/syspolicy/ptype tailscale.com v1.104.2
+golang.org/x/exp/maps golang.org/x/exp v0.0.0-20260908205506-85c1c2202aba
+tailscale.com/util/hashx tailscale.com v1.104.2
+tailscale.com/util/deephash tailscale.com v1.104.2
+tailscale.com/util/syspolicy/internal tailscale.com v1.104.2
+tailscale.com/util/syspolicy/setting tailscale.com v1.104.2
+tailscale.com/util/syspolicy/policyclient tailscale.com v1.104.2
+tailscale.com/ipn tailscale.com v1.104.2
+golang.org/x/net/route golang.org/x/net v0.59.0
+tailscale.com/util/cloudenv tailscale.com v1.104.2
+tailscale.com/hostinfo tailscale.com v1.104.2
+tailscale.com/util/clientmetric tailscale.com v1.104.2
+tailscale.com/net/netmon tailscale.com v1.104.2
+tailscale.com/net/netutil tailscale.com v1.104.2
+tailscale.com/net/routecheck/peernode tailscale.com v1.104.2
+tailscale.com/net/traffic tailscale.com v1.104.2
+tailscale.com/wgengine/filter/filtertype tailscale.com v1.104.2
+tailscale.com/types/netmap tailscale.com v1.104.2
+tailscale.com/net/routecheck tailscale.com v1.104.2
+tailscale.com/net/udprelay/status tailscale.com v1.104.2
+tailscale.com/paths tailscale.com v1.104.2
+github.com/mitchellh/go-ps github.com/mitchellh/go-ps v1.0.0
+tailscale.com/safesocket tailscale.com v1.104.2
+tailscale.com/types/appctype tailscale.com v1.104.2
+tailscale.com/client/local tailscale.com v1.104.2
+github.com/tailscale/certstore github.com/tailscale/certstore v0.1.1-0.20260409135935-3638fb84b77d
+tailscale.com/control/controlknobs tailscale.com v1.104.2
+golang.org/x/crypto/chacha20 golang.org/x/crypto v0.57.0
+golang.org/x/crypto/chacha20poly1305 golang.org/x/crypto v0.57.0
+golang.org/x/crypto/hkdf golang.org/x/crypto v0.57.0
+tailscale.com/control/controlbase tailscale.com v1.104.2
+tailscale.com/control/controlhttp/controlhttpcommon tailscale.com v1.104.2
+github.com/golang/groupcache/lru github.com/golang/groupcache v0.0.0-20241129210726-2c02b8208cf8
+golang.org/x/net/dns/dnsmessage golang.org/x/net v0.59.0
+tailscale.com/net/bakedroots tailscale.com v1.104.2
+tailscale.com/net/netx tailscale.com v1.104.2
+tailscale.com/util/singleflight tailscale.com v1.104.2
+tailscale.com/net/dnscache tailscale.com v1.104.2
+golang.org/x/net/internal/socks golang.org/x/net v0.59.0
+golang.org/x/net/proxy golang.org/x/net v0.59.0
+tailscale.com/net/netknob tailscale.com v1.104.2
+tailscale.com/net/netns tailscale.com v1.104.2
+tailscale.com/derp/derpconst tailscale.com v1.104.2
+tailscale.com/net/tlsdial/blockblame tailscale.com v1.104.2
+tailscale.com/net/tlsdial tailscale.com v1.104.2
+tailscale.com/net/dnsfallback tailscale.com v1.104.2
+tailscale.com/net/sockstats tailscale.com v1.104.2
+tailscale.com/control/controlhttp tailscale.com v1.104.2
+github.com/gaissmai/bart/internal/art github.com/gaissmai/bart v0.29.0
+github.com/gaissmai/bart/internal/bitset github.com/gaissmai/bart v0.29.0
+github.com/gaissmai/bart/internal/lpm github.com/gaissmai/bart v0.29.0
+github.com/gaissmai/bart/internal/allot github.com/gaissmai/bart v0.29.0
+github.com/gaissmai/bart/internal/sparse github.com/gaissmai/bart v0.29.0
+github.com/gaissmai/bart/internal/value github.com/gaissmai/bart v0.29.0
+github.com/gaissmai/bart/internal/nodes github.com/gaissmai/bart v0.29.0
+github.com/gaissmai/bart github.com/gaissmai/bart v0.29.0
+tailscale.com/types/nettype tailscale.com v1.104.2
+tailscale.com/net/tsdial tailscale.com v1.104.2
+tailscale.com/util/httpbody tailscale.com v1.104.2
+tailscale.com/control/ts2021 tailscale.com v1.104.2
+github.com/creachadair/msync/trigger github.com/creachadair/msync v0.10.1
+tailscale.com/types/logid tailscale.com v1.104.2
+tailscale.com/util/truncate tailscale.com v1.104.2
+github.com/klauspost/compress github.com/klauspost/compress v1.20.0
+github.com/klauspost/compress/fse github.com/klauspost/compress v1.20.0
+github.com/klauspost/compress/internal/le github.com/klauspost/compress v1.20.0
+github.com/klauspost/compress/huff0 github.com/klauspost/compress v1.20.0
+github.com/klauspost/compress/internal/snapref github.com/klauspost/compress v1.20.0
+github.com/klauspost/compress/zstd/internal/xxhash github.com/klauspost/compress v1.20.0
+github.com/klauspost/compress/zstd github.com/klauspost/compress v1.20.0
+tailscale.com/util/must tailscale.com v1.104.2
+tailscale.com/util/zstdframe tailscale.com v1.104.2
+tailscale.com/logtail tailscale.com v1.104.2
+tailscale.com/util/backoff tailscale.com v1.104.2
+tailscale.com/util/execqueue tailscale.com v1.104.2
+tailscale.com/net/flowtrack tailscale.com v1.104.2
+tailscale.com/net/ipset tailscale.com v1.104.2
+tailscale.com/net/packet tailscale.com v1.104.2
+tailscale.com/tstime/mono tailscale.com v1.104.2
+tailscale.com/tstime/rate tailscale.com v1.104.2
+tailscale.com/wgengine/filter tailscale.com v1.104.2
+tailscale.com/control/controlclient tailscale.com v1.104.2
+github.com/tailscale/peercred github.com/tailscale/peercred v0.0.0-20250107143737-35a0c7bd7edc
+tailscale.com/util/groupmember tailscale.com v1.104.2
+tailscale.com/util/winutil tailscale.com v1.104.2
+tailscale.com/ipn/ipnauth tailscale.com v1.104.2
+github.com/tailscale/hujson github.com/tailscale/hujson v0.0.0-20260727124030-b80ff77dac4f
+tailscale.com/omit tailscale.com v1.104.2
+tailscale.com/ipn/conffile tailscale.com v1.104.2
+tailscale.com/net/dns/publicdns tailscale.com v1.104.2
+tailscale.com/net/dns/resolvconffile tailscale.com v1.104.2
+tailscale.com/net/neterror tailscale.com v1.104.2
+tailscale.com/util/race tailscale.com v1.104.2
+tailscale.com/net/dns/resolver tailscale.com v1.104.2
+tailscale.com/net/dns tailscale.com v1.104.2
+golang.org/x/net/bpf golang.org/x/net v0.59.0
+golang.org/x/net/internal/iana golang.org/x/net v0.59.0
+golang.org/x/net/internal/socket golang.org/x/net v0.59.0
+golang.org/x/net/ipv4 golang.org/x/net v0.59.0
+golang.org/x/net/ipv6 golang.org/x/net v0.59.0
+github.com/tailscale/wireguard-go/conn github.com/tailscale/wireguard-go v0.0.0-20260928213032-417aef361226
+github.com/tailscale/wireguard-go/ipc github.com/tailscale/wireguard-go v0.0.0-20260928213032-417aef361226
+github.com/tailscale/wireguard-go/ratelimiter github.com/tailscale/wireguard-go v0.0.0-20260928213032-417aef361226
+github.com/tailscale/wireguard-go/replay github.com/tailscale/wireguard-go v0.0.0-20260928213032-417aef361226
+github.com/tailscale/wireguard-go/rwcancel github.com/tailscale/wireguard-go v0.0.0-20260928213032-417aef361226
+github.com/tailscale/wireguard-go/tai64n github.com/tailscale/wireguard-go v0.0.0-20260928213032-417aef361226
+golang.org/x/crypto/poly1305 golang.org/x/crypto v0.57.0
+github.com/tailscale/wireguard-go/device github.com/tailscale/wireguard-go v0.0.0-20260928213032-417aef361226
+golang.org/x/time/rate golang.org/x/time v0.16.0
+gvisor.dev/gvisor/pkg/gohacks gvisor.dev/gvisor v0.0.0-20260915211658-a6f909f08a72
+gvisor.dev/gvisor/pkg/sync gvisor.dev/gvisor v0.0.0-20260915211658-a6f909f08a72
+gvisor.dev/gvisor/pkg/linewriter gvisor.dev/gvisor v0.0.0-20260915211658-a6f909f08a72
+gvisor.dev/gvisor/pkg/log gvisor.dev/gvisor v0.0.0-20260915211658-a6f909f08a72
+gvisor.dev/gvisor/pkg/state/wire gvisor.dev/gvisor v0.0.0-20260915211658-a6f909f08a72
+gvisor.dev/gvisor/pkg/state gvisor.dev/gvisor v0.0.0-20260915211658-a6f909f08a72
+gvisor.dev/gvisor/pkg/cpuid gvisor.dev/gvisor v0.0.0-20260915211658-a6f909f08a72
+gvisor.dev/gvisor/pkg/atomicbitops gvisor.dev/gvisor v0.0.0-20260915211658-a6f909f08a72
+gvisor.dev/gvisor/pkg/bits gvisor.dev/gvisor v0.0.0-20260915211658-a6f909f08a72
+gvisor.dev/gvisor/pkg/waiter gvisor.dev/gvisor v0.0.0-20260915211658-a6f909f08a72
+gvisor.dev/gvisor/pkg/context gvisor.dev/gvisor v0.0.0-20260915211658-a6f909f08a72
+gvisor.dev/gvisor/pkg/refs gvisor.dev/gvisor v0.0.0-20260915211658-a6f909f08a72
+gvisor.dev/gvisor/pkg/tcpip/checksum gvisor.dev/gvisor v0.0.0-20260915211658-a6f909f08a72
+gvisor.dev/gvisor/pkg/buffer gvisor.dev/gvisor v0.0.0-20260915211658-a6f909f08a72
+gvisor.dev/gvisor/pkg/rand gvisor.dev/gvisor v0.0.0-20260915211658-a6f909f08a72
+gvisor.dev/gvisor/pkg/sync/locking gvisor.dev/gvisor v0.0.0-20260915211658-a6f909f08a72
+gvisor.dev/gvisor/pkg/tcpip gvisor.dev/gvisor v0.0.0-20260915211658-a6f909f08a72
+gvisor.dev/gvisor/pkg/tcpip/hash/jenkins gvisor.dev/gvisor v0.0.0-20260915211658-a6f909f08a72
+gvisor.dev/gvisor/pkg/tcpip/seqnum gvisor.dev/gvisor v0.0.0-20260915211658-a6f909f08a72
+gvisor.dev/gvisor/pkg/tcpip/header gvisor.dev/gvisor v0.0.0-20260915211658-a6f909f08a72
+gvisor.dev/gvisor/pkg/tcpip/ports gvisor.dev/gvisor v0.0.0-20260915211658-a6f909f08a72
+gvisor.dev/gvisor/pkg/tcpip/transport/tcpconntrack gvisor.dev/gvisor v0.0.0-20260915211658-a6f909f08a72
+gvisor.dev/gvisor/pkg/tcpip/stack gvisor.dev/gvisor v0.0.0-20260915211658-a6f909f08a72
+tailscale.com/disco tailscale.com v1.104.2
+tailscale.com/net/connreject tailscale.com v1.104.2
+tailscale.com/net/packet/checksum tailscale.com v1.104.2
+tailscale.com/net/routemanager tailscale.com v1.104.2
+tailscale.com/types/events tailscale.com v1.104.2
+tailscale.com/types/netlogfunc tailscale.com v1.104.2
+gvisor.dev/gvisor/pkg/tcpip/header/parse gvisor.dev/gvisor v0.0.0-20260915211658-a6f909f08a72
+gvisor.dev/gvisor/pkg/tcpip/stack/gro gvisor.dev/gvisor v0.0.0-20260915211658-a6f909f08a72
+tailscale.com/wgengine/netstack/gro tailscale.com v1.104.2
+tailscale.com/wgengine/wgcfg tailscale.com v1.104.2
+tailscale.com/net/tstun tailscale.com v1.104.2
+tailscale.com/proxymap tailscale.com v1.104.2
+tailscale.com/util/checkchange tailscale.com v1.104.2
+tailscale.com/derp tailscale.com v1.104.2
+golang.org/x/text/transform golang.org/x/text v0.42.0
+golang.org/x/text/unicode/bidi golang.org/x/text v0.42.0
+golang.org/x/text/secure/bidirule golang.org/x/text v0.42.0
+golang.org/x/text/unicode/norm golang.org/x/text v0.42.0
+golang.org/x/net/idna golang.org/x/net v0.59.0
+golang.org/x/net/http/httpguts golang.org/x/net v0.59.0
+tailscale.com/derp/derphttp tailscale.com v1.104.2
+tailscale.com/feature/condlite/expvar tailscale.com v1.104.2
+tailscale.com/net/batching tailscale.com v1.104.2
+golang.org/x/net/icmp golang.org/x/net v0.59.0
+tailscale.com/net/ping tailscale.com v1.104.2
+tailscale.com/net/portmapper/portmappertype tailscale.com v1.104.2
+tailscale.com/net/stun tailscale.com v1.104.2
+tailscale.com/types/bools tailscale.com v1.104.2
+tailscale.com/net/netcheck tailscale.com v1.104.2
+tailscale.com/net/sockopts tailscale.com v1.104.2
+tailscale.com/net/udprelay/endpoint tailscale.com v1.104.2
+tailscale.com/tempfork/heap tailscale.com v1.104.2
+tailscale.com/util/cloudinfo tailscale.com v1.104.2
+tailscale.com/util/ringlog tailscale.com v1.104.2
+tailscale.com/wgengine/router tailscale.com v1.104.2
+tailscale.com/wgengine/wgint tailscale.com v1.104.2
+tailscale.com/wgengine/magicsock tailscale.com v1.104.2
+tailscale.com/wgengine/wglog tailscale.com v1.104.2
+tailscale.com/wgengine tailscale.com v1.104.2
+tailscale.com/tsd tailscale.com v1.104.2
+tailscale.com/types/mapx tailscale.com v1.104.2
+tailscale.com/ipn/ipnext tailscale.com v1.104.2
+github.com/pires/go-proxyproto github.com/pires/go-proxyproto v0.15.0
+tailscale.com/appc tailscale.com v1.104.2
+github.com/tailscale/web-client-prebuilt github.com/tailscale/web-client-prebuilt v0.0.0-20260917222731-e0ed2d0d0fea
+tailscale.com/envknob/featureknob tailscale.com v1.104.2
+tailscale.com/licenses tailscale.com v1.104.2
+tailscale.com/util/httpm tailscale.com v1.104.2
+tailscale.com/tsweb/compserve tailscale.com v1.104.2
+tailscale.com/tsweb/vcstime tailscale.com v1.104.2
+tailscale.com/client/web tailscale.com v1.104.2
+tailscale.com/health/healthmsg tailscale.com v1.104.2
+tailscale.com/ipn/ipnlocal/netmapcache tailscale.com v1.104.2
+tailscale.com/ipn/store/mem tailscale.com v1.104.2
+tailscale.com/log/filelogger tailscale.com v1.104.2
+tailscale.com/logtail/filch tailscale.com v1.104.2
+tailscale.com/util/racebuild tailscale.com v1.104.2
+tailscale.com/logpolicy tailscale.com v1.104.2
+tailscale.com/log/sockstatlog tailscale.com v1.104.2
+tailscale.com/net/netkernelconf tailscale.com v1.104.2
+tailscale.com/util/goroutines tailscale.com v1.104.2
+tailscale.com/util/osuser tailscale.com v1.104.2
+tailscale.com/ipn/ipnlocal tailscale.com v1.104.2
+tailscale.com/ipn/store tailscale.com v1.104.2
+tailscale.com/tempfork/acme tailscale.com v1.104.2
+tailscale.com/feature/acme tailscale.com v1.104.2
+tailscale.com/tempfork/httprec tailscale.com v1.104.2
+tailscale.com/feature/c2n tailscale.com v1.104.2
+tailscale.com/types/netlogtype tailscale.com v1.104.2
+tailscale.com/wgengine/netlog tailscale.com v1.104.2
+tailscale.com/feature/netlog tailscale.com v1.104.2
+tailscale.com/feature/condregister/netlog tailscale.com v1.104.2
+golang.org/x/oauth2/clientcredentials golang.org/x/oauth2 v0.37.0
+tailscale.com/client/tailscale tailscale.com v1.104.2
+tailscale.com/internal/client/tailscale tailscale.com v1.104.2
+tailscale.com/feature/oauthkey tailscale.com v1.104.2
+tailscale.com/feature/condregister/oauthkey tailscale.com v1.104.2
+github.com/huin/goupnp/httpu github.com/huin/goupnp v1.3.0
+github.com/huin/goupnp/scpd github.com/huin/goupnp v1.3.0
+github.com/huin/goupnp/soap github.com/huin/goupnp v1.3.0
+github.com/huin/goupnp/ssdp github.com/huin/goupnp v1.3.0
+github.com/huin/goupnp github.com/huin/goupnp v1.3.0
+github.com/huin/goupnp/dcps/internetgateway2 github.com/huin/goupnp v1.3.0
+tailscale.com/net/portmapper tailscale.com v1.104.2
+tailscale.com/feature/portmapper tailscale.com v1.104.2
+tailscale.com/feature/condregister/portmapper tailscale.com v1.104.2
+golang.org/x/net/http/httpproxy golang.org/x/net v0.59.0
+tailscale.com/net/tshttpproxy tailscale.com v1.104.2
+tailscale.com/feature/useproxy tailscale.com v1.104.2
+tailscale.com/feature/condregister/useproxy tailscale.com v1.104.2
+tailscale.com/util/def tailscale.com v1.104.2
+tailscale.com/util/osdiag tailscale.com v1.104.2
+tailscale.com/util/syspolicy/internal/loggerx tailscale.com v1.104.2
+tailscale.com/util/syspolicy/internal/metrics tailscale.com v1.104.2
+tailscale.com/util/syspolicy/source tailscale.com v1.104.2
+tailscale.com/util/syspolicy/rsop tailscale.com v1.104.2
+tailscale.com/ipn/localapi tailscale.com v1.104.2
+tailscale.com/net/memnet tailscale.com v1.104.2
+tailscale.com/net/proxymux tailscale.com v1.104.2
+tailscale.com/net/socks5 tailscale.com v1.104.2
+github.com/google/btree github.com/google/btree v1.1.3
+gvisor.dev/gvisor/pkg/sleep gvisor.dev/gvisor v0.0.0-20260915211658-a6f909f08a72
+gvisor.dev/gvisor/pkg/tcpip/internal/tcp gvisor.dev/gvisor v0.0.0-20260915211658-a6f909f08a72
+gvisor.dev/gvisor/pkg/tcpip/transport gvisor.dev/gvisor v0.0.0-20260915211658-a6f909f08a72
+gvisor.dev/gvisor/pkg/tcpip/transport/internal/network gvisor.dev/gvisor v0.0.0-20260915211658-a6f909f08a72
+gvisor.dev/gvisor/pkg/tcpip/transport/internal/noop gvisor.dev/gvisor v0.0.0-20260915211658-a6f909f08a72
+gvisor.dev/gvisor/pkg/tcpip/transport/packet gvisor.dev/gvisor v0.0.0-20260915211658-a6f909f08a72
+gvisor.dev/gvisor/pkg/tcpip/transport/raw gvisor.dev/gvisor v0.0.0-20260915211658-a6f909f08a72
+gvisor.dev/gvisor/pkg/tcpip/transport/tcp gvisor.dev/gvisor v0.0.0-20260915211658-a6f909f08a72
+gvisor.dev/gvisor/pkg/tcpip/transport/udp gvisor.dev/gvisor v0.0.0-20260915211658-a6f909f08a72
+gvisor.dev/gvisor/pkg/tcpip/adapters/gonet gvisor.dev/gvisor v0.0.0-20260915211658-a6f909f08a72
+gvisor.dev/gvisor/pkg/tcpip/network/hash gvisor.dev/gvisor v0.0.0-20260915211658-a6f909f08a72
+gvisor.dev/gvisor/pkg/tcpip/network/internal/fragmentation gvisor.dev/gvisor v0.0.0-20260915211658-a6f909f08a72
+gvisor.dev/gvisor/pkg/tcpip/network/internal/ip gvisor.dev/gvisor v0.0.0-20260915211658-a6f909f08a72
+gvisor.dev/gvisor/pkg/tcpip/network/internal/multicast gvisor.dev/gvisor v0.0.0-20260915211658-a6f909f08a72
+gvisor.dev/gvisor/pkg/tcpip/network/ipv4 gvisor.dev/gvisor v0.0.0-20260915211658-a6f909f08a72
+gvisor.dev/gvisor/pkg/tcpip/network/ipv6 gvisor.dev/gvisor v0.0.0-20260915211658-a6f909f08a72
+gvisor.dev/gvisor/pkg/tcpip/transport/icmp gvisor.dev/gvisor v0.0.0-20260915211658-a6f909f08a72
+tailscale.com/wgengine/netstack tailscale.com v1.104.2
+tailscale.com/tsnet tailscale.com v1.104.2
+github.com/xianxu/pair/cmd/couch github.com/xianxu/pair 

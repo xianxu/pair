@@ -1,0 +1,129 @@
+github.com/xianxu/pair/cmd/internal/tailmarkup github.com/xianxu/pair 
+github.com/xianxu/pair/cmd/internal/agentdrive github.com/xianxu/pair 
+github.com/xianxu/pair/cmd/internal/nativeid github.com/xianxu/pair 
+github.com/xianxu/pair/cmd/internal/strictjson github.com/xianxu/pair 
+github.com/xianxu/pair/cmd/internal/artifactpath github.com/xianxu/pair 
+github.com/charmbracelet/x/ansi/parser github.com/charmbracelet/x/ansi v0.11.7
+github.com/clipperhouse/uax29/v2/graphemes github.com/clipperhouse/uax29/v2 v2.7.0
+github.com/clipperhouse/displaywidth github.com/clipperhouse/displaywidth v0.11.0
+github.com/lucasb-eyer/go-colorful github.com/lucasb-eyer/go-colorful v1.4.0
+github.com/mattn/go-runewidth github.com/mattn/go-runewidth v0.0.23
+github.com/charmbracelet/x/ansi github.com/charmbracelet/x/ansi v0.11.7
+golang.org/x/sys/unix golang.org/x/sys v0.48.0
+github.com/charmbracelet/x/term github.com/charmbracelet/x/term v0.2.2
+github.com/xo/terminfo github.com/xo/terminfo v0.0.0-20220910002029-abceb7e1c41e
+github.com/charmbracelet/colorprofile github.com/charmbracelet/colorprofile v0.4.2
+github.com/charmbracelet/x/ansi/kitty github.com/charmbracelet/x/ansi v0.11.7
+github.com/charmbracelet/x/termios github.com/charmbracelet/x/termios v0.1.1
+github.com/charmbracelet/x/windows github.com/charmbracelet/x/windows v0.2.2
+github.com/muesli/cancelreader github.com/muesli/cancelreader v0.2.2
+github.com/rivo/uniseg github.com/rivo/uniseg v0.4.7
+golang.org/x/sync/errgroup golang.org/x/sync v0.19.0
+github.com/charmbracelet/ultraviolet github.com/charmbracelet/ultraviolet v0.0.0-20260303162955-0b88c25f3fff
+github.com/xianxu/pair/cmd/internal/castlock github.com/xianxu/pair 
+github.com/xianxu/pair/cmd/internal/procutil github.com/xianxu/pair 
+github.com/charmbracelet/ultraviolet/screen github.com/charmbracelet/ultraviolet v0.0.0-20260303162955-0b88c25f3fff
+github.com/charmbracelet/x/exp/ordered github.com/charmbracelet/x/exp/ordered v0.1.0
+github.com/charmbracelet/x/vt/ansiparser github.com/charmbracelet/x/vt v0.0.0-20260510215043-e3181689be6b
+github.com/charmbracelet/x/vt github.com/charmbracelet/x/vt v0.0.0-20260510215043-e3181689be6b
+github.com/xianxu/pair/cmd/internal/notifyosc github.com/xianxu/pair 
+github.com/xianxu/pair/cmd/internal/ttyio github.com/xianxu/pair 
+github.com/xianxu/pair/cmd/internal/terminal github.com/xianxu/pair 
+github.com/xianxu/pair/cmd/internal/textwidth github.com/xianxu/pair 
+github.com/xianxu/pair/cmd/internal/broadcast github.com/xianxu/pair 
+github.com/xianxu/pair/cmd/internal/checkpoint github.com/xianxu/pair 
+github.com/xianxu/ariadne/pkg/workspace github.com/xianxu/ariadne v0.0.0-20261018104241-81c832d5e000
+github.com/xianxu/ariadne/pkg/layergraph github.com/xianxu/ariadne v0.0.0-20261018104241-81c832d5e000
+github.com/xianxu/pair/cmd/internal/durablefile github.com/xianxu/pair 
+github.com/xianxu/pair/cmd/internal/couchidentity github.com/xianxu/pair 
+github.com/xianxu/pair/cmd/internal/commitoutcome github.com/xianxu/pair 
+github.com/xianxu/pair/cmd/internal/osfs github.com/xianxu/pair 
+github.com/xianxu/pair/cmd/internal/storagegc github.com/xianxu/pair 
+github.com/xianxu/pair/cmd/internal/diagnosticlog github.com/xianxu/pair 
+github.com/xianxu/pair/cmd/internal/adapt github.com/xianxu/pair 
+github.com/xianxu/pair/cmd/internal/ctxmeter github.com/xianxu/pair 
+github.com/xianxu/pair/cmd/internal/sessionledger github.com/xianxu/pair 
+github.com/xianxu/pair/cmd/internal/sessioninventory github.com/xianxu/pair 
+github.com/xianxu/pair/cmd/internal/continuationcmd github.com/xianxu/pair 
+github.com/xianxu/pair/cmd/internal/lifetimelease github.com/xianxu/pair 
+github.com/xianxu/pair/cmd/internal/pairlifecycle github.com/xianxu/pair 
+github.com/xianxu/pair/cmd/internal/panebirth github.com/xianxu/pair 
+github.com/xianxu/pair/cmd/internal/readiness github.com/xianxu/pair 
+github.com/xianxu/pair/cmd/internal/resumeform github.com/xianxu/pair 
+github.com/xianxu/pair/cmd/internal/reviewcmd github.com/xianxu/pair 
+github.com/xianxu/pair/cmd/internal/sessionwatch github.com/xianxu/pair 
+github.com/xianxu/pair/cmd/internal/threadrecord github.com/xianxu/pair 
+github.com/xianxu/pair/cmd/internal/zellijpane github.com/xianxu/pair 
+github.com/xianxu/pair/cmd/internal/workbenchshortcut github.com/xianxu/pair 
+github.com/xianxu/pair/cmd/internal/zellijexec github.com/xianxu/pair 
+github.com/xianxu/pair/cmd/internal/zellijreply github.com/xianxu/pair 
+github.com/xianxu/pair/cmd/internal/zellijquery github.com/xianxu/pair 
+github.com/xianxu/pair/cmd/internal/launcher github.com/xianxu/pair 
+github.com/xianxu/pair/cmd/internal/orientation github.com/xianxu/pair 
+github.com/creack/pty github.com/creack/pty v1.1.24
+github.com/xianxu/pair/cmd/internal/ansi github.com/xianxu/pair 
+github.com/xianxu/pair/cmd/internal/ptychild github.com/xianxu/pair 
+github.com/xianxu/pair/cmd/internal/rowtext github.com/xianxu/pair 
+github.com/xianxu/pair/cmd/internal/scrollbackcmd github.com/xianxu/pair 
+github.com/xianxu/pair/cmd/internal/slugline github.com/xianxu/pair 
+github.com/xianxu/pair/cmd/internal/couchcore github.com/xianxu/pair 
+github.com/xianxu/pair/cmd/internal/runtimebundle/manifestmodel github.com/xianxu/pair 
+github.com/xianxu/pair/cmd/internal/runtimebundle github.com/xianxu/pair 
+github.com/xianxu/pair/cmd/internal/keyhelp github.com/xianxu/pair 
+github.com/xianxu/pair/cmd/internal/couchkeys github.com/xianxu/pair 
+github.com/xianxu/pair/cmd/internal/pathscope github.com/xianxu/pair 
+github.com/xianxu/pair/internal/reporoot github.com/xianxu/pair 
+github.com/xianxu/pair/cmd/internal/webcast/recording github.com/xianxu/pair 
+github.com/xianxu/pair/cmd/internal/webcast/notes github.com/xianxu/pair 
+github.com/xianxu/pair/cmd/internal/submission github.com/xianxu/pair 
+github.com/xianxu/pair/cmd/internal/couchmessage github.com/xianxu/pair 
+github.com/xianxu/pair/cmd/internal/couchscratch github.com/xianxu/pair 
+github.com/xianxu/pair/cmd/internal/couchsingleton github.com/xianxu/pair 
+github.com/skip2/go-qrcode/bitset github.com/skip2/go-qrcode v0.0.0-20200617195104-da1b6568686e
+github.com/skip2/go-qrcode/reedsolomon github.com/skip2/go-qrcode v0.0.0-20200617195104-da1b6568686e
+github.com/skip2/go-qrcode github.com/skip2/go-qrcode v0.0.0-20200617195104-da1b6568686e
+github.com/xianxu/pair/cmd/internal/notifytransport github.com/xianxu/pair 
+github.com/xianxu/pair/cmd/internal/layoutcmd github.com/xianxu/pair 
+github.com/xianxu/pair/cmd/internal/clipcmd github.com/xianxu/pair 
+golang.org/x/term golang.org/x/term v0.43.0
+github.com/xianxu/pair/cmd/internal/hostty github.com/xianxu/pair 
+github.com/xianxu/pair/cmd/internal/mouseinput github.com/xianxu/pair 
+github.com/go-jose/go-jose/v4/cipher github.com/go-jose/go-jose/v4 v4.1.4
+github.com/go-jose/go-jose/v4/json github.com/go-jose/go-jose/v4 v4.1.4
+github.com/go-jose/go-jose/v4 github.com/go-jose/go-jose/v4 v4.1.4
+golang.org/x/oauth2/internal golang.org/x/oauth2 v0.36.0
+golang.org/x/oauth2 golang.org/x/oauth2 v0.36.0
+github.com/coreos/go-oidc/v3/oidc github.com/coreos/go-oidc/v3 v3.21.0
+github.com/xianxu/pair/cmd/internal/remotesession github.com/xianxu/pair 
+github.com/xianxu/pair/cmd/internal/terminalcapture github.com/xianxu/pair 
+github.com/xianxu/pair/cmd/internal/threadactivity github.com/xianxu/pair 
+github.com/xianxu/pair/cmd/internal/cdp github.com/xianxu/pair 
+golang.org/x/image/math/f64 golang.org/x/image v0.46.0
+golang.org/x/image/draw golang.org/x/image v0.46.0
+golang.org/x/image/riff golang.org/x/image v0.46.0
+golang.org/x/image/vp8 golang.org/x/image v0.46.0
+golang.org/x/image/vp8l golang.org/x/image v0.46.0
+golang.org/x/image/webp golang.org/x/image v0.46.0
+github.com/xianxu/pair/cmd/internal/webcast/assets github.com/xianxu/pair 
+github.com/xianxu/pair/cmd/internal/webcast/capability github.com/xianxu/pair 
+github.com/xianxu/pair/cmd/internal/webcast/board github.com/xianxu/pair 
+github.com/xianxu/pair/cmd/internal/webcast/drive github.com/xianxu/pair 
+github.com/xianxu/pair/cmd/internal/webcast/fidelity github.com/xianxu/pair 
+github.com/xianxu/pair/cmd/internal/webcast/notedraft github.com/xianxu/pair 
+github.com/xianxu/pair/cmd/internal/webcast/recorder github.com/xianxu/pair 
+github.com/xianxu/pair/cmd/internal/webcast/query github.com/xianxu/pair 
+github.com/xianxu/pair/cmd/internal/webcast/submission github.com/xianxu/pair 
+github.com/xianxu/pair/cmd/internal/webcast github.com/xianxu/pair 
+github.com/xianxu/pair/cmd/internal/couchtty github.com/xianxu/pair 
+github.com/xianxu/pair/cmd/internal/crashreport github.com/xianxu/pair 
+github.com/xianxu/pair/cmd/internal/editorendpoint github.com/xianxu/pair 
+github.com/xianxu/pair/cmd/internal/historyarchive github.com/xianxu/pair 
+golang.org/x/net/html/atom golang.org/x/net v0.55.0
+golang.org/x/net/html golang.org/x/net v0.55.0
+github.com/xianxu/pair/cmd/internal/mockserve github.com/xianxu/pair 
+github.com/xianxu/pair/cmd/internal/sessionsync github.com/xianxu/pair 
+github.com/xianxu/pair/cmd/internal/contextcmd github.com/xianxu/pair 
+github.com/xianxu/pair/cmd/internal/zellijsession github.com/xianxu/pair 
+github.com/xianxu/pair/cmd/internal/titlepoller github.com/xianxu/pair 
+github.com/xianxu/pair/cmd/internal/couchcmd github.com/xianxu/pair 
+github.com/xianxu/pair/cmd/couch github.com/xianxu/pair 

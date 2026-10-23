@@ -925,3 +925,23 @@ pure-package RED/GREEN with installedGo1.27.1 and GOTOOLCHAIN=local: compile-fre
 means no tsnet import or toolchain download. Preparing pure principal/reducer
 and stateful fake through this compiler. Operator enrollment remains separate
 and unstarted; no account, node or auth-key creation.
+
+
+### 2026-10-22 — installed Go1.27.3 and dependency decision hold
+
+TL77e8b1e9 confirmed the authorized Go upgrade; isolated directive-only baseline
+now70ff5ec7a666, with its recorded full suite queued. Exact dependency target is
+v1.104.2. No product dependency has been added. TL515229c8 requires measuring the
+ten forced shared upgrades alone (full suite and native rendering) and an
+operator decision note before further integration/enrollment. Compile-only
+binary delta is23.97MiB/66.9%; closure doubles27 ->54 compiled module identities.
+Native primary cohort and ordinary terminal package pass; extra native-history
+coverage is blocked by independently reproduced fixture gap #828. Full diagnostic
+suite is retained in the machine queue. No operator enrollment is authorized yet.
+
+The side decision note records proposed mitigations from pinned source review:
+validated watch snapshot/gap refusal; bounded Up plus tailnet Listen/TLS/CertPair
+instead of the unbounded ListenTLS convenience; one joined Close owner with
+uncertainty retaining blocked authority; and mandatory logtail upload disablement.
+These are proposed API/build refinements awaiting review, not silently substituted
+implementation. The original approved transport/security requirements remain.

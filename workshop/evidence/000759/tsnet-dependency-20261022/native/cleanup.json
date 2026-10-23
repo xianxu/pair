@@ -1,0 +1,17 @@
+{
+  "native_fixture_roots": [
+    "pcn-4260573764",
+    "pcn-748317963"
+  ],
+  "observed_owned_pids": [
+    28577,
+    28685,
+    29081,
+    30077,
+    30575,
+    30963
+  ],
+  "surviving_process_matches": [],
+  "remaining_roots": [],
+  "console_join_errors": false
+}

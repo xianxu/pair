@@ -1,0 +1,11 @@
+{
+  "upgraded_assertion": "history_oracle_test.go:132: literal native history \"sh-3.2$\\n\"",
+  "baseline_assertion": "history_oracle_test.go:132: literal native history \"sh-3.2$\\n\"",
+  "classification": "Seven additional native-Zellij cases remain unqualified due to fixture admission failure with paired upgraded/original-module evidence. Specific missing --config-dir explanation remains a hypothesis.",
+  "source_error_limit": "Existing helper only returns dump-screen output on success, not fixture PTY capture; failed literal assertion supplies no fixture source stderr. No helper modification or rerun performed.",
+  "upgraded_module_hashes_unchanged": true,
+  "control_files_unchanged": {
+    "go.mod": true,
+    "go.sum": true
+  }
+}

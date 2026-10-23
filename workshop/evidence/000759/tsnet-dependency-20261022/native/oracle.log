@@ -1,0 +1,5 @@
+
+added 2 packages, and audited 3 packages in 596ms
+
+found 0 vulnerabilities
+ok  	github.com/xianxu/pair/cmd/internal/terminal	1.258s

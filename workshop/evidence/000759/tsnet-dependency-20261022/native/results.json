@@ -1,0 +1,27 @@
+[
+  {
+    "name": "runtimebundle",
+    "exit": 0,
+    "seconds": 0.26754093170166016
+  },
+  {
+    "name": "build",
+    "exit": 0,
+    "seconds": 3.769174098968506
+  },
+  {
+    "name": "oracle",
+    "exit": 0,
+    "seconds": 6.352039098739624
+  },
+  {
+    "name": "native",
+    "exit": 0,
+    "seconds": 41.251800775527954
+  },
+  {
+    "name": "terminal",
+    "exit": 0,
+    "seconds": 81.69973611831665
+  }
+]

@@ -1,0 +1,2606 @@
+{
+  "scope": "Nonstandard modules in candidate-packages.txt only; heuristic text classification is an inventory, not legal clearance. Includes all named license/notice files in those module source trees; scope flags distinguish compiled-package ancestors. Standard library/toolchain notices and embedded asset dependency provenance require separate distribution review.",
+  "module_count": 54,
+  "new_modules": 27,
+  "upgraded_modules": 10,
+  "modules": [
+    {
+      "baseline_root_license_files": [],
+      "module": "filippo.io/edwards25519",
+      "version": "v1.2.0",
+      "baseline_version": null,
+      "change": "added",
+      "directory": "/Users/xianxu/go/pkg/mod/filippo.io/edwards25519@v1.2.0",
+      "main": false,
+      "packages": [
+        "filippo.io/edwards25519",
+        "filippo.io/edwards25519/field"
+      ],
+      "root_license_files": [
+        {
+          "path": "LICENSE",
+          "bytes": 1479,
+          "sha256": "2d36597f7117c38b006835ae7f537487207d8ec407aa9d9980794b2030cbc067",
+          "inferred_identifiers": [
+            "BSD-3-Clause"
+          ],
+          "scope": "root_or_compiled_package_ancestor"
+        }
+      ],
+      "license_notice_files": [
+        {
+          "path": "LICENSE",
+          "bytes": 1479,
+          "sha256": "2d36597f7117c38b006835ae7f537487207d8ec407aa9d9980794b2030cbc067",
+          "inferred_identifiers": [
+            "BSD-3-Clause"
+          ],
+          "scope": "root_or_compiled_package_ancestor"
+        }
+      ],
+      "review_flags": []
+    },
+    {
+      "baseline_root_license_files": [
+        {
+          "path": "LICENSE",
+          "sha256": "57d6eeeb336030b89c0e0d12cf869f84b97a481cd00b350ef21fca995da5a39a",
+          "inferred_identifiers": [
+            "MIT"
+          ]
+        }
+      ],
+      "module": "github.com/charmbracelet/colorprofile",
+      "version": "v0.4.3",
+      "baseline_version": "v0.4.2",
+      "change": "upgraded",
+      "directory": "/Users/xianxu/go/pkg/mod/github.com/charmbracelet/colorprofile@v0.4.3",
+      "main": false,
+      "packages": [
+        "github.com/charmbracelet/colorprofile"
+      ],
+      "root_license_files": [
+        {
+          "path": "LICENSE",
+          "bytes": 1080,
+          "sha256": "57d6eeeb336030b89c0e0d12cf869f84b97a481cd00b350ef21fca995da5a39a",
+          "inferred_identifiers": [
+            "MIT"
+          ],
+          "scope": "root_or_compiled_package_ancestor"
+        }
+      ],
+      "license_notice_files": [
+        {
+          "path": "LICENSE",
+          "bytes": 1080,
+          "sha256": "57d6eeeb336030b89c0e0d12cf869f84b97a481cd00b350ef21fca995da5a39a",
+          "inferred_identifiers": [
+            "MIT"
+          ],
+          "scope": "root_or_compiled_package_ancestor"
+        }
+      ],
+      "review_flags": []
+    },
+    {
+      "baseline_root_license_files": [
+        {
+          "path": "LICENSE",
+          "sha256": "8a77c755a1d1fbdc932e86f0449549121820b6f4cc1234b12fcfc8d38013c1de",
+          "inferred_identifiers": [
+            "MIT"
+          ]
+        }
+      ],
+      "module": "github.com/charmbracelet/ultraviolet",
+      "version": "v0.0.0-20260811164956-006e29f97886",
+      "baseline_version": "v0.0.0-20260303162955-0b88c25f3fff",
+      "change": "upgraded",
+      "directory": "/Users/xianxu/go/pkg/mod/github.com/charmbracelet/ultraviolet@v0.0.0-20260811164956-006e29f97886",
+      "main": false,
+      "packages": [
+        "github.com/charmbracelet/ultraviolet",
+        "github.com/charmbracelet/ultraviolet/screen"
+      ],
+      "root_license_files": [
+        {
+          "path": "LICENSE",
+          "bytes": 1075,
+          "sha256": "8a77c755a1d1fbdc932e86f0449549121820b6f4cc1234b12fcfc8d38013c1de",
+          "inferred_identifiers": [
+            "MIT"
+          ],
+          "scope": "root_or_compiled_package_ancestor"
+        }
+      ],
+      "license_notice_files": [
+        {
+          "path": "LICENSE",
+          "bytes": 1075,
+          "sha256": "8a77c755a1d1fbdc932e86f0449549121820b6f4cc1234b12fcfc8d38013c1de",
+          "inferred_identifiers": [
+            "MIT"
+          ],
+          "scope": "root_or_compiled_package_ancestor"
+        }
+      ],
+      "review_flags": []
+    },
+    {
+      "baseline_root_license_files": [
+        {
+          "path": "LICENSE",
+          "sha256": "0baa4a5942a801d93f4050d2bc0039d8c037105fcd335230d118eec99a11782b",
+          "inferred_identifiers": [
+            "MIT"
+          ]
+        }
+      ],
+      "module": "github.com/charmbracelet/x/ansi",
+      "version": "v0.11.8",
+      "baseline_version": "v0.11.7",
+      "change": "upgraded",
+      "directory": "/Users/xianxu/go/pkg/mod/github.com/charmbracelet/x/ansi@v0.11.8",
+      "main": false,
+      "packages": [
+        "github.com/charmbracelet/x/ansi",
+        "github.com/charmbracelet/x/ansi/kitty",
+        "github.com/charmbracelet/x/ansi/parser"
+      ],
+      "root_license_files": [
+        {
+          "path": "LICENSE",
+          "bytes": 1076,
+          "sha256": "0baa4a5942a801d93f4050d2bc0039d8c037105fcd335230d118eec99a11782b",
+          "inferred_identifiers": [
+            "MIT"
+          ],
+          "scope": "root_or_compiled_package_ancestor"
+        }
+      ],
+      "license_notice_files": [
+        {
+          "path": "LICENSE",
+          "bytes": 1076,
+          "sha256": "0baa4a5942a801d93f4050d2bc0039d8c037105fcd335230d118eec99a11782b",
+          "inferred_identifiers": [
+            "MIT"
+          ],
+          "scope": "root_or_compiled_package_ancestor"
+        }
+      ],
+      "review_flags": []
+    },
+    {
+      "baseline_root_license_files": [],
+      "module": "github.com/charmbracelet/x/exp/ordered",
+      "version": "v0.1.0",
+      "baseline_version": "v0.1.0",
+      "change": "unchanged",
+      "directory": "/Users/xianxu/go/pkg/mod/github.com/charmbracelet/x/exp/ordered@v0.1.0",
+      "main": false,
+      "packages": [
+        "github.com/charmbracelet/x/exp/ordered"
+      ],
+      "root_license_files": [
+        {
+          "path": "LICENSE",
+          "bytes": 1076,
+          "sha256": "0baa4a5942a801d93f4050d2bc0039d8c037105fcd335230d118eec99a11782b",
+          "inferred_identifiers": [
+            "MIT"
+          ],
+          "scope": "root_or_compiled_package_ancestor"
+        }
+      ],
+      "license_notice_files": [
+        {
+          "path": "LICENSE",
+          "bytes": 1076,
+          "sha256": "0baa4a5942a801d93f4050d2bc0039d8c037105fcd335230d118eec99a11782b",
+          "inferred_identifiers": [
+            "MIT"
+          ],
+          "scope": "root_or_compiled_package_ancestor"
+        }
+      ],
+      "review_flags": []
+    },
+    {
+      "baseline_root_license_files": [],
+      "module": "github.com/charmbracelet/x/term",
+      "version": "v0.2.2",
+      "baseline_version": "v0.2.2",
+      "change": "unchanged",
+      "directory": "/Users/xianxu/go/pkg/mod/github.com/charmbracelet/x/term@v0.2.2",
+      "main": false,
+      "packages": [
+        "github.com/charmbracelet/x/term"
+      ],
+      "root_license_files": [
+        {
+          "path": "LICENSE",
+          "bytes": 1076,
+          "sha256": "0baa4a5942a801d93f4050d2bc0039d8c037105fcd335230d118eec99a11782b",
+          "inferred_identifiers": [
+            "MIT"
+          ],
+          "scope": "root_or_compiled_package_ancestor"
+        }
+      ],
+      "license_notice_files": [
+        {
+          "path": "LICENSE",
+          "bytes": 1076,
+          "sha256": "0baa4a5942a801d93f4050d2bc0039d8c037105fcd335230d118eec99a11782b",
+          "inferred_identifiers": [
+            "MIT"
+          ],
+          "scope": "root_or_compiled_package_ancestor"
+        }
+      ],
+      "review_flags": []
+    },
+    {
+      "baseline_root_license_files": [],
+      "module": "github.com/charmbracelet/x/termios",
+      "version": "v0.1.1",
+      "baseline_version": "v0.1.1",
+      "change": "unchanged",
+      "directory": "/Users/xianxu/go/pkg/mod/github.com/charmbracelet/x/termios@v0.1.1",
+      "main": false,
+      "packages": [
+        "github.com/charmbracelet/x/termios"
+      ],
+      "root_license_files": [
+        {
+          "path": "LICENSE",
+          "bytes": 1076,
+          "sha256": "0baa4a5942a801d93f4050d2bc0039d8c037105fcd335230d118eec99a11782b",
+          "inferred_identifiers": [
+            "MIT"
+          ],
+          "scope": "root_or_compiled_package_ancestor"
+        }
+      ],
+      "license_notice_files": [
+        {
+          "path": "LICENSE",
+          "bytes": 1076,
+          "sha256": "0baa4a5942a801d93f4050d2bc0039d8c037105fcd335230d118eec99a11782b",
+          "inferred_identifiers": [
+            "MIT"
+          ],
+          "scope": "root_or_compiled_package_ancestor"
+        }
+      ],
+      "review_flags": []
+    },
+    {
+      "baseline_root_license_files": [],
+      "module": "github.com/charmbracelet/x/vt",
+      "version": "v0.0.0-20260510215043-e3181689be6b",
+      "baseline_version": "v0.0.0-20260510215043-e3181689be6b",
+      "change": "unchanged",
+      "directory": "/Users/xianxu/workspace/worktree/pair-slot6/pair/third_party/vt",
+      "main": false,
+      "packages": [
+        "github.com/charmbracelet/x/vt",
+        "github.com/charmbracelet/x/vt/ansiparser"
+      ],
+      "root_license_files": [
+        {
+          "path": "LICENSE",
+          "bytes": 1076,
+          "sha256": "0baa4a5942a801d93f4050d2bc0039d8c037105fcd335230d118eec99a11782b",
+          "inferred_identifiers": [
+            "MIT"
+          ],
+          "scope": "root_or_compiled_package_ancestor"
+        }
+      ],
+      "license_notice_files": [
+        {
+          "path": "LICENSE",
+          "bytes": 1076,
+          "sha256": "0baa4a5942a801d93f4050d2bc0039d8c037105fcd335230d118eec99a11782b",
+          "inferred_identifiers": [
+            "MIT"
+          ],
+          "scope": "root_or_compiled_package_ancestor"
+        },
+        {
+          "path": "ansiparser/LICENSE",
+          "bytes": 1076,
+          "sha256": "0baa4a5942a801d93f4050d2bc0039d8c037105fcd335230d118eec99a11782b",
+          "inferred_identifiers": [
+            "MIT"
+          ],
+          "scope": "root_or_compiled_package_ancestor"
+        }
+      ],
+      "review_flags": [
+        "Compiled package ancestor has additional license/notice files; preserve scoped terms"
+      ]
+    },
+    {
+      "baseline_root_license_files": [],
+      "module": "github.com/charmbracelet/x/windows",
+      "version": "v0.2.2",
+      "baseline_version": "v0.2.2",
+      "change": "unchanged",
+      "directory": "/Users/xianxu/go/pkg/mod/github.com/charmbracelet/x/windows@v0.2.2",
+      "main": false,
+      "packages": [
+        "github.com/charmbracelet/x/windows"
+      ],
+      "root_license_files": [
+        {
+          "path": "LICENSE",
+          "bytes": 1076,
+          "sha256": "0baa4a5942a801d93f4050d2bc0039d8c037105fcd335230d118eec99a11782b",
+          "inferred_identifiers": [
+            "MIT"
+          ],
+          "scope": "root_or_compiled_package_ancestor"
+        }
+      ],
+      "license_notice_files": [
+        {
+          "path": "LICENSE",
+          "bytes": 1076,
+          "sha256": "0baa4a5942a801d93f4050d2bc0039d8c037105fcd335230d118eec99a11782b",
+          "inferred_identifiers": [
+            "MIT"
+          ],
+          "scope": "root_or_compiled_package_ancestor"
+        }
+      ],
+      "review_flags": []
+    },
+    {
+      "baseline_root_license_files": [],
+      "module": "github.com/clipperhouse/displaywidth",
+      "version": "v0.11.0",
+      "baseline_version": "v0.11.0",
+      "change": "unchanged",
+      "directory": "/Users/xianxu/go/pkg/mod/github.com/clipperhouse/displaywidth@v0.11.0",
+      "main": false,
+      "packages": [
+        "github.com/clipperhouse/displaywidth"
+      ],
+      "root_license_files": [
+        {
+          "path": "LICENSE",
+          "bytes": 1069,
+          "sha256": "fcdcc889a11c39c73d36019b838af41b418eb7811af12b746ace40c3074bb96c",
+          "inferred_identifiers": [
+            "MIT"
+          ],
+          "scope": "root_or_compiled_package_ancestor"
+        }
+      ],
+      "license_notice_files": [
+        {
+          "path": "LICENSE",
+          "bytes": 1069,
+          "sha256": "fcdcc889a11c39c73d36019b838af41b418eb7811af12b746ace40c3074bb96c",
+          "inferred_identifiers": [
+            "MIT"
+          ],
+          "scope": "root_or_compiled_package_ancestor"
+        }
+      ],
+      "review_flags": []
+    },
+    {
+      "baseline_root_license_files": [],
+      "module": "github.com/clipperhouse/uax29/v2",
+      "version": "v2.7.0",
+      "baseline_version": "v2.7.0",
+      "change": "unchanged",
+      "directory": "/Users/xianxu/go/pkg/mod/github.com/clipperhouse/uax29/v2@v2.7.0",
+      "main": false,
+      "packages": [
+        "github.com/clipperhouse/uax29/v2/graphemes"
+      ],
+      "root_license_files": [
+        {
+          "path": "LICENSE",
+          "bytes": 1069,
+          "sha256": "07e9e3daaccc707c9b7d535ed1405a65d37919fdd42197fe55e68820e974688c",
+          "inferred_identifiers": [
+            "MIT"
+          ],
+          "scope": "root_or_compiled_package_ancestor"
+        }
+      ],
+      "license_notice_files": [
+        {
+          "path": "LICENSE",
+          "bytes": 1069,
+          "sha256": "07e9e3daaccc707c9b7d535ed1405a65d37919fdd42197fe55e68820e974688c",
+          "inferred_identifiers": [
+            "MIT"
+          ],
+          "scope": "root_or_compiled_package_ancestor"
+        }
+      ],
+      "review_flags": []
+    },
+    {
+      "baseline_root_license_files": [],
+      "module": "github.com/coder/websocket",
+      "version": "v1.8.15",
+      "baseline_version": null,
+      "change": "added",
+      "directory": "/Users/xianxu/go/pkg/mod/github.com/coder/websocket@v1.8.15",
+      "main": false,
+      "packages": [
+        "github.com/coder/websocket",
+        "github.com/coder/websocket/internal/bpool",
+        "github.com/coder/websocket/internal/errd",
+        "github.com/coder/websocket/internal/util"
+      ],
+      "root_license_files": [
+        {
+          "path": "LICENSE.txt",
+          "bytes": 720,
+          "sha256": "cc0975a5f6305145bdd7b41ce9479632fdac3870e6ac4281f28017f18c767c4e",
+          "inferred_identifiers": [
+            "ISC"
+          ],
+          "scope": "root_or_compiled_package_ancestor"
+        }
+      ],
+      "license_notice_files": [
+        {
+          "path": "LICENSE.txt",
+          "bytes": 720,
+          "sha256": "cc0975a5f6305145bdd7b41ce9479632fdac3870e6ac4281f28017f18c767c4e",
+          "inferred_identifiers": [
+            "ISC"
+          ],
+          "scope": "root_or_compiled_package_ancestor"
+        }
+      ],
+      "review_flags": []
+    },
+    {
+      "baseline_root_license_files": [],
+      "module": "github.com/coreos/go-oidc/v3",
+      "version": "v3.21.0",
+      "baseline_version": "v3.21.0",
+      "change": "unchanged",
+      "directory": "/Users/xianxu/go/pkg/mod/github.com/coreos/go-oidc/v3@v3.21.0",
+      "main": false,
+      "packages": [
+        "github.com/coreos/go-oidc/v3/oidc"
+      ],
+      "root_license_files": [
+        {
+          "path": "LICENSE",
+          "bytes": 11325,
+          "sha256": "cb5e8e7e5f4a3988e1063c142c60dc2df75605f4c46515e776e3aca6df976e14",
+          "inferred_identifiers": [
+            "Apache-2.0"
+          ],
+          "scope": "root_or_compiled_package_ancestor"
+        }
+      ],
+      "license_notice_files": [
+        {
+          "path": "LICENSE",
+          "bytes": 11325,
+          "sha256": "cb5e8e7e5f4a3988e1063c142c60dc2df75605f4c46515e776e3aca6df976e14",
+          "inferred_identifiers": [
+            "Apache-2.0"
+          ],
+          "scope": "root_or_compiled_package_ancestor"
+        },
+        {
+          "path": "NOTICE",
+          "bytes": 126,
+          "sha256": "dccd26c6fd9c296daf44d0bc56bb4efc566edd4880381b3331c9a63e6e471338",
+          "inferred_identifiers": [],
+          "scope": "root_or_compiled_package_ancestor"
+        }
+      ],
+      "review_flags": []
+    },
+    {
+      "baseline_root_license_files": [],
+      "module": "github.com/creachadair/msync",
+      "version": "v0.10.1",
+      "baseline_version": null,
+      "change": "added",
+      "directory": "/Users/xianxu/go/pkg/mod/github.com/creachadair/msync@v0.10.1",
+      "main": false,
+      "packages": [
+        "github.com/creachadair/msync/trigger"
+      ],
+      "root_license_files": [
+        {
+          "path": "LICENSE",
+          "bytes": 1421,
+          "sha256": "1d45f7789b678c742a045d7a6923c2762f667dc2523b9b4c01fe240d24c83083",
+          "inferred_identifiers": [
+            "BSD-3-Clause"
+          ],
+          "scope": "root_or_compiled_package_ancestor"
+        }
+      ],
+      "license_notice_files": [
+        {
+          "path": "LICENSE",
+          "bytes": 1421,
+          "sha256": "1d45f7789b678c742a045d7a6923c2762f667dc2523b9b4c01fe240d24c83083",
+          "inferred_identifiers": [
+            "BSD-3-Clause"
+          ],
+          "scope": "root_or_compiled_package_ancestor"
+        }
+      ],
+      "review_flags": []
+    },
+    {
+      "baseline_root_license_files": [],
+      "module": "github.com/creack/pty",
+      "version": "v1.1.24",
+      "baseline_version": "v1.1.24",
+      "change": "unchanged",
+      "directory": "/Users/xianxu/go/pkg/mod/github.com/creack/pty@v1.1.24",
+      "main": false,
+      "packages": [
+        "github.com/creack/pty"
+      ],
+      "root_license_files": [
+        {
+          "path": "LICENSE",
+          "bytes": 1056,
+          "sha256": "a2a1cea59d9c2d71908082f516f86bb560abf857646ecf69d70c121ead14aef4",
+          "inferred_identifiers": [
+            "MIT"
+          ],
+          "scope": "root_or_compiled_package_ancestor"
+        }
+      ],
+      "license_notice_files": [
+        {
+          "path": "LICENSE",
+          "bytes": 1056,
+          "sha256": "a2a1cea59d9c2d71908082f516f86bb560abf857646ecf69d70c121ead14aef4",
+          "inferred_identifiers": [
+            "MIT"
+          ],
+          "scope": "root_or_compiled_package_ancestor"
+        }
+      ],
+      "review_flags": []
+    },
+    {
+      "baseline_root_license_files": [],
+      "module": "github.com/fxamacker/cbor/v2",
+      "version": "v2.9.3",
+      "baseline_version": null,
+      "change": "added",
+      "directory": "/Users/xianxu/go/pkg/mod/github.com/fxamacker/cbor/v2@v2.9.3",
+      "main": false,
+      "packages": [
+        "github.com/fxamacker/cbor/v2"
+      ],
+      "root_license_files": [
+        {
+          "path": "LICENSE",
+          "bytes": 1076,
+          "sha256": "78cad457d5ea7318230f3d969d4cdf29cef45524a1fc8ca3a97646da1ad7a841",
+          "inferred_identifiers": [
+            "MIT"
+          ],
+          "scope": "root_or_compiled_package_ancestor"
+        }
+      ],
+      "license_notice_files": [
+        {
+          "path": "LICENSE",
+          "bytes": 1076,
+          "sha256": "78cad457d5ea7318230f3d969d4cdf29cef45524a1fc8ca3a97646da1ad7a841",
+          "inferred_identifiers": [
+            "MIT"
+          ],
+          "scope": "root_or_compiled_package_ancestor"
+        }
+      ],
+      "review_flags": []
+    },
+    {
+      "baseline_root_license_files": [],
+      "module": "github.com/gaissmai/bart",
+      "version": "v0.29.0",
+      "baseline_version": null,
+      "change": "added",
+      "directory": "/Users/xianxu/go/pkg/mod/github.com/gaissmai/bart@v0.29.0",
+      "main": false,
+      "packages": [
+        "github.com/gaissmai/bart",
+        "github.com/gaissmai/bart/internal/allot",
+        "github.com/gaissmai/bart/internal/art",
+        "github.com/gaissmai/bart/internal/bitset",
+        "github.com/gaissmai/bart/internal/lpm",
+        "github.com/gaissmai/bart/internal/nodes",
+        "github.com/gaissmai/bart/internal/sparse",
+        "github.com/gaissmai/bart/internal/value"
+      ],
+      "root_license_files": [
+        {
+          "path": "LICENSE",
+          "bytes": 1072,
+          "sha256": "8fc2dc86e3a004c34bf613d4f72365ca4c16a35d26fbc4ce1d8deac83c6eae15",
+          "inferred_identifiers": [
+            "MIT"
+          ],
+          "scope": "root_or_compiled_package_ancestor"
+        }
+      ],
+      "license_notice_files": [
+        {
+          "path": "LICENSE",
+          "bytes": 1072,
+          "sha256": "8fc2dc86e3a004c34bf613d4f72365ca4c16a35d26fbc4ce1d8deac83c6eae15",
+          "inferred_identifiers": [
+            "MIT"
+          ],
+          "scope": "root_or_compiled_package_ancestor"
+        }
+      ],
+      "review_flags": []
+    },
+    {
+      "baseline_root_license_files": [],
+      "module": "github.com/go-jose/go-jose/v4",
+      "version": "v4.1.4",
+      "baseline_version": "v4.1.4",
+      "change": "unchanged",
+      "directory": "/Users/xianxu/go/pkg/mod/github.com/go-jose/go-jose/v4@v4.1.4",
+      "main": false,
+      "packages": [
+        "github.com/go-jose/go-jose/v4",
+        "github.com/go-jose/go-jose/v4/cipher",
+        "github.com/go-jose/go-jose/v4/json"
+      ],
+      "root_license_files": [
+        {
+          "path": "LICENSE",
+          "bytes": 11358,
+          "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+          "inferred_identifiers": [
+            "Apache-2.0"
+          ],
+          "scope": "root_or_compiled_package_ancestor"
+        }
+      ],
+      "license_notice_files": [
+        {
+          "path": "LICENSE",
+          "bytes": 11358,
+          "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+          "inferred_identifiers": [
+            "Apache-2.0"
+          ],
+          "scope": "root_or_compiled_package_ancestor"
+        },
+        {
+          "path": "json/LICENSE",
+          "bytes": 1479,
+          "sha256": "dd26a7abddd02e2d0aba97805b31f248ef7835d9e10da289b22e3b8ab78b324d",
+          "inferred_identifiers": [
+            "BSD-3-Clause"
+          ],
+          "scope": "root_or_compiled_package_ancestor"
+        }
+      ],
+      "review_flags": [
+        "Compiled package ancestor has additional license/notice files; preserve scoped terms"
+      ]
+    },
+    {
+      "baseline_root_license_files": [],
+      "module": "github.com/go-json-experiment/json",
+      "version": "v0.0.0-20260820222146-c27c302e5fc3",
+      "baseline_version": null,
+      "change": "added",
+      "directory": "/Users/xianxu/go/pkg/mod/github.com/go-json-experiment/json@v0.0.0-20260820222146-c27c302e5fc3",
+      "main": false,
+      "packages": [
+        "github.com/go-json-experiment/json",
+        "github.com/go-json-experiment/json/jsontext",
+        "github.com/go-json-experiment/json/v1"
+      ],
+      "root_license_files": [
+        {
+          "path": "LICENSE",
+          "bytes": 1479,
+          "sha256": "14a34c4db2d21bf9cf80d028b802cd22fed9bf597a6c2db7ce30ee6ffd04967a",
+          "inferred_identifiers": [
+            "BSD-3-Clause"
+          ],
+          "scope": "root_or_compiled_package_ancestor"
+        }
+      ],
+      "license_notice_files": [
+        {
+          "path": "LICENSE",
+          "bytes": 1479,
+          "sha256": "14a34c4db2d21bf9cf80d028b802cd22fed9bf597a6c2db7ce30ee6ffd04967a",
+          "inferred_identifiers": [
+            "BSD-3-Clause"
+          ],
+          "scope": "root_or_compiled_package_ancestor"
+        },
+        {
+          "path": "AUTHORS",
+          "bytes": 174,
+          "sha256": "5aa3167c44245f0b12b27195d85c6a8c8e067cfdd511059daa4d7b3c5b232129",
+          "inferred_identifiers": [],
+          "scope": "root_or_compiled_package_ancestor"
+        }
+      ],
+      "review_flags": []
+    },
+    {
+      "baseline_root_license_files": [],
+      "module": "github.com/golang/groupcache",
+      "version": "v0.0.0-20241129210726-2c02b8208cf8",
+      "baseline_version": null,
+      "change": "added",
+      "directory": "/Users/xianxu/go/pkg/mod/github.com/golang/groupcache@v0.0.0-20241129210726-2c02b8208cf8",
+      "main": false,
+      "packages": [
+        "github.com/golang/groupcache/lru"
+      ],
+      "root_license_files": [
+        {
+          "path": "LICENSE",
+          "bytes": 10273,
+          "sha256": "73ba74dfaa520b49a401b5d21459a8523a146f3b7518a833eea5efa85130bf68",
+          "inferred_identifiers": [
+            "Apache-2.0"
+          ],
+          "scope": "root_or_compiled_package_ancestor"
+        }
+      ],
+      "license_notice_files": [
+        {
+          "path": "LICENSE",
+          "bytes": 10273,
+          "sha256": "73ba74dfaa520b49a401b5d21459a8523a146f3b7518a833eea5efa85130bf68",
+          "inferred_identifiers": [
+            "Apache-2.0"
+          ],
+          "scope": "root_or_compiled_package_ancestor"
+        }
+      ],
+      "review_flags": []
+    },
+    {
+      "baseline_root_license_files": [],
+      "module": "github.com/google/btree",
+      "version": "v1.1.3",
+      "baseline_version": null,
+      "change": "added",
+      "directory": "/Users/xianxu/go/pkg/mod/github.com/google/btree@v1.1.3",
+      "main": false,
+      "packages": [
+        "github.com/google/btree"
+      ],
+      "root_license_files": [
+        {
+          "path": "LICENSE",
+          "bytes": 11358,
+          "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+          "inferred_identifiers": [
+            "Apache-2.0"
+          ],
+          "scope": "root_or_compiled_package_ancestor"
+        }
+      ],
+      "license_notice_files": [
+        {
+          "path": "LICENSE",
+          "bytes": 11358,
+          "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+          "inferred_identifiers": [
+            "Apache-2.0"
+          ],
+          "scope": "root_or_compiled_package_ancestor"
+        }
+      ],
+      "review_flags": []
+    },
+    {
+      "baseline_root_license_files": [],
+      "module": "github.com/hdevalence/ed25519consensus",
+      "version": "v0.2.0",
+      "baseline_version": null,
+      "change": "added",
+      "directory": "/Users/xianxu/go/pkg/mod/github.com/hdevalence/ed25519consensus@v0.2.0",
+      "main": false,
+      "packages": [
+        "github.com/hdevalence/ed25519consensus"
+      ],
+      "root_license_files": [
+        {
+          "path": "LICENSE",
+          "bytes": 1537,
+          "sha256": "789be8b214a1871d8d1a5ab157f8f4ad74cd889087762bd5cced07ed589b6bc7",
+          "inferred_identifiers": [
+            "BSD-3-Clause"
+          ],
+          "scope": "root_or_compiled_package_ancestor"
+        }
+      ],
+      "license_notice_files": [
+        {
+          "path": "LICENSE",
+          "bytes": 1537,
+          "sha256": "789be8b214a1871d8d1a5ab157f8f4ad74cd889087762bd5cced07ed589b6bc7",
+          "inferred_identifiers": [
+            "BSD-3-Clause"
+          ],
+          "scope": "root_or_compiled_package_ancestor"
+        }
+      ],
+      "review_flags": []
+    },
+    {
+      "baseline_root_license_files": [],
+      "module": "github.com/huin/goupnp",
+      "version": "v1.3.0",
+      "baseline_version": null,
+      "change": "added",
+      "directory": "/Users/xianxu/go/pkg/mod/github.com/huin/goupnp@v1.3.0",
+      "main": false,
+      "packages": [
+        "github.com/huin/goupnp",
+        "github.com/huin/goupnp/dcps/internetgateway2",
+        "github.com/huin/goupnp/httpu",
+        "github.com/huin/goupnp/scpd",
+        "github.com/huin/goupnp/soap",
+        "github.com/huin/goupnp/ssdp"
+      ],
+      "root_license_files": [
+        {
+          "path": "LICENSE",
+          "bytes": 1321,
+          "sha256": "440688406aeb546bad566031c8a01531a01a683166f7010380fcc0f68d830311",
+          "inferred_identifiers": [
+            "BSD-2-Clause"
+          ],
+          "scope": "root_or_compiled_package_ancestor"
+        }
+      ],
+      "license_notice_files": [
+        {
+          "path": "LICENSE",
+          "bytes": 1321,
+          "sha256": "440688406aeb546bad566031c8a01531a01a683166f7010380fcc0f68d830311",
+          "inferred_identifiers": [
+            "BSD-2-Clause"
+          ],
+          "scope": "root_or_compiled_package_ancestor"
+        }
+      ],
+      "review_flags": []
+    },
+    {
+      "baseline_root_license_files": [],
+      "module": "github.com/klauspost/compress",
+      "version": "v1.20.0",
+      "baseline_version": null,
+      "change": "added",
+      "directory": "/Users/xianxu/go/pkg/mod/github.com/klauspost/compress@v1.20.0",
+      "main": false,
+      "packages": [
+        "github.com/klauspost/compress",
+        "github.com/klauspost/compress/fse",
+        "github.com/klauspost/compress/huff0",
+        "github.com/klauspost/compress/internal/le",
+        "github.com/klauspost/compress/internal/snapref",
+        "github.com/klauspost/compress/zstd",
+        "github.com/klauspost/compress/zstd/internal/xxhash"
+      ],
+      "root_license_files": [
+        {
+          "path": "LICENSE",
+          "bytes": 16733,
+          "sha256": "0d9e582ee4bff57bf1189c9e514e6da7ce277f9cd3bc2d488b22fbb39a6d87cf",
+          "inferred_identifiers": [
+            "Apache-2.0",
+            "BSD-3-Clause",
+            "MIT"
+          ],
+          "scope": "root_or_compiled_package_ancestor"
+        }
+      ],
+      "license_notice_files": [
+        {
+          "path": "LICENSE",
+          "bytes": 16733,
+          "sha256": "0d9e582ee4bff57bf1189c9e514e6da7ce277f9cd3bc2d488b22fbb39a6d87cf",
+          "inferred_identifiers": [
+            "Apache-2.0",
+            "BSD-3-Clause",
+            "MIT"
+          ],
+          "scope": "root_or_compiled_package_ancestor"
+        },
+        {
+          "path": "s2/LICENSE",
+          "bytes": 1538,
+          "sha256": "08683b14bda8ae3538abf19e1879e853a39e3b8276a8d673363b529d15a61c1a",
+          "inferred_identifiers": [
+            "BSD-3-Clause"
+          ],
+          "scope": "other_module_content"
+        },
+        {
+          "path": "gzhttp/LICENSE",
+          "bytes": 11361,
+          "sha256": "2252a5b1e2b1d3663b53ea77051b8ed065cb9270a3d1174d5d6ead8a2de051b6",
+          "inferred_identifiers": [
+            "Apache-2.0"
+          ],
+          "scope": "other_module_content"
+        },
+        {
+          "path": "snappy/LICENSE",
+          "bytes": 1486,
+          "sha256": "f69f157b0be75da373605dbc8bbf142e8924ee82d8f44f11bcaf351335bf98cf",
+          "inferred_identifiers": [
+            "BSD-3-Clause"
+          ],
+          "scope": "other_module_content"
+        },
+        {
+          "path": "snappy/AUTHORS",
+          "bytes": 560,
+          "sha256": "f6f3821e64460346c1ed1a15fb32b94ad241617276b60726c1350ca315309463",
+          "inferred_identifiers": [],
+          "scope": "other_module_content"
+        },
+        {
+          "path": "zstd/internal/xxhash/LICENSE.txt",
+          "bytes": 1068,
+          "sha256": "f566a9f97bacdaf00d9f21dd991e81dc11201c4e016c86b470799429a1c9a79c",
+          "inferred_identifiers": [
+            "MIT"
+          ],
+          "scope": "root_or_compiled_package_ancestor"
+        },
+        {
+          "path": "snappy/xerial/LICENSE",
+          "bytes": 1106,
+          "sha256": "d4ff111fa30ac75e28dca3868de957a3b73ff50b76bc4b8fe5c3a1f008d26703",
+          "inferred_identifiers": [
+            "MIT"
+          ],
+          "scope": "other_module_content"
+        },
+        {
+          "path": "internal/snapref/LICENSE",
+          "bytes": 1486,
+          "sha256": "f69f157b0be75da373605dbc8bbf142e8924ee82d8f44f11bcaf351335bf98cf",
+          "inferred_identifiers": [
+            "BSD-3-Clause"
+          ],
+          "scope": "root_or_compiled_package_ancestor"
+        },
+        {
+          "path": "internal/lz4ref/LICENSE",
+          "bytes": 1477,
+          "sha256": "6a358d2540ca14048f02d366f23787c0a480157e58f058113f0e27168dd4e447",
+          "inferred_identifiers": [
+            "BSD-3-Clause"
+          ],
+          "scope": "other_module_content"
+        },
+        {
+          "path": "s2/cmd/internal/readahead/LICENSE",
+          "bytes": 1100,
+          "sha256": "10fa24a602fde465db603cd5d546e37e33642a73cd24ddf5910be81724fec8b2",
+          "inferred_identifiers": [
+            "MIT"
+          ],
+          "scope": "other_module_content"
+        },
+        {
+          "path": "s2/cmd/internal/filepathx/LICENSE",
+          "bytes": 1061,
+          "sha256": "8582c87d9a6baa28f7827c5205b7d16c3179bc794ebd4c7cc287c49a89b7eaa1",
+          "inferred_identifiers": [
+            "MIT"
+          ],
+          "scope": "other_module_content"
+        }
+      ],
+      "review_flags": [
+        "Compiled package ancestor has additional license/notice files; preserve scoped terms"
+      ]
+    },
+    {
+      "baseline_root_license_files": [
+        {
+          "path": "LICENSE",
+          "sha256": "1e4cf2a117516ec1b54041d68ed4f5d331878b04de3386f4790e7b5b9c04e1ec",
+          "inferred_identifiers": [
+            "MIT"
+          ]
+        }
+      ],
+      "module": "github.com/lucasb-eyer/go-colorful",
+      "version": "v1.4.1",
+      "baseline_version": "v1.4.0",
+      "change": "upgraded",
+      "directory": "/Users/xianxu/go/pkg/mod/github.com/lucasb-eyer/go-colorful@v1.4.1",
+      "main": false,
+      "packages": [
+        "github.com/lucasb-eyer/go-colorful"
+      ],
+      "root_license_files": [
+        {
+          "path": "LICENSE",
+          "bytes": 1055,
+          "sha256": "1e4cf2a117516ec1b54041d68ed4f5d331878b04de3386f4790e7b5b9c04e1ec",
+          "inferred_identifiers": [
+            "MIT"
+          ],
+          "scope": "root_or_compiled_package_ancestor"
+        }
+      ],
+      "license_notice_files": [
+        {
+          "path": "LICENSE",
+          "bytes": 1055,
+          "sha256": "1e4cf2a117516ec1b54041d68ed4f5d331878b04de3386f4790e7b5b9c04e1ec",
+          "inferred_identifiers": [
+            "MIT"
+          ],
+          "scope": "root_or_compiled_package_ancestor"
+        }
+      ],
+      "review_flags": []
+    },
+    {
+      "baseline_root_license_files": [
+        {
+          "path": "LICENSE",
+          "sha256": "88a2379b3ca34bf5c57127aff9dcb802bbb60ece0805cdbda65b3bd115f971d9",
+          "inferred_identifiers": [
+            "MIT"
+          ]
+        }
+      ],
+      "module": "github.com/mattn/go-runewidth",
+      "version": "v0.0.24",
+      "baseline_version": "v0.0.23",
+      "change": "upgraded",
+      "directory": "/Users/xianxu/go/pkg/mod/github.com/mattn/go-runewidth@v0.0.24",
+      "main": false,
+      "packages": [
+        "github.com/mattn/go-runewidth"
+      ],
+      "root_license_files": [
+        {
+          "path": "LICENSE",
+          "bytes": 1085,
+          "sha256": "88a2379b3ca34bf5c57127aff9dcb802bbb60ece0805cdbda65b3bd115f971d9",
+          "inferred_identifiers": [
+            "MIT"
+          ],
+          "scope": "root_or_compiled_package_ancestor"
+        }
+      ],
+      "license_notice_files": [
+        {
+          "path": "LICENSE",
+          "bytes": 1085,
+          "sha256": "88a2379b3ca34bf5c57127aff9dcb802bbb60ece0805cdbda65b3bd115f971d9",
+          "inferred_identifiers": [
+            "MIT"
+          ],
+          "scope": "root_or_compiled_package_ancestor"
+        }
+      ],
+      "review_flags": []
+    },
+    {
+      "baseline_root_license_files": [],
+      "module": "github.com/mitchellh/go-ps",
+      "version": "v1.0.0",
+      "baseline_version": null,
+      "change": "added",
+      "directory": "/Users/xianxu/go/pkg/mod/github.com/mitchellh/go-ps@v1.0.0",
+      "main": false,
+      "packages": [
+        "github.com/mitchellh/go-ps"
+      ],
+      "root_license_files": [
+        {
+          "path": "LICENSE.md",
+          "bytes": 1085,
+          "sha256": "3c377fad2e5ae1d7081c7c2f16da867a87cca1d1f5f1aa7ed0b8a16bb553142a",
+          "inferred_identifiers": [
+            "MIT"
+          ],
+          "scope": "root_or_compiled_package_ancestor"
+        }
+      ],
+      "license_notice_files": [
+        {
+          "path": "LICENSE.md",
+          "bytes": 1085,
+          "sha256": "3c377fad2e5ae1d7081c7c2f16da867a87cca1d1f5f1aa7ed0b8a16bb553142a",
+          "inferred_identifiers": [
+            "MIT"
+          ],
+          "scope": "root_or_compiled_package_ancestor"
+        }
+      ],
+      "review_flags": []
+    },
+    {
+      "baseline_root_license_files": [],
+      "module": "github.com/muesli/cancelreader",
+      "version": "v0.2.2",
+      "baseline_version": "v0.2.2",
+      "change": "unchanged",
+      "directory": "/Users/xianxu/go/pkg/mod/github.com/muesli/cancelreader@v0.2.2",
+      "main": false,
+      "packages": [
+        "github.com/muesli/cancelreader"
+      ],
+      "root_license_files": [
+        {
+          "path": "LICENSE",
+          "bytes": 1095,
+          "sha256": "8c139dbbc83b4fb055b4100b6b9402f7de3dd6bbca05015bdfcc4b392c8cfd5f",
+          "inferred_identifiers": [
+            "MIT"
+          ],
+          "scope": "root_or_compiled_package_ancestor"
+        }
+      ],
+      "license_notice_files": [
+        {
+          "path": "LICENSE",
+          "bytes": 1095,
+          "sha256": "8c139dbbc83b4fb055b4100b6b9402f7de3dd6bbca05015bdfcc4b392c8cfd5f",
+          "inferred_identifiers": [
+            "MIT"
+          ],
+          "scope": "root_or_compiled_package_ancestor"
+        }
+      ],
+      "review_flags": []
+    },
+    {
+      "baseline_root_license_files": [],
+      "module": "github.com/pires/go-proxyproto",
+      "version": "v0.15.0",
+      "baseline_version": null,
+      "change": "added",
+      "directory": "/Users/xianxu/go/pkg/mod/github.com/pires/go-proxyproto@v0.15.0",
+      "main": false,
+      "packages": [
+        "github.com/pires/go-proxyproto"
+      ],
+      "root_license_files": [
+        {
+          "path": "LICENSE",
+          "bytes": 11341,
+          "sha256": "666f1951be1d543e744818d232bb311a4a310fd1d344288642c796fca39af3c7",
+          "inferred_identifiers": [
+            "Apache-2.0"
+          ],
+          "scope": "root_or_compiled_package_ancestor"
+        }
+      ],
+      "license_notice_files": [
+        {
+          "path": "LICENSE",
+          "bytes": 11341,
+          "sha256": "666f1951be1d543e744818d232bb311a4a310fd1d344288642c796fca39af3c7",
+          "inferred_identifiers": [
+            "Apache-2.0"
+          ],
+          "scope": "root_or_compiled_package_ancestor"
+        }
+      ],
+      "review_flags": []
+    },
+    {
+      "baseline_root_license_files": [],
+      "module": "github.com/rivo/uniseg",
+      "version": "v0.4.7",
+      "baseline_version": "v0.4.7",
+      "change": "unchanged",
+      "directory": "/Users/xianxu/go/pkg/mod/github.com/rivo/uniseg@v0.4.7",
+      "main": false,
+      "packages": [
+        "github.com/rivo/uniseg"
+      ],
+      "root_license_files": [
+        {
+          "path": "LICENSE.txt",
+          "bytes": 1072,
+          "sha256": "a59885f5f0f3b3c07cf9444db5fe399b6f0791eac82055f7b85cc65500551039",
+          "inferred_identifiers": [
+            "MIT"
+          ],
+          "scope": "root_or_compiled_package_ancestor"
+        }
+      ],
+      "license_notice_files": [
+        {
+          "path": "LICENSE.txt",
+          "bytes": 1072,
+          "sha256": "a59885f5f0f3b3c07cf9444db5fe399b6f0791eac82055f7b85cc65500551039",
+          "inferred_identifiers": [
+            "MIT"
+          ],
+          "scope": "root_or_compiled_package_ancestor"
+        }
+      ],
+      "review_flags": []
+    },
+    {
+      "baseline_root_license_files": [],
+      "module": "github.com/skip2/go-qrcode",
+      "version": "v0.0.0-20200617195104-da1b6568686e",
+      "baseline_version": "v0.0.0-20200617195104-da1b6568686e",
+      "change": "unchanged",
+      "directory": "/Users/xianxu/go/pkg/mod/github.com/skip2/go-qrcode@v0.0.0-20200617195104-da1b6568686e",
+      "main": false,
+      "packages": [
+        "github.com/skip2/go-qrcode",
+        "github.com/skip2/go-qrcode/bitset",
+        "github.com/skip2/go-qrcode/reedsolomon"
+      ],
+      "root_license_files": [
+        {
+          "path": "LICENSE",
+          "bytes": 1055,
+          "sha256": "4cdab772de606bdf53e174b2f5d6a2c398156380ca1f763122198cece531d02c",
+          "inferred_identifiers": [
+            "MIT"
+          ],
+          "scope": "root_or_compiled_package_ancestor"
+        }
+      ],
+      "license_notice_files": [
+        {
+          "path": "LICENSE",
+          "bytes": 1055,
+          "sha256": "4cdab772de606bdf53e174b2f5d6a2c398156380ca1f763122198cece531d02c",
+          "inferred_identifiers": [
+            "MIT"
+          ],
+          "scope": "root_or_compiled_package_ancestor"
+        }
+      ],
+      "review_flags": []
+    },
+    {
+      "baseline_root_license_files": [],
+      "module": "github.com/tailscale/certstore",
+      "version": "v0.1.1-0.20260409135935-3638fb84b77d",
+      "baseline_version": null,
+      "change": "added",
+      "directory": "/Users/xianxu/go/pkg/mod/github.com/tailscale/certstore@v0.1.1-0.20260409135935-3638fb84b77d",
+      "main": false,
+      "packages": [
+        "github.com/tailscale/certstore"
+      ],
+      "root_license_files": [
+        {
+          "path": "LICENSE.md",
+          "bytes": 1067,
+          "sha256": "e4a0c3d87230b78d441e4666fba1ab95211fd1e9be76bf445d664685ae0a9e48",
+          "inferred_identifiers": [
+            "MIT"
+          ],
+          "scope": "root_or_compiled_package_ancestor"
+        }
+      ],
+      "license_notice_files": [
+        {
+          "path": "LICENSE.md",
+          "bytes": 1067,
+          "sha256": "e4a0c3d87230b78d441e4666fba1ab95211fd1e9be76bf445d664685ae0a9e48",
+          "inferred_identifiers": [
+            "MIT"
+          ],
+          "scope": "root_or_compiled_package_ancestor"
+        }
+      ],
+      "review_flags": []
+    },
+    {
+      "baseline_root_license_files": [],
+      "module": "github.com/tailscale/hujson",
+      "version": "v0.0.0-20260727124030-b80ff77dac4f",
+      "baseline_version": null,
+      "change": "added",
+      "directory": "/Users/xianxu/go/pkg/mod/github.com/tailscale/hujson@v0.0.0-20260727124030-b80ff77dac4f",
+      "main": false,
+      "packages": [
+        "github.com/tailscale/hujson"
+      ],
+      "root_license_files": [
+        {
+          "path": "LICENSE",
+          "bytes": 1478,
+          "sha256": "a125b6c2721809b6c2a8761771932611833008ed8697d752b3e35d36e4bbd83e",
+          "inferred_identifiers": [
+            "BSD-3-Clause"
+          ],
+          "scope": "root_or_compiled_package_ancestor"
+        }
+      ],
+      "license_notice_files": [
+        {
+          "path": "LICENSE",
+          "bytes": 1478,
+          "sha256": "a125b6c2721809b6c2a8761771932611833008ed8697d752b3e35d36e4bbd83e",
+          "inferred_identifiers": [
+            "BSD-3-Clause"
+          ],
+          "scope": "root_or_compiled_package_ancestor"
+        }
+      ],
+      "review_flags": []
+    },
+    {
+      "baseline_root_license_files": [],
+      "module": "github.com/tailscale/peercred",
+      "version": "v0.0.0-20250107143737-35a0c7bd7edc",
+      "baseline_version": null,
+      "change": "added",
+      "directory": "/Users/xianxu/go/pkg/mod/github.com/tailscale/peercred@v0.0.0-20250107143737-35a0c7bd7edc",
+      "main": false,
+      "packages": [
+        "github.com/tailscale/peercred"
+      ],
+      "root_license_files": [
+        {
+          "path": "LICENSE",
+          "bytes": 1522,
+          "sha256": "8e0db394107481655ef6a46baace86aaead5fc9b4c5ce83b9fa16037e891d03c",
+          "inferred_identifiers": [
+            "BSD-3-Clause"
+          ],
+          "scope": "root_or_compiled_package_ancestor"
+        }
+      ],
+      "license_notice_files": [
+        {
+          "path": "LICENSE",
+          "bytes": 1522,
+          "sha256": "8e0db394107481655ef6a46baace86aaead5fc9b4c5ce83b9fa16037e891d03c",
+          "inferred_identifiers": [
+            "BSD-3-Clause"
+          ],
+          "scope": "root_or_compiled_package_ancestor"
+        },
+        {
+          "path": "AUTHORS",
+          "bytes": 14,
+          "sha256": "81d284fb6b7880f5954de296cbaf53a66a082d15d46b7fd7ce464ddc69104a8f",
+          "inferred_identifiers": [],
+          "scope": "root_or_compiled_package_ancestor"
+        }
+      ],
+      "review_flags": []
+    },
+    {
+      "baseline_root_license_files": [],
+      "module": "github.com/tailscale/web-client-prebuilt",
+      "version": "v0.0.0-20260917222731-e0ed2d0d0fea",
+      "baseline_version": null,
+      "change": "added",
+      "directory": "/Users/xianxu/go/pkg/mod/github.com/tailscale/web-client-prebuilt@v0.0.0-20260917222731-e0ed2d0d0fea",
+      "main": false,
+      "packages": [
+        "github.com/tailscale/web-client-prebuilt"
+      ],
+      "root_license_files": [
+        {
+          "path": "LICENSE",
+          "bytes": 1510,
+          "sha256": "d1ee1c7947d4b2c1963ea214d5324f1d4c89f2f1d0f0224889b4dfb868dad725",
+          "inferred_identifiers": [
+            "BSD-3-Clause"
+          ],
+          "scope": "root_or_compiled_package_ancestor"
+        }
+      ],
+      "license_notice_files": [
+        {
+          "path": "LICENSE",
+          "bytes": 1510,
+          "sha256": "d1ee1c7947d4b2c1963ea214d5324f1d4c89f2f1d0f0224889b4dfb868dad725",
+          "inferred_identifiers": [
+            "BSD-3-Clause"
+          ],
+          "scope": "root_or_compiled_package_ancestor"
+        }
+      ],
+      "review_flags": [
+        "Embedded Inter font and compressed JS/CSS asset dependency notices not separately found; provenance/notice review incomplete"
+      ]
+    },
+    {
+      "baseline_root_license_files": [],
+      "module": "github.com/tailscale/wireguard-go",
+      "version": "v0.0.0-20260928213032-417aef361226",
+      "baseline_version": null,
+      "change": "added",
+      "directory": "/Users/xianxu/go/pkg/mod/github.com/tailscale/wireguard-go@v0.0.0-20260928213032-417aef361226",
+      "main": false,
+      "packages": [
+        "github.com/tailscale/wireguard-go/conn",
+        "github.com/tailscale/wireguard-go/device",
+        "github.com/tailscale/wireguard-go/ipc",
+        "github.com/tailscale/wireguard-go/ratelimiter",
+        "github.com/tailscale/wireguard-go/replay",
+        "github.com/tailscale/wireguard-go/rwcancel",
+        "github.com/tailscale/wireguard-go/tai64n",
+        "github.com/tailscale/wireguard-go/tun"
+      ],
+      "root_license_files": [
+        {
+          "path": "LICENSE",
+          "bytes": 1023,
+          "sha256": "91276db973f25602d1aa43491f59cbc84cb88e6f151e1d0cc82a755563ce0195",
+          "inferred_identifiers": [
+            "MIT"
+          ],
+          "scope": "root_or_compiled_package_ancestor"
+        }
+      ],
+      "license_notice_files": [
+        {
+          "path": "LICENSE",
+          "bytes": 1023,
+          "sha256": "91276db973f25602d1aa43491f59cbc84cb88e6f151e1d0cc82a755563ce0195",
+          "inferred_identifiers": [
+            "MIT"
+          ],
+          "scope": "root_or_compiled_package_ancestor"
+        }
+      ],
+      "review_flags": []
+    },
+    {
+      "baseline_root_license_files": [],
+      "module": "github.com/x448/float16",
+      "version": "v0.8.4",
+      "baseline_version": null,
+      "change": "added",
+      "directory": "/Users/xianxu/go/pkg/mod/github.com/x448/float16@v0.8.4",
+      "main": false,
+      "packages": [
+        "github.com/x448/float16"
+      ],
+      "root_license_files": [
+        {
+          "path": "LICENSE",
+          "bytes": 1102,
+          "sha256": "a555f1194fdac34da70fb416968f7e2217b02352c26c1eac2fa45fcb4290ae8d",
+          "inferred_identifiers": [
+            "MIT"
+          ],
+          "scope": "root_or_compiled_package_ancestor"
+        }
+      ],
+      "license_notice_files": [
+        {
+          "path": "LICENSE",
+          "bytes": 1102,
+          "sha256": "a555f1194fdac34da70fb416968f7e2217b02352c26c1eac2fa45fcb4290ae8d",
+          "inferred_identifiers": [
+            "MIT"
+          ],
+          "scope": "root_or_compiled_package_ancestor"
+        }
+      ],
+      "review_flags": []
+    },
+    {
+      "baseline_root_license_files": [],
+      "module": "github.com/xianxu/ariadne",
+      "version": "v0.0.0-20261018104241-81c832d5e000",
+      "baseline_version": "v0.0.0-20261018104241-81c832d5e000",
+      "change": "unchanged",
+      "directory": "/Users/xianxu/go/pkg/mod/github.com/xianxu/ariadne@v0.0.0-20261018104241-81c832d5e000",
+      "main": false,
+      "packages": [
+        "github.com/xianxu/ariadne/pkg/layergraph",
+        "github.com/xianxu/ariadne/pkg/workspace"
+      ],
+      "root_license_files": [
+        {
+          "path": "LICENSE",
+          "bytes": 1064,
+          "sha256": "f41d8c0b212497822ca7c1e9f4d1917d7612fe54916cdedd053cac98656062fd",
+          "inferred_identifiers": [
+            "MIT"
+          ],
+          "scope": "root_or_compiled_package_ancestor"
+        }
+      ],
+      "license_notice_files": [
+        {
+          "path": "LICENSE",
+          "bytes": 1064,
+          "sha256": "f41d8c0b212497822ca7c1e9f4d1917d7612fe54916cdedd053cac98656062fd",
+          "inferred_identifiers": [
+            "MIT"
+          ],
+          "scope": "root_or_compiled_package_ancestor"
+        }
+      ],
+      "review_flags": []
+    },
+    {
+      "baseline_root_license_files": [],
+      "module": "github.com/xianxu/pair",
+      "version": "",
+      "baseline_version": "",
+      "change": "unchanged",
+      "directory": "/Users/xianxu/workspace/worktree/pair-slot6/pair",
+      "main": true,
+      "packages": [
+        "github.com/xianxu/pair/cmd/couch",
+        "github.com/xianxu/pair/cmd/internal/adapt",
+        "github.com/xianxu/pair/cmd/internal/agentdrive",
+        "github.com/xianxu/pair/cmd/internal/ansi",
+        "github.com/xianxu/pair/cmd/internal/artifactpath",
+        "github.com/xianxu/pair/cmd/internal/broadcast",
+        "github.com/xianxu/pair/cmd/internal/castlock",
+        "github.com/xianxu/pair/cmd/internal/cdp",
+        "github.com/xianxu/pair/cmd/internal/checkpoint",
+        "github.com/xianxu/pair/cmd/internal/clipcmd",
+        "github.com/xianxu/pair/cmd/internal/commitoutcome",
+        "github.com/xianxu/pair/cmd/internal/contextcmd",
+        "github.com/xianxu/pair/cmd/internal/continuationcmd",
+        "github.com/xianxu/pair/cmd/internal/couchcmd",
+        "github.com/xianxu/pair/cmd/internal/couchcore",
+        "github.com/xianxu/pair/cmd/internal/couchidentity",
+        "github.com/xianxu/pair/cmd/internal/couchkeys",
+        "github.com/xianxu/pair/cmd/internal/couchmessage",
+        "github.com/xianxu/pair/cmd/internal/couchscratch",
+        "github.com/xianxu/pair/cmd/internal/couchsingleton",
+        "github.com/xianxu/pair/cmd/internal/couchtty",
+        "github.com/xianxu/pair/cmd/internal/crashreport",
+        "github.com/xianxu/pair/cmd/internal/ctxmeter",
+        "github.com/xianxu/pair/cmd/internal/diagnosticlog",
+        "github.com/xianxu/pair/cmd/internal/durablefile",
+        "github.com/xianxu/pair/cmd/internal/editorendpoint",
+        "github.com/xianxu/pair/cmd/internal/historyarchive",
+        "github.com/xianxu/pair/cmd/internal/hostty",
+        "github.com/xianxu/pair/cmd/internal/keyhelp",
+        "github.com/xianxu/pair/cmd/internal/launcher",
+        "github.com/xianxu/pair/cmd/internal/layoutcmd",
+        "github.com/xianxu/pair/cmd/internal/lifetimelease",
+        "github.com/xianxu/pair/cmd/internal/mockserve",
+        "github.com/xianxu/pair/cmd/internal/mouseinput",
+        "github.com/xianxu/pair/cmd/internal/nativeid",
+        "github.com/xianxu/pair/cmd/internal/notifyosc",
+        "github.com/xianxu/pair/cmd/internal/notifytransport",
+        "github.com/xianxu/pair/cmd/internal/orientation",
+        "github.com/xianxu/pair/cmd/internal/osfs",
+        "github.com/xianxu/pair/cmd/internal/pairlifecycle",
+        "github.com/xianxu/pair/cmd/internal/panebirth",
+        "github.com/xianxu/pair/cmd/internal/pathscope",
+        "github.com/xianxu/pair/cmd/internal/procutil",
+        "github.com/xianxu/pair/cmd/internal/ptychild",
+        "github.com/xianxu/pair/cmd/internal/readiness",
+        "github.com/xianxu/pair/cmd/internal/remotesession",
+        "github.com/xianxu/pair/cmd/internal/resumeform",
+        "github.com/xianxu/pair/cmd/internal/reviewcmd",
+        "github.com/xianxu/pair/cmd/internal/rowtext",
+        "github.com/xianxu/pair/cmd/internal/runtimebundle",
+        "github.com/xianxu/pair/cmd/internal/runtimebundle/manifestmodel",
+        "github.com/xianxu/pair/cmd/internal/scrollbackcmd",
+        "github.com/xianxu/pair/cmd/internal/sessioninventory",
+        "github.com/xianxu/pair/cmd/internal/sessionledger",
+        "github.com/xianxu/pair/cmd/internal/sessionsync",
+        "github.com/xianxu/pair/cmd/internal/sessionwatch",
+        "github.com/xianxu/pair/cmd/internal/slugline",
+        "github.com/xianxu/pair/cmd/internal/storagegc",
+        "github.com/xianxu/pair/cmd/internal/strictjson",
+        "github.com/xianxu/pair/cmd/internal/submission",
+        "github.com/xianxu/pair/cmd/internal/tailmarkup",
+        "github.com/xianxu/pair/cmd/internal/terminal",
+        "github.com/xianxu/pair/cmd/internal/terminalcapture",
+        "github.com/xianxu/pair/cmd/internal/textwidth",
+        "github.com/xianxu/pair/cmd/internal/threadactivity",
+        "github.com/xianxu/pair/cmd/internal/threadrecord",
+        "github.com/xianxu/pair/cmd/internal/titlepoller",
+        "github.com/xianxu/pair/cmd/internal/ttyio",
+        "github.com/xianxu/pair/cmd/internal/webcast",
+        "github.com/xianxu/pair/cmd/internal/webcast/assets",
+        "github.com/xianxu/pair/cmd/internal/webcast/board",
+        "github.com/xianxu/pair/cmd/internal/webcast/capability",
+        "github.com/xianxu/pair/cmd/internal/webcast/drive",
+        "github.com/xianxu/pair/cmd/internal/webcast/fidelity",
+        "github.com/xianxu/pair/cmd/internal/webcast/notedraft",
+        "github.com/xianxu/pair/cmd/internal/webcast/notes",
+        "github.com/xianxu/pair/cmd/internal/webcast/query",
+        "github.com/xianxu/pair/cmd/internal/webcast/recorder",
+        "github.com/xianxu/pair/cmd/internal/webcast/recording",
+        "github.com/xianxu/pair/cmd/internal/webcast/submission",
+        "github.com/xianxu/pair/cmd/internal/workbenchshortcut",
+        "github.com/xianxu/pair/cmd/internal/zellijexec",
+        "github.com/xianxu/pair/cmd/internal/zellijpane",
+        "github.com/xianxu/pair/cmd/internal/zellijquery",
+        "github.com/xianxu/pair/cmd/internal/zellijreply",
+        "github.com/xianxu/pair/cmd/internal/zellijsession",
+        "github.com/xianxu/pair/internal/reporoot"
+      ],
+      "root_license_files": [
+        {
+          "path": "LICENSE",
+          "bytes": 11357,
+          "sha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4",
+          "inferred_identifiers": [
+            "Apache-2.0"
+          ],
+          "scope": "root_or_compiled_package_ancestor"
+        }
+      ],
+      "license_notice_files": [
+        {
+          "path": "LICENSE",
+          "bytes": 11357,
+          "sha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4",
+          "inferred_identifiers": [
+            "Apache-2.0"
+          ],
+          "scope": "root_or_compiled_package_ancestor"
+        },
+        {
+          "path": "third_party/vt/LICENSE",
+          "bytes": 1076,
+          "sha256": "0baa4a5942a801d93f4050d2bc0039d8c037105fcd335230d118eec99a11782b",
+          "inferred_identifiers": [
+            "MIT"
+          ],
+          "scope": "other_module_content"
+        },
+        {
+          "path": "third_party/vt/ansiparser/LICENSE",
+          "bytes": 1076,
+          "sha256": "0baa4a5942a801d93f4050d2bc0039d8c037105fcd335230d118eec99a11782b",
+          "inferred_identifiers": [
+            "MIT"
+          ],
+          "scope": "other_module_content"
+        },
+        {
+          "path": "cmd/internal/broadcast/web/vendor/xterm/LICENSE",
+          "bytes": 1261,
+          "sha256": "b569f629d00f2626a8100df2a1798210535621e42164dfd426a6fe5aac7b0ccd",
+          "inferred_identifiers": [
+            "MIT"
+          ],
+          "scope": "other_module_content"
+        },
+        {
+          "path": "cmd/internal/broadcast/web/vendor/xterm/LICENSE-addon-unicode11",
+          "bytes": 1103,
+          "sha256": "e256f01188af527e4d06d21d06fbf785ae9c50d4b328bf03cbe0ba7f0aa4228f",
+          "inferred_identifiers": [
+            "MIT"
+          ],
+          "scope": "other_module_content"
+        }
+      ],
+      "review_flags": []
+    },
+    {
+      "baseline_root_license_files": [
+        {
+          "path": "LICENSE",
+          "sha256": "1f5f51151ba96f0492ce288bd007242f924fdad9f04002e175e951644340a891",
+          "inferred_identifiers": [
+            "MIT"
+          ]
+        }
+      ],
+      "module": "github.com/xo/terminfo",
+      "version": "v1.0.0",
+      "baseline_version": "v0.0.0-20220910002029-abceb7e1c41e",
+      "change": "upgraded",
+      "directory": "/Users/xianxu/go/pkg/mod/github.com/xo/terminfo@v1.0.0",
+      "main": false,
+      "packages": [
+        "github.com/xo/terminfo"
+      ],
+      "root_license_files": [
+        {
+          "path": "LICENSE",
+          "bytes": 1078,
+          "sha256": "1f5f51151ba96f0492ce288bd007242f924fdad9f04002e175e951644340a891",
+          "inferred_identifiers": [
+            "MIT"
+          ],
+          "scope": "root_or_compiled_package_ancestor"
+        }
+      ],
+      "license_notice_files": [
+        {
+          "path": "LICENSE",
+          "bytes": 1078,
+          "sha256": "1f5f51151ba96f0492ce288bd007242f924fdad9f04002e175e951644340a891",
+          "inferred_identifiers": [
+            "MIT"
+          ],
+          "scope": "root_or_compiled_package_ancestor"
+        }
+      ],
+      "review_flags": []
+    },
+    {
+      "baseline_root_license_files": [],
+      "module": "go4.org/mem",
+      "version": "v0.0.0-20240501181205-ae6ca9944745",
+      "baseline_version": null,
+      "change": "added",
+      "directory": "/Users/xianxu/go/pkg/mod/go4.org/mem@v0.0.0-20240501181205-ae6ca9944745",
+      "main": false,
+      "packages": [
+        "go4.org/mem"
+      ],
+      "root_license_files": [
+        {
+          "path": "LICENSE",
+          "bytes": 11358,
+          "sha256": "c6596eb7be8581c18be736c846fb9173b69eccf6ef94c5135893ec56bd92ba08",
+          "inferred_identifiers": [
+            "Apache-2.0"
+          ],
+          "scope": "root_or_compiled_package_ancestor"
+        }
+      ],
+      "license_notice_files": [
+        {
+          "path": "LICENSE",
+          "bytes": 11358,
+          "sha256": "c6596eb7be8581c18be736c846fb9173b69eccf6ef94c5135893ec56bd92ba08",
+          "inferred_identifiers": [
+            "Apache-2.0"
+          ],
+          "scope": "root_or_compiled_package_ancestor"
+        }
+      ],
+      "review_flags": []
+    },
+    {
+      "baseline_root_license_files": [],
+      "module": "go4.org/netipx",
+      "version": "v0.0.0-20260823151212-3075585bcbeb",
+      "baseline_version": null,
+      "change": "added",
+      "directory": "/Users/xianxu/go/pkg/mod/go4.org/netipx@v0.0.0-20260823151212-3075585bcbeb",
+      "main": false,
+      "packages": [
+        "go4.org/netipx"
+      ],
+      "root_license_files": [
+        {
+          "path": "LICENSE",
+          "bytes": 1487,
+          "sha256": "1bfc4f32f4ec8ca8fce54bd2d97784f003786753a69a78ca74ffae1574037fb9",
+          "inferred_identifiers": [
+            "BSD-3-Clause"
+          ],
+          "scope": "root_or_compiled_package_ancestor"
+        }
+      ],
+      "license_notice_files": [
+        {
+          "path": "LICENSE",
+          "bytes": 1487,
+          "sha256": "1bfc4f32f4ec8ca8fce54bd2d97784f003786753a69a78ca74ffae1574037fb9",
+          "inferred_identifiers": [
+            "BSD-3-Clause"
+          ],
+          "scope": "root_or_compiled_package_ancestor"
+        },
+        {
+          "path": "AUTHORS",
+          "bytes": 120,
+          "sha256": "7868b053d41a7d213354d2c0417ca82c3a045d7cf5f9c2e3bb749b3882c52136",
+          "inferred_identifiers": [],
+          "scope": "root_or_compiled_package_ancestor"
+        }
+      ],
+      "review_flags": []
+    },
+    {
+      "baseline_root_license_files": [],
+      "module": "golang.org/x/crypto",
+      "version": "v0.57.0",
+      "baseline_version": null,
+      "change": "added",
+      "directory": "/Users/xianxu/go/pkg/mod/golang.org/x/crypto@v0.57.0",
+      "main": false,
+      "packages": [
+        "golang.org/x/crypto/argon2",
+        "golang.org/x/crypto/blake2b",
+        "golang.org/x/crypto/blake2s",
+        "golang.org/x/crypto/chacha20",
+        "golang.org/x/crypto/chacha20poly1305",
+        "golang.org/x/crypto/curve25519",
+        "golang.org/x/crypto/hkdf",
+        "golang.org/x/crypto/internal/alias",
+        "golang.org/x/crypto/internal/poly1305",
+        "golang.org/x/crypto/nacl/box",
+        "golang.org/x/crypto/nacl/secretbox",
+        "golang.org/x/crypto/poly1305",
+        "golang.org/x/crypto/salsa20/salsa"
+      ],
+      "root_license_files": [
+        {
+          "path": "LICENSE",
+          "bytes": 1453,
+          "sha256": "911f8f5782931320f5b8d1160a76365b83aea6447ee6c04fa6d5591467db9dad",
+          "inferred_identifiers": [
+            "BSD-3-Clause"
+          ],
+          "scope": "root_or_compiled_package_ancestor"
+        }
+      ],
+      "license_notice_files": [
+        {
+          "path": "LICENSE",
+          "bytes": 1453,
+          "sha256": "911f8f5782931320f5b8d1160a76365b83aea6447ee6c04fa6d5591467db9dad",
+          "inferred_identifiers": [
+            "BSD-3-Clause"
+          ],
+          "scope": "root_or_compiled_package_ancestor"
+        }
+      ],
+      "review_flags": []
+    },
+    {
+      "baseline_root_license_files": [],
+      "module": "golang.org/x/exp",
+      "version": "v0.0.0-20260908205506-85c1c2202aba",
+      "baseline_version": null,
+      "change": "added",
+      "directory": "/Users/xianxu/go/pkg/mod/golang.org/x/exp@v0.0.0-20260908205506-85c1c2202aba",
+      "main": false,
+      "packages": [
+        "golang.org/x/exp/constraints",
+        "golang.org/x/exp/maps"
+      ],
+      "root_license_files": [
+        {
+          "path": "LICENSE",
+          "bytes": 1453,
+          "sha256": "911f8f5782931320f5b8d1160a76365b83aea6447ee6c04fa6d5591467db9dad",
+          "inferred_identifiers": [
+            "BSD-3-Clause"
+          ],
+          "scope": "root_or_compiled_package_ancestor"
+        }
+      ],
+      "license_notice_files": [
+        {
+          "path": "LICENSE",
+          "bytes": 1453,
+          "sha256": "911f8f5782931320f5b8d1160a76365b83aea6447ee6c04fa6d5591467db9dad",
+          "inferred_identifiers": [
+            "BSD-3-Clause"
+          ],
+          "scope": "root_or_compiled_package_ancestor"
+        }
+      ],
+      "review_flags": []
+    },
+    {
+      "baseline_root_license_files": [],
+      "module": "golang.org/x/image",
+      "version": "v0.46.0",
+      "baseline_version": "v0.46.0",
+      "change": "unchanged",
+      "directory": "/Users/xianxu/go/pkg/mod/golang.org/x/image@v0.46.0",
+      "main": false,
+      "packages": [
+        "golang.org/x/image/draw",
+        "golang.org/x/image/math/f64",
+        "golang.org/x/image/riff",
+        "golang.org/x/image/vp8",
+        "golang.org/x/image/vp8l",
+        "golang.org/x/image/webp"
+      ],
+      "root_license_files": [
+        {
+          "path": "LICENSE",
+          "bytes": 1453,
+          "sha256": "911f8f5782931320f5b8d1160a76365b83aea6447ee6c04fa6d5591467db9dad",
+          "inferred_identifiers": [
+            "BSD-3-Clause"
+          ],
+          "scope": "root_or_compiled_package_ancestor"
+        }
+      ],
+      "license_notice_files": [
+        {
+          "path": "LICENSE",
+          "bytes": 1453,
+          "sha256": "911f8f5782931320f5b8d1160a76365b83aea6447ee6c04fa6d5591467db9dad",
+          "inferred_identifiers": [
+            "BSD-3-Clause"
+          ],
+          "scope": "root_or_compiled_package_ancestor"
+        }
+      ],
+      "review_flags": []
+    },
+    {
+      "baseline_root_license_files": [
+        {
+          "path": "LICENSE",
+          "sha256": "911f8f5782931320f5b8d1160a76365b83aea6447ee6c04fa6d5591467db9dad",
+          "inferred_identifiers": [
+            "BSD-3-Clause"
+          ]
+        }
+      ],
+      "module": "golang.org/x/net",
+      "version": "v0.59.0",
+      "baseline_version": "v0.55.0",
+      "change": "upgraded",
+      "directory": "/Users/xianxu/go/pkg/mod/golang.org/x/net@v0.59.0",
+      "main": false,
+      "packages": [
+        "golang.org/x/net/bpf",
+        "golang.org/x/net/dns/dnsmessage",
+        "golang.org/x/net/html",
+        "golang.org/x/net/html/atom",
+        "golang.org/x/net/http/httpguts",
+        "golang.org/x/net/http/httpproxy",
+        "golang.org/x/net/icmp",
+        "golang.org/x/net/idna",
+        "golang.org/x/net/internal/iana",
+        "golang.org/x/net/internal/socket",
+        "golang.org/x/net/internal/socks",
+        "golang.org/x/net/ipv4",
+        "golang.org/x/net/ipv6",
+        "golang.org/x/net/proxy",
+        "golang.org/x/net/route"
+      ],
+      "root_license_files": [
+        {
+          "path": "LICENSE",
+          "bytes": 1453,
+          "sha256": "911f8f5782931320f5b8d1160a76365b83aea6447ee6c04fa6d5591467db9dad",
+          "inferred_identifiers": [
+            "BSD-3-Clause"
+          ],
+          "scope": "root_or_compiled_package_ancestor"
+        }
+      ],
+      "license_notice_files": [
+        {
+          "path": "LICENSE",
+          "bytes": 1453,
+          "sha256": "911f8f5782931320f5b8d1160a76365b83aea6447ee6c04fa6d5591467db9dad",
+          "inferred_identifiers": [
+            "BSD-3-Clause"
+          ],
+          "scope": "root_or_compiled_package_ancestor"
+        }
+      ],
+      "review_flags": []
+    },
+    {
+      "baseline_root_license_files": [
+        {
+          "path": "LICENSE",
+          "sha256": "911f8f5782931320f5b8d1160a76365b83aea6447ee6c04fa6d5591467db9dad",
+          "inferred_identifiers": [
+            "BSD-3-Clause"
+          ]
+        }
+      ],
+      "module": "golang.org/x/oauth2",
+      "version": "v0.37.0",
+      "baseline_version": "v0.36.0",
+      "change": "upgraded",
+      "directory": "/Users/xianxu/go/pkg/mod/golang.org/x/oauth2@v0.37.0",
+      "main": false,
+      "packages": [
+        "golang.org/x/oauth2",
+        "golang.org/x/oauth2/clientcredentials",
+        "golang.org/x/oauth2/internal"
+      ],
+      "root_license_files": [
+        {
+          "path": "LICENSE",
+          "bytes": 1453,
+          "sha256": "911f8f5782931320f5b8d1160a76365b83aea6447ee6c04fa6d5591467db9dad",
+          "inferred_identifiers": [
+            "BSD-3-Clause"
+          ],
+          "scope": "root_or_compiled_package_ancestor"
+        }
+      ],
+      "license_notice_files": [
+        {
+          "path": "LICENSE",
+          "bytes": 1453,
+          "sha256": "911f8f5782931320f5b8d1160a76365b83aea6447ee6c04fa6d5591467db9dad",
+          "inferred_identifiers": [
+            "BSD-3-Clause"
+          ],
+          "scope": "root_or_compiled_package_ancestor"
+        }
+      ],
+      "review_flags": []
+    },
+    {
+      "baseline_root_license_files": [
+        {
+          "path": "LICENSE",
+          "sha256": "911f8f5782931320f5b8d1160a76365b83aea6447ee6c04fa6d5591467db9dad",
+          "inferred_identifiers": [
+            "BSD-3-Clause"
+          ]
+        }
+      ],
+      "module": "golang.org/x/sync",
+      "version": "v0.23.0",
+      "baseline_version": "v0.19.0",
+      "change": "upgraded",
+      "directory": "/Users/xianxu/go/pkg/mod/golang.org/x/sync@v0.23.0",
+      "main": false,
+      "packages": [
+        "golang.org/x/sync/errgroup"
+      ],
+      "root_license_files": [
+        {
+          "path": "LICENSE",
+          "bytes": 1453,
+          "sha256": "911f8f5782931320f5b8d1160a76365b83aea6447ee6c04fa6d5591467db9dad",
+          "inferred_identifiers": [
+            "BSD-3-Clause"
+          ],
+          "scope": "root_or_compiled_package_ancestor"
+        }
+      ],
+      "license_notice_files": [
+        {
+          "path": "LICENSE",
+          "bytes": 1453,
+          "sha256": "911f8f5782931320f5b8d1160a76365b83aea6447ee6c04fa6d5591467db9dad",
+          "inferred_identifiers": [
+            "BSD-3-Clause"
+          ],
+          "scope": "root_or_compiled_package_ancestor"
+        }
+      ],
+      "review_flags": []
+    },
+    {
+      "baseline_root_license_files": [],
+      "module": "golang.org/x/sys",
+      "version": "v0.48.0",
+      "baseline_version": "v0.48.0",
+      "change": "unchanged",
+      "directory": "/Users/xianxu/go/pkg/mod/golang.org/x/sys@v0.48.0",
+      "main": false,
+      "packages": [
+        "golang.org/x/sys/cpu",
+        "golang.org/x/sys/unix"
+      ],
+      "root_license_files": [
+        {
+          "path": "LICENSE",
+          "bytes": 1453,
+          "sha256": "911f8f5782931320f5b8d1160a76365b83aea6447ee6c04fa6d5591467db9dad",
+          "inferred_identifiers": [
+            "BSD-3-Clause"
+          ],
+          "scope": "root_or_compiled_package_ancestor"
+        }
+      ],
+      "license_notice_files": [
+        {
+          "path": "LICENSE",
+          "bytes": 1453,
+          "sha256": "911f8f5782931320f5b8d1160a76365b83aea6447ee6c04fa6d5591467db9dad",
+          "inferred_identifiers": [
+            "BSD-3-Clause"
+          ],
+          "scope": "root_or_compiled_package_ancestor"
+        }
+      ],
+      "review_flags": []
+    },
+    {
+      "baseline_root_license_files": [
+        {
+          "path": "LICENSE",
+          "sha256": "911f8f5782931320f5b8d1160a76365b83aea6447ee6c04fa6d5591467db9dad",
+          "inferred_identifiers": [
+            "BSD-3-Clause"
+          ]
+        }
+      ],
+      "module": "golang.org/x/term",
+      "version": "v0.46.0",
+      "baseline_version": "v0.43.0",
+      "change": "upgraded",
+      "directory": "/Users/xianxu/go/pkg/mod/golang.org/x/term@v0.46.0",
+      "main": false,
+      "packages": [
+        "golang.org/x/term"
+      ],
+      "root_license_files": [
+        {
+          "path": "LICENSE",
+          "bytes": 1453,
+          "sha256": "911f8f5782931320f5b8d1160a76365b83aea6447ee6c04fa6d5591467db9dad",
+          "inferred_identifiers": [
+            "BSD-3-Clause"
+          ],
+          "scope": "root_or_compiled_package_ancestor"
+        }
+      ],
+      "license_notice_files": [
+        {
+          "path": "LICENSE",
+          "bytes": 1453,
+          "sha256": "911f8f5782931320f5b8d1160a76365b83aea6447ee6c04fa6d5591467db9dad",
+          "inferred_identifiers": [
+            "BSD-3-Clause"
+          ],
+          "scope": "root_or_compiled_package_ancestor"
+        }
+      ],
+      "review_flags": []
+    },
+    {
+      "baseline_root_license_files": [],
+      "module": "golang.org/x/text",
+      "version": "v0.42.0",
+      "baseline_version": null,
+      "change": "added",
+      "directory": "/Users/xianxu/go/pkg/mod/golang.org/x/text@v0.42.0",
+      "main": false,
+      "packages": [
+        "golang.org/x/text/secure/bidirule",
+        "golang.org/x/text/transform",
+        "golang.org/x/text/unicode/bidi",
+        "golang.org/x/text/unicode/norm"
+      ],
+      "root_license_files": [
+        {
+          "path": "LICENSE",
+          "bytes": 1453,
+          "sha256": "911f8f5782931320f5b8d1160a76365b83aea6447ee6c04fa6d5591467db9dad",
+          "inferred_identifiers": [
+            "BSD-3-Clause"
+          ],
+          "scope": "root_or_compiled_package_ancestor"
+        }
+      ],
+      "license_notice_files": [
+        {
+          "path": "LICENSE",
+          "bytes": 1453,
+          "sha256": "911f8f5782931320f5b8d1160a76365b83aea6447ee6c04fa6d5591467db9dad",
+          "inferred_identifiers": [
+            "BSD-3-Clause"
+          ],
+          "scope": "root_or_compiled_package_ancestor"
+        }
+      ],
+      "review_flags": []
+    },
+    {
+      "baseline_root_license_files": [],
+      "module": "golang.org/x/time",
+      "version": "v0.16.0",
+      "baseline_version": null,
+      "change": "added",
+      "directory": "/Users/xianxu/go/pkg/mod/golang.org/x/time@v0.16.0",
+      "main": false,
+      "packages": [
+        "golang.org/x/time/rate"
+      ],
+      "root_license_files": [
+        {
+          "path": "LICENSE",
+          "bytes": 1453,
+          "sha256": "911f8f5782931320f5b8d1160a76365b83aea6447ee6c04fa6d5591467db9dad",
+          "inferred_identifiers": [
+            "BSD-3-Clause"
+          ],
+          "scope": "root_or_compiled_package_ancestor"
+        }
+      ],
+      "license_notice_files": [
+        {
+          "path": "LICENSE",
+          "bytes": 1453,
+          "sha256": "911f8f5782931320f5b8d1160a76365b83aea6447ee6c04fa6d5591467db9dad",
+          "inferred_identifiers": [
+            "BSD-3-Clause"
+          ],
+          "scope": "root_or_compiled_package_ancestor"
+        }
+      ],
+      "review_flags": []
+    },
+    {
+      "baseline_root_license_files": [],
+      "module": "gvisor.dev/gvisor",
+      "version": "v0.0.0-20260915211658-a6f909f08a72",
+      "baseline_version": null,
+      "change": "added",
+      "directory": "/Users/xianxu/go/pkg/mod/gvisor.dev/gvisor@v0.0.0-20260915211658-a6f909f08a72",
+      "main": false,
+      "packages": [
+        "gvisor.dev/gvisor/pkg/atomicbitops",
+        "gvisor.dev/gvisor/pkg/bits",
+        "gvisor.dev/gvisor/pkg/buffer",
+        "gvisor.dev/gvisor/pkg/context",
+        "gvisor.dev/gvisor/pkg/cpuid",
+        "gvisor.dev/gvisor/pkg/gohacks",
+        "gvisor.dev/gvisor/pkg/linewriter",
+        "gvisor.dev/gvisor/pkg/log",
+        "gvisor.dev/gvisor/pkg/rand",
+        "gvisor.dev/gvisor/pkg/refs",
+        "gvisor.dev/gvisor/pkg/sleep",
+        "gvisor.dev/gvisor/pkg/state",
+        "gvisor.dev/gvisor/pkg/state/wire",
+        "gvisor.dev/gvisor/pkg/sync",
+        "gvisor.dev/gvisor/pkg/sync/locking",
+        "gvisor.dev/gvisor/pkg/tcpip",
+        "gvisor.dev/gvisor/pkg/tcpip/adapters/gonet",
+        "gvisor.dev/gvisor/pkg/tcpip/checksum",
+        "gvisor.dev/gvisor/pkg/tcpip/hash/jenkins",
+        "gvisor.dev/gvisor/pkg/tcpip/header",
+        "gvisor.dev/gvisor/pkg/tcpip/header/parse",
+        "gvisor.dev/gvisor/pkg/tcpip/internal/tcp",
+        "gvisor.dev/gvisor/pkg/tcpip/network/hash",
+        "gvisor.dev/gvisor/pkg/tcpip/network/internal/fragmentation",
+        "gvisor.dev/gvisor/pkg/tcpip/network/internal/ip",
+        "gvisor.dev/gvisor/pkg/tcpip/network/internal/multicast",
+        "gvisor.dev/gvisor/pkg/tcpip/network/ipv4",
+        "gvisor.dev/gvisor/pkg/tcpip/network/ipv6",
+        "gvisor.dev/gvisor/pkg/tcpip/ports",
+        "gvisor.dev/gvisor/pkg/tcpip/seqnum",
+        "gvisor.dev/gvisor/pkg/tcpip/stack",
+        "gvisor.dev/gvisor/pkg/tcpip/stack/gro",
+        "gvisor.dev/gvisor/pkg/tcpip/transport",
+        "gvisor.dev/gvisor/pkg/tcpip/transport/icmp",
+        "gvisor.dev/gvisor/pkg/tcpip/transport/internal/network",
+        "gvisor.dev/gvisor/pkg/tcpip/transport/internal/noop",
+        "gvisor.dev/gvisor/pkg/tcpip/transport/packet",
+        "gvisor.dev/gvisor/pkg/tcpip/transport/raw",
+        "gvisor.dev/gvisor/pkg/tcpip/transport/tcp",
+        "gvisor.dev/gvisor/pkg/tcpip/transport/tcpconntrack",
+        "gvisor.dev/gvisor/pkg/tcpip/transport/udp",
+        "gvisor.dev/gvisor/pkg/waiter"
+      ],
+      "root_license_files": [
+        {
+          "path": "LICENSE",
+          "bytes": 14110,
+          "sha256": "0fbab5c58efbdf6d31e8085214f2dd821659c03d73cff3ed2b08e98826ea1cd9",
+          "inferred_identifiers": [
+            "Apache-2.0",
+            "BSD-3-Clause",
+            "MIT"
+          ],
+          "scope": "root_or_compiled_package_ancestor"
+        }
+      ],
+      "license_notice_files": [
+        {
+          "path": "LICENSE",
+          "bytes": 14110,
+          "sha256": "0fbab5c58efbdf6d31e8085214f2dd821659c03d73cff3ed2b08e98826ea1cd9",
+          "inferred_identifiers": [
+            "Apache-2.0",
+            "BSD-3-Clause",
+            "MIT"
+          ],
+          "scope": "root_or_compiled_package_ancestor"
+        },
+        {
+          "path": "AUTHORS",
+          "bytes": 365,
+          "sha256": "16818597d03ff1b20e9a5e6eeedb3108acde75ec30c3edba534892b1a66b1e71",
+          "inferred_identifiers": [],
+          "scope": "root_or_compiled_package_ancestor"
+        }
+      ],
+      "review_flags": []
+    },
+    {
+      "baseline_root_license_files": [],
+      "module": "tailscale.com",
+      "version": "v1.104.2",
+      "baseline_version": null,
+      "change": "added",
+      "directory": "/Users/xianxu/go/pkg/mod/tailscale.com@v1.104.2",
+      "main": false,
+      "packages": [
+        "tailscale.com",
+        "tailscale.com/appc",
+        "tailscale.com/atomicfile",
+        "tailscale.com/client/local",
+        "tailscale.com/client/tailscale",
+        "tailscale.com/client/tailscale/apitype",
+        "tailscale.com/client/web",
+        "tailscale.com/control/controlbase",
+        "tailscale.com/control/controlclient",
+        "tailscale.com/control/controlhttp",
+        "tailscale.com/control/controlhttp/controlhttpcommon",
+        "tailscale.com/control/controlknobs",
+        "tailscale.com/control/ts2021",
+        "tailscale.com/derp",
+        "tailscale.com/derp/derpconst",
+        "tailscale.com/derp/derphttp",
+        "tailscale.com/disco",
+        "tailscale.com/drive",
+        "tailscale.com/envknob",
+        "tailscale.com/envknob/featureknob",
+        "tailscale.com/feature",
+        "tailscale.com/feature/acme",
+        "tailscale.com/feature/buildfeatures",
+        "tailscale.com/feature/c2n",
+        "tailscale.com/feature/condlite/expvar",
+        "tailscale.com/feature/condregister/netlog",
+        "tailscale.com/feature/condregister/oauthkey",
+        "tailscale.com/feature/condregister/portmapper",
+        "tailscale.com/feature/condregister/useproxy",
+        "tailscale.com/feature/favorites/pintype",
+        "tailscale.com/feature/netlog",
+        "tailscale.com/feature/oauthkey",
+        "tailscale.com/feature/portmapper",
+        "tailscale.com/feature/serviceclientprefs/serviceclient",
+        "tailscale.com/feature/useproxy",
+        "tailscale.com/health",
+        "tailscale.com/health/healthmsg",
+        "tailscale.com/hostinfo",
+        "tailscale.com/internal/client/tailscale",
+        "tailscale.com/ipn",
+        "tailscale.com/ipn/conffile",
+        "tailscale.com/ipn/ipnauth",
+        "tailscale.com/ipn/ipnext",
+        "tailscale.com/ipn/ipnlocal",
+        "tailscale.com/ipn/ipnlocal/netmapcache",
+        "tailscale.com/ipn/ipnstate",
+        "tailscale.com/ipn/localapi",
+        "tailscale.com/ipn/store",
+        "tailscale.com/ipn/store/mem",
+        "tailscale.com/kube/kubetypes",
+        "tailscale.com/licenses",
+        "tailscale.com/log/filelogger",
+        "tailscale.com/log/sockstatlog",
+        "tailscale.com/logpolicy",
+        "tailscale.com/logtail",
+        "tailscale.com/logtail/filch",
+        "tailscale.com/metrics",
+        "tailscale.com/net/bakedroots",
+        "tailscale.com/net/batching",
+        "tailscale.com/net/connreject",
+        "tailscale.com/net/dns",
+        "tailscale.com/net/dns/publicdns",
+        "tailscale.com/net/dns/resolvconffile",
+        "tailscale.com/net/dns/resolver",
+        "tailscale.com/net/dnscache",
+        "tailscale.com/net/dnsfallback",
+        "tailscale.com/net/flowtrack",
+        "tailscale.com/net/ipset",
+        "tailscale.com/net/memnet",
+        "tailscale.com/net/netaddr",
+        "tailscale.com/net/netcheck",
+        "tailscale.com/net/neterror",
+        "tailscale.com/net/netkernelconf",
+        "tailscale.com/net/netknob",
+        "tailscale.com/net/netmon",
+        "tailscale.com/net/netns",
+        "tailscale.com/net/netutil",
+        "tailscale.com/net/netx",
+        "tailscale.com/net/packet",
+        "tailscale.com/net/packet/checksum",
+        "tailscale.com/net/ping",
+        "tailscale.com/net/portmapper",
+        "tailscale.com/net/portmapper/portmappertype",
+        "tailscale.com/net/proxymux",
+        "tailscale.com/net/routecheck",
+        "tailscale.com/net/routecheck/peernode",
+        "tailscale.com/net/routemanager",
+        "tailscale.com/net/sockopts",
+        "tailscale.com/net/socks5",
+        "tailscale.com/net/sockstats",
+        "tailscale.com/net/stun",
+        "tailscale.com/net/tlsdial",
+        "tailscale.com/net/tlsdial/blockblame",
+        "tailscale.com/net/traffic",
+        "tailscale.com/net/tsaddr",
+        "tailscale.com/net/tsdial",
+        "tailscale.com/net/tshttpproxy",
+        "tailscale.com/net/tstun",
+        "tailscale.com/net/udprelay/endpoint",
+        "tailscale.com/net/udprelay/status",
+        "tailscale.com/omit",
+        "tailscale.com/paths",
+        "tailscale.com/proxymap",
+        "tailscale.com/safesocket",
+        "tailscale.com/syncs",
+        "tailscale.com/tailcfg",
+        "tailscale.com/tailcfg/nodecap",
+        "tailscale.com/tailcfg/peercap",
+        "tailscale.com/tempfork/acme",
+        "tailscale.com/tempfork/heap",
+        "tailscale.com/tempfork/httprec",
+        "tailscale.com/tka",
+        "tailscale.com/tsconst",
+        "tailscale.com/tsd",
+        "tailscale.com/tsnet",
+        "tailscale.com/tstime",
+        "tailscale.com/tstime/mono",
+        "tailscale.com/tstime/rate",
+        "tailscale.com/tsweb",
+        "tailscale.com/tsweb/compserve",
+        "tailscale.com/tsweb/varz",
+        "tailscale.com/tsweb/vcstime",
+        "tailscale.com/types/appctype",
+        "tailscale.com/types/bools",
+        "tailscale.com/types/dnstype",
+        "tailscale.com/types/empty",
+        "tailscale.com/types/events",
+        "tailscale.com/types/ipproto",
+        "tailscale.com/types/key",
+        "tailscale.com/types/lazy",
+        "tailscale.com/types/logger",
+        "tailscale.com/types/logid",
+        "tailscale.com/types/mapx",
+        "tailscale.com/types/netlogfunc",
+        "tailscale.com/types/netlogtype",
+        "tailscale.com/types/netmap",
+        "tailscale.com/types/nettype",
+        "tailscale.com/types/opt",
+        "tailscale.com/types/persist",
+        "tailscale.com/types/preftype",
+        "tailscale.com/types/result",
+        "tailscale.com/types/structs",
+        "tailscale.com/types/tkatype",
+        "tailscale.com/types/views",
+        "tailscale.com/util/backoff",
+        "tailscale.com/util/bufiox",
+        "tailscale.com/util/checkchange",
+        "tailscale.com/util/cibuild",
+        "tailscale.com/util/clientmetric",
+        "tailscale.com/util/cloudenv",
+        "tailscale.com/util/cloudinfo",
+        "tailscale.com/util/ctxkey",
+        "tailscale.com/util/deephash",
+        "tailscale.com/util/def",
+        "tailscale.com/util/dnsname",
+        "tailscale.com/util/eventbus",
+        "tailscale.com/util/execqueue",
+        "tailscale.com/util/goroutines",
+        "tailscale.com/util/groupmember",
+        "tailscale.com/util/hashx",
+        "tailscale.com/util/httpbody",
+        "tailscale.com/util/httpm",
+        "tailscale.com/util/lineiter",
+        "tailscale.com/util/mak",
+        "tailscale.com/util/must",
+        "tailscale.com/util/nocasemaps",
+        "tailscale.com/util/osdiag",
+        "tailscale.com/util/osuser",
+        "tailscale.com/util/race",
+        "tailscale.com/util/racebuild",
+        "tailscale.com/util/rands",
+        "tailscale.com/util/ringlog",
+        "tailscale.com/util/set",
+        "tailscale.com/util/singleflight",
+        "tailscale.com/util/slicesx",
+        "tailscale.com/util/syspolicy/internal",
+        "tailscale.com/util/syspolicy/internal/loggerx",
+        "tailscale.com/util/syspolicy/internal/metrics",
+        "tailscale.com/util/syspolicy/pkey",
+        "tailscale.com/util/syspolicy/policyclient",
+        "tailscale.com/util/syspolicy/ptype",
+        "tailscale.com/util/syspolicy/rsop",
+        "tailscale.com/util/syspolicy/setting",
+        "tailscale.com/util/syspolicy/source",
+        "tailscale.com/util/testenv",
+        "tailscale.com/util/truncate",
+        "tailscale.com/util/usermetric",
+        "tailscale.com/util/vizerror",
+        "tailscale.com/util/winutil",
+        "tailscale.com/util/zstdframe",
+        "tailscale.com/version",
+        "tailscale.com/version/distro",
+        "tailscale.com/wgengine",
+        "tailscale.com/wgengine/filter",
+        "tailscale.com/wgengine/filter/filtertype",
+        "tailscale.com/wgengine/magicsock",
+        "tailscale.com/wgengine/netlog",
+        "tailscale.com/wgengine/netstack",
+        "tailscale.com/wgengine/netstack/gro",
+        "tailscale.com/wgengine/router",
+        "tailscale.com/wgengine/wgcfg",
+        "tailscale.com/wgengine/wgint",
+        "tailscale.com/wgengine/wglog"
+      ],
+      "root_license_files": [
+        {
+          "path": "LICENSE",
+          "bytes": 1515,
+          "sha256": "a7ca6186a7963a0a60740f6047760eecd7a0234e8c38bd7e1e0bbcb324bda45b",
+          "inferred_identifiers": [
+            "BSD-3-Clause"
+          ],
+          "scope": "root_or_compiled_package_ancestor"
+        }
+      ],
+      "license_notice_files": [
+        {
+          "path": "LICENSE",
+          "bytes": 1515,
+          "sha256": "a7ca6186a7963a0a60740f6047760eecd7a0234e8c38bd7e1e0bbcb324bda45b",
+          "inferred_identifiers": [
+            "BSD-3-Clause"
+          ],
+          "scope": "root_or_compiled_package_ancestor"
+        },
+        {
+          "path": "derp/xdp/headers/LICENSE.BSD-2-Clause",
+          "bytes": 1649,
+          "sha256": "e1638b9a0c68ca90fad3df1d6b4e430804d2fbdc15e58d02cffddfae38953bbf",
+          "inferred_identifiers": [
+            "BSD-2-Clause"
+          ],
+          "scope": "other_module_content"
+        },
+        {
+          "path": "tempfork/spf13/cobra/LICENSE.txt",
+          "bytes": 10140,
+          "sha256": "5e3400b93bbb099e83e52bab885e7441750673c21f97988ca3f1240639b63283",
+          "inferred_identifiers": [
+            "Apache-2.0"
+          ],
+          "scope": "other_module_content"
+        },
+        {
+          "path": "tstest/tailmac/LICENSE/LICENSE.txt",
+          "bytes": 1054,
+          "sha256": "39f3ea9e9fc438419ed8c132f2a6a5f45f6f2d6ba47df100513f2b65d751aecd",
+          "inferred_identifiers": [
+            "MIT"
+          ],
+          "scope": "other_module_content"
+        }
+      ],
+      "review_flags": []
+    }
+  ],
+  "removed_baseline_modules": []
+}

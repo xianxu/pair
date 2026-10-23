@@ -1,0 +1,148 @@
+=== RUN   TestErasedBackgroundSoftGapNativeCopyOracle
+=== ARTIFACTS TestErasedBackgroundSoftGapNativeCopyOracle /Volumes/TestScratch/tmp/pair-slot6/p759-go1273.fQOeV7/native-results/artifacts/_artifacts/cmd/internal/terminal/TestErasedBackgroundSoftGapNativeCopyOracle/3062600649
+--- PASS: TestErasedBackgroundSoftGapNativeCopyOracle (11.43s)
+=== RUN   TestPresenterHistoryEvictionNativeAppendAndRebuild
+=== ARTIFACTS TestPresenterHistoryEvictionNativeAppendAndRebuild /Volumes/TestScratch/tmp/pair-slot6/p759-go1273.fQOeV7/native-results/artifacts/_artifacts/cmd/internal/terminal/TestPresenterHistoryEvictionNativeAppendAndRebuild/1851657092
+    history_eviction_test.go:116: native continuous copy "sh-3\n.2$\n"
+    run.go:36: oracle executable="/opt/homebrew/bin/node" process-error=<nil> evidence="/Volumes/TestScratch/tmp/pair-slot6/p759-go1273.fQOeV7/native-results/artifacts/_artifacts/cmd/internal/terminal/TestPresenterHistoryEvictionNativeAppendAndRebuild/1851657092/node-oracle-787680287"
+        stderr phases:
+        [pair-oracle] {"phase":"startup","node":"v26.0.0","execPath":"/opt/homebrew/Cellar/node/26.0.0/bin/node","arch":"arm64","platform":"darwin"}
+        [pair-oracle] {"phase":"import"}
+        [pair-oracle] {"phase":"write","chunk":0}
+        [pair-oracle] {"phase":"snapshot","chunk":0}
+        [pair-oracle] {"phase":"dispose"}
+        
+        complete request (1441 bytes):
+        {"Chunks":["\u001b[?9l\u001b[?1000l\u001b[?1002l\u001b[?1003l\u001b[?1006l\u001b[?1004h\u001b[?2004h\u001b[\u003e3u\u001b[?2026h\u001b[?25l\u001b[?6l\u001b[r\u001b[?7h\u001b[0m\u001b]8;;\u001b\\\u001b[3J\u001b[1;1H\u001b[3L\u001b[2K\u001b[1;2r\u001b[2;1H\u001b[M\u001b[L\u001b[2K\u001b[1;1HA\u001b[2;1H\n\u001b[2;1H\u001b[M\u001b[L\u001b[2K\u001b[1;1HB\u001b[2;1H\n\u001b[r\u001b[2;1H\u001b[2L\u001b[2;1H\u001b[2K\u001b[3;1H\u001b[2K\u001b[1;1H\u001b[2K\u001b[1;1HC\u001b[2;1HD\u001b[3;1HCHR \u001b[0m\u001b]8;;\u001b\\\u001b[?7h\u001b[2;2H\u001b[0 q\u001b[?25h\u001b[?2026l\u001b[?2026h\u001b[?25l\u001b[?6l\u001b[r\u001b[?7h\u001b[0m\u001b]8;;\u001b\\\u001b[1;2r\u001b[2;1H\u001b[M\u001b[L\u001b[2K\u001b[1;1H\u001b[2KC\u001b[2;1H\n\u001b[r\u001b[2;1H\u001b[2L\u001b[2;1H\u001b[2K\u001b[3;1H\u001b[2K\u001b[1;1H\u001b[2K\u001b[1;1HD\u001b[2;1HE\u001b[3;1HCHR \u001b[0m\u001b]8;;\u001b\\\u001b[?7h\u001b[2;2H\u001b[0 q\u001b[?25h\u001b[?2026l\u001b[?2026h\u001b[?25l\u001b[?6l\u001b[r\u001b[?7h\u001b[0m\u001b]8;;\u001b\\\u001b[3J\u001b[1;1H\u001b[3L\u001b[2K\u001b[1;2r\u001b[2;1H\u001b[M\u001b[L\u001b[2K\u001b[1;1HF\u001b[2;1H\n\u001b[2;1H\u001b[M\u001b[L\u001b[2K\u001b[1;1HG\u001b[2;1H\n\u001b[r\u001b[2;1H\u001b[2L\u001b[2;1H\u001b[2K\u001b[3;1H\u001b[2K\u001b[1;1H\u001b[2K\u001b[1;1HH\u001b[2;1HI\u001b[3;1HCHR \u001b[0m\u001b]8;;\u001b\\\u001b[?7h\u001b[2;2H\u001b[0 q\u001b[?25h\u001b[?2026l"],"Cols":4,"Rows":3,"Scrollback":1000}
+    run.go:36: oracle executable="/opt/homebrew/bin/node" process-error=<nil> evidence="/Volumes/TestScratch/tmp/pair-slot6/p759-go1273.fQOeV7/native-results/artifacts/_artifacts/cmd/internal/terminal/TestPresenterHistoryEvictionNativeAppendAndRebuild/1851657092/node-oracle-3754853847"
+        stderr phases:
+        [pair-oracle] {"phase":"startup","node":"v26.0.0","execPath":"/opt/homebrew/Cellar/node/26.0.0/bin/node","arch":"arm64","platform":"darwin"}
+        [pair-oracle] {"phase":"import"}
+        [pair-oracle] {"phase":"write","chunk":0}
+        [pair-oracle] {"phase":"snapshot","chunk":0}
+        [pair-oracle] {"phase":"dispose"}
+        
+        complete request (982 bytes):
+        {"Chunks":["\u001b[?9l\u001b[?1000l\u001b[?1002l\u001b[?1003l\u001b[?1006l\u001b[?1004h\u001b[?2004h\u001b[\u003e3u\u001b[?2026h\u001b[?25l\u001b[?6l\u001b[r\u001b[?7h\u001b[0m\u001b]8;;\u001b\\\u001b[3J\u001b[1;1H\u001b[3L\u001b[2K\u001b[1;2r\u001b[2;1H\u001b[M\u001b[L\u001b[2K\u001b[1;1HA\u001b[2;1H\n\u001b[2;1H\u001b[M\u001b[L\u001b[2K\u001b[1;1HB\u001b[2;1H\n\u001b[r\u001b[2;1H\u001b[2L\u001b[2;1H\u001b[2K\u001b[3;1H\u001b[2K\u001b[1;1H\u001b[2K\u001b[1;1HC\u001b[2;1HD\u001b[3;1HCHR \u001b[0m\u001b]8;;\u001b\\\u001b[?7h\u001b[2;2H\u001b[0 q\u001b[?25h\u001b[?2026l\u001b[?2026h\u001b[?25l\u001b[?6l\u001b[r\u001b[?7h\u001b[0m\u001b]8;;\u001b\\\u001b[1;2r\u001b[2;1H\u001b[M\u001b[L\u001b[2K\u001b[1;1H\u001b[2KC\u001b[2;1H\n\u001b[r\u001b[2;1H\u001b[2L\u001b[2;1H\u001b[2K\u001b[3;1H\u001b[2K\u001b[1;1H\u001b[2K\u001b[1;1HD\u001b[2;1HE\u001b[3;1HCHR \u001b[0m\u001b]8;;\u001b\\\u001b[?7h\u001b[2;2H\u001b[0 q\u001b[?25h\u001b[?2026l"],"Cols":4,"Rows":3,"Scrollback":1000}
+    run.go:36: oracle executable="/opt/homebrew/bin/node" process-error=<nil> evidence="/Volumes/TestScratch/tmp/pair-slot6/p759-go1273.fQOeV7/native-results/artifacts/_artifacts/cmd/internal/terminal/TestPresenterHistoryEvictionNativeAppendAndRebuild/1851657092/node-oracle-3983364989"
+        stderr phases:
+        [pair-oracle] {"phase":"startup","node":"v26.0.0","execPath":"/opt/homebrew/Cellar/node/26.0.0/bin/node","arch":"arm64","platform":"darwin"}
+        [pair-oracle] {"phase":"import"}
+        [pair-oracle] {"phase":"write","chunk":0}
+        [pair-oracle] {"phase":"snapshot","chunk":0}
+        [pair-oracle] {"phase":"dispose"}
+        
+        complete request (97 bytes):
+        {"Chunks":["\u001b[1;2rA\r\nB\r\nC\r\nD\r\nE\u001b[3;1HCHR"],"Cols":4,"Rows":3,"Scrollback":1000}
+--- FAIL: TestPresenterHistoryEvictionNativeAppendAndRebuild (5.96s)
+=== RUN   TestPresenterHistoryEvictionKeepsSoftLineOracle
+=== ARTIFACTS TestPresenterHistoryEvictionKeepsSoftLineOracle /Volumes/TestScratch/tmp/pair-slot6/p759-go1273.fQOeV7/native-results/artifacts/_artifacts/cmd/internal/terminal/TestPresenterHistoryEvictionKeepsSoftLineOracle/1257570901
+    history_eviction_test.go:174: native soft copy got"sh-3\n.2$\n" want"sh-3\n.2$\n"
+    run.go:36: oracle executable="/opt/homebrew/bin/node" process-error=<nil> evidence="/Volumes/TestScratch/tmp/pair-slot6/p759-go1273.fQOeV7/native-results/artifacts/_artifacts/cmd/internal/terminal/TestPresenterHistoryEvictionKeepsSoftLineOracle/1257570901/node-oracle-460940102"
+        stderr phases:
+        [pair-oracle] {"phase":"startup","node":"v26.0.0","execPath":"/opt/homebrew/Cellar/node/26.0.0/bin/node","arch":"arm64","platform":"darwin"}
+        [pair-oracle] {"phase":"import"}
+        [pair-oracle] {"phase":"write","chunk":0}
+        [pair-oracle] {"phase":"snapshot","chunk":0}
+        [pair-oracle] {"phase":"dispose"}
+        
+        complete request (1051 bytes):
+        {"Chunks":["\u001b[?9l\u001b[?1000l\u001b[?1002l\u001b[?1003l\u001b[?1006l\u001b[?1004h\u001b[?2004h\u001b[\u003e3u\u001b[?2026h\u001b[?25l\u001b[?6l\u001b[r\u001b[?7h\u001b[0m\u001b]8;;\u001b\\\u001b[3J\u001b[1;1H\u001b[3L\u001b[2K\u001b[1;2r\u001b[2;1H\u001b[M\u001b[L\u001b[2K\u001b[1;1HAAAAx\u001b[2;1H\n\u001b[2;1H\u001b[M\u001b[L\u001b[2K\u001b[1;1HBBBBx\u001b[2;1H\n\u001b[r\u001b[2;1H\u001b[2L\u001b[2;1H\u001b[2K\u001b[3;1H\u001b[2K\u001b[1;1H\u001b[1;1HCCCC\u001b[1;1H\u001b[4C\u001b[1;4HCx\u001b[2;1HDDDD\u001b[3;1HCHR \u001b[0m\u001b]8;;\u001b\\\u001b[?7h\u001b[2;4H\u001b[0 q\u001b[?25h\u001b[?2026l\u001b[?2026h\u001b[?25l\u001b[?6l\u001b[r\u001b[?7h\u001b[0m\u001b]8;;\u001b\\\u001b[1;2r\u001b[2;1H\u001b[M\u001b[L\u001b[2K\u001b[1;1H\u001b[4XCCCCx\u001b[2;1H\n\u001b[r\u001b[2;1H\u001b[2L\u001b[2;1H\u001b[2K\u001b[3;1H\u001b[2K\u001b[1;1H\u001b[1;1HDDDD\u001b[1;1H\u001b[4C\u001b[1;4HDx\u001b[2;1HE\u001b[3;1HCHR \u001b[0m\u001b]8;;\u001b\\\u001b[?7h\u001b[2;2H\u001b[0 q\u001b[?25h\u001b[?2026l"],"Cols":4,"Rows":3,"Scrollback":1000}
+    run.go:36: oracle executable="/opt/homebrew/bin/node" process-error=<nil> evidence="/Volumes/TestScratch/tmp/pair-slot6/p759-go1273.fQOeV7/native-results/artifacts/_artifacts/cmd/internal/terminal/TestPresenterHistoryEvictionKeepsSoftLineOracle/1257570901/node-oracle-214371006"
+        stderr phases:
+        [pair-oracle] {"phase":"startup","node":"v26.0.0","execPath":"/opt/homebrew/Cellar/node/26.0.0/bin/node","arch":"arm64","platform":"darwin"}
+        [pair-oracle] {"phase":"import"}
+        [pair-oracle] {"phase":"write","chunk":0}
+        [pair-oracle] {"phase":"snapshot","chunk":0}
+        [pair-oracle] {"phase":"dispose"}
+        
+        complete request (93 bytes):
+        {"Chunks":["\u001b[1;2rAAAABBBBCCCCDDDDE\u001b[3;1HCHR"],"Cols":4,"Rows":3,"Scrollback":1000}
+--- FAIL: TestPresenterHistoryEvictionKeepsSoftLineOracle (11.44s)
+=== RUN   TestHistoryWireNativeOracle
+    history_oracle_test.go:132: literal native history "sh-3.2$\n"
+--- FAIL: TestHistoryWireNativeOracle (11.18s)
+=== RUN   TestHistoryOneHostRowOracle
+=== ARTIFACTS TestHistoryOneHostRowOracle /Volumes/TestScratch/tmp/pair-slot6/p759-go1273.fQOeV7/native-results/artifacts/_artifacts/cmd/internal/terminal/TestHistoryOneHostRowOracle/2479801433
+    history_oracle_test.go:204: native history oracle exit status 1: Traceback (most recent call last):
+          File "/Volumes/TestScratch/tmp/pair-slot6/p759-go1273.fQOeV7/native-upgrades/tests/terminal-oracle/discovery/zellij_oracle.py", line 138, in <module>
+            print(json.dumps(run(**json.load(sys.stdin)), ensure_ascii=False))
+                             ~~~^^^^^^^^^^^^^^^^^^^^^^^^
+          File "/Volumes/TestScratch/tmp/pair-slot6/p759-go1273.fQOeV7/native-upgrades/tests/terminal-oracle/discovery/zellij_oracle.py", line 35, in run
+            return _run(Path(directory), wire, cols, rows, resize)
+          File "/Volumes/TestScratch/tmp/pair-slot6/p759-go1273.fQOeV7/native-upgrades/tests/terminal-oracle/discovery/zellij_oracle.py", line 103, in _run
+            assert result.returncode == 0, dict(
+                   ^^^^^^^^^^^^^^^^^^^^^^
+        AssertionError: {'returncode': 1, 'stderr': 'There is no active session!\n', 'pty': '\x1b[?1049h\x1b[?1l\x1b=\x1b[r\x1b[?1000l\x1b[?1002l\x1b[?1003l\x1b[?1005l\x1b[?1006l\x1b[?12l\x1b[>1u\x1b[?2031h\x1b[?996n\x1b[?2004h\x1b[?1004h\x1bP26661nChEKDHB3MTIxMDk1NzcwOBIBAQ==\x1b\\\x1b[14t\x1b[16t\x1b]11;?\x1b\\\x1b]10;?\x1b\\\x1b[?2026$p\x1b_Ga=q,i=31,s=1,v=1,t=d,f=24;AAAA\x1b\\\x1b[c\x1b[?1000h\x1b[?1002h\x1b[?1003h\x1b[?1015h\x1b[?1006h\x1b[?1006l\x1b[?1015l\x1b[?1003l\x1b[?1002l\x1b[?1000l\x1b[<1u\x1b[?2031l\x1b[?1004l\x1b[?1049l\x1b[m\x1b[?25h\x1b[1;1HBye from Zellij!\r\n'}
+    run.go:36: oracle executable="/opt/homebrew/bin/node" process-error=<nil> evidence="/Volumes/TestScratch/tmp/pair-slot6/p759-go1273.fQOeV7/native-results/artifacts/_artifacts/cmd/internal/terminal/TestHistoryOneHostRowOracle/2479801433/node-oracle-404778916"
+        stderr phases:
+        [pair-oracle] {"phase":"startup","node":"v26.0.0","execPath":"/opt/homebrew/Cellar/node/26.0.0/bin/node","arch":"arm64","platform":"darwin"}
+        [pair-oracle] {"phase":"import"}
+        [pair-oracle] {"phase":"write","chunk":0}
+        [pair-oracle] {"phase":"snapshot","chunk":0}
+        [pair-oracle] {"phase":"dispose"}
+        
+        complete request (342 bytes):
+        {"Chunks":["\u001b[?2026h\u001b[?25l\u001b[?6l\u001b[r\u001b[?7h\u001b[0m\u001b]8;;\u001b\\\u001b[3J\u001b[1;1H\u001b[1L\u001b[2K\u001b[1;1HAAA界\u001b[1;1H界Z\r\n\u001b[1;1HB\r\n\u001b[r\u001b[1;1H\u001b[2K\u001b[1;1HC\u001b[0m\u001b]8;;\u001b\\\u001b[?7h\u001b[1;2H\u001b[0 q\u001b[?25h\u001b[?2026l"],"Cols":4,"Rows":1,"Scrollback":1000}
+    run.go:36: oracle executable="/opt/homebrew/bin/node" process-error=<nil> evidence="/Volumes/TestScratch/tmp/pair-slot6/p759-go1273.fQOeV7/native-results/artifacts/_artifacts/cmd/internal/terminal/TestHistoryOneHostRowOracle/2479801433/node-oracle-2832999958"
+        stderr phases:
+        [pair-oracle] {"phase":"startup","node":"v26.0.0","execPath":"/opt/homebrew/Cellar/node/26.0.0/bin/node","arch":"arm64","platform":"darwin"}
+        [pair-oracle] {"phase":"import"}
+        [pair-oracle] {"phase":"write","chunk":0}
+        [pair-oracle] {"phase":"snapshot","chunk":0}
+        [pair-oracle] {"phase":"dispose"}
+        
+        complete request (68 bytes):
+        {"Chunks":["AAA界Z\r\nB\r\nC"],"Cols":4,"Rows":1,"Scrollback":1000}
+--- FAIL: TestHistoryOneHostRowOracle (0.81s)
+=== RUN   TestHistoryStyledLinkedWrapWireOracle
+=== ARTIFACTS TestHistoryStyledLinkedWrapWireOracle /Volumes/TestScratch/tmp/pair-slot6/p759-go1273.fQOeV7/native-results/artifacts/_artifacts/cmd/internal/terminal/TestHistoryStyledLinkedWrapWireOracle/2349112931
+    history_style_test.go:77: native styled copy got"sh-3.2$\n" want"sh-3.2$\n"
+    run.go:36: oracle executable="/opt/homebrew/bin/node" process-error=<nil> evidence="/Volumes/TestScratch/tmp/pair-slot6/p759-go1273.fQOeV7/native-results/artifacts/_artifacts/cmd/internal/terminal/TestHistoryStyledLinkedWrapWireOracle/2349112931/node-oracle-1288064414"
+        stderr phases:
+        [pair-oracle] {"phase":"startup","node":"v26.0.0","execPath":"/opt/homebrew/Cellar/node/26.0.0/bin/node","arch":"arm64","platform":"darwin"}
+        [pair-oracle] {"phase":"import"}
+        [pair-oracle] {"phase":"write","chunk":0}
+        [pair-oracle] {"phase":"snapshot","chunk":0}
+        [pair-oracle] {"phase":"dispose"}
+        
+        complete request (850 bytes):
+        {"Chunks":["\u001b[?2026h\u001b[?25l\u001b[?6l\u001b[r\u001b[?7h\u001b[0m\u001b]8;;\u001b\\\u001b[3J\u001b[1;1H\u001b[5L\u001b[2K\u001b[1;2r\u001b[2;1H\u001b[M\u001b[L\u001b[2K\u001b[1;1H\u001b[0m\u001b[31m\u001b]8;id=wrap;https://example.com/a;b\u001b\\AA界\u001b[0m\u001b]8;;\u001b\\x\u001b[2;1H\n\u001b[2;1H\u001b[M\u001b[L\u001b[2K\u001b[1;1H\u001b[0m\u001b[31m\u001b]8;id=wrap;https://example.com/a;b\u001b\\BB\u001b[0m\u001b[m\u001b]8;;\u001b\\Z\u001b[2;1H\n\u001b[2;1H\u001b[M\u001b[L\u001b[2K\u001b[1;1HHARD\u001b[2;1H\n\u001b[r\u001b[2;1H\u001b[4L\u001b[2;1H\u001b[2K\u001b[3;1H\u001b[2K\u001b[4;1H\u001b[2K\u001b[5;1H\u001b[2K\u001b[1;1H\u001b[2K\u001b[1;1HONE\u001b[2;1HTWO\u001b[3;1HTHR\u001b[4;1HFOUR\u001b[5;1HCHR \u001b[0m\u001b]8;;\u001b\\\u001b[?7h\u001b[4;4H\u001b[0 q\u001b[?25h\u001b[?2026l"],"Cols":4,"Rows":5,"Scrollback":1000}
+    run.go:36: oracle executable="/opt/homebrew/bin/node" process-error=<nil> evidence="/Volumes/TestScratch/tmp/pair-slot6/p759-go1273.fQOeV7/native-results/artifacts/_artifacts/cmd/internal/terminal/TestHistoryStyledLinkedWrapWireOracle/2349112931/node-oracle-3817243835"
+        stderr phases:
+        [pair-oracle] {"phase":"startup","node":"v26.0.0","execPath":"/opt/homebrew/Cellar/node/26.0.0/bin/node","arch":"arm64","platform":"darwin"}
+        [pair-oracle] {"phase":"import"}
+        [pair-oracle] {"phase":"write","chunk":0}
+        [pair-oracle] {"phase":"snapshot","chunk":0}
+        [pair-oracle] {"phase":"dispose"}
+        
+        complete request (207 bytes):
+        {"Chunks":["\u001b[1;4r\u001b[31m\u001b]8;id=wrap;https://example.com/a;b\u001b\\AA界BB\u001b]8;;\u001b\\\u001b[0mZ\r\nHARD\r\nONE\r\nTWO\r\nTHR\r\nFOUR\u001b[5;1HCHR "],"Cols":4,"Rows":5,"Scrollback":1000}
+--- FAIL: TestHistoryStyledLinkedWrapWireOracle (11.44s)
+=== RUN   TestHistoryDefaultWideViewportWrapOracle
+=== ARTIFACTS TestHistoryDefaultWideViewportWrapOracle /Volumes/TestScratch/tmp/pair-slot6/p759-go1273.fQOeV7/native-results/artifacts/_artifacts/cmd/internal/terminal/TestHistoryDefaultWideViewportWrapOracle/2726817797
+    history_style_test.go:94: native viewport copy got"sh-3sh-3.2$\n" want"sh-3.2$\n"
+    run.go:36: oracle executable="/opt/homebrew/bin/node" process-error=<nil> evidence="/Volumes/TestScratch/tmp/pair-slot6/p759-go1273.fQOeV7/native-results/artifacts/_artifacts/cmd/internal/terminal/TestHistoryDefaultWideViewportWrapOracle/2726817797/node-oracle-315347834"
+        stderr phases:
+        [pair-oracle] {"phase":"startup","node":"v26.0.0","execPath":"/opt/homebrew/Cellar/node/26.0.0/bin/node","arch":"arm64","platform":"darwin"}
+        [pair-oracle] {"phase":"import"}
+        [pair-oracle] {"phase":"write","chunk":0}
+        [pair-oracle] {"phase":"snapshot","chunk":0}
+        [pair-oracle] {"phase":"dispose"}
+        
+        complete request (478 bytes):
+        {"Chunks":["\u001b[?2026h\u001b[?25l\u001b[?6l\u001b[r\u001b[?7h\u001b[0m\u001b]8;;\u001b\\\u001b[3J\u001b[1;1H\u001b[5L\u001b[2K\u001b[r\u001b[2;1H\u001b[4L\u001b[2;1H\u001b[2K\u001b[3;1H\u001b[2K\u001b[4;1H\u001b[2K\u001b[5;1H\u001b[2K\u001b[1;1H\u001b[2K\u001b[1;1HAA界\u001b[1;1H\u001b[4C\u001b[1;3H界x\u001b[2;1HB\u001b[3;1H\u001b[4;1H\u001b[5;1HCHR \u001b[0m\u001b]8;;\u001b\\\u001b[?7h\u001b[2;2H\u001b[0 q\u001b[?25h\u001b[?2026l"],"Cols":4,"Rows":5,"Scrollback":1000}
+    run.go:36: oracle executable="/opt/homebrew/bin/node" process-error=<nil> evidence="/Volumes/TestScratch/tmp/pair-slot6/p759-go1273.fQOeV7/native-results/artifacts/_artifacts/cmd/internal/terminal/TestHistoryDefaultWideViewportWrapOracle/2726817797/node-oracle-1121845846"
+        stderr phases:
+        [pair-oracle] {"phase":"startup","node":"v26.0.0","execPath":"/opt/homebrew/Cellar/node/26.0.0/bin/node","arch":"arm64","platform":"darwin"}
+        [pair-oracle] {"phase":"import"}
+        [pair-oracle] {"phase":"write","chunk":0}
+        [pair-oracle] {"phase":"snapshot","chunk":0}
+        [pair-oracle] {"phase":"dispose"}
+        
+        complete request (72 bytes):
+        {"Chunks":["AA界B\u001b[5;1HCHR "],"Cols":4,"Rows":5,"Scrollback":1000}
+--- FAIL: TestHistoryDefaultWideViewportWrapOracle (11.40s)
+FAIL
+FAIL	github.com/xianxu/pair/cmd/internal/terminal	63.739s
+FAIL

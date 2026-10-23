@@ -1,0 +1,27 @@
+{
+  "cwd": "/Volumes/TestScratch/tmp/pair-slot6/p759-go1273.fQOeV7/native-upgrades",
+  "argv": [
+    "go",
+    "test",
+    "./cmd/internal/couchtty",
+    "-run",
+    "^(TestLiveConsoleNvimPreservesContentAndChrome|TestLiveReservedRowSurvivesRealScrolling|TestConsoleStatusWrapNativePTY|TestNativeConsoleWrapperZellij)$",
+    "-count=1",
+    "-v",
+    "-artifacts",
+    "-outputdir=/Volumes/TestScratch/tmp/pair-slot6/p759-go1273.fQOeV7/native-results/artifacts"
+  ],
+  "env": {
+    "HOME": "/Users/xianxu",
+    "PATH": "/Users/xianxu/workspace/ariadne/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin",
+    "TMPDIR": "/Volumes/TestScratch/tmp/pair-slot6/p759-go1273.fQOeV7/native-results/tmp",
+    "GOTOOLCHAIN": "local",
+    "GOWORK": "off",
+    "LANG": "en_US.UTF-8",
+    "TERM": "xterm-256color",
+    "PAIR_TERMINAL_ORACLE": "1",
+    "PAIR_LIVE_COUCH": "1",
+    "PAIR_LIVE_COUCH_NATIVE": "1",
+    "PAIR_NATIVE_BINARY": "/Volumes/TestScratch/tmp/pair-slot6/p759-go1273.fQOeV7/native-upgrades/bin/pair"
+  }
+}

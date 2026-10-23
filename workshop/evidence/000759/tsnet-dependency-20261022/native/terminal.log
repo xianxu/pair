@@ -1,0 +1,1226 @@
+=== RUN   TestBackendCellDegradationPublication
+=== RUN   TestBackendCellDegradationPublication/0
+=== RUN   TestBackendCellDegradationPublication/1
+=== RUN   TestBackendCellDegradationPublication/2
+=== RUN   TestBackendCellDegradationPublication/3
+=== RUN   TestBackendCellDegradationPublication/4
+=== RUN   TestBackendCellDegradationPublication/5
+=== RUN   TestBackendCellDegradationPublication/6
+=== RUN   TestBackendCellDegradationPublication/7
+=== RUN   TestBackendCellDegradationPublication/8
+=== RUN   TestBackendCellDegradationPublication/9
+--- PASS: TestBackendCellDegradationPublication (0.00s)
+    --- PASS: TestBackendCellDegradationPublication/0 (0.00s)
+    --- PASS: TestBackendCellDegradationPublication/1 (0.00s)
+    --- PASS: TestBackendCellDegradationPublication/2 (0.00s)
+    --- PASS: TestBackendCellDegradationPublication/3 (0.00s)
+    --- PASS: TestBackendCellDegradationPublication/4 (0.00s)
+    --- PASS: TestBackendCellDegradationPublication/5 (0.00s)
+    --- PASS: TestBackendCellDegradationPublication/6 (0.00s)
+    --- PASS: TestBackendCellDegradationPublication/7 (0.00s)
+    --- PASS: TestBackendCellDegradationPublication/8 (0.00s)
+    --- PASS: TestBackendCellDegradationPublication/9 (0.00s)
+=== RUN   TestBackendCellDegradationHistoryAndWideNeighbor
+--- PASS: TestBackendCellDegradationHistoryAndWideNeighbor (0.00s)
+=== RUN   TestBackendCellDegradationObservationOnceAndBounded
+--- PASS: TestBackendCellDegradationObservationOnceAndBounded (0.00s)
+=== RUN   TestBackendCellDegradationGeneratedRows
+--- PASS: TestBackendCellDegradationGeneratedRows (0.01s)
+=== RUN   TestBackendCellDegradationPresenterOracle
+=== ARTIFACTS TestBackendCellDegradationPresenterOracle /Volumes/TestScratch/tmp/pair-slot6/p759-go1273.fQOeV7/native-results/artifacts/_artifacts/cmd/internal/terminal/TestBackendCellDegradationPresenterOracle/2930958373
+--- PASS: TestBackendCellDegradationPresenterOracle (0.11s)
+=== RUN   TestRepairBackendRowMixedGeneratedInvariants
+--- PASS: TestRepairBackendRowMixedGeneratedInvariants (0.03s)
+=== RUN   TestRepairBackendRowLinearWorkAtEightAndSixteenRows
+--- PASS: TestRepairBackendRowLinearWorkAtEightAndSixteenRows (0.00s)
+=== RUN   TestDescribeCellFaultBoundsAndHistoryPosition
+--- PASS: TestDescribeCellFaultBoundsAndHistoryPosition (0.00s)
+=== RUN   TestDescribeCellFaultExplicitCodepointsAndBoundedScan
+--- PASS: TestDescribeCellFaultExplicitCodepointsAndBoundedScan (0.00s)
+=== RUN   TestDescribeCellFaultFitsDiagnosticAdmission
+    cell_degrade_test.go:380: sample U+10FFFF: bounded evidence 1496/4096 bytes
+    cell_degrade_test.go:380: sample U+009F: bounded evidence 1560/4096 bytes
+    cell_degrade_test.go:380: sample U+003C: bounded evidence 1494/4096 bytes
+--- PASS: TestDescribeCellFaultFitsDiagnosticAdmission (0.00s)
+=== RUN   TestChromeConfirmationFencesMouseUntilAutomaticRecovery
+--- PASS: TestChromeConfirmationFencesMouseUntilAutomaticRecovery (0.25s)
+=== RUN   TestChromeRevisionOnlyChangesForLayoutAdmissions
+--- PASS: TestChromeRevisionOnlyChangesForLayoutAdmissions (0.00s)
+=== RUN   TestPresenterChromeShapeChangesUseAcknowledgedResize
+--- PASS: TestPresenterChromeShapeChangesUseAcknowledgedResize (0.00s)
+=== RUN   TestBodyStallRevokesExistingChromeConfirmation
+--- PASS: TestBodyStallRevokesExistingChromeConfirmation (0.25s)
+=== RUN   TestComposeTwoChromeRows
+--- PASS: TestComposeTwoChromeRows (0.00s)
+=== RUN   TestChildGeometryAndChromeMetadata
+--- PASS: TestChildGeometryAndChromeMetadata (0.00s)
+=== RUN   TestChromeMetadataParticipatesInHistoryIdentity
+--- PASS: TestChromeMetadataParticipatesInHistoryIdentity (0.00s)
+=== RUN   TestPresenterDesktopNotifySerializedAndNoReplay
+--- PASS: TestPresenterDesktopNotifySerializedAndNoReplay (0.02s)
+=== RUN   TestPresenterDesktopNotifyCancellationAndFailures
+=== RUN   TestPresenterDesktopNotifyCancellationAndFailures/cancelled
+=== RUN   TestPresenterDesktopNotifyCancellationAndFailures/0
+=== RUN   TestPresenterDesktopNotifyCancellationAndFailures/5
+--- PASS: TestPresenterDesktopNotifyCancellationAndFailures (0.00s)
+    --- PASS: TestPresenterDesktopNotifyCancellationAndFailures/cancelled (0.00s)
+    --- PASS: TestPresenterDesktopNotifyCancellationAndFailures/0 (0.00s)
+    --- PASS: TestPresenterDesktopNotifyCancellationAndFailures/5 (0.00s)
+=== RUN   TestPresenterSuppressedNotificationsAlwaysAcknowledged
+--- PASS: TestPresenterSuppressedNotificationsAlwaysAcknowledged (0.00s)
+=== RUN   TestPresenterDesktopPartialWritesCompleteOneEnvelope
+--- PASS: TestPresenterDesktopPartialWritesCompleteOneEnvelope (0.00s)
+=== RUN   TestPresenterDesktopRejectsInvalidWithoutHostWrite
+--- PASS: TestPresenterDesktopRejectsInvalidWithoutHostWrite (0.00s)
+=== RUN   TestPresenterDesktopCancelBlockedHostWrite
+--- PASS: TestPresenterDesktopCancelBlockedHostWrite (0.00s)
+=== RUN   TestPresenterDesktopNotifyStallsReportFailureWithoutReplay
+=== RUN   TestPresenterDesktopNotifyStallsReportFailureWithoutReplay/already_stalled
+=== RUN   TestPresenterDesktopNotifyStallsReportFailureWithoutReplay/notification_stalls
+--- PASS: TestPresenterDesktopNotifyStallsReportFailureWithoutReplay (10.04s)
+    --- PASS: TestPresenterDesktopNotifyStallsReportFailureWithoutReplay/already_stalled (5.02s)
+    --- PASS: TestPresenterDesktopNotifyStallsReportFailureWithoutReplay/notification_stalls (5.02s)
+=== RUN   TestNoDestinationIsClassifiableAndNamesTheView
+--- PASS: TestNoDestinationIsClassifiableAndNamesTheView (0.00s)
+=== RUN   TestHistoryPublicationHeldTogetherAndOwned
+--- PASS: TestHistoryPublicationHeldTogetherAndOwned (0.00s)
+=== RUN   TestHistoryPublicationSurvivesEOF
+--- PASS: TestHistoryPublicationSurvivesEOF (0.00s)
+=== RUN   TestComposeMetadataAndNoChrome
+--- PASS: TestComposeMetadataAndNoChrome (0.00s)
+=== RUN   TestPublicationRetainsHistoryOnlyForHeldOrEndedOutput
+--- PASS: TestPublicationRetainsHistoryOnlyForHeldOrEndedOutput (0.00s)
+=== RUN   TestEndpointHiddenQueriesHaveTheirOwnOrigin
+--- PASS: TestEndpointHiddenQueriesHaveTheirOwnOrigin (0.00s)
+=== RUN   TestEndpointSyncWithholdsThenRecoversAndCopies
+--- PASS: TestEndpointSyncWithholdsThenRecoversAndCopies (0.00s)
+=== RUN   TestEndpointEffectsAreOnceOnlyAndClipboardReadsStayUnsupported
+--- PASS: TestEndpointEffectsAreOnceOnlyAndClipboardReadsStayUnsupported (0.00s)
+=== RUN   TestEndpointResizeCommitsOnlyAfterPTYSuccess
+--- PASS: TestEndpointResizeCommitsOnlyAfterPTYSuccess (0.00s)
+=== RUN   TestEndpointInputUsesNegotiatedModes
+--- PASS: TestEndpointInputUsesNegotiatedModes (0.00s)
+=== RUN   TestEndpointSplitOutputSurvivesInputAndSnapshots
+=== RUN   TestEndpointSplitOutputSurvivesInputAndSnapshots/0
+=== RUN   TestEndpointSplitOutputSurvivesInputAndSnapshots/1
+=== RUN   TestEndpointSplitOutputSurvivesInputAndSnapshots/2
+=== RUN   TestEndpointSplitOutputSurvivesInputAndSnapshots/3
+=== RUN   TestEndpointSplitOutputSurvivesInputAndSnapshots/4
+=== RUN   TestEndpointSplitOutputSurvivesInputAndSnapshots/5
+=== RUN   TestEndpointSplitOutputSurvivesInputAndSnapshots/6
+=== RUN   TestEndpointSplitOutputSurvivesInputAndSnapshots/7
+=== RUN   TestEndpointSplitOutputSurvivesInputAndSnapshots/8
+=== RUN   TestEndpointSplitOutputSurvivesInputAndSnapshots/9
+=== RUN   TestEndpointSplitOutputSurvivesInputAndSnapshots/10
+=== RUN   TestEndpointSplitOutputSurvivesInputAndSnapshots/11
+--- PASS: TestEndpointSplitOutputSurvivesInputAndSnapshots (0.00s)
+    --- PASS: TestEndpointSplitOutputSurvivesInputAndSnapshots/0 (0.00s)
+    --- PASS: TestEndpointSplitOutputSurvivesInputAndSnapshots/1 (0.00s)
+    --- PASS: TestEndpointSplitOutputSurvivesInputAndSnapshots/2 (0.00s)
+    --- PASS: TestEndpointSplitOutputSurvivesInputAndSnapshots/3 (0.00s)
+    --- PASS: TestEndpointSplitOutputSurvivesInputAndSnapshots/4 (0.00s)
+    --- PASS: TestEndpointSplitOutputSurvivesInputAndSnapshots/5 (0.00s)
+    --- PASS: TestEndpointSplitOutputSurvivesInputAndSnapshots/6 (0.00s)
+    --- PASS: TestEndpointSplitOutputSurvivesInputAndSnapshots/7 (0.00s)
+    --- PASS: TestEndpointSplitOutputSurvivesInputAndSnapshots/8 (0.00s)
+    --- PASS: TestEndpointSplitOutputSurvivesInputAndSnapshots/9 (0.00s)
+    --- PASS: TestEndpointSplitOutputSurvivesInputAndSnapshots/10 (0.00s)
+    --- PASS: TestEndpointSplitOutputSurvivesInputAndSnapshots/11 (0.00s)
+=== RUN   TestEndpointRepeatedSyncBeginDoesNotPostponeRecovery
+--- PASS: TestEndpointRepeatedSyncBeginDoesNotPostponeRecovery (0.00s)
+=== RUN   TestEndpointDecoderNegotiatedDelivery
+--- PASS: TestEndpointDecoderNegotiatedDelivery (0.00s)
+=== RUN   TestEndpointCloseRejectsAllTransactions
+--- PASS: TestEndpointCloseRejectsAllTransactions (0.00s)
+=== RUN   TestEndpointInvalidResizeDoesNotCallPTY
+--- PASS: TestEndpointInvalidResizeDoesNotCallPTY (0.00s)
+=== RUN   TestEndpointSyncCapturesLatestCompleteStateWithoutPriorSnapshot
+--- PASS: TestEndpointSyncCapturesLatestCompleteStateWithoutPriorSnapshot (0.00s)
+=== RUN   TestEndpointPublicationDeadlineOnlyWhileWithheld
+--- PASS: TestEndpointPublicationDeadlineOnlyWhileWithheld (0.00s)
+=== RUN   TestEndpointConcurrentCloseAlwaysJoinsWriter
+--- PASS: TestEndpointConcurrentCloseAlwaysJoinsWriter (0.00s)
+=== RUN   TestReplyBufferOverflowCannotBeIgnoredByQueryHandler
+--- PASS: TestReplyBufferOverflowCannotBeIgnoredByQueryHandler (0.00s)
+=== RUN   TestEndpointAuthoritativeCursorAcrossResetRestoreAndBuffers
+=== RUN   TestEndpointAuthoritativeCursorAcrossResetRestoreAndBuffers/reset
+=== RUN   TestEndpointAuthoritativeCursorAcrossResetRestoreAndBuffers/saved
+=== RUN   TestEndpointAuthoritativeCursorAcrossResetRestoreAndBuffers/alternate-entry
+=== RUN   TestEndpointAuthoritativeCursorAcrossResetRestoreAndBuffers/alternate-return
+=== RUN   TestEndpointAuthoritativeCursorAcrossResetRestoreAndBuffers/alternate-retained
+=== RUN   TestEndpointAuthoritativeCursorAcrossResetRestoreAndBuffers/reset-held
+=== RUN   TestEndpointAuthoritativeCursorAcrossResetRestoreAndBuffers/never-set
+=== RUN   TestEndpointAuthoritativeCursorAcrossResetRestoreAndBuffers/zero-after-blinking-block
+=== RUN   TestEndpointAuthoritativeCursorAcrossResetRestoreAndBuffers/absent-after-steady-underline
+=== RUN   TestEndpointAuthoritativeCursorAcrossResetRestoreAndBuffers/explicit-blinking-block
+=== RUN   TestEndpointAuthoritativeCursorAcrossResetRestoreAndBuffers/unknown-ignored
+--- PASS: TestEndpointAuthoritativeCursorAcrossResetRestoreAndBuffers (0.02s)
+    --- PASS: TestEndpointAuthoritativeCursorAcrossResetRestoreAndBuffers/reset (0.00s)
+    --- PASS: TestEndpointAuthoritativeCursorAcrossResetRestoreAndBuffers/saved (0.00s)
+    --- PASS: TestEndpointAuthoritativeCursorAcrossResetRestoreAndBuffers/alternate-entry (0.00s)
+    --- PASS: TestEndpointAuthoritativeCursorAcrossResetRestoreAndBuffers/alternate-return (0.00s)
+    --- PASS: TestEndpointAuthoritativeCursorAcrossResetRestoreAndBuffers/alternate-retained (0.00s)
+    --- PASS: TestEndpointAuthoritativeCursorAcrossResetRestoreAndBuffers/reset-held (0.00s)
+    --- PASS: TestEndpointAuthoritativeCursorAcrossResetRestoreAndBuffers/never-set (0.00s)
+    --- PASS: TestEndpointAuthoritativeCursorAcrossResetRestoreAndBuffers/zero-after-blinking-block (0.00s)
+    --- PASS: TestEndpointAuthoritativeCursorAcrossResetRestoreAndBuffers/absent-after-steady-underline (0.00s)
+    --- PASS: TestEndpointAuthoritativeCursorAcrossResetRestoreAndBuffers/explicit-blinking-block (0.00s)
+    --- PASS: TestEndpointAuthoritativeCursorAcrossResetRestoreAndBuffers/unknown-ignored (0.00s)
+=== RUN   TestEndpointMouseAdmissionChecksNegotiationAtomically
+--- PASS: TestEndpointMouseAdmissionChecksNegotiationAtomically (0.00s)
+=== RUN   TestEndpointEndInputRetainsFinalPublication
+--- PASS: TestEndpointEndInputRetainsFinalPublication (0.00s)
+=== RUN   TestEndpointFailedInputDoesNotHideFinalOutput
+--- PASS: TestEndpointFailedInputDoesNotHideFinalOutput (0.00s)
+=== RUN   TestPresenterErasedBackgroundViewportAndAltOracle
+=== RUN   TestPresenterErasedBackgroundViewportAndAltOracle/normal-indexed
+=== ARTIFACTS TestPresenterErasedBackgroundViewportAndAltOracle/normal-indexed /Volumes/TestScratch/tmp/pair-slot6/p759-go1273.fQOeV7/native-results/artifacts/_artifacts/cmd/internal/terminal/TestPresenterErasedBackgroundViewportAndAltOracl6c3112a452cae4ef/1644642546
+=== RUN   TestPresenterErasedBackgroundViewportAndAltOracle/alt-indexed
+=== ARTIFACTS TestPresenterErasedBackgroundViewportAndAltOracle/alt-indexed /Volumes/TestScratch/tmp/pair-slot6/p759-go1273.fQOeV7/native-results/artifacts/_artifacts/cmd/internal/terminal/TestPresenterErasedBackgroundViewportAndAltOracle__alt-indexed/3882804602
+=== RUN   TestPresenterErasedBackgroundViewportAndAltOracle/normal-rgb
+=== ARTIFACTS TestPresenterErasedBackgroundViewportAndAltOracle/normal-rgb /Volumes/TestScratch/tmp/pair-slot6/p759-go1273.fQOeV7/native-results/artifacts/_artifacts/cmd/internal/terminal/TestPresenterErasedBackgroundViewportAndAltOracle__normal-rgb/2142368652
+--- PASS: TestPresenterErasedBackgroundViewportAndAltOracle (1.14s)
+    --- PASS: TestPresenterErasedBackgroundViewportAndAltOracle/normal-indexed (0.42s)
+    --- PASS: TestPresenterErasedBackgroundViewportAndAltOracle/alt-indexed (0.27s)
+    --- PASS: TestPresenterErasedBackgroundViewportAndAltOracle/normal-rgb (0.44s)
+=== RUN   TestPresenterErasedBackgroundHistoryAppendAndRebuildOracle
+=== ARTIFACTS TestPresenterErasedBackgroundHistoryAppendAndRebuildOracle /Volumes/TestScratch/tmp/pair-slot6/p759-go1273.fQOeV7/native-results/artifacts/_artifacts/cmd/internal/terminal/TestPresenterErasedBackgroundHistoryAppendAndRebuildOracle/3785026905
+--- PASS: TestPresenterErasedBackgroundHistoryAppendAndRebuildOracle (0.68s)
+=== RUN   TestPresenterErasedOnlyHistoryRowOracle
+=== ARTIFACTS TestPresenterErasedOnlyHistoryRowOracle /Volumes/TestScratch/tmp/pair-slot6/p759-go1273.fQOeV7/native-results/artifacts/_artifacts/cmd/internal/terminal/TestPresenterErasedOnlyHistoryRowOracle/541665969
+--- PASS: TestPresenterErasedOnlyHistoryRowOracle (0.30s)
+=== RUN   TestPresenterErasedBackgroundAltReturnOracle
+=== ARTIFACTS TestPresenterErasedBackgroundAltReturnOracle /Volumes/TestScratch/tmp/pair-slot6/p759-go1273.fQOeV7/native-results/artifacts/_artifacts/cmd/internal/terminal/TestPresenterErasedBackgroundAltReturnOracle/3527062234
+--- PASS: TestPresenterErasedBackgroundAltReturnOracle (0.27s)
+=== RUN   TestErasedBackgroundSoftGapNativeCopyOracle
+=== ARTIFACTS TestErasedBackgroundSoftGapNativeCopyOracle /Volumes/TestScratch/tmp/pair-slot6/p759-go1273.fQOeV7/native-results/artifacts/_artifacts/cmd/internal/terminal/TestErasedBackgroundSoftGapNativeCopyOracle/637148651
+    erased_background_oracle_test.go:134: PAIR_TERMINAL_NATIVE=1 enables disposable Zellij oracle
+--- SKIP: TestErasedBackgroundSoftGapNativeCopyOracle (0.27s)
+=== RUN   TestExitReason
+--- PASS: TestExitReason (0.00s)
+=== RUN   TestAStalledParentReadsAsTheTerminalStopping
+--- PASS: TestAStalledParentReadsAsTheTerminalStopping (0.50s)
+=== RUN   TestValidateCellASCIIExhaustiveAgainstSlow
+--- PASS: TestValidateCellASCIIExhaustiveAgainstSlow (0.00s)
+=== RUN   TestValidateCellUnicodeAndNeighborsAgainstSlow
+--- PASS: TestValidateCellUnicodeAndNeighborsAgainstSlow (0.00s)
+=== RUN   TestValidateCellExpectedOutcomesAndOracleMutants
+=== RUN   TestValidateCellExpectedOutcomesAndOracleMutants/space
+=== RUN   TestValidateCellExpectedOutcomesAndOracleMutants/tilde
+=== RUN   TestValidateCellExpectedOutcomesAndOracleMutants/empty
+=== RUN   TestValidateCellExpectedOutcomesAndOracleMutants/combining
+=== RUN   TestValidateCellExpectedOutcomesAndOracleMutants/wide
+=== RUN   TestValidateCellExpectedOutcomesAndOracleMutants/control
+=== RUN   TestValidateCellExpectedOutcomesAndOracleMutants/delete
+=== RUN   TestValidateCellExpectedOutcomesAndOracleMutants/wrong-width
+=== RUN   TestValidateCellExpectedOutcomesAndOracleMutants/continuation-content
+=== RUN   TestValidateCellExpectedOutcomesAndOracleMutants/two-clusters
+=== RUN   TestValidateCellExpectedOutcomesAndOracleMutants/broken-wide
+=== RUN   TestValidateCellExpectedOutcomesAndOracleMutants/unsafe-link
+--- PASS: TestValidateCellExpectedOutcomesAndOracleMutants (0.00s)
+    --- PASS: TestValidateCellExpectedOutcomesAndOracleMutants/space (0.00s)
+    --- PASS: TestValidateCellExpectedOutcomesAndOracleMutants/tilde (0.00s)
+    --- PASS: TestValidateCellExpectedOutcomesAndOracleMutants/empty (0.00s)
+    --- PASS: TestValidateCellExpectedOutcomesAndOracleMutants/combining (0.00s)
+    --- PASS: TestValidateCellExpectedOutcomesAndOracleMutants/wide (0.00s)
+    --- PASS: TestValidateCellExpectedOutcomesAndOracleMutants/control (0.00s)
+    --- PASS: TestValidateCellExpectedOutcomesAndOracleMutants/delete (0.00s)
+    --- PASS: TestValidateCellExpectedOutcomesAndOracleMutants/wrong-width (0.00s)
+    --- PASS: TestValidateCellExpectedOutcomesAndOracleMutants/continuation-content (0.00s)
+    --- PASS: TestValidateCellExpectedOutcomesAndOracleMutants/two-clusters (0.00s)
+    --- PASS: TestValidateCellExpectedOutcomesAndOracleMutants/broken-wide (0.00s)
+    --- PASS: TestValidateCellExpectedOutcomesAndOracleMutants/unsafe-link (0.00s)
+=== RUN   TestGeometryRejectsInvalidBeforeAllocation
+--- PASS: TestGeometryRejectsInvalidBeforeAllocation (0.00s)
+=== RUN   TestFrameCloneOwnsMutableColorAndCells
+--- PASS: TestFrameCloneOwnsMutableColorAndCells (0.00s)
+=== RUN   TestFrameRejectsDrawingInjectionAndBrokenWideCells
+--- PASS: TestFrameRejectsDrawingInjectionAndBrokenWideCells (0.00s)
+=== RUN   TestFrameRejectsBlinkingDefaultCursor
+--- PASS: TestFrameRejectsBlinkingDefaultCursor (0.00s)
+=== RUN   TestHistoryEvictionCursorCoverage
+=== RUN   TestHistoryEvictionCursorCoverage/overlapping-prefix-eviction
+=== RUN   TestHistoryEvictionCursorCoverage/cursor-is-first-retained
+=== RUN   TestHistoryEvictionCursorCoverage/cursor-fell-before-retained
+=== RUN   TestHistoryEvictionCursorCoverage/gap-after-cursor
+=== RUN   TestHistoryEvictionCursorCoverage/rejected-tail
+=== RUN   TestHistoryEvictionCursorCoverage/clear-epoch
+--- PASS: TestHistoryEvictionCursorCoverage (0.00s)
+    --- PASS: TestHistoryEvictionCursorCoverage/overlapping-prefix-eviction (0.00s)
+    --- PASS: TestHistoryEvictionCursorCoverage/cursor-is-first-retained (0.00s)
+    --- PASS: TestHistoryEvictionCursorCoverage/cursor-fell-before-retained (0.00s)
+    --- PASS: TestHistoryEvictionCursorCoverage/gap-after-cursor (0.00s)
+    --- PASS: TestHistoryEvictionCursorCoverage/rejected-tail (0.00s)
+    --- PASS: TestHistoryEvictionCursorCoverage/clear-epoch (0.00s)
+=== RUN   TestPresenterHistoryEvictionNativeAppendAndRebuild
+=== ARTIFACTS TestPresenterHistoryEvictionNativeAppendAndRebuild /Volumes/TestScratch/tmp/pair-slot6/p759-go1273.fQOeV7/native-results/artifacts/_artifacts/cmd/internal/terminal/TestPresenterHistoryEvictionNativeAppendAndRebuild/3692738944
+    history_eviction_test.go:115: PAIR_TERMINAL_NATIVE=1 enables disposable Zellij oracle
+--- SKIP: TestPresenterHistoryEvictionNativeAppendAndRebuild (0.66s)
+=== RUN   TestHistoryGeometryChangeRebuilds
+--- PASS: TestHistoryGeometryChangeRebuilds (0.00s)
+=== RUN   TestPresenterHistoryEvictionKeepsSoftLineOracle
+=== ARTIFACTS TestPresenterHistoryEvictionKeepsSoftLineOracle /Volumes/TestScratch/tmp/pair-slot6/p759-go1273.fQOeV7/native-results/artifacts/_artifacts/cmd/internal/terminal/TestPresenterHistoryEvictionKeepsSoftLineOracle/196114033
+    history_eviction_test.go:171: PAIR_TERMINAL_NATIVE=1 enables disposable Zellij oracle
+--- SKIP: TestPresenterHistoryEvictionKeepsSoftLineOracle (0.27s)
+=== RUN   TestHistoryWireIndependentOracle
+=== ARTIFACTS TestHistoryWireIndependentOracle /Volumes/TestScratch/tmp/pair-slot6/p759-go1273.fQOeV7/native-results/artifacts/_artifacts/cmd/internal/terminal/TestHistoryWireIndependentOracle/1776342098
+--- PASS: TestHistoryWireIndependentOracle (0.71s)
+=== RUN   TestHistoryWireNativeOracle
+    history_oracle_test.go:126: PAIR_TERMINAL_NATIVE=1 enables disposable Zellij oracle
+--- SKIP: TestHistoryWireNativeOracle (0.00s)
+=== RUN   TestHistoryViewportWrapAndOneColumnGrowth
+=== RUN   TestHistoryViewportWrapAndOneColumnGrowth/1
+=== ARTIFACTS TestHistoryViewportWrapAndOneColumnGrowth/1 /Volumes/TestScratch/tmp/pair-slot6/p759-go1273.fQOeV7/native-results/artifacts/_artifacts/cmd/internal/terminal/TestHistoryViewportWrapAndOneColumnGrowth__1/854451151
+    history_oracle_test.go:174: PAIR_TERMINAL_NATIVE=1 enables disposable Zellij oracle
+=== RUN   TestHistoryViewportWrapAndOneColumnGrowth/3
+=== ARTIFACTS TestHistoryViewportWrapAndOneColumnGrowth/3 /Volumes/TestScratch/tmp/pair-slot6/p759-go1273.fQOeV7/native-results/artifacts/_artifacts/cmd/internal/terminal/TestHistoryViewportWrapAndOneColumnGrowth__3/1625222210
+    history_oracle_test.go:174: PAIR_TERMINAL_NATIVE=1 enables disposable Zellij oracle
+=== RUN   TestHistoryViewportWrapAndOneColumnGrowth/4
+=== ARTIFACTS TestHistoryViewportWrapAndOneColumnGrowth/4 /Volumes/TestScratch/tmp/pair-slot6/p759-go1273.fQOeV7/native-results/artifacts/_artifacts/cmd/internal/terminal/TestHistoryViewportWrapAndOneColumnGrowth__4/3876895035
+    history_oracle_test.go:174: PAIR_TERMINAL_NATIVE=1 enables disposable Zellij oracle
+--- PASS: TestHistoryViewportWrapAndOneColumnGrowth (0.43s)
+    --- SKIP: TestHistoryViewportWrapAndOneColumnGrowth/1 (0.17s)
+    --- SKIP: TestHistoryViewportWrapAndOneColumnGrowth/3 (0.13s)
+    --- SKIP: TestHistoryViewportWrapAndOneColumnGrowth/4 (0.12s)
+=== RUN   TestHistoryOneHostRowOracle
+=== ARTIFACTS TestHistoryOneHostRowOracle /Volumes/TestScratch/tmp/pair-slot6/p759-go1273.fQOeV7/native-results/artifacts/_artifacts/cmd/internal/terminal/TestHistoryOneHostRowOracle/3306495051
+    history_oracle_test.go:204: PAIR_TERMINAL_NATIVE=1 enables disposable Zellij oracle
+--- SKIP: TestHistoryOneHostRowOracle (0.25s)
+=== RUN   TestHistoryED2NativeBlankAndSpaceRows
+=== RUN   TestHistoryED2NativeBlankAndSpaceRows/hard-empty-row
+=== ARTIFACTS TestHistoryED2NativeBlankAndSpaceRows/hard-empty-row /Volumes/TestScratch/tmp/pair-slot6/p759-go1273.fQOeV7/native-results/artifacts/_artifacts/cmd/internal/terminal/TestHistoryED2NativeBlankAndSpaceRows__hard-empty-row/3062336265
+    history_oracle_test.go:238: PAIR_TERMINAL_NATIVE=1 enables disposable Zellij oracle
+=== RUN   TestHistoryED2NativeBlankAndSpaceRows/soft-space-row
+=== ARTIFACTS TestHistoryED2NativeBlankAndSpaceRows/soft-space-row /Volumes/TestScratch/tmp/pair-slot6/p759-go1273.fQOeV7/native-results/artifacts/_artifacts/cmd/internal/terminal/TestHistoryED2NativeBlankAndSpaceRows__soft-space-row/905396062
+    history_oracle_test.go:238: PAIR_TERMINAL_NATIVE=1 enables disposable Zellij oracle
+--- PASS: TestHistoryED2NativeBlankAndSpaceRows (0.54s)
+    --- SKIP: TestHistoryED2NativeBlankAndSpaceRows/hard-empty-row (0.27s)
+    --- SKIP: TestHistoryED2NativeBlankAndSpaceRows/soft-space-row (0.27s)
+=== RUN   TestHistoryRendererStateAndCancellation
+--- PASS: TestHistoryRendererStateAndCancellation (0.00s)
+=== RUN   TestHistoryRendererRejectsUnsafeWindowBeforeWriting
+--- PASS: TestHistoryRendererRejectsUnsafeWindowBeforeWriting (0.00s)
+=== RUN   TestHistoryRendererAltTransitionsAreWholePackets
+--- PASS: TestHistoryRendererAltTransitionsAreWholePackets (0.00s)
+=== RUN   TestHistoryRendererClipsUnrepresentableGlyphWithoutLosingSource
+--- PASS: TestHistoryRendererClipsUnrepresentableGlyphWithoutLosingSource (0.00s)
+=== RUN   TestHistoryEmitBracketsEveryFrame
+--- PASS: TestHistoryEmitBracketsEveryFrame (0.00s)
+=== RUN   TestHistoryEmitBracketSpansChunks
+--- PASS: TestHistoryEmitBracketSpansChunks (0.02s)
+=== RUN   TestHistoryRowDiffEqualsFullRebuild
+=== ARTIFACTS TestHistoryRowDiffEqualsFullRebuild /Volumes/TestScratch/tmp/pair-slot6/p759-go1273.fQOeV7/native-results/artifacts/_artifacts/cmd/internal/terminal/TestHistoryRowDiffEqualsFullRebuild/2281801157
+    history_rowdiff_test.go:139: 48 row-diffed, 32 refused (full rebuild)
+--- PASS: TestHistoryRowDiffEqualsFullRebuild (28.77s)
+=== RUN   TestChangedPlainRowsGate
+--- PASS: TestChangedPlainRowsGate (0.00s)
+=== RUN   TestHistoryEmitSpinnerTickWritesOnlyTheChangedRow
+    history_rowdiff_test.go:246: one spinner tick: 134 bytes (full rebuild: 10440 bytes)
+--- PASS: TestHistoryEmitSpinnerTickWritesOnlyTheChangedRow (0.01s)
+=== RUN   TestHistoryDefaultRowsUseOnlyFrameStyleBoundaries
+--- PASS: TestHistoryDefaultRowsUseOnlyFrameStyleBoundaries (0.00s)
+=== RUN   TestHistoryCellPainterReturnsPlainRendition
+=== RUN   TestHistoryCellPainterReturnsPlainRendition/default
+=== ARTIFACTS TestHistoryCellPainterReturnsPlainRendition/default /Volumes/TestScratch/tmp/pair-slot6/p759-go1273.fQOeV7/native-results/artifacts/_artifacts/cmd/internal/terminal/TestHistoryCellPainterReturnsPlainRendition__default/2802702138
+=== RUN   TestHistoryCellPainterReturnsPlainRendition/style
+=== ARTIFACTS TestHistoryCellPainterReturnsPlainRendition/style /Volumes/TestScratch/tmp/pair-slot6/p759-go1273.fQOeV7/native-results/artifacts/_artifacts/cmd/internal/terminal/TestHistoryCellPainterReturnsPlainRendition__style/2844011670
+=== RUN   TestHistoryCellPainterReturnsPlainRendition/link
+=== ARTIFACTS TestHistoryCellPainterReturnsPlainRendition/link /Volumes/TestScratch/tmp/pair-slot6/p759-go1273.fQOeV7/native-results/artifacts/_artifacts/cmd/internal/terminal/TestHistoryCellPainterReturnsPlainRendition__link/839911508
+--- PASS: TestHistoryCellPainterReturnsPlainRendition (0.46s)
+    --- PASS: TestHistoryCellPainterReturnsPlainRendition/default (0.13s)
+    --- PASS: TestHistoryCellPainterReturnsPlainRendition/style (0.15s)
+    --- PASS: TestHistoryCellPainterReturnsPlainRendition/link (0.18s)
+=== RUN   TestHistoryStyledLinkedWrapWireOracle
+=== ARTIFACTS TestHistoryStyledLinkedWrapWireOracle /Volumes/TestScratch/tmp/pair-slot6/p759-go1273.fQOeV7/native-results/artifacts/_artifacts/cmd/internal/terminal/TestHistoryStyledLinkedWrapWireOracle/3660864623
+    history_style_test.go:74: PAIR_TERMINAL_NATIVE=1 enables disposable Zellij oracle
+--- SKIP: TestHistoryStyledLinkedWrapWireOracle (0.32s)
+=== RUN   TestHistoryDefaultWideViewportWrapOracle
+=== ARTIFACTS TestHistoryDefaultWideViewportWrapOracle /Volumes/TestScratch/tmp/pair-slot6/p759-go1273.fQOeV7/native-results/artifacts/_artifacts/cmd/internal/terminal/TestHistoryDefaultWideViewportWrapOracle/2276250096
+    history_style_test.go:91: PAIR_TERMINAL_NATIVE=1 enables disposable Zellij oracle
+--- SKIP: TestHistoryDefaultWideViewportWrapOracle (0.25s)
+=== RUN   TestInputEverySplitPreservesKeysAndRaw
+=== RUN   TestInputEverySplitPreservesKeysAndRaw/\x00
+=== RUN   TestInputEverySplitPreservesKeysAndRaw/\x1b[32;5u
+=== RUN   TestInputEverySplitPreservesKeysAndRaw/\x7f
+=== RUN   TestInputEverySplitPreservesKeysAndRaw/\x1b[127;5u
+=== RUN   TestInputEverySplitPreservesKeysAndRaw/_
+=== RUN   TestInputEverySplitPreservesKeysAndRaw/\x1b[13;5u
+=== RUN   TestInputEverySplitPreservesKeysAndRaw/\x1b[104;5u
+=== RUN   TestInputEverySplitPreservesKeysAndRaw/\x1b[116;4u
+=== RUN   TestInputEverySplitPreservesKeysAndRaw/\x1bT
+=== RUN   TestInputEverySplitPreservesKeysAndRaw/\x1bOA
+=== RUN   TestInputEverySplitPreservesKeysAndRaw/\x1b[1;3D
+=== RUN   TestInputEverySplitPreservesKeysAndRaw/界
+=== RUN   TestInputEverySplitPreservesKeysAndRaw/\x1b�
+--- PASS: TestInputEverySplitPreservesKeysAndRaw (0.00s)
+    --- PASS: TestInputEverySplitPreservesKeysAndRaw/\x00 (0.00s)
+    --- PASS: TestInputEverySplitPreservesKeysAndRaw/\x1b[32;5u (0.00s)
+    --- PASS: TestInputEverySplitPreservesKeysAndRaw/\x7f (0.00s)
+    --- PASS: TestInputEverySplitPreservesKeysAndRaw/\x1b[127;5u (0.00s)
+    --- PASS: TestInputEverySplitPreservesKeysAndRaw/_ (0.00s)
+    --- PASS: TestInputEverySplitPreservesKeysAndRaw/\x1b[13;5u (0.00s)
+    --- PASS: TestInputEverySplitPreservesKeysAndRaw/\x1b[104;5u (0.00s)
+    --- PASS: TestInputEverySplitPreservesKeysAndRaw/\x1b[116;4u (0.00s)
+    --- PASS: TestInputEverySplitPreservesKeysAndRaw/\x1bT (0.00s)
+    --- PASS: TestInputEverySplitPreservesKeysAndRaw/\x1bOA (0.00s)
+    --- PASS: TestInputEverySplitPreservesKeysAndRaw/\x1b[1;3D (0.00s)
+    --- PASS: TestInputEverySplitPreservesKeysAndRaw/界 (0.00s)
+    --- PASS: TestInputEverySplitPreservesKeysAndRaw/\x1b� (0.00s)
+=== RUN   TestInputPasteEscapesRemainOneExactPayload
+--- PASS: TestInputPasteEscapesRemainOneExactPayload (0.00s)
+=== RUN   TestInputRepliesMouseFocusAndKeyEventTypes
+--- PASS: TestInputRepliesMouseFocusAndKeyEventTypes (0.00s)
+=== RUN   TestInputEscapeTimerDoesNotFlushProtocolsOrUTF8
+--- PASS: TestInputEscapeTimerDoesNotFlushProtocolsOrUTF8 (0.00s)
+=== RUN   TestInputConcatenationAndBufferOwnership
+--- PASS: TestInputConcatenationAndBufferOwnership (0.00s)
+=== RUN   TestInputBoundsFailExplicitly
+--- PASS: TestInputBoundsFailExplicitly (0.00s)
+=== RUN   TestInputAmbiguousCPRNeverBecomesFunctionKey
+--- PASS: TestInputAmbiguousCPRNeverBecomesFunctionKey (0.00s)
+=== RUN   TestInputMultiReportKeepsBothEventsAndSingleRaw
+--- PASS: TestInputMultiReportKeepsBothEventsAndSingleRaw (0.00s)
+=== RUN   TestInputC1StringsAndLegacyMouseAreWhole
+--- PASS: TestInputC1StringsAndLegacyMouseAreWhole (0.00s)
+=== RUN   TestInputRepeatPolicyAndReplacementRune
+--- PASS: TestInputRepeatPolicyAndReplacementRune (0.00s)
+=== RUN   TestInputExactPasteBoundAndUnicodeSplits
+--- PASS: TestInputExactPasteBoundAndUnicodeSplits (0.00s)
+=== RUN   TestDecoderLegacyAltArrowAliases
+--- PASS: TestDecoderLegacyAltArrowAliases (0.00s)
+=== RUN   TestNoDestinationProducersAreEnumerated
+--- PASS: TestNoDestinationProducersAreEnumerated (0.01s)
+=== RUN   TestConsumersOfNoDestinationMethodsClassifyIt
+    no_destination_contract_test.go:192: exempt: terminalqualify -- a qualification oracle: it records `Input(...) != nil` as an observation, so classifying would destroy what it measures
+--- PASS: TestConsumersOfNoDestinationMethodsClassifyIt (0.26s)
+=== RUN   TestEndpointZellijNotificationMapping
+--- PASS: TestEndpointZellijNotificationMapping (0.00s)
+=== RUN   TestEndpointZellijMappingKeepsGenericNotificationsAndBounds
+--- PASS: TestEndpointZellijMappingKeepsGenericNotificationsAndBounds (0.00s)
+=== RUN   TestEndpointClaudeFooterNotificationDoesNotPaintAtCursor
+=== RUN   TestEndpointClaudeFooterNotificationDoesNotPaintAtCursor/-1
+=== RUN   TestEndpointClaudeFooterNotificationDoesNotPaintAtCursor/0
+=== RUN   TestEndpointClaudeFooterNotificationDoesNotPaintAtCursor/1
+=== RUN   TestEndpointClaudeFooterNotificationDoesNotPaintAtCursor/2
+=== RUN   TestEndpointClaudeFooterNotificationDoesNotPaintAtCursor/3
+=== RUN   TestEndpointClaudeFooterNotificationDoesNotPaintAtCursor/4
+=== RUN   TestEndpointClaudeFooterNotificationDoesNotPaintAtCursor/5
+=== RUN   TestEndpointClaudeFooterNotificationDoesNotPaintAtCursor/6
+=== RUN   TestEndpointClaudeFooterNotificationDoesNotPaintAtCursor/7
+=== RUN   TestEndpointClaudeFooterNotificationDoesNotPaintAtCursor/8
+=== RUN   TestEndpointClaudeFooterNotificationDoesNotPaintAtCursor/9
+=== RUN   TestEndpointClaudeFooterNotificationDoesNotPaintAtCursor/10
+=== RUN   TestEndpointClaudeFooterNotificationDoesNotPaintAtCursor/11
+=== RUN   TestEndpointClaudeFooterNotificationDoesNotPaintAtCursor/12
+=== RUN   TestEndpointClaudeFooterNotificationDoesNotPaintAtCursor/13
+=== RUN   TestEndpointClaudeFooterNotificationDoesNotPaintAtCursor/14
+=== RUN   TestEndpointClaudeFooterNotificationDoesNotPaintAtCursor/15
+=== RUN   TestEndpointClaudeFooterNotificationDoesNotPaintAtCursor/16
+=== RUN   TestEndpointClaudeFooterNotificationDoesNotPaintAtCursor/17
+=== RUN   TestEndpointClaudeFooterNotificationDoesNotPaintAtCursor/18
+=== RUN   TestEndpointClaudeFooterNotificationDoesNotPaintAtCursor/19
+=== RUN   TestEndpointClaudeFooterNotificationDoesNotPaintAtCursor/20
+=== RUN   TestEndpointClaudeFooterNotificationDoesNotPaintAtCursor/21
+=== RUN   TestEndpointClaudeFooterNotificationDoesNotPaintAtCursor/22
+=== RUN   TestEndpointClaudeFooterNotificationDoesNotPaintAtCursor/23
+=== RUN   TestEndpointClaudeFooterNotificationDoesNotPaintAtCursor/24
+=== RUN   TestEndpointClaudeFooterNotificationDoesNotPaintAtCursor/25
+=== RUN   TestEndpointClaudeFooterNotificationDoesNotPaintAtCursor/26
+=== RUN   TestEndpointClaudeFooterNotificationDoesNotPaintAtCursor/27
+=== RUN   TestEndpointClaudeFooterNotificationDoesNotPaintAtCursor/28
+=== RUN   TestEndpointClaudeFooterNotificationDoesNotPaintAtCursor/29
+=== RUN   TestEndpointClaudeFooterNotificationDoesNotPaintAtCursor/30
+=== RUN   TestEndpointClaudeFooterNotificationDoesNotPaintAtCursor/31
+=== RUN   TestEndpointClaudeFooterNotificationDoesNotPaintAtCursor/32
+=== RUN   TestEndpointClaudeFooterNotificationDoesNotPaintAtCursor/33
+=== RUN   TestEndpointClaudeFooterNotificationDoesNotPaintAtCursor/34
+=== RUN   TestEndpointClaudeFooterNotificationDoesNotPaintAtCursor/35
+=== RUN   TestEndpointClaudeFooterNotificationDoesNotPaintAtCursor/36
+=== RUN   TestEndpointClaudeFooterNotificationDoesNotPaintAtCursor/37
+=== RUN   TestEndpointClaudeFooterNotificationDoesNotPaintAtCursor/38
+=== RUN   TestEndpointClaudeFooterNotificationDoesNotPaintAtCursor/39
+=== RUN   TestEndpointClaudeFooterNotificationDoesNotPaintAtCursor/40
+=== RUN   TestEndpointClaudeFooterNotificationDoesNotPaintAtCursor/41
+=== RUN   TestEndpointClaudeFooterNotificationDoesNotPaintAtCursor/42
+=== RUN   TestEndpointClaudeFooterNotificationDoesNotPaintAtCursor/43
+=== RUN   TestEndpointClaudeFooterNotificationDoesNotPaintAtCursor/44
+=== RUN   TestEndpointClaudeFooterNotificationDoesNotPaintAtCursor/45
+=== RUN   TestEndpointClaudeFooterNotificationDoesNotPaintAtCursor/46
+=== RUN   TestEndpointClaudeFooterNotificationDoesNotPaintAtCursor/47
+=== RUN   TestEndpointClaudeFooterNotificationDoesNotPaintAtCursor/48
+=== RUN   TestEndpointClaudeFooterNotificationDoesNotPaintAtCursor/49
+=== RUN   TestEndpointClaudeFooterNotificationDoesNotPaintAtCursor/50
+=== RUN   TestEndpointClaudeFooterNotificationDoesNotPaintAtCursor/51
+=== RUN   TestEndpointClaudeFooterNotificationDoesNotPaintAtCursor/52
+=== RUN   TestEndpointClaudeFooterNotificationDoesNotPaintAtCursor/53
+=== RUN   TestEndpointClaudeFooterNotificationDoesNotPaintAtCursor/54
+=== RUN   TestEndpointClaudeFooterNotificationDoesNotPaintAtCursor/55
+=== RUN   TestEndpointClaudeFooterNotificationDoesNotPaintAtCursor/56
+=== RUN   TestEndpointClaudeFooterNotificationDoesNotPaintAtCursor/57
+=== RUN   TestEndpointClaudeFooterNotificationDoesNotPaintAtCursor/58
+=== RUN   TestEndpointClaudeFooterNotificationDoesNotPaintAtCursor/59
+=== RUN   TestEndpointClaudeFooterNotificationDoesNotPaintAtCursor/60
+=== RUN   TestEndpointClaudeFooterNotificationDoesNotPaintAtCursor/61
+=== RUN   TestEndpointClaudeFooterNotificationDoesNotPaintAtCursor/62
+=== RUN   TestEndpointClaudeFooterNotificationDoesNotPaintAtCursor/63
+--- PASS: TestEndpointClaudeFooterNotificationDoesNotPaintAtCursor (0.45s)
+    --- PASS: TestEndpointClaudeFooterNotificationDoesNotPaintAtCursor/-1 (0.01s)
+    --- PASS: TestEndpointClaudeFooterNotificationDoesNotPaintAtCursor/0 (0.01s)
+    --- PASS: TestEndpointClaudeFooterNotificationDoesNotPaintAtCursor/1 (0.01s)
+    --- PASS: TestEndpointClaudeFooterNotificationDoesNotPaintAtCursor/2 (0.01s)
+    --- PASS: TestEndpointClaudeFooterNotificationDoesNotPaintAtCursor/3 (0.01s)
+    --- PASS: TestEndpointClaudeFooterNotificationDoesNotPaintAtCursor/4 (0.01s)
+    --- PASS: TestEndpointClaudeFooterNotificationDoesNotPaintAtCursor/5 (0.00s)
+    --- PASS: TestEndpointClaudeFooterNotificationDoesNotPaintAtCursor/6 (0.00s)
+    --- PASS: TestEndpointClaudeFooterNotificationDoesNotPaintAtCursor/7 (0.01s)
+    --- PASS: TestEndpointClaudeFooterNotificationDoesNotPaintAtCursor/8 (0.01s)
+    --- PASS: TestEndpointClaudeFooterNotificationDoesNotPaintAtCursor/9 (0.01s)
+    --- PASS: TestEndpointClaudeFooterNotificationDoesNotPaintAtCursor/10 (0.01s)
+    --- PASS: TestEndpointClaudeFooterNotificationDoesNotPaintAtCursor/11 (0.01s)
+    --- PASS: TestEndpointClaudeFooterNotificationDoesNotPaintAtCursor/12 (0.01s)
+    --- PASS: TestEndpointClaudeFooterNotificationDoesNotPaintAtCursor/13 (0.01s)
+    --- PASS: TestEndpointClaudeFooterNotificationDoesNotPaintAtCursor/14 (0.00s)
+    --- PASS: TestEndpointClaudeFooterNotificationDoesNotPaintAtCursor/15 (0.01s)
+    --- PASS: TestEndpointClaudeFooterNotificationDoesNotPaintAtCursor/16 (0.01s)
+    --- PASS: TestEndpointClaudeFooterNotificationDoesNotPaintAtCursor/17 (0.01s)
+    --- PASS: TestEndpointClaudeFooterNotificationDoesNotPaintAtCursor/18 (0.01s)
+    --- PASS: TestEndpointClaudeFooterNotificationDoesNotPaintAtCursor/19 (0.01s)
+    --- PASS: TestEndpointClaudeFooterNotificationDoesNotPaintAtCursor/20 (0.01s)
+    --- PASS: TestEndpointClaudeFooterNotificationDoesNotPaintAtCursor/21 (0.01s)
+    --- PASS: TestEndpointClaudeFooterNotificationDoesNotPaintAtCursor/22 (0.01s)
+    --- PASS: TestEndpointClaudeFooterNotificationDoesNotPaintAtCursor/23 (0.01s)
+    --- PASS: TestEndpointClaudeFooterNotificationDoesNotPaintAtCursor/24 (0.01s)
+    --- PASS: TestEndpointClaudeFooterNotificationDoesNotPaintAtCursor/25 (0.01s)
+    --- PASS: TestEndpointClaudeFooterNotificationDoesNotPaintAtCursor/26 (0.01s)
+    --- PASS: TestEndpointClaudeFooterNotificationDoesNotPaintAtCursor/27 (0.00s)
+    --- PASS: TestEndpointClaudeFooterNotificationDoesNotPaintAtCursor/28 (0.01s)
+    --- PASS: TestEndpointClaudeFooterNotificationDoesNotPaintAtCursor/29 (0.01s)
+    --- PASS: TestEndpointClaudeFooterNotificationDoesNotPaintAtCursor/30 (0.01s)
+    --- PASS: TestEndpointClaudeFooterNotificationDoesNotPaintAtCursor/31 (0.01s)
+    --- PASS: TestEndpointClaudeFooterNotificationDoesNotPaintAtCursor/32 (0.01s)
+    --- PASS: TestEndpointClaudeFooterNotificationDoesNotPaintAtCursor/33 (0.01s)
+    --- PASS: TestEndpointClaudeFooterNotificationDoesNotPaintAtCursor/34 (0.01s)
+    --- PASS: TestEndpointClaudeFooterNotificationDoesNotPaintAtCursor/35 (0.01s)
+    --- PASS: TestEndpointClaudeFooterNotificationDoesNotPaintAtCursor/36 (0.01s)
+    --- PASS: TestEndpointClaudeFooterNotificationDoesNotPaintAtCursor/37 (0.01s)
+    --- PASS: TestEndpointClaudeFooterNotificationDoesNotPaintAtCursor/38 (0.01s)
+    --- PASS: TestEndpointClaudeFooterNotificationDoesNotPaintAtCursor/39 (0.00s)
+    --- PASS: TestEndpointClaudeFooterNotificationDoesNotPaintAtCursor/40 (0.00s)
+    --- PASS: TestEndpointClaudeFooterNotificationDoesNotPaintAtCursor/41 (0.01s)
+    --- PASS: TestEndpointClaudeFooterNotificationDoesNotPaintAtCursor/42 (0.01s)
+    --- PASS: TestEndpointClaudeFooterNotificationDoesNotPaintAtCursor/43 (0.01s)
+    --- PASS: TestEndpointClaudeFooterNotificationDoesNotPaintAtCursor/44 (0.01s)
+    --- PASS: TestEndpointClaudeFooterNotificationDoesNotPaintAtCursor/45 (0.01s)
+    --- PASS: TestEndpointClaudeFooterNotificationDoesNotPaintAtCursor/46 (0.00s)
+    --- PASS: TestEndpointClaudeFooterNotificationDoesNotPaintAtCursor/47 (0.01s)
+    --- PASS: TestEndpointClaudeFooterNotificationDoesNotPaintAtCursor/48 (0.01s)
+    --- PASS: TestEndpointClaudeFooterNotificationDoesNotPaintAtCursor/49 (0.00s)
+    --- PASS: TestEndpointClaudeFooterNotificationDoesNotPaintAtCursor/50 (0.01s)
+    --- PASS: TestEndpointClaudeFooterNotificationDoesNotPaintAtCursor/51 (0.01s)
+    --- PASS: TestEndpointClaudeFooterNotificationDoesNotPaintAtCursor/52 (0.01s)
+    --- PASS: TestEndpointClaudeFooterNotificationDoesNotPaintAtCursor/53 (0.00s)
+    --- PASS: TestEndpointClaudeFooterNotificationDoesNotPaintAtCursor/54 (0.01s)
+    --- PASS: TestEndpointClaudeFooterNotificationDoesNotPaintAtCursor/55 (0.01s)
+    --- PASS: TestEndpointClaudeFooterNotificationDoesNotPaintAtCursor/56 (0.01s)
+    --- PASS: TestEndpointClaudeFooterNotificationDoesNotPaintAtCursor/57 (0.01s)
+    --- PASS: TestEndpointClaudeFooterNotificationDoesNotPaintAtCursor/58 (0.01s)
+    --- PASS: TestEndpointClaudeFooterNotificationDoesNotPaintAtCursor/59 (0.00s)
+    --- PASS: TestEndpointClaudeFooterNotificationDoesNotPaintAtCursor/60 (0.00s)
+    --- PASS: TestEndpointClaudeFooterNotificationDoesNotPaintAtCursor/61 (0.01s)
+    --- PASS: TestEndpointClaudeFooterNotificationDoesNotPaintAtCursor/62 (0.01s)
+    --- PASS: TestEndpointClaudeFooterNotificationDoesNotPaintAtCursor/63 (0.00s)
+=== RUN   TestEndpointOSC99SuppressedAcrossSplits
+--- PASS: TestEndpointOSC99SuppressedAcrossSplits (0.01s)
+=== RUN   TestEndpointOSC99OversizeDiscarded
+--- PASS: TestEndpointOSC99OversizeDiscarded (0.00s)
+=== RUN   TestEndpointObservationsPreserveParserAndResizeOrder
+--- PASS: TestEndpointObservationsPreserveParserAndResizeOrder (0.00s)
+=== RUN   TestEndpointObservationEndsOnCloseWithoutEOF
+--- PASS: TestEndpointObservationEndsOnCloseWithoutEOF (0.00s)
+=== RUN   TestEndpointObservationRecordsAppliedResizeEvenWhenRepliesFail
+--- PASS: TestEndpointObservationRecordsAppliedResizeEvenWhenRepliesFail (0.00s)
+=== RUN   TestEndpointObservationRunsBeforeParsingUnderEndpointLock
+--- PASS: TestEndpointObservationRunsBeforeParsingUnderEndpointLock (0.00s)
+=== RUN   TestOverlayReachesPaintAndTap
+--- PASS: TestOverlayReachesPaintAndTap (0.00s)
+=== RUN   TestIdentityOverlayIsByteIdentical
+--- PASS: TestIdentityOverlayIsByteIdentical (0.00s)
+=== RUN   TestRefreshRepaintsWithoutOutput
+--- PASS: TestRefreshRepaintsWithoutOutput (0.00s)
+=== RUN   TestOverlaySeesPanelClass
+--- PASS: TestOverlaySeesPanelClass (0.00s)
+=== RUN   TestOverlayNeverReachesScrollback
+=== ARTIFACTS TestOverlayNeverReachesScrollback /Volumes/TestScratch/tmp/pair-slot6/p759-go1273.fQOeV7/native-results/artifacts/_artifacts/cmd/internal/terminal/TestOverlayNeverReachesScrollback/253924120
+--- PASS: TestOverlayNeverReachesScrollback (0.15s)
+=== RUN   TestOperatorLayerNeverReachesTheTap
+--- PASS: TestOperatorLayerNeverReachesTheTap (0.00s)
+=== RUN   TestPresenterEOFSettlesPendingCancellation
+--- PASS: TestPresenterEOFSettlesPendingCancellation (0.00s)
+=== RUN   TestPresenterZeroChromeResizesWithoutLosingRow
+--- PASS: TestPresenterZeroChromeResizesWithoutLosingRow (0.00s)
+=== RUN   TestPresenterStallPastWriteTimeoutDegradesThenRepaints
+--- PASS: TestPresenterStallPastWriteTimeoutDegradesThenRepaints (5.25s)
+=== RUN   TestPresenterFailsWhenTheParentIsGone
+--- PASS: TestPresenterFailsWhenTheParentIsGone (0.00s)
+=== RUN   TestPresenterSurvivesARealStallPastWriteTimeout
+--- PASS: TestPresenterSurvivesARealStallPastWriteTimeout (8.21s)
+=== RUN   TestPresenterStalledThenGoneFails
+--- PASS: TestPresenterStalledThenGoneFails (5.26s)
+=== RUN   TestPresenterHistorySwitchPanelAndAltReleaseOracle
+=== ARTIFACTS TestPresenterHistorySwitchPanelAndAltReleaseOracle /Volumes/TestScratch/tmp/pair-slot6/p759-go1273.fQOeV7/native-results/artifacts/_artifacts/cmd/internal/terminal/TestPresenterHistorySwitchPanelAndAltReleaseOracle/252540472
+--- PASS: TestPresenterHistorySwitchPanelAndAltReleaseOracle (0.41s)
+=== RUN   TestPresenterReleaseCancelsStringBeforeLeavingOwnedAlt
+=== ARTIFACTS TestPresenterReleaseCancelsStringBeforeLeavingOwnedAlt /Volumes/TestScratch/tmp/pair-slot6/p759-go1273.fQOeV7/native-results/artifacts/_artifacts/cmd/internal/terminal/TestPresenterReleaseCancelsStringBeforeLeavingOwnedAlt/4006277050
+--- PASS: TestPresenterReleaseCancelsStringBeforeLeavingOwnedAlt (0.13s)
+=== RUN   TestPresenterSurvivesTransientParentStallAndRestoresModes
+--- PASS: TestPresenterSurvivesTransientParentStallAndRestoresModes (3.21s)
+=== RUN   TestPresenterRestoresModesWhenHostResumesAfterFailure
+--- PASS: TestPresenterRestoresModesWhenHostResumesAfterFailure (1.01s)
+=== RUN   TestPresenterReleaseReportsModesNotRestoredWhenHostStaysStalled
+--- PASS: TestPresenterReleaseReportsModesNotRestoredWhenHostStaysStalled (0.80s)
+=== RUN   TestPresenterReleaseBoundsDragCancellationWhenChildStalls
+--- PASS: TestPresenterReleaseBoundsDragCancellationWhenChildStalls (5.00s)
+=== RUN   TestPresenterUnwrittenReleaseDoesNotTouchParent
+--- PASS: TestPresenterUnwrittenReleaseDoesNotTouchParent (0.00s)
+=== RUN   TestPresenterResizeRejectsInvalidGeometryWithoutMutation
+=== RUN   TestPresenterResizeRejectsInvalidGeometryWithoutMutation/layout=false/-1x5
+=== RUN   TestPresenterResizeRejectsInvalidGeometryWithoutMutation/layout=false/8x-1
+=== RUN   TestPresenterResizeRejectsInvalidGeometryWithoutMutation/layout=false/0x5
+=== RUN   TestPresenterResizeRejectsInvalidGeometryWithoutMutation/layout=false/8x0
+=== RUN   TestPresenterResizeRejectsInvalidGeometryWithoutMutation/layout=false/262145x5
+=== RUN   TestPresenterResizeRejectsInvalidGeometryWithoutMutation/layout=false/8x262144
+=== RUN   TestPresenterResizeRejectsInvalidGeometryWithoutMutation/layout=false/8x1
+=== RUN   TestPresenterResizeRejectsInvalidGeometryWithoutMutation/layout=true/-1x5
+=== RUN   TestPresenterResizeRejectsInvalidGeometryWithoutMutation/layout=true/8x-1
+=== RUN   TestPresenterResizeRejectsInvalidGeometryWithoutMutation/layout=true/0x5
+=== RUN   TestPresenterResizeRejectsInvalidGeometryWithoutMutation/layout=true/8x0
+=== RUN   TestPresenterResizeRejectsInvalidGeometryWithoutMutation/layout=true/262145x5
+=== RUN   TestPresenterResizeRejectsInvalidGeometryWithoutMutation/layout=true/8x262144
+=== RUN   TestPresenterResizeRejectsInvalidGeometryWithoutMutation/layout=true/8x1
+--- PASS: TestPresenterResizeRejectsInvalidGeometryWithoutMutation (0.00s)
+    --- PASS: TestPresenterResizeRejectsInvalidGeometryWithoutMutation/layout=false/-1x5 (0.00s)
+    --- PASS: TestPresenterResizeRejectsInvalidGeometryWithoutMutation/layout=false/8x-1 (0.00s)
+    --- PASS: TestPresenterResizeRejectsInvalidGeometryWithoutMutation/layout=false/0x5 (0.00s)
+    --- PASS: TestPresenterResizeRejectsInvalidGeometryWithoutMutation/layout=false/8x0 (0.00s)
+    --- PASS: TestPresenterResizeRejectsInvalidGeometryWithoutMutation/layout=false/262145x5 (0.00s)
+    --- PASS: TestPresenterResizeRejectsInvalidGeometryWithoutMutation/layout=false/8x262144 (0.00s)
+    --- PASS: TestPresenterResizeRejectsInvalidGeometryWithoutMutation/layout=false/8x1 (0.00s)
+    --- PASS: TestPresenterResizeRejectsInvalidGeometryWithoutMutation/layout=true/-1x5 (0.00s)
+    --- PASS: TestPresenterResizeRejectsInvalidGeometryWithoutMutation/layout=true/8x-1 (0.00s)
+    --- PASS: TestPresenterResizeRejectsInvalidGeometryWithoutMutation/layout=true/0x5 (0.00s)
+    --- PASS: TestPresenterResizeRejectsInvalidGeometryWithoutMutation/layout=true/8x0 (0.00s)
+    --- PASS: TestPresenterResizeRejectsInvalidGeometryWithoutMutation/layout=true/262145x5 (0.00s)
+    --- PASS: TestPresenterResizeRejectsInvalidGeometryWithoutMutation/layout=true/8x262144 (0.00s)
+    --- PASS: TestPresenterResizeRejectsInvalidGeometryWithoutMutation/layout=true/8x1 (0.00s)
+=== RUN   TestPresenterAdmissionWaitsForCompletePaint
+--- PASS: TestPresenterAdmissionWaitsForCompletePaint (0.02s)
+=== RUN   TestPresenterPartialFailureClosesAdmission
+--- PASS: TestPresenterPartialFailureClosesAdmission (0.00s)
+=== RUN   TestPresenterReleaseCancelsBlockedWriteAndJoins
+--- PASS: TestPresenterReleaseCancelsBlockedWriteAndJoins (0.00s)
+=== RUN   TestPresenterMousePolicyAndDragCancellation
+=== RUN   TestPresenterMousePolicyAndDragCancellation/0
+=== RUN   TestPresenterMousePolicyAndDragCancellation/1
+--- PASS: TestPresenterMousePolicyAndDragCancellation (0.00s)
+    --- PASS: TestPresenterMousePolicyAndDragCancellation/0 (0.00s)
+    --- PASS: TestPresenterMousePolicyAndDragCancellation/1 (0.00s)
+=== RUN   TestPresenterEffectsOnceAndNeverReplayed
+--- PASS: TestPresenterEffectsOnceAndNeverReplayed (0.00s)
+=== RUN   TestPresenterRefreshCoalescesAndRecoversSynchronizationWithoutMoreOutput
+--- PASS: TestPresenterRefreshCoalescesAndRecoversSynchronizationWithoutMoreOutput (0.19s)
+=== RUN   TestPresenterResizeAndChildMouseOff
+--- PASS: TestPresenterResizeAndChildMouseOff (0.00s)
+=== RUN   TestPresenterBoundsAdmissionWhilePaintBlocked
+--- PASS: TestPresenterBoundsAdmissionWhilePaintBlocked (0.00s)
+=== RUN   TestPresenterRejectsControlInjectionAndStaleFrames
+--- PASS: TestPresenterRejectsControlInjectionAndStaleFrames (0.00s)
+=== RUN   TestPresenterPaintsDoNotResetMouseDuringDrag
+--- PASS: TestPresenterPaintsDoNotResetMouseDuringDrag (0.00s)
+=== RUN   TestPresenterReleaseInPanelClearsSuppression
+--- PASS: TestPresenterReleaseInPanelClearsSuppression (0.00s)
+=== RUN   TestPresenterRetiresOriginsAndRefusesLateEffects
+--- PASS: TestPresenterRetiresOriginsAndRefusesLateEffects (0.00s)
+=== RUN   TestPresenterFailureCancelsDragToOldEndpoint
+--- PASS: TestPresenterFailureCancelsDragToOldEndpoint (0.00s)
+=== RUN   TestPresenterRequestsKeyEventsAndEndpointFiltersReleases
+=== RUN   TestPresenterRequestsKeyEventsAndEndpointFiltersReleases/false
+=== RUN   TestPresenterRequestsKeyEventsAndEndpointFiltersReleases/true
+--- PASS: TestPresenterRequestsKeyEventsAndEndpointFiltersReleases (0.00s)
+    --- PASS: TestPresenterRequestsKeyEventsAndEndpointFiltersReleases/false (0.00s)
+    --- PASS: TestPresenterRequestsKeyEventsAndEndpointFiltersReleases/true (0.00s)
+=== RUN   TestPresenterReleaseRestoresOnlyOwnedKeyboardPush
+=== RUN   TestPresenterReleaseRestoresOnlyOwnedKeyboardPush/unacquired
+=== RUN   TestPresenterReleaseRestoresOnlyOwnedKeyboardPush/zero
+=== RUN   TestPresenterReleaseRestoresOnlyOwnedKeyboardPush/before-push
+=== RUN   TestPresenterReleaseRestoresOnlyOwnedKeyboardPush/after-push
+--- PASS: TestPresenterReleaseRestoresOnlyOwnedKeyboardPush (0.00s)
+    --- PASS: TestPresenterReleaseRestoresOnlyOwnedKeyboardPush/unacquired (0.00s)
+    --- PASS: TestPresenterReleaseRestoresOnlyOwnedKeyboardPush/zero (0.00s)
+    --- PASS: TestPresenterReleaseRestoresOnlyOwnedKeyboardPush/before-push (0.00s)
+    --- PASS: TestPresenterReleaseRestoresOnlyOwnedKeyboardPush/after-push (0.00s)
+=== RUN   TestPresenterKeyboardPushFollowsTheScreen
+=== RUN   TestPresenterKeyboardPushFollowsTheScreen/alternate-first
+=== RUN   TestPresenterKeyboardPushFollowsTheScreen/primary-first
+--- PASS: TestPresenterKeyboardPushFollowsTheScreen (0.00s)
+    --- PASS: TestPresenterKeyboardPushFollowsTheScreen/alternate-first (0.00s)
+    --- PASS: TestPresenterKeyboardPushFollowsTheScreen/primary-first (0.00s)
+=== RUN   TestPresenterReleaseCancelsEffectAndJoinsResult
+--- PASS: TestPresenterReleaseCancelsEffectAndJoinsResult (0.00s)
+=== RUN   TestPresenterFailedResizePreservesPresentedGeometry
+--- PASS: TestPresenterFailedResizePreservesPresentedGeometry (0.00s)
+=== RUN   TestPresenterQueuedEffectsDoNotWriteAfterPaintFailure
+--- PASS: TestPresenterQueuedEffectsDoNotWriteAfterPaintFailure (0.00s)
+=== RUN   TestPresenterChromeUpdatePreservesDragAndOwnsCells
+--- PASS: TestPresenterChromeUpdatePreservesDragAndOwnsCells (0.00s)
+=== RUN   TestPresenterParentAndOrphanGesturesNeverReachChild
+=== RUN   TestPresenterParentAndOrphanGesturesNeverReachChild/chrome
+=== RUN   TestPresenterParentAndOrphanGesturesNeverReachChild/panel
+=== RUN   TestPresenterParentAndOrphanGesturesNeverReachChild/orphan-motion
+=== RUN   TestPresenterParentAndOrphanGesturesNeverReachChild/orphan-release
+--- PASS: TestPresenterParentAndOrphanGesturesNeverReachChild (0.00s)
+    --- PASS: TestPresenterParentAndOrphanGesturesNeverReachChild/chrome (0.00s)
+    --- PASS: TestPresenterParentAndOrphanGesturesNeverReachChild/panel (0.00s)
+    --- PASS: TestPresenterParentAndOrphanGesturesNeverReachChild/orphan-motion (0.00s)
+    --- PASS: TestPresenterParentAndOrphanGesturesNeverReachChild/orphan-release (0.00s)
+=== RUN   TestPresenterMouseModeChangeEndsCapturedGesture
+--- PASS: TestPresenterMouseModeChangeEndsCapturedGesture (0.00s)
+=== RUN   TestPresenterModeEpochAndButtonOwnership
+=== RUN   TestPresenterModeEpochAndButtonOwnership/1b5b3f313030326c1b5b3f3130303268
+=== RUN   TestPresenterModeEpochAndButtonOwnership/1b5b3f313030366c1b5b3f3130303668
+=== RUN   TestPresenterModeEpochAndButtonOwnership/1b631b5b3f31303032681b5b3f3130303668
+--- PASS: TestPresenterModeEpochAndButtonOwnership (0.00s)
+    --- PASS: TestPresenterModeEpochAndButtonOwnership/1b5b3f313030326c1b5b3f3130303268 (0.00s)
+    --- PASS: TestPresenterModeEpochAndButtonOwnership/1b5b3f313030366c1b5b3f3130303668 (0.00s)
+    --- PASS: TestPresenterModeEpochAndButtonOwnership/1b631b5b3f31303032681b5b3f3130303668 (0.00s)
+=== RUN   TestPresenterFailedResizeDoesNotReviveCanceledGesture
+--- PASS: TestPresenterFailedResizeDoesNotReviveCanceledGesture (0.00s)
+=== RUN   TestPresenterInterruptedCancellationDoesNotEnqueueAgain
+--- PASS: TestPresenterInterruptedCancellationDoesNotEnqueueAgain (0.00s)
+=== RUN   TestPresenterCancellationCallersResumeOnePendingDelivery
+=== RUN   TestPresenterCancellationCallersResumeOnePendingDelivery/release
+=== RUN   TestPresenterCancellationCallersResumeOnePendingDelivery/failure
+=== RUN   TestPresenterCancellationCallersResumeOnePendingDelivery/selection
+=== RUN   TestPresenterCancellationCallersResumeOnePendingDelivery/panel
+=== RUN   TestPresenterCancellationCallersResumeOnePendingDelivery/reconciliation
+=== RUN   TestPresenterCancellationCallersResumeOnePendingDelivery/resize
+--- PASS: TestPresenterCancellationCallersResumeOnePendingDelivery (0.00s)
+    --- PASS: TestPresenterCancellationCallersResumeOnePendingDelivery/release (0.00s)
+    --- PASS: TestPresenterCancellationCallersResumeOnePendingDelivery/failure (0.00s)
+    --- PASS: TestPresenterCancellationCallersResumeOnePendingDelivery/selection (0.00s)
+    --- PASS: TestPresenterCancellationCallersResumeOnePendingDelivery/panel (0.00s)
+    --- PASS: TestPresenterCancellationCallersResumeOnePendingDelivery/reconciliation (0.00s)
+    --- PASS: TestPresenterCancellationCallersResumeOnePendingDelivery/resize (0.00s)
+=== RUN   TestPresenterFailedChildCancellationStillReleasesParent
+--- PASS: TestPresenterFailedChildCancellationStillReleasesParent (0.00s)
+=== RUN   TestPresenterCanceledSelectionJoinsExistingReleaseWithoutRetry
+--- PASS: TestPresenterCanceledSelectionJoinsExistingReleaseWithoutRetry (0.00s)
+=== RUN   TestPresenterRefusalsWithoutADestinationAreClassifiable
+=== RUN   TestPresenterRefusalsWithoutADestinationAreClassifiable/input
+=== RUN   TestPresenterRefusalsWithoutADestinationAreClassifiable/update-chrome
+=== RUN   TestPresenterRefusalsWithoutADestinationAreClassifiable/resize-layout
+--- PASS: TestPresenterRefusalsWithoutADestinationAreClassifiable (0.00s)
+    --- PASS: TestPresenterRefusalsWithoutADestinationAreClassifiable/input (0.00s)
+    --- PASS: TestPresenterRefusalsWithoutADestinationAreClassifiable/update-chrome (0.00s)
+    --- PASS: TestPresenterRefusalsWithoutADestinationAreClassifiable/resize-layout (0.00s)
+=== RUN   TestPresenterStreamIsBracketedAcrossPaintsAndRelease
+--- PASS: TestPresenterStreamIsBracketedAcrossPaintsAndRelease (0.00s)
+=== RUN   TestPresenterReleaseClosesSyncAfterAnyCutWrite
+=== RUN   TestPresenterReleaseClosesSyncAfterAnyCutWrite/single-write
+=== RUN   TestPresenterReleaseClosesSyncAfterAnyCutWrite/alt-switch
+=== RUN   TestPresenterReleaseClosesSyncAfterAnyCutWrite/multi-chunk
+--- PASS: TestPresenterReleaseClosesSyncAfterAnyCutWrite (2.22s)
+    --- PASS: TestPresenterReleaseClosesSyncAfterAnyCutWrite/single-write (0.04s)
+    --- PASS: TestPresenterReleaseClosesSyncAfterAnyCutWrite/alt-switch (0.03s)
+    --- PASS: TestPresenterReleaseClosesSyncAfterAnyCutWrite/multi-chunk (2.14s)
+=== RUN   TestChildCursorStyleReachesParentVerbatim
+=== RUN   TestChildCursorStyleReachesParentVerbatim/never-set
+=== RUN   TestChildCursorStyleReachesParentVerbatim/zero
+=== RUN   TestChildCursorStyleReachesParentVerbatim/absent
+=== RUN   TestChildCursorStyleReachesParentVerbatim/reset
+=== RUN   TestChildCursorStyleReachesParentVerbatim/zero-after-block
+=== RUN   TestChildCursorStyleReachesParentVerbatim/1
+=== RUN   TestChildCursorStyleReachesParentVerbatim/2
+=== RUN   TestChildCursorStyleReachesParentVerbatim/3
+=== RUN   TestChildCursorStyleReachesParentVerbatim/4
+=== RUN   TestChildCursorStyleReachesParentVerbatim/5
+=== RUN   TestChildCursorStyleReachesParentVerbatim/6
+--- PASS: TestChildCursorStyleReachesParentVerbatim (0.00s)
+    --- PASS: TestChildCursorStyleReachesParentVerbatim/never-set (0.00s)
+    --- PASS: TestChildCursorStyleReachesParentVerbatim/zero (0.00s)
+    --- PASS: TestChildCursorStyleReachesParentVerbatim/absent (0.00s)
+    --- PASS: TestChildCursorStyleReachesParentVerbatim/reset (0.00s)
+    --- PASS: TestChildCursorStyleReachesParentVerbatim/zero-after-block (0.00s)
+    --- PASS: TestChildCursorStyleReachesParentVerbatim/1 (0.00s)
+    --- PASS: TestChildCursorStyleReachesParentVerbatim/2 (0.00s)
+    --- PASS: TestChildCursorStyleReachesParentVerbatim/3 (0.00s)
+    --- PASS: TestChildCursorStyleReachesParentVerbatim/4 (0.00s)
+    --- PASS: TestChildCursorStyleReachesParentVerbatim/5 (0.00s)
+    --- PASS: TestChildCursorStyleReachesParentVerbatim/6 (0.00s)
+=== RUN   TestProfileQueryLiteralReplies
+=== RUN   TestProfileQueryLiteralReplies/\x1b[c
+=== RUN   TestProfileQueryLiteralReplies/\x1b[0c
+=== RUN   TestProfileQueryLiteralReplies/\x1b[>c
+=== RUN   TestProfileQueryLiteralReplies/\x1b[1c
+=== RUN   TestProfileQueryLiteralReplies/\x1b[>2c
+=== RUN   TestProfileQueryLiteralReplies/\x1bP+q544e\x1b\
+=== RUN   TestProfileQueryLiteralReplies/\x1bP+q436f;6b63757531\x1b\
+=== RUN   TestProfileQueryLiteralReplies/\x1bP+q4d73\x1b\
+=== RUN   TestProfileQueryLiteralReplies/\x1bP+q736978656c\x1b\
+=== RUN   TestProfileQueryLiteralReplies/\x1bP+q787465726d\x1b\
+=== RUN   TestProfileQueryLiteralReplies/\x1bP+qzz\x1b\
+--- PASS: TestProfileQueryLiteralReplies (0.02s)
+    --- PASS: TestProfileQueryLiteralReplies/\x1b[c (0.00s)
+    --- PASS: TestProfileQueryLiteralReplies/\x1b[0c (0.00s)
+    --- PASS: TestProfileQueryLiteralReplies/\x1b[>c (0.00s)
+    --- PASS: TestProfileQueryLiteralReplies/\x1b[1c (0.00s)
+    --- PASS: TestProfileQueryLiteralReplies/\x1b[>2c (0.00s)
+    --- PASS: TestProfileQueryLiteralReplies/\x1bP+q544e\x1b\ (0.00s)
+    --- PASS: TestProfileQueryLiteralReplies/\x1bP+q436f;6b63757531\x1b\ (0.00s)
+    --- PASS: TestProfileQueryLiteralReplies/\x1bP+q4d73\x1b\ (0.00s)
+    --- PASS: TestProfileQueryLiteralReplies/\x1bP+q736978656c\x1b\ (0.00s)
+    --- PASS: TestProfileQueryLiteralReplies/\x1bP+q787465726d\x1b\ (0.00s)
+    --- PASS: TestProfileQueryLiteralReplies/\x1bP+qzz\x1b\ (0.00s)
+=== RUN   TestProfileRejectsUnsupportedAdvertising
+--- PASS: TestProfileRejectsUnsupportedAdvertising (0.00s)
+=== RUN   TestProfileTerminfoCompiledContract
+--- PASS: TestProfileTerminfoCompiledContract (0.05s)
+=== RUN   TestProfileQueriesUseEndpointReplyTransport
+--- PASS: TestProfileQueriesUseEndpointReplyTransport (0.00s)
+=== RUN   TestRequiredOracleMissingAssets
+=== RUN   TestRequiredOracleMissingAssets/viewport
+=== RUN   TestRequiredOracleMissingAssets/history
+--- PASS: TestRequiredOracleMissingAssets (0.02s)
+    --- PASS: TestRequiredOracleMissingAssets/viewport (0.01s)
+    --- PASS: TestRequiredOracleMissingAssets/history (0.01s)
+=== RUN   TestRendererIndependentWireOracle
+=== ARTIFACTS TestRendererIndependentWireOracle /Volumes/TestScratch/tmp/pair-slot6/p759-go1273.fQOeV7/native-results/artifacts/_artifacts/cmd/internal/terminal/TestRendererIndependentWireOracle/333107524
+--- PASS: TestRendererIndependentWireOracle (0.12s)
+=== RUN   TestRendererIndependentWideBoundaryDiff
+=== ARTIFACTS TestRendererIndependentWideBoundaryDiff /Volumes/TestScratch/tmp/pair-slot6/p759-go1273.fQOeV7/native-results/artifacts/_artifacts/cmd/internal/terminal/TestRendererIndependentWideBoundaryDiff/918901731
+--- PASS: TestRendererIndependentWideBoundaryDiff (0.10s)
+=== RUN   TestRendererIndependentInterruptedPresentationRelease
+=== ARTIFACTS TestRendererIndependentInterruptedPresentationRelease /Volumes/TestScratch/tmp/pair-slot6/p759-go1273.fQOeV7/native-results/artifacts/_artifacts/cmd/internal/terminal/TestRendererIndependentInterruptedPresentationRelease/1104335240
+--- PASS: TestRendererIndependentInterruptedPresentationRelease (0.95s)
+=== RUN   TestRendererIndependentCombiningClusters
+=== ARTIFACTS TestRendererIndependentCombiningClusters /Volumes/TestScratch/tmp/pair-slot6/p759-go1273.fQOeV7/native-results/artifacts/_artifacts/cmd/internal/terminal/TestRendererIndependentCombiningClusters/1547543417
+--- PASS: TestRendererIndependentCombiningClusters (0.13s)
+=== RUN   TestOracleReadsCursorShape
+=== ARTIFACTS TestOracleReadsCursorShape /Volumes/TestScratch/tmp/pair-slot6/p759-go1273.fQOeV7/native-results/artifacts/_artifacts/cmd/internal/terminal/TestOracleReadsCursorShape/3671356409
+--- PASS: TestOracleReadsCursorShape (0.11s)
+=== RUN   TestOracleCapabilityMarkersAreWide
+=== ARTIFACTS TestOracleCapabilityMarkersAreWide /Volumes/TestScratch/tmp/pair-slot6/p759-go1273.fQOeV7/native-results/artifacts/_artifacts/cmd/internal/terminal/TestOracleCapabilityMarkersAreWide/1168261614
+--- PASS: TestOracleCapabilityMarkersAreWide (0.15s)
+=== RUN   TestRenderDiffAndIsolation
+--- PASS: TestRenderDiffAndIsolation (0.00s)
+=== RUN   TestStyledRowsAllowOnlyTextStylesAndLinks
+--- PASS: TestStyledRowsAllowOnlyTextStylesAndLinks (0.00s)
+=== RUN   TestComposePreservesChildAndOwnsBottomRow
+--- PASS: TestComposePreservesChildAndOwnsBottomRow (0.00s)
+=== RUN   TestRenderBracketsEveryFrameAndNeverANoop
+--- PASS: TestRenderBracketsEveryFrameAndNeverANoop (0.00s)
+=== RUN   TestCursorEpilogueCarriesDECSCUSR
+--- PASS: TestCursorEpilogueCarriesDECSCUSR (0.00s)
+=== RUN   TestTerminalResourceProbe
+    resource_test.go:33: set PAIR_TERMINAL_RESOURCE_PROBE=1 for isolated resource measurements
+--- SKIP: TestTerminalResourceProbe (0.00s)
+=== RUN   TestTapSeesEveryPaintedFrame
+--- PASS: TestTapSeesEveryPaintedFrame (0.00s)
+=== RUN   TestTapClassFollowsPanel
+--- PASS: TestTapClassFollowsPanel (0.00s)
+=== RUN   TestTapGetsAnOwnedClone
+--- PASS: TestTapGetsAnOwnedClone (0.00s)
+=== RUN   TestTapNotCalledOnFailedPaint
+--- PASS: TestTapNotCalledOnFailedPaint (0.00s)
+=== RUN   TestSetTapNilStopsDelivery
+--- PASS: TestSetTapNilStopsDelivery (0.00s)
+=== RUN   TestInputWriterOrdersWholePacketsAndPartialWrites
+--- PASS: TestInputWriterOrdersWholePacketsAndPartialWrites (0.00s)
+=== RUN   TestWriteTimeoutAllowsFiveSecondsForTerminalIO
+--- PASS: TestWriteTimeoutAllowsFiveSecondsForTerminalIO (0.00s)
+=== RUN   TestInputWriterFailureKeepsAcceptedPrefixAndStops
+--- PASS: TestInputWriterFailureKeepsAcceptedPrefixAndStops (0.00s)
+=== RUN   TestInputWriterBoundsIncludeInflightAndCloseJoins
+--- PASS: TestInputWriterBoundsIncludeInflightAndCloseJoins (0.00s)
+=== RUN   TestInputWriterZeroProgressFailsWithoutRetry
+--- PASS: TestInputWriterZeroProgressFailsWithoutRetry (0.00s)
+=== RUN   TestViewAdmitsOnlyMatchingSuccessfulPresentation
+--- PASS: TestViewAdmitsOnlyMatchingSuccessfulPresentation (0.00s)
+=== RUN   TestViewSwitchCancelsDragAndSuppressesRemainder
+--- PASS: TestViewSwitchCancelsDragAndSuppressesRemainder (0.00s)
+=== RUN   TestViewPanelAndResizeRejectStaleEpoch
+--- PASS: TestViewPanelAndResizeRejectStaleEpoch (0.00s)
+=== RUN   TestViewParentGestureSurvivesSelectionAndRequiresMatchingRelease
+--- PASS: TestViewParentGestureSurvivesSelectionAndRequiresMatchingRelease (0.00s)
+=== RUN   TestViewCancellationRevocationPrecedesDeliveryAndSurvivesRelease
+--- PASS: TestViewCancellationRevocationPrecedesDeliveryAndSurvivesRelease (0.00s)
+=== RUN   TestZeroWidthOutputKeepsPresentationAndInputUsable
+=== RUN   TestZeroWidthOutputKeepsPresentationAndInputUsable/"é"
+=== RUN   TestZeroWidthOutputKeepsPresentationAndInputUsable/"é"/0
+=== RUN   TestZeroWidthOutputKeepsPresentationAndInputUsable/"é"/1
+=== RUN   TestZeroWidthOutputKeepsPresentationAndInputUsable/"é"/2
+=== RUN   TestZeroWidthOutputKeepsPresentationAndInputUsable/"é"/3
+=== RUN   TestZeroWidthOutputKeepsPresentationAndInputUsable/"👩\u200d💻"
+=== RUN   TestZeroWidthOutputKeepsPresentationAndInputUsable/"👩\u200d💻"/0
+=== RUN   TestZeroWidthOutputKeepsPresentationAndInputUsable/"👩\u200d💻"/1
+=== RUN   TestZeroWidthOutputKeepsPresentationAndInputUsable/"👩\u200d💻"/2
+=== RUN   TestZeroWidthOutputKeepsPresentationAndInputUsable/"👩\u200d💻"/3
+=== RUN   TestZeroWidthOutputKeepsPresentationAndInputUsable/"👩\u200d💻"/4
+=== RUN   TestZeroWidthOutputKeepsPresentationAndInputUsable/"👩\u200d💻"/5
+=== RUN   TestZeroWidthOutputKeepsPresentationAndInputUsable/"👩\u200d💻"/6
+=== RUN   TestZeroWidthOutputKeepsPresentationAndInputUsable/"👩\u200d💻"/7
+=== RUN   TestZeroWidthOutputKeepsPresentationAndInputUsable/"👩\u200d💻"/8
+=== RUN   TestZeroWidthOutputKeepsPresentationAndInputUsable/"👩\u200d💻"/9
+=== RUN   TestZeroWidthOutputKeepsPresentationAndInputUsable/"👩\u200d💻"/10
+=== RUN   TestZeroWidthOutputKeepsPresentationAndInputUsable/"👩\u200d💻"/11
+=== RUN   TestZeroWidthOutputKeepsPresentationAndInputUsable/"❤︎"
+=== RUN   TestZeroWidthOutputKeepsPresentationAndInputUsable/"❤︎"/0
+=== RUN   TestZeroWidthOutputKeepsPresentationAndInputUsable/"❤︎"/1
+=== RUN   TestZeroWidthOutputKeepsPresentationAndInputUsable/"❤︎"/2
+=== RUN   TestZeroWidthOutputKeepsPresentationAndInputUsable/"❤︎"/3
+=== RUN   TestZeroWidthOutputKeepsPresentationAndInputUsable/"❤︎"/4
+=== RUN   TestZeroWidthOutputKeepsPresentationAndInputUsable/"❤︎"/5
+=== RUN   TestZeroWidthOutputKeepsPresentationAndInputUsable/"❤︎"/6
+=== RUN   TestZeroWidthOutputKeepsPresentationAndInputUsable/"❤️"
+=== RUN   TestZeroWidthOutputKeepsPresentationAndInputUsable/"❤️"/0
+=== RUN   TestZeroWidthOutputKeepsPresentationAndInputUsable/"❤️"/1
+=== RUN   TestZeroWidthOutputKeepsPresentationAndInputUsable/"❤️"/2
+=== RUN   TestZeroWidthOutputKeepsPresentationAndInputUsable/"❤️"/3
+=== RUN   TestZeroWidthOutputKeepsPresentationAndInputUsable/"❤️"/4
+=== RUN   TestZeroWidthOutputKeepsPresentationAndInputUsable/"❤️"/5
+=== RUN   TestZeroWidthOutputKeepsPresentationAndInputUsable/"❤️"/6
+=== RUN   TestZeroWidthOutputKeepsPresentationAndInputUsable/"1️⃣"
+=== RUN   TestZeroWidthOutputKeepsPresentationAndInputUsable/"1️⃣"/0
+=== RUN   TestZeroWidthOutputKeepsPresentationAndInputUsable/"1️⃣"/1
+=== RUN   TestZeroWidthOutputKeepsPresentationAndInputUsable/"1️⃣"/2
+=== RUN   TestZeroWidthOutputKeepsPresentationAndInputUsable/"1️⃣"/3
+=== RUN   TestZeroWidthOutputKeepsPresentationAndInputUsable/"1️⃣"/4
+=== RUN   TestZeroWidthOutputKeepsPresentationAndInputUsable/"1️⃣"/5
+=== RUN   TestZeroWidthOutputKeepsPresentationAndInputUsable/"1️⃣"/6
+=== RUN   TestZeroWidthOutputKeepsPresentationAndInputUsable/"1️⃣"/7
+=== RUN   TestZeroWidthOutputKeepsPresentationAndInputUsable/"🇺🇸"
+=== RUN   TestZeroWidthOutputKeepsPresentationAndInputUsable/"🇺🇸"/0
+=== RUN   TestZeroWidthOutputKeepsPresentationAndInputUsable/"🇺🇸"/1
+=== RUN   TestZeroWidthOutputKeepsPresentationAndInputUsable/"🇺🇸"/2
+=== RUN   TestZeroWidthOutputKeepsPresentationAndInputUsable/"🇺🇸"/3
+=== RUN   TestZeroWidthOutputKeepsPresentationAndInputUsable/"🇺🇸"/4
+=== RUN   TestZeroWidthOutputKeepsPresentationAndInputUsable/"🇺🇸"/5
+=== RUN   TestZeroWidthOutputKeepsPresentationAndInputUsable/"🇺🇸"/6
+=== RUN   TestZeroWidthOutputKeepsPresentationAndInputUsable/"🇺🇸"/7
+=== RUN   TestZeroWidthOutputKeepsPresentationAndInputUsable/"🇺🇸"/8
+=== RUN   TestZeroWidthOutputKeepsPresentationAndInputUsable/"́"
+=== RUN   TestZeroWidthOutputKeepsPresentationAndInputUsable/"́"/0
+=== RUN   TestZeroWidthOutputKeepsPresentationAndInputUsable/"́"/1
+=== RUN   TestZeroWidthOutputKeepsPresentationAndInputUsable/"́"/2
+=== RUN   TestZeroWidthOutputKeepsPresentationAndInputUsable/"\u200d"
+=== RUN   TestZeroWidthOutputKeepsPresentationAndInputUsable/"\u200d"/0
+=== RUN   TestZeroWidthOutputKeepsPresentationAndInputUsable/"\u200d"/1
+=== RUN   TestZeroWidthOutputKeepsPresentationAndInputUsable/"\u200d"/2
+=== RUN   TestZeroWidthOutputKeepsPresentationAndInputUsable/"\u200d"/3
+=== RUN   TestZeroWidthOutputKeepsPresentationAndInputUsable/"️"
+=== RUN   TestZeroWidthOutputKeepsPresentationAndInputUsable/"️"/0
+=== RUN   TestZeroWidthOutputKeepsPresentationAndInputUsable/"️"/1
+=== RUN   TestZeroWidthOutputKeepsPresentationAndInputUsable/"️"/2
+=== RUN   TestZeroWidthOutputKeepsPresentationAndInputUsable/"️"/3
+=== RUN   TestZeroWidthOutputKeepsPresentationAndInputUsable/"︎"
+=== RUN   TestZeroWidthOutputKeepsPresentationAndInputUsable/"︎"/0
+=== RUN   TestZeroWidthOutputKeepsPresentationAndInputUsable/"︎"/1
+=== RUN   TestZeroWidthOutputKeepsPresentationAndInputUsable/"︎"/2
+=== RUN   TestZeroWidthOutputKeepsPresentationAndInputUsable/"︎"/3
+=== RUN   TestZeroWidthOutputKeepsPresentationAndInputUsable/"\u200b"
+=== RUN   TestZeroWidthOutputKeepsPresentationAndInputUsable/"\u200b"/0
+=== RUN   TestZeroWidthOutputKeepsPresentationAndInputUsable/"\u200b"/1
+=== RUN   TestZeroWidthOutputKeepsPresentationAndInputUsable/"\u200b"/2
+=== RUN   TestZeroWidthOutputKeepsPresentationAndInputUsable/"\u200b"/3
+=== RUN   TestZeroWidthOutputKeepsPresentationAndInputUsable/"\u200c"
+=== RUN   TestZeroWidthOutputKeepsPresentationAndInputUsable/"\u200c"/0
+=== RUN   TestZeroWidthOutputKeepsPresentationAndInputUsable/"\u200c"/1
+=== RUN   TestZeroWidthOutputKeepsPresentationAndInputUsable/"\u200c"/2
+=== RUN   TestZeroWidthOutputKeepsPresentationAndInputUsable/"\u200c"/3
+=== RUN   TestZeroWidthOutputKeepsPresentationAndInputUsable/"\ufeff"
+=== RUN   TestZeroWidthOutputKeepsPresentationAndInputUsable/"\ufeff"/0
+=== RUN   TestZeroWidthOutputKeepsPresentationAndInputUsable/"\ufeff"/1
+=== RUN   TestZeroWidthOutputKeepsPresentationAndInputUsable/"\ufeff"/2
+=== RUN   TestZeroWidthOutputKeepsPresentationAndInputUsable/"\ufeff"/3
+=== RUN   TestZeroWidthOutputKeepsPresentationAndInputUsable/"\u2060"
+=== RUN   TestZeroWidthOutputKeepsPresentationAndInputUsable/"\u2060"/0
+=== RUN   TestZeroWidthOutputKeepsPresentationAndInputUsable/"\u2060"/1
+=== RUN   TestZeroWidthOutputKeepsPresentationAndInputUsable/"\u2060"/2
+=== RUN   TestZeroWidthOutputKeepsPresentationAndInputUsable/"\u2060"/3
+=== RUN   TestZeroWidthOutputKeepsPresentationAndInputUsable/"͏"
+=== RUN   TestZeroWidthOutputKeepsPresentationAndInputUsable/"͏"/0
+=== RUN   TestZeroWidthOutputKeepsPresentationAndInputUsable/"͏"/1
+=== RUN   TestZeroWidthOutputKeepsPresentationAndInputUsable/"͏"/2
+=== RUN   TestZeroWidthOutputKeepsPresentationAndInputUsable/"ั"
+=== RUN   TestZeroWidthOutputKeepsPresentationAndInputUsable/"ั"/0
+=== RUN   TestZeroWidthOutputKeepsPresentationAndInputUsable/"ั"/1
+=== RUN   TestZeroWidthOutputKeepsPresentationAndInputUsable/"ั"/2
+=== RUN   TestZeroWidthOutputKeepsPresentationAndInputUsable/"ั"/3
+=== RUN   TestZeroWidthOutputKeepsPresentationAndInputUsable/"ّ"
+=== RUN   TestZeroWidthOutputKeepsPresentationAndInputUsable/"ّ"/0
+=== RUN   TestZeroWidthOutputKeepsPresentationAndInputUsable/"ّ"/1
+=== RUN   TestZeroWidthOutputKeepsPresentationAndInputUsable/"ّ"/2
+=== RUN   TestZeroWidthOutputKeepsPresentationAndInputUsable/"⃝"
+=== RUN   TestZeroWidthOutputKeepsPresentationAndInputUsable/"⃝"/0
+=== RUN   TestZeroWidthOutputKeepsPresentationAndInputUsable/"⃝"/1
+=== RUN   TestZeroWidthOutputKeepsPresentationAndInputUsable/"⃝"/2
+=== RUN   TestZeroWidthOutputKeepsPresentationAndInputUsable/"⃝"/3
+=== RUN   TestZeroWidthOutputKeepsPresentationAndInputUsable/"\U000e007f"
+=== RUN   TestZeroWidthOutputKeepsPresentationAndInputUsable/"\U000e007f"/0
+=== RUN   TestZeroWidthOutputKeepsPresentationAndInputUsable/"\U000e007f"/1
+=== RUN   TestZeroWidthOutputKeepsPresentationAndInputUsable/"\U000e007f"/2
+=== RUN   TestZeroWidthOutputKeepsPresentationAndInputUsable/"\U000e007f"/3
+=== RUN   TestZeroWidthOutputKeepsPresentationAndInputUsable/"\U000e007f"/4
+=== RUN   TestZeroWidthOutputKeepsPresentationAndInputUsable/"A\x1b[31ḿ"
+=== RUN   TestZeroWidthOutputKeepsPresentationAndInputUsable/"A\x1b[31ḿ"/0
+=== RUN   TestZeroWidthOutputKeepsPresentationAndInputUsable/"A\x1b[31ḿ"/1
+=== RUN   TestZeroWidthOutputKeepsPresentationAndInputUsable/"A\x1b[31ḿ"/2
+=== RUN   TestZeroWidthOutputKeepsPresentationAndInputUsable/"A\x1b[31ḿ"/3
+=== RUN   TestZeroWidthOutputKeepsPresentationAndInputUsable/"A\x1b[31ḿ"/4
+=== RUN   TestZeroWidthOutputKeepsPresentationAndInputUsable/"A\x1b[31ḿ"/5
+=== RUN   TestZeroWidthOutputKeepsPresentationAndInputUsable/"A\x1b[31ḿ"/6
+=== RUN   TestZeroWidthOutputKeepsPresentationAndInputUsable/"A\x1b[31ḿ"/7
+=== RUN   TestZeroWidthOutputKeepsPresentationAndInputUsable/"A\x1b[31ḿ"/8
+=== RUN   TestZeroWidthOutputKeepsPresentationAndInputUsable/"A\x1b[2Ǵ"
+=== RUN   TestZeroWidthOutputKeepsPresentationAndInputUsable/"A\x1b[2Ǵ"/0
+=== RUN   TestZeroWidthOutputKeepsPresentationAndInputUsable/"A\x1b[2Ǵ"/1
+=== RUN   TestZeroWidthOutputKeepsPresentationAndInputUsable/"A\x1b[2Ǵ"/2
+=== RUN   TestZeroWidthOutputKeepsPresentationAndInputUsable/"A\x1b[2Ǵ"/3
+=== RUN   TestZeroWidthOutputKeepsPresentationAndInputUsable/"A\x1b[2Ǵ"/4
+=== RUN   TestZeroWidthOutputKeepsPresentationAndInputUsable/"A\x1b[2Ǵ"/5
+=== RUN   TestZeroWidthOutputKeepsPresentationAndInputUsable/"A\x1b[2Ǵ"/6
+=== RUN   TestZeroWidthOutputKeepsPresentationAndInputUsable/"A\x1b[2Ǵ"/7
+=== RUN   TestZeroWidthOutputKeepsPresentationAndInputUsable/"界\x1b[31ḿ"
+=== RUN   TestZeroWidthOutputKeepsPresentationAndInputUsable/"界\x1b[31ḿ"/0
+=== RUN   TestZeroWidthOutputKeepsPresentationAndInputUsable/"界\x1b[31ḿ"/1
+=== RUN   TestZeroWidthOutputKeepsPresentationAndInputUsable/"界\x1b[31ḿ"/2
+=== RUN   TestZeroWidthOutputKeepsPresentationAndInputUsable/"界\x1b[31ḿ"/3
+=== RUN   TestZeroWidthOutputKeepsPresentationAndInputUsable/"界\x1b[31ḿ"/4
+=== RUN   TestZeroWidthOutputKeepsPresentationAndInputUsable/"界\x1b[31ḿ"/5
+=== RUN   TestZeroWidthOutputKeepsPresentationAndInputUsable/"界\x1b[31ḿ"/6
+=== RUN   TestZeroWidthOutputKeepsPresentationAndInputUsable/"界\x1b[31ḿ"/7
+=== RUN   TestZeroWidthOutputKeepsPresentationAndInputUsable/"界\x1b[31ḿ"/8
+=== RUN   TestZeroWidthOutputKeepsPresentationAndInputUsable/"界\x1b[31ḿ"/9
+=== RUN   TestZeroWidthOutputKeepsPresentationAndInputUsable/"界\x1b[31ḿ"/10
+=== RUN   TestZeroWidthOutputKeepsPresentationAndInputUsable/"A\ŕ"
+=== RUN   TestZeroWidthOutputKeepsPresentationAndInputUsable/"A\ŕ"/0
+=== RUN   TestZeroWidthOutputKeepsPresentationAndInputUsable/"A\ŕ"/1
+=== RUN   TestZeroWidthOutputKeepsPresentationAndInputUsable/"A\ŕ"/2
+=== RUN   TestZeroWidthOutputKeepsPresentationAndInputUsable/"A\ŕ"/3
+=== RUN   TestZeroWidthOutputKeepsPresentationAndInputUsable/"A\ŕ"/4
+=== RUN   TestZeroWidthOutputKeepsPresentationAndInputUsable/"A\n\ŕ"
+=== RUN   TestZeroWidthOutputKeepsPresentationAndInputUsable/"A\n\ŕ"/0
+=== RUN   TestZeroWidthOutputKeepsPresentationAndInputUsable/"A\n\ŕ"/1
+=== RUN   TestZeroWidthOutputKeepsPresentationAndInputUsable/"A\n\ŕ"/2
+=== RUN   TestZeroWidthOutputKeepsPresentationAndInputUsable/"A\n\ŕ"/3
+=== RUN   TestZeroWidthOutputKeepsPresentationAndInputUsable/"A\n\ŕ"/4
+=== RUN   TestZeroWidthOutputKeepsPresentationAndInputUsable/"A\n\ŕ"/5
+=== RUN   TestZeroWidthOutputKeepsPresentationAndInputUsable/"A\x1b[3Ǵ"
+=== RUN   TestZeroWidthOutputKeepsPresentationAndInputUsable/"A\x1b[3Ǵ"/0
+=== RUN   TestZeroWidthOutputKeepsPresentationAndInputUsable/"A\x1b[3Ǵ"/1
+=== RUN   TestZeroWidthOutputKeepsPresentationAndInputUsable/"A\x1b[3Ǵ"/2
+=== RUN   TestZeroWidthOutputKeepsPresentationAndInputUsable/"A\x1b[3Ǵ"/3
+=== RUN   TestZeroWidthOutputKeepsPresentationAndInputUsable/"A\x1b[3Ǵ"/4
+=== RUN   TestZeroWidthOutputKeepsPresentationAndInputUsable/"A\x1b[3Ǵ"/5
+=== RUN   TestZeroWidthOutputKeepsPresentationAndInputUsable/"A\x1b[3Ǵ"/6
+=== RUN   TestZeroWidthOutputKeepsPresentationAndInputUsable/"A\x1b[3Ǵ"/7
+--- PASS: TestZeroWidthOutputKeepsPresentationAndInputUsable (0.04s)
+    --- PASS: TestZeroWidthOutputKeepsPresentationAndInputUsable/"é" (0.00s)
+        --- PASS: TestZeroWidthOutputKeepsPresentationAndInputUsable/"é"/0 (0.00s)
+        --- PASS: TestZeroWidthOutputKeepsPresentationAndInputUsable/"é"/1 (0.00s)
+        --- PASS: TestZeroWidthOutputKeepsPresentationAndInputUsable/"é"/2 (0.00s)
+        --- PASS: TestZeroWidthOutputKeepsPresentationAndInputUsable/"é"/3 (0.00s)
+    --- PASS: TestZeroWidthOutputKeepsPresentationAndInputUsable/"👩\u200d💻" (0.00s)
+        --- PASS: TestZeroWidthOutputKeepsPresentationAndInputUsable/"👩\u200d💻"/0 (0.00s)
+        --- PASS: TestZeroWidthOutputKeepsPresentationAndInputUsable/"👩\u200d💻"/1 (0.00s)
+        --- PASS: TestZeroWidthOutputKeepsPresentationAndInputUsable/"👩\u200d💻"/2 (0.00s)
+        --- PASS: TestZeroWidthOutputKeepsPresentationAndInputUsable/"👩\u200d💻"/3 (0.00s)
+        --- PASS: TestZeroWidthOutputKeepsPresentationAndInputUsable/"👩\u200d💻"/4 (0.00s)
+        --- PASS: TestZeroWidthOutputKeepsPresentationAndInputUsable/"👩\u200d💻"/5 (0.00s)
+        --- PASS: TestZeroWidthOutputKeepsPresentationAndInputUsable/"👩\u200d💻"/6 (0.00s)
+        --- PASS: TestZeroWidthOutputKeepsPresentationAndInputUsable/"👩\u200d💻"/7 (0.00s)
+        --- PASS: TestZeroWidthOutputKeepsPresentationAndInputUsable/"👩\u200d💻"/8 (0.00s)
+        --- PASS: TestZeroWidthOutputKeepsPresentationAndInputUsable/"👩\u200d💻"/9 (0.00s)
+        --- PASS: TestZeroWidthOutputKeepsPresentationAndInputUsable/"👩\u200d💻"/10 (0.00s)
+        --- PASS: TestZeroWidthOutputKeepsPresentationAndInputUsable/"👩\u200d💻"/11 (0.00s)
+    --- PASS: TestZeroWidthOutputKeepsPresentationAndInputUsable/"❤︎" (0.00s)
+        --- PASS: TestZeroWidthOutputKeepsPresentationAndInputUsable/"❤︎"/0 (0.00s)
+        --- PASS: TestZeroWidthOutputKeepsPresentationAndInputUsable/"❤︎"/1 (0.00s)
+        --- PASS: TestZeroWidthOutputKeepsPresentationAndInputUsable/"❤︎"/2 (0.00s)
+        --- PASS: TestZeroWidthOutputKeepsPresentationAndInputUsable/"❤︎"/3 (0.00s)
+        --- PASS: TestZeroWidthOutputKeepsPresentationAndInputUsable/"❤︎"/4 (0.00s)
+        --- PASS: TestZeroWidthOutputKeepsPresentationAndInputUsable/"❤︎"/5 (0.00s)
+        --- PASS: TestZeroWidthOutputKeepsPresentationAndInputUsable/"❤︎"/6 (0.00s)
+    --- PASS: TestZeroWidthOutputKeepsPresentationAndInputUsable/"❤️" (0.00s)
+        --- PASS: TestZeroWidthOutputKeepsPresentationAndInputUsable/"❤️"/0 (0.00s)
+        --- PASS: TestZeroWidthOutputKeepsPresentationAndInputUsable/"❤️"/1 (0.00s)
+        --- PASS: TestZeroWidthOutputKeepsPresentationAndInputUsable/"❤️"/2 (0.00s)
+        --- PASS: TestZeroWidthOutputKeepsPresentationAndInputUsable/"❤️"/3 (0.00s)
+        --- PASS: TestZeroWidthOutputKeepsPresentationAndInputUsable/"❤️"/4 (0.00s)
+        --- PASS: TestZeroWidthOutputKeepsPresentationAndInputUsable/"❤️"/5 (0.00s)
+        --- PASS: TestZeroWidthOutputKeepsPresentationAndInputUsable/"❤️"/6 (0.00s)
+    --- PASS: TestZeroWidthOutputKeepsPresentationAndInputUsable/"1️⃣" (0.00s)
+        --- PASS: TestZeroWidthOutputKeepsPresentationAndInputUsable/"1️⃣"/0 (0.00s)
+        --- PASS: TestZeroWidthOutputKeepsPresentationAndInputUsable/"1️⃣"/1 (0.00s)
+        --- PASS: TestZeroWidthOutputKeepsPresentationAndInputUsable/"1️⃣"/2 (0.00s)
+        --- PASS: TestZeroWidthOutputKeepsPresentationAndInputUsable/"1️⃣"/3 (0.00s)
+        --- PASS: TestZeroWidthOutputKeepsPresentationAndInputUsable/"1️⃣"/4 (0.00s)
+        --- PASS: TestZeroWidthOutputKeepsPresentationAndInputUsable/"1️⃣"/5 (0.00s)
+        --- PASS: TestZeroWidthOutputKeepsPresentationAndInputUsable/"1️⃣"/6 (0.00s)
+        --- PASS: TestZeroWidthOutputKeepsPresentationAndInputUsable/"1️⃣"/7 (0.00s)
+    --- PASS: TestZeroWidthOutputKeepsPresentationAndInputUsable/"🇺🇸" (0.00s)
+        --- PASS: TestZeroWidthOutputKeepsPresentationAndInputUsable/"🇺🇸"/0 (0.00s)
+        --- PASS: TestZeroWidthOutputKeepsPresentationAndInputUsable/"🇺🇸"/1 (0.00s)
+        --- PASS: TestZeroWidthOutputKeepsPresentationAndInputUsable/"🇺🇸"/2 (0.00s)
+        --- PASS: TestZeroWidthOutputKeepsPresentationAndInputUsable/"🇺🇸"/3 (0.00s)
+        --- PASS: TestZeroWidthOutputKeepsPresentationAndInputUsable/"🇺🇸"/4 (0.00s)
+        --- PASS: TestZeroWidthOutputKeepsPresentationAndInputUsable/"🇺🇸"/5 (0.00s)
+        --- PASS: TestZeroWidthOutputKeepsPresentationAndInputUsable/"🇺🇸"/6 (0.00s)
+        --- PASS: TestZeroWidthOutputKeepsPresentationAndInputUsable/"🇺🇸"/7 (0.00s)
+        --- PASS: TestZeroWidthOutputKeepsPresentationAndInputUsable/"🇺🇸"/8 (0.00s)
+    --- PASS: TestZeroWidthOutputKeepsPresentationAndInputUsable/"́" (0.00s)
+        --- PASS: TestZeroWidthOutputKeepsPresentationAndInputUsable/"́"/0 (0.00s)
+        --- PASS: TestZeroWidthOutputKeepsPresentationAndInputUsable/"́"/1 (0.00s)
+        --- PASS: TestZeroWidthOutputKeepsPresentationAndInputUsable/"́"/2 (0.00s)
+    --- PASS: TestZeroWidthOutputKeepsPresentationAndInputUsable/"\u200d" (0.00s)
+        --- PASS: TestZeroWidthOutputKeepsPresentationAndInputUsable/"\u200d"/0 (0.00s)
+        --- PASS: TestZeroWidthOutputKeepsPresentationAndInputUsable/"\u200d"/1 (0.00s)
+        --- PASS: TestZeroWidthOutputKeepsPresentationAndInputUsable/"\u200d"/2 (0.00s)
+        --- PASS: TestZeroWidthOutputKeepsPresentationAndInputUsable/"\u200d"/3 (0.00s)
+    --- PASS: TestZeroWidthOutputKeepsPresentationAndInputUsable/"️" (0.00s)
+        --- PASS: TestZeroWidthOutputKeepsPresentationAndInputUsable/"️"/0 (0.00s)
+        --- PASS: TestZeroWidthOutputKeepsPresentationAndInputUsable/"️"/1 (0.00s)
+        --- PASS: TestZeroWidthOutputKeepsPresentationAndInputUsable/"️"/2 (0.00s)
+        --- PASS: TestZeroWidthOutputKeepsPresentationAndInputUsable/"️"/3 (0.00s)
+    --- PASS: TestZeroWidthOutputKeepsPresentationAndInputUsable/"︎" (0.00s)
+        --- PASS: TestZeroWidthOutputKeepsPresentationAndInputUsable/"︎"/0 (0.00s)
+        --- PASS: TestZeroWidthOutputKeepsPresentationAndInputUsable/"︎"/1 (0.00s)
+        --- PASS: TestZeroWidthOutputKeepsPresentationAndInputUsable/"︎"/2 (0.00s)
+        --- PASS: TestZeroWidthOutputKeepsPresentationAndInputUsable/"︎"/3 (0.00s)
+    --- PASS: TestZeroWidthOutputKeepsPresentationAndInputUsable/"\u200b" (0.00s)
+        --- PASS: TestZeroWidthOutputKeepsPresentationAndInputUsable/"\u200b"/0 (0.00s)
+        --- PASS: TestZeroWidthOutputKeepsPresentationAndInputUsable/"\u200b"/1 (0.00s)
+        --- PASS: TestZeroWidthOutputKeepsPresentationAndInputUsable/"\u200b"/2 (0.00s)
+        --- PASS: TestZeroWidthOutputKeepsPresentationAndInputUsable/"\u200b"/3 (0.00s)
+    --- PASS: TestZeroWidthOutputKeepsPresentationAndInputUsable/"\u200c" (0.00s)
+        --- PASS: TestZeroWidthOutputKeepsPresentationAndInputUsable/"\u200c"/0 (0.00s)
+        --- PASS: TestZeroWidthOutputKeepsPresentationAndInputUsable/"\u200c"/1 (0.00s)
+        --- PASS: TestZeroWidthOutputKeepsPresentationAndInputUsable/"\u200c"/2 (0.00s)
+        --- PASS: TestZeroWidthOutputKeepsPresentationAndInputUsable/"\u200c"/3 (0.00s)
+    --- PASS: TestZeroWidthOutputKeepsPresentationAndInputUsable/"\ufeff" (0.00s)
+        --- PASS: TestZeroWidthOutputKeepsPresentationAndInputUsable/"\ufeff"/0 (0.00s)
+        --- PASS: TestZeroWidthOutputKeepsPresentationAndInputUsable/"\ufeff"/1 (0.00s)
+        --- PASS: TestZeroWidthOutputKeepsPresentationAndInputUsable/"\ufeff"/2 (0.00s)
+        --- PASS: TestZeroWidthOutputKeepsPresentationAndInputUsable/"\ufeff"/3 (0.00s)
+    --- PASS: TestZeroWidthOutputKeepsPresentationAndInputUsable/"\u2060" (0.00s)
+        --- PASS: TestZeroWidthOutputKeepsPresentationAndInputUsable/"\u2060"/0 (0.00s)
+        --- PASS: TestZeroWidthOutputKeepsPresentationAndInputUsable/"\u2060"/1 (0.00s)
+        --- PASS: TestZeroWidthOutputKeepsPresentationAndInputUsable/"\u2060"/2 (0.00s)
+        --- PASS: TestZeroWidthOutputKeepsPresentationAndInputUsable/"\u2060"/3 (0.00s)
+    --- PASS: TestZeroWidthOutputKeepsPresentationAndInputUsable/"͏" (0.00s)
+        --- PASS: TestZeroWidthOutputKeepsPresentationAndInputUsable/"͏"/0 (0.00s)
+        --- PASS: TestZeroWidthOutputKeepsPresentationAndInputUsable/"͏"/1 (0.00s)
+        --- PASS: TestZeroWidthOutputKeepsPresentationAndInputUsable/"͏"/2 (0.00s)
+    --- PASS: TestZeroWidthOutputKeepsPresentationAndInputUsable/"ั" (0.00s)
+        --- PASS: TestZeroWidthOutputKeepsPresentationAndInputUsable/"ั"/0 (0.00s)
+        --- PASS: TestZeroWidthOutputKeepsPresentationAndInputUsable/"ั"/1 (0.00s)
+        --- PASS: TestZeroWidthOutputKeepsPresentationAndInputUsable/"ั"/2 (0.00s)
+        --- PASS: TestZeroWidthOutputKeepsPresentationAndInputUsable/"ั"/3 (0.00s)
+    --- PASS: TestZeroWidthOutputKeepsPresentationAndInputUsable/"ّ" (0.00s)
+        --- PASS: TestZeroWidthOutputKeepsPresentationAndInputUsable/"ّ"/0 (0.00s)
+        --- PASS: TestZeroWidthOutputKeepsPresentationAndInputUsable/"ّ"/1 (0.00s)
+        --- PASS: TestZeroWidthOutputKeepsPresentationAndInputUsable/"ّ"/2 (0.00s)
+    --- PASS: TestZeroWidthOutputKeepsPresentationAndInputUsable/"⃝" (0.00s)
+        --- PASS: TestZeroWidthOutputKeepsPresentationAndInputUsable/"⃝"/0 (0.00s)
+        --- PASS: TestZeroWidthOutputKeepsPresentationAndInputUsable/"⃝"/1 (0.00s)
+        --- PASS: TestZeroWidthOutputKeepsPresentationAndInputUsable/"⃝"/2 (0.00s)
+        --- PASS: TestZeroWidthOutputKeepsPresentationAndInputUsable/"⃝"/3 (0.00s)
+    --- PASS: TestZeroWidthOutputKeepsPresentationAndInputUsable/"\U000e007f" (0.00s)
+        --- PASS: TestZeroWidthOutputKeepsPresentationAndInputUsable/"\U000e007f"/0 (0.00s)
+        --- PASS: TestZeroWidthOutputKeepsPresentationAndInputUsable/"\U000e007f"/1 (0.00s)
+        --- PASS: TestZeroWidthOutputKeepsPresentationAndInputUsable/"\U000e007f"/2 (0.00s)
+        --- PASS: TestZeroWidthOutputKeepsPresentationAndInputUsable/"\U000e007f"/3 (0.00s)
+        --- PASS: TestZeroWidthOutputKeepsPresentationAndInputUsable/"\U000e007f"/4 (0.00s)
+    --- PASS: TestZeroWidthOutputKeepsPresentationAndInputUsable/"A\x1b[31ḿ" (0.00s)
+        --- PASS: TestZeroWidthOutputKeepsPresentationAndInputUsable/"A\x1b[31ḿ"/0 (0.00s)
+        --- PASS: TestZeroWidthOutputKeepsPresentationAndInputUsable/"A\x1b[31ḿ"/1 (0.00s)
+        --- PASS: TestZeroWidthOutputKeepsPresentationAndInputUsable/"A\x1b[31ḿ"/2 (0.00s)
+        --- PASS: TestZeroWidthOutputKeepsPresentationAndInputUsable/"A\x1b[31ḿ"/3 (0.00s)
+        --- PASS: TestZeroWidthOutputKeepsPresentationAndInputUsable/"A\x1b[31ḿ"/4 (0.00s)
+        --- PASS: TestZeroWidthOutputKeepsPresentationAndInputUsable/"A\x1b[31ḿ"/5 (0.00s)
+        --- PASS: TestZeroWidthOutputKeepsPresentationAndInputUsable/"A\x1b[31ḿ"/6 (0.00s)
+        --- PASS: TestZeroWidthOutputKeepsPresentationAndInputUsable/"A\x1b[31ḿ"/7 (0.00s)
+        --- PASS: TestZeroWidthOutputKeepsPresentationAndInputUsable/"A\x1b[31ḿ"/8 (0.00s)
+    --- PASS: TestZeroWidthOutputKeepsPresentationAndInputUsable/"A\x1b[2Ǵ" (0.00s)
+        --- PASS: TestZeroWidthOutputKeepsPresentationAndInputUsable/"A\x1b[2Ǵ"/0 (0.00s)
+        --- PASS: TestZeroWidthOutputKeepsPresentationAndInputUsable/"A\x1b[2Ǵ"/1 (0.00s)
+        --- PASS: TestZeroWidthOutputKeepsPresentationAndInputUsable/"A\x1b[2Ǵ"/2 (0.00s)
+        --- PASS: TestZeroWidthOutputKeepsPresentationAndInputUsable/"A\x1b[2Ǵ"/3 (0.00s)
+        --- PASS: TestZeroWidthOutputKeepsPresentationAndInputUsable/"A\x1b[2Ǵ"/4 (0.00s)
+        --- PASS: TestZeroWidthOutputKeepsPresentationAndInputUsable/"A\x1b[2Ǵ"/5 (0.00s)
+        --- PASS: TestZeroWidthOutputKeepsPresentationAndInputUsable/"A\x1b[2Ǵ"/6 (0.00s)
+        --- PASS: TestZeroWidthOutputKeepsPresentationAndInputUsable/"A\x1b[2Ǵ"/7 (0.00s)
+    --- PASS: TestZeroWidthOutputKeepsPresentationAndInputUsable/"界\x1b[31ḿ" (0.00s)
+        --- PASS: TestZeroWidthOutputKeepsPresentationAndInputUsable/"界\x1b[31ḿ"/0 (0.00s)
+        --- PASS: TestZeroWidthOutputKeepsPresentationAndInputUsable/"界\x1b[31ḿ"/1 (0.00s)
+        --- PASS: TestZeroWidthOutputKeepsPresentationAndInputUsable/"界\x1b[31ḿ"/2 (0.00s)
+        --- PASS: TestZeroWidthOutputKeepsPresentationAndInputUsable/"界\x1b[31ḿ"/3 (0.00s)
+        --- PASS: TestZeroWidthOutputKeepsPresentationAndInputUsable/"界\x1b[31ḿ"/4 (0.00s)
+        --- PASS: TestZeroWidthOutputKeepsPresentationAndInputUsable/"界\x1b[31ḿ"/5 (0.00s)
+        --- PASS: TestZeroWidthOutputKeepsPresentationAndInputUsable/"界\x1b[31ḿ"/6 (0.00s)
+        --- PASS: TestZeroWidthOutputKeepsPresentationAndInputUsable/"界\x1b[31ḿ"/7 (0.00s)
+        --- PASS: TestZeroWidthOutputKeepsPresentationAndInputUsable/"界\x1b[31ḿ"/8 (0.00s)
+        --- PASS: TestZeroWidthOutputKeepsPresentationAndInputUsable/"界\x1b[31ḿ"/9 (0.00s)
+        --- PASS: TestZeroWidthOutputKeepsPresentationAndInputUsable/"界\x1b[31ḿ"/10 (0.00s)
+    --- PASS: TestZeroWidthOutputKeepsPresentationAndInputUsable/"A\ŕ" (0.00s)
+        --- PASS: TestZeroWidthOutputKeepsPresentationAndInputUsable/"A\ŕ"/0 (0.00s)
+        --- PASS: TestZeroWidthOutputKeepsPresentationAndInputUsable/"A\ŕ"/1 (0.00s)
+        --- PASS: TestZeroWidthOutputKeepsPresentationAndInputUsable/"A\ŕ"/2 (0.00s)
+        --- PASS: TestZeroWidthOutputKeepsPresentationAndInputUsable/"A\ŕ"/3 (0.00s)
+        --- PASS: TestZeroWidthOutputKeepsPresentationAndInputUsable/"A\ŕ"/4 (0.00s)
+    --- PASS: TestZeroWidthOutputKeepsPresentationAndInputUsable/"A\n\ŕ" (0.00s)
+        --- PASS: TestZeroWidthOutputKeepsPresentationAndInputUsable/"A\n\ŕ"/0 (0.00s)
+        --- PASS: TestZeroWidthOutputKeepsPresentationAndInputUsable/"A\n\ŕ"/1 (0.00s)
+        --- PASS: TestZeroWidthOutputKeepsPresentationAndInputUsable/"A\n\ŕ"/2 (0.00s)
+        --- PASS: TestZeroWidthOutputKeepsPresentationAndInputUsable/"A\n\ŕ"/3 (0.00s)
+        --- PASS: TestZeroWidthOutputKeepsPresentationAndInputUsable/"A\n\ŕ"/4 (0.00s)
+        --- PASS: TestZeroWidthOutputKeepsPresentationAndInputUsable/"A\n\ŕ"/5 (0.00s)
+    --- PASS: TestZeroWidthOutputKeepsPresentationAndInputUsable/"A\x1b[3Ǵ" (0.00s)
+        --- PASS: TestZeroWidthOutputKeepsPresentationAndInputUsable/"A\x1b[3Ǵ"/0 (0.00s)
+        --- PASS: TestZeroWidthOutputKeepsPresentationAndInputUsable/"A\x1b[3Ǵ"/1 (0.00s)
+        --- PASS: TestZeroWidthOutputKeepsPresentationAndInputUsable/"A\x1b[3Ǵ"/2 (0.00s)
+        --- PASS: TestZeroWidthOutputKeepsPresentationAndInputUsable/"A\x1b[3Ǵ"/3 (0.00s)
+        --- PASS: TestZeroWidthOutputKeepsPresentationAndInputUsable/"A\x1b[3Ǵ"/4 (0.00s)
+        --- PASS: TestZeroWidthOutputKeepsPresentationAndInputUsable/"A\x1b[3Ǵ"/5 (0.00s)
+        --- PASS: TestZeroWidthOutputKeepsPresentationAndInputUsable/"A\x1b[3Ǵ"/6 (0.00s)
+        --- PASS: TestZeroWidthOutputKeepsPresentationAndInputUsable/"A\x1b[3Ǵ"/7 (0.00s)
+=== RUN   TestStyledRowsZeroWidthPolicyMatchesEndpoint
+=== RUN   TestStyledRowsZeroWidthPolicyMatchesEndpoint/"́A"
+=== RUN   TestStyledRowsZeroWidthPolicyMatchesEndpoint/"A\x1b[31ḿB"
+=== RUN   TestStyledRowsZeroWidthPolicyMatchesEndpoint/"é"
+=== RUN   TestStyledRowsZeroWidthPolicyMatchesEndpoint/"\u200d️X"
+=== RUN   TestStyledRowsZeroWidthPolicyMatchesEndpoint/"B\x1b[0m\u200d"
+=== RUN   TestStyledRowsZeroWidthPolicyMatchesEndpoint/"́"
+--- PASS: TestStyledRowsZeroWidthPolicyMatchesEndpoint (0.00s)
+    --- PASS: TestStyledRowsZeroWidthPolicyMatchesEndpoint/"́A" (0.00s)
+    --- PASS: TestStyledRowsZeroWidthPolicyMatchesEndpoint/"A\x1b[31ḿB" (0.00s)
+    --- PASS: TestStyledRowsZeroWidthPolicyMatchesEndpoint/"é" (0.00s)
+    --- PASS: TestStyledRowsZeroWidthPolicyMatchesEndpoint/"\u200d️X" (0.00s)
+    --- PASS: TestStyledRowsZeroWidthPolicyMatchesEndpoint/"B\x1b[0m\u200d" (0.00s)
+    --- PASS: TestStyledRowsZeroWidthPolicyMatchesEndpoint/"́" (0.00s)
+=== RUN   TestZeroWidthUnicodeScalarClassProducesValidFrames
+    zero_width_test.go:126: validated 2172 zero-width Unicode scalars in three contexts
+--- PASS: TestZeroWidthUnicodeScalarClassProducesValidFrames (0.14s)
+=== RUN   FuzzInputFraming
+=== RUN   FuzzInputFraming/seed#0
+=== RUN   FuzzInputFraming/seed#1
+=== RUN   FuzzInputFraming/seed#2
+=== RUN   FuzzInputFraming/seed#3
+=== RUN   FuzzInputFraming/seed#4
+--- PASS: FuzzInputFraming (0.00s)
+    --- PASS: FuzzInputFraming/seed#0 (0.00s)
+    --- PASS: FuzzInputFraming/seed#1 (0.00s)
+    --- PASS: FuzzInputFraming/seed#2 (0.00s)
+    --- PASS: FuzzInputFraming/seed#3 (0.00s)
+    --- PASS: FuzzInputFraming/seed#4 (0.00s)
+PASS
+ok  	github.com/xianxu/pair/cmd/internal/terminal	81.213s

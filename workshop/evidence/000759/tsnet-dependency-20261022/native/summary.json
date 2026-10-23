@@ -1,0 +1,18 @@
+{
+  "native": {
+    "top_level_pass": 4,
+    "nested_pass": 4,
+    "skipped": 0,
+    "fail": 0
+  },
+  "terminal": {
+    "top_level_pass": 186,
+    "nested_pass": 243,
+    "skipped": 8,
+    "fail": 0
+  },
+  "module_hashes_unchanged": true,
+  "no_tsnet_module": true,
+  "head": "bfa3f4a22c1e2583e1b1b2eefc118e19ec54d70d",
+  "private_binary_sha256": "6ea3a5b12b7126f4efee0c99bc7abc82be584b421c0db39118f13417c2442662"
+}

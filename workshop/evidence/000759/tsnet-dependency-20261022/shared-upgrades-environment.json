@@ -1,0 +1,14 @@
+{
+  "environment_names": [
+    "GOTOOLCHAIN",
+    "GOWORK",
+    "HOME",
+    "LANG",
+    "PATH",
+    "TERM",
+    "TMPDIR"
+  ],
+  "inherited_live_identity": false,
+  "go": "1.27.3",
+  "purpose": "Ten shared upgrades only; no tsnet dependency; detached scratch worktree"
+}

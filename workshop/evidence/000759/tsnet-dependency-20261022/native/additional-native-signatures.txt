@@ -1,0 +1,13 @@
+--- PASS: TestErasedBackgroundSoftGapNativeCopyOracle (11.43s)
+    history_eviction_test.go:116: native continuous copy "sh-3\n.2$\n"
+--- FAIL: TestPresenterHistoryEvictionNativeAppendAndRebuild (5.96s)
+    history_eviction_test.go:174: native soft copy got"sh-3\n.2$\n" want"sh-3\n.2$\n"
+--- FAIL: TestPresenterHistoryEvictionKeepsSoftLineOracle (11.44s)
+    history_oracle_test.go:132: literal native history "sh-3.2$\n"
+--- FAIL: TestHistoryWireNativeOracle (11.18s)
+    history_oracle_test.go:204: native history oracle exit status 1: Traceback (most recent call last):
+--- FAIL: TestHistoryOneHostRowOracle (0.81s)
+    history_style_test.go:77: native styled copy got"sh-3.2$\n" want"sh-3.2$\n"
+--- FAIL: TestHistoryStyledLinkedWrapWireOracle (11.44s)
+    history_style_test.go:94: native viewport copy got"sh-3sh-3.2$\n" want"sh-3.2$\n"
+--- FAIL: TestHistoryDefaultWideViewportWrapOracle (11.40s)

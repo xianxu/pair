@@ -988,3 +988,59 @@ finish the estimate revision, and integrate the adapter per approved plan.
 No node/auth key/Start/Listen/LocalClient until the operator enrollment test;
 RSS and native identity/revocation acceptance remain unqualified. Stay idle
 until TL confirms the upgrade; no new merge or landing.
+
+
+### 2026-10-22 — Go1.27.3 recovery, compile-only costs and shared-upgrade gate
+
+TL77e8b1e9/52d1161a confirmed installed Go1.27.3 and lifted the shutdown freeze.
+Verified compiler and rebuilt slot binaries with GOTOOLCHAIN=local; no helper
+inspect error. Preserved old head in checkpoint-759-pre-go1273-832f59ed7,
+amended the isolated directive-only commit to70ff5ec7a666322101a88f65e839d1de38963cbc,
+and pushed through sdlc pr (PR538). Reapplied pure checkpoint88fa4c97d and Log
+checkpointbfa3f4a22 locally; the product has no tailscale dependency.
+
+The Go1.27.3-only recorded suite remains alive on exact pushed70ff5ec7a666:
+lease-2151593954, attempt9b7c213dd199a4236fff30d9f9c30d17, terminal12321.
+At22:22 it was FIFO position5; do not duplicate or cancel. Old1.27.1 directive
+suite PASS remains recorded separately, not evidence for this new head.
+
+Compile-only alternate-module/overlay probe pins tailscale.com v1.104.2, retaining
+Start/Up/ListenTLS/LocalClient/Close symbols without invoking them. Neither binary
+was executed: baseline37,566,322 bytes versus candidate62,699,650, +25,133,328
+(23.97MiB/66.9%). Nonstandard compiled packages129 ->461; compiled module
+identities27 ->54. Ten existing modules upgrade, including the shared TUI stack.
+Cached repeats0.613s/0.610s; first builds had different cache states, not a cold
+comparison. RSS/enrollment remain unmeasured. Exact pin, hashes, graph, license
+inventory and API source review are under workshop/evidence/000759/tsnet-dependency-20261022/.
+Root module licenses for the ten upgrades are unchanged; embedded web/font asset
+notices remain uncleared, so no redistribution clearance is claimed.
+
+TL515229c8 requires upgrade-only qualification and an operator decision note
+before proceeding. Scratch detached shared-upgrades worktree contains ONLY the
+ten upgrades and no tsnet, running make -k test through the normal machine gate:
+terminal65241, shared-upgrades-suite.log/run.json in
+/Volumes/TestScratch/tmp/pair-slot6/p759-go1273.fQOeV7. Its module files and empty
+base child environment are preserved in evidence. At22:22 it was FIFO position9.
+This diagnostic is not a recorded product-head pass. Both retained checks must
+finish before any continuation/restart; no new suite or guessed-PID surgery.
+
+Upgrade-only native qualification: required xterm oracle PASS; direct/wrapped
+Zellij, Claude/Codex PTY status, live nvim and scrolling cohort PASS with joined
+private cleanup. Complete terminal package PASS186 top-level +243 nested, eight
+skips. Seven extra PAIR_TERMINAL_NATIVE cases enabled once: six FAIL and one
+unqualified equality-only PASS, showing sh-3.2$ rather than fixture source. One
+matched original-module TestHistoryWireNativeOracle control on the same source
+and equivalent fresh private HOME failed identically at history_oracle_test.go132.
+No candidate retry, assertion/deadline changes or live operator access. Exact
+cause is unproved; missing config-dir remains a hypothesis. Filed #828 unclaimed
+for positive fixture proof and preserved failure diagnostics; no repair folded
+into #759. Native text logs/commands/results/cleanup and SHA manifest are durable
+in the native evidence subdirectory. No sockets or owned fixture processes remain.
+
+One-page operator decision draft: workshop/plans/000759-remote-security-plan.side/20261022-tsnet-decision.md.
+It recommends A conditionally, lists watch schema/freshness, uncancelable SDK
+ListenTLS/certificate and Close ownership mitigations, and requires logtail upload
+disablement. Alternate bounded TLS composition and build-tag choices are proposals
+for plan review, not implemented authority changes. No Start/LocalClient/node/auth
+key/enrollment has occurred. Next: retain both checks; record every failure and
+coverage gap, finalize and send the decision note to TL for operator review.

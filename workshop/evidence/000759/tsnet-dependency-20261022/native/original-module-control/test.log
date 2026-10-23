@@ -1,0 +1,6 @@
+=== RUN   TestHistoryWireNativeOracle
+    history_oracle_test.go:132: literal native history "sh-3.2$\n"
+--- FAIL: TestHistoryWireNativeOracle (11.86s)
+FAIL
+FAIL	github.com/xianxu/pair/cmd/internal/terminal	12.011s
+FAIL

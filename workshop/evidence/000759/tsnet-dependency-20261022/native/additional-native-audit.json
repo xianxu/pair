@@ -1,0 +1,17 @@
+{
+  "tests": [
+    "TestErasedBackgroundSoftGapNativeCopyOracle",
+    "TestPresenterHistoryEvictionNativeAppendAndRebuild",
+    "TestPresenterHistoryEvictionKeepsSoftLineOracle",
+    "TestHistoryWireNativeOracle",
+    "TestHistoryOneHostRowOracle",
+    "TestHistoryStyledLinkedWrapWireOracle",
+    "TestHistoryDefaultWideViewportWrapOracle"
+  ],
+  "shared_helper": "tests/terminal-oracle/discovery/zellij_oracle.py",
+  "clipboard": "dump-screen --full only, no OS clipboard commands",
+  "private": "temporary /tmp/pw*; XDG_CACHE_HOME, XDG_CONFIG_HOME, ZELLIJ_SOCKET_DIR, --data-dir, --config",
+  "pending": null,
+  "executed": false,
+  "authorization": "Parent authorized private HOME override and explicit existing compiler/module caches; no live Zellij config copied or symlinked."
+}

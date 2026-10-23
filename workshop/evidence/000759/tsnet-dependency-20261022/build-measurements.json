@@ -1,0 +1,38 @@
+[
+  {
+    "name": "baseline",
+    "repeat": 1,
+    "exit": 0,
+    "seconds": 5.089,
+    "size_bytes": 37566322,
+    "cache_condition": "shared cache; baseline tools already rebuilt; candidate first use may compile new dependencies",
+    "never_execute": true
+  },
+  {
+    "name": "baseline",
+    "repeat": 2,
+    "exit": 0,
+    "seconds": 0.613,
+    "size_bytes": 37566322,
+    "cache_condition": "shared cache; baseline tools already rebuilt; candidate first use may compile new dependencies",
+    "never_execute": true
+  },
+  {
+    "name": "candidate",
+    "repeat": 1,
+    "exit": 0,
+    "seconds": 59.811,
+    "size_bytes": 62699650,
+    "cache_condition": "shared cache; baseline tools already rebuilt; candidate first use may compile new dependencies",
+    "never_execute": true
+  },
+  {
+    "name": "candidate",
+    "repeat": 2,
+    "exit": 0,
+    "seconds": 0.61,
+    "size_bytes": 62699650,
+    "cache_condition": "shared cache; baseline tools already rebuilt; candidate first use may compile new dependencies",
+    "never_execute": true
+  }
+]

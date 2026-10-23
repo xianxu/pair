@@ -1,0 +1,96 @@
+{
+  "kind": "compile-only-method-linkage-probe-not-final-adapter",
+  "compiler": "go1.27.3 darwin/arm64",
+  "baseline_bytes": 37566322,
+  "candidate_bytes": 62699650,
+  "delta_bytes": 25133328,
+  "delta_mib": 23.969,
+  "growth_percent": 66.904,
+  "baseline_nonstandard_packages": 129,
+  "candidate_nonstandard_packages": 461,
+  "baseline_compiled_modules": 27,
+  "candidate_compiled_modules": 54,
+  "new_modules": {
+    "filippo.io/edwards25519": "v1.2.0",
+    "github.com/coder/websocket": "v1.8.15",
+    "github.com/creachadair/msync": "v0.10.1",
+    "github.com/fxamacker/cbor/v2": "v2.9.3",
+    "github.com/gaissmai/bart": "v0.29.0",
+    "github.com/go-json-experiment/json": "v0.0.0-20260820222146-c27c302e5fc3",
+    "github.com/golang/groupcache": "v0.0.0-20241129210726-2c02b8208cf8",
+    "github.com/google/btree": "v1.1.3",
+    "github.com/hdevalence/ed25519consensus": "v0.2.0",
+    "github.com/huin/goupnp": "v1.3.0",
+    "github.com/klauspost/compress": "v1.20.0",
+    "github.com/mitchellh/go-ps": "v1.0.0",
+    "github.com/pires/go-proxyproto": "v0.15.0",
+    "github.com/tailscale/certstore": "v0.1.1-0.20260409135935-3638fb84b77d",
+    "github.com/tailscale/hujson": "v0.0.0-20260727124030-b80ff77dac4f",
+    "github.com/tailscale/peercred": "v0.0.0-20250107143737-35a0c7bd7edc",
+    "github.com/tailscale/web-client-prebuilt": "v0.0.0-20260917222731-e0ed2d0d0fea",
+    "github.com/tailscale/wireguard-go": "v0.0.0-20260928213032-417aef361226",
+    "github.com/x448/float16": "v0.8.4",
+    "go4.org/mem": "v0.0.0-20240501181205-ae6ca9944745",
+    "go4.org/netipx": "v0.0.0-20260823151212-3075585bcbeb",
+    "golang.org/x/crypto": "v0.57.0",
+    "golang.org/x/exp": "v0.0.0-20260908205506-85c1c2202aba",
+    "golang.org/x/text": "v0.42.0",
+    "golang.org/x/time": "v0.16.0",
+    "gvisor.dev/gvisor": "v0.0.0-20260915211658-a6f909f08a72",
+    "tailscale.com": "v1.104.2"
+  },
+  "shared_version_changes": [
+    {
+      "module": "github.com/charmbracelet/colorprofile",
+      "baseline": "v0.4.2",
+      "candidate": "v0.4.3"
+    },
+    {
+      "module": "github.com/charmbracelet/ultraviolet",
+      "baseline": "v0.0.0-20260303162955-0b88c25f3fff",
+      "candidate": "v0.0.0-20260811164956-006e29f97886"
+    },
+    {
+      "module": "github.com/charmbracelet/x/ansi",
+      "baseline": "v0.11.7",
+      "candidate": "v0.11.8"
+    },
+    {
+      "module": "github.com/lucasb-eyer/go-colorful",
+      "baseline": "v1.4.0",
+      "candidate": "v1.4.1"
+    },
+    {
+      "module": "github.com/mattn/go-runewidth",
+      "baseline": "v0.0.23",
+      "candidate": "v0.0.24"
+    },
+    {
+      "module": "github.com/xo/terminfo",
+      "baseline": "v0.0.0-20220910002029-abceb7e1c41e",
+      "candidate": "v1.0.0"
+    },
+    {
+      "module": "golang.org/x/net",
+      "baseline": "v0.55.0",
+      "candidate": "v0.59.0"
+    },
+    {
+      "module": "golang.org/x/oauth2",
+      "baseline": "v0.36.0",
+      "candidate": "v0.37.0"
+    },
+    {
+      "module": "golang.org/x/sync",
+      "baseline": "v0.19.0",
+      "candidate": "v0.23.0"
+    },
+    {
+      "module": "golang.org/x/term",
+      "baseline": "v0.43.0",
+      "candidate": "v0.46.0"
+    }
+  ],
+  "rss": "UNMEASURED; no probe binary executed or node enrolled",
+  "caveat": "Retains tsnet Start/Up/ListenTLS/LocalClient/Close method symbols with runtime.KeepAlive. Measures compile/link cost, not production adapter behavior or final integrated binary size."
+}

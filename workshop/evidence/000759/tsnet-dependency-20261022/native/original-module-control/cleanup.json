@@ -1,0 +1,31 @@
+{
+  "observed_roots": [
+    "/tmp/pw6vyr2l9r",
+    "/tmp/pwy937jp4c"
+  ],
+  "observed_pids": [
+    1997,
+    2060,
+    2067,
+    2072,
+    2171,
+    2172,
+    2174,
+    2176,
+    2212,
+    2434,
+    2454,
+    2557,
+    2559,
+    2721,
+    2738,
+    2796,
+    2888,
+    2911,
+    5940,
+    5960
+  ],
+  "surviving_process_matches": [],
+  "remaining_roots": [],
+  "private_home_sockets": []
+}
