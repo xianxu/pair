@@ -151,3 +151,74 @@ func TestOwnedProcessPreservesTerminalResultAcrossCancellation(t *testing.T) {
 		t.Fatalf("terminal result not preserved: %v %v", waitErr, cleanupErr)
 	}
 }
+
+// Model a child published between the first stop and the parent's terminal
+// observation. Only a signal after that observation covers the last fork.
+func TestOwnedProcessFinalSignalFollowsTerminalBarrier(t *testing.T) {
+	for _, outputFailed := range []bool{false, true} {
+		t.Run(map[bool]string{false: "cancellation", true: "writer_failure"}[outputFailed], func(t *testing.T) {
+			ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+			defer cancel()
+			cmd := exec.CommandContext(ctx, "/bin/sh", "-c", "exit 0")
+			owner := configureSnapshotCommand(cmd)
+			if err := cmd.Start(); err != nil {
+				t.Fatal(err)
+			}
+			if err := owner.AwaitTerminal(ctx); err != nil {
+				t.Fatal(err)
+			}
+			if outputFailed {
+				owner.outputErr = io.ErrShortWrite
+			}
+			terminalObserved, stopped, descendant := false, false, true
+			owner.terminal = func(int) (bool, error) {
+				if cmd.ProcessState != nil {
+					t.Error("terminal observation after reap")
+				}
+				terminalObserved = stopped
+				return terminalObserved, nil
+			}
+			owner.signalGroup = func(int) error {
+				if cmd.ProcessState != nil {
+					t.Error("group signal after reap")
+				}
+				stopped = true
+				if terminalObserved {
+					descendant = false
+				}
+				return nil
+			}
+			owner.groupPresent = func(int) (bool, error) {
+				if descendant {
+					return true, syscall.EIO
+				}
+				return false, nil
+			}
+			_, err := owner.Finish(ctx)
+			if err != nil {
+				t.Fatalf("late descendant survived terminal barrier: %v", err)
+			}
+			if !terminalObserved || descendant {
+				t.Fatal("final signal omitted terminal barrier")
+			}
+		})
+	}
+}
+
+func TestOwnedProcessUnknownTerminalRefusesCleanup(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, "/bin/sh", "-c", "exit 0")
+	owner := configureSnapshotCommand(cmd)
+	if err := cmd.Start(); err != nil {
+		t.Fatal(err)
+	}
+	if err := owner.AwaitTerminal(ctx); err != nil {
+		t.Fatal(err)
+	}
+	owner.terminal = func(int) (bool, error) { return false, syscall.EIO }
+	_, err := owner.Finish(ctx)
+	if !errors.Is(err, ErrUnconfirmedProcessCleanup) || !errors.Is(err, syscall.EIO) {
+		t.Fatalf("unknown terminal proof accepted: %v", err)
+	}
+}
