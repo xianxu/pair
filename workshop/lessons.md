@@ -2780,3 +2780,5 @@ and external temporary roots rather than relying on the host's TMPDIR.
 - #812 BR-4: when removing a presentation surface, migrate all tests that consume it while preserving their original ordering/parser/resize invariants. Run complete affected packages with JSON progress before the next review; an absence assertion must use confirmed ownership and joined background completion.
 
 - #812 BR-5: an async source being queued does not mean its UI event exists. Shared attention-opening test helpers must acknowledge publication before toggling; cover both input-before-publication and publication-before-input with controlled barriers, preserving the production empty-list behavior.
+
+- #812 BR-6: apply publication-order rules to every assertion, not only shared helper callers. Pane removal and cast phase changes can precede their warning/feedback; positive assertions await publication, and negative controls join the terminal callback or final feedback before checking absence.

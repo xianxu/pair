@@ -218,3 +218,7 @@ Authenticated TLd40218f2-3381-4372-b703-fbbf844e9c74 approves exactly one capaci
 ### 2026-10-23 — BR-5 publication before test input
 
 Asynchronous warning acceptance helpers must acknowledge actual attention publication before sending the opening key; queuing or callback admission is not publication. Audit all openWarningAttention callers, including synchronous producers, and force both early-input and already-published orderings in regression coverage. Keep production empty-list behavior unchanged. Qualification remains pending a corrected complete package, recorded check, clean close and coordinated real-console acceptance.
+
+### 2026-10-23 — BR-6 all asynchronous assertions, not only shared helper
+
+The publication acknowledgment rule applies to every async warning assertion, including direct attention-count tests and absence controls. Pane removal, phase change and dispatcher admission are intermediate states unless their owning function proves publication completed before them. Enumerate source→completion→assertion for all affected tests; force the removal-before-warning legal interleaving and its reverse without changing production behavior. Preserve the recorded/live acceptance prerequisites.

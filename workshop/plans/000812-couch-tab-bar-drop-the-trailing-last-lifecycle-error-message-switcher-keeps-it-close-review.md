@@ -326,3 +326,120 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-23T06:41:59-07:00 (REWORK)
+
+| field | value |
+|-------|-------|
+| issue | 812 — Couch tab bar: drop the trailing last lifecycle/error message (switcher keeps it) |
+| repo | pair |
+| issue file | workshop/issues/000812-couch-tab-bar-drop-the-trailing-last-lifecycle-error-message-switcher-keeps-it.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | c0dbb32decc052500172ded01ff36e3fa8e49cc9..58b2e43e6af14e82aa9413c7a960c46d6b44a0ed |
+| command | sdlc close --issue 812 |
+| reviewer | codex (openai; author openai) |
+| isolation | fenced |
+| timestamp | 2026-10-23T06:41:59-07:00 |
+| verdict | REWORK |
+
+## Review
+
+```verdict
+verdict: REWORK
+confidence: high
+```
+
+The implementation delivers the tab-bar removal, retained switcher message, and explicit warning routing. BR-5’s correction is verified, including a regression that fails when its publication wait is removed. One additional asynchronous test still asserts attention before publication is guaranteed; this needs correction before the boundary.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      Local queued completion uses Warn with the retained origin; TestLifecycleLocalQueuedCompletionWarningOwnsExactOrigin passes in the complete couchtty run.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      Informational Logf and actionable Warnf remain separate; recorded fidelity success/failure and drive classification regressions pass.
+  - id: BR-3
+    disposition: addressed
+    note: |
+      newConsoleRenicer preserves the exact binding and publishes through Warn; once-per-binding and normal-priority controls pass.
+  - id: BR-4
+    disposition: addressed
+    note: |
+      Migrated rendering oracles and corrected startup fixtures pass in complete couchtty and couchcmd package runs.
+  - id: BR-5
+    disposition: addressed
+    note: |
+      The shared helper waits for current VT-rendered publication, and the lifecycle test joins Warn completion. Controlled ordering tests pass; removing the helper wait makes helper-before-publication fail immediately.
+findings:
+  - id: new
+    severity: Important
+    kind: defect
+    family: regression-oracles-follow-contract
+    title: |
+      Unexpected-exit regression asserts attention before warning publication
+    detail: |
+      cmd/internal/couchtty/console_warning_test.go:139 waits only for pane removal before immediately asserting attention. onExit releases c.mu at console.go:1258 and calls Warn at :1266, so the assertion can observe zero warnings during a legal interleaving. A temporary Go overlay that channel-gates this existing gap deterministically fails with “unexpected exit produced 0 warnings.” ARCH-ORDER, ARCH-PURPOSE: this is the 3rd finding in family regression-oracles-follow-contract. Do NOT fix only this instance: state and enumerate the rule that asynchronous warning assertions must acknowledge the actual published postcondition, sweep the affected tests, and retain controlled coverage of both orderings.
+```
+
+1. **Strengths**
+
+   - Removing `StatusModel.Notice` eliminates the trailing-message path in the shared renderer.
+   - `menuSnapshotLocked` derives the latest message from existing feed history; operation notices and copy feedback retain precedence.
+   - Warning projection sanitizes and bounds text while preserving explicit source identity.
+   - README and atlas document the changed presentation and attention navigation.
+
+2. **Critical findings**
+
+   None.
+
+3. **Important findings**
+
+   The ordering defect above at `cmd/internal/couchtty/console_warning_test.go:139`. Wait for actual warning publication before asserting count and source. Keep the controlled removal-before-publication case as regression evidence.
+
+4. **Minor findings**
+
+   None.
+
+5. **Test coverage notes**
+
+   - Complete package tests passed: couchtty **42.096s**, couchcmd **72.989s**, recorder **4.692s**, webcast **12.164s**.
+   - Focused publication, navigation, rendering and classification race tests passed.
+   - `make test-affected-inventory` and pinned-range `git diff --check` passed.
+   - BR-5 reversal failed as expected. The newly identified ordering gap also failed deterministically under a temporary channel gate.
+   - Repository files remain unchanged. Recorded-suite and coordinated live acceptance remain separate pending qualification steps.
+
+6. **Architectural notes**
+
+   - **ARCH-DRY — pass:** feed and attention retain their existing ownership.
+   - **ARCH-PURE — pass:** rendering and warning projection remain pure; console glue applies effects.
+   - **ARCH-PURPOSE — flag:** the regression-oracle correction still misses an enumerable sibling.
+   - **ARCH-MOCK — pass:** affected integrations exercise existing stateful fakes.
+   - **ARCH-CONSTRAINTS — pass:** bounded text, attention capacity and existing rendering limits remain enforced.
+   - **ARCH-SECURE — pass:** attention text is sanitized; cast-warning coverage checks secret-safe wording.
+   - **ARCH-ORDER — flag:** the exit regression mistakes an intermediate state for completed publication.
+   - **ARCH-FUNERAL — pass:** new values remain console-scoped; notification expiry remains existing policy.
+   - **ARCH-EVOLVE — pass:** no persisted format changes; `CleanupWarning` is explicitly excluded from serialization.
+
+7. **Plan revision recommendations**
+
+   Add a `## Revisions` entry extending the publication-acknowledgment rule from `openWarningAttention` callers to **all asynchronous warning assertions**, with the audited test enumeration and controlled-order evidence.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"9a8d6407-9d16-4b5c-9abe-0125e35ab12e","repository":"github.com/xianxu/pair","issue_id":"000812","recipe":"milestone-review","round":4,"attempt":1,"agent":"codex","root":"/Volumes/TestScratch/review-checkouts/25f24d1b136fb5ba","reviewed_head":"58b2e43e6af14e82aa9413c7a960c46d6b44a0ed","slot":"pair:1","requested_at":"2026-10-23T13:38:34.963442Z"},"phase":"finished","pid":48139,"started_at":"2026-10-23T13:38:35.125699Z","finished_at":"2026-10-23T13:41:57.157573Z","session_id":"01a168fc-1d8a-7e02-a46e-719c40033ab0","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 2.725257208s
+head: "58b2e43e6af14e82aa9413c7a960c46d6b44a0ed"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412

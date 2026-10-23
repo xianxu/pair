@@ -454,6 +454,185 @@ rounds:
       recipe: milestone-review
       isolation: fenced
       blocked: true
+    - reviewer_runs:
+        - version: 1
+          intent:
+            disposable_root: true
+            id: 9a8d6407-9d16-4b5c-9abe-0125e35ab12e
+            repository: github.com/xianxu/pair
+            issue_id: "000812"
+            recipe: milestone-review
+            round: 4
+            attempt: 1
+            agent: codex
+            root: /Volumes/TestScratch/review-checkouts/25f24d1b136fb5ba
+            reviewed_head: 58b2e43e6af14e82aa9413c7a960c46d6b44a0ed
+            slot: pair:1
+            requested_at: "2026-10-23T13:38:34.963442Z"
+          phase: finished
+          pid: 48139
+          started_at: "2026-10-23T13:38:35.125699Z"
+          finished_at: "2026-10-23T13:41:57.157573Z"
+          session_id: 01a168fc-1d8a-7e02-a46e-719c40033ab0
+          outcome: returned
+      actual_inputs:
+        version: 1
+        method: active-time-v3-engagement-v1
+        repository: github.com/xianxu/pair
+        code_head: 58b2e43e6af14e82aa9413c7a960c46d6b44a0ed
+        tracker_head: fcce9acc42fa09b74ad2c2a471c96f382f7d2853
+        branch_point: c0dbb32decc052500172ded01ff36e3fa8e49cc9
+        since: "2026-10-23T05:01:56-07:00"
+        until: "2026-10-23T06:37:40-07:00"
+        brain_root: /Users/xianxu/workspace/brain
+        gap_minutes: 15
+        commit_weight: 1
+        include_assistant: true
+        engagements:
+            - start: "2026-10-23T05:01:56-07:00"
+              end: "2026-10-23T06:37:40-07:00"
+              began: "2026-10-23T05:01:56-07:00"
+              roots:
+                - /Users/xianxu/workspace/worktree/pair-slot1/pair
+        sources:
+            - harness: codex
+              id: 01a15fbb-6812-71c3-b0f5-b4651b817396
+              slot: pair:1
+              cwd: /Users/xianxu/workspace/worktree/pair-slot1/pair
+              digest: 1a27009e411d53d3a5bba04e0ec16b352eceb55e5ef922e09dca7fdb27174898
+              started: "2026-10-21T18:31:20.491Z"
+              spawned: false
+              bytes: 28445045
+              windows:
+                - start: "2026-10-23T05:01:56-07:00"
+                  end: "2026-10-23T06:37:40-07:00"
+            - harness: codex
+              id: 01a168a8-b55a-7a73-8097-1ac736feaf5d
+              slot: pair:1
+              cwd: /Users/xianxu/workspace/worktree/pair-slot1/pair
+              digest: 06c8f98592b07caa7e74f16b9ceacb0a17b13596b7a74f6364075a3d9793593b
+              started: "2026-10-23T12:07:29.699Z"
+              spawned: false
+              bytes: 561161
+              windows:
+                - start: "2026-10-23T12:07:29.699Z"
+                  end: "2026-10-23T06:37:40-07:00"
+            - harness: codex
+              id: 01a168ab-54df-7c01-8ac0-4585962b813f
+              slot: pair:1
+              cwd: /Users/xianxu/workspace/worktree/pair-slot1/pair
+              digest: f1b522d6e7d3e8c92b0590d06eab78c08e472aca9d08b5a0fda076944c0eac45
+              started: "2026-10-23T12:10:21.706Z"
+              spawned: false
+              bytes: 412483
+              windows:
+                - start: "2026-10-23T12:10:21.706Z"
+                  end: "2026-10-23T06:37:40-07:00"
+            - harness: codex
+              id: 01a168ad-70cc-7cd1-9eef-d36c47c664ea
+              slot: pair:1
+              cwd: /Users/xianxu/workspace/worktree/pair-slot1/pair
+              digest: 11cfa55d1f5b7c87394a55b661e1498c15abc3d97aceafe93a733e68452e472b
+              started: "2026-10-23T12:12:39.913Z"
+              spawned: false
+              bytes: 424029
+              windows:
+                - start: "2026-10-23T12:12:39.913Z"
+                  end: "2026-10-23T06:37:40-07:00"
+            - harness: codex
+              id: 01a168ae-07ac-7712-b1f5-80a3ecf73c25
+              slot: pair:1
+              cwd: /Users/xianxu/workspace/worktree/pair-slot1/pair
+              digest: 0499eb9ff178ec31a8fa1698ec22703a2fefbea34cb49e6389f997c29fef30ae
+              started: "2026-10-23T12:13:18.617Z"
+              spawned: false
+              bytes: 365523
+              windows:
+                - start: "2026-10-23T12:13:18.617Z"
+                  end: "2026-10-23T06:37:40-07:00"
+            - harness: codex
+              id: 01a168ae-eb19-7db2-9fcb-2a5b77f384f0
+              slot: pair:1
+              cwd: /Users/xianxu/workspace/worktree/pair-slot1/pair
+              parent_id: 01a15fbb-6812-71c3-b0f5-b4651b817396
+              digest: 2d267aa4923b553fadaf141cbcb46a16ad846e6a49ff38c2e32a72e7b3e67837
+              started: "2026-10-23T12:14:16.434Z"
+              spawned: true
+              bytes: 1992488
+              windows:
+                - start: "2026-10-23T12:14:16.434Z"
+                  end: "2026-10-23T06:37:40-07:00"
+            - harness: codex
+              id: 01a168af-1978-7970-9324-ac1dace7b00e
+              slot: pair:1
+              cwd: /Users/xianxu/workspace/worktree/pair-slot1/pair
+              parent_id: 01a15fbb-6812-71c3-b0f5-b4651b817396
+              digest: b0fc83d9781ccdc30eeda4ee77db2a29f121fdf300b3aeb6ffa10f7806564caa
+              started: "2026-10-23T12:14:28.316Z"
+              spawned: true
+              bytes: 3290635
+              windows:
+                - start: "2026-10-23T12:14:28.316Z"
+                  end: "2026-10-23T06:37:40-07:00"
+            - harness: codex
+              id: 01a168f6-01b2-7aa3-b3c0-67debe4daad0
+              slot: pair:1
+              cwd: /Users/xianxu/workspace/worktree/pair-slot1/pair
+              parent_id: 01a15fbb-6812-71c3-b0f5-b4651b817396
+              digest: c215546283d60eeaf0083a67b4e837448c59d949bd3336b29c43a1d73a60e3b0
+              started: "2026-10-23T13:31:55.288Z"
+              spawned: true
+              bytes: 809709
+              windows:
+                - start: "2026-10-23T13:31:55.288Z"
+                  end: "2026-10-23T06:37:40-07:00"
+        cuts:
+            - dispatched: "2026-10-23T05:34:34-07:00"
+              finalized: "2026-10-23T05:37:50-07:00"
+              finalizing: false
+            - dispatched: "2026-10-23T05:48:56-07:00"
+              finalized: "2026-10-23T05:55:18-07:00"
+              finalizing: false
+            - dispatched: "2026-10-23T06:20:19-07:00"
+              finalized: "2026-10-23T06:30:41-07:00"
+              finalizing: false
+      "n": 4
+      timestamp: "2026-10-23T06:41:59-07:00"
+      dispatched: "2026-10-23T06:38:32-07:00"
+      agent: codex
+      reviewer: codex (openai; author openai)
+      dispose:
+        - id: BR-1
+          disposition: addressed
+          note: Local queued completion uses Warn with the retained origin; TestLifecycleLocalQueuedCompletionWarningOwnsExactOrigin passes in the complete couchtty run.
+          round: 4
+        - id: BR-2
+          disposition: addressed
+          note: Informational Logf and actionable Warnf remain separate; recorded fidelity success/failure and drive classification regressions pass.
+          round: 4
+        - id: BR-3
+          disposition: addressed
+          note: newConsoleRenicer preserves the exact binding and publishes through Warn; once-per-binding and normal-priority controls pass.
+          round: 4
+        - id: BR-4
+          disposition: addressed
+          note: Migrated rendering oracles and corrected startup fixtures pass in complete couchtty and couchcmd package runs.
+          round: 4
+        - id: BR-5
+          disposition: addressed
+          note: The shared helper waits for current VT-rendered publication, and the lifecycle test joins Warn completion. Controlled ordering tests pass; removing the helper wait makes helper-before-publication fail immediately.
+          round: 4
+      findings:
+        - kind: defect
+          id: BR-6
+          severity: Important
+          title: Unexpected-exit regression asserts attention before warning publication
+          detail: 'cmd/internal/couchtty/console_warning_test.go:139 waits only for pane removal before immediately asserting attention. onExit releases c.mu at console.go:1258 and calls Warn at :1266, so the assertion can observe zero warnings during a legal interleaving. A temporary Go overlay that channel-gates this existing gap deterministically fails with “unexpected exit produced 0 warnings.” ARCH-ORDER, ARCH-PURPOSE: this is the 3rd finding in family regression-oracles-follow-contract. Do NOT fix only this instance: state and enumerate the rule that asynchronous warning assertions must acknowledge the actual published postcondition, sweep the affected tests, and retain controlled coverage of both orderings.'
+          family: regression-oracles-follow-contract
+          round: 4
+      recipe: milestone-review
+      isolation: fenced
+      blocked: false
 ---
 
 # Gate ledger — pair#812 (boundary-review)
@@ -496,6 +675,21 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-5** [Important] `regression-oracles-follow-contract` (kind: defect) Async warning test opens attention before publication is guaranteed
   cmd/internal/couchcmd/lifecycle_diagnostic_attention_test.go:19 calls openWarningAttention immediately after queuing the diagnostic. The helper at notice_attention_test.go:45 toggles first, but console_attention.go:144 leaves an empty list closed; later warning publication does not open it. The complete package run stalled here for minutes, confirmed by its captured stack, and was interrupted at 470.7 seconds. This is the 2nd finding in family regression-oracles-follow-contract. ARCH-ORDER: fix the class by requiring publication acknowledgment before opening attention across every asynchronous helper caller, and force both publication/input orderings in regression coverage.
 
+## Round 4 — 2026-10-23T06:41:59-07:00 (codex) — passed
+
+### Disposed
+
+- BR-1 — addressed — Local queued completion uses Warn with the retained origin; TestLifecycleLocalQueuedCompletionWarningOwnsExactOrigin passes in the complete couchtty run.
+- BR-2 — addressed — Informational Logf and actionable Warnf remain separate; recorded fidelity success/failure and drive classification regressions pass.
+- BR-3 — addressed — newConsoleRenicer preserves the exact binding and publishes through Warn; once-per-binding and normal-priority controls pass.
+- BR-4 — addressed — Migrated rendering oracles and corrected startup fixtures pass in complete couchtty and couchcmd package runs.
+- BR-5 — addressed — The shared helper waits for current VT-rendered publication, and the lifecycle test joins Warn completion. Controlled ordering tests pass; removing the helper wait makes helper-before-publication fail immediately.
+
+### Raised
+
+- **BR-6** [Important] `regression-oracles-follow-contract` (kind: defect) Unexpected-exit regression asserts attention before warning publication
+  cmd/internal/couchtty/console_warning_test.go:139 waits only for pane removal before immediately asserting attention. onExit releases c.mu at console.go:1258 and calls Warn at :1266, so the assertion can observe zero warnings during a legal interleaving. A temporary Go overlay that channel-gates this existing gap deterministically fails with “unexpected exit produced 0 warnings.” ARCH-ORDER, ARCH-PURPOSE: this is the 3rd finding in family regression-oracles-follow-contract. Do NOT fix only this instance: state and enumerate the rule that asynchronous warning assertions must acknowledge the actual published postcondition, sweep the affected tests, and retain controlled coverage of both orderings.
+
 ## Open findings
 
-- **BR-5** [Important] `regression-oracles-follow-contract` (kind: defect) Async warning test opens attention before publication is guaranteed
+- **BR-6** [Important] `regression-oracles-follow-contract` (kind: defect) Unexpected-exit regression asserts attention before warning publication

@@ -173,6 +173,13 @@ Audited all ten original call sites (correcting the initial nine count): crash i
 
 All callers and controlled orderings x10 PASS17.231s; all callers and three orderings race x10 PASS28.732s. Complete couchcmd JSON count1/timeout20m PASS88.520s,1784 test/subtest passes,14 skips,0 failures; agent-owned session70765 terminal0, retained /Volumes/TestScratch/tmp/pair-slot1/pair812-couchcmd-br5.SThf9P/run.jsonl. make test-affected-inventory PASS (no certificate change), git diff --check PASS. Two test files only; production unchanged from cafbf526. Next commit/push, fresh recorded affected/full on exact corrected head, then full close for BR-5 disposition. Recorded proof, TL stage go and coordinated real-console acceptance still precede landing.
 
+
+### 2026-10-23 — round4 requires full async assertion audit
+
+Round4 on58b2e43e6af14e82aa9413c7a960c46d6b44a0ed verifies BR-1 throughBR-5 addressed, including BR-5 reversal. Reviewer complete couchtty42.096s/couchcmd72.989s/recorder4.692s/webcast12.164s PASS. REWORK BR-6 Important: unexpected-exit test waits pane removal, but onExit unlocks before Warn; a channel-gated Go overlay deterministically observes0 warnings in this legal gap. The helper-only sweep was too narrow. Extend ARCH-ORDER rule to all asynchronous warning assertions and negative controls: acknowledge the actual published postcondition or owning callback completion, never preceding pane/phase state. Repair/audit delegated across couchtty/couchcmd; source behavior unchanged.
+
+Recorded58b2 suite lease-3296915880 remained queued, last position5 after232s, never ran; explicitly cancelled and terminal context-canceled confirmed. No passing record claimed. Round4 measured3.43h (05:01:56 to06:37:40 local),8 admitted sessions,1 ownership interval, trackerfcce9acc42fa09b74ad2c2a471c96f382f7d2853. Close did not finalize despite Important finding being demoted at the round cap; repair it and re-review rather than using that demotion to ship.
+
 ## Revisions
 
 ### 2026-10-23 — BR-3/BR-4 exhaustive completion
