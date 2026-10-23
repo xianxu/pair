@@ -1,0 +1,53 @@
+[
+  {
+    "cwd_changed": false,
+    "command": [
+      "/usr/bin/env",
+      "-i",
+      "PATH=/opt/homebrew/bin:/usr/bin:/bin",
+      "HOME=/tmp",
+      "/bin/bash",
+      "--noprofile",
+      "--norc",
+      "-c",
+      "exec /opt/homebrew/bin/python3 -c 'import os,json; print(json.dumps({'\\''env'\\'':dict(os.environ),'\\''uid'\\'':os.getuid()},sort_keys=True))'"
+    ],
+    "result": {
+      "env": {
+        "HOME": "/tmp",
+        "LC_CTYPE": "C.UTF-8",
+        "PATH": "/opt/homebrew/bin:/usr/bin:/bin",
+        "PWD": "/Users/xianxu/workspace/worktree/pair-slot3/pair",
+        "SHLVL": "0",
+        "__CF_USER_TEXT_ENCODING": "0x1F5:0x0:0x0"
+      },
+      "uid": 501
+    }
+  },
+  {
+    "cwd_changed": true,
+    "command": [
+      "/usr/bin/env",
+      "-i",
+      "PATH=/opt/homebrew/bin:/usr/bin:/bin",
+      "HOME=/tmp",
+      "/bin/bash",
+      "--noprofile",
+      "--norc",
+      "-c",
+      "cd /private/tmp; exec /opt/homebrew/bin/python3 -c 'import os,json; print(json.dumps({'\\''env'\\'':dict(os.environ),'\\''uid'\\'':os.getuid()},sort_keys=True))'"
+    ],
+    "result": {
+      "env": {
+        "HOME": "/tmp",
+        "LC_CTYPE": "C.UTF-8",
+        "OLDPWD": "/Users/xianxu/workspace/worktree/pair-slot3/pair",
+        "PATH": "/opt/homebrew/bin:/usr/bin:/bin",
+        "PWD": "/private/tmp",
+        "SHLVL": "0",
+        "__CF_USER_TEXT_ENCODING": "0x1F5:0x0:0x0"
+      },
+      "uid": 501
+    }
+  }
+]

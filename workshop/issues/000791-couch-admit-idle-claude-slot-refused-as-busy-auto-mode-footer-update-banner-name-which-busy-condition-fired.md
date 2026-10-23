@@ -136,6 +136,14 @@ Recorded local-check resume selected original8171265c7567f5abadd78882590bf2c380b
 Authenticated fleet notice6caf4955-7125-486e-886a-5d38572475b1 confirms shutdown complete, freeze lifted and Go1.27.3; rebuild this slot's tools before the next suite/merge, using ariadne:0 sdlc (PATH symlink verified). make build completed; bin/pair, bin/couch and bin/pair-launch-helper build metadata all report Go1.27.3, revision318e1a91b5cfa301067c5c5c01e4a3b80e963f3d, vcs.modified=false. Next: queue-status sanity check, commit this evidence, then narrow re-close with the integrated known-flake resume receipt and retry landing. Current prior close covers old code; integration fix review remains pending. #737/#810 remain parked and #807 paused until #791 lands.
 
 
+
+### 2026-10-22 — renewed SHIP; second landing integration
+
+Narrow close round4 SHIP, zero findings; reviewer independently passed complete artifactpath17.039s, fitting-screen regression0.418s and pinned whitespace check. Measured actual2.22h adopted (window12:23:59–21:55:44 PDT;1 ownership interval,9 admitted sessions; #791/#807 attribution;219.36 raw queue minutes/139.96 excluded activity minutes). Evidence599404b2a95430ea36753d2fc40a00c9d07fec1f was published; landing readiness passed for PR546. TLfe84a30a-8878-4200-a8f5-4959c1588f71 confirms helper-inspect exit2 is display-only from an older checkout helper; admission still works, ariadne:3 owns its fix. Do not repeat that incident report or treat it as a suite failure.
+
+Landing session45547 then ended on conflicts with newer main54a02d7aa3971f50987bcef321de6534d8d566a9: atlas/couch-testing.md has independent appended #791 diagnostics and #801 conformance-bridge sections; manifest.go has additive #791 capture and #743 VM inventory entries. Preserve both sides in each conflict, with no behavior change. Prior suite/resume receipt qualifies the preceding integration only. Next: targeted inventory and required affected-inventory, commit/push this integration, recorded full suite on this new exact head, narrow re-close with its successful receipt, then retry merge. Keep #807 paused until landing.
+
+
 ## Revisions
 
 ### 2026-10-22 — operator/TL expanded reproduction and capture scope
