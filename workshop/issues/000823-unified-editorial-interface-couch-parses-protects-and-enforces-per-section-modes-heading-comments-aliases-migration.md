@@ -108,6 +108,16 @@ Parley writers remain #419. No `change-code`, implementation, suite or stage has
 resolve its plan-quality findings and supply the derived estimate before changing code. Coordinate the optional
 span field/fallback with #419's owner when assigned. Do not resume obsolete #752 runners from the old continuation.
 
+### 2026-10-23 — TL approved implementation admission
+
+TL delivery `d7b0c3ed-ff27-4595-a0c6-310b167fca0b` approved the committed plan and all three boundaries: mechanical
+enforcement versus semantic agent review; constrained operator-confirmed migration under normal lock/CAS without
+human-authentication claims; Couch guidance/readers here, actual Parley writers in #419. Directed proceeding to
+`sdlc change-code`. The plan checkpoint is `16f9bf7859a0665e01824d21bc96324c38ecf00f`.
+
+**NEXT ACTION:** run `sdlc change-code --issue 823`; resolve its fresh-context plan-quality findings before code,
+then derive the estimate through the gate. No suite, stage or implementation has started.
+
 ## Revisions
 
 ### 2026-10-23 — Implementation boundaries from source inventory
