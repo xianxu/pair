@@ -31,6 +31,13 @@ Add supported, hub-scoped CLI verbs (agent-first, per the existing direction):
 all authorised only for slots the calling hub provisioned, with receipts the observer can verify (root, session,
 generation, launch profile).
 
+
+**Scope revision (operator, 10-23):** starting the bench hub isn't the constraint (the operator can start Couch with
+it as an extra root). Drop the hub-start verb. The need is a hub managing *its own* slots by command: open or start
+a slot it owns with an exact agent and argv, restart it fresh, switch its model, and retire it, with verifiable
+receipts. Lessons from metis (`../metis`): borrow its provenance-record and append-only-ledger patterns in the bench
+tool, not its run engine (metis has no agent management).
+
 ## Done when
 
 - A hub can bring up a bench hub and worker with exact agent and argv, verify them, and retire them, with no Couch
