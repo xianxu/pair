@@ -5,9 +5,9 @@ deps: []
 github_issue:
 created: 2026-10-22
 updated: 2026-10-22
-estimate_hours:
+estimate_hours: 1.25375
 collaboration-mode: collaboration
-card_mirror: '1d7e8fe1a54cdf6a0137d5190d300d9fddfa7176' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: 'eb318bceb9fe6f9bf20248195e1578a099b8ef89' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-22T16:54:59-07:00
 claimant:
     operator: Xian Xu
@@ -16,6 +16,7 @@ claimant:
     workspace: pair:4
     worktree: /Users/xianxu/workspace/worktree/pair-slot4/pair
     repository: github.com/xianxu/pair
+flow: {kind: full, provenance: operator}
 ---
 
 # Collapse tab bar: a one-glyph-per-slot state strip next to +N
@@ -49,7 +50,7 @@ The operator's sketch (using ⌥ for the branch glyph): `pair⌥  +9 ⌥⌥+-⌥
 - [ ] Admit complete strips only into spare width after the shared base packing; draw/hit-test count and strip together with existing owner styling.
 - [ ] Verify projection, width, physical clicks, privacy/geometry, pending/live and counted-work bounds; stage for the operator, close and land.
 
-Detailed design is on this issue branch at workshop/plans/000819-folded-slot-state-strip-plan.md; implementation awaits TL approval.
+Detailed design is on this issue branch at workshop/plans/000819-folded-slot-state-strip-plan.md; TL approved the plan (c4f6db71); change-code gates precede implementation.
 
 ## Log
 
@@ -72,3 +73,20 @@ Approved optional strip allocation after base packing, left-to-right using spare
 ### 2026-10-22 — Plan-quality refinement
 
 PQ-1 requested function-specific adversarial test strategies instead of prose case inventories. Compressed the durable plan accordingly; no product or architecture change. First gate refused before implementation; rerunning after the refinement. #789 suite remains independently queued.
+
+## Estimate
+
+Produced via brain/data/life/42shots/velocity/estimate-logic-v3.1.md against baseline-v3.1.md. Method A only; the source is marked stale, so calibration is provisional. No novel library or external API: existing glyphs, packer, styles and confirmed group navigation supply the seams. Familiarity 1.0 follows the just-landed #796 implementation.
+
+Primitive decomposition: compact glyph/membership extension is a smaller Go module (raw design0.15 × thorough-spec0.2 =0.03; raw impl0.50 ×0.40 =0.20). Packing/rendering/navigation regressions form one TUI screen extension (raw design1.25 ×0.2 =0.25; raw impl1.00 ×0.40 =0.40). Docs use raw design0.125 ×0.2 =0.025 and impl0.20 ×0.40 =0.08. One atomic review/staged verification chunk uses raw design0.10 ×0.2 =0.02 and impl0.50 ×0.40 =0.20. Design subtotal0.325, buffered15%=0.37375; implementation0.88; total1.25375h. Queue wait is not implementation effort.
+
+```estimate
+model: estimate-logic-v3.1
+familiarity: 1.0
+item: smaller-go-module design=0.03 impl=0.20
+item: tui-screen design=0.25 impl=0.40
+item: atlas-docs design=0.025 impl=0.08
+item: milestone-review design=0.02 impl=0.20
+design-buffer: 0.15
+total: 1.25375
+```
