@@ -5,6 +5,51 @@ import (
 	"testing"
 )
 
+func TestResolveStartResolutionUsesRepositoryArgumentsAcrossFolders(t *testing.T) {
+	p, err := RememberRepoArguments(nil, "/repo/.git", LaunchProfile{Agent: "codex", Argv: []string{"--model", "repo-model"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	in := StartResolutionInput{CanonicalPath: "/slot/repo/sub", Worktree: "/slot/repo", RepoIdentity: "/repo/.git", LaunchProfileInputs: LaunchProfileInputs{ExplicitAgent: "codex", Repo: &p}}
+	first, err := ResolveStartResolution(in)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if first.PreferenceRevision != p.Revision || first.ArgvSource != ArgvSourceRepository || !reflect.DeepEqual(first.Profile.Argv, []string{"--model", "repo-model"}) {
+		t.Fatal(first)
+	}
+	p.Revision++
+	second, err := ResolveStartResolution(in)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if first.Fingerprint == second.Fingerprint {
+		t.Fatal("repository revision absent from accepted fingerprint")
+	}
+	p.RepoIdentity = "/foreign/.git"
+	if _, err := ResolveStartResolution(in); err == nil {
+		t.Fatal("accepted foreign repository preferences")
+	}
+}
+
+func TestLaunchProfileRepositoryConflictRequiresExplicitAcceptance(t *testing.T) {
+	a, b := repoLegacy(t, "a", "/repo/a", "one"), repoLegacy(t, "b", "/repo/b", "two")
+	p, err := FoldPathPreferences(nil, "/repo/.git", []LegacyRepoPreference{a, b})
+	if err != nil {
+		t.Fatal(err)
+	}
+	in := LaunchProfileInputs{ExplicitAgent: "codex", Repo: &p}
+	if _, err := ResolveLaunchProfile(in); err == nil {
+		t.Fatal("conflicting argv silently launched")
+	}
+	empty := []string{}
+	in.ExplicitArgv = &empty
+	got, err := ResolveLaunchProfile(in)
+	if err != nil || got.Profile.Argv == nil || len(got.Profile.Argv) != 0 || got.ArgvSource != ArgvSourceExplicit {
+		t.Fatalf("%+v %v", got, err)
+	}
+}
+
 func TestResolveStartResolutionUsesLaunchProfileOracleAndOwnsValues(t *testing.T) {
 	t.Parallel()
 

@@ -214,3 +214,63 @@ func TestDrawContextUsesDrawTimeRatherThanSaveTime(t *testing.T) {
 		t.Fatal("save-time action leaked into draw context", got.Before)
 	}
 }
+
+func TestNoteDeclaredIDsUseCaptureMomentAndRemainGeneric(t *testing.T) {
+	b := recording.NewBuilder("note-facts")
+	button := b.El("button", []string{"id", "original-control", "data-workflow-key", "literal-value"}, b.Txt("Save"))
+	parent := b.El("main", []string{"id", "settings"}, button)
+	b.Page(recording.SegLive, "https://source.test/", parent)
+	b.At(8).Add(&recording.Attr{ID: button.ID, Name: "id", V: recording.Str("later-control")})
+	box := recording.Box{0, 0, 100, 50}
+	b.At(10).Add(&recording.Note{ID: "note", Author: recording.Author{ID: "operator"}, Text: "Move this", At: recording.NoteAt{Node: button.ID, Box: &box}, Region: &box})
+	sub, _, err := Build(b.Recs, board.Selection{Document: 1, TabID: "tab1", Notes: []board.SelectedNote{{ID: "note"}}}, "facts", target(), "/recording", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if sub.Notes[0].Elements == nil {
+		t.Fatal("ordinary annotation lacks declared element facts")
+	}
+	if sub.Notes[0].Elements.Anchors[0].ID != "later-control" {
+		t.Fatal("creation source differs")
+	}
+	capture, err := ContextAt(b.Recs, sub.Notes[0], 5)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if capture.Elements == nil || capture.Elements.Anchors[0].ID != "original-control" || capture.Elements.Anchors[0].Data["data-workflow-key"] != "literal-value" || len(capture.Elements.Ancestors) != 1 || capture.Elements.Ancestors[0].ID != "settings" {
+		t.Fatalf("capture source lost original generic IDs: %+v", capture.Elements)
+	}
+}
+
+func TestRegionOnlyNoteBuildAndCaptureContextRetainRegionFacts(t *testing.T) {
+	b := recording.NewBuilder("region-note")
+	node := b.El("button", []string{"id", "region-control", "data-purpose", "save"})
+	b.Page(recording.SegLive, "https://source.test/", node)
+	region := recording.Box{10, 10, 40, 40}
+	b.At(1).Add(&recording.Layout{Boxes: map[recording.NodeID]recording.Box{node.ID: {15, 15, 20, 20}}})
+	b.At(10).Add(&recording.Note{ID: "region", Author: recording.Author{ID: "operator"}, Text: "Move this area", Region: &region})
+	selected := board.Selection{Document: 1, TabID: "tab1", Notes: []board.SelectedNote{{ID: "region"}}}
+	sub, _, err := Build(b.Recs, selected, "region-submission", target(), "/recording", nil)
+	if err != nil {
+		t.Fatalf("valid region-only note became unsendable: %v", err)
+	}
+	check := func(n core.Note) {
+		t.Helper()
+		if n.Elements == nil || len(n.Elements.Anchors) != 0 || len(n.Elements.Intersections) != 1 || n.Elements.Intersections[0].Node != node.ID || n.Elements.Intersections[0].ID != "region-control" {
+			t.Fatalf("region evidence changed: %+v", n.Elements)
+		}
+	}
+	check(sub.Notes[0])
+	// Saved captures carry the original requested region independently of a node.
+	note := sub.Notes[0]
+	note.BoxText = core.BoxText{Region: region}
+	captured, err := ContextAt(b.Recs, note, 5)
+	if err != nil {
+		t.Fatalf("region-only captured context: %v", err)
+	}
+	check(captured)
+	sub.Notes[0] = captured
+	if err = core.Validate(sub); err != nil {
+		t.Fatalf("region-only context no longer valid: %v", err)
+	}
+}

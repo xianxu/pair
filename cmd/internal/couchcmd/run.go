@@ -250,21 +250,6 @@ func (r OSRuntime) NewCouchWith(runner couchcore.Runner, namespace couchcore.Cou
 		c.ContinuationGeneration = status.Generation
 	}
 
-	c.RepoAgentDefault = func(repoRoot, agent string) (couchcore.LaunchProfile, bool, error) {
-		scopeDir := launcher.ScopedLaunchDataDir(dataDir, repoRoot)
-		raw, err := os.ReadFile(launcher.AgentDefaultPath(scopeDir, agent))
-		if errors.Is(err, os.ErrNotExist) {
-			return couchcore.LaunchProfile{}, false, nil
-		}
-		if err != nil {
-			return couchcore.LaunchProfile{}, false, err
-		}
-		value, err := launcher.ParseAgentDefault(agent, string(raw))
-		if err != nil {
-			return couchcore.LaunchProfile{}, false, err
-		}
-		return couchcore.LaunchProfile{Agent: value.Agent, Argv: value.Args}, true, nil
-	}
 	return c, nil
 }
 
@@ -347,7 +332,15 @@ func RunWithRuntime(args []string, stdin io.Reader, stdout, stderr io.Writer, rt
 			lease.Close()
 			return prepared.StoreDir(), nil
 		}
-		return query.Run(invocation.args, replayLinker(store, couchmessage.Call, slotPollClock{now: time.Now, sleep: time.Sleep}, stderr), stdout, stderr)
+		ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+		defer stop()
+		return query.RunWithOptions(invocation.args, query.RunOptions{Context: ctx, Link: replayLinker(store, couchmessage.Call, slotPollClock{now: time.Now, sleep: time.Sleep}, stderr), ExportSketchImage: func(ctx context.Context, request query.SketchImageRequest) error {
+			bin, err := webcast.FindChrome(rt.Getenv, exec.LookPath, fileExists)
+			if err != nil {
+				return err
+			}
+			return webcast.ExportSketchImage(ctx, webcast.NewSketchImageRenderer(bin), request)
+		}}, stdout, stderr)
 	}
 	if invocation.kind == cliWebReplay {
 		// Reads recordings in the store a running Couch records to, and
@@ -1071,11 +1064,16 @@ func wireResolver(console *couchtty.Console, c *couchcore.Couch, configuredHubs 
 				}
 				if call.Operation.Effect == couchcore.EffectConsole {
 					result, err := console.ExecuteConsoleOperation(call)
+					if err == nil && call.Operation.Name == "attach" {
+						if start, ok := call.TypedPayload.(couchcore.StartResult); ok {
+							c.PublishAdoptedConfiguration(start)
+						}
+					}
 					if err != nil && call.Operation.Name == "attach" {
 						if start, ok := call.TypedPayload.(couchcore.StartResult); ok {
-							// Attach runs on the console goroutine, and the abort may
-							// wait on the thread's gate: run it off that goroutine so
-							// the console keeps rendering and draining results
+							// Attach runs on a lifecycle worker (or before Run at
+							// startup). Abort may wait on the thread's gate, so keep
+							// cleanup tracked without delaying the attach reply
 							// (pair#205). The attach error is the operation's answer;
 							// a cleanup failure beyond it follows as a notice.
 							attachErr := err
@@ -1484,7 +1482,7 @@ func usageWith(w io.Writer, bindings []couchkeys.Binding) {
 	verbLine(w, "--recover-plan-from-sdlc", "       couch --recover-plan-from-sdlc")
 	fmt.Fprintln(w, "             Recovery report: one JSON row per slot joining sdlc's claims and")
 	fmt.Fprintln(w, "             slot verdicts with Couch's threads, with a suggested next step.")
-	verbLine(w, "--switch-agent", "       couch --switch-agent repo:N --agent NAME --confirm [--json]")
+	verbLine(w, "--switch-agent", "       couch --switch-agent repo:N --agent NAME [--agent-args PARAMETERS] [--interrupt-first] --confirm [--json]")
 	verbLine(w, "--keys", "       couch --keys repo:N STEP... [--json]")
 	fmt.Fprintf(w, "             Hub only. STEP: %s\n", agentdrive.StepSyntax())
 	fmt.Fprintln(w, "             Steps, rules and the slash-command panel round trip: couch --keys --help.")

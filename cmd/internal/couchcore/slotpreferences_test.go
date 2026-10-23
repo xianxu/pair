@@ -3,7 +3,6 @@ package couchcore
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -41,7 +40,7 @@ func slotPreferenceRecord(t *testing.T, env *testEnv, local *ThreadStore) Thread
 	return r
 }
 
-func TestSlotPreferencePrimaryDefaultsAcrossFreshAndSwitch(t *testing.T) {
+func TestSlotPreferenceRepositoryArgumentsAcrossFreshAndSwitch(t *testing.T) {
 	t.Parallel()
 
 	for _, action := range []string{"fresh", "switch"} {
@@ -49,12 +48,8 @@ func TestSlotPreferencePrimaryDefaultsAcrossFreshAndSwitch(t *testing.T) {
 			env, local := slotRecoveryOperationFixture(t)
 			r := slotPreferenceRecord(t, env, local)
 			env.Couch.RootAgent = "codex"
-			env.Couch.RepoAgentDefault = func(root, agent string) (LaunchProfile, bool, error) {
-				argv := []string{"--wrong-slot-default"}
-				if root == local.slot.PrimaryRoot {
-					argv = []string{"--sandbox", "workspace-write"}
-				}
-				return LaunchProfile{Agent: agent, Argv: argv}, true, nil
+			if err := local.rememberRepoConfiguration(local.slot.RepoIdentity, LaunchProfile{Agent: "codex", Argv: []string{"--sandbox", "workspace-write"}}, nil); err != nil {
+				t.Fatal(err)
 			}
 			var got LaunchProfile
 			if action == "fresh" {
@@ -80,52 +75,61 @@ func TestSlotPreferencePrimaryDefaultsAcrossFreshAndSwitch(t *testing.T) {
 
 func TestSlotFreshInvalidPreferencePreservesCurrent(t *testing.T) {
 	t.Parallel()
-
-	env, local := slotRecoveryOperationFixture(t)
-	r := slotPreferenceRecord(t, env, local)
-	pref := PathLaunchPreference{SchemaVersion: 1, RepoIdentity: local.slot.RepoIdentity, PhysicalPath: r.StartingPath, LastAgent: "codex", ArgvByAgent: map[string][]string{"codex": {"resume", "old-native"}}, Revision: 1}
-	raw, err := json.Marshal(pref)
-	if err != nil {
-		t.Fatal(err)
-	}
-	prefPath := filepath.Join(local.root, "preferences.json")
-	if err = os.WriteFile(prefPath, raw, 0600); err != nil {
-		t.Fatal(err)
-	}
-	before, err := os.ReadFile(filepath.Join(local.root, "thread.json"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	_, err = env.Couch.StartFreshSlot(context.Background(), r.StartingPath, "")
-	if err == nil || !strings.Contains(err.Error(), "resume") {
-		t.Fatalf("expected resume-argument refusal, got %v", err)
-	}
-	after, readErr := os.ReadFile(filepath.Join(local.root, "thread.json"))
-	if readErr != nil || !bytes.Equal(before, after) {
-		t.Fatalf("invalid preferences replaced current record: %v", readErr)
-	}
-	got, err := os.ReadFile(prefPath)
-	if err != nil || !bytes.Equal(raw, got) {
-		t.Fatal("preferences changed", err)
-	}
-	if _, err = os.Stat(local.archivePath(r.Address)); !os.IsNotExist(err) {
-		t.Fatalf("invalid settings archived current: %v", err)
-	}
-	if len(env.Runner.Ops) != 0 {
-		t.Fatal("invalid settings launched a child")
+	for _, poison := range []string{"resume-selector", "unknown-schema"} {
+		t.Run(poison, func(t *testing.T) {
+			env, local := slotRecoveryOperationFixture(t)
+			r := slotPreferenceRecord(t, env, local)
+			env.Couch.RootAgent = "codex"
+			if err := local.rememberRepoConfiguration(local.slot.RepoIdentity, LaunchProfile{Agent: "codex", Argv: []string{"resume", "old-native"}}, nil); err != nil {
+				t.Fatal(err)
+			}
+			prefPath := local.repoPreferencesPath()
+			if poison == "unknown-schema" {
+				if err := os.WriteFile(prefPath, []byte(`{"schema_version":999,"repositories":{}}`), 0600); err != nil {
+					t.Fatal(err)
+				}
+			}
+			raw, err := os.ReadFile(prefPath)
+			if err != nil {
+				t.Fatal(err)
+			}
+			before, err := os.ReadFile(filepath.Join(local.root, "thread.json"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			_, err = env.Couch.StartFreshSlot(context.Background(), r.StartingPath, "")
+			if err == nil || (poison == "resume-selector" && !strings.Contains(err.Error(), "resume")) {
+				t.Fatalf("expected invalid canonical preference refusal (%s), got %v", poison, err)
+			}
+			after, readErr := os.ReadFile(filepath.Join(local.root, "thread.json"))
+			if readErr != nil || !bytes.Equal(before, after) {
+				t.Fatalf("invalid preferences replaced current record: %v", readErr)
+			}
+			got, err := os.ReadFile(prefPath)
+			if err != nil || !bytes.Equal(raw, got) {
+				t.Fatal("preferences changed", err)
+			}
+			if _, err = os.Stat(local.archivePath(r.Address)); !os.IsNotExist(err) {
+				t.Fatalf("invalid settings archived current: %v", err)
+			}
+			if len(env.Runner.Ops) != 0 {
+				t.Fatal("invalid settings launched a child")
+			}
+		})
 	}
 }
 
-func TestSlotPreferenceFirstUseKeepsRootAgentAndPrimaryDefaults(t *testing.T) {
+func TestSlotPreferenceFirstUseKeepsRootAgentAndRepositoryArguments(t *testing.T) {
 	t.Parallel()
 
 	env, f := managedStartFixture(t)
 	env.Couch.RootAgent = "codex"
-	env.Couch.RepoAgentDefault = func(root, agent string) (LaunchProfile, bool, error) {
-		if root != f.Primary {
-			t.Fatalf("first-use default root %q, want %q", root, f.Primary)
-		}
-		return LaunchProfile{Agent: agent, Argv: []string{"--sandbox", "workspace-write"}}, true, nil
+	identity, err := env.Couch.resolveRepoIdentity(context.Background(), f.Primary)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := env.Couch.Threads.rememberRepoConfiguration(identity, LaunchProfile{Agent: "codex", Argv: []string{"--sandbox", "workspace-write"}}, nil); err != nil {
+		t.Fatal(err)
 	}
 	args := StartArgs{Cwd: f.Primary, Action: StartCreate}
 	prepared, err := env.Couch.PrepareStart(context.Background(), args)

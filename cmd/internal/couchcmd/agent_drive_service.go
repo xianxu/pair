@@ -245,7 +245,7 @@ func (s *slotOperations) existingDrive(caller couchmessage.Binding, r couchmessa
 	if !ok {
 		return couchmessage.Response{}, false
 	}
-	if old.Op != r.Op || old.Target != r.Target || old.IntentDigest != driveIntentDigest(r) {
+	if old.Op != r.Op || old.Target != r.Target || old.IntentDigest != operationIntentDigest(r) {
 		return couchmessage.Response{Code: "id-conflict", Error: "request ID already names another intent"}, true
 	}
 	return couchmessage.Response{Code: "accepted", Operation: &old}, true

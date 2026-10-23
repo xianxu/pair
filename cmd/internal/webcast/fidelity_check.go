@@ -4,22 +4,15 @@ import (
 	"bytes"
 	"context"
 	"encoding/base64"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"image"
 	"image/png"
 	"math"
-	"net"
-	"net/http"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"sort"
-	"time"
 
-	"github.com/xianxu/pair/cmd/internal/broadcast"
-	"github.com/xianxu/pair/cmd/internal/cdp"
 	"github.com/xianxu/pair/cmd/internal/webcast/fidelity"
 	"github.com/xianxu/pair/cmd/internal/webcast/recorder"
 	"github.com/xianxu/pair/cmd/internal/webcast/recording"
@@ -159,143 +152,6 @@ func sideBySide(tabPNG, replayPNG []byte) ([]byte, error) {
 	return out.Bytes(), nil
 }
 
-// serveReplay serves the recordings under root on loopback under a fresh
-// token, returning the server's base URL and how to stop it.
-func serveReplay(root string) (string, func(), error) {
-	token, err := broadcast.NewToken()
-	if err != nil {
-		return "", nil, err
-	}
-	l, err := net.Listen("tcp", "127.0.0.1:0")
-	if err != nil {
-		return "", nil, err
-	}
-	srv := &http.Server{Handler: NewReplayServer(token, root), ReadHeaderTimeout: 10 * time.Second}
-	go srv.Serve(l)
-	return fmt.Sprintf("http://%s/%s", l.Addr(), token), func() { srv.Close() }, nil
-}
-
-// headless is a headless Chrome on its debugging pipe with one page, on a
-// throwaway profile.
-type headless struct {
-	cmd     *exec.Cmd
-	conn    *cdp.Conn
-	session string
-	profile string
-	vp      image.Point // the page's current device metrics
-}
-
-func launchHeadless(ctx context.Context, bin string) (*headless, error) {
-	profile, err := os.MkdirTemp("", "couch-fidelity-")
-	if err != nil {
-		return nil, err
-	}
-	cmdR, cmdW, err := os.Pipe()
-	if err != nil {
-		os.RemoveAll(profile)
-		return nil, err
-	}
-	outR, outW, err := os.Pipe()
-	if err != nil {
-		cmdR.Close()
-		cmdW.Close()
-		os.RemoveAll(profile)
-		return nil, err
-	}
-	cmd := exec.Command(bin, "--remote-debugging-pipe", "--headless=new", "--user-data-dir="+profile,
-		"--no-first-run", "--no-default-browser-check", "--hide-scrollbars", "--force-device-scale-factor=1", "about:blank")
-	cmd.ExtraFiles = []*os.File{cmdR, outW}
-	err = cmd.Start()
-	cmdR.Close()
-	outW.Close()
-	if err != nil {
-		cmdW.Close()
-		outR.Close()
-		os.RemoveAll(profile)
-		return nil, err
-	}
-	h := &headless{cmd: cmd, conn: cdp.New(outR, cmdW), profile: profile}
-	go func() {
-		for range h.conn.Events() { // nothing listened for; keep the queue empty
-		}
-	}()
-	var target struct {
-		TargetID string `json:"targetId"`
-	}
-	var att struct {
-		SessionID string `json:"sessionId"`
-	}
-	if err := h.call(ctx, "", "Target.createTarget", map[string]any{"url": "about:blank"}, &target); err != nil {
-		h.close()
-		return nil, err
-	}
-	if err := h.call(ctx, "", "Target.attachToTarget", map[string]any{"targetId": target.TargetID, "flatten": true}, &att); err != nil {
-		h.close()
-		return nil, err
-	}
-	h.session = att.SessionID
-	return h, nil
-}
-
-func (h *headless) call(ctx context.Context, session, method string, params, result any) error {
-	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
-	defer cancel()
-	return h.conn.Call(ctx, session, method, params, result)
-}
-
-// eval runs a script in the page, awaiting a promise, into result.
-func (h *headless) eval(ctx context.Context, expr string, result any) error {
-	var res struct {
-		Result struct {
-			Value json.RawMessage `json:"value"`
-		} `json:"result"`
-		ExceptionDetails *struct {
-			Text      string `json:"text"`
-			Exception struct {
-				Description string `json:"description"`
-			} `json:"exception"`
-		} `json:"exceptionDetails"`
-	}
-	if err := h.call(ctx, h.session, "Runtime.evaluate", map[string]any{"expression": expr, "awaitPromise": true, "returnByValue": true}, &res); err != nil {
-		return err
-	}
-	if e := res.ExceptionDetails; e != nil {
-		return fmt.Errorf("%s %s", e.Text, e.Exception.Description)
-	}
-	if result == nil {
-		return nil
-	}
-	return json.Unmarshal(res.Result.Value, result)
-}
-
-// open loads the fidelity page and waits until it has the records.
-func (h *headless) open(ctx context.Context, url string) error {
-	if err := h.call(ctx, h.session, "Page.navigate", map[string]any{"url": url}, nil); err != nil {
-		return err
-	}
-	deadline := time.Now().Add(30 * time.Second)
-	for {
-		var ok bool
-		err := h.eval(ctx, "window.fidelity ? window.fidelity.ready.then(() => true) : false", &ok)
-		if err == nil && ok {
-			return nil
-		}
-		if time.Now().After(deadline) {
-			if err == nil {
-				err = errors.New("the page never loaded")
-			}
-			return fmt.Errorf("fidelity page: %w", err)
-		}
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case <-h.conn.Done(): // Chrome is gone: no point waiting
-			return fmt.Errorf("fidelity page: Chrome: %v", h.conn.Err())
-		case <-time.After(100 * time.Millisecond):
-		}
-	}
-}
-
 // score replays f's moments (times: t first, then the other offsets, as
 // recording.FrameTimes keeps them) and diffs each with the tab's frame,
 // stopping at the first within the tolerance and keeping the best. It
@@ -414,13 +270,4 @@ func (h *headless) replayFrame(ctx context.Context, f *recording.Frame, at int64
 	// frame's scale s is LowRes at 1/(2s).
 	low, _, _, err := recorder.LowRes(full, 1/(2*frameScale(f)))
 	return low, true, err
-}
-
-func (h *headless) close() {
-	h.conn.Close()
-	if h.cmd.Process != nil {
-		h.cmd.Process.Kill()
-		h.cmd.Wait()
-	}
-	os.RemoveAll(h.profile)
 }

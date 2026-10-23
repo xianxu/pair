@@ -72,6 +72,15 @@ func TestProvenOrphanRequestClosedShapes(t *testing.T) {
 						v.SetInt(1)
 					case reflect.Pointer:
 						v.Set(reflect.New(v.Type().Elem()))
+					case reflect.Struct:
+						if name != "AgentArgs" {
+							t.Fatalf("unhandled field %s", name)
+						}
+						arguments, err := NewSwitchArguments(nil)
+						if err != nil {
+							t.Fatal(err)
+						}
+						v.Set(reflect.ValueOf(arguments))
 					default:
 						t.Fatalf("unhandled field %s", name)
 					}

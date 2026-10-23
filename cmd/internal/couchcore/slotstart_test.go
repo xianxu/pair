@@ -146,16 +146,15 @@ func TestManagedCreateRefusesProfileDriftDuringSetup(t *testing.T) {
 	t.Parallel()
 
 	env, f := managedStartFixture(t)
-	version := "before"
-	env.Couch.RepoAgentDefault = func(string, string) (LaunchProfile, bool, error) {
-		return LaunchProfile{Agent: "claude", Argv: []string{"--model", version}}, true, nil
-	}
+	seedSwitchRepoArguments(t, env.Couch, f.Primary, LaunchProfile{Agent: "claude", Argv: []string{"--model", "before"}})
 	args := StartArgs{Cwd: f.Primary, Action: StartCreate}
 	prepared, err := env.Couch.PrepareStart(context.Background(), args)
 	if err != nil {
 		t.Fatal(err)
 	}
-	env.Couch.Workspaces = startReadinessHook{inner: env.Couch.Workspaces, after: func() { version = "after" }}
+	env.Couch.Workspaces = startReadinessHook{inner: env.Couch.Workspaces, after: func() {
+		seedSwitchRepoArguments(t, env.Couch, f.Primary, LaunchProfile{Agent: "claude", Argv: []string{"--model", "after"}})
+	}}
 	_, _, err = env.Couch.SpawnPrepared(context.Background(), args, prepared.Resolution.Fingerprint)
 	if !errors.Is(err, ErrStartResolutionChanged) {
 		t.Fatalf("changed profile launched: %v", err)
@@ -175,10 +174,7 @@ func TestManagedCreateReuseRefusesProfileDriftDuringSetup(t *testing.T) {
 	t.Parallel()
 
 	env, f := managedStartFixture(t)
-	version := "before"
-	env.Couch.RepoAgentDefault = func(string, string) (LaunchProfile, bool, error) {
-		return LaunchProfile{Agent: "claude", Argv: []string{"--model", version}}, true, nil
-	}
+	seedSwitchRepoArguments(t, env.Couch, f.Primary, LaunchProfile{Agent: "claude", Argv: []string{"--model", "before"}})
 	args := StartArgs{Cwd: f.Primary, Action: StartCreate}
 	created, _ := env.spawn(t, args)
 	env.Proc.Kill(created.PID)
@@ -189,28 +185,21 @@ func TestManagedCreateReuseRefusesProfileDriftDuringSetup(t *testing.T) {
 	if err != nil || !prepared.Resolution.ReuseSlot {
 		t.Fatalf("reuse preview = %+v, %v", prepared, err)
 	}
-	env.Couch.Workspaces = startReadinessHook{inner: env.Couch.Workspaces, after: func() { version = "after" }}
+	env.Couch.Workspaces = startReadinessHook{inner: env.Couch.Workspaces, after: func() {
+		seedSwitchRepoArguments(t, env.Couch, f.Primary, LaunchProfile{Agent: "claude", Argv: []string{"--model", "after"}})
+	}}
 	_, _, err = env.Couch.SpawnPrepared(context.Background(), args, prepared.Resolution.Fingerprint)
 	if !errors.Is(err, ErrStartResolutionChanged) {
 		t.Fatalf("changed reuse profile launched: %v", err)
 	}
 }
 
-func TestManagedCreateReuseLaunchesAcceptedTransientProfile(t *testing.T) {
+func TestManagedCreateReuseRefusesTransientRepositoryRevisionDrift(t *testing.T) {
 	t.Parallel()
-
 	env, f := managedStartFixture(t)
 	args := StartArgs{Cwd: f.Primary, Action: StartCreate}
-	reads := 0
-	transient := false
-	env.Couch.RepoAgentDefault = func(_ string, agent string) (LaunchProfile, bool, error) {
-		reads++
-		version := "accepted"
-		if transient && reads == 2 {
-			version = "unaccepted"
-		}
-		return LaunchProfile{Agent: agent, Argv: []string{"--model", version}}, true, nil
-	}
+	seedSwitchRepoArguments(t, env.Couch, f.Primary, LaunchProfile{Agent: "claude", Argv: []string{"--model", "accepted"}})
+	seedSwitchRepoArguments(t, env.Couch, f.Primary, LaunchProfile{Agent: "codex", Argv: []string{"--model", "accepted"}})
 	created, _ := env.spawn(t, args)
 	env.Proc.Kill(created.PID)
 	if err := env.Couch.Threads.ArchiveThread(created.Thread, retireAuthorityForTest(t, env.Couch.Threads, created.Thread)); err != nil {
@@ -221,24 +210,16 @@ func TestManagedCreateReuseLaunchesAcceptedTransientProfile(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	reads, transient = 0, true
-	_, _, err = env.Couch.SpawnPrepared(context.Background(), args, prepared.Resolution.Fingerprint)
-	if errors.Is(err, ErrStartResolutionChanged) {
-		return
+	env.Couch.Workspaces = startReadinessHook{inner: env.Couch.Workspaces, after: func() {
+		seedSwitchRepoArguments(t, env.Couch, f.Primary, LaunchProfile{Agent: "codex", Argv: []string{"--model", "unaccepted"}})
+		seedSwitchRepoArguments(t, env.Couch, f.Primary, LaunchProfile{Agent: "codex", Argv: []string{"--model", "accepted"}})
+	}}
+	opsBefore := len(env.Runner.Ops)
+	if _, _, err := env.Couch.SpawnPrepared(context.Background(), args, prepared.Resolution.Fingerprint); !errors.Is(err, ErrStartResolutionChanged) {
+		t.Fatalf("transient repository revision accepted: %v", err)
 	}
-	if err != nil {
-		t.Fatal(err)
-	}
-	child := env.Runner.Child(env.Runner.order[len(env.Runner.order)-1])
-	raw := environmentValue(child.Env, launcher.CouchLaunchProfileEnv)
-	profile, _, err := launcher.ApplyCouchLaunchProfile(launcher.LaunchArgs{
-		ForcedTag: environmentValue(child.Env, "COUCH_THREAD_TAG"),
-	}, raw)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if strings.Join(profile.AgentArgs, " ") != "--model accepted" {
-		t.Fatalf("launched unaccepted payload %v after %d profile reads", profile.AgentArgs, reads)
+	if len(env.Runner.Ops) != opsBefore {
+		t.Fatal("revision drift forked unaccepted child")
 	}
 }
 

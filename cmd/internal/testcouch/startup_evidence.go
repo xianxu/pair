@@ -14,6 +14,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
@@ -136,26 +137,36 @@ func (r *evidenceRoot) relative(path string) (string, error) {
 	return rel, nil
 }
 func (r *evidenceRoot) read(path string, limit int, tail bool) ([]byte, bool, error) {
+	raw, truncated, _, err := r.readObserved(path, limit, tail)
+	return raw, truncated, err
+}
+
+type evidenceReadInfo struct{ Size, Offset int64 }
+
+// Metadata describes the same descriptor and read as the retained bytes.
+func (r *evidenceRoot) readObserved(path string, limit int, tail bool) ([]byte, bool, evidenceReadInfo, error) {
+	info := evidenceReadInfo{Size: -1}
 	rel, err := r.relative(path)
 	if err != nil {
-		return nil, false, err
+		return nil, false, info, err
 	}
 	f, err := r.root.OpenFile(rel, os.O_RDONLY|syscall.O_NONBLOCK|syscall.O_NOFOLLOW, 0)
 	if err != nil {
-		return nil, false, err
+		return nil, false, info, err
 	}
 	defer f.Close()
 	st, err := f.Stat()
 	if err != nil {
-		return nil, false, err
+		return nil, false, info, err
 	}
 	if !st.Mode().IsRegular() {
-		return nil, false, errors.New("evidence source is not a regular file")
+		return nil, false, info, errors.New("evidence source is not a regular file")
 	}
+	info.Size = st.Size()
 	truncated := st.Size() > int64(limit)
 	if tail && truncated {
-		if _, err = f.Seek(-int64(limit), io.SeekEnd); err != nil {
-			return nil, false, err
+		if info.Offset, err = f.Seek(-int64(limit), io.SeekEnd); err != nil {
+			return nil, false, info, err
 		}
 	}
 	b, err := io.ReadAll(io.LimitReader(f, int64(limit)+1))
@@ -163,7 +174,7 @@ func (r *evidenceRoot) read(path string, limit int, tail bool) ([]byte, bool, er
 		b = b[:limit]
 		truncated = true
 	}
-	return b, truncated, err
+	return b, truncated, info, err
 }
 func (r *evidenceRoot) readySiblings(path string) ([]string, bool, error) {
 	rel, err := r.relative(path)
@@ -266,7 +277,24 @@ func (f *Fleet) captureStartupLog() string {
 	if selected == "" {
 		selected = "wrapper startup records unavailable\n"
 	}
-	return fmt.Sprintf("wrapper_log truncated=%t read_error=%v\n%s", truncated, err, selected)
+	return fmt.Sprintf("wrapper_log truncated=%t read_error=%v\n%s%s", truncated, err, selected, f.captureStartupServerLogOnce(&f.serverLogAfter))
+}
+
+func (f *Fleet) captureStartupServerLogOnce(once *sync.Once) string {
+	var snapshot string
+	once.Do(func() { snapshot = f.captureStartupServerLog() })
+	return snapshot
+}
+
+func (f *Fleet) captureStartupServerLog() string {
+	r, err := openEvidenceRoot(f.Roots.Root)
+	if err != nil {
+		return fmt.Sprintf("zellij_server_log unavailable: %v\n", err)
+	}
+	defer r.root.Close()
+	path := filepath.Join(f.Roots.Mutable["tmp"], fmt.Sprintf("zellij-%d", os.Getuid()), "zellij-log", "zellij.log")
+	raw, truncated, info, err := r.readObserved(path, 8192, true)
+	return fmt.Sprintf("zellij_server_log path=%q size=%d offset=%d bytes=%d truncated=%t read_error=%v tail=%q\n", path, info.Size, info.Offset, len(raw), truncated, err, raw)
 }
 
 func (f *Fleet) captureStartupEvidence(ctx context.Context, dump startupDump) string {

@@ -15,7 +15,10 @@ import (
 	core "github.com/xianxu/pair/cmd/internal/submission"
 	"github.com/xianxu/pair/cmd/internal/webcast/board"
 	"github.com/xianxu/pair/cmd/internal/webcast/notedraft"
+	"github.com/xianxu/pair/cmd/internal/webcast/notes"
+	"github.com/xianxu/pair/cmd/internal/webcast/query"
 	"github.com/xianxu/pair/cmd/internal/webcast/recording"
+	"github.com/xianxu/pair/cmd/internal/webcast/sketchimage"
 	dom "github.com/xianxu/pair/cmd/internal/webcast/submission"
 )
 
@@ -148,6 +151,9 @@ func (c *Cast) PrepareSubmission(parent context.Context, id string, target core.
 			note.Replay = ReplayLink(replayBase, sub.Source.RecordingID, note.T)
 		}
 	}
+	if err = c.appendSubmissionSketches(ctx, &sub, crops, recs, selected, policy, &total, progress); err != nil {
+		return sub, crops, err
+	}
 	if err = core.Validate(sub); err != nil {
 		return sub, crops, err
 	}
@@ -216,6 +222,9 @@ func (c *Cast) ResolveSubmission(ctx context.Context, sub core.Submission) error
 	selected := board.Selection{Document: sub.Source.Document, TabID: sub.Source.TabID}
 	for _, note := range sub.Notes {
 		selected.Notes = append(selected.Notes, board.SelectedNote{ID: note.ID, Revision: note.Revision})
+	}
+	if len(selected.Notes) == 0 {
+		return nil
 	}
 	err := c.board.ResolveSelection(ctx, selected)
 	if errors.Is(err, board.ErrClosed) {
@@ -328,4 +337,127 @@ func (c *Cast) ReconcilePendingSubmissions(ctx context.Context, observe func(con
 		return nil
 	}
 	return c.noteDrafts.ReconcilePending(ctx, observe)
+}
+
+// appendSubmissionSketches shares the already-read recording and immutable
+// selected prefix with one batch renderer. It never captures the live browser.
+func (c *Cast) appendSubmissionSketches(ctx context.Context, sub *core.Submission, files map[string][]byte, recs []recording.Record, frozen board.Selection, policy core.OriginPolicy, total *int, progress func(core.SubmissionProgress)) error {
+	selected := frozen.Sketches
+	if len(selected) == 0 {
+		return nil
+	}
+	if len(selected) > core.MaxSubmissionSketches {
+		return fmt.Errorf("submission sketch batch exceeds %d", core.MaxSubmissionSketches)
+	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	wanted := make([]query.SketchSelection, len(selected))
+	for i, v := range selected {
+		wanted[i] = query.SketchSelection{ID: v.ID, NextSequence: v.NextSequence, Digest: v.Digest}
+	}
+	if len(recs) == 0 {
+		return fmt.Errorf("submission recording has no sketch history")
+	}
+	views, err := query.New(recs, notes.Structural{}).SketchesAt(recs[len(recs)-1].Time(), wanted...)
+	if err != nil {
+		return err
+	}
+	byID := make(map[string]query.SketchView, len(views))
+	for _, view := range views {
+		byID[view.History.Begin.ID] = view
+	}
+	ordered := make([]query.SketchView, len(selected))
+	for i, v := range selected {
+		view, ok := byID[v.ID]
+		if !ok || view.History.Label == "" || len(view.History.Visible) == 0 || (view.History.Phase != "complete" && view.History.Phase != "interrupted") {
+			return fmt.Errorf("selected sketch %q is not a finished visible shape", v.ID)
+		}
+		ordered[i] = view
+	}
+	batch := sketchimage.PageBatch{Batch: sketchimage.Batch{RecordingDir: c.RecordingPath(), Records: recs, Sketches: ordered}, Finishes: make([]query.SketchSourceFacts, len(selected))}
+	for i, v := range selected {
+		if v.Source != ordered[i].Source {
+			return fmt.Errorf("selected sketch %q source witness changed", v.ID)
+		}
+		batch.Finishes[i] = v.Finish
+		if i == 0 || v.Finish.RecordIndex > batch.Scene.RecordIndex {
+			batch.Scene = sketchimage.PageScene{RecordingID: sub.Source.RecordingID, SketchSourceFacts: v.Finish}
+		}
+	}
+	if (frozen.CurrentPage == nil) != (frozen.Current == nil) {
+		return fmt.Errorf("incomplete current submission view")
+	}
+	if frozen.CurrentPage != nil {
+		batch.Scene = *frozen.CurrentPage
+		batch.Current = frozen.Current
+	}
+	plan, err := sketchimage.ValidatePageBatch(batch)
+	if err != nil {
+		return err
+	}
+	renderer := c.sketchPages
+	if renderer == nil {
+		bin, e := FindChrome(os.Getenv, execLookPath, fileExists)
+		if e != nil {
+			return e
+		}
+		renderer = NewSketchPageImageRenderer(bin)
+	}
+	if progress != nil {
+		progress(core.SubmissionProgress{Phase: "rendering-sketches", Total: len(ordered)})
+	}
+	image, err := renderer.RenderPage(ctx, batch)
+	if err != nil {
+		return err
+	}
+	if err = ctx.Err(); err != nil {
+		return err
+	}
+	if err = sketchimage.ValidatePageImage(batch, image); err != nil {
+		return err
+	}
+	if len(image.PNG) > core.MaxBundleBytes-*total {
+		return fmt.Errorf("submission images exceed bundle budget")
+	}
+	*total += len(image.PNG)
+	pageDecision := policy.Decide(batch.Scene.URL)
+	sub.SketchPage = &core.SketchPage{PrivacyDecision: pageDecision, File: "sketch-page.png", Provenance: "replay-rendered", Source: batch.Scene, Region: plan.Region, Scale: plan.Scale, Width: plan.Width, Height: plan.Height, Clipped: image.Clipped, Limitations: append([]string(nil), image.Limitations...)}
+	if batch.Current != nil {
+		sub.SketchPage.Provenance = "replay-rendered-current-view"
+		sub.SketchPage.Current = batch.Current
+	}
+	if pageDecision.Privacy != core.Shareable {
+		sub.Privacy = core.Private
+	}
+	for i, v := range ordered {
+		decision := policy.Decide(v.Source.URL)
+		if decision.Privacy != core.Shareable {
+			sub.Privacy = core.Private
+			sub.SketchPage.Privacy = core.Private
+		}
+		// Reuse the historical path validator/extractor. Its individual crop is not
+		// part of the shared representation; original vectors remain unscaled.
+		original, err := sketchimage.Plan(v.History, v.Source.VP, v.Source.Scroll, sketchimage.DefaultLimits())
+		if err != nil {
+			return err
+		}
+		for j := range original.Paths {
+			original.Paths[j].At.Sel = ""
+		}
+		finish := core.SketchSource{SketchSourceFacts: batch.Finishes[i], Provenance: "recorded-dom"}
+		item := core.Sketch{PrivacyDecision: decision, ID: v.History.Begin.ID, RecordingID: sub.Source.RecordingID, NextSequence: v.History.NextSequence, Digest: v.History.Receipts[len(v.History.Receipts)-1].Digest, Author: v.History.Begin.Author, Note: v.History.Label, HistoryT: v.HistoryT, HistoryRecordIndex: v.HistoryRecordIndex, Phase: v.History.Phase, Reason: v.History.Reason, Source: core.SketchSource{SketchSourceFacts: v.Source, Provenance: "recorded-dom"}, Elements: v.Elements, Index: i + 1, Paths: original.Paths, Finish: &finish}
+		if err = core.ValidateSketch(item); err != nil {
+			return err
+		}
+		sub.Sketches = append(sub.Sketches, item)
+	}
+	// A contributing private sketch makes the composite private. An origin's
+	// shareable rule cannot certify that composite, so retain the page origin
+	// while clearing that grant instead of attributing another origin's rule.
+	if sub.SketchPage.Privacy != pageDecision.Privacy {
+		sub.SketchPage.PrivacyRule = core.PolicyEvidence{}
+	}
+	files[sub.SketchPage.File] = append([]byte(nil), image.PNG...)
+	return nil
 }

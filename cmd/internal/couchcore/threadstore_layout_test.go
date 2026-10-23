@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"reflect"
 	"testing"
 )
 
@@ -189,7 +190,7 @@ func TestLocalSnapshotDoesNotInitializeAbsentState(t *testing.T) {
 	}
 }
 
-func TestLocalSuccessfulStartRecoversRecordAndPreferencesTogether(t *testing.T) {
+func TestLocalSuccessfulStartRecoversHistoryWithoutPublishingPreferences(t *testing.T) {
 	t.Parallel()
 
 	s := testLocalThreadStore(t)
@@ -221,13 +222,16 @@ func TestLocalSuccessfulStartRecoversRecordAndPreferencesTogether(t *testing.T) 
 	if len(got.Incarnations) != 1 || got.Incarnations[0].State != IncarnationLive {
 		t.Fatalf("start not recovered: %+v", got)
 	}
-	pref, found, err := s.GetPathLaunchPreference(s.slot.RepoIdentity, r.StartingPath)
-	if err != nil || !found || pref.LastAgent != "codex" {
-		t.Fatalf("preference not recovered: %+v %v %v", pref, found, err)
+	if got.Incarnations[0].LaunchProfile == nil || !reflect.DeepEqual(*got.Incarnations[0].LaunchProfile, profile) {
+		t.Fatalf("recovered execution profile = %+v", got.Incarnations[0].LaunchProfile)
 	}
-	if _, err := os.Stat(filepath.Join(s.root, "preferences.json")); err != nil {
-		t.Fatal(err)
+	if _, err := os.Lstat(filepath.Join(s.root, "preferences.json")); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("registration created local preference: %v", err)
 	}
+	if _, err := os.Lstat(NewThreadStore(s.namespace).repoPreferencesPath()); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("registration published global repository preferences: %v", err)
+	}
+
 	if _, err := os.Stat(s.manifestPath()); !errors.Is(err, os.ErrNotExist) {
 		t.Fatalf("synthetic manifest persisted: %v", err)
 	}

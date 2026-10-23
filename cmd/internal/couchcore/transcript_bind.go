@@ -36,6 +36,10 @@ type TranscriptBinder interface {
 type TranscriptBind struct {
 	Resolution NativeBindingResolution
 	Store      *threadrecord.TranscriptBinding
+	// Observed names the validated artifact selected for StatFile. Its presence
+	// proves neither existence nor resume authority; the result/error does that.
+	// It is independent of the source record and the success-only Store value.
+	Observed *threadrecord.TranscriptBinding
 }
 
 // ledgerTranscript is what one exact read of the tag's ledger said.
@@ -133,15 +137,14 @@ func bindTranscriptWith(ctx context.Context, rt sessioninventory.Runtime, fallba
 	if err := use.ValidateLocation(); err != nil {
 		return TranscriptBind{}, refuseResume(ResumeTranscriptInvalid, fmt.Sprintf("its transcript binding is invalid (%v); start it fresh", err))
 	}
+	out := TranscriptBind{Observed: threadrecord.CloneTranscriptBinding(use)}
 	if _, err := rt.StatFile(sessioninventory.Artifact{StorageRoot: use.StorageRoot, RelativePath: use.RelativePath}); err != nil {
 		if errors.Is(err, fs.ErrNotExist) {
-			return TranscriptBind{}, refuseResume(ResumeTranscriptMissing, "the transcript of its stored conversation "+use.NativeID+" is missing; start it fresh")
+			return out, refuseResume(ResumeTranscriptMissing, "the transcript of its stored conversation "+use.NativeID+" is missing; start it fresh")
 		}
-		return TranscriptBind{}, fmt.Errorf("stat stored transcript: %w", err)
+		return out, fmt.Errorf("stat stored transcript: %w", err)
 	}
-	out := TranscriptBind{
-		Resolution: NativeBindingResolution{Status: sessioninventory.BindingEstablished, NativeID: use.NativeID},
-	}
+	out.Resolution = NativeBindingResolution{Status: sessioninventory.BindingEstablished, NativeID: use.NativeID}
 	if plan.Store {
 		out.Store = threadrecord.CloneTranscriptBinding(use)
 	}

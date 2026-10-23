@@ -27,6 +27,7 @@ type ownedProcess struct {
 	finishOnce         sync.Once
 	done               chan struct{}
 	waitErr, signalErr error
+	terminalErr        error
 }
 
 func configureSnapshotCommand(cmd *exec.Cmd) *ownedProcess {
@@ -86,11 +87,15 @@ func (w ownedProcessWriter) Write(p []byte) (int, error) {
 }
 
 func (o *ownedProcess) AwaitTerminal(ctx context.Context) error {
+	return o.awaitTerminal(ctx, true)
+}
+
+func (o *ownedProcess) awaitTerminal(ctx context.Context, observeOutput bool) error {
 	for {
 		o.mu.Lock()
 		outputErr := o.outputErr
 		o.mu.Unlock()
-		if outputErr != nil {
+		if observeOutput && outputErr != nil {
 			return outputErr
 		}
 		terminal, err := o.terminal(o.cmd.Process.Pid)
@@ -116,6 +121,15 @@ func (o *ownedProcess) AwaitTerminal(ctx context.Context) error {
 
 func (o *ownedProcess) Finish(ctx context.Context) (error, error) {
 	o.finishOnce.Do(func() {
+		// A group kill can race a fork already in progress. Keep the parent
+		// pinned until terminal, then signal its final group before reaping.
+		terminal, err := o.terminal(o.cmd.Process.Pid)
+		o.terminalErr = err
+		if err == nil && !terminal {
+			_ = o.Signal()
+			// Output failure ends execution observation, not cleanup authority.
+			o.terminalErr = o.awaitTerminal(ctx, false)
+		}
 		o.mu.Lock()
 		o.signalErr = o.signalLocked()
 		o.retired = true
@@ -127,6 +141,9 @@ func (o *ownedProcess) Finish(ctx context.Context) (error, error) {
 	case <-o.done:
 	case <-ctx.Done():
 		return nil, errors.Join(ErrUnconfirmedProcessCleanup, ctx.Err(), o.signalErr)
+	}
+	if o.terminalErr != nil {
+		return o.waitErr, errors.Join(ErrUnconfirmedProcessCleanup, o.terminalErr, o.signalErr)
 	}
 	if err := awaitSnapshotGroupGone(ctx, func() (bool, error) { return o.groupPresent(o.cmd.Process.Pid) }); err != nil {
 		return o.waitErr, errors.Join(ErrUnconfirmedProcessCleanup, o.signalErr, err)

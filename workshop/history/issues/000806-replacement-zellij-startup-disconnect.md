@@ -1,0 +1,158 @@
+---
+id: 000806
+status: done
+deps: []
+github_issue:
+created: 2026-10-22
+updated: 2026-10-23
+estimate_hours:
+severity: high
+collaboration-mode: collaboration
+card_mirror: 'a90bec700b6e30a639eb190c93d891c22d7830a5' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-22T15:25:37-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: Xian’s MacBook Pro
+    workspace: pair:2
+    worktree: /Users/xianxu/workspace/worktree/pair-slot2/pair
+    repository: github.com/xianxu/pair
+flow: {kind: quick, provenance: inferred, spec: "36f7a046", done: "503048df"}
+actual_hours: 1.53
+---
+
+# Replacement Zellij disconnects before first wrapper startup
+
+## Problem
+
+A disposable public reboot completed exact old-session retirement, but its replacement Zellij session disconnected before the first wrapper startup/agent-ready publication. Pair exited1 before Couch registration. This is distinct from #797's ownership refusal and quiescence ordering correction. Cause is unclassified; no flake is registered. It may relate to #773's missed-ready startup evidence, but no shared root cause is established.
+
+## Spec
+
+Retain and diagnose the new-session-before-first-wrapper disconnect through the shared disposable Couch harness. Distinguish a server initialization panic, an external termination, and failed client admission from downstream registration cancellation. Preserve exact-generation ownership and all startup/query fences, current time/frame/output/write bounds, and complete cleanup. Do not infer environmental causation from a passing rerun or weaken startup admission.
+
+## Done when
+
+The next replacement-startup failure retains its server-log tails and the identities needed to classify it.
+
+- Private server-log snapshots are bounded to two8192-byte escaped tails, before teardown and after producer joins, with unavailable/truncated evidence explicit.
+- Existing startup evidence retains exact session, scope/tag, launch nonce and observed PID/start identity where available; missing identities remain unknown.
+- Reader boundaries and capture counts are tested; disposable Claude/Codex reboot, delivery and exact cleanup pass under unchanged bounds.
+
+## Plan
+
+Diagnostic coverage: [replacement startup diagnosis plan](../plans/000806-replacement-zellij-startup-disconnect-plan.md). The scope revision below supersedes the original causal-correction completion requirements.
+
+- [x] Retain bounded private server evidence before cleanup and qualify its reader boundaries.
+- [x] Run one bounded diagnostic per personality; preserve unknown outcomes without repeated native retries.
+- [x] Return measured uncertainty to the hub and receive approval to land diagnostics only.
+- [x] File unclaimed #820, waiting for the first retained failure.
+
+Required recorded verification, close review and landing remain the normal publication gates.
+
+## Log
+
+Filed unassigned per authenticated ops:0 disposition5a670f4e-1ef7-49da-99ba-835f86d2814b while closing #797. The ownership fix passed native acceptance on both agents; the review's separate replacement-start failure remains recorded here rather than being classified as a safety-test flake.
+
+Failure: reviewer pinned head003e3ba8deb1dd28cedb89b58774a1295b7916e6, Zellij0.45.1, TestLiveRecoveryOwnerReboot/codex. Go57.333s/sub46.39s, writes81424384/cap100663296. Public confirmation f6a256ff-6e79-4b9a-9f38-1769f302c783 ran10:15:11.169601–10:15:20.185623 PDT, failure nonce operation-d68b74db8d679ed8aedd38304f768342. Old session 📁9223559885839400961-2 / agent65380/start1792689303.200098 was absent. Replacement session 📁9223559885839400961-3, launch nonce start-9deeaa7f8d7bb690, lost its server before any replacement STARTUP-identity. PTY output: Lost connection to the Zellij server; terminal client exited before admission was verified. Existing bounded native query evidence is absent. Registration context cancellation follows Pair exit and is not the initiating cause. Cleanup joined direct child/IO and proved every owned generation absent.
+
+Complete9233-byte reviewer output retained from its own transcript at /Volumes/TestScratch/pair797-br2-transcript-fgmhr1gg/reviewer-codex-native.log; SHA256b86a30bb1b3d2fb642557ee91b7a511807a9ce5926fcf6a2feb95166bf07a99d. The private root pc-2732206875, reviewer checkout and binaries were already cleaned; its server panic log was not retained. The original transcript is rollout-2026-10-22T10-11-57-01a16499-1829-7561-b781-9852d0ae2bbb.jsonl, CommandExecution output line156.
+
+Controlled diagnostic: exact reviewed003e3ba8 source in a detached disposable checkout, a Go overlay adds only a bounded8192-byte read of existing private zellij.log AFTER confirmation; no production code, pre-confirmation action, assertion, or bound change. Overlay SHA25671e6f37992708b2d6525b562fb66c9b3a06cdd8f5c259f55e9a39e1aaae03c54. After normal runtimebundle generation, Codex confirmation e320a096-1397-4f90-bb76-4131c80df245 succeeded, old61659/start1792690077.658530 absent, new63356/start1792690086.142535 accepted public message, exact cleanup complete. Go30.182s/sub23.82s, writes81977344/cap100663296. Complete log /Volumes/TestScratch/tmp/pair-slot2/pair797-br2-probe-o0bm5t4z/native2.log; SHA256bd819f74b2424feaa2cf0886e4571d5a4581732bc7b9f72afd547fa3f9155b73. It retains all7236 bytes of private server log before cleanup, with several Server not ready/retry entries but no panic. The controlled pass does not explain or erase the failure.
+
+Hypothesis only: the documented Zellij0.45.1 birth race can panic when a global query connects before its first client initializes (launcher/session_handoff_os.go observeAdmission comment; atlas/couch.md cold-resume birth section). This matches the failure boundary, but there is no triggering query or panic evidence in the failed run. The new quiescence carries only old session -2's immutable server generation and finishes synchronously before Fresh launches distinct -3; it cannot authorize the replacement. Ordinary park also waits for the old helper to die. Investigate independent background/global queries and any unproved helper cleanup rather than assigning causation from wording alone. #773 may be related; its evidence remains independently unclassified.
+
+Read-only follow-up found independent query paths: message_service.go constructs ListingPoller(ZellijSource{}, messageListingInterval=1s) and starts its Run goroutine; immediate/periodic Refresh calls global list-sessions --no-formatting, with no birth-lease participation. Resource inventory seeding/lifecycle refresh also reaches SessionPresence/LivenessContext and current owner probes independently of terminal admission. The resource sampler itself and Git/filesystem hub prewarm do not issue Zellij queries; COUCH_RESOURCE_CADENCE=1s is not the listing cadence. These are concrete possible overlaps, not proof of the triggering query in the failed run.
+
+
+### 2026-10-22 — Claimed; evidence classification and diagnostic proposal
+- 2026-10-22: closed — Resolved sole Fleet field conflict by preserving main Reporter plus both server-log sync.Once budgets; capture ordering unchanged. Complete testcouch PASS66.647s; repolint, artifactpath, termcmd and immediate make test-affected-inventory PASS; recorded integrated suite PASS11m41s. Prior native Claude/Codex controls and diagnostic capture lifecycle/mutation evidence retained; diagnostic-only scope unchanged. (fixed-then-ship; full suite: Recorded integrated suite c683e0a4406c8c9792285a0ab325b0ba8fa4ee3e exit0 in11m41s; log SHA256 a32e94f4bf7206d1c86ac0129a22fab9a257f2bc9f9383f03db4800917587a4f; all packages/scripts completed, no retry.); review verdict: SHIP
+- 2026-10-22: closed — Diagnostic scope revised by authenticated hub, causal follow-up820 unclaimed waiting on retained failure. BR-1 now distinguishes admitted-call join from native producer IO join. Real Fleet.Close tests failed/success x opt-in/off, pre-cancel marker, final native TERM marker, stdout EOF/sole Wait and done before final capture/root removal,16 repeated closes, no snapshots on success/off. Lifecycle PASS7.080s; early-final ordering mutation RED2.804s across all3 selected cases; each capture-removal RED1.549s/1.523s. Full testcouch PASS40.378s, repolint8.455s, termcmd3.624s, inventory/diff clean. Original native Claude55.37s/Codex33.03s controls unchanged, no production edits or native retries. Required final-source suite launched on23c008e9; review overlaps pending check under tl-worker and landing remains blocked until recorded pass. Atlas updated.; review verdict: SHIP
+
+Dispatched by authenticated ops:0 delivery6205eb4f-b97c-4655-b177-c2706eef19c3 after #797 landed as PR545. Claimed806, entered planning on its own main-based branch; no production or harness code changed and no new native probe ran. Start-plan's catch-up generated the known ariadne#557 seeded merge-check.yml diff. Per the authenticated fleet instructionf46bd9db-0a67-4b5a-b93f-19c51a3009eb, saved that exact diff at /Volumes/TestScratch/tmp/pair806-seeded-refresh.e7PLYt/merge-check.yml.patch, restored only that tracked workflow, and reran start-plan successfully. The older unrelated #797 workflow-refresh stash remains preserved. Seeded gate changes are not part of806.
+
+Read-only classification on main basee814b17f15f5f194119f41b209bc35f76285e1e7: original failure is pre-wrapper replacement transport loss, initiating cause still unknown. Rehashed the9233-byte failing log and10600-byte controlled-pass log; both match the SHA256 values recorded above. The successful trace contains Server not ready warnings and proceeds through first-client initialization; those warnings do not establish the original failure's cause. The failed root/server log cannot be recovered after its recorded cleanup. Private pane evidence rejects the mismatched old launch nonce; downstream registration cancellation follows Pair exit and is not the initiating event.
+
+Current-source census (read-only helper, no edits or native runs) identifies independently scheduled global queries from the message listing worker, resource inventory seed/refresh, console inventory, existing standalone title pollers, birth watchdog, and concurrent lifecycle/handoff work. The per-socket terminal flock and exact own-readiness admission gate do not cover all global readers. Couch-hosted wrappers skip the standalone title helper; resource sampling and Git prewarm are not native query sources. #803 supplies bounded collection/recovery and #773 supplies deadline ownership, neither supplies cross-query birth exclusion. No evidence yet identifies which, if any, query overlapped the failed replacement.
+
+The existing bare birth-race probe and upstream v0.45.1 RemoveClient optional-data unwrap support the early-connection hypothesis, not attribution. Do not run that older instrument unchanged: its shared log and name-based cleanup do not provide the private exact-generation proof required here. Proposed next step is diagnostic-only reuse of testcouch's root-confined reader: at most two8192-byte server-log captures around existing failure cleanup, one native Go invocation per personality with all existing bounds, then at most one controlled causal contrast after a retained failure. A single-poller patch, broader retry or deadline change would be speculative. See the durable plan for the full census, alternatives, state table, bounds and correction approval gate.
+
+## Revisions
+
+### 2026-10-22 — Diagnose before selecting a correction
+
+Current main includes #773/#803/#797, so the earlier hypothesis must be tested against the current shared boundaries. Preserve original Spec and Done when; add a bounded diagnostic phase and an explicit return to the hub before any production correction. No new runtime state, protocol or time budget is approved or inferred.
+
+2026-10-22 diagnostic authorization: authenticated ops:0 delivery595ae402-f90b-498f-a7ca-b254b66ebac5 approved at most2x8192-byte private server-log snapshots before teardown and after joined producers; one current-bound96MiB native run each for Claude/Codex; at most one causal contrast after a retained failure; return with correction choice before any production change. Proceeding through change-code for this diagnostic scope only.
+
+
+### 2026-10-22 — Diagnostic capture ready for the approved native samples
+
+Implemented only shared testcouch diagnostics, with no production launch/admission change. Canonicalized the durable plan filename to the issue slug. Retains one escaped 8192-byte private Zellij tail before cancellation/teardown and one after process/console/IO joins; same-descriptor size/offset, errors and truncation accompany each. Two sync.Once budgets include failed reads and repeated cleanup. The native recovery test opts into these same captures for successful controls, default off for other successful fleets. Private root confinement, final no-follow, nonblocking regular-file checks remain shared with the existing reader.
+
+TDD: initial server-retention tests failed because diagnostics omitted the server log, then passed. Repeated-cleanup tests at16/32 calls failed with17/33 snapshots and late-file reads, then passed with exactly one snapshot per phase. Tests cover8192/16384-byte tails, escaped terminal controls, independent phases, missing files, final symlinks, escaping parent symlinks, FIFOs and directories. Focused TestStartupEvidence PASS1.251s; targeted launcher handoff/admission PASS1.239s; internal/repolint PASS9.826s and termcmd PASS4.550s. Native reader inputs remain private fixture/runtime files with existing non_go_full_fallback ownership; refreshed that reader's certificate after the option change. No new repository-input reader was detected in the new unit fixture.
+
+Next: push this diagnostic candidate, then exactly one native invocation each for Claude and Codex under unchanged180s preparation/120s operation/15s cleanup and96MiB package write cap. Preserve complete logs and hashes; no native run has started yet. Return correction choice or explicit uncertainty to the hub before any production change. At most one causal contrast is authorized after a retained failure.
+
+
+### 2026-10-22 — Approved native diagnostic phase completed; trigger remains unclassified
+
+Both one-shot native invocations ran on pushed diagnostic headc90b43e6e99f29a8cd6dbf2546262752745d6972, installed Zellij0.45.1. Preparation180s, operation120s and cleanup15s remained unchanged. No production launch behavior changed, no stage or live fleet was used, and neither run was retried.
+
+| Personality | Result | Old agent PID/start → replacement PID/start | Package writes / cap | Retained raw log SHA256 |
+|---|---|---|---|---|
+| Claude | PASS55.37s, subtest46.12s; public reboot and current-worker message accepted, exact cleanup |41480/1792709059.764714 →46050/1792709076.145095 |81932288 /100663296 |6c479d0491aac285d182aae38b6c37c5cc1c01d2ee0990b1edd4cad966f2b28c |
+| Codex | PASS33.03s, subtest26.67s; public reboot and current-worker message accepted, exact cleanup |54191/1792709113.874412 →57062/1792709123.174096 |82046976 /100663296 |dfc69b802bebf8d28cc0a69f3eef3c86cd61f66d257ca8d6b77519ae6704ea0c |
+
+Raw logs: /Volumes/TestScratch/tmp/pair-slot2/pair806-native.CT4uCk/claude.log (20177bytes), codex.log (20258bytes). Both retain exactly two8192-byte escaped tails, each explicitly truncated and read_error=<nil>. Claude pre/post observed size/offset9345/1153 and11071/2879; Codex9478/1286 and10592/2400. Both private roots were removed only after all owned generations were absent and direct child/IO joined. Neither retained tail contains a panic marker; this is not proof of absence from omitted prefixes. Server-not-ready warnings occur on the successful initialization path in both controls. Existing safety warnings about unproved descendants remained visible and unchanged; they do not become authorized cleanup targets.
+
+The normal complete testcouch package also passed25.028s. No global query ordering trace was added: existing public operation timing, identities and private server tails are the measured coverage, not a complete census of executed cross-process queries. The source census lists potential overlaps only. The original failed server log is irrecoverable after its historical cleanup, so the original trigger remains unclassified. No failure was retained in this bounded phase, therefore no causal contrast is authorized/executed under the conditional allowance. These two passes neither close806 nor register its original failure as a flake.
+
+Correction choice: retain the diagnostic evidence boundary, but select no production correction on these measurements. A one-poller pause cannot enforce the class-wide invariant over the current census; broad birth/query exclusion or an upstream dependency correction needs retained causal evidence and a separately approved design. Return this limit to the hub now, before further native work or production edits. Stopping at this approval boundary with no queued/running work. Next step: hub decides whether to retain/land diagnostic-only coverage separately or approve a further causally instrumented reproduction; original Done when stays pending.
+
+
+### 2026-10-22 — Approved scope revision: retain the next failure
+
+Authenticated ops:0 delivery7e2c8fdd-2dc2-4419-96e1-34da5d1eb6df approved diagnostic-only completion, following the same evidence-retention disposition as #791/#810. Done when is now: “the next replacement-startup failure retains its server-log tails and the identities needed to classify it.” Original causal identification/regression/correction requirements move to an unclaimed follow-up that waits for the first retained failure. This supersedes the original Spec/Plan's requirement to select a production correction inside806; the preserved historical entries remain evidence. No new production behavior, native retries or time-budget change. Proceed through recorded verification, close and landing for the diagnostic coverage.
+
+Causal follow-up filed as unclaimed #820 (replacement-startup-causal-fix), dependency #806 plus an explicit first-retained-failure evidence prerequisite. No causal work is dispatched by filing it.
+
+PR549 opened. Required recorded suite launched on57a7a74938db41789c560a2924aa6e5faf77e74d; verification remains pending until the retained runner records its result. Close review may overlap that queued/running check under tl-worker; no landing before its pass.
+
+
+### 2026-10-22 — BR-1 lifecycle regression coverage
+
+First close review returned FIX-THEN-SHIP with Important BR-1: helper-level reader/count tests did not prove Fleet.Close selects and orders the captures. Addressed the complete caller family with failed/successful fleets and option off/on. An embedded test reporter selects failure without failing the parent; cancellation changes the retained marker, and a controlled context Done boundary completes the held admitted producer only when Close enters its join. The real Close must retain the pre-cancel and final joined markers before root removal; success with option off retains no server bytes. Sixteen repeated Close calls retain no more evidence. No new production seam, state or native launch was added.
+
+Lifecycle test PASS1.740s. Mutation overlays removing either pre- or post-capture each fail expected snapshot/marker oracles (1.549s/1.523s); files retained under /Volumes/TestScratch/tmp/pair-slot2/pair806-lifecycle-mutations.KaKuTk. The old recorded suite lease-4188641676 was still queued; canceled it through sdlc local-check cancel because new regression code requires a final-head check. Cancellation joined normally and supplies no test evidence. New final-head verification remains pending; no native retry will run.
+
+
+### 2026-10-22 — BR-1 native-producer completion pin
+
+Round2 kept BR-1 open with a valid counter-mutation: moving final capture after the admitted-call join but before console/native cleanup still passed. Refined the test to distinguish those joins. A private direct child of the test binary installs its TERM handler before reporting ready; it writes a different final marker only when Fleet.Close signals its exact observed generation. The existing terminalProcess owner drains stdout to EOF, performs the sole Wait and closes done. All three capture-selected lifecycle combinations require this native final marker and closed producer/IO done before root removal; successful option-off still retains nothing. No terminal, Zellij, disposable-fleet native retry, production seam or startup behavior was added.
+
+Lifecycle GREEN2.875s. An overlay moving the final capture immediately after idle/admitted-call join deterministically fails all three selected paths with “final capture preceded native producer and IO join” and missing final bytes; RED2.804s. Evidence: /Volumes/TestScratch/tmp/pair-slot2/pair806-native-join-mutation.0QA2PY/red.log. Canceled still-queued lease-1086463358 through sdlc because the regression source changed; it joined with no test result. Final required verification remains pending until the new source is pushed and queued.
+
+Final lifecycle test including joined child exit status PASS7.080s; complete package PASS40.378s, repolint PASS8.455s, termcmd PASS3.624s. Reader audit and diff whitespace check clean.
+
+
+### 2026-10-22 — Final branch suite PASS; re-enter landing
+
+Retained lease-1088989676 completed on23c008e9aecc51ee5ef6dcebc1fa97607d3d2f9f: required suite exit0 in10m35s, recorded sdlc-local/suite, full log SHA256347903a3eabc817d2b35e1eba584adde73c555b1779d11b08440152be0f5898a. Log: /Users/xianxu/workspace/pair/.git/sdlc/local-checks/23c008e9aecc51ee5ef6dcebc1fa97607d3d2f9f/suite.log. No failure, retry or waiver. Original runner survived Couch restarts and retained its FIFO place throughout the wait. This supersedes the earlier pending-suite notes; executable source has not changed since the reviewed/tested head. Close round3 is SHIP with BR-1 addressed and no open findings. PR549 CI was green before this documentation receipt.
+
+During the wait, authenticated dispatch48a143ee authorized independent #162 planning on a separate main-based branch. Its scope/census checkpoint071a07810659d7063124c202142814ef258df072 is pushed; no162 code exists. Returned to806 only after that checkpoint was clean. Re-enter sdlc merge now; its integration and final CI gates remain mandatory. Causal follow-up820 remains unclaimed and waits for a retained failure.
+
+### 2026-10-22 — Post-shutdown integration recovery
+
+Restart inspection found the prior merge PID80534 gone, terminal77210 unknown, no retained landing ticket and PR549 still open. Authenticated ops:0 delivery8065c647 lifted the freeze and authorized rebuild/re-entry. Rebuilt this slot with Go1.27.3; pair and couch report the expected toolchain and source revision. One replacement merge runner36605 vouched ready, then stopped normally on a main-integration conflict in Fleet's fields. Followed its named manual integration/re-close recovery; no duplicate runner remains.
+
+Resolution preserves main's Reporter diagnostic interface and both per-Fleet server-log capture budgets. Reporter provides the same Failed/Logf surface used by diagnostics; existing lifecycle tests exercise failed/successful reporters and option off/on. Capture ordering and production startup behavior are unchanged by this resolution. Reader-inventory preflight PASS with no certificate refresh; repolint PASS28.098s, termcmd PASS11.140s and artifactpath PASS24.753s. Full testcouch verification is running; required integrated suite and narrow re-close are pending. Queue inspection's continuing helper-inspect exit2 was reported to the hub after its shared-tool rebuild notice.
+
+Complete testcouch package subsequently PASS66.647s on the integrated tree. Branch-patch whitespace check against origin/main is clean; the whole staged integration's whitespace diagnostics are confined to already-landed #743 evidence/review bytes, retained unchanged. Required recorded integrated suite and narrow re-close still pending.
+
+
+### 2026-10-22 — Integrated suite PASS and narrow re-close
+
+Original retained lease-3049011771 (terminal75780) completed normally on c683e0a4406c8c9792285a0ab325b0ba8fa4ee3e: exit0 in11m41s, recorded sdlc-local/suite. Log /Users/xianxu/workspace/pair/.git/sdlc/local-checks/c683e0a4406c8c9792285a0ab325b0ba8fa4ee3e/suite.log SHA256a32e94f4bf7206d1c86ac0129a22fab9a257f2bc9f9383f03db4800917587a4f. All packages and script checks completed, no test failure or flake retry. The existing optional affected-config upstream qualification skipped because its source was unavailable; its explicit skip is retained, not claimed as conformance. No806 native retry or production startup change.
+
+The independent162 branch is committed and pushed, and its native child/IO cleanup completed before switching back here. Its raw slash lifecycle correction remains separate. Next: required reader-inventory preflight, narrow fixed-then-ship re-close of the Reporter/capture-budget field resolution with this complete-suite evidence, then enter sdlc merge promptly on SHIP. No806 merge runner is currently retained or duplicated.

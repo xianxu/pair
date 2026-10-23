@@ -260,17 +260,17 @@ for (const coalesced of [false,true]) test(`operator permission clears browser s
  const doc={body:new Element('body'),createElement:(tag)=>new Element(tag)};
  const win={innerWidth:100,scrollX:0,scrollY:0,crypto:{getRandomValues:(b)=>b.fill(1)},performance:{now:()=>0},requestAnimationFrame:()=>{},addEventListener:()=>{},setTimeout:()=>1,clearTimeout:()=>{},clearInterval:()=>{}};
  const ui=mountOperator({host,root,report:()=>{}},{annotate:{mountAnnotation},palette:['#f00'],css:''},doc,win);
- win.__couchcastOperatorView({revision:1,seg:1,doc:1,t:0,notes:[],strokes:[]});
+ win.__couchcastOperatorView({feedback_mask:{scope:"cast",revision:"0",sketches:[],notes:[]},revision:1,seg:1,doc:1,t:0,notes:[],strokes:[]});
  assert.equal(root.querySelector('.mode').disabled,true);
  win.__couchcastAnnotationAllowed(true);
  assert.equal(root.querySelector('.mode').disabled,true); // missing generation never enables
  win.__couchcastAnnotationAllowed(true,'1');
  ui.dialog.draft({draft:'held'});
  root.querySelector('.note-input').value='keep this draft'; for(const fn of root.querySelector('.note-input').listeners.input)fn();
- win.__couchcastOperatorView({revision:2,seg:1,doc:1,t:0,notes:[],strokes:[{seq:1,id:'viewer.pen',t:0,color:'#f00',pts:[[1,2,0]]}]});
+ win.__couchcastOperatorView({feedback_mask:{scope:"cast",revision:"0",sketches:[],notes:[]},revision:2,seg:1,doc:1,t:0,notes:[],strokes:[{seq:1,id:'viewer.pen',t:0,color:'#f00',pts:[[1,2,0]]}]});
  assert.equal(ui.strokes.visible(100).length,1);
  if (!coalesced) win.__couchcastAnnotationAllowed(false,'2');
- win.__couchcastOperatorView({revision:3,seg:1,doc:1,t:0,notes:[],strokes:[]});
+ win.__couchcastOperatorView({feedback_mask:{scope:"cast",revision:"0",sketches:[],notes:[]},revision:3,seg:1,doc:1,t:0,notes:[],strokes:[]});
  win.__couchcastAnnotationAllowed(true,'3');
  ui.setMode('point');
  assert.equal(ui.strokes.visible(100).length,0);

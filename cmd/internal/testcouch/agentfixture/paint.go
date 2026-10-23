@@ -40,6 +40,14 @@ func Paint(s AgentState, cols, rows int) string {
 	}
 	var b strings.Builder
 	b.WriteString("\x1b[?2004h\x1b[?2026h\x1b[2J\x1b[H")
+	if s.Phase == SyntheticClaudeLimit {
+		// SYNTHETIC layout, not a terminal capture: the first line is historical
+		// Claude 2.1.12 text reported at github.com/anthropics/claude-code/issues/19673.
+		// The installed 2.1.308 bundle corroborates the limit prefix and upgrade
+		// hint only; it supplies no captured modern screen or layout evidence.
+		b.WriteString("You've hit your limit · resets 4pm (Asia/Kuala_Lumpur)\r\n/upgrade to increase your usage limit.\x1b[?25l\x1b[?2026l")
+		return b.String()
+	}
 	if s.Phase == Picker {
 		if s.Agent == "claude" {
 			b.WriteString("\x1b]777;notify;Claude Code;Claude needs your permission\a")
