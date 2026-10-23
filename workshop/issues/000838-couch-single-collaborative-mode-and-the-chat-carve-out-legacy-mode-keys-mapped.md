@@ -5,9 +5,9 @@ deps: [ariadne#575]
 github_issue:
 created: 2026-10-23
 updated: 2026-10-23
-estimate_hours:
+estimate_hours: 3.73
 collaboration-mode: collaboration
-card_mirror: 'bee8b954bca9a0701859c5bd0550e2180427ff21' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '4bb76ecd4955ad124c2821af2d8ec212badb2123' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-23T14:02:12-07:00
 claimant:
     operator: Xian Xu
@@ -16,6 +16,7 @@ claimant:
     workspace: pair:3
     worktree: /Users/xianxu/workspace/worktree/pair-slot3/pair
     repository: github.com/xianxu/pair
+flow: {kind: full, provenance: operator}
 ---
 
 # Couch: single collaborative mode and the @@chat@@ carve-out; legacy mode keys mapped or ignored
@@ -52,6 +53,51 @@ One atomic full-flow implementation, one issue-close review (no Mx tags).
 - [ ] Wire new highlight rounds, legacy notices and lossless operator map-to-tag migration.
 - [ ] Prove public seams, old rounds, real-doc read-only audit and disposable native acceptance; update atlas/help.
 - [ ] Inventory, recorded affected check, close review, operator acceptance as agreed with TL, then land.
+
+## Estimate
+
+Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md` against
+`baseline-v3.1.md`. Method A only. Calibration source reports stale; figures
+are provisional ship wall-clock hours, not machine queue elapsed time.
+
+The design is settled by the approved plan and shared scanner. Library check:
+Goldmark, sidedoc and the stateful session-sync/testcouch rigs already exist;
+there is no greenfield parser or transport. The three smaller Go units are
+compiler/byte adapter, edit-guard projection, and lossless migration. The
+cross-cutting refactor is the distinct wiring/retirement across round, read,
+CLI and source inventory consumers. Native API discovery budgets Claude and
+Codex separately, bounded synthetic runs through the existing harness.
+
+For design choose v2 raw1.0h for issue/spec and skill, raw0.3h per smaller Go
+unit, raw1.0h for cross-cutting refactor, raw0.2h for atlas and raw0.1h for the
+one close review; apply x0.2 thorough-spec discount. Implementation uses the
+upper v2 bounds (0.2h issue, 0.5h per Go/refactor/skill/review, 0.2h atlas,
+0.6h per native API discovery), scaled once by v3.1 x0.4. Familiarity1.5:
+Couch is familiar but this bounded Goldmark/editorial policy and native fixture
+integration is new in this slot. Thorough plan gives +15% design buffer.
+No separate cross-repo implementation overhead: upstream fixes are owned by
+ariadne:2, and no vendor propagation or peer source edits are planned here.
+
+```estimate
+model: estimate-logic-v3.1
+familiarity: 1.5
+item: issue-spec design=0.20 impl=0.08
+item: smaller-go-module design=0.06 impl=0.20
+item: smaller-go-module design=0.06 impl=0.20
+item: smaller-go-module design=0.06 impl=0.20
+item: cross-cutting-refactor design=0.20 impl=0.20
+item: skill-or-dispatcher design=0.20 impl=0.20
+item: atlas-docs design=0.04 impl=0.08
+item: milestone-review design=0.02 impl=0.20
+item: real-api-discovery design=0.00 impl=0.24
+item: real-api-discovery design=0.00 impl=0.24
+design-buffer: 0.15
+total: 3.73
+```
+
+Design0.84 x1.15 + implementation1.84 x1.5 =3.726h, rounded3.73h.
+The operator acceptance is one short stage check already approved in principle;
+Qoder conformance is conditional on credits, with no speculative extra build.
 
 ## Log
 
