@@ -15,6 +15,6 @@ claimant:
     repository: github.com/xianxu/pair
 ---
 
-# Couch: Ctrl+Return toggles the attention list; Ctrl+Backspace stays previous
+# Couch: Ctrl+Return toggles the notification list (bell); Ctrl+Backspace stays previous
 
 ## Problem
