@@ -67,7 +67,7 @@ Legacy maps remain readable with warnings. Normalize heading names exactly as #5
 | Policy-bearing read | `cmd/internal/sessionsync/sync.go` | modified | snapshot, Shadow acknowledgement, registry transaction |
 | Shared agent-write guard | `cmd/internal/sessionsync/round.go`, `sync.go`, `applyfile.go` | modified | BuildEdit/contentStep/prepareWrite, file publish and round publish |
 | Operator migration CLI | `cmd/internal/couchcmd/session_sync.go` | new | constrained transform under existing document lock/CAS |
-| CLI/help contract | `cmd/internal/couchcmd/run.go`, emitted Couch skill source located during implementation inventory | modified | agent-facing settings, refusal recovery and operator invocation |
+| CLI/help contract | `cmd/internal/couchcmd/run.go`, `cmd/internal/couchcmd/skills/couch/SKILL.md` | modified | agent-facing settings, refusal recovery and operator invocation |
 | Review consumers | `nvim/review/round_watch.lua`, `reconstruct.lua`, `record.lua` | modified | live and resume decorations/record serialization |
 | Parley round consumer | parley.nvim #419 | external dependency | additive span metadata and mixed-section rendering |
 
@@ -138,9 +138,9 @@ Strict persisted boundary: `Round.UnmarshalJSON`, `Span.UnmarshalJSON` and `roun
 
 Files: create `cmd/internal/editorial/testdata/contract/` and `cmd/internal/editorial/modes/`; add `catalog.go`, `catalog_test.go`, `contract_test.go`; modify `go.mod`/`go.sum` only for needed producer packages/parser dependencies.
 
-- [ ] Write the provenance test and failing Catalog.ResolveProcessing tests from the strategy table; missing pinned artifacts/catalog must fail explicitly.
-- [ ] Copy exact producer bytes using the recorded commit and implement the small immutable Catalog; retain producer metadata as its value owner.
-- [ ] Run `go test ./cmd/internal/editorial -run 'TestContract|TestCatalog'`; expect PASS. Commit the source pin and catalog with issue/trailer attribution.
+- [x] Write the provenance test and failing Catalog.ResolveProcessing tests from the strategy table; missing pinned artifacts/catalog must fail explicitly.
+- [x] Copy exact producer bytes using the recorded commit and implement the small immutable Catalog; retain producer metadata as its value owner.
+- [x] Run `go test ./cmd/internal/editorial -run 'TestContract|TestCatalog'`; expect PASS. Commit the source pin and catalog with issue/trailer attribution.
 
 ### Task 2: Compile document policy and plan migration purely
 
@@ -172,7 +172,7 @@ Files: modify `sessionsync/round.go`, `applyfile.go` and tests; modify `nvim/rev
 
 ### Task 5: Expose operator migration and update actual agent interfaces
 
-Files: modify `cmd/internal/couchcmd/session_sync.go`, `run.go`, existing `session_sync*_test.go`; add `session_sync_editorial_test.go`; update the emitted Couch skill at its canonical source, and `atlas/`'s existing session-sync/review pages and index.
+Files: modify `cmd/internal/couchcmd/session_sync.go`, `run.go`, existing `session_sync*_test.go`; add `session_sync_editorial_test.go`; update `cmd/internal/couchcmd/skills/couch/SKILL.md`, `atlas/couch-agentic-documents.md`, `atlas/review-workbench.md` and `atlas/index.md`.
 
 - [ ] Write failing parser/runEditorialMigration tests using the stateful registry/preview strategy above; no generic body payload is accepted by the migration verb.
 - [ ] Add `migrate-editorial` preview and a narrowly confirmed apply form agreed with TL. Reuse registry/flock/guard/replaceShared rather than an unlock-write-relock sequence. No migration runs during ordinary read/review/fill, and no external live file is changed by this implementation task.
@@ -198,3 +198,7 @@ Pinned the producer fixtures rather than interpreting alias semantics independen
 ### 2026-10-23 — Plan-quality round 1, PQ-1 and PQ-2
 
 Replaced prose test-case inventories with named production-function/adversarial-strategy contracts, retaining the producer fixtures as executable acceptance anchors (PQ-1). Required recursive duplicate-key rejection at every changed persisted round/span/record boundary and reused the existing strictjson additive codec rather than creating a second scanner (PQ-2, ARCH-DRY/ARCH-EVOLVE). Known-field presence/null/type validation remains distinct from opaque extension preservation. These refine the approved design without changing the product boundaries.
+
+### 2026-10-23 — Task 1 execution checkpoint
+
+Full-flow admission passed with estimate 4.274; estimate-quality was INFO, flagging optimistic integration/verification allowances. Task 1 catalog and all pinned artifacts are implemented and pass focused tests; independent spec review verified all 39 Git objects and a subsequent quality review found no Important issues. Located the actual emitted Couch skill and atlas pages above. Parser dependencies are the exact Goldmark/YAML versions used by the producer; the old ariadne module already exports the required collaboration vocabulary, so no unrelated base-module upgrade was needed.

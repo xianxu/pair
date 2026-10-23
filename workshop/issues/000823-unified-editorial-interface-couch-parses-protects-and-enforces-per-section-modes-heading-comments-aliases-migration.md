@@ -192,6 +192,30 @@ flagged stale by SDLC, so this is provisional calibration rather than a guarante
 **NEXT ACTION:** set the authoritative card estimate to 4.274 hours and rerun full-flow change-code. After the
 estimate-quality/admission gates pass, start Task 1 with failing Catalog/contract tests before implementation.
 
+
+### 2026-10-23 — Full admission and Task 1 complete
+
+Full-flow change-code passed. Plan-quality had no remaining blockers; estimate-quality returned INFO, accepting the
+derivation while flagging compiler/write-guard and integration/verification time as optimistic. Active checks,
+qualification and stage/build time count toward actuals; queue wait and #419 implementation do not. No gates waived.
+
+Implemented Task 1 in `cmd/internal/editorial/`: immutable Catalog with six exact embedded mode files and all 33
+remaining pinned contract files. Modes/Lookup return detached values; ResolveProcessing uses exact/unique prefix;
+collaboration values use vocab.CollaborationModes and presentation validates highlight/direct/propose. Metadata
+parsing retains exact brief bytes. The shared snapshot compiler will consume this Catalog in Task 2.
+
+TDD: the implementer observed missing Catalog APIs fail before implementation, then targeted tests passed (0.136s)
+and fuzz seeds passed (0.067s). Root `go test ./cmd/internal/editorial` passed (0.066s). Independent spec review
+compared all 39 files against the pinned Git objects and found compliance; subsequent quality review approved with
+no Important issues. The existing artifact inventory initially failed only on the new catalog source (2.561s);
+registered it as naming no Pair artifact paths; the exact guard then passed (2.138s). Added the producer's pinned Goldmark/YAML
+versions for Task 2; existing ariadne module already supplies the shared vocabulary, avoiding a broad module update.
+
+**NEXT ACTION:** start Task 2 with failing Compile/parseOwnedSource tests and producer fixtures, then implement
+byte-preserving document policy/fill/migration. Do not start a suite or stage yet. #419 owns the coordinated mixed
+presentation consumer and actual Parley side-doc writers. All prior #752/#753 work is landed; old continuation is
+obsolete. Preserve this branch and the approved full-flow design.
+
 ## Revisions
 
 ### 2026-10-23 — Implementation boundaries from source inventory

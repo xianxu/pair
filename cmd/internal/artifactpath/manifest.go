@@ -733,6 +733,8 @@ var NonArtifactSources = []string{
 	"cmd/internal/couchcore/startup_progress.go",
 	"cmd/internal/launcher/startup_budget.go",
 	"cmd/internal/startupbudget/budget.go",
+	// #823 editorial settings and embedded mode briefs name no Pair artifacts.
+	"cmd/internal/editorial/catalog.go",
 	// #758 endpoint model and native editor transport name no Pair artifact paths.
 	"cmd/internal/editorendpoint/model.go",
 	"cmd/internal/editorendpoint/state.go",
