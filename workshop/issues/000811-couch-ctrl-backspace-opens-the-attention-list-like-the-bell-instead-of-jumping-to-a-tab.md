@@ -124,6 +124,7 @@ consistent with retaining the currently recognized encodings.
 ### 2026-10-22
 
 ### 2026-10-23 — claimed; plan prepared for hub
+- 2026-10-23: closed — BR-1 corrected in README, atlas and chord comment: hosts without enhanced key encoding use the bell click; Ctrl+Alt+a is explicitly enhanced-only. Inventory and diff check PASS after correction; no executable behavior changed. Reviewed18da source complete couchkeys/couchtty and focused race PASS; recorded affected18da retained at lease-358276917 and must pass before landing. Earlier source2f634183 recorded affected PASS2m54s (SHA256 c2ffbabaea2f66f843004018a5315bd696fed483ffcb9a9af5a7d6d938a2c89b), operator live open/close PASS09:35 with notification present, receipt a854db81-f3f5-4fb5-9715-6b41d62421fe. Production-input tests pin all3 Ctrl+Return encodings from actor/switcher without switch/ack/history change, empty list, Enter selection and both Ctrl+Backspace forms. Required checks precede landing; #811 stage cleared for #812.; review verdict: SHIP
 
 Dispatched by ops:0 (receipt ded5e61a-9733-4b5a-9f16-60aa7224469d).
 Claimed #811 and ran start-plan from clean main-slot3 after #728/#832 landed.

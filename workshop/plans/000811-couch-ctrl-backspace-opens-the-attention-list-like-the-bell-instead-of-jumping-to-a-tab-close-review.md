@@ -88,3 +88,78 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-23T09:46:10-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 811 — Couch: Ctrl+Return toggles the notification list (bell); Ctrl+Backspace stays previous |
+| repo | pair |
+| issue file | workshop/issues/000811-couch-ctrl-backspace-opens-the-attention-list-like-the-bell-instead-of-jumping-to-a-tab.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 454b965ade23bb9d2fae30a1c75693c0e7ff1a10..44fe1f589b0d2ced3bd9c07c9b5f20f9aea99616 |
+| command | sdlc close --issue 811 |
+| reviewer | codex (openai; author openai) |
+| isolation | fenced |
+| timestamp | 2026-10-23T09:46:10-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+The implementation matches the Spec and Plan: Ctrl+Return toggles the existing notification list from actor and switcher focus, while ordinary Enter and Ctrl+Backspace retain their behavior. BR-1 is addressed across all three identified passages. No new findings.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      README.md:1427-1429 and atlas/couch.md:3202-3204 now recommend clicking the bell and explicitly qualify Ctrl+Alt+a as enhanced-only. couchkeys.go:29-31 likewise names the bell click. The pinned correction is prose-only and agrees with the enhanced-only binding at couchkeys.go:98-99 and terminal/input.go's preservation of legacy input.
+```
+
+1. **Strengths**
+
+   - `couchkeys.go:80` reuses `ActionAttention` for all three Ctrl+Return encodings; the obsolete newest-page path is removed.
+   - `terminal_input.go:111` correctly prioritizes the toggle before overlay decoding, preventing a second press from selecting an item.
+   - `console_ctrl_return_test.go:11` exercises actor/switcher focus, navigation and acknowledgement preservation, repeated toggling, and Ctrl+Alt+a interoperability.
+   - README and atlas document the changed behavior and supported fallback consistently.
+
+2. **Critical findings:** None.
+
+3. **Important findings:** None.
+
+4. **Minor findings:** None.
+
+5. **Test coverage notes**
+
+   Passed complete couchkeys and couchtty packages; focused race tests covering Ctrl+Return, physical keyboard generation, explicit events, and neighboring Return encodings; affected-inventory check; and diff whitespace check. Existing attention selection, mouse, expiration, and previous-thread tests remain covered by the complete package run.
+
+6. **Architectural notes**
+
+   - **ARCH-DRY — pass:** Both chords share the existing action and toggle handler.
+   - **ARCH-PURE — pass:** Shortcut declarations remain pure; input routing stays a thin integration layer.
+   - **ARCH-PURPOSE — pass:** Both focus contexts deliver the requested toggle, including closing the overlay, without preserving the superseded jump behavior.
+   - **ARCH-EVOLVE — pass:** No persisted formats change; removed enums are internal.
+
+7. **Plan revision recommendations:** None.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"1f975bc7-1605-4def-a64c-72b75ee50f4c","repository":"github.com/xianxu/pair","issue_id":"000811","recipe":"small-diff-review","round":2,"attempt":1,"agent":"codex","root":"/Volumes/TestScratch/review-checkouts/58811254edc82b3f","reviewed_head":"44fe1f589b0d2ced3bd9c07c9b5f20f9aea99616","slot":"pair:3","requested_at":"2026-10-23T16:44:07.326629Z"},"phase":"finished","pid":19412,"started_at":"2026-10-23T16:44:07.511548Z","finished_at":"2026-10-23T16:46:08.908733Z","session_id":"01a169a5-fb9a-7c00-8aab-678a2106170e","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 3.439227958s
+head: "44fe1f589b0d2ced3bd9c07c9b5f20f9aea99616"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412
