@@ -40,7 +40,7 @@ Investigate the native fake readiness cancellation and owned subprocess cleanup 
 
 - [x] Compare the named native test on fresh main and the exact #789 integrated head under Go1.27.3; retain raw fail/pass evidence.
 - [x] Instrument the existing process owner to distinguish Wait blockage from residual group membership; report the demonstrated cause before fixing, preserving the existing timeout and ownership proof.
-- [ ] Fix the demonstrated cause, pin its ordering regression, pass at least100 repeated native cancellations and meaningful process/descendant tests, then recorded verification, close and priority landing.
+- [x] Fix the demonstrated cause, pin its ordering regression, and pass at least100 repeated native cancellations and meaningful process/descendant tests; recorded verification, close and priority landing follow through their gates.
 
 ## Log
 
@@ -66,3 +66,11 @@ Read-only cleanup trace: runOwned selects the existing detached cleanupScope whe
 Error-path-only overlay on unchanged main: 92PASS/8FAIL in100, all eight failures in cmd.Wait join and none in group-absence polling; raw main-phase-instrumented-100.log SHA256 e657734f15dd7c7ea9bbd9eb279988503a296beed747fdedc027d2102b6c8215 under the retained triage directory. A subsequent kernel capture at Wait expiry shows a live orphan, e.g parent19744 already reaped; PID19755 PPID1 PGID19744 state2. Cancellation signals twice rapidly then retires signaling and reaps without observing parent terminal; a concurrently published shell child survives and holds output pipes. This is not a zombie-only-group finding. Cause report submitted to hub, receipt3b022576-4473-416c-9ab1-fc847ba3e1b2.
 
 Correction: preserve the direct-child PID pin through a terminal observation under the existing cleanup context before final group signal/retirement/Wait. Output failure cannot short-circuit that cleanup barrier. Keep positive final group absence, unknown-proof refusal and existing timeouts. Pin order through the existing owner seams, then run100+ real native cancellations. ARCH-ORDER and ARCH-SECURE require the barrier before surrendering signal authority; no new state, authority or timeout policy.
+
+### 2026-10-23 — Ordering correction and targeted proof
+
+The ordering regression first failed on unmodified production for cancellation and prior writer failure (late descendant retained), and the unknown-terminal regression first failed because cleanup incorrectly accepted nil. Fix adds the pinned terminal barrier before final signal/retire/reap; cleanup observation ignores prior output error while preserving execution's original error behavior. Existing final absence and retirement tests pass. This is an ordering protocol across ownership phases, not a syntactic lint pattern; the stateful ordering regression is the mechanical guard, with the lesson recorded in workshop/lessons.md.
+
+Fixed native cancellation:150PASS/0FAIL,7.500s, raw fixed-native-150.log SHA256125e7cb30719a934445b2be85401a9931da22b9c4fbada6a02611bd437839ad7. Owner, descendant, positive-absence and native cancellation tests with race detector, count10:PASS3.836s (fixed-owner-race-10.log). The final baseline Wait-member overlay30 had23PASS/7FAIL, raw main-wait-instrumented-30.log SHA25660ff6b6196d539faf661b5e1d7a9edc337d96aeef24296816d60f5e3a9a866a3. All raw files retained under the previously named triage directory.
+
+Reader audit: process_owner_unix_test.go inputs remain literal /bin/sh scripts, real native child observations and injected local lifecycle functions; the additions read no repository fixtures or external mutable files. Refreshed only that local_or_literal_fixture certificate through the inventory's exact printed command. Full vmcmd package PASS42.432s (fixed-vmcmd-package.log); final make test-affected-inventory PASS. Recorded verification and close remain pending before landing.
