@@ -1,12 +1,20 @@
 ---
 id: 000162
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-09-01
-updated: 2026-09-01
+updated: 2026-10-22
 estimate_hours:
-card_mirror: 'a18046293f294c0d0fa4385d3c7855d9b8345a64' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '5dbe5ec6108c55d495504f4302d2393ea9bb6a4c' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-22T18:09:43-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: Xian’s MacBook Pro
+    workspace: pair:2
+    worktree: /Users/xianxu/workspace/worktree/pair-slot2/pair
+    repository: github.com/xianxu/pair
 ---
 
 # Enter sends when the composer line is addressed to the harness
@@ -317,3 +325,22 @@ already returns bare `\r` with `adapt.Bypass` and `submits: false` when
 never reaches the agent"*. So it is handled by overlay detection, not by a
 composer-text predicate, and it shares no machinery with this rule. The Spec
 paragraph is annotated rather than deleted.
+
+
+## Revisions
+
+### 2026-10-22 — Operator narrows scope to slash commands and Couch sends
+
+Authenticated ops:0 dispatch48a143ee-38a9-4508-9666-a3308d605cb1 and scope confirmation1f501f4a-3261-4694-9457-70c4efb12b5a supersede the September extras. Current deliverable is slash-only behavior in the agent composer, plus switching Couch's programmatic slash sends to plain Return. Draft-pane Enter stays unchanged; configurable ! sigils and PAIR_WRAP_COMMAND_ENTER are deferred. Preserve the command-versus-path grammar, typed leading-space and multiline negatives. A menu/overlay takes its existing plain Return path. Alt+Return remains the unconditional submit action for prose and compatibility.
+
+Current-source differences from the old analysis: codexComposerBounds and ruledBoxComposerBounds already exist, as does qualifiedComposerText for Claude/Codex/Qoder. That reader intentionally excludes unknown/shell modes and must not widen ordinary peer input. Current profiles include Muse/Agy/Grok too. Design must preserve activity recognition even when a complete single-line text witness is unavailable; unknown text must keep the active composer's newline mapping rather than accidentally granting bare Return (ARCH-DRY, ARCH-PURPOSE).
+
+## Planning checkpoint
+
+2026-10-22: claimed162 and entered its own main-based branch000162-enter-sends-harness-addressed-lines at09c8964de39cdb5e6bd9db20601c232446af6949, with no806 source commits. Catch-up hit the known ariadne#557 seeded workflow diff; per the fleet instruction saved /Volumes/TestScratch/tmp/pair-slot2/pair162-seeded-refresh.taoYmx/merge-check.yml.patch and restored only that workflow before rerunning start-plan successfully. No code edited or tests/native launched for162.
+
+Read-only slash-send census: KeyEnter emits CR through the existing translator; KeySubmit is explicitly Alt+Return (ESC CR). Structured commandNext in agentdrive/model.go is the sole production literal slash sequence found (clear-line, text:/model, submit). Public CLI/embedded skill/README examples also use /usage or /model plus submit and must change to enter; generated enter help must document the new command case. Generic submit retains Alt+Return semantics for arbitrary prose. Peer delivery already writes native keymap.altCR directly after a bracketed prose envelope and must not be rerouted; orientation/recovery prompts are prose, not slash automation. No dedicated /clear or /new production sender found. Existing unsent /model and /status test drafts remain unsent.
+
+Important design discovery: commandNext emits its three steps on successive EventWritten without requiring exact command echo. Merely changing KeySubmit to KeyEnter could therefore run the snapshot-dependent Return classifier against an old complete empty frame and insert newline. Codex's existing150ms quiet bound is not proof of echo; Claude has no such delay. Plan must cover delayed/coherent echo, unrelated timer repaint, changed text, cancellation/deadline and the final pre-write proof for structured and public slash sends without sleep tuning, cached-input authority or wider deadlines. Existing ScreenCommand, command index, writeEpoch and MatchesScreen are the likely reusable seams. A read-only helper is checking that bounded causal path; no implementation choice approved yet.
+
+Next: finish the durable plan, enumerate all six profile readers, the shared predicate and return decision, every slash producer and its write proof, tests/counted bounds and live acceptance; send the plan to the hub before code. #806's original suite has now passed10m35s on23c008e9; checkpointing162 before switching back to806 for its landing. No162 change-code or production work is authorized yet.
