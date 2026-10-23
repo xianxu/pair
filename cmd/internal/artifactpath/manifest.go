@@ -804,6 +804,7 @@ var NonArtifactSources = []string{
 	"cmd/internal/agentdrive/screen.go",
 	"cmd/internal/agentdrive/panel.go",
 	"cmd/internal/agentdrive/model.go",
+	"cmd/internal/agentdrive/command.go",
 	"cmd/internal/tailmarkup/markup.go",
 	"cmd/internal/couchmessage/drive_endpoint.go",
 	"cmd/internal/couchmessage/refusal.go",
@@ -1333,6 +1334,8 @@ var NonArtifactSources = []string{
 	"cmd/internal/couchcore/operationdispatch.go",
 	"cmd/internal/couchcore/ops.go",
 	"cmd/internal/couchtty/console.go",
+	// #789: pure chrome text projection; no artifact paths.
+	"cmd/internal/couchtty/chrome_status.go",
 	"cmd/internal/couchtty/console_continuation.go",
 	// #488/#647 note anchors: deterministic Couch frame/layout; no artifact paths.
 	"cmd/internal/couchtty/console_noteanchor.go",
@@ -1956,6 +1959,7 @@ var NonArtifactSources = []string{
 	"cmd/internal/workbenchshortcut/terminal_command.go",
 	"cmd/internal/workbenchshortcut/render_lua.go",
 	"cmd/internal/wrapcmd/composer_recognizers.go",
+	"cmd/internal/wrapcmd/composer_input.go",
 	"cmd/internal/wrapcmd/codex_working.go",
 	"cmd/internal/wrapcmd/harness_tty.go",
 	"cmd/internal/wrapcmd/composer_rows.go",

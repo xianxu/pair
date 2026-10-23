@@ -248,7 +248,7 @@ func (c *harnessTTYLiveClassifier) Observe(chunk, retained []byte) harnessTTYCon
 		return harnessTTYRecognizerDrift
 	}
 	snapshot := c.proxy.terminal.Snapshot()
-	if c.proxy.ttyProfile.recognize(snapshot) {
+	if c.proxy.ttyProfile.recognize(snapshot).Active {
 		return harnessTTYRecognized
 	}
 	return harnessTTYWaiting
@@ -647,7 +647,7 @@ func assertHarnessTTYLiveDecision(t *testing.T, harness string, raw []byte, want
 	var rolling []byte
 	p.handleChunk(raw, &rolling)
 	snapshot := p.terminal.Snapshot()
-	if got := p.ttyProfile.recognize(snapshot); got != wantComposer {
+	if got := p.ttyProfile.recognize(snapshot).Active; got != wantComposer {
 		t.Fatalf("%s composer recognized = %t, want %t (cursor=(%d,%d) visible=%t)",
 			harness, got, wantComposer, snapshot.Cursor.X, snapshot.Cursor.Y, snapshot.CursorVisible)
 	}

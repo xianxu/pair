@@ -4,6 +4,8 @@ import (
 	"context"
 	"strings"
 	"testing"
+
+	"github.com/xianxu/pair/cmd/internal/terminal"
 )
 
 func TestSlotGitChangedFileCountEvidence(t *testing.T) {
@@ -203,5 +205,69 @@ func TestSlotGitChangedPaths(t *testing.T) {
 	}
 	if status, err := ParseSlotGitStatus(out); err != nil || !status.Dirty {
 		t.Fatalf("the parse must agree the same output is dirty: %+v %v", status, err)
+	}
+}
+
+// Exercise every independent checkout observation, deriving the compact oracle
+// from the observation rather than parsing the full glyph the same way twice.
+func TestCompactSlotGlyphObservedStates(t *testing.T) {
+	t.Parallel()
+	for bits := 0; bits < 32; bits++ {
+		for ahead := 0; ahead < 2; ahead++ {
+			for behind := 0; behind < 2; behind++ {
+				status := SlotGitStatus{Branch: "main-slot1", Dirty: bits&1 != 0, Detached: bits&2 != 0, HasUpstream: bits&4 != 0, Ahead: ahead, Behind: behind}
+				if bits&8 != 0 {
+					status.Branch = "000819-work"
+				}
+				if bits&16 != 0 {
+					status.Branch = ""
+				}
+				want := "·"
+				switch {
+				case status.Dirty:
+					want = "*"
+				case status.Detached || status.Branch != "main-slot1":
+					want = ""
+				case status.HasUpstream && ahead > 0 && behind > 0:
+					want = "±"
+				case status.HasUpstream && ahead > 0:
+					want = "+"
+				case status.HasUpstream && behind > 0:
+					want = "-"
+				}
+				full := SlotGlyph(status, "main-slot1")
+				if got := CompactSlotGlyph(full); got != want {
+					t.Fatalf("status %+v, full %q: compact %q, want %q", status, full, got, want)
+				}
+			}
+		}
+	}
+}
+
+func TestCompactSlotGlyphRejectsMalformedEvidence(t *testing.T) {
+	t.Parallel()
+	for _, malformed := range []string{"unknown", "working", "idle", "**", "*+", "+-", "±+", "±", "**", "foo*", "*foo", " +", "+ ", "\x1b[31m*", "*\x1b[0m", "\n*", "*\r", "\t", "\x00*", "\xff", "é", "🛋️", "+\u0301", "·*"} {
+		if got := CompactSlotGlyph(malformed); got != "·" {
+			t.Errorf("malformed %q: compact %q, want neutral dot", malformed, got)
+		}
+	}
+}
+
+func TestCompactSlotGlyphAlphabetOccupiesOneTerminalCell(t *testing.T) {
+	t.Parallel()
+	for _, input := range []string{"", "*", "±", "±*", "+", "+*", "-", "-*", "", "*", "unknown"} {
+		got := CompactSlotGlyph(input)
+		switch got {
+		case "·", "*", "±", "+", "-", "":
+		default:
+			t.Fatalf("input %q: unexpected marker %q", input, got)
+		}
+		cells, err := terminal.StyledRows(got+"X", 3, 1)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(cells) != 3 || cells[0].Content != got || cells[0].Width != 1 || cells[1].Content != "X" {
+			t.Fatalf("input %q: marker %q occupies unexpected terminal cells %+v", input, got, cells)
+		}
 	}
 }

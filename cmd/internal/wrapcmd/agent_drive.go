@@ -39,9 +39,15 @@ func newDriveMailbox() *driveMailbox {
 	return &driveMailbox{instance: rand.Text(), receipts: map[string]*wrapperDrive{}}
 }
 func (p *proxy) agentDriveScreen() agentdrive.Screen {
+	screen, _ := p.agentDriveFrame()
+	return screen
+}
+
+// agentDriveFrame keeps parsed drive proof and Return's cell evidence together.
+func (p *proxy) agentDriveFrame() (agentdrive.Screen, terminalSnapshot) {
 	s := agentdrive.Screen{}
 	if p.terminal == nil {
-		return s
+		return s, terminalSnapshot{}
 	}
 	// Atomic flags may change around the snapshot. Fail closed if either side
 	// observes an active turn or picker instead of combining permissive samples.
@@ -80,19 +86,28 @@ func (p *proxy) agentDriveScreen() agentdrive.Screen {
 		s.TurnActive = busy || s.TurnActive && !s.Idle
 	}
 	s.Recoverable = known && s.Complete && !s.TurnActive && !picker
+	s.CommandKnown = s.Recoverable
+	if s.CommandKnown {
+		s.CommandText = text
+	}
 	s.Interruptible = working && known && s.Complete && !picker
 	// Cleanup proof is intentionally one acknowledged native command line. A
 	// multiline composer has no captured clearing contract and grants no cleanup.
 	if s.Recoverable && text == "/model" {
 		s.ComposerText = text
 	}
-	return s
+	return s, snap
 }
 
 // agentDriveScreenLocked combines display evidence with input ownership. The
 // caller holds peer.mu; plain screen readers never inspect writer-owned state.
 func (p *proxy) agentDriveScreenLocked() agentdrive.Screen {
-	s := p.agentDriveScreen()
+	screen, _ := p.agentDriveFrameLocked()
+	return screen
+}
+
+func (p *proxy) agentDriveFrameLocked() (agentdrive.Screen, terminalSnapshot) {
+	s, frame := p.agentDriveFrame()
 	if d := p.peer; d != nil {
 		owned := !d.exited && !d.image && !d.inputBuffered && d.replies.inFlight == 0 && len(d.replies.input) == 0 && d.reservation == "" && (d.current.Message.ID == "" || d.current.Status.Terminal())
 		if p.automaticInput.phase == automaticInputPeer {
@@ -108,8 +123,10 @@ func (p *proxy) agentDriveScreenLocked() agentdrive.Screen {
 	}
 	if !s.Recoverable {
 		s.ComposerText = ""
+		s.CommandText = ""
+		s.CommandKnown = false
 	}
-	return s
+	return s, frame
 }
 
 func (d *peerDelivery) sweepDrivesLocked() {
@@ -269,7 +286,7 @@ func (p *proxy) dispatchAgentDrive(out io.Writer) {
 		return
 	}
 	r := d.drive.active
-	screen := p.agentDriveScreenLocked()
+	screen, frame := p.agentDriveFrameLocked()
 	if d.exited {
 		d.cancelDriveLocked("wrapper exited")
 	}
@@ -375,7 +392,10 @@ func (p *proxy) dispatchAgentDrive(out io.Writer) {
 	p.peerHumanSubmit = false
 	var data, left []byte
 	var paste bool
-	if p.hasReturnRemap() {
+	if p.hasReturnRemap() && effect.CommandEnter() {
+		// MatchesScreen above and the Return decision share this immutable frame.
+		data = p.emitPlainCRFromSnapshot(nil, &frame)
+	} else if p.hasReturnRemap() {
 		data, left, paste = p.translateChunk(effect.Key.InputBytes(), false)
 	} else {
 		data, left, paste = p.passThroughChunk(effect.Key.InputBytes(), false)

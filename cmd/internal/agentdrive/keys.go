@@ -70,7 +70,7 @@ var RefusedSteps = map[KeyKind]string{
 func buildSteps() []StepDoc {
 	steps := []StepDoc{
 		{Kind: KeyText, Syntax: "text:LITERAL", Meaning: "type printable text; quote a step containing spaces"},
-		{Kind: KeyEnter, Syntax: "enter", Meaning: "Return: newline in the composer, select in a picker", Bytes: "\r"},
+		{Kind: KeyEnter, Syntax: "enter", Meaning: "Return: submit a proved slash command, newline in ordinary composer text, select in a picker", Bytes: "\r"},
 		{Kind: KeySubmit, Syntax: "submit", Meaning: "Alt+Return: submit the composer", Bytes: "\x1b\r"},
 		{Kind: KeyUp, Syntax: "up", Meaning: "arrow up", Bytes: "\x1b[A"},
 		{Kind: KeyDown, Syntax: "down", Meaning: "arrow down", Bytes: "\x1b[B"},

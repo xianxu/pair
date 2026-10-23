@@ -2,6 +2,7 @@ package couchcore
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/xianxu/pair/cmd/internal/launcher"
 )
@@ -111,6 +112,9 @@ func (c *Couch) StartInteractive(ctx context.Context, args StartArgs) (StartResu
 		}
 		if present {
 			record, handle, err := c.attachListedTerminal(ctx, candidate, session, ResumeOptions{})
+			if err != nil {
+				err = fmt.Errorf("hub %s: %w", hub, err)
+			}
 			return StartResult{Record: record, Handle: handle}, err
 		}
 	}

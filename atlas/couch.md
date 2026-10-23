@@ -75,8 +75,20 @@ when space permits. Counts carry actor cardinality, so later scarcity overflow n
 double-counts folded actors. The shared measured planner and drawing pass in
 `status_layout.go` and `reserve.go` retain active/attention chips first. At
 impossible widths the overflow marker includes `!` when hidden actors need
-attention (`+N !` when it fits); the bell still opens the full attention list.
+attention (`+N !` when it fits); the bell still opens the full notification list (bell).
 A tiny host prioritizes a clipped, clickable active span over fixed controls.
+
+`couchcore.CompactSlotGlyph` projects the existing closed `SlotGlyph` grammar
+to one cell: dirty, diverged, ahead/behind, issue branch, otherwise neutral `·`.
+The collapse pass retains one marker per exact hidden live member in presentation
+slot order on frame-local `StatusActor.FoldedStateStrip`. After base packing,
+`decorateFoldedCounts` measures the winning cells once and admits whole strips
+left-to-right into spare columns. A non-fitting group stays plain `+N`; later
+smaller strips can still fit. No detail displaces actors, counts, controls or
+attention. Global mixed-group overflow has no strip, and multiline is unchanged.
+The shared drawing pass applies existing glyph colour/owner shading and extends
+the same count hit span through the separator and final marker. Markers convey
+checkout evidence, never agent activity; all detail dies with the frame.
 
 A complete drawn group count opens the root switcher scoped to its exact owner
 hub and repository group, using the same presentation membership before text
@@ -98,6 +110,13 @@ notices use free space on the final row. Beyond two rows, retained actors keep
 their original order after priority selection; the final overflow counts hidden
 actors and flags hidden attention. Labels are sanitized/measured once, with
 O(B + A log A) bounded planning shared by both styles.
+
+Both styles share `ChromeStatusText`, which projects transient and capability
+notices to at most40 display cells, including an ellipsis, after terminal
+sanitization. Feed and diagnostic records retain full text; switcher Ctrl+Y
+copies held retries, selected failures, current capability diagnostics, then the
+last feed notice. Producers retain complete upstream wording; common wording
+cleanup is tracked separately in #802.
 
 Collapse keeps child height constant across changes in actor content, focus and
 attention, removing #810's content-driven one/two-row resize trigger. Physical
@@ -786,7 +805,7 @@ counts enter the existing COUCH_TRACE diagnostics as `notify-suppressed`, and
 ordinary BEL is unchanged. Each aggregate names the pane endpoint and cumulative
 count; a fresh attachment starts a new counter. No notification text is logged.
 
-**Attention list (pair#673, ephemeral lifecycle pair#733).** Ctrl+Alt+a or the
+**Notification list (bell) (pair#673, ephemeral lifecycle pair#733).** Ctrl+Return, Ctrl+Alt+a or the
 status row's 🔔N badge opens the top-right panel. Enter/click opens and removes
 an item, `d` dismisses, and the always-visible Clear all row or `c` empties it.
 Three sources report facts through the message service: hub notifications,
@@ -2651,8 +2670,15 @@ or a pre-existing footer. Omitted effort follows the observed picker value.
 Raw steps are the `agentdrive.Steps` rows: `text:…`, `enter`, `submit`, the
 arrows, `tab`, `shift-tab`, `backspace`, `delete`, `home`, `end`, `pageup`,
 `pagedown`, `esc`, `clear-line`, `wait:MS`, `f1-f12`, `ctrl-LETTER` and
-`alt-LETTER`. Return translation stays shared with Pair: `enter` means newline
-in the qualified composer and selection in a picker; `submit` means Alt+Return.
+`alt-LETTER`. Return translation stays shared with Pair: `enter` natively submits a positively
+proved single-line slash command, inserts newline in ordinary composer text and
+selects in a picker; `submit` means Alt+Return. Paths, leading user whitespace,
+multiline input and incomplete text proof retain the existing newline mapping.
+Known authored slash sequences wait for exact fresh echo within the existing
+drive deadline. The final command proof and Return decision share one immutable
+frame; changed ownership or command text vetoes the write. Unsupported raw edits
+do not gain command prediction. Ordinary peer/prose sends and exact /model
+cleanup authority remain separate. Draft-pane Enter is unchanged.
 A lone ESC is flushed as one separate step. Raw success confirms acknowledged
 input and the final styled observation, without claiming an arbitrary command's
 semantic result. Printable UTF-8 text cannot hide terminal controls.
@@ -3226,40 +3252,30 @@ then ignored it for backspace, so the CSI-u form decoded as a plain backspace;
 that is fixed as defence in depth, since the interceptor claims both encodings
 before the panel sees them but forwards paste content verbatim.
 
-`ctrl+return` **answers the newest page** (`pair#221`). From an actor it lands on
-`attention.NewestActor()` -- the thread `ctrl-space` would have opened the
-normal switcher on -- with no switcher in between. Focus-view filtering does
-not constrain this jump. In code it is `ctrl+backspace`'s
-mirror image: `onNewestPageHotkey` computes a target from console-local state and
-calls `switchTo` directly. It does not dispatch the switcher's queued `switch`
-operation, which would add the queue hop, a dependency on the inventory having
-loaded, and `ctrl-space`'s first-visible-row fallback for a thread missing from
-a stale inventory. The arrival is `arrivalNotification`, because the target is
-paging by construction, and that is exactly what the switcher's Return derives
-from a non-zero capture. So the jump is non-pinning: a second press answers the
-next page, and `ctrl+backspace` still goes home. One test,
-`TestNewestPageLandsWhereCtrlSpaceThenReturnWould`, drives both paths from one
-attention state and compares the whole landing, `SwitchTracker` included.
+`ctrl+return` toggles the existing **notification list (bell)** (`pair#811`), sharing
+`couchkeys.ActionAttention`, `HitAttention` and `Console.toggleAttention` with
+Ctrl+Alt+a and the bell. This applies from both actors and the switcher; the
+underlying focus, active thread, switcher selection, paging acknowledgements and
+previous-thread history do not change. A second press closes the overlay. An
+empty list shows the existing “Nothing is waiting on you.” notice.
 
-Three edge cases:
+This replaces #221's direct newest-page jump and its switcher modified-Return
+acceptance; `onNewestPageHotkey` and the separate newest-page action are removed.
+Ordinary Enter still accepts a switcher row, while Enter or clicking an attention
+item uses the existing notification arrival funnel. Ctrl+Space then Enter remains
+the paging route and Ctrl+Backspace still returns to the previous thread.
 
-- **Nothing paging.** It stays put and says so on the status row. There is no
-  `ActiveAddress` fallback: a jump to where you already are reads as a dropped
-  key.
-- **Paging thread's child done, exit not yet reduced.** It refuses the same way.
-- **The newest pager is the actor already in use.** Reachable only through the
-  `focusedAtDelivery` race. `switchTo(..., force=false, ...)` acknowledges and
-  stays, with no takeover. It also shows a notice, because the row never draws
-  the active actor's bell, so the acknowledgement alone would be invisible.
-
-The chord uses Kitty keyboard disambiguation (`couchkeys.NewestPageSequence`,
-`\x1b[13;5u`); explicit press and repeat forms also jump, while release does
-not. The presenter owns one keyboard-protocol stack entry per screen it presents on
-and restores both at release (`atlas/terminal.md`, #279).
-Child protocol negotiation stays in the endpoint and determines child input
-encoding. Plain Return still reaches the agent; terminals without enhanced keys
-retain Ctrl+Space then Return as the fallback. In the switcher, Return keeps its
-panel behavior. Selection and input share one acknowledged presentation order.
+The chord uses Kitty keyboard disambiguation (`couchkeys.CtrlReturnSequence`,
+`\x1b[13;5u`); explicit press and repeat also toggle, while release does not.
+The presenter owns one keyboard-protocol stack entry per screen it presents on
+and restores both at release (`atlas/terminal.md`, #279). Child protocol
+negotiation stays in the endpoint and determines child input encoding. Plain
+Return still reaches the agent; on terminals without enhanced keys, click the
+bell to open the notification list. Ctrl+Alt+a also requires enhanced encoding.
+Paste content remains literal.
+Physical-key tests cover child protocol changes and both main/alternate screens;
+production-input regressions cover all three encodings from actor/switcher focus,
+ordinary Enter, and both encodings of previous-thread navigation.
 
 `SwitchTracker` (`couchtty/switchrule.go`) is the whole rule: one `previous`
 slot and one boolean carried on the CURRENT actor. `Console.switchTo` is the

@@ -7,7 +7,12 @@ representative evidence, not an exhaustive index.
 
 ## Proof and verification
 
+- #833: A failed component's later refusal must wrap its retained cause, not replace it with a generic unavailable error or join a new synthetic leaf. Publish the failed state and first cause together under the same mutex; pin queued, later and owner-completion paths plus the real shutdown caller, including physical errors joined with cancellation.
+
 - #827 PQ-1: joining dispatch callers does not join their asynchronous producers. When cancellation can return from Await early, retain the exact admitted future and defer gate/capacity release and final reporting until producer completion; pin ordinary caller behavior when adding an opt-in joined path.
+- #811 BR-1: A keyboard fallback must work without the capability that made the original chord unavailable. Check every suggested fallback against the shared binding encodings; enhanced-only Ctrl+Alt+a cannot replace Ctrl+Return on a host without enhanced keys. Document the bell click instead.
+
+
 - #832: A process-group kill can precede publication of an in-progress fork. Keep the direct parent unreaped until terminal observation, then send the final group signal before retiring authority and joining output. Execution cancellation or writer failure must not skip the cleanup barrier; pin ordering and unknown-proof refusal with stateful seams and repeat the native race.
 
 - #758 BR-4: write-call and record-count assertions do not prove a byte budget. Measure actual payload lengths at the writer boundary, count cumulative bytes and compare N/2N against the stated growth model; retry/no-op and repeated-reopen tests must assert byte effects, not infer them from row counts.
@@ -2686,6 +2691,15 @@ and external temporary roots rather than relying on the host's TMPDIR.
 - #778 verification: Every new non-test Go helper must enter artifactpath's exhaustive source inventory, even when it owns no Pair session artifact. Run TestProductionArtifactReferencesAreExactlyClassified alongside reader inventory and lint before a full suite; classify the source through its ordinary inventory, never the known-violation quarantine.
 
 - #778 BR-1: after main integration or a compatibility fix, mark final verification pending in the active Plan checklist until the replacement exact-source suite completes. Keep older green receipts as history; review/suite overlap permits concurrent work, not a completed acceptance claim.
+
+- #789 BR-1/BR-2: A source-derived string catalog cannot infer every fixed value passed through selectors, formatting or callbacks. Enumerate finite built-in variants and test their actual output; keep source scans as a complementary guard. When shortening a producer family, run the concrete invariant tests too: a name-based selection for LifecycleNotice missed LifecycleDrainReportsOnlyUntargetedFacts.
+- #789 BR-3/BR-4: A display-only change can alter full-text recovery precedence. Sweep every user-facing copy contract, and reconcile Done-when with documented dynamic-input exemptions and new acceptance cases when appending the design revision.
+
+- #789 scope split: keep the hard layout invariant in the shared display projection, with full diagnostic recovery. A request to improve common wording should not turn into exhaustive static dataflow proof across every diagnostic origin; define a bounded wording cleanup separately when the cap already guarantees the operator's requirement.
+
+- #789 BR-5: Introducing a presentation cap changes every screen-level expectation for a long notice, even when producers remain unchanged. Sweep rendered-text assertions, retain full payload checks separately, and run the whole affected UI package; a name-based Status/Notice selection misses lifecycle and security feedback tests.
+
+- #789 suite: a shared Console renderer also changes caller-package screen fixtures. Audit and run couchcmd alongside couchtty before submitting a presentation cap; preserve full error/clipboard checks separately from bounded paint. Do not force asynchronous notice ordering merely to make the latest-notice clipboard point at an earlier event.
 # #803 — shared native read boundaries
 
 - #753 shared preview: when a complete admission witness changes, sweep every producer, including opt-in native fixtures. Construct integration witnesses through the production selector; a manually populated item list can correctly fail closed yet hide that mismatch behind a long retry. Keep close-time native evidence pinned to committed source.
@@ -2813,6 +2827,7 @@ and external temporary roots rather than relying on the host's TMPDIR.
 - #739 live acceptance: label immutable startup observations as history in persistent status output. A recovered actor must not appear currently missing because its startup absence was retained. Startup safety notices must name the explicit recovery action as well as explain what automation was suppressed.
 
 - #739: host bytes are not a presentation-complete barrier. A startup-ordering test must finish through the console event loop, with a held-write control; asynchronous Stop exercises cancellation instead. Qualify the current exit semantics (Escape need not quit an empty switcher), and track shared cancellation-cause loss separately rather than ignoring generic presenter errors.
+- #789 integration: a package timeout can catch an innocent next test after an earlier failure spent the budget. Inspect preceding named failures and elapsed durations before attributing the final goroutine stack; screen assertions on newly integrated features must respect shared display caps and pin full diagnostics through their recovery action.
 - #823 PQ-2: Additive persisted JSON contracts require recursive duplicate-key rejection as well as strict owned-field presence/type checks and raw unknown-field preservation. Reuse strictjson split/encode helpers at each changed boundary; plain json.Unmarshal is not an authority validator.
 
 - #823 codec review: validate each positional tuple coordinate independently before ordering endpoints. A later end line does not make a negative end column valid; retain cross-line negative-column regression coverage.
@@ -2834,3 +2849,7 @@ and external temporary roots rather than relying on the host's TMPDIR.
 - #827: a recovery hint belongs to one field. If a summary carries a dedicated next-action field, strip the same advice from the reason text, or the operator reads it twice.
 - #827: before adding a context-aware path through a nested lock, check every acquirer of that lock, including readers outside the outer coordinator. A nonblocking inner acquire under a blocking outer lock fails at once against an uncoordinated reader.
 - #827 round 2: when a change adds a member to an enumerated contract, grep the field or type name and update every comment that lists its members in the same commit.
+- #162 BR-1/BR-2: Composer text used as input authority must retain styling provenance for mixed authored/suggested cells, not merely recognize wholly faint placeholders. Test completion suffixes across every profile. Compare authored command targets with the terminal projector's whitespace representation only after validating the full original grammar, and pin the real projector-to-writer path; reducer-only fabricated text can conceal representation mismatches.
+
+- #162 BR-3: Never erase blank composer rows to prove a single-line command. Preserve the positively bounded input structure independently of cursor position; right-padding normalization is per row. Where terminal padding and authored blank rows are indistinguishable, decline command authority instead of inferring from the cursor. Preserve established peer-envelope comparison separately through the shared geometry/projector, and make synthetic agents render the native boundary their command proof needs.
+- #819 PQ-1: express planned tests as named production functions, adversarial input classes and mechanical invariants. Keep executable case inventories in test code; preserve cost bounds and verification commands in the plan.

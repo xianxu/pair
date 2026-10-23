@@ -126,18 +126,32 @@ func (p *Presenter) View() View { p.mu.Lock(); defer p.mu.Unlock(); return p.vie
 func (p *Presenter) transition(e ViewEvent) (ViewEffects, error) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
+	return p.transitionLocked(e)
+}
+func (p *Presenter) transitionLocked(e ViewEvent) (ViewEffects, error) {
 	v, out, err := Transition(p.view, e)
 	if err == nil {
 		p.view = v
 	}
 	return out, err
 }
+
+// presenterRefusal preserves the first failure's complete error tree. Adding a
+// synthetic leaf with errors.Join would misclassify cancellation-only shutdown.
+func presenterRefusal(reason string, cause error) error {
+	if cause != nil {
+		return fmt.Errorf("terminal: presenter %s: %w", reason, cause)
+	}
+	return fmt.Errorf("terminal: presenter %s", reason)
+}
+
 func (p *Presenter) call(ctx context.Context, f func(context.Context) error) error {
 	r := presentRequest{ctx: ctx, run: f, done: make(chan error, 1)}
 	p.mu.Lock()
 	if p.closing || p.view.State == Failed {
+		err := presenterRefusal("unavailable", p.failureErr)
 		p.mu.Unlock()
-		return errors.New("terminal: presenter unavailable")
+		return err
 	}
 	select {
 	case p.requests <- r:
@@ -150,7 +164,7 @@ func (p *Presenter) call(ctx context.Context, f func(context.Context) error) err
 	case err := <-r.done:
 		return err
 	case <-p.done:
-		return errors.New("terminal: presenter released")
+		return presenterRefusal("released", p.Failure())
 	}
 }
 func (p *Presenter) run() {
@@ -198,7 +212,7 @@ func (p *Presenter) run() {
 			return
 		case r := <-p.requests:
 			if p.View().State == Failed {
-				r.done <- errors.New("terminal: presenter failed")
+				r.done <- presenterRefusal("failed", p.Failure())
 				continue
 			}
 			if p.life.Err() != nil {
@@ -283,9 +297,15 @@ func (p *Presenter) fail(err error) error {
 	ctx, cancel := context.WithTimeout(context.Background(), WriteTimeout)
 	defer cancel()
 	cancelErr := p.cancelDrag(ctx)
-	p.transition(ViewEvent{Kind: FailView})
-	p.failureOnce.Do(func() { p.mu.Lock(); p.failureErr = errors.Join(err, cancelErr); p.mu.Unlock(); close(p.failed) })
-	return errors.Join(err, cancelErr)
+	cause := errors.Join(err, cancelErr)
+	p.failureOnce.Do(func() {
+		p.mu.Lock()
+		p.failureErr = cause
+		p.transitionLocked(ViewEvent{Kind: FailView})
+		p.mu.Unlock()
+		close(p.failed)
+	})
+	return cause
 }
 
 // stall turns a parent write that ran out of its own budget into a stall rather
@@ -608,7 +628,7 @@ func (p *Presenter) Present(ctx context.Context, e *Endpoint) error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	if p.closing || p.view.State == Failed {
-		return errors.New("terminal: presenter unavailable")
+		return presenterRefusal("unavailable", p.failureErr)
 	}
 	if e == nil || e.id != p.view.Selected {
 		return nil

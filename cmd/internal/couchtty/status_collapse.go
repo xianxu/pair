@@ -1,6 +1,10 @@
 package couchtty
 
-import "strconv"
+import (
+	"github.com/xianxu/pair/cmd/internal/couchcore"
+	"strconv"
+	"strings"
+)
 
 // prepareCollapsedStatusChips preserves presentation order and represents every
 // quiet grouped member exactly once, in a synthetic count owned by that group.
@@ -51,12 +55,18 @@ func prepareCollapsedStatusChips(actors []StatusActor, work *statusLayoutWork) [
 			result = append(result, members...)
 			continue
 		}
+		var strip strings.Builder
 		for _, actor := range members {
 			if work != nil {
 				work.Visits++
 			}
 			if actor.Active || actor.Bell || actor.Blocked || actor.CollapseAnchor || actor.Placeholder {
 				result = append(result, actor)
+			} else {
+				if work != nil {
+					work.Bytes += len(actor.Glyph)
+				}
+				strip.WriteString(couchcore.CompactSlotGlyph(actor.Glyph))
 			}
 		}
 		if folded > 0 {
@@ -64,7 +74,7 @@ func prepareCollapsedStatusChips(actors []StatusActor, work *statusLayoutWork) [
 			if kept == 0 {
 				label = first.Label + " " + label
 			}
-			result = append(result, StatusActor{Label: label, GroupKey: first.GroupKey, OwnerHub: first.OwnerHub, OtherHub: first.OtherHub, Hub: kept == 0 && first.Hub, Folded: folded})
+			result = append(result, StatusActor{Label: label, GroupKey: first.GroupKey, OwnerHub: first.OwnerHub, OtherHub: first.OtherHub, Hub: kept == 0 && first.Hub, Folded: folded, FoldedStateStrip: strip.String()})
 		}
 	}
 	return result

@@ -223,7 +223,8 @@ The focused agent receives all workbench shortcuts except **Shift+Alt+T**,
 **Shift+Alt+Left/Right**, and **Alt+Shift+Return**, which create/switch
 right-terminal tabs or toggle the right terminal's normal/focus views. Under
 Couch, **Ctrl+Space**, **Ctrl+Backspace** (the Mac Delete key), and
-**Ctrl+Return** remain Couch navigation shortcuts. Couch owns Alt+n/Ctrl+Alt+n
+**Ctrl+Return** remain Couch shortcuts (switcher, previous tab and attention
+list). Couch owns Alt+n/Ctrl+Alt+n
 outside the right terminal, except Alt+n in the review pane (next marker in normal mode). In a right-terminal full-screen TUI, Pair retains
 only Alt+k, Alt+Shift+Enter, Alt+Shift+t and Alt+Shift+Left/Right; other program
 chords pass through. Couch forwards the restart chords based on the actual
@@ -453,7 +454,9 @@ time; a finished row keeps one result until its next action. A second action on
 a busy slot is refused with the running action's name. Other slots and the hub
 remain available. Select a busy row to wait for its new terminal; navigating
 elsewhere prevents its eventual completion from pulling focus back. On a failed
-row, `Ctrl+Y` copies its retained diagnostic; otherwise it copies the last notice.
+row, `Ctrl+Y` copies its retained diagnostic; otherwise a current capability
+diagnostic takes precedence over the last notice. Status text in chrome is limited
+to 40 display cells, with `…`; copying retains the full diagnostic.
 Recovery confirmations stay on their row until you select it to review them.
 
 Hub automation controls Couch's generated input and scheduled runs. It starts on
@@ -657,7 +660,7 @@ composer came back. `couch --keys --help` lists the steps, the limits, these
 rules and that round trip.
 
 ```sh
-couch --keys pair:7 clear-line text:/model submit wait:200 down enter
+couch --keys pair:7 clear-line text:/model enter wait:200 down enter
 couch --set-model pair:7 --model gpt-6.1-sol --effort medium --confirm
 ```
 
@@ -668,8 +671,9 @@ Named raw steps are `text:…`, `enter`, `submit`, the arrows, `tab`,
 step: `couch --interrupt pair:7 --confirm` sends one into a working turn, refuses
 with no working turn, and is never retried. Codex work is proved by its current
 Working or Waiting for… status with its interrupt hint above the composer; confirmation
-requires a fresh idle composer. `enter` follows Pair's Return behavior: newline in
-the composer, selection in a picker; `submit` follows Alt+Return. Each `esc`
+requires a fresh idle composer. `enter` follows Pair's Return behavior: native submission for a proved single-line
+slash command, newline for ordinary composer text, and selection in a picker;
+`submit` follows Alt+Return. Each `esc`
 is a separate input step. Raw success confirms the writes and final observation.
 Use `--set-model` when you need a confirmed model, effort and scope: it follows
 observed labels, uses the picker's current effort if omitted, and verifies a
@@ -1396,10 +1400,18 @@ hub and repository group, including the slots folded into it. The scope survives
 refreshes and returning from an action. Escape clears a text filter first, then
 the group scope; opening the ordinary switcher starts with the full list.
 
+When space remains, each group count adds one checkout-state marker per hidden
+live slot in slot order. Dirty `*` wins over diverged `±`, ahead `+` or behind `-`,
+then the existing issue-branch glyph; clean, resting or unknown evidence uses `·`.
+These markers describe checkouts, not whether an agent is working. A strip fits
+whole or the count stays plain `+N`; optional detail never displaces tabs or
+controls. The entire count, separator and strip open the same group, retaining
+its owner dimming.
+
 The active and attention chips win space before ordinary chips. At impossible
 widths, some labels must be hidden: the remaining overflow count says `+N !`
 when hidden slots need attention, if that complete marker fits. The bell still
-opens the full attention list. A clipped or omitted count has no click action.
+opens the full notification list (bell). A clipped or omitted count has no click action.
 
 Use `couch --tab-style multiline` for the previous packer, which uses one row
 when everything fits and wraps onto a second row before hiding overflow. The
@@ -1481,9 +1493,9 @@ too; under the Kitty protocol the two separate cleanly. Couch maintains the
 keyboard disambiguation its shortcuts require on supporting terminals, including
 after child output and thread replay. `Ctrl-Return` accepts the Kitty protocol's
 `CSI 13;5u`, explicit press (`CSI 13;5:1u`) and repeat (`CSI 13;5:2u`); release
-does not jump. On unsupported terminals it remains indistinguishable from plain
-`Return`, which Couch forwards unchanged. Use `Ctrl-Space` then `Return` to reach
-the notification there. While displaying an actor, Couch forwards every other
+does not toggle. On unsupported terminals it remains indistinguishable from plain
+`Return`, which Couch forwards unchanged. Click the bell to open the notification
+list on those terminals; `Ctrl+Alt+a` also requires enhanced key encoding. While displaying an actor, Couch forwards every other
 keyboard chord to the focused Pair pane. The agent reserves only the three
 terminal-tab chords described above; paste content stays literal. That includes
 `Alt+h`: in the draft it opens Pair's help, which lists Couch's keys first when
@@ -1492,7 +1504,7 @@ Couch presents the thread, and the agent pane still receives it.
 `Ctrl-Space` means one thing: **open the switcher**, from any actor, focused on
 the actor with the most recent notification (or on the thread you are leaving
 when nothing is paging). There is no focus ladder and no home actor. Following a
-page through the normal switcher is one key plus `Enter`; `Ctrl-Return` does it in one.
+page through the normal switcher is one key plus `Enter`.
 In focus view, a hidden target falls back to the first visible row.
 
 `Ctrl-Backspace` means **previous**: return to the actor you were working in.
@@ -1501,16 +1513,14 @@ pages, or detouring manually to check a third thread, still brings you back to
 where you actually were. Returning home twice is deliberately a no-op: you are
 home, and there is nowhere to bounce to.
 
-`Ctrl-Return` means **answer the newest page**: from an actor, it lands on the
-thread `Ctrl-Space` would have selected in the normal switcher, with no switcher in
-between. This jump is independent of focus-view filtering and counts as a
-notification hop, and `Ctrl-Backspace` afterwards still brings you back to where
-you were working. Pressed again, it goes to the next page. With nothing paging it
-stays put and says so on the status row. Inside the switcher it is not claimed
-and acts as the switcher's own `Enter`.
+`Ctrl-Return` opens or closes the **notification list (bell)**, exactly like `Ctrl+Alt+a`
+or clicking the bell. It toggles from both an actor and the switcher; opening or
+closing it leaves the active thread, switcher selection and previous-thread
+history in place. With an empty list it stays put and says nothing is waiting.
+It no longer jumps to the newest page or accepts a switcher row. Ordinary
+`Enter` still selects a switcher row or the selected attention item.
 
-`Ctrl+Alt+a` opens the **attention list** (pair#673): what is waiting on you,
-newest first. It holds three kinds of item: the hub's `couch --notify` messages,
+The **notification list (bell)** (pair#673) shows what is waiting on you, newest first. It holds three kinds of item: the hub's `couch --notify` messages,
 slots blocked on a permission prompt or picker, and slots whose turn ended with
 a question to you. While the list has items, the right end of the status row
 shows `🔔N`, red if a slot is blocked on a prompt; click it to open the list too.
@@ -1866,9 +1876,12 @@ focus view explains how to tag a thread. The switcher remembers the last view us
 exits. Reopening clears search text but keeps the view. With text in the filter,
 Space is a literal search character; it does not toggle views.
 
-In the switcher, `Ctrl+Y` copies the full last retained status notice, including
-text clipped from the status row and after that row expires. Repeating it copies
-the same notice until another arrives. A failed or unconfirmed attempt keeps its
+In the switcher, `Ctrl+Y` copies a selected operation diagnostic/error first,
+then the current capability diagnostic, then the full last retained status notice.
+Chrome shows at most 40 display cells of a status; copying includes clipped text,
+and retained feed notices remain copyable after expiry. Repeating the copy uses
+the current capability diagnostic while one is displayed, or the same feed notice
+until another arrives. A failed or unconfirmed attempt keeps its
 original notice for **Ctrl+Y** retry even if a newer notice arrives; **Esc** dismisses
 the copy feedback without leaving the switcher. Navigation and background refreshes
 keep that feedback and ordinary operation errors independently visible.

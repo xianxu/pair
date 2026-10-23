@@ -1,6 +1,9 @@
 package wrapcmd
 
-import "github.com/xianxu/pair/cmd/internal/adapt"
+import (
+	"github.com/xianxu/pair/cmd/internal/adapt"
+	"github.com/xianxu/pair/cmd/internal/agentdrive"
+)
 
 type composerGatePolicy uint8
 
@@ -16,7 +19,7 @@ type harnessTTYProfile struct {
 	keymap             sendKeymap
 	overlay            overlayDetector
 	composerGate       composerGatePolicy
-	recognize          composerRecognizer
+	recognize          composerInputRecognizer
 	captureSetsOverlay bool
 	// overlayHidesComposer: this harness's pickers replace the composer, so
 	// the composer returning after a picker hid it means the picker closed,
@@ -39,7 +42,7 @@ var harnessTTYProfiles = map[string]harnessTTYProfile{
 		},
 		overlay:              detectClaudeOverlayOpen,
 		composerGate:         composerGatePositive,
-		recognize:            claudeComposerActive,
+		recognize:            claudeComposerInput,
 		overlayHidesComposer: true,
 	},
 	"codex": {
@@ -50,7 +53,7 @@ var harnessTTYProfiles = map[string]harnessTTYProfile{
 		},
 		overlay:            detectCodexOverlayOpen,
 		composerGate:       composerGatePositive,
-		recognize:          codexComposerActive,
+		recognize:          codexComposerInput,
 		captureSetsOverlay: true,
 	},
 	"agy": {
@@ -61,7 +64,7 @@ var harnessTTYProfiles = map[string]harnessTTYProfile{
 		},
 		overlay:      detectAgyOverlayOpen,
 		composerGate: composerGatePositive,
-		recognize:    agyComposerActive,
+		recognize:    agyComposerInput,
 	},
 	// Muse's composer submits on bare CR and inserts a newline on Shift+Return
 	// — the inverse of the other three — so the remap translates plain Return
@@ -85,7 +88,7 @@ var harnessTTYProfiles = map[string]harnessTTYProfile{
 		},
 		overlay:      detectMuseOverlayOpen,
 		composerGate: composerGatePositive,
-		recognize:    museComposerActive,
+		recognize:    museComposerInput,
 	},
 	"qoder": {
 		keymap: sendKeymap{
@@ -95,7 +98,7 @@ var harnessTTYProfiles = map[string]harnessTTYProfile{
 		},
 		overlay:      detectQoderOverlayOpen,
 		composerGate: composerGatePositive,
-		recognize:    qoderComposerActive,
+		recognize:    qoderComposerInput,
 		// The generation footer "⠋ Generating... (esc to cancel, 0s)" hits
 		// the tripwire's "esc to cancel"; live smoke vocabulary only.
 		progressShapes: []string{"generating...", "thinking..."},
@@ -113,7 +116,7 @@ var harnessTTYProfiles = map[string]harnessTTYProfile{
 		},
 		overlay:      detectGrokOverlayOpen,
 		composerGate: composerGatePositive,
-		recognize:    grokComposerActive,
+		recognize:    grokComposerInput,
 	},
 }
 
@@ -180,12 +183,18 @@ func decidePlainReturn(profile harnessTTYProfile, overlayActive bool, snapshot *
 		if snapshot == nil || profile.recognize == nil {
 			return unknownComposerDecision()
 		}
-		if !profile.recognize(*snapshot) {
+		input := profile.recognize(*snapshot)
+		if !input.Active {
 			return returnDecision{
 				bytes:   []byte{'\r'},
 				outcome: adapt.Bypass,
 				reason:  "plain Enter → bare CR (composer inactive)",
 				submits: true, // the CR reaches the agent (menu answer)
+			}
+		}
+		if snapshot.Complete && input.region.valid {
+			if text, ok := projectComposerRegion(*snapshot, input.region); ok && agentdrive.SlashCommand(text) {
+				return returnDecision{bytes: append([]byte(nil), profile.keymap.altCR...), outcome: adapt.Bypass, reason: "plain Enter → native submit (slash command)", submits: true}
 			}
 		}
 		return remap()

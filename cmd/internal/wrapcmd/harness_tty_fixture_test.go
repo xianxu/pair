@@ -581,7 +581,7 @@ func replayHarnessTTYSplit(t *testing.T, harness string, raw []byte, split int) 
 
 	snapshot := p.terminal.Snapshot()
 	result := harnessTTYReplayResult{
-		recognized:   p.ttyProfile.recognize(snapshot),
+		recognized:   p.ttyProfile.recognize(snapshot).Active,
 		overlayArmed: p.pickerActive.Load(),
 	}
 	// emitPlainCR is the production Return path: it consumes overlay state
