@@ -5,9 +5,9 @@ deps: []
 github_issue:
 created: 2026-10-22
 updated: 2026-10-23
-estimate_hours:
+estimate_hours: 1.7435
 collaboration-mode: collaboration
-card_mirror: 'd7cd09407e6f0ddfd6d1eea1914662ed25468d80' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '6c14ed88312e6a1c92b942446e47c758decfca3e' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-23T05:01:56-07:00
 claimant:
     operator: Xian Xu
@@ -77,6 +77,10 @@ Authenticated TLdb842971-53f5-4660-a836-870b0d14de1a approves renderer/collapse/
 - Plan-quality round1 REWORK (PQ-1, function-level-test-strategy): codebase claims and approved architecture verified, but tests were written as case inventories and the new projection/publication functions were unnamed. Swept the test plan into named risky-function strategies with fuzz/generated and controlled mutex/channel interleaving proofs; no behavior or scope change. No source/test implementation yet. Re-run change-code before deriving estimate.
 
 
+
+- Plan-quality round2 CLEAN; PQ-1 addressed, no further findings. Estimate derived only after this result, from v3.1/v2.1/v2 primitive tables and baseline-v3.1 (calibration marked stale/provisional). Existing Feed/AttentionList/renderers cover the work; no greenfield library or external API needed. Small module projection: design0.15×0.2=0.03/impl0.50×0.4=0.20; TUI attention and navigation: design1.0×0.2=0.20/impl1.0×0.4=0.40; cross-cutting producer routing: design0.8×0.2=0.16/impl0.5×0.4=0.20; docs: design0.1×0.2=0.02/impl0.15×0.4=0.06; review/verification: design0.1×0.2=0.02/impl0.5×0.4=0.20; coordinated UX iteration: design0.3×0.2=0.06/impl0.3×0.4=0.12. Design0.49×1.15 + implementation1.18×familiarity1.0 =1.7435h. Exact collapse function anchor corrected before gate rerun.
+
+
 ## Revisions
 
 ### 2026-10-23 — executable preservation and attention contract proposed
@@ -86,3 +90,20 @@ The operator's removal decision remains unchanged. Discovery shows the switcher 
 ### 2026-10-23 — TL approval
 
 The preceding pending navigation choice is approved, with a producer-level noise exclusion for routine normal operation. No new scope beyond the recorded plan.
+
+## Estimate
+
+Produced via brain/data/life/42shots/velocity/estimate-logic-v3.1.md against baseline-v3.1.md. Method A only; calibration source currently stale, values provisional. Spec resolves decisions (design ×0.2), implementation ×0.4 per v3.1, familiarity1.0; thorough-plan design buffer15%. No external API discovery or cross-repo propagation.
+
+```estimate
+model: estimate-logic-v3.1
+familiarity: 1.0
+item: smaller-go-module design=0.03 impl=0.20
+item: tui-screen design=0.20 impl=0.40
+item: cross-cutting-refactor design=0.16 impl=0.20
+item: atlas-docs design=0.02 impl=0.06
+item: milestone-review design=0.02 impl=0.20
+item: ux-rename-iteration design=0.06 impl=0.12
+design-buffer: 0.15
+total: 1.7435
+```

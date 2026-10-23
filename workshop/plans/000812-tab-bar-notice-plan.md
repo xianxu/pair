@@ -84,7 +84,7 @@ Audit every setNotice/Notify/publishNotice producer before implementation and re
 
 | Risky function | Adversarial input / mechanical guard |
 |---|---|
-| renderStatusCells / RenderStatusBar / renderCollapsedStatusBar | Generate actor/width/style inputs and compare snapshots with/without a pending Feed message: identical rows, geometry and hit spans; retain independent controls as the oracle. |
+| renderStatusCells / RenderStatusBar / prepareCollapsedStatusChips | Generate actor/width/style inputs and compare snapshots with/without a pending Feed message: identical rows, geometry and hit spans; retain independent controls as the oracle. |
 | menuSnapshot / showMenuPublishing / RenderMenuView | Drive real bounded Feed updates through the stateful console fixture, with simultaneous menu-operation/copy state; assert retained full text and pure bounded viewport/selection projection rather than reproducing layout internals. |
 | noticeAttention (new pure function in notice.go) | Fuzz arbitrary notice bytes and explicit source identity; enforce fixed text byte bounds and safe controls, exact supplied thread/global identity, and no inference from body wording. |
 | Console.Warn / publishWarningLocked (new methods in console.go) | Use existing console and attention mutex boundaries with channel-controlled goroutines to force warning-publication-before-selection and selection-before-publication; compare final event ownership and feed state to a sequential reference model. Count one bounded attention application per explicit warning at N/2N. No sleeps as ordering proof. |
@@ -143,3 +143,7 @@ TL db842971-53f5-4660-a836-870b0d14de1a approves all surfaces and global/detache
 ### 2026-10-23 — PQ-1 function-level verification correction
 
 Plan-quality round1 confirmed the existing-behavior claims and architecture, but required test strategies tied to named functions instead of prose case inventories. Replaced Tasks1–2's enumerations with a function-level table, named noticeAttention/Console.Warn/publishWarningLocked, and specified channel-controlled ordering at existing mutex boundaries with a sequential reference model. This changes verification precision, not the approved source classes or visible behavior.
+
+### 2026-10-23 — collapse anchor name corrected
+
+The strategy row now names the existing prepareCollapsedStatusChips function; collapse is a branch of RenderStatusBar, not a separate renderCollapsedStatusBar function. No behavior or strategy change.
