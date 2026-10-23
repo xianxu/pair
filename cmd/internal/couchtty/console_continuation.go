@@ -144,7 +144,7 @@ func (c *Console) acceptContinuationRequests(result continuationScanResult) {
 		text := boundedNoticeText("Continuation status unavailable: "+result.err.Error(), 4096)
 		if text != c.continuationScanError {
 			c.continuationScanError = text
-			paintWarning = c.publishWarningLocked(Notice{Kind: "continuation-scan", Body: text})
+			paintWarning = c.publishWarningLocked(Notice{Kind: "continuation", Body: text})
 		}
 	} else if result.err == nil {
 		c.continuationScanError = ""

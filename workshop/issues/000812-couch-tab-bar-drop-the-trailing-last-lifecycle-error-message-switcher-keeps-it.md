@@ -189,6 +189,13 @@ The plan now enumerates every affected async source, assertion acknowledgment an
 
 Temporary console.go overlay gates exact unlocked pane-removal-to-Warn gap: original test RED0.397s (“unexpected exit produced0warnings”); repaired test under identical forced gap x10 PASS0.565s. Focused exit/source x10 PASS2.645s; comprehensive warning classification/source/ordering race x10 PASS113.174s (session95070 terminal0). Complete JSON packages PASS: couchtty57.447s/4362 test-subtest passes, couchcmd113.354s/1784 passes,0 failures; session73808 terminal0, log /Volumes/TestScratch/tmp/pair-slot1/pair812-br6-packages.CzdDTf/run.jsonl. Only final guessing-stop test join followed compilation; that named test final-source race x10 PASS3.856s. Inventory and diff check PASS, no certificate changes. Next commit/push, fresh recorded affected/full and full close explicitly disposing BR-6. No recorded check active; stage remains held for TL go and operator acceptance.
 
+
+### 2026-10-23 — restart retained-suite result and category correction
+
+Authenticated Couch restart9cff332a-717a-4146-b23b-4e70c69dd224 prompted retained-check inspection. Lease-126562997 terminal exit1: full suite ran11m38s on d29420112ffe74bae7e2b7bb443c93a7a5dcbf8f; sole failure artifactpath.TestProductionArtifactReferencesAreExactlyClassified: console_continuation.go invented Kind continuation-scan matches the continuation- artifact filename prefix. All remaining suite targets passed (including couchtty41.721s/couchcmd62.389s). Failure log /Users/xianxu/workspace/pair/.git/sdlc/test-stats/failed/c4af0d6972bf28d7255e8b19512cd5e2.log, sha256 d9597e7c122f. This is deterministic branch debt, not a registered flake or passing suite.
+
+Use the existing continuation notice category already used by the other continuation failures, instead of inventing a scan-specific category or broadening the artifact inventory. One production literal changes; episode suppression/source/body behavior stays the same. Artifact classification GREEN2.923s; warning episode/publication ordering race x10 PASS3.347s; make test-affected-inventory PASS. Next commit/push, fresh recorded suite on corrected head, and narrow post-close review. No stage/go/live acceptance has occurred. Updated restart report21eb7d70-2192-4a76-af4c-0aff4f75c29b submitted to hub.
+
 ## Revisions
 
 ### 2026-10-23 — BR-3/BR-4 exhaustive completion
