@@ -368,6 +368,18 @@ free-form; all five before/after hashes match. Both temporary source helpers rem
 local scratch pair823-audit.ivNfzH/report.json and five-report.json. No external document was edited by this worker.
 TL owns the project tick. No stage or :0 mutation is authorized or needed; suite pass is the remaining merge gate.
 
+### 2026-10-23 — Recorded suite source-comment repair
+
+Recorded full suite on d72901e10 completed after a63-minute FIFO wait: FAIL solely in termcmd's existing
+TestNoDeclarationCarriesTwoStackedGodocs. contentStep retained an old whole-document presentation comment above
+its replacement opening. Consolidated the complete godoc to describe base-policy validation, per-piece presentation,
+direct side-doc/frontmatter exceptions and restamping. No executable statement changed. The existing regression is
+RED in saved attempt627018dde13d0bd974c9a33b9d346e2c (12m24s, logsha256225dba835c55) and GREEN after the comment repair.
+The other package, shell and Lua checks passed, including couchcore190.794s, sessionsync19.777s and couchcmd56.448s.
+This is not a flake; no failure registration/bypass or same-head green substitution is used. A new recorded suite and
+narrow post-close review are required on the repair. Server conformance's earlier DNS setup failure passed unchanged
+on attempt2 (3m17s); no tests had started in that setup failure.
+
 ## Revisions
 
 ### 2026-10-23 — Implementation boundaries from source inventory

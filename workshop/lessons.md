@@ -2766,3 +2766,5 @@ and external temporary roots rather than relying on the host's TMPDIR.
 - #823 BR-2: New operator settings and migration commands need README examples at close, even when CLI help and atlas already document them. Name defaults, heading adjacency, ownership and exact preview/confirm steps.
 
 - #823 BR-1 round2: Original bytes can survive while their Markdown role changes. A permitted append needs a renderable base tail and a real candidate link at the exact inserted source location; use independent rendering regressions for fence/code/HTML/thematic tails and a positive ordinary continuation.
+
+- #823 suite: rewrite a function's full godoc when refactoring its authority/presentation contract; appending a replacement opener leaves contradictory prose and fails the existing cross-package TestNoDeclarationCarriesTwoStackedGodocs guard. Run that guard after broad function-comment edits.

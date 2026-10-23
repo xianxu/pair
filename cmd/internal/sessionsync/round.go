@@ -266,13 +266,10 @@ func resolveBatch(base string, edits []EditRecord) (string, []ResolvedEdit, erro
 	return next, resolved, nil
 }
 
-// contentStep turns an intended new text into what is written and its round.
-// The baseline is base restamped exactly when the write restamps, so the stamp
-// never forms a span; under `presentation: propose` (never for a frontmatter
-// write) the body is written as markers, and the round follows those bytes.
-// A record answering the operator's own request marker is the one exception:
-// it applies directly (answersOperator).
-// contentStep uses the transaction's base authority for every piece.
+// contentStep validates intended edits against the transaction's base policy,
+// applies each piece's presentation, and derives the round from final bytes.
+// Frontmatter and approved side-doc responses apply directly. Restamping follows
+// base-coordinate validation and never forms a span.
 func contentStep(base, next string, resolved []ResolvedEdit, now time.Time, restamp, frontmatter bool, policy *editorial.DocumentPolicy) (Edit, error) {
 	runs := changedRuns(base, next)
 	changes := make([]editorial.Change, len(runs))
