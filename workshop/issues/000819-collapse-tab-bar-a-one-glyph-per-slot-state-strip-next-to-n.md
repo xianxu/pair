@@ -102,3 +102,9 @@ Focused collapse/detail/owner/click tests PASS0.517s. Full couchtty package incl
 ### 2026-10-22 — review / suite overlap, operator stage pending
 
 Pushed candidate3ece1cc55496b71e5071f6de9eb1e43fab49376b has recorded suite session46229, attempt107b78df6d26c5cb3a9ac02ef8d2145e, lease-2835455686 in immutable snapshot /Volumes/TestScratch/local-checks/sdlc-local-2612811728, initially FIFO16. Existing789 run lease-2426150993 remains queued and untouched. TL5f6b7266 requests close review now; pair:0 retains753 stage until its operator re-look. Stage819 only after TL go; operator acceptance and an exact-source recorded pass remain mandatory before landing. Checkbox wording separates completed implementation proof from those external landing gates; none is claimed complete.
+
+### 2026-10-22 — SHIP, waiting on stage window and recorded suite
+
+Close review round1 SHIP, no findings; evidence9d25b6df22496ce4cfbacde1c67a8c0ac461b44b, mirror757ed9cd238af166ef7fe83689039f8bd8745f4a. Reviewer independently passed full couchcore279.273s, couchtty49.645s, reader inventory and pinned diff checks. PR550 is open. Required exact-source suite session46229 / lease-2835455686 remains queued FIFO15;789 session41982 / lease-2426150993 remains FIFO11. Neither is canceled or requeued. No merge runner is active.
+
+Next: on TL stage go after753 releases pair:0, verify main ancestry and stage/build through SDLC, report exact binary revisions and the requested operator look. Do not land until operator acceptance and exact-source recorded pass. On789 suite result, checkpoint819 and return789 for its prescribed fixed review and merge; never switch while a review/stage/merge owns the checkout. Both suite snapshots are independent of checkout switching. Stage has not been touched.
