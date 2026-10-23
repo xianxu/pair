@@ -206,6 +206,16 @@ The toolbar sits above the private scene and drawing canvas so its buttons remai
 opens text for an unfinished sketch through the same settlement/required-label path; completed-label editing
 is deferred to #783. Identical authority/control refreshes preserve editor focus and existing unfinished controls.
 
+Operator submission selects only feedback actually painted on the current console.
+`web/feedback-visibility.js` joins completed note and sketch paints into one
+revision fenced witness; `operator.js` exposes it privately, with the current
+recorded context, mask identity and recorder locators. Scroll, route, layout,
+mask and accepted version changes retire stale paints before the chord can freeze
+them. A current-view replay page carries up to eight selected sketches; both
+sketch and annotation overflow remain counted in Pending feedback. Source paths
+and saved draw-time note crops remain historical evidence. See
+[submission evidence](webcast-submission.md) for provenance and legacy formats.
+
 Optional periodic fidelity captures defer while a console sketch/preparation or sketch/note editor is open;
 their privacy suppression would otherwise hide the host and interrupt typing. Explicit captures retain their
 existing suppression, and background captures resume after the UI closes. Fidelity screenshots can therefore

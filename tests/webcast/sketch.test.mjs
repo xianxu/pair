@@ -970,3 +970,20 @@ test('viewer required label Enter saves once and waits for accepted reply before
  h.event(ui.labelInput,'keydown',{key:'Enter',repeat:true});await h.flush();assert.equal(h.sent.filter(r=>r.kind==='sketch-label').length,1);
  accept();await h.flush();assert.deepEqual(h.tools,['point']);assert.equal(h.scene.ready,false);assert.equal(h.model.sketchProjection().sketches[0].label,'Required intent');h.event(ui.labelInput,'keydown',{key:'Enter'});await h.flush();assert.deepEqual(h.tools,['point']);ui.dispose();
 });
+
+test('live exact feedback mask clears accepted ink while preserving vectors and newer versions',async()=>{
+ const {createFeedbackMask}=await import('../../cmd/internal/webcast/web/feedback-mask.js');
+ const {mountSketch}=await mod(),h=harness();const hooks=new Set();
+ h.view.onFeedback=fn=>{hooks.add(fn);return()=>hooks.delete(fn);};
+ h.view.feedbackMask=createFeedbackMask({changed:()=>{for(const fn of hooks)fn();}});
+ let clears=0;h.context.clearRect=()=>clears++;
+ const ui=mountSketch(h.doc,h.win,h.view,h.options);await ui.enter();
+ h.event(ui.layer,'pointerdown');await h.flush();h.event(ui.layer,'pointerup',{buttons:0});await h.flush();
+ const before=h.model.sketchProjection(),meta=h.model.sketchMetadata('server-s');
+ assert.ok(h.context.paintedPoints>0);h.context.paintedPoints=0;clears=0;
+ h.view.feedbackMask.install({scope:'cast',revision:'1',sketches:[{id:'server-s',next_sequence:String(meta.next_sequence),digest:meta.digest}],notes:[]});await h.flush();
+ assert.ok(clears>0,'mask must invalidate and erase old canvas pixels');assert.equal(h.context.paintedPoints,0);
+ assert.deepEqual(h.model.sketchProjection(),before,'mask cannot alter accepted history');
+ await ui.leave();ui.labelInput.value='new version';await ui.saveLabel();await h.flush();
+ assert.ok(h.context.paintedPoints>0,'new accepted version must reappear');ui.dispose();
+});

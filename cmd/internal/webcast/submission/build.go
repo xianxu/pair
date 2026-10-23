@@ -115,7 +115,7 @@ func Build(recs []recording.Record, selected board.Selection, id string, target 
 		if reason == "" {
 			reason = "not captured when drawn"
 		}
-		note := core.Note{PrivacyDecision: core.PrivacyDecision{Privacy: core.Private}, CaptureID: n.Capture, SourceDocument: documents[n.ID], ID: n.ID, Revision: selectedNote.Revision, Author: n.Author, Text: n.Text, T: n.T, At: anchor, Context: view.Context, Element: view.Element, Before: view.BeforeLines, Crop: core.Crop{Unavailable: reason}, BoxText: core.BoxText{Unavailable: reason}}
+		note := core.Note{PrivacyDecision: core.PrivacyDecision{Privacy: core.Private}, CaptureID: n.Capture, SourceDocument: documents[n.ID], ID: n.ID, Revision: selectedNote.Revision, Author: n.Author, Text: n.Text, T: n.T, At: anchor, Elements: &view.Elements, Context: view.Context, Element: view.Element, Before: view.BeforeLines, Crop: core.Crop{Unavailable: reason}, BoxText: core.BoxText{Unavailable: reason}}
 		if note.Element == "" {
 			note.Element = "unavailable: recorded element missing"
 			note.Context.Text = n.At.Text
@@ -147,12 +147,17 @@ func finiteBox(b recording.Box) error {
 // The authored note, frozen anchor, revision and original document are unchanged.
 func ContextAt(recs []recording.Record, n core.Note, at int64) (core.Note, error) {
 	record := &recording.Note{ID: n.ID, Author: n.Author, Text: n.Text, At: n.At}
+	if n.BoxText.Region != (recording.Box{}) {
+		region := n.BoxText.Region
+		record.Region = &region
+	}
 	record.SetTime(n.T)
 	view, err := query.New(recs, notes.Structural{}).ContextForNote(record, at, 5000)
 	if err != nil {
 		return n, err
 	}
 	n.T = at
+	n.Elements = &view.Elements
 	n.Context = view.Context
 	n.Element = view.Element
 	n.Before = view.BeforeLines

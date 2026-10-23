@@ -1,0 +1,22 @@
+{
+  "source_revision": "78e7e62e30a2138d06b3b20d97e22eb8b0d59563",
+  "command": [
+    "env",
+    "WEBCAST_LIVE_CHROME=1",
+    "go",
+    "test",
+    "./cmd/internal/webcast",
+    "-run",
+    "TestLiveSketchPage|TestLiveCurrentSketchPage|TestOperatorSketchLive|TestSketchLiveTwoViewers|TestLiveFidelity",
+    "-count=1",
+    "-v"
+  ],
+  "outcome": "pass",
+  "duration_seconds": 93.276,
+  "log_sha256": "208edb55b8e08221527d9ed295ab310655430a124ad84bf5a5817998e8135874",
+  "qualification": "Pre-integration exact-source native regression qualification: scene privacy, fidelity, drawing/tab/SPA/current shared image, handoff, two viewers/reconnect/replay, shared page pressure/indices and strict original anchor refusal.",
+  "limitations": [
+    "Synthetic headless fixtures; renewed real-operator current-view re-look remains separate.",
+    "Existing rec-stress fidelity baseline has1of3frames above3percent; qualified fixture test passes."
+  ]
+}

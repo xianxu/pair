@@ -190,7 +190,7 @@ func (q *Querier) ContextForNote(note *recording.Note, at, before int64) (NoteVi
 
 func (q *Querier) noteContext(st *recording.State, view *recording.NoteView, i int, before int64, words map[int]said) (NoteView, error) {
 	n := view.Note
-	v := NoteView{Note: view, URL: st.URL, Header: Header(st)}
+	v := NoteView{Note: view, URL: st.URL, Header: Header(st), Elements: noteElementFacts(st, n)}
 	if node, ok := q.model.Resolve(st, n.At); ok {
 		at := n.At
 		at.Node = node
@@ -215,4 +215,16 @@ func (q *Querier) noteContext(st *recording.State, view *recording.NoteView, i i
 		v.BeforeLines = append([]string{fmt.Sprintf("… %d earlier actions", k)}, v.BeforeLines[k:]...)
 	}
 	return v, nil
+}
+
+func noteElementFacts(st *recording.State, n *recording.Note) DeclaredElementFacts {
+	region := n.Region
+	if region == nil {
+		region = n.At.Box
+	}
+	var anchors []recording.NodeID
+	if n.At.Node > 0 {
+		anchors = []recording.NodeID{n.At.Node}
+	}
+	return DeclaredElementFactsAt(st, anchors, region)
 }

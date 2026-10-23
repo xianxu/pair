@@ -347,7 +347,15 @@ func RunWithRuntime(args []string, stdin io.Reader, stdout, stderr io.Writer, rt
 			lease.Close()
 			return prepared.StoreDir(), nil
 		}
-		return query.Run(invocation.args, replayLinker(store, couchmessage.Call, slotPollClock{now: time.Now, sleep: time.Sleep}, stderr), stdout, stderr)
+		ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+		defer stop()
+		return query.RunWithOptions(invocation.args, query.RunOptions{Context: ctx, Link: replayLinker(store, couchmessage.Call, slotPollClock{now: time.Now, sleep: time.Sleep}, stderr), ExportSketchImage: func(ctx context.Context, request query.SketchImageRequest) error {
+			bin, err := webcast.FindChrome(rt.Getenv, exec.LookPath, fileExists)
+			if err != nil {
+				return err
+			}
+			return webcast.ExportSketchImage(ctx, webcast.NewSketchImageRenderer(bin), request)
+		}}, stdout, stderr)
 	}
 	if invocation.kind == cliWebReplay {
 		// Reads recordings in the store a running Couch records to, and

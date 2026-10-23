@@ -446,6 +446,7 @@ func normalizeSketchPoint(p SketchPoint) SketchPoint {
 // SketchMetadata and SketchStrokeMetadata are owned small query values. They
 // never contain historical points, receipt collections or mutable core maps.
 type SketchMetadata struct {
+	Digest       string   `json:"digest"`
 	ID           string   `json:"id"`
 	Author       Author   `json:"author"`
 	Owner        string   `json:"owner"`
@@ -465,6 +466,28 @@ type SketchStackTops struct {
 	VisibleCount int    `json:"visible_count"`
 	RedoCount    int    `json:"redo_count"`
 }
+
+// SketchCandidate is small, owned metadata for a labeled visible sketch. It
+// never copies pressure points or receipts; order is recording creation order.
+type SketchCandidate struct {
+	ID           string
+	NextSequence uint64
+	Digest       string
+}
+
+func (s *SketchState) SubmissionCandidates() []SketchCandidate {
+	var out []SketchCandidate
+	for _, id := range s.order {
+		h := s.sketches[id]
+		if h.label == "" || len(h.visible) == 0 || (h.phase != "complete" && h.phase != "interrupted") || len(h.receiptOrder) == 0 {
+			continue
+		}
+		last := h.receipts[h.receiptOrder[len(h.receiptOrder)-1]]
+		out = append(out, SketchCandidate{ID: id, NextSequence: h.next, Digest: last.Digest})
+	}
+	return out
+}
+
 type SketchStrokeMetadata struct {
 	ID         string  `json:"id"`
 	At         NoteAt  `json:"at"`
@@ -499,7 +522,11 @@ func (s *SketchState) Metadata(id string) (SketchMetadata, bool) {
 		return SketchMetadata{}, false
 	}
 	b := h.begin
-	return SketchMetadata{ID: id, Author: b.Author, Owner: b.Owner, Doc: b.Doc, Tab: b.Tab, VP: b.VP, T: b.T, Phase: h.phase, Reason: h.reason, Label: h.label, NextSequence: h.next, OpenStroke: h.open}, true
+	digest := ""
+	if len(h.receiptOrder) > 0 {
+		digest = h.receipts[h.receiptOrder[len(h.receiptOrder)-1]].Digest
+	}
+	return SketchMetadata{Digest: digest, ID: id, Author: b.Author, Owner: b.Owner, Doc: b.Doc, Tab: b.Tab, VP: b.VP, T: b.T, Phase: h.phase, Reason: h.reason, Label: h.label, NextSequence: h.next, OpenStroke: h.open}, true
 }
 func (s *SketchState) StackTops(id string) (SketchStackTops, bool) {
 	h := s.sketches[id]
