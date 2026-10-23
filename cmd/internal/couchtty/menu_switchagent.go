@@ -3,6 +3,7 @@ package couchtty
 import (
 	"encoding/json"
 	"fmt"
+	"slices"
 	"unicode/utf8"
 
 	"github.com/xianxu/pair/cmd/internal/couchcore"
@@ -250,7 +251,25 @@ func renderSwitchAgentMenu(frame MenuFrame, width, height int) []string {
 			}
 			return "  " + label
 		}
-		lines = append(lines, button("switch", action)+" · "+button("interrupt-switch", "Interrupt then switch"), button("force-switch", "Force switch")+" · "+button("cancel", "Cancel"))
+		// Drop advisory context before letting banners hide the focused action or Cancel.
+		if height < len(lines)+4 {
+			lines = append(lines[:1], lines[2:]...)
+		}
+		actions := []string{button("switch", action), button("interrupt-switch", "Interrupt then switch"), button("force-switch", "Force switch"), button("cancel", "Cancel")}
+		budget := max(1, height-len(lines))
+		if budget < len(actions) {
+			selected := slices.Index([]string{"switch", "interrupt-switch", "force-switch", "cancel"}, frame.SelectedItem)
+			if budget == 1 {
+				if selected < 0 {
+					selected = len(actions) - 1
+				}
+				actions = actions[selected : selected+1]
+			} else {
+				start := min(max(0, selected-budget+2), len(actions)-budget)
+				actions = append(actions[start:start+budget-1], actions[len(actions)-1])
+			}
+		}
+		lines = append(lines, actions...)
 		if frame.PreviewPending != 0 {
 			lines = append(lines, "resolving startup parameters…")
 		}

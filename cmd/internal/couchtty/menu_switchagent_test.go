@@ -394,3 +394,50 @@ func TestSwitchAgentSameAgentIntentShowsRestart(t *testing.T) {
 		})
 	}
 }
+
+func TestSwitchAgentFormActionsHaveSeparateFocusedRows(t *testing.T) {
+	for _, agent := range []string{"claude", "codex"} {
+		for _, restart := range []bool{false, true} {
+			action := "Switch"
+			p := couchcore.PreparedAgentSwitch{Address: menuAddress("couch-one"), SourceAgent: agent, Profile: couchcore.LaunchProfile{Agent: agent}}
+			if restart {
+				p.Intent = couchcore.SwitchIntentRestartPreferResume
+				action = "Restart"
+			}
+			items := []string{"parameters", "switch", "interrupt-switch", "force-switch", "cancel"}
+			labels := []string{"parameters", action, "Interrupt then switch", "Force switch", "Cancel"}
+			for _, selected := range items {
+				t.Run(agent+"/"+action+"/"+selected, func(t *testing.T) {
+					state := NewMenuState(menuThreads(), p.Address)
+					appendMenuFrame(&state, MenuFrame{Kind: MenuFrameSwitchAgent, Thread: p.Address, Agent: agent, SwitchStage: 1, SwitchPrepared: &p, SelectedItem: selected})
+					body := RenderMenuView(state, 40, 10, time.Now(), false).Body
+					rows := strings.Split(body, "\r\n")
+					previous := -1
+					for i, label := range labels {
+						want := "  " + label
+						if items[i] == selected {
+							want = "▸ " + label
+						}
+						found := -1
+						for row, text := range rows {
+							if strings.TrimRight(text, " ") == want {
+								found = row
+							}
+						}
+						if found <= previous {
+							t.Fatalf("missing, shared or misordered action row %q: %s", want, body)
+						}
+						previous = found
+					}
+					state.Notice = errorMenuNotice("ordinary failure")
+					state.CopyFeedback = CopyFeedback{Kind: CopyFeedbackFailed, Text: "clipboard failed"}
+					body = RenderMenuView(state, 40, 10, time.Now(), false).Body
+					focused := "▸ " + labels[slices.Index(items, selected)]
+					if !strings.Contains(body, focused) || !strings.Contains(body, "Cancel") || !strings.Contains(body, "parameters") {
+						t.Fatalf("banners hid focus, parameters or cancel: %s", body)
+					}
+				})
+			}
+		}
+	}
+}
