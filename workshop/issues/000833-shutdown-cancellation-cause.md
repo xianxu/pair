@@ -16,6 +16,7 @@ claimant:
     workspace: pair:9
     worktree: /Users/xianxu/workspace/worktree/pair-slot9/pair
     repository: github.com/xianxu/pair
+flow: {kind: quick, provenance: inferred, spec: "d901db47", done: "654d9c75"}
 ---
 
 # Preserve shutdown cancellation cause across presenter requests
