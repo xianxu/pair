@@ -1,13 +1,13 @@
 ---
 id: 000832
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-10-23
 updated: 2026-10-23
 estimate_hours:
 collaboration-mode: collaboration
-card_mirror: 'a310033c9b13aeaf8292d80ade9faa1f84cfb536' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '6eb41af7c124932a3830ca85659cb1fca641a6eb' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-23T01:02:46-07:00
 claimant:
     operator: Xian Xu
@@ -18,6 +18,7 @@ claimant:
     repository: github.com/xianxu/pair
 flake_tests: [github.com/xianxu/pair/cmd/internal/vmcmd.TestNativeReadinessRunCancellationRetainsCleanupAuthority]
 flow: {kind: quick, provenance: inferred, spec: "4d5cfaeb", done: "b9daf772"}
+actual_hours: 0.48
 ---
 
 # Native VM readiness cancellation reports unconfirmed cleanup and blocks integration suites
