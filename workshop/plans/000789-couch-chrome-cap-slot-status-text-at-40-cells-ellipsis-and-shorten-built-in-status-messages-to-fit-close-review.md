@@ -575,3 +575,72 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-22T21:58:05-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 789 — Couch chrome: cap status text at 40 cells and preserve full copying |
+| repo | pair |
+| issue file | workshop/issues/000789-couch-chrome-cap-slot-status-text-at-40-cells-ellipsis-and-shorten-built-in-status-messages-to-fit.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 56be4d17df1b9b6c14683668c9fc0fd1417d6c2a..0d3a009eb73fd04ad76ea3423d97feb15599d5d3 |
+| command | sdlc close --issue 789 |
+| reviewer | codex (openai; author openai) |
+| isolation | fenced |
+| timestamp | 2026-10-22T21:58:05-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+The interdiff resolves the atlas conflict while preserving both tab-style documentation and the 40-cell/full-copy contract. Other changes append review records. Spec, Done-when, and Plan remain unchanged; added Revisions entries record verification and workflow status without changing scope. No prior findings remain open, and no new blocking defects were found.
+
+```findings
+{}
+```
+
+1. **Strengths**
+   - `atlas/couch.md:17` preserves collapse as the default and multiline as the explicit alternative.
+   - `atlas/couch.md:58` correctly documents the shared cap, retained diagnostics, and copy precedence, matching `reserve.go:381`, `reserve.go:395`, and `console_menu.go:464`.
+   - The resolution retains the tab-style geometry and privacy documentation while removing conflict markers and the obsolete unconditional two-row description.
+
+2. **Critical findings:** None.
+
+3. **Important findings:** None.
+
+4. **Minor findings:** None.
+
+5. **Test coverage notes**
+   - Focused chrome projection, full-copy, capability-copy, and tab-style configuration tests passed: `go test ./cmd/internal/couchtty -run '^(TestChrome.*|TestParseTabStyle|TestConsoleTabStyleConfiguration)$' -count=1 -timeout=60s`.
+   - `git diff --check` passed.
+   - No executable behavior changes occur in this window; no regression inversion or full-suite rerun was necessary.
+
+6. **Architectural notes**
+   - **ARCH-DRY — pass:** documentation describes the existing shared projection.
+   - **ARCH-PURE — pass:** no logic or IO boundaries changed.
+   - **ARCH-PURPOSE — pass:** the resolution preserves both sides’ intent and the accepted cap/copy scope.
+   - **ARCH-EVOLVE — pass:** ledger additions preserve existing records; no format, reader, or writer changes occur.
+
+7. **Plan revision recommendations:** None.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"d15a8926-6aaf-434e-a718-a2ef3dd7f807","repository":"github.com/xianxu/pair","issue_id":"000789","recipe":"fix-review","round":7,"attempt":1,"agent":"codex","root":"/Volumes/TestScratch/review-checkouts/15c7dc325d78c487","reviewed_head":"0d3a009eb73fd04ad76ea3423d97feb15599d5d3","slot":"pair:4","requested_at":"2026-10-23T04:55:19.971257Z"},"phase":"finished","pid":97793,"started_at":"2026-10-23T04:55:20.110625Z","finished_at":"2026-10-23T04:56:29.934967Z","session_id":"01a1671d-1079-7050-bdd1-52c04e23840c","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 1.983918459s
+head: "0d3a009eb73fd04ad76ea3423d97feb15599d5d3"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412
