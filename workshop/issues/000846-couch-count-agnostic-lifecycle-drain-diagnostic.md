@@ -37,9 +37,9 @@ Change the one string in `cmd/internal/couchcmd/lifecycle_notices.go` to `Lifecy
 
 ## Plan
 
-- [ ] Change the format string and its exact pin.
-- [ ] Focused and package tests for cmd/internal/couchcmd; go vet.
-- [ ] sdlc close with the run as evidence; recorded suite and merge before the day's window closes.
+- [x] Change the format string and its exact pin.
+- [x] Focused and package tests for cmd/internal/couchcmd; go vet.
+- [x] sdlc close with the run as evidence; recorded suite and merge before the day's window closes.
 
 ## Log
 
