@@ -144,6 +144,10 @@ Narrow close round4 SHIP, zero findings; reviewer independently passed complete 
 Landing session45547 then ended on conflicts with newer main54a02d7aa3971f50987bcef321de6534d8d566a9: atlas/couch-testing.md has independent appended #791 diagnostics and #801 conformance-bridge sections; manifest.go has additive #791 capture and #743 VM inventory entries. Preserve both sides in each conflict, with no behavior change. Prior suite/resume receipt qualifies the preceding integration only. Next: targeted inventory and required affected-inventory, commit/push this integration, recorded full suite on this new exact head, narrow re-close with its successful receipt, then retry merge. Keep #807 paused until landing.
 
 
+
+- Second integration pushed as7950b24983cabab9ff1e57ecfcf21ff0af2f3420. Source classification regression PASS2.346s; make test-affected-inventory PASS; conflict paths whitespace clean. New recorded suite session57388/lease-4128968349 is queued on that exact head, initial FIFO9; checkout /Volumes/TestScratch/local-checks/sdlc-local-876042336; log .git/sdlc/test-stats/inflight/68653db461f4c3c4ec590d436a548c94/run.log. No active merge runner. Preserve this check and do not restart/duplicate it. Exact next action: poll57388; after successful full-suite receipt, rerun make test-affected-inventory, narrow re-close --fixed-then-ship --full-suite with that receipt, then sdlc merge --yes. Any new failure requires classification, not blind rerun. No new #807/#810/#737 work in the meantime.
+
+
 ## Revisions
 
 ### 2026-10-22 — operator/TL expanded reproduction and capture scope
