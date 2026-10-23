@@ -1,6 +1,6 @@
 ---
 id: 000743
-status: codecomplete
+status: done
 created: 2026-10-20
 updated: 2026-10-22
 estimate_hours: 5.06
@@ -21,6 +21,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: af709ee6585acdf17c791831e8b587cf3860bae5
         evidence_commit: e78eae08543e73ab45cf25d20bcf95a1d7f10328
+        landed_commit: fd80f928c0def478985656c5de33557d7ec0d371
 ---
 
 # conformance: run couch-zellij-conformance in a local Tart VM as a declared local check; GitHub job becomes a non-required main/weekly backstop
