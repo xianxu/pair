@@ -66,6 +66,25 @@ func TestDisposableSlashKeys(t *testing.T) {
 				}
 			}
 
+			afterCommand, capturedRefusal := false, false
+			captureRefusal := func(resourceJSON string) {
+				if capturedRefusal || ctx.Err() != nil {
+					return
+				}
+				capturedRefusal = true
+				// One pair of public observations, within the original runtime.
+				// They are sequential evidence, not one atomic wrapper frame.
+				if resourceJSON == "" {
+					result, err := fleet.ActorCLI(ctx, 0, "--resources", "--json")
+					resourceJSON = result.Stdout
+					t.Logf("post-command resources exit=%d error=%v", result.ExitCode, err)
+				}
+				const retainedBytes = 8192
+				t.Logf("post-command refusal resources at=%s bytes=%d truncated=%t json=%q", time.Now().Format(time.RFC3339Nano), len(resourceJSON), len(resourceJSON) > retainedBytes, resourceJSON[:min(len(resourceJSON), retainedBytes)])
+				peek, err := fleet.ActorCLI(ctx, 0, "--peek", "fixture:1", "--lines", "40", "--json")
+				t.Logf("post-command refusal live peek exit=%d error=%v bytes=%d truncated=%t json=%q", peek.ExitCode, err, len(peek.Stdout), peek.Truncated || len(peek.Stdout) > retainedBytes, peek.Stdout[:min(len(peek.Stdout), retainedBytes)])
+			}
+
 			waitSupervisorIdle := func(after time.Time) {
 				t.Helper()
 				// This proves only the supervisor's public settled evidence.
@@ -84,6 +103,9 @@ func TestDisposableSlashKeys(t *testing.T) {
 						return false, err
 					}
 					if !slashKeysSupervisorIdle(resources, after) {
+						if afterCommand && resources.SampledAt.After(after) {
+							captureRefusal(result.Stdout)
+						}
 						return false, nil
 					}
 					t.Logf("public idle sample=%s after=%s", resources.SampledAt.Format(time.RFC3339Nano), after.Format(time.RFC3339Nano))
@@ -97,6 +119,9 @@ func TestDisposableSlashKeys(t *testing.T) {
 				args := append([]string{"--keys", "fixture:1"}, steps...)
 				result, err := fleet.ActorCLI(ctx, 0, append(args, "--json")...)
 				if err != nil || result.ExitCode != 0 {
+					if afterCommand {
+						captureRefusal("")
+					}
 					t.Fatalf("public keys %q: %+v %v", steps, result, err)
 				}
 				var response couchmessage.Response
@@ -133,6 +158,7 @@ func TestDisposableSlashKeys(t *testing.T) {
 				return true, nil
 			}
 			receipt := keys("clear-line", "text:/model", "enter")
+			afterCommand = true
 			if err := waitFleet(ctx, assertAccepted); err != nil {
 				t.Fatal(err)
 			}
