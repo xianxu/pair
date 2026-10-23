@@ -16,6 +16,7 @@ claimant:
     workspace: pair:2
     worktree: /Users/xianxu/workspace/worktree/pair-slot2/pair
     repository: github.com/xianxu/pair
+flow: {kind: quick, provenance: inferred, spec: "d0534500", done: "cb2fcab9"}
 ---
 
 # Fence slash qualification journal against system deliveries
