@@ -16,6 +16,7 @@ claimant:
     workspace: pair:9
     worktree: /Users/xianxu/workspace/worktree/pair-slot9/pair
     repository: github.com/xianxu/pair
+flow: {kind: quick, provenance: inferred, spec: "10a33215", done: "4ec1fbaa"}
 ---
 
 # unified-editorial-interface: Couch parses, protects and enforces per-section modes (heading comments, aliases, migration)
