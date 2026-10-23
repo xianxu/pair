@@ -251,9 +251,27 @@ func (c *PairLifecycleController) rollbackUnpublishedPark(result ParkResult, cur
 	rolled, err := c.Threads.rollbackUnpublishedPark(cleanupCtx, current)
 	if err == nil {
 		result.Thread = rolled
+		return result, &parkRolledBackError{cause: cause, nonce: current.Park.Identity.Nonce}
 	}
 	return result, errors.Join(cause, err)
 }
+
+// parkRolledBackError marks a failure the controller itself proved harmless:
+// the transaction was never published and its rollback committed. It is the
+// only positive no-publication proof a full-quit leave accepts before minting
+// a fresh park (#827). It adds no text, so refusals read as before.
+type parkRolledBackError struct {
+	cause error
+	nonce string
+}
+
+func (e *parkRolledBackError) Error() string {
+	if e.cause == nil {
+		return "unpublished park rolled back"
+	}
+	return e.cause.Error()
+}
+func (e *parkRolledBackError) Unwrap() error { return e.cause }
 
 var errParkCleanupFailed = errors.New("Pair cleanup failed")
 

@@ -167,6 +167,30 @@ Park|Relaunch|Leave|Recover cohort ok (unsandboxed: several fixtures mkdir /tmp,
 sandbox denies). Overlap: open #580 (slow park commit) is the same 1s defect; this
 change fixes its stated symptom — flagged to TL. Next: Task 3 bounded leave pass.
 
+2026-10-23 — #580 assessed per TL: NOT fully met by #827. Its Spec forbids "merely
+raise the timeout" and Done-when requires a successful slow BeginPark never fail solely
+from elapsed time; #827 still rolls back on elapsed time (at 10s). Leave #580 open;
+remaining: distinguish committed-slow from failed/uncertain commit instead of a wall-time
+cutoff.
+
+2026-10-23 — Task 3 implemented (uncommitted→checkpoint): leave_park.go (pure
+decideLeaveParkRetry, leaveParkOne joined drives, LeaveUnresolved, FormatLeaveParkSummary),
+AwaitJoined + parkJoined/recoverJoined via typed await, parkRolledBackError (positive
+no-publication proof, no text change), LeaveParkBudget 60s, Leave park routes to
+leaveParkOne; leaveOne's dead LeavePark branches removed. Existing Park|Relaunch|Leave|
+Recover cohort green.
+
+DISCOVERY (likely incident root cause, needs TL design decision): the 15/30-target
+fleet test on a COORDINATED store (as production, couch.go:197) fails with "lock thread
+store: resource temporarily unavailable". Traced (temporary instrumentation, removed):
+ctx-aware writes (AdvancePark/FinalizePark/rollback) run under the coordinator but take
+the nested store.lock NONBLOCKING (withStoreLockChecked check!=nil); routing reads
+(recoveryBackend -> storeForAddressContext -> slotRepositoryManifestContext) and any
+preview read take store.lock via retentionReadLock OUTSIDE the coordinator. A sibling
+park's routing read, or Console's preview poll, makes a park write fail at once. Under
+fan-out this is exactly "needs another Alt+x". leave_park_test RetriesProvenRollback
+is the RED fixture (23 EWOULDBLOCK in 3 runs). Waiting on TL before changing the lock.
+
 ## Estimate
 
 Produced via brain/data/life/42shots/velocity/estimate-logic-v3.1.md against

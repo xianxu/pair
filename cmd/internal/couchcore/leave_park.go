@@ -1,0 +1,212 @@
+package couchcore
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"strings"
+	"time"
+)
+
+// LeaveParkBudget bounds one confirmed full quit (#827): gate waits, queueing,
+// drives and reconciliation all share it, and every retry uses the same
+// absolute deadline. It is a scheduling budget, not a process-exit ceiling --
+// a synchronous durable write still settles and is joined after it ends.
+const LeaveParkBudget = 60 * time.Second
+
+// leaveParkMaxDrives caps the drives one target gets in one full quit,
+// including its first.
+const leaveParkMaxDrives = 3
+
+// leaveParkAction is which existing controller entry a drive uses.
+type leaveParkAction uint8
+
+const (
+	// leaveParkFresh begins a new park transaction on a live thread.
+	leaveParkFresh leaveParkAction = iota + 1
+	// leaveParkRecover drives the thread's existing transaction, nonce kept.
+	leaveParkRecover
+)
+
+// leaveParkEvidence is what one drive proved, read back from its result and
+// the authoritative record.
+type leaveParkEvidence struct {
+	// Verified: the drive returned verified inactive history and no open park.
+	Verified bool
+	// Failed: the drive returned an error.
+	Failed bool
+	// OpenTransaction: the record still carries a park transaction.
+	OpenTransaction bool
+	// RolledBack: the controller proved the transaction unpublished and its
+	// rollback committed (parkRolledBackError).
+	RolledBack bool
+	// SameSource: the record's sole live incarnation is still the one this
+	// leave captured before its first drive.
+	SameSource bool
+	// BudgetLeft: the full-quit budget had not ended.
+	BudgetLeft bool
+}
+
+type leaveParkDecision uint8
+
+const (
+	leaveParkSettled leaveParkDecision = iota + 1
+	leaveParkRetryFresh
+	leaveParkRetryRecover
+	// leaveParkRefused needs the operator: the evidence permits no safe drive.
+	leaveParkRefused
+	// leaveParkExhausted: a retry would be safe but no drive or budget remains.
+	leaveParkExhausted
+)
+
+// decideLeaveParkRetry is the whole retry policy of a full-quit target (#827).
+// Verified success is absorbing. A failure retries only on positive evidence:
+// an open transaction goes back through Recover under its own nonce, and a
+// fresh park needs the controller's proof that nothing was published plus the
+// same guarded incarnation. A drive that returned without error but without
+// verified history (an unknown or closed transaction) is the operator's.
+func decideLeaveParkRetry(ev leaveParkEvidence, drives int) leaveParkDecision {
+	if ev.Verified {
+		return leaveParkSettled
+	}
+	if !ev.Failed {
+		return leaveParkRefused
+	}
+	if !ev.OpenTransaction && !(ev.RolledBack && ev.SameSource) {
+		return leaveParkRefused
+	}
+	if drives >= leaveParkMaxDrives || !ev.BudgetLeft {
+		return leaveParkExhausted
+	}
+	if ev.OpenTransaction {
+		return leaveParkRetryRecover
+	}
+	return leaveParkRetryFresh
+}
+
+// LeaveUnresolved names one thread a full quit could not prove parked, with
+// the reason and the operator's next action.
+type LeaveUnresolved struct {
+	Address ThreadAddress
+	Reason  string
+	Next    string
+}
+
+// leaveParkOne is leaveOne's LeavePark form (#827). It holds the thread for
+// every drive it makes, joins each admitted park future before deciding, and
+// retries only what decideLeaveParkRetry permits.
+func (c *Couch) leaveParkOne(ctx context.Context, address ThreadAddress) (leaveOutcome, error) {
+	if c.PairLifecycle == nil {
+		return leaveNone, errors.New("Pair lifecycle controller is unavailable")
+	}
+	ctx, release, err := c.holdWait(ctx, address, "leave")
+	if err != nil {
+		return leaveNone, fmt.Errorf("leave couch: wait for %s: %w", address.Tag, err)
+	}
+	defer release()
+	record, err := c.Threads.GetThread(address)
+	if errors.Is(err, ErrThreadNotFound) {
+		return leaveNone, nil // archived while Leave waited
+	}
+	if err != nil {
+		return leaveNone, err
+	}
+	action := leaveParkRecover
+	var source ProcessIdentity
+	if record.Park == nil {
+		record, err = c.adoptOwnedAttachment(ctx, record)
+		if err != nil {
+			return leaveNone, err
+		}
+		if !hasActiveIncarnation(record) {
+			return leaveNone, nil
+		}
+		if len(record.Incarnations) != 1 || record.Incarnations[0].State != IncarnationLive {
+			return leaveSkipped, nil
+		}
+		action = leaveParkFresh
+		source = ProcessIdentity{PID: record.Incarnations[0].PID, Identity: record.Incarnations[0].Identity}
+	}
+	var failures []error
+	for drives := 1; ; drives++ {
+		if c.onLeaveParkDrive != nil {
+			c.onLeaveParkDrive(address, action)
+		}
+		var result ParkResult
+		var driveErr error
+		if action == leaveParkFresh {
+			result, driveErr = c.PairLifecycle.parkJoined(ctx, address)
+		} else {
+			result, driveErr = c.PairLifecycle.recoverJoined(ctx, address)
+		}
+		after, readErr := c.Threads.GetThread(address)
+		var rolledBack *parkRolledBackError
+		ev := leaveParkEvidence{
+			Verified:   driveErr == nil && result.Thread.VerifiedPark != nil && result.Thread.Park == nil,
+			Failed:     driveErr != nil,
+			RolledBack: errors.As(driveErr, &rolledBack),
+			BudgetLeft: ctx.Err() == nil,
+		}
+		if readErr == nil {
+			ev.OpenTransaction = after.Park != nil
+			ev.SameSource = source.PID != 0 && len(after.Incarnations) == 1 &&
+				after.Incarnations[0].State == IncarnationLive &&
+				after.Incarnations[0].PID == source.PID && after.Incarnations[0].Identity == source.Identity
+		}
+		if driveErr != nil {
+			failures = append(failures, driveErr)
+		}
+		switch decideLeaveParkRetry(ev, drives) {
+		case leaveParkSettled:
+			return leaveParked, nil
+		case leaveParkRetryFresh:
+			action = leaveParkFresh
+			continue
+		case leaveParkRetryRecover:
+			action = leaveParkRecover
+			continue
+		}
+		proof := result.Thread
+		if readErr == nil {
+			proof = after
+		}
+		cause := errors.Join(append(failures, readErr)...)
+		if cause == nil {
+			cause = errors.New("did not produce verified inactive history")
+		}
+		return leaveNone, c.withParkRecoveryAdvice(context.WithoutCancel(ctx), proof,
+			fmt.Errorf("leave couch: park %s (%d drive(s)): %w", address.Tag, drives, cause))
+	}
+}
+
+// leaveParkUnresolved names the operator's next action for one unresolved
+// thread from its record as it is now: an open transaction has its exact
+// recovery; anything else is retried by another full quit once resolved.
+func (c *Couch) leaveParkUnresolved(ctx context.Context, address ThreadAddress, reason string) LeaveUnresolved {
+	next := "resolve the error, then quit again (Alt+x)"
+	if record, err := c.Threads.GetThread(address); err == nil && record.Park != nil {
+		adviceCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), recoveryObservationTimeout)
+		next = c.ParkRecoveryAdvice(adviceCtx, address)
+		cancel()
+	}
+	return LeaveUnresolved{Address: address, Reason: reason, Next: next}
+}
+
+// FormatLeaveParkSummary is the one complete, copyable report of a full quit
+// that did not finish: every unresolved thread once, in snapshot order, with
+// its next action. It never reads as a completed shutdown.
+func FormatLeaveParkSummary(result LeaveResult) string {
+	var b strings.Builder
+	fmt.Fprintf(&b, "Full quit incomplete: %d parked, %d unresolved", len(result.Parked), len(result.Unresolved))
+	if len(result.Skipped) > 0 {
+		fmt.Fprintf(&b, ", %d skipped", len(result.Skipped))
+	}
+	b.WriteString("; Couch stays open.")
+	for _, u := range result.Unresolved {
+		fmt.Fprintf(&b, "\n- %s: %s; next: %s", u.Address.Tag, strings.ReplaceAll(u.Reason, "\n", "; "), u.Next)
+	}
+	for _, address := range result.Skipped {
+		fmt.Fprintf(&b, "\n- %s: skipped, its process state is unknown; next: inspect it before quitting", address.Tag)
+	}
+	return b.String()
+}

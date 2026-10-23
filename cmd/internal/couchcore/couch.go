@@ -126,6 +126,12 @@ type Couch struct {
 	// (context.WithTimeout when nil), so a test decides when the budget is
 	// spent instead of racing it (#480).
 	registrationDeadline func(context.Context, time.Duration) (context.Context, context.CancelFunc)
+	// leaveParkDeadline applies a full quit's LeaveParkBudget
+	// (context.WithTimeout when nil), so a test decides when it is spent (#827).
+	leaveParkDeadline func(context.Context, time.Duration) (context.Context, context.CancelFunc)
+	// onLeaveParkDrive observes each full-quit drive, so a test counts them.
+	// Tests only.
+	onLeaveParkDrive func(ThreadAddress, leaveParkAction)
 
 	// threadGate admits one lifecycle operation per thread (pair#205); see
 	// threadgate.go. A pointer, so a copied Couch cannot split the gate.
