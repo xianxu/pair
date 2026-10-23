@@ -640,3 +640,105 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-23T05:09:13-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 739 — couch: start-up safe mode: no automatic injection into the hub, restart kind reported not acted on, one generic start notice per worker |
+| repo | pair |
+| issue file | workshop/issues/000739-couch-start-up-safe-mode-no-automatic-injection-into-the-hub-restart-kind-reported-not-acted-on-one-generic-start-notice-per-worker.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 5f64ce54412afec1982b296b641cd515034482a0..d2da63f3df609ea04cea240524d9c083d8c5c4db |
+| command | sdlc close --issue 739 |
+| reviewer | codex (openai; author openai) |
+| isolation | fenced |
+| timestamp | 2026-10-23T05:09:13-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: medium
+```
+
+The reviewed implementation matches the revised startup and automation contract. No new blocking defects found. BR-6 is addressed by submitting the acceptance substitution to this full close review; the removed native matrix is explicitly unclaimed. Targeted runtime, race, installed-command and source-guard checks passed.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      The Core concepts tables distinguish pure reducers from IO adapters and identify the delivered paths.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      TestBareCouchInstalledCommand verifies zero automatic launch before explicit Start; it passed in this review.
+  - id: BR-3
+    disposition: withdrawn
+    note: |
+      Retain the prior withdrawal; no new operating-envelope finding is raised.
+  - id: BR-4
+    disposition: addressed
+    note: |
+      The unused selector remains removed; TestNoProductionSymbolIsReferencedOnlyByTests passed.
+  - id: BR-5
+    disposition: addressed
+    note: |
+      Original permits reach broker commit guards on direct and queued admission paths; controlled admission and cue tests passed with race detection.
+  - id: BR-6
+    disposition: addressed
+    note: |
+      Plan lines 326–337 explicitly submit the acceptance substitution to full close, enumerate replacement evidence and remove the unrun native matrix without claiming it passed. This review evaluates that revised contract.
+```
+
+1. **Strengths**
+
+   - Implicit startup attaches survivors without cold/Fresh fallback (`cmd/internal/couchcore/startup.go:75`).
+   - Automation checks remain locked through mailbox admission (`cmd/internal/couchmessage/broker.go:782`, `:804`).
+   - Wrapper-owned cue evidence survives ordinary receipt eviction and rejects stale launch ordinals (`cmd/internal/wrapcmd/peer_delivery.go:773`).
+   - README and atlas explain controls, recovery guidance and distinct notice lifetimes.
+
+2. **Critical findings:** None.
+
+3. **Important findings:** None.
+
+4. **Minor findings:** None.
+
+5. **Test coverage notes**
+
+   Passed targeted tests across couchcore, couchmessage, wrapcmd, couchcmd and couchtty; focused race tests; installed Couch PTY flow; artifact inventory and dead-symbol guards; and `git diff --check`. No full-suite rerun, native fleet matrix or mutation testing was performed during this review. Recorded live acceptance remains operator-reported evidence.
+
+6. **Architectural notes for upcoming work**
+
+   - **ARCH-DRY — pass:** generated input shares one policy ingress.
+   - **ARCH-PURE — pass:** classification and reducers have direct tests; IO adapters remain separate.
+   - **ARCH-PURPOSE — pass:** startup and producer families are covered under the revised contract.
+   - **ARCH-MOCK — pass:** existing stateful fakes and private sockets exercise production seams.
+   - **ARCH-CONSTRAINTS — pass:** counted 20/40-worker tests cover bounded proof work.
+   - **ARCH-SECURE — pass:** exact bindings, ownership and launch ordinals fence generated input.
+   - **ARCH-ORDER — pass:** epoch permits, commit guards and monotonic cue witnesses address controlled interleavings.
+   - **ARCH-FUNERAL — pass:** new state is bounded and dies with its wrapper or supervisor.
+   - **ARCH-EVOLVE — pass:** cue fields negotiate through v5; legacy messaging remains covered.
+
+   #737 still owns combined scheduler wiring and qualification, as explicitly documented.
+
+7. **Plan revision recommendations:** None.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"e3b77125-aea4-4e2c-a1c2-60c659a60eb3","repository":"github.com/xianxu/pair","issue_id":"000739","recipe":"milestone-review","round":7,"attempt":1,"agent":"codex","root":"/Volumes/TestScratch/review-checkouts/8dde9a1c602f53d0","reviewed_head":"d2da63f3df609ea04cea240524d9c083d8c5c4db","slot":"pair:7","requested_at":"2026-10-23T12:07:10.341785Z"},"phase":"finished","pid":98254,"started_at":"2026-10-23T12:07:10.496077Z","finished_at":"2026-10-23T12:09:12.212366Z","session_id":"01a168a8-6d26-7543-8816-1e089c634d2c","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 3.088610209s
+head: "d2da63f3df609ea04cea240524d9c083d8c5c4db"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412

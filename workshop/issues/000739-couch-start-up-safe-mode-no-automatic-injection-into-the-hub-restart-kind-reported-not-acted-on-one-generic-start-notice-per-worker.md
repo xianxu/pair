@@ -127,6 +127,8 @@ total: 4.695
 
 ## Log
 
+
+- 2026-10-23: closed — Full close requested by BR-6: explicit acceptance-substitution table now records each replaced native matrix case, actual operator shutdown evidence, retained portable socket/count tests, and #737 second-lander obligation. Operator hub4339b063 authorized close/landing after actual full shutdown on eccddab6: automation OFF, no automatic cold hub starts, manual hub attach, TL explicit ON; no unrun native matrix claimed. Startup status recovery wording and exact historical stdout regression pass. Corrected startup-ordering fixture holds the write then handles normal fake-host termination; RED0.398s, GREEN20x0.601s, race1.754s. Shared shutdown-cause issue #833 filed unclaimed, no presenter fix included. Recorded full suite PASS on9d3ab0e70aa05783ad47ef73544967d0142b5250 attempta792a901883fb83113a37db329b949e9 exit0 in10m47s loghashb3f86c1f4b99; subsequent commits only log, plan ticks and generated review evidence. Earlier #679 timeout and fixture failure retained in Log. Required reader inventory just passed again without refresh. Project updates belong to hub.; review verdict: SHIP
 ### 2026-10-20
 
 Read the fleet-drain project's design.md before design and claimed/start-planned
