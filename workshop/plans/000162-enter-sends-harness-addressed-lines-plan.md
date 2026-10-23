@@ -127,3 +127,8 @@ Authenticated ops:0 delivery651ebb9f approves the shared testcouch read-only Obs
 ### 2026-10-22 — Authorized overnight acceptance hold
 
 Authenticated ops:0 deliveriesc207f32b and6fca9a0a hold Qoder qualification until after07:00 Pacific2026-10-23 (credits available, cheap-window restriction). Close also waits for ariadne:3 to diagnose/restore the named #151 measurement evidence; no actual-hours bypass. Keep the existing162 recorded-suite and806 merge runners, start nothing more tonight. Landing still requires Qoder pass or a separately approved documented conditional gap, the recorded suite and mandatory close review. Product behavior and verification bounds are unchanged.
+
+
+### 2026-10-23 — Approved legacy measurement exception
+
+Ops:0 deliveries fe295a65 and aa6237be supersede the measurement-repair dependency in the overnight hold. Ariadne#569 will not be built; after Qoder qualification after07:00 Pacific, close uses only the precise --no-actual flag, with --verified citing: "legacy-era overlap with pair#151 and #161 across the measurement cutover; measurement unavailable by design (ariadne#569)". No typed hours and no unverified cutover date. The prior measured refusal remains evidence; Qoder acceptance, recorded checks, mandatory review and normal landing gates remain required.
