@@ -1,6 +1,7 @@
 package couchcore
 
 import (
+	"encoding/json"
 	"fmt"
 	"path/filepath"
 	"slices"
@@ -1268,5 +1269,31 @@ func TestRecoverPlanAfterReapIsResumeOnly(t *testing.T) {
 	row := findRow(t, DeriveRecoverPlan(p.input()), "pair:1")
 	if len(row.Next.Steps) != 1 || row.Next.Steps[0].Action != "resume" {
 		t.Fatalf("steps after reap = %+v", row.Next.Steps)
+	}
+}
+
+// The asleep set reaches the per-slot report (pair#830), beside the slot's
+// claims, so a hub's fleet resume (ariadne#564) reads both in one call. The
+// field is additive: a plain parked row omits it from the JSON.
+func TestRecoverPlanCarriesTheAsleepMark(t *testing.T) {
+	t.Parallel()
+
+	p := newPlanFixture(t)
+	claimedOnBranch(p)
+	p.thread("pair:1", ThreadParked, "")
+	at := time.Date(2026, 10, 23, 1, 0, 0, 0, time.UTC)
+	p.rows[len(p.rows)-1].AsleepAt = &at
+	p.thread("pair:2", ThreadParked, "")
+	plan := DeriveRecoverPlan(p.input())
+	asleep, plain := findRow(t, plan, "pair:1"), findRow(t, plan, "pair:2")
+	if len(asleep.Agent.Rows) != 1 || asleep.Agent.Rows[0].AsleepAt == nil || !asleep.Agent.Rows[0].AsleepAt.Equal(at) {
+		t.Fatalf("asleep row = %+v", asleep.Agent.Rows)
+	}
+	raw, err := json.Marshal(plain.Agent.Rows)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(plain.Agent.Rows) != 1 || strings.Contains(string(raw), "asleep_at") {
+		t.Fatalf("plain parked row = %s", raw)
 	}
 }
