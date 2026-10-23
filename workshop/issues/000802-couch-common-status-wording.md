@@ -1,6 +1,6 @@
 ---
 id: 000802
-status: working
+status: codecomplete
 deps: [789]
 github_issue:
 created: 2026-10-22
@@ -8,7 +8,7 @@ updated: 2026-10-23
 estimate_hours:
 severity: low
 collaboration-mode: collaboration
-card_mirror: 'a91cda09f3c281861e9ef987c69d64dab4cd54fa' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: 'd01b508b51da0d336b191b79646b434cba6aa2da' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-23T08:16:49-07:00
 claimant:
     operator: Xian Xu
@@ -17,6 +17,7 @@ claimant:
     workspace: pair:8
     worktree: /Users/xianxu/workspace/worktree/pair-slot8/pair
     repository: github.com/xianxu/pair
+actual_hours: 1.29
 ---
 
 # Couch: shorten common statuses
