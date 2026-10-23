@@ -543,3 +543,101 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000411
+
+---
+
+## Re-review — 2026-10-23T09:35:21-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 812 — Couch tab bar: drop the trailing last lifecycle/error message (switcher keeps it) |
+| repo | pair |
+| issue file | workshop/issues/000812-couch-tab-bar-drop-the-trailing-last-lifecycle-error-message-switcher-keeps-it.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 6ba2287858a9eb9536160c78f24c9e72eb8e7043..5eb99587cf9010715c99837953d7b81cd4d2eae4 |
+| command | sdlc close --issue 812 |
+| reviewer | codex (openai; author openai) |
+| isolation | fenced |
+| timestamp | 2026-10-23T09:35:21-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+The narrow interdiff fixes the artifact-classification failure by reusing the existing continuation notice category. Regression reversal confirms the test passes with the fix and fails without it. No new defects, scope changes, or documentation gaps were found. Prior dispositions remain intact; recorded qualification and live acceptance remain separate landing prerequisites.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      Retained prior disposition; this interdiff does not alter queue diagnostic routing.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      Retained prior disposition; typed Chrome warning classification is unchanged.
+  - id: BR-3
+    disposition: addressed
+    note: |
+      Retained prior disposition; background-agent warning routing is unchanged.
+  - id: BR-4
+    disposition: addressed
+    note: |
+      Retained prior disposition; the corrected regression oracles and fixtures are unchanged.
+  - id: BR-5
+    disposition: addressed
+    note: |
+      Retained prior disposition; warning publication synchronization is unchanged.
+  - id: BR-6
+    disposition: addressed
+    note: |
+      Retained prior disposition; unexpected-exit publication acknowledgment and completion joins are unchanged.
+```
+
+1. **Strengths**
+
+   - `console_continuation.go:147` reuses the established category without weakening artifact inventory enforcement.
+   - Scan-error episode suppression remains independent of category; attention identity derives from its own sequence.
+   - Spec, Done-when criteria, and implementation plan remain unchanged.
+
+2. **Critical findings:** None.
+
+3. **Important findings:** None.
+
+4. **Minor findings:** None.
+
+5. **Test coverage notes**
+
+   - Artifact-classification regression passed on head.
+   - In a prepared temporary copy, reversing only the changed literal caused that regression to fail with exactly the continuation vocabulary violations. Temporary copies were removed.
+   - Continuation warning episode and controlled publication/selection tests passed ten race-enabled runs.
+   - `make test-affected-inventory` and range diff checks passed. Reviewed checkout remained clean.
+
+6. **Architectural notes**
+
+   - **ARCH-DRY — pass:** Reuses the existing continuation category and warning publisher.
+   - **ARCH-PURE — pass:** Adds no logic or IO coupling.
+   - **ARCH-PURPOSE — pass:** Corrects classification while preserving actionable warning publication and episode suppression.
+   - **ARCH-EVOLVE — pass:** No persisted format changes.
+   - No new architectural or user-facing surface requires atlas or README changes.
+
+7. **Plan revision recommendations:** None.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"c7112497-37f8-42b8-a2a2-02c2cbc210dc","repository":"github.com/xianxu/pair","issue_id":"000812","recipe":"fix-review","round":6,"attempt":1,"agent":"codex","root":"/Volumes/TestScratch/review-checkouts/e144432255e577cd","reviewed_head":"5eb99587cf9010715c99837953d7b81cd4d2eae4","slot":"pair:1","requested_at":"2026-10-23T16:33:10.12555Z"},"phase":"finished","pid":64909,"started_at":"2026-10-23T16:33:10.382938Z","finished_at":"2026-10-23T16:35:15.140167Z","session_id":"01a1699b-f514-7c62-98ed-f187b2ba0582","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 3.530801666s
+head: "5eb99587cf9010715c99837953d7b81cd4d2eae4"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412
