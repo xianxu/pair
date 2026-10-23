@@ -5,9 +5,9 @@ deps: []
 github_issue:
 created: 2026-10-22
 updated: 2026-10-23
-estimate_hours:
+estimate_hours: 4.274
 collaboration-mode: collaboration
-card_mirror: '09bb6bc4e55322b99d40bc8b49d3ccc99135e50b' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: 'fa9f9e93bc2fe7a608cc705372ab1b6b99dfcc4b' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-23T03:16:56-07:00
 claimant:
     operator: Xian Xu
@@ -16,7 +16,7 @@ claimant:
     workspace: pair:9
     worktree: /Users/xianxu/workspace/worktree/pair-slot9/pair
     repository: github.com/xianxu/pair
-flow: {kind: quick, provenance: inferred, spec: "10a33215", done: "4ec1fbaa"}
+flow: {kind: full, provenance: operator}
 ---
 
 # unified-editorial-interface: Couch parses, protects and enforces per-section modes (heading comments, aliases, migration)
@@ -78,6 +78,57 @@ Project `unified-editorial-interface`; implements the spec in ariadne (dependenc
 - [ ] Expose the constrained migration command, update agent guidance/atlas, qualify agents, run recorded checks and close review.
 - [ ] Coordinate the #419 mixed-rendering check and TL-authorized operator smoke, then land and report.
 
+## Estimate
+
+Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md` against `baseline-v3.1.md`. Method A only.
+Read v2/v2.1 for primitive ranges and library availability; v3.1 scales implementation hours to 40%. This is focused
+ship-time, including qualification/docs/review; queue wait and #419's own implementation are outside this issue's
+estimate. Familiarity 1.0 reflects the existing session-sync/write/strictjson surfaces. The thorough plan earns
+×0.2 design discount on implementation primitives and +15% design buffer; issue shaping is counted separately.
+
+| Work unit | Primitive | Raw design → recorded | Raw implementation → recorded |
+|---|---|---|---|
+| Issue shaping and peer contract | issue-spec | 0.5 → 0.5 | 0.2 → 0.08 |
+| Pinned catalog | smaller-go-module | 0.2 × 0.2 = 0.04 | 0.3 × 0.4 = 0.12 |
+| Compiler/source/fill | greenfield-go-module | 1.5 × 0.5 library × 0.2 = 0.15 | 0.8 × 0.4 = 0.32 |
+| Pure migration | smaller-go-module | 0.3 × 0.2 = 0.06 | 0.5 × 0.4 = 0.2 |
+| Edit classifier/guard | greenfield-go-module | 1.0 × 0.2 = 0.2 | 0.8 × 0.4 = 0.32 |
+| Scoped CAS/read integration | smaller-go-module | 0.3 × 0.2 = 0.06 | 0.5 × 0.4 = 0.2 |
+| Preserving round codecs | smaller-go-module | 0.2 × 0.2 = 0.04 | 0.4 × 0.4 = 0.16 |
+| Live/resume consumers | lua-neovim | 1.0 × 0.2 = 0.2 | 0.8 × 0.4 = 0.32 |
+| Constrained migration CLI | smaller-go-module | 0.3 × 0.2 = 0.06 | 0.5 × 0.4 = 0.2 |
+| Agent guidance | skill-or-dispatcher | 0.3 × 0.2 = 0.06 | 0.3 × 0.4 = 0.12 |
+| Atlas | atlas-docs | 0.1 × 0.2 = 0.02 | 0.1 × 0.4 = 0.04 |
+| Shared consumer qualification | cross-repo-refactor-small | 0.2 × 0.2 = 0.04 | 0.2 × 0.4 = 0.08 |
+| Disposable-agent qualification | smaller-go-module | 0.3 × 0.2 = 0.06 | 0.5 × 0.4 = 0.2 |
+| Final review boundary | milestone-review | 0 | 0.5 × 0.4 = 0.2 |
+
+Library check: Goldmark/YAML nodes eliminate writing Markdown/YAML grammars, halving compiler design. They do not
+supply editorial inheritance/migration/write authority; no library discount is applied there. Existing strictjson
+and transaction machinery justify smaller-module classifications rather than greenfield services. No new API is
+introduced. Design subtotal 1.49; implementation subtotal 2.56; total 1.49 × 1.15 + 2.56 = **4.274 hours**.
+
+```estimate
+model: estimate-logic-v3.1
+familiarity: 1.0
+item: issue-spec design=0.5 impl=0.08
+item: smaller-go-module design=0.04 impl=0.12
+item: greenfield-go-module design=0.15 impl=0.32
+item: smaller-go-module design=0.06 impl=0.2
+item: greenfield-go-module design=0.2 impl=0.32
+item: smaller-go-module design=0.06 impl=0.2
+item: smaller-go-module design=0.04 impl=0.16
+item: lua-neovim design=0.2 impl=0.32
+item: smaller-go-module design=0.06 impl=0.2
+item: skill-or-dispatcher design=0.06 impl=0.12
+item: atlas-docs design=0.02 impl=0.04
+item: cross-repo-refactor-small design=0.04 impl=0.08
+item: smaller-go-module design=0.06 impl=0.2
+item: milestone-review design=0 impl=0.2
+design-buffer: 0.15
+total: 4.274
+```
+
 ## Log
 
 ### 2026-10-22
@@ -119,14 +170,6 @@ human-authentication claims; Couch guidance/readers here, actual Parley writers 
 **NEXT ACTION:** run `sdlc change-code --issue 823`; resolve its fresh-context plan-quality findings before code,
 then derive the estimate through the gate. No suite, stage or implementation has started.
 
-## Revisions
-
-### 2026-10-23 — Implementation boundaries from source inventory
-
-Added the durable plan and approval points without changing the operator's settled three-axis contract. The plan
-accounts for the missing section-policy CAS binding and for #419's explicit consumer ownership. No automatic
-legacy-map migration, external operator-document rewrite or new Couch side-doc service is proposed.
-
 
 ### 2026-10-23 — Plan-quality round 1 refinement
 
@@ -138,3 +181,21 @@ round/span/record boundaries. Recorded the class lessons; no implementation or e
 
 **NEXT ACTION:** re-run `sdlc change-code --issue 823 --flow full`; after plan-quality accepts, derive and set the
 estimate using the named v3.1 calibration and re-enter the gate. Ledger is binary-owned; do not edit it by hand.
+
+
+### 2026-10-23 — Plan accepted; estimate derived
+
+Plan-quality round 2 accepted both PQ-1 and PQ-2, with no new findings. Admission stopped only for the missing
+estimate, as expected. Derived the estimate below after that acceptance from the named v3.1 source; the source is
+flagged stale by SDLC, so this is provisional calibration rather than a guarantee. No code has changed yet.
+
+**NEXT ACTION:** set the authoritative card estimate to 4.274 hours and rerun full-flow change-code. After the
+estimate-quality/admission gates pass, start Task 1 with failing Catalog/contract tests before implementation.
+
+## Revisions
+
+### 2026-10-23 — Implementation boundaries from source inventory
+
+Added the durable plan and approval points without changing the operator's settled three-axis contract. The plan
+accounts for the missing section-policy CAS binding and for #419's explicit consumer ownership. No automatic
+legacy-map migration, external operator-document rewrite or new Couch side-doc service is proposed.
