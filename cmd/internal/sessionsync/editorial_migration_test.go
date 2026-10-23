@@ -61,6 +61,24 @@ func TestEditorialMigrationPreviewAndConfirmedApply(t *testing.T) {
 	}
 }
 
+func TestEditorialMigrationPreflightsRegisteredGrowth(t *testing.T) {
+	r := newRig(t)
+	prefix := "---\ncollaboration-mode: {chat: [Notes]}\n---\n# Notes\n"
+	base := prefix + strings.Repeat("x", documentMaxBytes-len(prefix))
+	r.put(r.p.File, base)
+	if _, err := r.sync.Register(r.p.File, "ops:0"); err != nil {
+		t.Fatal(err)
+	}
+	paths := registeredPaths(t, r.sync, r.p.File)
+	r.put(paths.Round, "previous round")
+	beforeShadow, beforeState := r.read(paths.Shadow), r.read(paths.State)
+	_, err := r.sync.MigrateEditorial(EditorialMigrationRequest{File: r.p.File, Confirm: true, IfHash: migrationHash(base)})
+	wantRefusal(t, err, ExitRefused, "registry-limit")
+	if r.read(r.p.File) != base || r.read(paths.Round) != "previous round" || r.read(paths.Shadow) != beforeShadow || r.read(paths.State) != beforeState {
+		t.Fatal("oversized migration changed document or metadata")
+	}
+}
+
 func TestEditorialMigrationRefusalsDoNotPublish(t *testing.T) {
 	for _, name := range []string{"stale", "operator-lock", "alias-lock", "conflict", "dangling", "missing-hash", "short-hash", "preview-hash"} {
 		t.Run(name, func(t *testing.T) {

@@ -2,10 +2,10 @@
   {
     "name": "mixed",
     "before": "---\npresentation-mode: direct\n---\n# Highlight\n<!-- presentation-mode: highlight -->\nold highlight\n# Propose\n<!-- presentation-mode: propose -->\nold proposal\n# Direct\nold direct\n# Inherited\nold inherited\n",
-    "result": "---\npresentation-mode: direct\n---\n# Highlight\n<!-- presentation-mode: highlight -->\nnew highlight\n# Propose\n<!-- presentation-mode: propose -->\n🤖~old proposal~{new proposal}\n# Direct\nnew direct\n# Inherited\nnew inherited\n",
+    "result": "---\npresentation-mode: direct\n---\n# Highlight\n<!-- presentation-mode: highlight -->\nnew highlight\n# Propose\n<!-- presentation-mode: propose -->\n🤖~old~{new} proposal\n# Direct\nnew direct\n# Inherited\nnew inherited\n",
     "round": {
       "base_hash": "5bf2d530018855c3",
-      "result_hash": "7b176a6b9dba057f",
+      "result_hash": "1e0d049e9a6e7caa",
       "at": "2026-10-23T00:00:00Z",
       "presentation": "direct",
       "spans": [
@@ -16,10 +16,10 @@
           ],
           "end": [
             5,
-            13
+            3
           ],
-          "old": "old highlight",
-          "new": "new highlight",
+          "old": "old",
+          "new": "new",
           "future": {
             "keep": [
               1,
@@ -35,10 +35,10 @@
           ],
           "end": [
             8,
-            32
+            14
           ],
-          "old": "old proposal",
-          "new": "🤖~old proposal~{new proposal}",
+          "old": "old",
+          "new": "🤖~old~{new}",
           "future": {
             "keep": [
               1,
@@ -54,10 +54,10 @@
           ],
           "end": [
             10,
-            10
+            3
           ],
-          "old": "old direct",
-          "new": "new direct",
+          "old": "old",
+          "new": "new",
           "future": {
             "keep": [
               1,
@@ -73,10 +73,10 @@
           ],
           "end": [
             12,
-            13
+            3
           ],
-          "old": "old inherited",
-          "new": "new inherited",
+          "old": "old",
+          "new": "new",
           "future": {
             "keep": [
               1,
@@ -91,8 +91,8 @@
     },
     "records": [
       {
-        "old": "old highlight",
-        "new": "new highlight",
+        "old": "old",
+        "new": "new",
         "new_occurrence": 1,
         "presentation": "highlight",
         "future": {
@@ -103,8 +103,8 @@
         }
       },
       {
-        "old": "old proposal",
-        "new": "🤖~old proposal~{new proposal}",
+        "old": "old",
+        "new": "🤖~old~{new}",
         "new_occurrence": 1,
         "presentation": "propose",
         "future": {
@@ -115,9 +115,9 @@
         }
       },
       {
-        "old": "old direct",
-        "new": "new direct",
-        "new_occurrence": 1,
+        "old": "old",
+        "new": "new",
+        "new_occurrence": 3,
         "presentation": "direct",
         "future": {
           "keep": [
@@ -127,9 +127,9 @@
         }
       },
       {
-        "old": "old inherited",
-        "new": "new inherited",
-        "new_occurrence": 1,
+        "old": "old",
+        "new": "new",
+        "new_occurrence": 4,
         "presentation": "direct",
         "future": {
           "keep": [

@@ -154,3 +154,42 @@ func TestEditorialArtifactAndRecordPreserveExtensions(t *testing.T) {
 		}
 	}
 }
+
+func FuzzEditorialRoundCodec(f *testing.F) {
+	f.Add(editorialRoundJSON)
+	f.Add(strings.Replace(editorialRoundJSON, `"huge": 1e999`, `"same":1,"same":2`, 1))
+	f.Fuzz(func(t *testing.T, source string) {
+		if len(source) > 65536 {
+			t.Skip()
+		}
+		r, err := decodeRound([]byte(source))
+		if err != nil {
+			return
+		}
+		raw, ok := encodeRound(*r)
+		if !ok {
+			t.Fatal("accepted bounded round cannot encode")
+		}
+		after, err := decodeRound(raw)
+		if err != nil {
+			t.Fatal(err)
+		}
+		check := func(before, next map[string]json.RawMessage) {
+			if len(before) != len(next) {
+				t.Fatal("extension cardinality changed")
+			}
+			for key, value := range before {
+				if !bytes.Equal(value, next[key]) {
+					t.Fatalf("extension %s changed", key)
+				}
+			}
+		}
+		check(r.unknown, after.unknown)
+		if len(r.Spans) != len(after.Spans) {
+			t.Fatal("span count changed")
+		}
+		for i, span := range r.Spans {
+			check(span.unknown, after.Spans[i].unknown)
+		}
+	})
+}

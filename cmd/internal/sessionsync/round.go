@@ -249,7 +249,7 @@ func buildEditWithPolicy(base string, edits []EditRecord, now time.Time, restamp
 	if err != nil {
 		return Edit{}, err
 	}
-	return contentStepWithPolicy(base, next, resolved, now, restamp, false, policy)
+	return contentStep(base, next, resolved, now, restamp, false, policy)
 }
 
 // resolveBatch is ResolveEdits as a refusal: `edits-invalid` lists every bad
@@ -272,16 +272,8 @@ func resolveBatch(base string, edits []EditRecord) (string, []ResolvedEdit, erro
 // write) the body is written as markers, and the round follows those bytes.
 // A record answering the operator's own request marker is the one exception:
 // it applies directly (answersOperator).
-func contentStep(base, next string, resolved []ResolvedEdit, now time.Time, restamp, frontmatter bool) (Edit, error) {
-	policy, err := compileEditorial(base)
-	if err != nil {
-		return Edit{}, err
-	}
-	return contentStepWithPolicy(base, next, resolved, now, restamp, frontmatter, policy)
-}
-
-// contentStepWithPolicy uses the transaction's base authority for every piece.
-func contentStepWithPolicy(base, next string, resolved []ResolvedEdit, now time.Time, restamp, frontmatter bool, policy *editorial.DocumentPolicy) (Edit, error) {
+// contentStep uses the transaction's base authority for every piece.
+func contentStep(base, next string, resolved []ResolvedEdit, now time.Time, restamp, frontmatter bool, policy *editorial.DocumentPolicy) (Edit, error) {
 	runs := changedRuns(base, next)
 	changes := make([]editorial.Change, len(runs))
 	for i, r := range runs {
@@ -295,7 +287,7 @@ func contentStepWithPolicy(base, next string, resolved []ResolvedEdit, now time.
 	var direct []ResolvedEdit
 	for _, piece := range classified {
 		if piece.Presentation == "propose" && !frontmatter {
-			direct, err = directUnderPropose(base, resolved)
+			direct, err = directUnderPropose(base, resolved, policy)
 			if err != nil {
 				return Edit{}, err
 			}
@@ -339,12 +331,12 @@ func contentStepWithPolicy(base, next string, resolved []ResolvedEdit, now time.
 	e := Edit{Next: next, Resolved: resolved}
 	if spans, ok := DeriveRound(baseline, next, resolved); ok {
 		finalRuns := changedRuns(baseline, next)
-		region := 0
+		piece := 0
 		for i, r := range finalRuns {
-			for region+1 < len(policy.Regions) && policy.Regions[region].Range.End <= r.OldStart {
-				region++
+			for piece+1 < len(classified) && classified[piece+1].Start <= r.OldStart {
+				piece++
 			}
-			spans[i].Presentation = policy.Regions[region].Effective.Presentation
+			spans[i].Presentation = classified[piece].Presentation
 		}
 		e.Changed = true
 		e.Round = Round{BaseHash: Hash(base), ResultHash: Hash(next), At: now.UTC(), Presentation: policy.Defaults.Presentation, Spans: spans}
@@ -369,18 +361,35 @@ func editorialRefusal(err error) error {
 //
 // A record crossing the frontmatter's closing line refuses; every other record
 // stays a proposal.
-func directUnderPropose(base string, resolved []ResolvedEdit) ([]ResolvedEdit, error) {
+func directUnderPropose(base string, resolved []ResolvedEdit, policy *editorial.DocumentPolicy) ([]ResolvedEdit, error) {
 	fmEnd := -1
 	if block, err := FrontmatterBody(base); err == nil {
 		fmEnd = len(block)
 	}
 	var direct []ResolvedEdit
+	codeIndex := 0
+	visible := func(at int) bool {
+		for codeIndex < len(policy.CodeRanges) && policy.CodeRanges[codeIndex].End <= at {
+			codeIndex++
+		}
+		return codeIndex == len(policy.CodeRanges) || policy.CodeRanges[codeIndex].Start > at
+	}
 	for _, e := range resolved {
+		old := base[e.BaseStart:e.BaseEnd]
+		approved := false
+		if answersSideDoc(old, e.New) {
+			if i, _, ok := readyMarkerSpan(old); ok && !sideDocLink.MatchString(old) {
+				approved = visible(e.BaseStart + i)
+			} else if match := foldInOnLink.FindStringIndex(old); match != nil {
+				i := strings.Index(old[match[0]:match[1]], "🤖[fold in]")
+				approved = i >= 0 && visible(e.BaseStart+match[0]+i)
+			}
+		}
 		switch {
 		case fmEnd >= 0 && e.BaseStart < fmEnd && e.BaseEnd > fmEnd:
 			return nil, &Refusal{Exit: ExitRefused, Code: "propose-unencodable", Reason: fmt.Sprintf(
 				"record %d crosses the end of the frontmatter; edit the frontmatter and the body in separate records", e.Index)}
-		case fmEnd >= 0 && e.BaseEnd <= fmEnd, answersSideDoc(base[e.BaseStart:e.BaseEnd], e.New):
+		case fmEnd >= 0 && e.BaseEnd <= fmEnd, approved:
 			direct = append(direct, e)
 		}
 	}

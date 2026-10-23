@@ -71,10 +71,10 @@ Project `unified-editorial-interface`; implements the spec in ariadne (dependenc
 
 ## Plan
 
-- [ ] Approve the durable [implementation plan](../plans/000823-editorial-modes-plan.md), including the mechanical/semantic boundary, constrained operator migration, and #419 consumer dependency.
-- [ ] Run `sdlc change-code` for the full-flow plan-quality gate and derived estimate after TL approval.
-- [ ] Pin contract fixtures/catalog; implement and test the pure snapshot compiler, additive fill and map migration.
-- [ ] Integrate policy-bearing reads, scoped CAS and one guard across all agent-write paths; propagate per-span presentation through live/resumed consumers.
+- [x] Approve the durable [implementation plan](../plans/000823-editorial-modes-plan.md), including the mechanical/semantic boundary, constrained operator migration, and #419 consumer dependency.
+- [x] Run `sdlc change-code` for the full-flow plan-quality gate and derived estimate after TL approval.
+- [x] Pin contract fixtures/catalog; implement and test the pure snapshot compiler, additive fill and map migration.
+- [x] Integrate policy-bearing reads, scoped CAS and one guard across all agent-write paths; propagate per-span presentation through live/resumed consumers.
 - [ ] Expose the constrained migration command, update agent guidance/atlas, qualify agents, run recorded checks and close review.
 - [ ] Coordinate the #419 mixed-rendering check and TL-authorized operator smoke, then land and report.
 
@@ -262,6 +262,27 @@ PASS (0.195s / 6.739s / 0.255s). Artifact production-source inventory PASS 2.293
 regressions PASS 0.379s. Earlier Pair Lua/pane integration PASS remains applicable pending final rerun. No recorded
 full suite or close gate is claimed. Emitted skill baseline identified missing resolution/ownership/chat/path
 instructions; an independent updated reference probe now answers all those cases from the shipped skill alone.
+
+
+### 2026-10-23 — Fresh guard approval and final-check preparation
+
+Fresh guard/integration review APPROVED after concrete regressions fixed pending-marker adjacency/forged turns,
+code-example approval, chat shallowest indentation and pending escaped answer links. Marker parsing now uses one
+linear bracket index; N/2N malformed-input counts pass. Final span modes come from validated base pieces, including
+left-biased insertion at heading boundaries. Tests exercise all nine setting-protection seams and seven mixed-output
+write seams, operator settings on fresh read, real pending chat links and migration growth at the 4 MiB limit.
+
+Latest complete editorial/sessionsync/reviewapply package run PASS 0.172s / 4.218s / 0.177s. Full couchcmd PASS70.957s;
+Pair Lua and real pane apply script PASS. Guard fuzz PASS21,115 executions/3s and codec fuzz PASS72,702/3s.
+Reader inventory PASS after per-file audits; artifactpath and repolint packages PASS. Registering the provenance
+scanner in the existing fixed preflight preserves affected-runner ownership. Public help now documents resolved
+policy/coordinates, opaque section tokens and migration. Existing CLI tests consume returned tokens.
+
+Native fixture mechanical qualification passed for Claude and Codex (25.096s), with joined/cleaned disposable
+roots. Earlier Zellij startup panic is filed as unclaimed #835 with the exact failure and qualification-source
+limitation. No installed LLM semantic acceptance is claimed. The next step is committed-source native rerun,
+SDLC publication/recorded affected check and binary-owned close review. Post-close #419/TL operator acceptance
+and landing remain visibly unchecked; no stage or :0 mutation has occurred.
 
 ## Revisions
 

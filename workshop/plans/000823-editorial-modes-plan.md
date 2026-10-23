@@ -156,29 +156,29 @@ Files: create `document.go`, `source.go`, `migrate.go` and matching `_test.go` f
 
 Files: create `cmd/internal/editorial/edits.go`, `edits_test.go`; modify `cmd/internal/sessionsync/{sync.go,file.go,round.go,applyfile.go}` and corresponding tests, plus `round_write_test.go`, `marker_test.go`, `race_test.go`.
 
-- [ ] Write failing ValidateEdits preservation tests from the strategy table across all presentation modes, with operator editor changes observed through a fresh snapshot as the positive control.
-- [ ] Write the sectionPolicyHash metamorphic tests before changing its implementation; include the unchanged-body/changing-document-policy stale-write regression.
-- [ ] Add the resolved read payload and scoped digest. Validate before Shadow acknowledgement. Route whole/section/frontmatter write, registered/legacy apply and standalone ApplyFile through the same policy guard, including empty edits. Retain current owner/type/lock/CAS behavior.
-- [ ] Replay a pinned mixed-region acceptance fixture through every write seam and the controlled transaction strategy above; assert presentation, routing instructions and refusal atomicity against the compiled base policy.
-- [ ] Run `go test ./cmd/internal/editorial ./cmd/internal/sessionsync ./cmd/internal/reviewapply`; expect PASS. Use controlled concurrent writers to verify one winner and a stale loser; never sleep to approximate the lock window. Commit the shared enforcement.
+- [x] Write failing ValidateEdits preservation tests from the strategy table across all presentation modes, with operator editor changes observed through a fresh snapshot as the positive control.
+- [x] Write the sectionPolicyHash metamorphic tests before changing its implementation; include the unchanged-body/changing-document-policy stale-write regression.
+- [x] Add the resolved read payload and scoped digest. Validate before Shadow acknowledgement. Route whole/section/frontmatter write, registered/legacy apply and standalone ApplyFile through the same policy guard, including empty edits. Retain current owner/type/lock/CAS behavior.
+- [x] Replay a pinned mixed-region acceptance fixture through every write seam and the controlled transaction strategy above; assert presentation, routing instructions and refusal atomicity against the compiled base policy.
+- [x] Run `go test ./cmd/internal/editorial ./cmd/internal/sessionsync ./cmd/internal/reviewapply`; expect PASS. Use controlled concurrent writers to verify one winner and a stale loser; never sleep to approximate the lock window. Commit the shared enforcement.
 
 ### Task 4: Carry presentation through live and resumed review consumers
 
 Files: modify `sessionsync/round.go`, `applyfile.go` and tests; modify `nvim/review/{round_watch.lua,reconstruct.lua,record.lua}` only where required and their existing tests. Coordinate the exact schema and fixtures with Parley #419.
 
-- [ ] Write failing codec and live/resume consumer tests from the strategy table, including recursive duplicate injection and the legacy omission contract.
-- [ ] Implement base-policy span attribution and round-record propagation. Pair's current Lua record codec already keeps arbitrary table fields; retain that behavior. Pair's live/resume decoration paths currently highlight every change and must honor effective span presentation consistently.
-- [ ] Run focused Go round/apply tests and `bash tests/review-applied-round-test.sh` plus the existing Lua round-watch/record/reconstruct test entry points; record exact commands/results in the issue Log. Obtain #419 consumer fixture agreement before claiming end-to-end mixed rendering. Commit schema and local consumers together.
+- [x] Write failing codec and live/resume consumer tests from the strategy table, including recursive duplicate injection and the legacy omission contract.
+- [x] Implement base-policy span attribution and round-record propagation. Pair's current Lua record codec already keeps arbitrary table fields; retain that behavior. Pair's live/resume decoration paths currently highlight every change and must honor effective span presentation consistently.
+- [x] Run focused Go round/apply tests and `bash tests/review-applied-round-test.sh` plus the existing Lua round-watch/record/reconstruct test entry points; record exact commands/results in the issue Log. Obtain #419 consumer fixture agreement before claiming end-to-end mixed rendering. Commit schema and local consumers together.
 
 ### Task 5: Expose operator migration and update actual agent interfaces
 
 Files: modify `cmd/internal/couchcmd/session_sync.go`, `run.go`, existing `session_sync*_test.go`; add `session_sync_editorial_test.go`; update `cmd/internal/couchcmd/skills/couch/SKILL.md`, `atlas/couch-agentic-documents.md`, `atlas/review-workbench.md` and `atlas/index.md`.
 
-- [ ] Write failing parser/runEditorialMigration tests using the stateful registry/preview strategy above; no generic body payload is accepted by the migration verb.
-- [ ] Add `migrate-editorial` preview and a narrowly confirmed apply form agreed with TL. Reuse registry/flock/guard/replaceShared rather than an unlock-write-relock sequence. No migration runs during ordinary read/review/fill, and no external live file is changed by this implementation task.
-- [ ] Update agent guidance to read resolved policy on every round, use briefs/instruction and section routing, preserve owned comments, and create new side docs with three defaults under the month layout. Keep old flat/qa links valid; test both through existing side-doc authorization rules. No parent legacy brief is copied to a new side doc.
+- [x] Write failing parser/runEditorialMigration tests using the stateful registry/preview strategy above; no generic body payload is accepted by the migration verb.
+- [x] Add `migrate-editorial` preview and a narrowly confirmed apply form agreed with TL. Reuse registry/flock/guard/replaceShared rather than an unlock-write-relock sequence. No migration runs during ordinary read/review/fill, and no external live file is changed by this implementation task.
+- [x] Update agent guidance to read resolved policy on every round, use briefs/instruction and section routing, preserve owned comments, and create new side docs with three defaults under the month layout. Keep old flat/qa links valid; test both through existing side-doc authorization rules. No parent legacy brief is copied to a new side doc.
 - [ ] Qualify agent-facing guidance on the disposable Couch harness for Claude and Codex (Qoder when credits permit), with the same mixed-region contract fixture; never use the live fleet as a test fixture. Record deterministic contract checks separately from semantic live observations.
-- [ ] Run focused Couch CLI/session-sync/native tests and document results. Commit CLI, guidance and atlas updates.
+- [x] Run focused Couch CLI/session-sync/native tests and document results. Commit CLI, guidance and atlas updates.
 
 ### Task 6: Growth, close and operator acceptance
 
@@ -218,3 +218,20 @@ Task 4 codec/consumer and Task 5 migration CLI slices passed independent ad-hoc 
 those tasks or the issue: native qualification, exhaustive transaction/adversarial review and recorded checks
 remain. TL confirmed native fixture personalities are the qualification boundary; semantic live observations
 belong to operator acceptance with parley.nvim#419 (receipt b7dc3ed5-3860-4c56-b8c2-1b308ab1f249).
+
+### 2026-10-23 — Guard review and qualification corrections
+
+All Task 3 ad-hoc findings are resolved: candidate marker identity/extent prevents human-turn forgery;
+proposal approval uses source-coordinate code masks; insertion before a heading uses the preceding region;
+final spans inherit validated pieces. Chat asks use the section's shallowest source indentation, and real
+pending answer-link proposals count as linked. A single escape-aware bracket index makes malformed marker
+scans linear, with counted N/2N tests. Generated guard and codec fuzz oracles passed. Migration preserves the
+existing prospective 4 MiB registered-document bound. The shared fixture now pins the existing engine's minimal
+proposal encoding (common suffix outside the marker), with matching hashes, spans and resume anchors.
+
+The native fixture personalities passed 25.096s, but final exact committed-source native verification remains
+pending at this checkpoint because later guard fixes followed the first candidate build. The earlier native
+Zellij startup panic is registered separately as unclaimed pair#835; its evidence explicitly retains the dirty
+qualification-test limitation. No retry behavior or timeout budget changed. Reader inventory was audited per
+file: provenance source reader is a fixed scanner, local non-Go fixture readers and the native helper use the
+existing full fallback. No gate configuration or review policy changed.

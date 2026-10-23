@@ -37,6 +37,18 @@ func TestParseEditorialMigrationClosedForms(t *testing.T) {
 	}
 }
 
+func TestEditorialHelpNamesPolicyAndMigration(t *testing.T) {
+	out, _, code := runPublicRT(newRT(t), "--help")
+	if code != 0 {
+		t.Fatal(code)
+	}
+	for _, want := range []string{"migrate-editorial FILE", "--confirm --if-hash H", "document byte offsets", "operator-owned"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("help omits %q", want)
+		}
+	}
+}
+
 func TestRunEditorialMigrationCLI(t *testing.T) {
 	rt, file := sessionSyncRT(t)
 	source := "---\ntype: session-sync\nowner: ops:0\ncollaboration-mode: {default: discussion, chat: [Notes]}\n---\n# Notes\nhello\n"

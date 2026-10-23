@@ -6,7 +6,6 @@ import (
 	"encoding/hex"
 	"fmt"
 	"regexp"
-	"strings"
 )
 
 // Change replaces the half-open base byte interval with New.
@@ -81,9 +80,7 @@ func validateEdits(base []byte, p *DocumentPolicy, changes []Change, c *Catalog)
 	regionIndex, ownedIndex := 0, 0
 	for _, ch := range changes {
 		r := Range{ch.Start, ch.End}
-		for regionIndex+1 < len(p.Regions) && p.Regions[regionIndex].Range.End <= ch.Start {
-			regionIndex++
-		}
+		regionIndex = advanceChangeRegion(p.Regions, regionIndex, ch)
 		if len(p.Regions) == 0 {
 			return fail("editorial-invalid", "base policy has no regions", r)
 		}
@@ -190,21 +187,45 @@ func validateEdits(base []byte, p *DocumentPolicy, changes []Change, c *Catalog)
 			pos = end
 		}
 	}
-	markers := ScanMarkers(string(base))
-	visible := markers[:0]
-	codeIndex := 0
+	markers := visibleMarkers(string(base), p.CodeRanges)
+	candidateSource := candidate.String()
+	candidateMarkers := visibleMarkers(candidateSource, after.CodeRanges)
+	stats.MarkerVisits += len(markers) + len(candidateMarkers)
+	markerAt := map[int]Marker{}
+	for _, m := range candidateMarkers {
+		markerAt[m.Range.Start] = m
+	}
+	readyIdentity := map[int]string{}
+	markerMapper := positionMapper{changes: changes}
 	for _, m := range markers {
-		stats.MarkerVisits++
-		for codeIndex < len(p.CodeRanges) && p.CodeRanges[codeIndex].End <= m.Range.Start {
-			codeIndex++
-		}
-		if codeIndex < len(p.CodeRanges) && p.CodeRanges[codeIndex].Start <= m.Range.Start {
+		mapped, ok := markerMapper.mapStart(m.Range.Start)
+		if !ok {
+			if m.Pending {
+				return fail("editorial-pending", "pending agent markers must remain unchanged", m.Range)
+			}
 			continue
 		}
-		visible = append(visible, m)
+		raw := string(base[m.Range.Start:m.Range.End])
+		if m.Ready {
+			readyIdentity[mapped] = raw
+		}
+		if m.Pending {
+			got, exists := markerAt[mapped]
+			if !exists || got.Range.End-got.Range.Start != len(raw) || candidateSource[got.Range.Start:got.Range.End] != raw {
+				return fail("editorial-pending", "pending marker identity and turn extent must remain unchanged", m.Range)
+			}
+		}
 	}
-	markers = visible
-	blocks, chatItems := indexBlocks(base, p)
+	for _, m := range candidateMarkers {
+		if m.Ready {
+			raw := candidateSource[m.Range.Start:m.Range.End]
+			if old, ok := readyIdentity[m.Range.Start]; !ok || old != raw {
+				return fail("editorial-pending", "agents may not create or expose human-ready marker turns", m.Range)
+			}
+		}
+	}
+
+	blocks, chatItems := indexBlocks(base, p, markers)
 	refs := []Range{}
 	readyStarts := []int{}
 	pending := []Range{}
@@ -282,9 +303,7 @@ func validateEdits(base []byte, p *DocumentPolicy, changes []Change, c *Catalog)
 				}
 			}
 		}
-		for editRegion+1 < len(p.Regions) && p.Regions[editRegion].Range.End <= ch.Start {
-			editRegion++
-		}
+		editRegion = advanceChangeRegion(p.Regions, editRegion, ch)
 		effective := result[i].Effective
 		if !chatAnswer && !inReference {
 			if effective.Scope == MarkersOnly {
@@ -298,6 +317,19 @@ func validateEdits(base []byte, p *DocumentPolicy, changes []Change, c *Catalog)
 		}
 	}
 	return result, stats, nil
+}
+
+// An insertion immediately before a heading belongs to the preceding region;
+// a replacement starting on the heading belongs to that heading's region.
+func advanceChangeRegion(regions []Region, index int, ch Change) int {
+	for index+1 < len(regions) {
+		end := regions[index].Range.End
+		if end > ch.Start || (end == ch.Start && ch.Start == ch.End) {
+			break
+		}
+		index++
+	}
+	return index
 }
 
 type survivingSegment struct {
@@ -365,6 +397,8 @@ func processingDomains(p *DocumentPolicy) []int {
 	return ids
 }
 
+var existingAnswerLine = regexp.MustCompile(`(?m)(?:^|[ \t])→ (?:\[answer\]\([^\s()]+\)|done: [^\r\n]+)[ \t]*\r?$`)
+
 var answerAppend = regexp.MustCompile(`^ → \[answer\]\([^\s()]+\)$`)
 
 type chatItem struct {
@@ -373,8 +407,17 @@ type chatItem struct {
 	Linked   bool
 }
 
-func indexBlocks(base []byte, p *DocumentPolicy) ([]Range, []chatItem) {
+func indexBlocks(base []byte, p *DocumentPolicy, markers []Marker) ([]Range, []chatItem) {
 	items := []chatItem{}
+	type listFact struct {
+		r              Range
+		region, indent int
+	}
+	facts := make([]listFact, 0, len(p.ListItems))
+	minimum := make([]int, len(p.Regions))
+	for i := range minimum {
+		minimum[i] = -1
+	}
 	region := 0
 	for _, r := range p.ListItems {
 		for region+1 < len(p.Regions) && p.Regions[region].Range.End <= r.Start {
@@ -383,11 +426,103 @@ func indexBlocks(base []byte, p *DocumentPolicy) ([]Range, []chatItem) {
 		if p.Regions[region].Effective.Collaboration != "chat" {
 			continue
 		}
+		column := 0
+		for pos := r.Start; pos < r.End; pos++ {
+			if base[pos] == ' ' {
+				column++
+			} else if base[pos] == '\t' {
+				column = (column/4 + 1) * 4
+			} else {
+				break
+			}
+		}
+		facts = append(facts, listFact{r, region, column})
+		if minimum[region] < 0 || column < minimum[region] {
+			minimum[region] = column
+		}
+	}
+	for _, fact := range facts {
+		if fact.indent != minimum[fact.region] {
+			continue
+		}
+		r := fact.r
+
 		end := r.End
 		for end > r.Start && (base[end-1] == '\n' || base[end-1] == '\r') {
 			end--
 		}
-		items = append(items, chatItem{Range: r, AppendAt: end, Linked: strings.Contains(string(base[r.Start:r.End]), "→ [answer](") || strings.Contains(string(base[r.Start:r.End]), "→ done:")})
+		items = append(items, chatItem{Range: r, AppendAt: end, Linked: false})
+	}
+	// Direct links must end a source line and lie outside Markdown code. Pending
+	// marker links are decoded through the same marker grammar/escape owner.
+	directItem, codeCursor := 0, 0
+	for _, match := range existingAnswerLine.FindAllIndex(base, -1) {
+		for directItem < len(items) && items[directItem].Range.End <= match[0] {
+			directItem++
+		}
+		if directItem == len(items) {
+			break
+		}
+		if match[0] < items[directItem].Range.Start || match[1] > items[directItem].Range.End {
+			continue
+		}
+		for codeCursor < len(p.CodeRanges) && p.CodeRanges[codeCursor].End <= match[0] {
+			codeCursor++
+		}
+		if codeCursor < len(p.CodeRanges) && p.CodeRanges[codeCursor].Start <= match[0] {
+			continue
+		}
+		items[directItem].Linked = true
+	}
+	lines := sourceLines(base)
+	lineEnd := make([]int, len(lines))
+	for i, r := range lines {
+		end := r.End
+		for end > r.Start && (base[end-1] == '\n' || base[end-1] == '\r' || base[end-1] == ' ' || base[end-1] == '\t') {
+			end--
+		}
+		lineEnd[i] = end
+	}
+	itemCursor, lineCursor := 0, 0
+	for _, m := range markers {
+		if !m.Pending || !m.LastTurnAgent {
+			continue
+		}
+		for itemCursor < len(items) && items[itemCursor].Range.End <= m.Range.Start {
+			itemCursor++
+		}
+		if itemCursor == len(items) {
+			break
+		}
+		if m.Range.Start < items[itemCursor].Range.Start || m.Range.End > items[itemCursor].Range.End {
+			continue
+		}
+		for lineCursor < len(lines) && lines[lineCursor].End < m.Range.End {
+			lineCursor++
+		}
+		if lineCursor == len(lines) || m.Range.End != lineEnd[lineCursor] {
+			continue
+		}
+		decoded := UnescapeMarkerText(string(base[m.LastTurn.Start:m.LastTurn.End]))
+		if existingAnswerLine.MatchString(decoded) {
+			items[itemCursor].Linked = true
+		}
 	}
 	return p.Blocks, items
+}
+
+func visibleMarkers(source string, code []Range) []Marker {
+	markers := ScanMarkers(source)
+	out := markers[:0]
+	cursor := 0
+	for _, m := range markers {
+		for cursor < len(code) && code[cursor].End <= m.Range.Start {
+			cursor++
+		}
+		if cursor < len(code) && code[cursor].Start <= m.Range.Start {
+			continue
+		}
+		out = append(out, m)
+	}
+	return out
 }

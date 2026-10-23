@@ -143,3 +143,19 @@ func TestCatalogMetadataAndExactNamePriority(t *testing.T) {
 		t.Fatal("Lookup accepted prefix")
 	}
 }
+
+func TestCatalogInvalidProcessingListsChoices(t *testing.T) {
+	c, err := DefaultCatalog()
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = c.ResolveProcessing("invalid")
+	if err == nil {
+		t.Fatal("accepted invalid mode")
+	}
+	for _, m := range c.Modes() {
+		if !strings.Contains(err.Error(), m.Name) {
+			t.Errorf("diagnostic omits %s: %v", m.Name, err)
+		}
+	}
+}

@@ -159,10 +159,15 @@ func (c *Catalog) ResolveProcessing(selector string) (Mode, error) {
 	if count == 1 {
 		return match, nil
 	}
-	if count > 1 {
-		return Mode{}, fmt.Errorf("ambiguous processing mode %q", selector)
+	names := make([]string, len(c.modes))
+	for i, m := range c.modes {
+		names[i] = m.Name
 	}
-	return Mode{}, fmt.Errorf("unknown processing mode %q", selector)
+	choices := strings.Join(names, ", ")
+	if count > 1 {
+		return Mode{}, fmt.Errorf("ambiguous processing mode %q; valid choices: %s", selector, choices)
+	}
+	return Mode{}, fmt.Errorf("unknown processing mode %q; valid choices: %s", selector, choices)
 }
 
 // ResolveCollaboration validates an exact collaboration value against its

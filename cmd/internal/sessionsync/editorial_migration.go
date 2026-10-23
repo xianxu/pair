@@ -62,6 +62,9 @@ func (s *Sync) MigrateEditorial(req EditorialMigrationRequest) (EditorialMigrati
 			return EditorialMigrationResult{}, &Refusal{Exit: ExitRefused, Code: "editorial-invalid", Reason: err.Error()}
 		}
 		after := string(plan.After)
+		if f.registration != nil && len(plan.After) > documentMaxBytes {
+			return EditorialMigrationResult{}, registryLimit()
+		}
 		// Defend the operator transform's authority boundary independently of the
 		// compiler: registration/type/routing ownership must never be rewritten.
 		owner := ParseOwner(after)
