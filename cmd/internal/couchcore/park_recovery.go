@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"time"
 
 	"github.com/xianxu/pair/cmd/internal/pairlifecycle"
 )
@@ -246,7 +245,11 @@ func (c *PairLifecycleController) recoverInterruptedPark(ctx context.Context, ad
 // rollbackUnpublishedPark is called only by the initiating worker while it
 // still owns the address, and only with positive no-publication authority.
 func (c *PairLifecycleController) rollbackUnpublishedPark(result ParkResult, current ThreadRecord, cause error) (ParkResult, error) {
-	cleanupCtx, cancel := context.WithTimeout(context.Background(), time.Second)
+	// The rollback is one coordinated write, like the commit it undoes, so it
+	// gets the commit's budget: a fixed 1s expired under load once foreground
+	// writes began waiting out preview reads (#827), turning a provable
+	// rollback into an uncertain one.
+	cleanupCtx, cancel := context.WithTimeout(context.Background(), parkCommitDeadline)
 	defer cancel()
 	rolled, err := c.Threads.rollbackUnpublishedPark(cleanupCtx, current)
 	if err == nil {

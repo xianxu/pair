@@ -173,13 +173,15 @@ func (s *ThreadStore) withLock(fn func() error) (err error) {
 }
 
 func (s *ThreadStore) withStoreLock(fn func() error) error {
-	return s.withStoreLockChecked(fn, nil)
+	return s.withStoreLockChecked(fn, nil, 0)
 }
 
-// A maintenance check selects nonblocking nested locking: the root coordinator
-// must never remain held while waiting for an independently busy Couch store.
-// Ordinary writers pass nil and retain their blocking lock semantics.
-func (s *ThreadStore) withStoreLockChecked(fn func() error, check func() error) (err error) {
+// A check selects polled nested locking: the root coordinator must never wait
+// unboundedly for an independently busy Couch store. Maintenance passes wait 0
+// and yields at the first contention; a foreground writer waits out a brief
+// preview read for up to wait (#827). Ordinary writers pass nil and retain
+// their blocking lock semantics.
+func (s *ThreadStore) withStoreLockChecked(fn func() error, check func() error, wait time.Duration) (err error) {
 	if s != nil {
 		if err := s.validateBackendPath(); err != nil {
 			return err
@@ -193,7 +195,12 @@ func (s *ThreadStore) withStoreLockChecked(fn func() error, check func() error) 
 			return err
 		}
 	}
-	lock, err := acquireThreadStoreLockMode(s.root, check != nil)
+	var lock *threadStoreLock
+	if check != nil && wait > 0 {
+		lock, err = acquireThreadStoreLockWithin(s.root, wait, check)
+	} else {
+		lock, err = acquireThreadStoreLockMode(s.root, check != nil)
+	}
 	if err != nil {
 		return err
 	}

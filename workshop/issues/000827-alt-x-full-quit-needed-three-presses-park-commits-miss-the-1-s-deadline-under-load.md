@@ -191,6 +191,16 @@ park's routing read, or Console's preview poll, makes a park write fail at once.
 fan-out this is exactly "needs another Alt+x". leave_park_test RetriesProvenRollback
 is the RED fixture (23 EWOULDBLOCK in 3 runs). Waiting on TL before changing the lock.
 
+2026-10-23 — TL approved option A (bd8f4bf3 reply). Foreground ctx-aware writes
+(withUpdateLockContext) now poll the nested store.lock within storeReadLockWait (1s),
+honoring ctx/coordinator checks, then fail typed ErrThreadStoreBusy; retention
+maintenance (archive_gc) keeps wait 0 / immediate yield. Tests: store_lock_wait_test.go
+(brief preview hold waited out via contention hook, typed busy past bound, cancellation,
+maintenance still yields without polling). Under -race + load ~65 one rollback then hit
+its fixed 1s cleanup ctx -> uncertain; rollback cleanup now uses parkCommitDeadline (same
+budget as the commit it undoes). Fleet 15/30 green; isolated wall ~0.7-1.2s, 0 contended
+polls. Full couchcore package ok (315s, unsandboxed). Next: Task 4 console summary.
+
 ## Estimate
 
 Produced via brain/data/life/42shots/velocity/estimate-logic-v3.1.md against
