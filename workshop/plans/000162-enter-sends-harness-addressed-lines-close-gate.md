@@ -93,6 +93,49 @@ rounds:
       recipe: milestone-review
       isolation: fenced
       blocked: true
+    - reviewer_runs:
+        - version: 1
+          intent:
+            disposable_root: true
+            id: 792d09a5-7ae6-4a22-bcca-2211795709dc
+            repository: github.com/xianxu/pair
+            issue_id: "000162"
+            recipe: milestone-review
+            round: 3
+            attempt: 1
+            agent: codex
+            root: /Volumes/TestScratch/review-checkouts/51e89e5e16463423
+            reviewed_head: 51f0a6e0cdaf9847904dff59821237bb8bb3e926
+            slot: pair:2
+            requested_at: "2026-10-23T14:41:34.466267Z"
+          phase: finished
+          pid: 46716
+          started_at: "2026-10-23T14:41:34.626595Z"
+          finished_at: "2026-10-23T14:46:21.766034Z"
+          session_id: 01a16935-c960-79e3-a741-02c26b97cc24
+          outcome: returned
+      "n": 3
+      timestamp: "2026-10-23T07:46:23-07:00"
+      dispatched: "2026-10-23T07:41:31-07:00"
+      agent: codex
+      reviewer: codex (openai; author openai)
+      dispose:
+        - id: BR-3
+          disposition: addressed
+          note: peer_composer.go:217–240 preserves every bounded input row and declines footerless Codex slash authority. TestSlashReturnPreservesBlankContinuationAfterCursorMove passes at head and fails in all six profiles when cursor-based trimming is restored; removing the footerless guard also fails its dedicated regression. Disposable mutation checkouts were removed.
+          round: 3
+        - id: BR-1
+          disposition: addressed
+          note: Mixed faint suggestion cells remain unknown authored input. Removing the suggestion guard makes TestSlashReturnDeclinesMixedFaintSuggestion fail across all six profiles.
+          round: 3
+        - id: BR-2
+          disposition: addressed
+          note: Command expectations validate authored grammar before normalizing trailing ASCII spaces. Removing normalization makes TestCommandExpectationUsesProjectedTrailingSpaceRepresentation fail; reducer and writer regressions pass at head.
+          round: 3
+      recipe: milestone-review
+      isolation: fenced
+      reviewed: 51f0a6e0cdaf9847904dff59821237bb8bb3e926
+      blocked: false
 ---
 
 # Gate ledger — pair#162 (boundary-review)
@@ -121,6 +164,14 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-3** [Critical] `command-proof-representation` (kind: defect) Blank continuation rows below the cursor are erased before single-line proof
   cmd/internal/wrapcmd/peer_composer.go:197 removes blank trailing rows below the cursor before joining lines. A temporary regression using slashComposerPaint(agent, "/model", "") with the cursor on the first row reproduced known text="/model" and native submission for Claude, Qoder, Muse, Agy and Grok. This violates the multiline-negative contract (ARCH-PURPOSE, ARCH-SECURE). This is the 2nd finding in family command-proof-representation: define and enforce the normalization rule across consumers, rather than fixing this instance. Terminal padding normalization must preserve authored line structure; ambiguous continuation rows must decline command authority. Sweep all six profiles and add cursor-movement and blank/space-only continuation regressions.
 
+## Round 3 — 2026-10-23T07:46:23-07:00 (codex) — passed
+
+### Disposed
+
+- BR-3 — addressed — peer_composer.go:217–240 preserves every bounded input row and declines footerless Codex slash authority. TestSlashReturnPreservesBlankContinuationAfterCursorMove passes at head and fails in all six profiles when cursor-based trimming is restored; removing the footerless guard also fails its dedicated regression. Disposable mutation checkouts were removed.
+- BR-1 — addressed — Mixed faint suggestion cells remain unknown authored input. Removing the suggestion guard makes TestSlashReturnDeclinesMixedFaintSuggestion fail across all six profiles.
+- BR-2 — addressed — Command expectations validate authored grammar before normalizing trailing ASCII spaces. Removing normalization makes TestCommandExpectationUsesProjectedTrailingSpaceRepresentation fail; reducer and writer regressions pass at head.
+
 ## Open findings
 
-- **BR-3** [Critical] `command-proof-representation` (kind: defect) Blank continuation rows below the cursor are erased before single-line proof
+(none — every finding has been disposed)

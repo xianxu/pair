@@ -309,6 +309,8 @@ total: 1.97
 
 ## Log
 
+
+- 2026-10-23: closed — BR-1/BR-2 regressions and mutation evidence pass. BR-3 preserves bounded input rows across all6 profiles and cursor movement, refuses footerless Codex slash authority, retains peer/prose representation and real native capture positives. Complete wrapcmd PASS76.081s; testcouch, agentfixture, agentdrive, repolint, artifactpath, termcmd and inventory pass. Current96abb5a7 Codex disposable public check PASS26.308s including exact cleanup. Current Claude accepted /model once and retained prose; delayed system-notice journal interference measured, hubc64e1031 accepted behavior evidence, unclaimed #837 tracks oracle hardening; log /Volumes/TestScratch/tmp/pair-slot2/pair162-review-regressions.pykj07ci/public-claude.log. Existing actual Claude/Codex UI checks and earlier public passes retained. Qoder trust gap approved, unclaimed #836. Fresh suite lease-4019717949 queued on pushed51f0a6e0; landing waits for pass. legacy-era overlap with pair#151 and #161 across the measurement cutover; measurement unavailable by design (ariadne#569); review verdict: SHIP
 ### 2026-09-01
 
 - Filed from a brain session, then **corrected the same session**: first draft

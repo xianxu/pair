@@ -199,3 +199,94 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-23T07:46:23-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 162 — Enter sends when the composer line is addressed to the harness |
+| repo | pair |
+| issue file | workshop/issues/000162-enter-sends-harness-addressed-lines.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 09c8964de39cdb5e6bd9db20601c232446af6949..51f0a6e0cdaf9847904dff59821237bb8bb3e926 |
+| command | sdlc close --issue 162 |
+| reviewer | codex (openai; author openai) |
+| isolation | fenced |
+| timestamp | 2026-10-23T07:46:23-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+The pinned range satisfies the current Spec and approved Plan. BR-3 is addressed by a shared structural-row rule, with regression coverage across all six profiles. Mutation checks confirm the tests fail without the corrections. No new blocking findings emerged; the documented native-conformance limitations remain explicit.
+
+```findings
+dispose:
+  - id: BR-3
+    disposition: addressed
+    note: |
+      peer_composer.go:217–240 preserves every bounded input row and declines footerless Codex slash authority. TestSlashReturnPreservesBlankContinuationAfterCursorMove passes at head and fails in all six profiles when cursor-based trimming is restored; removing the footerless guard also fails its dedicated regression. Disposable mutation checkouts were removed.
+  - id: BR-1
+    disposition: addressed
+    note: |
+      Mixed faint suggestion cells remain unknown authored input. Removing the suggestion guard makes TestSlashReturnDeclinesMixedFaintSuggestion fail across all six profiles.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      Command expectations validate authored grammar before normalizing trailing ASCII spaces. Removing normalization makes TestCommandExpectationUsesProjectedTrailingSpaceRepresentation fail; reducer and writer regressions pass at head.
+```
+
+**1. Strengths**
+
+- The shared projector preserves authored line structure while keeping established peer-padding behavior ([peer_composer.go](/Volumes/TestScratch/review-checkouts/51e89e5e16463423/cmd/internal/wrapcmd/peer_composer.go:217)).
+- Final command proof and Return emission consume the same immutable frame, with ownership and completeness checks ([agent_drive.go](/Volumes/TestScratch/review-checkouts/51e89e5e16463423/cmd/internal/wrapcmd/agent_drive.go:395)).
+- README, atlas, help, and concrete slash producers consistently describe and use `enter`; public `submit` retains its existing meaning.
+
+**2. Critical findings:** None.
+
+**3. Important findings:** None.
+
+**4. Minor findings:** None.
+
+**5. Test coverage notes**
+
+Passed the plan’s focused test command, complete `agentdrive`, `wrapcmd`, `couchcmd`, `testcouch`, `repolint`, `artifactpath`, and `termcmd` packages, plus affected-reader inventory validation. Native capture replay passed. Mutation checks demonstrated failures for BR-1, BR-2, bounded blank-row trimming, and footerless Codex authority.
+
+Live agents and the opt-in public fleet acceptance test were not rerun. Qoder’s approved trust gap and the recorded public-oracle limitation remain documented.
+
+**6. Architectural notes**
+
+| Principle | Result |
+|---|---|
+| ARCH-DRY | Pass — shared geometry, projector, grammar, and Return decision. |
+| ARCH-PURE | Pass — deterministic recognition and reducer logic; thin writer boundary. |
+| ARCH-PURPOSE | Pass — operator Return and concrete automated slash producers are covered. |
+| ARCH-MOCK | Pass — stateful drive fixtures, delayed echo, and retained native replay. |
+| ARCH-CONSTRAINTS | Pass — bounded requests, existing deadlines, counted projection work. |
+| ARCH-SECURE | Pass — ambiguous, incomplete, or suggested input grants no command authority. |
+| ARCH-ORDER | Pass — explicit pending-command phase; cancellation, stale proof, and changed ownership tested. |
+| ARCH-FUNERAL | Pass — no new runtime artifact family or background worker. |
+| ARCH-EVOLVE | Pass — no persisted-format change; public submit compatibility preserved. |
+
+**7. Plan revision recommendations:** None. The BR-3 structural-row revision matches the implementation and verified regressions.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"792d09a5-7ae6-4a22-bcca-2211795709dc","repository":"github.com/xianxu/pair","issue_id":"000162","recipe":"milestone-review","round":3,"attempt":1,"agent":"codex","root":"/Volumes/TestScratch/review-checkouts/51e89e5e16463423","reviewed_head":"51f0a6e0cdaf9847904dff59821237bb8bb3e926","slot":"pair:2","requested_at":"2026-10-23T14:41:34.466267Z"},"phase":"finished","pid":46716,"started_at":"2026-10-23T14:41:34.626595Z","finished_at":"2026-10-23T14:46:21.766034Z","session_id":"01a16935-c960-79e3-a741-02c26b97cc24","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 3.2841445s
+head: "51f0a6e0cdaf9847904dff59821237bb8bb3e926"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000410
