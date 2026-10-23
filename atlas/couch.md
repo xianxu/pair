@@ -1987,7 +1987,9 @@ by its leading position, reverse-video tab chip (pair#521), and underlined switc
   lines under it, sits one indent level (2 spaces) deeper. The hub main row
   is underlined; only the selected row uses reverse video. A selected hub keeps
   underline and adds bold beside the cursor arrow, preserving red
-  for a blocked hub. Attention detail lines keep their usual styling.
+  for a blocked hub. Owner focus does not dim switcher rows (#840); parked
+  age treatment and existing activity/status cues remain. The tab bar retains
+  inactive-owner dimming. Attention detail lines keep their usual styling.
 - **Data path:** couchcmd hands the root to `Console.SetHub` at startup. It is
   reduced as `MenuEventHub` into `MenuState.Hub`, which re-sorts the installed
   inventory (`reorderMenuInventory`). `PresentThreads(rows, git, hub)` puts the
