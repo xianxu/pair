@@ -33,7 +33,7 @@ This is provisionally full flow because the producer audit crosses console and c
 | StatusModel / renderStatusCells | cmd/internal/couchtty/reserve.go | modified: remove general Notice and its separator/overflow append path |
 | RenderStatusBar / collapse planner | cmd/internal/couchtty/status_layout.go, status_collapse.go | modified: stop carrying a final-row notice |
 | MenuState / RenderMenuView | cmd/internal/couchtty/menu.go, menu_render.go | modified: bounded latest-feed projection, separate from operation notice |
-| bounded notice-attention projection | cmd/internal/couchtty/notice.go | new pure helper: explicit source facts to a safe attention event |
+| noticeAttention | cmd/internal/couchtty/notice.go | new pure helper: explicit source facts to a safe attention event |
 | Feed | cmd/internal/couchtty/notice.go | retained owner: collapse, capacity, full message and Ctrl+Y history |
 
 The renderer remains pure and receives explicit snapshots (ARCH-PURE). Persistent capability warnings, capture status, attention badge, casts, slot status summaries, hit spans and grouping are separate surfaces and remain intact. Feed owns the text once; the menu projection is derived rather than a second retained history (ARCH-DRY).
@@ -44,7 +44,7 @@ The renderer remains pure and receives explicit snapshots (ARCH-PURE). Persisten
 |---|---|---|---|
 | statusModelLocked | cmd/internal/couchtty/console_presentation.go | modified | console snapshot into pure tab-bar input |
 | menuSnapshot / showMenuPublishing | cmd/internal/couchtty/console_menu.go | modified | copy latest retained feed entry under console mutex |
-| explicit attention-notice publisher | cmd/internal/couchtty/console.go, console_attention.go | new thin method | feed publication plus existing AttentionList event application |
+| Console.Warn / publishWarningLocked | cmd/internal/couchtty/console.go, console_attention.go | new thin method | feed publication plus existing AttentionList event application |
 | jumpToAttention | cmd/internal/couchtty/console_attention.go | modified | global/retired-target event selection opens existing switcher |
 | source callbacks | cmd/internal/couchtty/console_*.go; cmd/internal/couchcmd/run.go, hubs.go, hub_move.go, lifecyclefailure_queue.go, message_service.go | modified | explicit asynchronous warning classification at its producer |
 
@@ -80,22 +80,35 @@ Explicitly mark actionable warnings at their typed source, never by matching Eng
 
 Audit every setNotice/Notify/publishNotice producer before implementation and record any additional actionable sibling in the Log. If classification requires new ownership/state beyond these rows, return to TL rather than silently widening the plan (ARCH-PURPOSE).
 
-## Implementation and verification
+## Function-level regression strategies
+
+| Risky function | Adversarial input / mechanical guard |
+|---|---|
+| renderStatusCells / RenderStatusBar / renderCollapsedStatusBar | Generate actor/width/style inputs and compare snapshots with/without a pending Feed message: identical rows, geometry and hit spans; retain independent controls as the oracle. |
+| menuSnapshot / showMenuPublishing / RenderMenuView | Drive real bounded Feed updates through the stateful console fixture, with simultaneous menu-operation/copy state; assert retained full text and pure bounded viewport/selection projection rather than reproducing layout internals. |
+| noticeAttention (new pure function in notice.go) | Fuzz arbitrary notice bytes and explicit source identity; enforce fixed text byte bounds and safe controls, exact supplied thread/global identity, and no inference from body wording. |
+| Console.Warn / publishWarningLocked (new methods in console.go) | Use existing console and attention mutex boundaries with channel-controlled goroutines to force warning-publication-before-selection and selection-before-publication; compare final event ownership and feed state to a sequential reference model. Count one bounded attention application per explicit warning at N/2N. No sleeps as ordering proof. |
+| jumpToAttention | Generate exact, replaced and absent thread identities in the stateful console fixture; action oracle is exact attached target or existing switcher opening, never another focused actor. |
+| asynchronous producer callbacks in the audit table | Trigger real source transitions with their existing stateful fixtures, asserting actionable failure yields one attention event while normal completion/progress yields none; already-routed events retain a single owner. |
+
+The new exported Console.Warn takes a Notice whose optional Thread and Label name an exact source; empty Thread explicitly means global. Routine Notify/setNotice stays feed-only. noticeAttention maps one explicitly chosen warning to existing AttentionNotify. publishWarningLocked commits feed plus attention under the existing console-to-attention lock order, without calling ObserveAttention/repaint under c.mu; the public wrapper repaints after unlock. Global selection reuses onHotkey's existing switcher opening rather than adding navigation state.
 
 ### Task 1: Remove trailing rendering and preserve switcher display
 
-- [ ] Add failing table tests through the console feed/status projection plus reserve_test.go/status_layout_test.go for collapse and wrap, one/two rows, wide/narrow/tiny widths, ordinary/overflow chips: a pending notice must not change tab bytes, height, chips or hit spans relative to an empty feed. Tests must still compile when StatusModel.Notice is removed. Controls and capability/capture warnings must retain their prior outputs.
-- [ ] Add a console integration test using the real feed: an exit/error is absent from the tab bar, present in the switcher, and still copied fully by Ctrl+Y. Keep MenuState.Notice progress/error and copy-feedback precedence, menu bounds, selection and pointer extents correct when both notices exist.
-- [ ] Run targeted tests and retain the expected red; remove StatusModel.Notice and its common renderer/layout path. Project the newest Feed.Messages entry into bounded switcher presentation. Do not clear/drain the feed or remove its independent copy semantics.
-- [ ] Reconcile old status-notice expiry and overflow-order tests with the new product contract. Feed retention/expiry tests remain meaningful; no stale expectation that tab-bar output shows the notice.
+Files: reserve.go, status_layout.go, status_collapse.go, console_presentation.go, menu.go, menu_render.go and console_menu.go, with colocated render/console regression tests.
+
+- [ ] Write generated render/projection regressions for the named functions and run them red against the current behavior.
+- [ ] Remove StatusModel.Notice and common trailing append paths. Derive a latest-feed switcher snapshot without replacing menu-operation/copy feedback, preserving Ctrl+Y's full retained source.
+- [ ] Run the regressions green; reconcile obsolete tab-notice expectations while retaining independent Feed lifetime/copy tests. Commit this coherent presentation change.
 
 ### Task 2: Preserve actionable asynchronous signals
 
-- [ ] Add failing stateful-console tests for each audit class, using exact thread identity or explicit global identity, plus negative controls for progress/success/key feedback and already-covered attention sources.
-- [ ] Add a thin explicit warning publisher sharing existing feed publication. Assign one in-memory event ID per raised warning, bound body/title before applying to attention, preserve source-safe text and never include cast secrets. Use existing 50-event list/expiry owner; create no queue or timer.
-- [ ] Route the audited asynchronous source callbacks. Keep desktop notification policy and source operation results independent of optional presentation; add no retries or native input.
-- [ ] Test global and unavailable-thread selection opens switcher, exact attached-thread selection stays exact, dismiss/select/expiry/cap work as before, repeated updates cannot create unbounded state, and simultaneous render/publication does not deadlock.
-- [ ] Run focused tests under race and bounded generated/fuzz sequences for untrusted notice text (controls, malformed UTF-8, long text), actor replacement and notice/attention/menu interleaving. Enforce hard byte bounds before rendering; do not rely on terminal width alone for zero-width combining input.
+Files: notice.go, console.go, console_attention.go and the audited console/composition callbacks, with colocated producer and attention tests.
+
+- [ ] Write the function-level pure, generated and controlled-order regression strategies above; retain behavioral red evidence before implementation.
+- [ ] Implement noticeAttention, Console.Warn and publishWarningLocked using existing Feed/AttentionList owners. Bound text before projection, assign one console-local event ID, and preserve source-safe cast wording.
+- [ ] Route only actionable asynchronous transitions at explicit source sites. Leave normal completion/progress and already-covered sources on their existing paths; no English-text classification, new desktop effects, retries or native input.
+- [ ] Implement exact/global selection via the existing switcher/notification navigation funnels. Verify sequential-model, cap/lifetime and controlled-order invariants, then targeted race/fuzz checks; commit the complete producer routing.
 
 ### Task 3: Document and qualify
 
@@ -126,3 +139,7 @@ No persisted format, core status enum, agent PTY admission or child-process life
 ### 2026-10-23 — approved with explicit noise guard
 
 TL db842971-53f5-4660-a836-870b0d14de1a approves all surfaces and global/detached selection behavior. Only events requiring the operator belong in attention; a class that fires routinely during normal operation stays feed-only. Apply this producer-level distinction without parsing English text or duplicating already-routed events. Approval supersedes the earlier pending language; implementation still waits for change-code.
+
+### 2026-10-23 — PQ-1 function-level verification correction
+
+Plan-quality round1 confirmed the existing-behavior claims and architecture, but required test strategies tied to named functions instead of prose case inventories. Replaced Tasks1–2's enumerations with a function-level table, named noticeAttention/Console.Warn/publishWarningLocked, and specified channel-controlled ordering at existing mutex boundaries with a sequential reference model. This changes verification precision, not the approved source classes or visible behavior.
