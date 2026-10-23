@@ -1,8 +1,8 @@
 ---
 id: 000809
-status: codecomplete
+status: done
 created: 2026-10-22
-updated: 2026-10-22
+updated: 2026-10-23
 estimate_hours:
 github_issue:
 flake_tests: [github.com/xianxu/pair/cmd/internal/scribecmd.TestRunPropagatesChildExitCode]
@@ -22,6 +22,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: 1266347a901798d554eb428c2b65801d190923fb
         evidence_commit: d127857e888c054cd5ae15bcc8bc6fa05b223931
+        landed_commit: fccd984e1788cee10c3d2291d99aa4e0416ec249
 ---
 
 # flake: TestRunPropagatesChildExitCode
