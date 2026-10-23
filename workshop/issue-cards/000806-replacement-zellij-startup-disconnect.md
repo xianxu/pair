@@ -1,8 +1,8 @@
 ---
 id: 000806
-status: codecomplete
+status: done
 created: 2026-10-22
-updated: 2026-10-22
+updated: 2026-10-23
 estimate_hours:
 github_issue:
 severity: high
@@ -22,6 +22,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: c683e0a4406c8c9792285a0ab325b0ba8fa4ee3e
         evidence_commit: 6411d462728a5d0d70a13bfb6cb54ec446f1e512
+        landed_commit: 1a45f266dd35652dc465b2b2465ead628944444c
 ---
 
 # Replacement Zellij disconnects before first wrapper startup
