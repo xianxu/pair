@@ -2772,3 +2772,6 @@ and external temporary roots rather than relying on the host's TMPDIR.
 - #796: Geometry tests must derive click coordinates from physical terminal cells, independently of layout's width helper. Emoji/VS16/ZWJ labels can pass self-consistent hit-map tests while their final cells are unclickable. Use the terminal's grapheme metric for measurement and fitting, preserve no-allocation fitting paths, and retain allocation-budget checks when replacing shared text helpers.
 
 - #796: When adding a display mode, parameterize established pending/reattach regressions over both modes. A legacy fixture that explicitly selects the compatibility mode cannot prove the new default preserves pending states. Count branches also need owner/style invariants from ordinary chips, not only correct text and hit spans.
+
+- #812 BR-1: audit each terminal completion owner (local queue, remote queue, direct dispatch) separately. A dispatcher diagnostic callback cannot cover attempts already owned by queues; test the actual local completion path and its once owner.
+- #812 BR-2: a generic Logf or Warning string is not a severity boundary. Trace all producers, including successful fidelity summaries, recovered overflow, aggregate close reports and transient busy replies; carry an explicit warning fact/callback at actionable sources and keep one owner for uncertainty alerts.

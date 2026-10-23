@@ -151,3 +151,7 @@ The strategy row now names the existing prepareCollapsedStatusChips function; co
 ### 2026-10-23 — TL resequences local close before stage
 
 Authenticated TL1e4df14f-c092-4148-8ad7-6921cd401d30 reserves the next stage after #811, and requests recorded check plus local close meanwhile. Run the binary-owned local close/review before real-console acceptance; retain acceptance as the final prerequisite before landing. The issue carries four short operator steps. Pending live/landing checkboxes remain honest; no code change.
+
+### 2026-10-23 — boundary producer-class correction
+
+BR-1 requires all local/remote/direct terminal completion owners to route actionable diagnostics once; ordinary successful recovery guidance stays feed-only. BR-2 requires optional typed Warnf alongside informational Logf through existing cast/recorder configuration. Warnf falls back to Logf for legacy consumers, and only one callback handles each diagnostic. Healthy fidelity, recovered overflow/resync/aggregate-close and transient drive-busy reports stay informational; changed Recovery retains uncertain-input attention ownership. A transient SwitchAgentResult cleanup-warning fact may preserve the producer's exact meaning without parsing its mixed Notice string; it adds no persisted state or lifecycle. Retain real recorded-cast success/error, local queue failure, recovered overflow and transient-busy regression evidence before re-review.

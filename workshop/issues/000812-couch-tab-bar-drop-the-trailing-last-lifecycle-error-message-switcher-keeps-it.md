@@ -115,7 +115,25 @@ Recorded affected selection on afee7fb0eea8bb6c3156567d1ca744e596396859 escalate
 
 Authenticated TL1e4df14f-c092-4148-8ad7-6921cd401d30 says pair:0 holds #811's morning check and #812 stages next only on TL go; meanwhile finish recorded check and local close. Four short operator steps added above. Local close/review can precede live acceptance under this explicit direction; passing recorded proof and real-console acceptance still precede landing. The remaining third Plan row therefore stays unchecked: it includes pending live acceptance and landing. If close requires it, acknowledge only that plan-check guard with this exact sequencing reason; never claim those actions passed.
 
+### 2026-10-23 — boundary round1 REWORK; source-class correction
+
+Binary-owned full review returned REWORK with BR-1 Critical actionable-producer-coverage (local queue finishLifecycleAttempt still used Notify; direct-dispatch callback correctly skips queue-owned attempts) and BR-2 Critical attention-requires-actionable-source (generic Chrome Logf includes healthy fidelity summaries). No close finalized. The independent bounded source audit also confirmed recovered overflow/resync, aggregate Close loss summaries and transient drive503 diagnostics are informational, and uncertain remote input has an existing changed-Recovery attention owner. The original producer-routing checkbox is qualified until these whole-class corrections pass; do not treat earlier targets as proof of these missing cases.
+
+Cancelled the owned old-head queued suite with sdlc local-check cancel --run lease-3535874828, confirmed terminal cancellation; executable source correction needs a new exact-head run. It had not started its suite; no passing result or retained FIFO place claimed. No restart occurred. Typed callback correction uses optional Warnf alongside Logf through CastConfig/RecordOptions/recorder.Options, legacy fallback instead of double publication, with explicit actionable source sites. No new queue, lifecycle/status or persisted state. Local/remote/direct terminal ownership and typed successful-result warning fragments are being swept separately; routine recovery/fallback strings remain feedback.
+
+### 2026-10-23 — BR-1/BR-2 class fixes verified
+
+BR-1: real queued local completion regression reproduced both cleanup and diagnostic-persistence missing alerts, then passed with exact origin and terminal once ownership. Swept typed successful-result warnings: StartedChild adoption/config publication; Archive/Reboot session-left-running; ParkRecovery diagnostic; switch cleanup. A single transient non-serialized SwitchAgentResult.CleanupWarning preserves the producer fact separately from ordinary recovery Notice text; a real successful switch with post-park cleanup failure proves it survives. Full generic feedback still publishes once, and attention only when one explicit typed actionable fact exists. Routine recovery/fallback/NextCommand and even error-looking untyped strings raise none. No duplicate ParkResult diagnostic owner. Targeted lifecycle race PASS1.539s; switch/edited-restart race PASS24.214s; main combined warning source target PASS0.559s and real switch cleanup PASS0.313s.
+
+BR-2: actual recorded-cast end with a frame reproduced healthy fidelity falsely raising1 attention (RED); healthy summary now raises0, failed fidelity exactly1, while both retain feedback. Optional typed Warnf falls back to Logf for legacy callers rather than invoking both; console wires informational and actionable paths separately. Recorder write/open/snapshot/segment and real sink.Close failure sites warn; recovered resync and aggregate Close loss account remain informational. Remote-input uncertainty retains changed Recovery as its sole attention owner. Drive classification follows drive.Answer's typed response:503 stays informational,502/500 warn, preserving ErrInput precedence even when wrapping a deadline error (separate RED→GREEN). Recorder targeted PASS0.465s/full-package race11.021s; actual cast/drive source target race PASS5.553s; console recording/warning-source race PASS4.040s. Inventory and diff check PASS without additional reader repairs. Lessons and atlas updated for both finding families.
+
+Next: commit/push the correction, run a fresh recorded affected/full check on its exact head, and re-run full close review for explicit BR-1/BR-2 disposition. Live operator checklist still waits for TL stage go after #811; no landing before acceptance.
+
 ## Revisions
+
+### 2026-10-23 — BR-1/BR-2 producer-class correction
+
+Distinguish all three lifecycle terminal owners (local queue, remote queue, direct dispatch). For Chrome, classify successful/recovered/transient reports at typed sources rather than inferring severity from Logf text. Retain exactly one attention owner for uncertain remote input. This corrects the implementation against the already-approved attention/noise contract; no new product behavior or acceptance exemption.
 
 ### 2026-10-23 — TL resequences close before live acceptance
 

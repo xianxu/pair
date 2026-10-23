@@ -2150,9 +2150,15 @@ func (c *Console) finishOperation(completed operationCompletion) bool {
 	// Never for a background completion: the pass reattaches behind the
 	// operator, and there is no adoption, so no background completion is ever
 	// the operator's own landing (pair#206).
-	if warned, ok := completed.value.(interface{ Warning() string }); ok && err == nil && warned.Warning() != "" {
-		c.reduceMenu(MenuEvent{Kind: MenuEventNotice, Error: warned.Warning()})
-		c.setNotice(warned.Warning())
+	if warned, ok := completed.value.(interface{ Warning() string }); ok && err == nil {
+		if message := warned.Warning(); message != "" {
+			c.reduceMenu(MenuEvent{Kind: MenuEventNotice, Error: message})
+			if source, actionable := lifecycleCompletionWarningSource(completed.value, completed.origin.Address); actionable {
+				c.Warn(Notice{Kind: "status", Thread: source, Body: message})
+			} else {
+				c.setNotice(message)
+			}
+		}
 	}
 	if err == nil && startedHandleID != "" && !completed.origin.Background && !completed.origin.PreserveFocus && (land || continuationLand) {
 		c.requestMenuRefresh()

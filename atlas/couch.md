@@ -91,9 +91,20 @@ Explicit actionable asynchronous sources use `Console.Warn` and
 failures, cleanup/stale/supervision warnings, failed continuations and actionable
 cast or lockout failures. Routine progress, success and key feedback remain
 feed-only; already-routed prompts, questions and hub notifications keep their
-existing owner. No English-text severity matching or desktop side effect is
+existing owner. Local queue, remote queue and direct-dispatch lifecycle attempts
+each retain one terminal diagnostic owner. `lifecycleCompletionWarningSource`
+projects typed successful-result cleanup/adoption/configuration facts; ordinary
+recovery guidance remains feed-only. Switch cleanup carries a transient
+non-serialized `CleanupWarning` fact rather than parsing its mixed Notice.
+No English-text severity matching or desktop side effect is
 introduced. `noticeAttention` bounds and sanitizes the event's text. Publication
 uses the existing console-to-attention lock order and repaints after unlocking.
+Chrome recording sources carry a separate optional `Warnf` callback through
+CastConfig/RecordOptions/recorder.Options, falling back to legacy Logf when
+absent. Successful fidelity reports, recovered resync/aggregate close reports
+and transient drive-busy diagnostics stay feed-only. Explicit recording/check
+failures warn at their source; remote-input uncertainty retains the existing
+changed Recovery state as its sole attention owner.
 Selecting an attached exact target follows that thread; global or detached
 items open the root switcher rather than falling back to the focused actor.
 Existing notification capacity, dismissal and expiry still own the lifetime.
