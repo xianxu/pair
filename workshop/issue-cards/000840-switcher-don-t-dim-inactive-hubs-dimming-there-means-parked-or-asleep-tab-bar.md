@@ -1,6 +1,6 @@
 ---
 id: 000840
-status: codecomplete
+status: done
 created: 2026-10-23
 updated: 2026-10-23
 estimate_hours:
@@ -21,6 +21,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: 3096420bbe9cb390c2903bd5053f006b973d4224
         evidence_commit: 51ed03b61dea1b639d8c94f2f08140c0655a9081
+        landed_commit: 25a9c7ba7bb8be4548be4d9982e9588ae307ec4b
 ---
 
 # Switcher: don't dim inactive hubs (dimming there means parked or asleep); tab bar keeps it
