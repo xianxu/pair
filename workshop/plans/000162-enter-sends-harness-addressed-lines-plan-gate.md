@@ -35,6 +35,37 @@ rounds:
           family: function-specific-test-strategy
           round: 1
       blocked: true
+    - reviewer_runs:
+        - version: 1
+          intent:
+            id: 8ce6e432-2a96-4bcb-beb4-0befb07af104
+            repository: github.com/xianxu/pair
+            issue_id: "000162"
+            recipe: plan-quality
+            round: 2
+            attempt: 1
+            agent: codex
+            root: /Users/xianxu/workspace/worktree/pair-slot2/pair
+            reviewed_head: a26cd0ace7c3301200c8fd932ebc02fe3a063891
+            slot: pair:2
+            requested_at: "2026-10-23T05:01:37.651258Z"
+          phase: finished
+          pid: 10637
+          started_at: "2026-10-23T05:01:38.003241Z"
+          finished_at: "2026-10-23T05:02:05.377191Z"
+          session_id: 01a16722-d4fd-7c21-8433-928fecb665d0
+          outcome: returned
+      "n": 2
+      timestamp: "2026-10-22T22:02:05-07:00"
+      agent: codex
+      reviewer: codex (openai; author openai)
+      dispose:
+        - id: PQ-1
+          disposition: addressed
+          note: Plan lines 96–101 name all requested functions with adversarial strategies and mechanical guards, including independent sequence invariants, counted-cost checks and withheld-echo mutation testing.
+          round: 2
+      blocked: false
+content_hash: ad8aeadaeaad6d4aad7f385d28e4b38642f7ce34e859b639cfded3e121f1966d
 ---
 
 # Gate ledger — pair#162 (plan-quality)
@@ -49,6 +80,12 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **PQ-1** [Important] `function-specific-test-strategy` Replace prose case inventories with function-specific adversarial test strategies
   Plan lines 96–99 enumerate test cases while leaving several risky callable entry points unnamed. Name the locator/projector, expectation derivation, decidePlainReturn, ReduceDrive and final proof validator, then give each one concise adversarial input class and mechanical guard; use generated event sequences with independent submission invariants for ordering, retaining counted-cost and withheld-echo mutation checks (ARCH-PURE, ARCH-ORDER).
 
+## Round 2 — 2026-10-22T22:02:05-07:00 (codex) — passed
+
+### Disposed
+
+- PQ-1 — addressed — Plan lines 96–101 name all requested functions with adversarial strategies and mechanical guards, including independent sequence invariants, counted-cost checks and withheld-echo mutation testing.
+
 ## Open findings
 
-- **PQ-1** [Important] `function-specific-test-strategy` Replace prose case inventories with function-specific adversarial test strategies
+(none — every finding has been disposed)

@@ -5,8 +5,8 @@ deps: []
 github_issue:
 created: 2026-09-01
 updated: 2026-10-22
-estimate_hours:
-card_mirror: '5dbe5ec6108c55d495504f4302d2393ea9bb6a4c' # card fields mirrored from issue-cards; edit via sdlc
+estimate_hours: 1.97
+card_mirror: '9687db047473023bdc933d8d10c3368591b717aa' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-22T18:09:43-07:00
 claimant:
     operator: Xian Xu
@@ -286,6 +286,26 @@ we default to `<CR>` as submission."* Any residual work there is COVERAGE of
 its own issue.
 
 
+## Estimate
+
+Produced via brain/data/life/42shots/velocity/estimate-logic-v3.1.md against baseline-v3.1.md, Method A only. Calibration is marked stale by estimate-source, so its rates are provisional. Decomposition covers the work with existing-stack primitives: grammar/expectation helper (smaller Go module), shared geometry and immutable-frame wiring (cross-cutting refactor), reducer/Return behavior with stateful tests (TUI screen), two real-agent conformance checks (two real-API discovery units), documentation and one boundary review. Existing terminal snapshots, recognizers, projector, reducer, writer and disposable harness supply the libraries/seams; no novel stack or greenfield-library assumption is priced.
+
+For the thorough accepted spec, design uses the v2/v2.1 raw picks times0.2: smaller Go0.2→0.04; cross-cutting0.75→0.15; TUI1.5→0.30; docs0.10→0.02; review0.10→0.02. Discovery has no design component. Implementation picks are the v2/v2.1 hours times0.4: smaller Go0.30→0.12; cross-cutting0.50→0.20; TUI1.00→0.40; each discovery0.50→0.20; docs0.20→0.08; review0.40→0.16. Familiarity stays1.0; apply the thorough-plan15% design buffer. Thus design0.53×1.15 + implementation1.36 =1.9695h, rounded1.97h. These are derived focused ship-hours, not queue wall time.
+
+```estimate
+model: estimate-logic-v3.1
+familiarity: 1.0
+item: smaller-go-module design=0.04 impl=0.12
+item: cross-cutting-refactor design=0.15 impl=0.20
+item: tui-screen design=0.30 impl=0.40
+item: real-api-discovery design=0.0 impl=0.20
+item: real-api-discovery design=0.0 impl=0.20
+item: atlas-docs design=0.02 impl=0.08
+item: milestone-review design=0.02 impl=0.16
+design-buffer: 0.15
+total: 1.97
+```
+
 ## Log
 
 ### 2026-09-01
@@ -393,3 +413,9 @@ Exact next step after restart: verify #806's retained merge outcome through sdlc
 Authenticated ops:0 delivery8065c647 lifts the shutdown freeze and directs rebuilding on Go1.27.3, re-entering806 merge, then162 change-code. Pair:2 make build completed and pair/couch report go1.27.3. The former806 runner was absent (PID80534 gone, terminal77210 unknown, no landing ticket, PR549 still open); one replacement runner36605 was started and vouched ready, awaiting the shared repository lock. Queue inspection still reports helper inspect exit2, reported to the hub without changing shared tools.
 
 Made the active Spec/Done-when/Plan reflect the already approved October contract. All September text/checklists remain verbatim under explicitly superseded historical subheadings; no new design delta. The temporary162 worktree remains documentation-only until806 releases the numbered checkout. Next: return162 to pair:2, remove the clean temporary worktree, run change-code full flow and follow its named gates before implementation.
+
+
+### 2026-10-22 — Plan gate and estimate derivation
+
+Plan-quality round1 raised PQ-1 (function-specific-test-strategy); round2 CLEAN disposes it addressed. The accepted design names risky functions with adversarial classes and mechanical guards, including generated sequence invariants, independent submission oracles, counted work and withheld-echo mutation. No product design changed. The temporary plan worktree was removed cleanly and162 returned to pair:2 while806's required integrated suite runs from its own detached checkout (lease-3049011771 on c683e0a4406c8c9792285a0ab325b0ba8fa4ee3e); no806 merge runner is active.
+
