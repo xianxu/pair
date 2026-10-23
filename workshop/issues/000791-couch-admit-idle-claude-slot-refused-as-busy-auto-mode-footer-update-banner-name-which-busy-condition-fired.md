@@ -158,6 +158,7 @@ TL sweep7835b9b9-08ff-45ff-a9c2-2627cb734982 authenticated. Retained session5738
 
 
 ### 2026-10-23 — train294 conflict and current-main integration
+- 2026-10-23: closed — Resolved train294 current-main additive NonArtifactSources conflict preserving #753 sketch inventory and #791 capture entry; moved capture entry beside existing peer_batch.go to avoid repeated list-head conflicts. No runtime behavior changed. Source classification regression PASS1.796s, integrated full suite PASS11m28s/no flakes, fresh make test-affected-inventory PASS without hash repairs. (fixed-then-ship; full suite: Integrated1ae80540eb66b536d949e57b1fdb9a166c849c90 full suite attempt4286478f957bad263acff859f5a7fec1 passed exit0 in11m28s, no flakes; recorded sdlc-local/suite success. Log SHA256fe28e0403f69c84c42578c640926294821bdc18782aa98eb76cabbe3f97cfa8d.)
 
 TL sweepd78eb84d-ff38-42ec-b316-ccf16f6898b6 authenticated. Retained merge session4976 had exited: train294 held #791 because it conflicted with earlier cars/main. Fetched origin/main6629ef525dfe05522e23301b35c66d3205147854; one actual conflict in NonArtifactSources between the #791 capture entry and #753's independent sketch inventory. Preserve every #753 entry and place peer_wait_capture.go next to the existing peer_batch.go entry rather than repeatedly inserting at the list head. This inventory ordering change has no runtime behavior and reduces repeated additive conflicts as peers land. Atlas merged cleanly. No safety-policy or diagnostic behavior changed.
 
