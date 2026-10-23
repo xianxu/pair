@@ -531,3 +531,12 @@ The helper was behaviorally red0.259s with Unknown stub, then targeted race PASS
 
 
 Producer completion checks joined PASS: combined edited-restart/actual-console/binder regression race core23.963s and cmd4.435s; artifact inventory/dead-symbol13.222s, repolint9.662s, affected-reader inventory and whitespace. No source or fixture-turn changes are needed beyond this producer correction. Commit/push the approved implementation, then rerun only TestDisposableEditedRestart from the clean committed head, retaining raw output/hash and exact source.
+
+
+### 2026-10-22 — Corrected-source M3 native PASS; operator staging pending
+
+Clean pushed source340131de51ea7c5d9f06176db13c94c9df92155f rerun70603 joined PASS71.152s (test70.97s; Claude33.26s/Codex31.70s). Both agents preserve exact native ID and transcript with edited flags/new PID-generation, then public completed park and confined exact transcript removal produce a different fresh ID with explicitly empty accepted argv and exact warning: no previous conversation found; started fresh with the new parameters. Prior transcript hash bytes remain unchanged; both fleets report all owned generations absent and direct child/IO joined. No extra post-resume turn was inserted.
+
+Raw /Users/xianxu/.local/share/pair/evidence/000728/native-m3-20261023T002617Z/run.log, SHA2569e7b12f85ca7bf754994eb1617c80f7228a0181342e842ece0b0dec0724f9007, source-head.txt and exit-code.txt beside it. Claude resume/fresh receipts945f5953-8166-49fa-8877-e6d98b564353 /05fa5ce4-680c-4920-99f4-d9326427225a; Codex030255d1-550f-4ada-ac7c-86a9699aa481 /53662689-0078-4bc0-9aa4-db97eb279560. These are genuine Couch/Pair/Zellij processes with fixture native agents; operator real-agent flags/live M3 acceptance remains required, not implied by this result.
+
+Read-only sdlc stage --dry-run refuses: pair:0 staged for#753 frompair:9 since16:46. No target checkout, stage lease, live Echo arguments or operator process was changed. Hub was sent the concrete passed head/results and asked to coordinate an available staging slot plus safe live targets/authorization, including approved Echo Couch-owned Codex/Claude argument seeds. M3 boundary, final recorded head and whole close still due. #743 recorded suite remains retained, last FIFO6.
