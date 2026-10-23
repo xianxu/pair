@@ -1026,3 +1026,73 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000411
+
+---
+
+## Re-review — 2026-10-22T23:01:34-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 753 — cast-sketch: operator CLI queries and historical image export |
+| repo | pair |
+| issue file | workshop/issues/000753-cast-sketch-agent-export.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | cec159dc19eab31c6fd20d697c74d150eff13a42..5981401a7e1aeb2931f2d73f4ef1846cfb3b8bd9 |
+| command | sdlc close --issue 753 |
+| reviewer | codex (openai; author openai) |
+| isolation | fenced |
+| timestamp | 2026-10-22T23:01:34-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+The pinned interdiff introduces no blocking defects. The conflict resolution preserves both registration lists, and the issue’s Spec, Revisions, and Done-when contracts are unchanged. All prior dispositions remain retained; none require reopening.
+
+```findings
+{}
+```
+
+1. **Strengths**
+   - [manifest.go:678](/Volumes/TestScratch/review-checkouts/7bab44489bfd4ecd/cmd/internal/artifactpath/manifest.go:678) preserves both #753 sketch and #743 VM registrations without duplication.
+   - Existing inventory enforcement validates the resolved list against production sources.
+   - Tracker changes record review and integration history without expanding scope.
+
+2. **Critical findings:** None.
+
+3. **Important findings:** None.
+
+4. **Minor findings:** None.
+
+5. **Test coverage notes**
+   - `go test ./cmd/internal/artifactpath -count=1` passed.
+   - `make test-affected-inventory` passed.
+   - Pinned-range `git diff --check` passed.
+   - No executable behavior changed beyond restoring the conflicted registration list; broader behavior tests were outside this narrow review.
+
+6. **Architectural notes**
+   - **ARCH-DRY: Pass** — both lists retained once.
+   - **ARCH-PURE: Pass** — declarative inventory remains free of IO.
+   - **ARCH-PURPOSE: Pass** — resolution preserves both sides’ intent.
+   - **ARCH-EVOLVE: Pass** — no persisted format or reader/writer changes.
+
+7. **Plan revision recommendations:** None.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"91b64188-92bf-43be-a1ad-7154176de8b0","repository":"github.com/xianxu/pair","issue_id":"000753","recipe":"fix-review","round":10,"attempt":1,"agent":"codex","root":"/Volumes/TestScratch/review-checkouts/7bab44489bfd4ecd","reviewed_head":"5981401a7e1aeb2931f2d73f4ef1846cfb3b8bd9","slot":"pair:9","requested_at":"2026-10-23T06:00:33.225128Z"},"phase":"finished","pid":83010,"started_at":"2026-10-23T06:00:33.327179Z","finished_at":"2026-10-23T06:01:33.592585Z","session_id":"01a16758-c6f4-7400-9b93-8651874e50fe","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 2.554369458s
+head: "5981401a7e1aeb2931f2d73f4ef1846cfb3b8bd9"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412
