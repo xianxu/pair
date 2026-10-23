@@ -58,8 +58,9 @@ Durable plan: `workshop/plans/000830-global-alt-x-marks-parked-slots-asleep-one-
 - [x] T2 pure `ThreadAsleep` predicate (nonce-bound)
 - [x] T3 BeginPark cause; Leave fresh drives mark asleep; resume/reattach clear
 - [x] T4 summary + switcher shows asleep
-- [x] T5 wake operation (hubs only): switcher key Alt+Shift+x; `asleep_at` in `couch --recover-plan-from-sdlc` rows (done)
-- [ ] T6 native fleet acceptance (Claude, Codex)
+- [x] T5 `asleep_at` in `couch --recover-plan-from-sdlc` rows
+- [ ] T5b `couch --wake`: main hub only, from a live hub; resumes the other asleep hubs; idempotent; one summary. Drop the Alt+Shift+x key.
+- [ ] T6 native fleet acceptance (Claude, Codex): full quit, resume main hub, `couch --wake`
 - [x] T7 atlas, lessons, ariadne#564 contract
 
 ## Revisions
@@ -67,6 +68,11 @@ Durable plan: `workshop/plans/000830-global-alt-x-marks-parked-slots-asleep-one-
 - 2026-10-23 (TL-approved): the wake key's design is checked against #739's startup, not main's. Under #739 a hub is only reattached when its session survived; a cold resume is the operator's action. So after a full shutdown, asleep hubs stay down and the key is the gesture. Two surfaces changed:
   - **No `couch --wake`.** Broker CLI ops need a live calling slot, and after a full shutdown none exists.
   - **No `couch --asleep --json`.** `asleep_at` is instead added to each thread row of the existing `couch --recover-plan-from-sdlc` report (pair#367). The field is additive (omitempty) and the schema version is unchanged. That report already joins each slot's claims and work evidence, so ariadne#564 reads the asleep set and the pending work in one call. The TL adds a line to ariadne#564's spec.
+- 2026-10-23 (operator, via TL): **no wake key; waking is `couch --wake`, run by the TL from the live main hub.** After a full shutdown the operator resumes the main hub from the switcher and asks the TL, which runs `couch --wake`. This reverses the first revision's "No `couch --wake`": that objection assumed no live slot exists, but the resumed main hub is one. Delta:
+  - Alt+Shift+x is removed, along with its confirmation frame and the couchkeys rule loosened for it.
+  - `couch --wake` is a broker op. Only the main hub may call it. It resumes every other hub whose thread is asleep, each through the ordinary slot-resume queue, and polls them to one summary. It is idempotent: a woken hub is no longer asleep, and an in-flight one is refused as busy.
+  - Asleep workers stay asleep for each woken hub's tl-lead resume (ariadne#564), which reads `asleep_at` from the recover-plan rows as agreed.
+  - The fleet test drives: full quit, resume the main hub, `couch --wake`.
 
 ## Log
 
