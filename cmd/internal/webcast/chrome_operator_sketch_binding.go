@@ -34,6 +34,7 @@ func (c *Chrome) operatorSketchScope(s *loopState, session string, id int64) *op
 func (c *Chrome) retireOperatorSketchScopes(s *loopState, session string) {
 	for key, scope := range s.sketchScopes {
 		if session == "" || key.session == session {
+			c.retireSubmissionPreviewScope(scope)
 			close(scope.life)
 			delete(s.sketchScopes, key)
 		}

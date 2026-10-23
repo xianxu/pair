@@ -14,6 +14,9 @@ import (
 
 // NoteView is a note as an agent reads it.
 type NoteView struct {
+	// Elements owns literal declarations at this historical context moment.
+	Elements DeclaredElementFacts
+
 	Note *recording.NoteView
 	// Element is the note's element at the note's time, as compact text;
 	// empty when it was already gone.
@@ -44,6 +47,8 @@ type Surface interface {
 	// Notes are every note, in order, with the user's actions in the
 	// before ms preceding each.
 	Notes(before int64) ([]NoteView, error)
+	// SketchesAt freezes original source facts and an optional exact accepted prefix.
+	SketchesAt(at int64, selected ...SketchSelection) ([]SketchView, error)
 }
 
 // UserAction reports whether a record is something the user (or the page

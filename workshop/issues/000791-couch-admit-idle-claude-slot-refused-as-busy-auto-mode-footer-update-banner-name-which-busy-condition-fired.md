@@ -156,6 +156,14 @@ Landing session45547 then ended on conflicts with newer main54a02d7aa3971f50987b
 TL sweep7835b9b9-08ff-45ff-a9c2-2627cb734982 authenticated. Retained session57388 completed exit0: full suite attempt68653db461f4c3c4ec590d436a548c94 on7950b24983cabab9ff1e57ecfcf21ff0af2f3420 passed11m3s, finished23:02:48 PDT, no failures/flake rerun. Log SHA256164de7ea01d7018972e8ef6e4c0e0a2d77a4727a32180691d151af820d48342c at .git/sdlc/local-checks/7950b24983cabab9ff1e57ecfcf21ff0af2f3420/suite.log; sdlc-local/suite success recorded on that source. The later docs-only checkpoint8b5cc6ad7d8133a8423d083540ae6c01cf71e9ef has unchanged code. Required make test-affected-inventory rerun now passes, no certificate repair. Proceed immediately with narrow re-close for the additive atlas/inventory conflict resolution, then merge; no external blocker. Prior #825 fail/resume history remains retained but was not needed by this new full-suite pass.
 
 
+
+### 2026-10-23 — train294 conflict and current-main integration
+
+TL sweepd78eb84d-ff38-42ec-b316-ccf16f6898b6 authenticated. Retained merge session4976 had exited: train294 held #791 because it conflicted with earlier cars/main. Fetched origin/main6629ef525dfe05522e23301b35c66d3205147854; one actual conflict in NonArtifactSources between the #791 capture entry and #753's independent sketch inventory. Preserve every #753 entry and place peer_wait_capture.go next to the existing peer_batch.go entry rather than repeatedly inserting at the list head. This inventory ordering change has no runtime behavior and reduces repeated additive conflicts as peers land. Atlas merged cleanly. No safety-policy or diagnostic behavior changed.
+
+Previous narrow close round5 SHIP/no findings and full suite11m3s remain historical; new integration still needs recorded full-suite verification and narrow re-close before re-entering merge. Next: run classification/affected inventory checks, commit/push this integration, queue one required recorded suite on that exact source, retain it through completion, narrow re-close and merge. #807 paused; #737/#810 parked.
+
+
 ## Revisions
 
 ### 2026-10-22 — operator/TL expanded reproduction and capture scope

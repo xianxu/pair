@@ -226,6 +226,7 @@ export function sketchMetadata(s, sketch = s.active, stroke = '') {
     visible_top: h.visible.at(-1) || '',
     redo_top: h.redo.at(-1) || '',
     next_sequence: h.next,
+    digest: h.digest,
     ...(p
       ? {
           stroke: {
@@ -403,6 +404,7 @@ export function nextSketch(s, r, c) {
       effect();
       target.receipts.set(r.operation, receipt);
       target.next++;
+      target.digest = receipt.digest;
       s.history_bytes += size;
     },
   };
@@ -607,6 +609,7 @@ export function restoreSketchState(p) {
         labelWitness = r.label;
       }
       h.receipts.set(receipt.operation, structuredClone(receipt));
+      h.digest = receipt.digest;
       semanticBytes += enc.encode(receipt.semantic).length;
       need(semanticBytes <= p.history_bytes, 'snapshot receipt byte bound');
     }

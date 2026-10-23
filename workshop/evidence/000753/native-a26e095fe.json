@@ -1,0 +1,21 @@
+{
+  "source_revision": "a26e095feb233c9d7954c4894895280cd9589d18",
+  "command": [
+    "env",
+    "WEBCAST_LIVE_CHROME=1",
+    "go",
+    "test",
+    "./cmd/internal/webcast",
+    "-run",
+    "TestOperatorSketchLive|TestLiveCurrentSketchPage",
+    "-count=1",
+    "-v"
+  ],
+  "outcome": "pass",
+  "duration_seconds": 19.951,
+  "log_sha256": "fbcffd0635499d9e0722f9e2a336a90d3d9132de027088e2441bbac4f55c5702",
+  "qualification": "Final integrated native macOS headless Chrome: annotation-off console pen/Note/save; selective confirmed masking and next real pen; unsent actual tab A-B-A with delayed recorder catch-up and forced repaint; current private Read/Select/Resolve/Freeze/Prepare shared image preserves original source/history; sanitized same-context SPA head/body/root replacement re-arms drawing; current-prefix image/geometry pixels and handoff label.",
+  "limitations": [
+    "Synthetic headless fixtures; renewed real-operator current-view re-look remains separate."
+  ]
+}

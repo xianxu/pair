@@ -25,7 +25,7 @@ func TestLiveRecoveryOwnerReboot(t *testing.T) {
 	binaries := testcouch.Build(t)
 	for _, kind := range []string{"claude", "codex"} {
 		t.Run(kind, func(t *testing.T) {
-			fleet := testcouch.New(t, binaries, testcouch.Options{ExplicitHub: true, Workers: 1, AgentKind: kind, RuntimeBudget: 120 * time.Second})
+			fleet := testcouch.New(t, binaries, testcouch.Options{ExplicitHub: true, Workers: 1, AgentKind: kind, RuntimeBudget: 120 * time.Second, RetainStartupServerLog: true})
 			fleet.Environment = append(fleet.Environment, "COUCH_RESOURCE_CADENCE=1s")
 			setup, stopSetup := context.WithTimeout(t.Context(), 180*time.Second)
 			defer stopSetup()
