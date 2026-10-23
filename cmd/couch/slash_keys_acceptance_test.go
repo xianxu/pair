@@ -34,6 +34,10 @@ func TestDisposableSlashKeys(t *testing.T) {
 	for _, agent := range agents {
 		if !t.Run(agent, func(t *testing.T) {
 			fleet := testcouch.New(t, binaries, testcouch.Options{Workers: 1, AgentKind: agent})
+			// EndpointSocket uses this process-local selector as well as the
+			// explicit store namespace. Subtests are sequential; child actors
+			// already inherit the same owned root from the shared harness.
+			t.Setenv("COUCH_ISOLATED_ROOT", fleet.Roots.Root)
 			setup, cancelSetup := context.WithTimeout(t.Context(), 180*time.Second)
 			err := fleet.Prepare(setup)
 			cancelSetup()
@@ -85,33 +89,27 @@ func TestDisposableSlashKeys(t *testing.T) {
 				t.Logf("post-command refusal live peek exit=%d error=%v bytes=%d truncated=%t json=%q", peek.ExitCode, err, len(peek.Stdout), peek.Truncated || len(peek.Stdout) > retainedBytes, peek.Stdout[:min(len(peek.Stdout), retainedBytes)])
 			}
 
-			waitSupervisorIdle := func(after time.Time) {
+			waitCurrentIdle := func() {
 				t.Helper()
-				// This proves only the supervisor's public settled evidence.
-				// The single keys admission still checks wrapper drive readiness;
-				// a refusal fails the test and is never retried.
+				// The shared helper reads this owned wrapper's current proof.
+				// Resource telemetry has a 60s cadence and is diagnostic only.
+				// Public keys still perform their own single admission.
 				if err := waitFleet(ctx, func() (bool, error) {
-					result, err := fleet.ActorCLI(ctx, 0, "--resources", "--json")
+					observation, err := fleet.ObserveDrive(ctx, 1)
 					if err != nil {
 						return false, err
 					}
-					if result.ExitCode != 0 {
-						return false, fmt.Errorf("public resources: %+v", result)
-					}
-					var resources couchcore.ResourceView
-					if err := json.Unmarshal([]byte(result.Stdout), &resources); err != nil {
-						return false, err
-					}
-					if !slashKeysSupervisorIdle(resources, after) {
-						if afterCommand && resources.SampledAt.After(after) {
-							captureRefusal(result.Stdout)
+					if !observation.Idle {
+						if afterCommand && !capturedRefusal {
+							t.Logf("post-command refused current proof: %+v", observation)
+							captureRefusal("")
 						}
 						return false, nil
 					}
-					t.Logf("public idle sample=%s after=%s", resources.SampledAt.Format(time.RFC3339Nano), after.Format(time.RFC3339Nano))
+					t.Logf("current wrapper idle instance=%s sequence=%d", observation.Instance, observation.Sequence)
 					return true, nil
 				}); err != nil {
-					t.Fatalf("wait for supervisor idle evidence: %v", err)
+					t.Fatalf("wait for current wrapper idle proof: %v", err)
 				}
 			}
 			keys := func(steps ...string) *couchmessage.OperationReceipt {
@@ -134,7 +132,7 @@ func TestDisposableSlashKeys(t *testing.T) {
 				}
 				return r
 			}
-			waitSupervisorIdle(time.Now())
+			waitCurrentIdle()
 			baseline, err := fleet.Accepted(1)
 			if err != nil && !errors.Is(err, os.ErrNotExist) {
 				t.Fatal(err)
@@ -167,7 +165,7 @@ func TestDisposableSlashKeys(t *testing.T) {
 			// Ordinary Return keeps prose in the composer. Public live peek
 			// witnesses the retained draft before explicit recovery clears it.
 			prose := "slash-keys-ordinary-prose-" + agent
-			waitSupervisorIdle(receipt.Finished)
+			waitCurrentIdle()
 			keys("text:"+prose, "enter")
 			if err := waitFleet(ctx, func() (bool, error) {
 				result, err := fleet.ActorCLI(ctx, 0, "--peek", "fixture:1", "--lines", "40", "--json")
@@ -206,29 +204,6 @@ func TestDisposableSlashKeys(t *testing.T) {
 			}
 		}) {
 			break
-		}
-	}
-}
-
-// A later operation cannot inherit idle evidence sampled before its predecessor.
-func slashKeysSupervisorIdle(resources couchcore.ResourceView, after time.Time) bool {
-	if !resources.SampledAt.After(after) {
-		return false
-	}
-	for _, slot := range resources.Slots {
-		if slot.Slot == "fixture:1" {
-			return slot.IdleKnown && slot.Idle
-		}
-	}
-	return false
-}
-
-func TestSlashKeysSupervisorIdleRequiresFreshSample(t *testing.T) {
-	finished := time.Unix(123, 0)
-	for _, offset := range []time.Duration{-time.Second, 0, time.Nanosecond} {
-		resources := couchcore.ResourceView{SampledAt: finished.Add(offset), Slots: []couchcore.ResourceSlotView{{Slot: "fixture:1", IdleKnown: true, Idle: true}}}
-		if got := slashKeysSupervisorIdle(resources, finished); got != (offset > 0) {
-			t.Fatalf("sample offset=%s admitted=%t", offset, got)
 		}
 	}
 }
