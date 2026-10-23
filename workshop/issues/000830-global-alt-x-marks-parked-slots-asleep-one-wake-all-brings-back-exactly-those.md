@@ -1,13 +1,21 @@
 ---
 id: 000830
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-10-22
-updated: 2026-10-22
+updated: 2026-10-23
 estimate_hours:
 collaboration-mode: collaboration
-card_mirror: 'd20aef08044f3d8668379d16021aff0c600bc6a0' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '25a30036bbf0cdc9e14a4abcf0fdafe25b0b2057' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-23T07:18:19-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: Xian’s MacBook Pro
+    workspace: pair:6
+    worktree: /Users/xianxu/workspace/worktree/pair-slot6/pair
+    repository: github.com/xianxu/pair
 ---
 
 # Global Alt+x marks parked slots 'asleep'; one 'wake all' brings back exactly those
@@ -43,8 +51,20 @@ So "wake all" at the Couch level means "wake the asleep hubs"; the per-hub order
 
 ## Plan
 
-- [ ]
+Durable plan: `workshop/plans/000830-global-alt-x-marks-parked-slots-asleep-one-wake-all-brings-back-exactly-those-plan.md` (awaiting TL approval).
+
+- [ ] T1 record field `asleep` (SleepMark, born additive)
+- [ ] T2 pure `ThreadAsleep` predicate (nonce-bound)
+- [ ] T3 BeginPark cause; Leave fresh drives mark asleep; resume/reattach clear
+- [ ] T4 summary + switcher shows asleep
+- [ ] T5 wake operation (hubs only): switcher key, `couch --wake`, `couch --asleep --json`
+- [ ] T6 native fleet acceptance (Claude, Codex)
+- [ ] T7 atlas, lessons, ariadne#564 contract
 
 ## Log
+
+### 2026-10-23
+
+- pair:6 claimed and planned. The mark is written in BeginPark's CAS and bound to the park nonce; asleep is derived (receipt nonce = mark nonce), so every park-ending path and older builds leave it inert (ARCH-ORDER, ARCH-EVOLVE). It is a top-level member because nested park types are strict. tl-lead reads `couch --asleep --json`. `couch --drain` (#722) is not implemented yet; the cause is a Leave parameter so it can choose.
 
 ### 2026-10-22
