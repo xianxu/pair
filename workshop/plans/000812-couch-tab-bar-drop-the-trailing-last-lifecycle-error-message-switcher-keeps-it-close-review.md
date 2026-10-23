@@ -443,3 +443,103 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-23T06:54:07-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 812 — Couch tab bar: drop the trailing last lifecycle/error message (switcher keeps it) |
+| repo | pair |
+| issue file | workshop/issues/000812-couch-tab-bar-drop-the-trailing-last-lifecycle-error-message-switcher-keeps-it.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | c0dbb32decc052500172ded01ff36e3fa8e49cc9..d29420112ffe74bae7e2b7bb443c93a7a5dcbf8f |
+| command | sdlc close --issue 812 |
+| reviewer | codex (openai; author openai) |
+| isolation | fenced |
+| timestamp | 2026-10-23T06:54:07-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+The pinned change satisfies the documented presentation and warning-routing contracts. BR-6 is addressed: assertions acknowledge actual publication, and the affected tests have explicit completion joins. No new blocking findings. Recorded qualification and coordinated live acceptance remain prerequisites before landing, as the revised plan states.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      Queue-owned diagnostics use Warn with the retained origin; real local-queue regressions cover cleanup, persistence failure, success and duplicate completion.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      Typed Warnf remains separate from informational Logf; recorded-cast regressions distinguish healthy fidelity from failed checks.
+  - id: BR-3
+    disposition: addressed
+    note: |
+      newConsoleRenicer retains exact binding identity; regressions verify one relaunch warning, exact selection and quiet normal priority.
+  - id: BR-4
+    disposition: addressed
+    note: |
+      Affected rendering and lifecycle assertions use retained feed, switcher or attention contracts; targeted checks pass.
+  - id: BR-5
+    disposition: addressed
+    note: |
+      openWarningAttention acknowledges current terminal cells before input; controlled tests cover early invocation, prior publication and historical badges.
+  - id: BR-6
+    disposition: addressed
+    note: |
+      console_warning_test.go:136 waits for exact warning publication and joins SetForget completion. With the same temporary 200 ms publication-gap overlay, the previous oracle fails with zero warnings and the repaired oracle passes ten runs. The plan enumerates affected assertions and completion joins.
+```
+
+1. **Strengths**
+
+   - Removing `StatusModel.Notice` eliminates the trailing-message rendering path in both layouts.
+   - `console_menu.go:54` derives switcher text from the existing feed, preserving one history owner.
+   - `console.go:2356` publishes feed and attention under consistent locking, with repaint after unlocking.
+   - README and atlas describe the changed presentation, warning classification and navigation.
+
+2. **Critical findings:** None.
+
+3. **Important findings:** None.
+
+4. **Minor findings:** None.
+
+5. **Test coverage notes**
+
+   Passed targeted warning suites across couchtty, couchcmd, webcast and recorder; repeated race checks; renderer, switcher-copy and switch-cleanup regressions; reader inventory; and diff checks. Attention fuzzing passed 8,641 executions. The BR-6 reversal comparison failed before correction and passed afterward. Repository files remain unchanged.
+
+6. **Architectural notes**
+
+   - **ARCH-DRY — pass:** Existing feed and attention owners are reused.
+   - **ARCH-PURE — pass:** Projection/rendering logic remains separate from console IO.
+   - **ARCH-PURPOSE — pass:** Both layout removal and actionable-source visibility are covered.
+   - **ARCH-MOCK — pass:** Integration tests use existing stateful injected fixtures.
+   - **ARCH-CONSTRAINTS — pass:** Text, history and attention remain bounded; no new per-frame IO.
+   - **ARCH-SECURE — pass:** Attention text is sanitized; exact source identity and secret-safe wording are tested.
+   - **ARCH-ORDER — pass:** Publication is atomic, and affected assertions acknowledge completed effects.
+   - **ARCH-FUNERAL — pass:** Existing caps, expiry and console lifetime govern added state.
+   - **ARCH-EVOLVE — pass:** No persisted format changes; cleanup-warning metadata is explicitly nonserialized.
+
+7. **Plan revision recommendations:** None. The existing revisions document the source rule, assertion sweep and qualification sequencing.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"bc944c98-8e6f-474b-8226-8b8cb985c903","repository":"github.com/xianxu/pair","issue_id":"000812","recipe":"milestone-review","round":5,"attempt":1,"agent":"codex","root":"/Volumes/TestScratch/review-checkouts/b679bf607ac19b3c","reviewed_head":"d29420112ffe74bae7e2b7bb443c93a7a5dcbf8f","slot":"pair:1","requested_at":"2026-10-23T13:50:30.349768Z"},"phase":"finished","pid":7393,"started_at":"2026-10-23T13:50:30.497707Z","finished_at":"2026-10-23T13:54:06.403538Z","session_id":"01a16907-07e0-73a2-a9cf-39219e37f0ca","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 3.15502825s
+head: "d29420112ffe74bae7e2b7bb443c93a7a5dcbf8f"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000411

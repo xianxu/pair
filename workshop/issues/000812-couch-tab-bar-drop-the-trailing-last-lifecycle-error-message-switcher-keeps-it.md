@@ -66,6 +66,7 @@ needs the operator's attention goes through the notification (attention list / `
 
 
 ### 2026-10-23 — claimed and planned from main
+- 2026-10-23: closed — BR-6 full async assertion class sweep in durable plan: exact exit warning postcondition and controlled assertion-first/publication-first, stop negatives join terminal callbacks and feedback. Exact unlock-to-Warn gated overlay RED0.397s then GREEN x10 0.565s; comprehensive classification/source/ordering race x10 PASS113.174s. Complete couchtty PASS57.447s (4362 test/subtest passes), couchcmd PASS113.354s (1784 passes),0 failures; final extra test-only stop join named race x10 PASS3.856s. Production unchanged since cafbf526. make test-affected-inventory and diff check PASS. Fresh recorded affected check submitted on pushed d29420112ffe74bae7e2b7bb443c93a7a5dcbf8f; pass required before landing. TL1e4df14f authorizes close before held stage/live: only unchecked composite plan row waived, not real-console acceptance or explicit stage go.; review verdict: SHIP
 
 Authenticated ops:0 dispatcha5d6fa63-e13d-47f0-a2c9-03f5643533b7 assigns #812 after #791 landed. Claimed pair:1 (claim waited for a peer close's legitimate repository lock); start-plan created this independent branch from mainc0dbb32decc052500172ded01ff36e3fa8e49cc9. Catch-up refreshed the local ariadne dependency toee4dd7fa1e8488e3230dc462971be8796f317e41; seeded workflow refresh was explicitly deferred by the new tooling, no local-gates edit to ship.
 
