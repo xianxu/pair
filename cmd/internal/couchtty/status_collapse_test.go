@@ -16,7 +16,7 @@ func TestCollapseStatusFoldsQuietMembersAtWideWidth(t *testing.T) {
 	actors[0].Active = true
 	actors[2].Bell = true
 	b := RenderStatusBar(100, 2, StatusModel{TabStyle: TabStyleCollapse, Actors: actors})
-	if b.Height() != 1 || rowPlain(b.Rows[0]) != "[alpha]  :2  +3" || len(b.Chips) != 2 {
+	if b.Height() != 1 || rowPlain(b.Rows[0]) != "[alpha]  :2  +3 ···" || len(b.Chips) != 2 {
 		t.Fatalf("collapse=%q chips=%+v", b.Body(), b.Chips)
 	}
 }
