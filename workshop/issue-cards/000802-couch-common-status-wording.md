@@ -1,6 +1,6 @@
 ---
 id: 000802
-status: codecomplete
+status: done
 created: 2026-10-22
 updated: 2026-10-23
 estimate_hours:
@@ -22,6 +22,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: 3f4c34fc99b4a74101c9ad363eed0c78d3e15a43
         evidence_commit: 0650d0c0c70b1ed954adfbc0efd0e01d3d987995
+        landed_commit: 8e42157d04dd2db6edbe0038afbf1ec94f5b402e
 ---
 
 # Couch: shorten common statuses
