@@ -134,17 +134,48 @@ func TestAsyncCastStartFailuresRaiseWarnings(t *testing.T) {
 }
 
 func TestUnexpectedExitRaisesExactWarning(t *testing.T) {
-	f, threads := pagingFixture(t)
-	f.con.exited <- childExit{id: "c2", code: 0}
-	waitFor(t, "exit removal", func() bool { f.con.mu.Lock(); defer f.con.mu.Unlock(); return f.con.panes["c2"] == nil })
-	if f.attentionLen() != 1 {
-		t.Fatalf("unexpected exit produced %d warnings", f.attentionLen())
-	}
-	f.con.attn.mu.Lock()
-	items := f.con.attn.list.Items()
-	f.con.attn.mu.Unlock()
-	if items[0].Thread != threads[1] || items[0].Body == "" {
-		t.Fatalf("exit lost source: %+v", items)
+	for _, publicationFirst := range []bool{false, true} {
+		t.Run(fmt.Sprint(publicationFirst), func(t *testing.T) {
+			f, threads := pagingFixture(t)
+			// Forget is an existing callback AFTER the exit warning. It joins
+			// actual publication, unlike observing the removed pane.
+			published := make(chan struct{})
+			f.con.SetForget(func(_ couchcore.Worktree, actor couchcore.ActorID) error {
+				if actor == "c2" {
+					close(published)
+				}
+				return nil
+			})
+			observe, sent := make(chan struct{}), make(chan struct{})
+			go func() {
+				defer close(sent)
+				<-observe
+				f.con.exited <- childExit{id: "c2", code: 0}
+			}()
+			if publicationFirst {
+				close(observe)
+				waitClosed(t, "exit warning published before assertion", published)
+			}
+			observed := publicationFirst
+			waitFor(t, "exact unexpected-exit warning publication", func() bool {
+				items := warningSourceItems(f.con)
+				if !observed {
+					// The first assertion observes the pre-publication state;
+					// only then may the source run. No scheduler timing is assumed.
+					observed = true
+					close(observe)
+				}
+				return len(items) == 1 && items[0].Thread == threads[1] && items[0].Body != ""
+			})
+			waitClosed(t, "exit warning completion", published)
+			waitClosed(t, "exit delivery", sent)
+			f.con.mu.Lock()
+			removed := f.con.panes["c2"] == nil
+			f.con.mu.Unlock()
+			if !removed {
+				t.Fatal("published exit warning before pane removal")
+			}
+		})
 	}
 }
 

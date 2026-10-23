@@ -1,6 +1,7 @@
 package couchtty
 
 import (
+	"context"
 	"errors"
 	"path/filepath"
 	"strings"
@@ -91,6 +92,9 @@ func TestWarningSourcesCastGuessingAttentionIsSecretSafeAndGenerationOwned(t *te
 				t.Fatalf("attention exposed a cast secret: %+v", items)
 			}
 			stop()
+			if err := c.runTerminalCommand(context.Background(), func() error { return nil }); err != nil {
+				t.Fatal(err)
+			}
 			rotation.Reason, rotation.Gen = castlock.ReasonGuessing, 12
 			c.onCodeRotated(kind, attempt, broadcast.LinkView, rotation)
 			if after := warningSourceItems(c); len(after) != 1 || after[0].ID != items[0].ID {
@@ -116,6 +120,11 @@ func TestWarningSourcesBroadcastFailureAndNormalStopDiffer(t *testing.T) {
 				f.con.stopBroadcast()
 			}
 			waitFor(t, "broadcast stop settled", func() bool { return f.phase() == broadcastOff })
+			// The phase changes before the terminal callback finishes. Join a
+			// following command before asserting the operator-stop negative.
+			if err := f.con.runTerminalCommand(context.Background(), func() error { return nil }); err != nil {
+				t.Fatal(err)
+			}
 			if failure {
 				waitFor(t, "failed broadcast warning", func() bool { return f.con.attentionCount() == 1 })
 			}
@@ -166,6 +175,14 @@ func TestWarningSourcesNormalWebcastEndDoesNotRaiseAttention(t *testing.T) {
 				r.con.endWebcast()
 			}
 			waitFor(t, "webcast stop settled", func() bool { return r.wphase() == webcastOff })
+			// webcastEnded clears phase before publishing its terminal feedback.
+			// Join that callback rather than treating phase as completed output.
+			if err := r.con.runTerminalCommand(context.Background(), func() error { return nil }); err != nil {
+				t.Fatal(err)
+			}
+			waitFor(t, "normal webcast terminal feedback", func() bool {
+				return strings.Contains(r.con.menuSnapshot().LatestFeed, "cast ended.")
+			})
 			if items := warningSourceItems(r.con); len(items) != 0 {
 				t.Fatalf("normal browser end raised attention: %+v", items)
 			}

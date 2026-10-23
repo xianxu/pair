@@ -180,6 +180,13 @@ Round4 on58b2e43e6af14e82aa9413c7a960c46d6b44a0ed verifies BR-1 throughBR-5 addr
 
 Recorded58b2 suite lease-3296915880 remained queued, last position5 after232s, never ran; explicitly cancelled and terminal context-canceled confirmed. No passing record claimed. Round4 measured3.43h (05:01:56 to06:37:40 local),8 admitted sessions,1 ownership interval, trackerfcce9acc42fa09b74ad2c2a471c96f382f7d2853. Close did not finalize despite Important finding being demoted at the round cap; repair it and re-review rather than using that demotion to ship.
 
+
+### 2026-10-23 — BR-6 full assertion sweep verified
+
+The plan now enumerates every affected async source, assertion acknowledgment and negative completion join, plus synchronous controls. Unexpected-exit waits actual warning source/body, with assertion-first and publication-first worker channels and existing SetForget completion. Stop negatives join following terminal commands; normal webcast end also joins final feed. No production change or new seam.
+
+Temporary console.go overlay gates exact unlocked pane-removal-to-Warn gap: original test RED0.397s (“unexpected exit produced0warnings”); repaired test under identical forced gap x10 PASS0.565s. Focused exit/source x10 PASS2.645s; comprehensive warning classification/source/ordering race x10 PASS113.174s (session95070 terminal0). Complete JSON packages PASS: couchtty57.447s/4362 test-subtest passes, couchcmd113.354s/1784 passes,0 failures; session73808 terminal0, log /Volumes/TestScratch/tmp/pair-slot1/pair812-br6-packages.CzdDTf/run.jsonl. Only final guessing-stop test join followed compilation; that named test final-source race x10 PASS3.856s. Inventory and diff check PASS, no certificate changes. Next commit/push, fresh recorded affected/full and full close explicitly disposing BR-6. No recorded check active; stage remains held for TL go and operator acceptance.
+
 ## Revisions
 
 ### 2026-10-23 — BR-3/BR-4 exhaustive completion
