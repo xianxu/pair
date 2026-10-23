@@ -381,6 +381,23 @@ This is not a flake; no failure registration/bypass or same-head green substitut
 narrow post-close review are required on the repair. Server conformance's earlier DNS setup failure passed unchanged
 on attempt2 (3m17s); no tests had started in that setup failure.
 
+### 2026-10-23 — Narrow SHIP and refreshed native qualification
+
+Narrow close round4 SHIP/high confidence, no findings; evidencec4a6f4de6d4a33f6d93f923bd03c9a3c4e19cfc2,
+mirrore135a886d23efdda3e90ba0f289a6413b4d9da30. Reviewer independently passed the existing godoc guard and verified
+that no executable statements, Spec, implementation plan or formats changed. Refreshed server CI is green.
+
+Both native fixture personalities passed on exacte135a886, in separate invocations: Claude PASS11.20s in the
+combined run; Codex PASS11.57s in the targeted Codex rerun (whole command19.475s). Guidance, mixed output/spans,
+protected refusal, migration and cleanup assertions pass for both. The combined run FAILED202.130s because Codex
+Zellij startup panicked before the agent; it is not claimed as a combined native pass. The targeted retry retains
+same-head fail→pass evidence for the already registered #835 Codex subtest. Earlierc4a6f4de Claude startup also
+failed195.026s with the identical lib.rs:1462:26 Option::unwrap None signature. Every failed and successful root
+was fully joined/removed; no timeout/helper/product change or retry loop was added.
+
+Replacement recorded full suite lease-582773490 is queued onca701df8; later commits contain only close evidence,
+card mirrors and logs. Its pass is still required before the TL-authorized merge; no stage is permitted.
+
 ## Revisions
 
 ### 2026-10-23 — Implementation boundaries from source inventory
