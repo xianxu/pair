@@ -1500,7 +1500,8 @@ report it. `waitWatcher` (`couchcmd/wait_notice.go`) ticks every 15s
   exact slot (`messageService.hubBinding`, the connected binding in
   `messageAuthority.hub`; the registry's newest incarnation of that slot),
   so the hub's breaker, delivery and ledger apply
-  unchanged. The body puts `slot repo:N waiting M min <reason>` first (pair#211).
+  unchanged. The body puts `slot repo:N waiting Mm <reason>` first (pair#211);
+  #789 caps the chrome row at 40 cells and #802 shortened the built-in notices.
 - **Not watched:** the hub itself (its operator is the one it would tell;
   the strict form of #441's self-addressed rule), and slots listed in
   `<store>/wait-notice-off` (one `repo:N` per line, `#` comments; the

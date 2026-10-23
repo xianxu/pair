@@ -298,9 +298,9 @@ to evade this breaker.
 Couch watches every connected slot except the TL's own. When one has sat quiet
 past 10 minutes (`COUCH_WAIT_NOTICE_AFTER` at Couch start) while waiting for
 someone, Couch sends the TL one message from that slot, once per waiting
-episode: `slot repo:N waiting M min <reason>: <screen line> (…)`. The reasons
+episode: `slot repo:N waiting Mm <reason>: <screen line> (…)`. The reasons
 are `on a prompt` (a dialog, a draft or anything else holding the screen),
-`after asking` (its turn ended with a question) and `idle off its resting
+`after asking` (its turn ended with a question) and `idle off resting
 branch`. A slot behind a picker (a permission prompt or a question) is
 reported after about a minute instead, as `behind a picker`, quoting the
 picker's kind, command, title and options. Its tab in Couch draws red while the

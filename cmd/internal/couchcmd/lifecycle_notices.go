@@ -176,7 +176,7 @@ func (p *lifecyclePublisher) observe(e couchtty.LifecycleObservation) {
 			}
 		}
 		if missing > 0 {
-			p.diagnostics[""] = fmt.Sprintf("Couch lifecycle: %d observations lacked verified slot metadata at restart drain", missing)
+			p.diagnostics[""] = fmt.Sprintf("Lifecycle: %d slots' metadata unverified at restart drain", missing)
 		}
 		clear(p.unresolved)
 		p.advanceLocked(couchcore.LifecycleNoticeEvent{Kind: couchcore.LifecycleNoticeDrain, Reason: fmt.Sprintf("restart reattachments complete; %d failed", e.Failures)})
@@ -229,7 +229,7 @@ func (p *lifecyclePublisher) observeFactLocked(e couchtty.LifecycleObservation) 
 		}
 	}
 	if !p.roots[hub] && len(p.roots) >= 128 {
-		p.diagnostics[""] = "Couch lifecycle: hub projection capacity reached; inspect Slots"
+		p.diagnostics[""] = "Lifecycle: hub projection full; inspect Slots"
 		return
 	}
 	p.roots[hub] = true
