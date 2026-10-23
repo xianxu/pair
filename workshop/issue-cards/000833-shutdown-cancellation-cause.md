@@ -1,6 +1,6 @@
 ---
 id: 000833
-status: codecomplete
+status: done
 created: 2026-10-23
 updated: 2026-10-23
 estimate_hours:
@@ -21,6 +21,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: d219e97a0b48a990f856fbc78698b4b1d630195d
         evidence_commit: c6b75f4c1167ef51a46f29b906b68dc55c2b9b41
+        landed_commit: 9528bbe85f30036d4df590f65100b8c9e60000bb
 ---
 
 # Preserve shutdown cancellation cause across presenter requests
