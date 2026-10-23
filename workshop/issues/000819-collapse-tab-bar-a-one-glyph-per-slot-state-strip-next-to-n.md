@@ -64,3 +64,7 @@ Initial issue-show ran against the older resting checkout and appeared empty. Af
 ### 2026-10-22 — state meaning and single-cell priority (TLebda3dbd)
 
 Checkout state only, not agent idle/working. Reuse existing SlotGlyph evidence; choose dirty, diverged, ahead/behind, then issue-branch marker, in that priority. Clean/resting/unknown becomes a neutral dot. One cell for each hidden live slot in slot order; exact count membership, owner dimming and full count/strip group navigation remain. If a complete strip cannot fit, use +N alone; existing hidden-attention ! remains. This clarifies the original attention/bell example: attention actors stay explicit under796 and do not enter hidden strips.
+
+### 2026-10-22 — TL plan approval (c4f6db71)
+
+Approved optional strip allocation after base packing, left-to-right using spare columns: each strip fits whole or the group remains plain +N; detail never displaces active/attention/counts/controls. One hit span, unchanged multiline. Proceed to change-code; the real staged operator look remains required before landing. #789 retained snapshot suite is independent and will be resumed for its fixed review/merge on result.

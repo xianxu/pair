@@ -113,3 +113,7 @@ Files: README.md; atlas/couch.md; this plan and issue.
 ## Parallel #789 recovery
 
 #789 has no merge runner. Its immutable suite on73288d8654a9b9ca426bdf71b765805d72c4e78c remains session41982/lease-2426150993. TL62d7df8e authorizes this independent819 plan from main. On789 suite result, checkpoint819, return789 for the required fixed review and merge; never switch checkout while a new789 merge runner owns it. No commits from789 are stacked here.
+
+### 2026-10-22 — TL plan approval (c4f6db71)
+
+Approved optional strip allocation after base packing, left-to-right using spare columns: each strip fits whole or the group remains plain +N; detail never displaces active/attention/counts/controls. One hit span, unchanged multiline. Proceed to change-code; the real staged operator look remains required before landing. #789 retained snapshot suite is independent and will be resumed for its fixed review/merge on result.
