@@ -34,6 +34,18 @@ impossible widths the overflow marker includes `!` when hidden actors need
 attention (`+N !` when it fits); the bell still opens the full notification list (bell).
 A tiny host prioritizes a clipped, clickable active span over fixed controls.
 
+`couchcore.CompactSlotGlyph` projects the existing closed `SlotGlyph` grammar
+to one cell: dirty, diverged, ahead/behind, issue branch, otherwise neutral `·`.
+The collapse pass retains one marker per exact hidden live member in presentation
+slot order on frame-local `StatusActor.FoldedStateStrip`. After base packing,
+`decorateFoldedCounts` measures the winning cells once and admits whole strips
+left-to-right into spare columns. A non-fitting group stays plain `+N`; later
+smaller strips can still fit. No detail displaces actors, counts, controls or
+attention. Global mixed-group overflow has no strip, and multiline is unchanged.
+The shared drawing pass applies existing glyph colour/owner shading and extends
+the same count hit span through the separator and final marker. Markers convey
+checkout evidence, never agent activity; all detail dies with the frame.
+
 A complete drawn group count opens the root switcher scoped to its exact owner
 hub and repository group, using the same presentation membership before text
 filtering. Scope remains through inventory refresh and nested action return;

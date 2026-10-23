@@ -47,6 +47,20 @@ func SlotGlyph(s SlotGitStatus, resting string) string {
 	return glyph
 }
 
+// CompactSlotGlyph reduces SlotGlyph's closed grammar to one checkout-state
+// cell for a folded slot. Dirty evidence takes priority over branch position;
+// empty or unrecognized evidence is neutral, never arbitrary display text.
+func CompactSlotGlyph(glyph string) string {
+	switch glyph {
+	case SlotGlyphDirty, slotGlyphBranch + SlotGlyphDirty, SlotGlyphDiverged + SlotGlyphDirty, "+" + SlotGlyphDirty, "-" + SlotGlyphDirty:
+		return SlotGlyphDirty
+	case slotGlyphBranch, SlotGlyphDiverged, "+", "-":
+		return glyph
+	default:
+		return "·"
+	}
+}
+
 func slotBranchGlyph(s SlotGitStatus, resting string) string {
 	switch {
 	case s.Detached || s.Branch != resting:

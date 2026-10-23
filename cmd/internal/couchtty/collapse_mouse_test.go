@@ -86,10 +86,21 @@ func TestCollapseCountClickUsesConfirmedScopeWithoutSwitch(t *testing.T) {
 					for at := x + 1; at < len(cells) && cells[at].Content >= "0" && cells[at].Content <= "9"; at++ {
 						columns = append(columns, at)
 					}
+					end := columns[len(columns)-1] + 1
+					if cells[end].Content != " " {
+						t.Fatalf("missing strip separator at%d", end)
+					}
+					columns = append(columns, end)
+					for at := end + 1; at <= end+count; at++ {
+						if cells[at].Content != "·" {
+							t.Fatalf("missing physical marker at%d: %q", at, cells[at].Content)
+						}
+						columns = append(columns, at)
+					}
 					break
 				}
 			}
-			if len(columns) != len(fmt.Sprintf("+%d", count)) {
+			if len(columns) != len(fmt.Sprintf("+%d", count))+1+count {
 				t.Fatalf("missing physical count: %+v", columns)
 			}
 			for _, column := range columns {
