@@ -135,10 +135,11 @@ func TestShutdownCancellationRequiresOnlyCanceledLeaves(t *testing.T) {
 
 type stoppedPaintHost struct {
 	*hostty.FakeHost
-	armed   atomic.Bool
-	entered chan struct{}
-	extra   error
-	partial bool
+	armed        atomic.Bool
+	entered      chan struct{}
+	extra        error
+	partial      bool
+	physicalOnly bool
 }
 
 func (h *stoppedPaintHost) WriteContext(ctx context.Context, b []byte) (int, error) {
@@ -151,19 +152,37 @@ func (h *stoppedPaintHost) WriteContext(ctx context.Context, b []byte) (int, err
 		}
 		close(h.entered)
 		<-ctx.Done()
+		if h.physicalOnly {
+			return accepted, h.extra
+		}
 		return accepted, errors.Join(ctx.Err(), h.extra)
 	}
 	return h.FakeHost.WriteContext(ctx, b)
 }
 
 func TestConsoleStopDuringPaintClassifiesJoinedFailure(t *testing.T) {
+	testConsoleStopDuringPaint(t, false)
+}
+
+func TestConsoleStopDuringPaintNextQueryPreservesCause(t *testing.T) {
+	testConsoleStopDuringPaint(t, true)
+}
+
+func testConsoleStopDuringPaint(t *testing.T, nextQuery bool) {
+	t.Helper()
+	kinds := []string{"cancellation", "mixed"}
+	if nextQuery {
+		kinds = append(kinds, "physical")
+	}
 	for _, partial := range []bool{false, true} {
-		for _, realFailure := range []bool{false, true} {
-			t.Run(fmt.Sprintf("partial=%t/host-error=%t", partial, realFailure), func(t *testing.T) {
+		for _, kind := range kinds {
+			t.Run(fmt.Sprintf("partial=%t/%s", partial, kind), func(t *testing.T) {
+				realFailure := kind != "cancellation"
 				h := &stoppedPaintHost{FakeHost: hostty.NewFakeHost(ptychild.Size{Rows: 8, Cols: 50}), entered: make(chan struct{}), partial: partial}
 				if realFailure {
 					h.extra = errors.New("physical write failed")
 				}
+				h.physicalOnly = kind == "physical"
 				r, w := io.Pipe()
 				defer w.Close()
 				c := New(h, r)
@@ -182,13 +201,24 @@ func TestConsoleStopDuringPaintClassifiesJoinedFailure(t *testing.T) {
 				}
 				h.armed.Store(true)
 				commandDone := make(chan error, 1)
+				type publicationResult struct{ paint, query error }
+				callbackDone := make(chan publicationResult, 1)
 				go func() {
 					commandDone <- c.runTerminalCommand(ctx, func() error {
 						cells, err := terminal.StyledRows("changed", 50, 1)
 						if err != nil {
 							return err
 						}
-						return c.presenter.UpdateChrome(c.lifetime, cells)
+						paintErr := c.presenter.UpdateChrome(c.lifetime, cells)
+						var queryErr error
+						if nextQuery {
+							// Run remains inside this callback, so teardown cannot
+							// release the presenter before this post-failure query.
+							_, queryErr = c.presenter.ChromeState(c.lifetime)
+							c.terminalError(queryErr)
+						}
+						callbackDone <- publicationResult{paintErr, queryErr}
+						return paintErr
 					})
 				}()
 				select {
@@ -202,6 +232,25 @@ func TestConsoleStopDuringPaintClassifiesJoinedFailure(t *testing.T) {
 				case <-ctx.Done():
 					t.Fatal("paint command did not return")
 				}
+				// runTerminalCommand may return on Stop before its callback does.
+				select {
+				case result := <-callbackDone:
+					if nextQuery {
+						for name, err := range map[string]error{"paint": result.paint, "next query": result.query} {
+							if realFailure && !errors.Is(err, h.extra) {
+								t.Errorf("%s lost physical cause: %v", name, err)
+							}
+							if kind != "physical" && !errors.Is(err, context.Canceled) {
+								t.Errorf("%s lost cancellation cause: %v", name, err)
+							}
+							if !realFailure && !shutdownCancellation(err) {
+								t.Errorf("%s is not cancellation-only: %v", name, err)
+							}
+						}
+					}
+				case <-ctx.Done():
+					t.Fatal("paint callback did not complete")
+				}
 				select {
 				case code := <-done:
 					want := 0
@@ -210,6 +259,12 @@ func TestConsoleStopDuringPaintClassifiesJoinedFailure(t *testing.T) {
 					}
 					if code != want {
 						t.Errorf("Run=%d want%d; diagnostics=%q presenter=%v", code, want, diagnostic.String(), c.presenter.Failure())
+					}
+					if nextQuery && realFailure && !errors.Is(c.TerminalFailure(), h.extra) {
+						t.Errorf("terminal failure lost original physical cause: %v", c.TerminalFailure())
+					}
+					if nextQuery && !realFailure && c.TerminalFailure() != nil {
+						t.Errorf("cancellation-only terminal failure: %v", c.TerminalFailure())
 					}
 					if realFailure && !strings.Contains(diagnostic.String(), "physical write failed") {
 						t.Errorf("lost host failure: %q", diagnostic.String())
