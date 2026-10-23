@@ -38,7 +38,7 @@ representative evidence, not an exhaustive index.
 - Cached parent inventory is also a pass-wide capacity ledger: reserve a slot for every potentially completed create, retain it after an uncertain acknowledgment, and carry confirmed IDs forward. A per-attempt full-parent guard alone permits successive creates to exceed the reader limit. Test both root/year and year/month creation sequences near capacity. (#706 BR-1)
 
 
-- A durable plan names each risky function and its adversarial input class plus mechanical guard. Prefer fuzz, generated event sequences and independent invariants over prose case inventories; keep resource and operation-count assertions explicit. (#706 PQ-1)
+- A durable plan names each risky function and its adversarial input class plus mechanical guard. Prefer fuzz, generated event sequences and independent invariants over prose case inventories; keep resource and operation-count assertions explicit. (#706 PQ-1; #823 PQ-1)
 - Additive wire fields still break an older strict decoder. Inspect the actual mixed-version reader before promising compatibility; pin the legacy refusal and current-reader absence behavior, and name the coordinated upgrade contract when that is the intended rollout. (#736 PQ-1)
 
 - #735: Replay native recordings with resize events as well as bytes before blaming footer wording. A duplicate geometry update may receive no native repaint; preserve existing cursor/frame evidence on a synchronized no-op, while a retry after an aborted real resize must still restore synchronization and await a fresh cursor. Regress both paths and expose the missing evidence in retained wait receipts without copying screen contents.
@@ -2796,6 +2796,23 @@ and external temporary roots rather than relying on the host's TMPDIR.
 
 - #796: When adding a display mode, parameterize established pending/reattach regressions over both modes. A legacy fixture that explicitly selects the compatibility mode cannot prove the new default preserves pending states. Count branches also need owner/style invariants from ordinary chips, not only correct text and hit spans.
 
+- #823 PQ-2: Additive persisted JSON contracts require recursive duplicate-key rejection as well as strict owned-field presence/type checks and raw unknown-field preservation. Reuse strictjson split/encode helpers at each changed boundary; plain json.Unmarshal is not an authority validator.
+
+- #823 codec review: validate each positional tuple coordinate independently before ordering endpoints. A later end line does not make a negative end column valid; retain cross-line negative-column regression coverage.
+
+- #823 compiler review: preserve the isolated YAML key/value mapping context when decoding owned values. Removing key indentation changes explicit block-scalar indentation and instruction text. Test quoted/indented mappings, explicit indent/chomp modifiers and mixed header/body line endings independently of canonical flat fixtures.
+- #823 integration: apply base-coordinate transforms before automatic restamping. A restamp can grow with an extreme year; applying earlier offsets after that growth truncates output and bypasses prospective byte-limit tests.
+
+- #823 guard review: preserve parsed marker identity and extent, not only old bytes. Endpoint appends or deleting separators can forge a new human turn; code examples never grant approval. Source-coordinate code masks must reach proposal exceptions as well as scope classification.
+- #823 guard review: choose chat asks by the section's shallowest source indentation, not each Markdown list root. Preserve pending escaped answer links as linked; distinguish line-ending real links from code and prose mentions.
+- #823 integration: attribute final spans from validated base pieces. Re-resolving at a heading boundary can lend the next section's policy to content inserted before it.
+
+- #823 BR-1: Markdown AST content Lines are not full source ownership: fences and empty blocks may omit delimiters or all lines. Observe source membership at existing parser container transitions, preserve lazy continuations, and test exact protected bytes plus final append location through the production seam.
+- #823 BR-2: New operator settings and migration commands need README examples at close, even when CLI help and atlas already document them. Name defaults, heading adjacency, ownership and exact preview/confirm steps.
+
+- #823 BR-1 round2: Original bytes can survive while their Markdown role changes. A permitted append needs a renderable base tail and a real candidate link at the exact inserted source location; use independent rendering regressions for fence/code/HTML/thematic tails and a positive ordinary continuation.
+
+- #823 suite: rewrite a function's full godoc when refactoring its authority/presentation contract; appending a replacement opener leaves contradictory prose and fails the existing cross-package TestNoDeclarationCarriesTwoStackedGodocs guard. Run that guard after broad function-comment edits.
 - #827 BR-1: when a plan's state table maps outcomes to visible states, enumerate every outcome the code can produce (here leaveSkipped) against it, not only the error paths. A full operation reports complete only on positive proof for every target; any outcome short of that proof is unresolved.
 - #827: a recovery hint belongs to one field. If a summary carries a dedicated next-action field, strip the same advice from the reason text, or the operator reads it twice.
 - #827: before adding a context-aware path through a nested lock, check every acquirer of that lock, including readers outside the outer coordinator. A nonblocking inner acquire under a blocking outer lock fails at once against an uncoordinated reader.
