@@ -113,6 +113,16 @@ total: 1.597
 Retained session96595 completed successfully: sdlc-local/suite exit0 in11m33s on cc59a202d409d523f11dd747e64c028744d1389a; full log .git/sdlc/local-checks/cc59a202d409d523f11dd747e64c028744d1389a/suite.log, recorded digest prefix1c12ff8d1668. TL sweep cee95a4f-c37e-4d10-a633-958192ebb6e1 was authenticated and outcome e30e6271-d0a6-441d-b10f-95e87ed2a49b verified submitted. Entered merge promptly; landing readiness passed for PR546. Integration with origin/main09c8964de39cdb5e6bd9db20601c232446af6949 conflicted only in NonArtifactSources: preserve both this issue's peer_wait_capture.go and main's four startup-budget/progress sources. No source behavior changed by resolution. Prior green branch receipt does not verify the integrated code. Next: push integrated head, run required recorded suite, then re-close --fixed-then-ship with the new full-suite evidence and retry landing. No #807 implementation while this landing remains pending.
 
 
+
+### 2026-10-22 — planned fleet shutdown checkpoint
+
+Authenticated TL427767b8-ac42-4ae8-8cb6-2233437d4d6f at18:31 PDT prohibits new merges/landings and new items until the planned22:00–23:00 shutdown and Go1.27.3 upgrade; checkpoint by21:45. No merge runner remains active: session25988 ended on the inventory conflict, subsequently resolved and pushed as8171265c7567f5abadd78882590bf2c380b9997d. Do not start a new merge under this hold.
+
+Integrated recorded suite is alive and running at18:31: session52499, lease-1887833797, source8171265c7567f5abadd78882590bf2c380b9997d, disposable checkout /Volumes/TestScratch/local-checks/sdlc-local-504953249, log .git/sdlc/test-stats/inflight/6a7b76c66a1bd111dc09a1e528491529/run.log. It has advanced from FIFO14 through shell checks to pair-session-watch-test.sh; no overall result yet. Preserve this owned runner; do not cancel/requeue, launch a duplicate suite or restart this session while it is live. Prior full suite on cc59a202 passed but does not qualify the main integration.
+
+Exact next step: poll retained session52499 and inspect its final exact-head status/log. On success, use that full-suite evidence for sdlc close --issue791 --fixed-then-ship --full-suite '<completed integrated suite receipt>' --verified '<inventory resolution plus integrated verification>'; do not invent a passing receipt. On failure, preserve/classify named failures and follow registered-flake resume only when eligible. After the authorized shutdown, verify retained/completed checks and workflow state again, rebuild as directed by the upgraded-toolchain rollout, and wait for explicit lift of the landing hold before a new sdlc merge --yes. #807 stays paused, #810 and #737 parked; no new items taken. No continuation restart is requested while the suite is live.
+
+
 ## Revisions
 
 ### 2026-10-22 — operator/TL expanded reproduction and capture scope
