@@ -1,0 +1,9 @@
+{
+  "head": "70ff5ec7a666322101a88f65e839d1de38963cbc",
+  "attempt": "9b7c213dd199a4236fff30d9f9c30d17",
+  "lease": "lease-2151593954",
+  "exit": 0,
+  "reported_duration": "10m52s",
+  "sha256": "20a8776c93c7a8561ac19a990aa568d6314fb576db206c0d4fee17d3111d2cee",
+  "recorded_status": "sdlc-local/suite"
+}

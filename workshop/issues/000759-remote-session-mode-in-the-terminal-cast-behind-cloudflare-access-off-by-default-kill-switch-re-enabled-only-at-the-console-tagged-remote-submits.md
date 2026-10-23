@@ -1063,3 +1063,13 @@ not implemented adapters or enrollment authority.
 Central sdlc queue status reported suite helper inspect unavailable: exit status2
 after the slot rebuild; reported to TL via4ae420b3 (submitted). Own retained
 runner output still confirms normal FIFO waits, with no cancellation or duplicate.
+
+
+### 2026-10-22 — isolated Go1.27.3 directive suite PASS
+
+Recorded run9b7c213dd199a4236fff30d9f9c30d17 completed exit0 in10m52s on
+exact70ff5ec7a666322101a88f65e839d1de38963cbc, after2471s machine wait.
+Saved as sdlc-local/suite; full log SHA-256 20a8776c93c7a8561ac19a990aa568d6314fb576db206c0d4fee17d3111d2cee.
+Copied log and metadata into the dependency evidence directory. This proves the
+compiler/directive baseline alone; shared-upgrade diagnostic remains queued,
+currently position2. It is not a pass for the candidate dependency or enrollment.
