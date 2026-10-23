@@ -98,3 +98,104 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-23T07:27:22-07:00 (REWORK)
+
+| field | value |
+|-------|-------|
+| issue | 162 — Enter sends when the composer line is addressed to the harness |
+| repo | pair |
+| issue file | workshop/issues/000162-enter-sends-harness-addressed-lines.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 09c8964de39cdb5e6bd9db20601c232446af6949..6e9bd23145854d1db1c88cd7886824782b6cc2cd |
+| command | sdlc close --issue 162 |
+| reviewer | codex (openai; author openai) |
+| isolation | fenced |
+| timestamp | 2026-10-23T07:27:22-07:00 |
+| verdict | REWORK |
+
+## Review
+
+```verdict
+verdict: REWORK
+confidence: high
+```
+
+Both prior fixes are addressed and backed by regression tests that fail when their fixes are disabled. The shared grammar, reducer proof and immutable-frame writer are sound approaches. One newly reproduced defect blocks shipping: blank continuation rows can disappear from command proof, allowing a multiline draft to submit.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      TestSlashReturnDeclinesMixedFaintSuggestion passes across all six profiles and fails when the hasSuggestion refusal is disabled through a temporary compiler overlay.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      Target, reducer and projector-to-writer trailing-space regressions pass. TestAgentDriveCommandTrailingSpacesReachNativeReturn fails when authored-target trimming is removed through a temporary compiler overlay.
+findings:
+  - id: new
+    severity: Critical
+    kind: defect
+    family: command-proof-representation
+    title: |
+      Blank continuation rows below the cursor are erased before single-line proof
+    detail: |
+      cmd/internal/wrapcmd/peer_composer.go:197 removes blank trailing rows below the cursor before joining lines. A temporary regression using slashComposerPaint(agent, "/model", "") with the cursor on the first row reproduced known text="/model" and native submission for Claude, Qoder, Muse, Agy and Grok. This violates the multiline-negative contract (ARCH-PURPOSE, ARCH-SECURE). This is the 2nd finding in family command-proof-representation: define and enforce the normalization rule across consumers, rather than fixing this instance. Terminal padding normalization must preserve authored line structure; ambiguous continuation rows must decline command authority. Sweep all six profiles and add cursor-movement and blank/space-only continuation regressions.
+```
+
+1. **Strengths**
+
+   - Activity and command-text authority remain separate, preserving newline behavior when text proof is unavailable.
+   - Final command matching and Return translation share one immutable frame.
+   - Exact `/model` cleanup authority remains separate from general command evidence.
+   - README, atlas, CLI help and embedded usage examples cover the changed Enter behavior.
+
+2. **Critical findings**
+
+   The finding above originates at [peer_composer.go:197](/Volumes/TestScratch/review-checkouts/4a0278ed5ef70b85/cmd/internal/wrapcmd/peer_composer.go:197) and reaches submission at [harness_tty.go:196](/Volumes/TestScratch/review-checkouts/4a0278ed5ef70b85/cmd/internal/wrapcmd/harness_tty.go:196). Preserve line-count evidence independently of normalized comparison text.
+
+3. **Important findings**
+
+   None additional.
+
+4. **Minor findings**
+
+   None.
+
+5. **Test coverage notes**
+
+   Full tests passed for `agentdrive`, `wrapcmd`, `couchcmd`, `testcouch`, `repolint` and `artifactpath`. The plan’s focused test command and affected-reader inventory also passed. Both prior-fix mutations failed as expected. The temporary blank-continuation regression failed in five profiles; existing tests cover a blank continuation only while the cursor remains on that continuation. Native agents were not launched during this review.
+
+6. **Architectural notes**
+
+   - **ARCH-DRY — pass:** shared grammar, geometry and Return decision.
+   - **ARCH-PURE — pass:** deterministic decisions remain separate from IO; listed core entities exist.
+   - **ARCH-PURPOSE — flag:** multiline input can acquire submission authority.
+   - **ARCH-MOCK — pass:** stateful terminal/writer fixtures exercise production seams.
+   - **ARCH-CONSTRAINTS — pass:** bounded requests and projection work; existing deadlines retained.
+   - **ARCH-SECURE — flag:** lossy normalization converts ambiguous input into positive command evidence.
+   - **ARCH-ORDER — pass:** explicit command-wait phase and controllable proof/write ordering.
+   - **ARCH-FUNERAL — pass:** new evidence follows existing bounded drive lifetimes.
+   - **ARCH-EVOLVE — pass:** no persisted-format change introduced.
+
+7. **Plan revision recommendations**
+
+   Add a `## Revisions` entry defining permissible command-proof normalization, preserving line structure independently of cursor position, and requiring a six-profile sweep covering blank and space-only continuation rows before and after cursor movement.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"f175f5ab-f3f1-4807-8d84-e5d85d214eba","repository":"github.com/xianxu/pair","issue_id":"000162","recipe":"milestone-review","round":2,"attempt":1,"agent":"codex","root":"/Volumes/TestScratch/review-checkouts/4a0278ed5ef70b85","reviewed_head":"6e9bd23145854d1db1c88cd7886824782b6cc2cd","slot":"pair:2","requested_at":"2026-10-23T14:22:24.339415Z"},"phase":"finished","pid":72744,"started_at":"2026-10-23T14:22:24.504881Z","finished_at":"2026-10-23T14:27:21.349403Z","session_id":"01a16924-3cc8-7fd0-9cc5-15bf88ba6738","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 3.161550333s
+head: "6e9bd23145854d1db1c88cd7886824782b6cc2cd"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412

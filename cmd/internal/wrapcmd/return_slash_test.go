@@ -31,6 +31,7 @@ func slashComposerPaint(agent string, lines ...string) string {
 		for i, line := range lines[1:] {
 			paint += fmt.Sprintf("\x1b[%d;3H%s", 21+i, line)
 		}
+		paint += fmt.Sprintf("\x1b[%d;3HGPT-6.1-Sol default · /fixture", 21+len(lines))
 	case "muse", "agy":
 		prompt := "⟩ "
 		if agent == "agy" {
@@ -236,5 +237,52 @@ func TestSlashReturnDeclinesMixedFaintSuggestion(t *testing.T) {
 				})
 			}
 		})
+	}
+}
+
+func TestSlashReturnPreservesBlankContinuationAfterCursorMove(t *testing.T) {
+	for agent := range harnessTTYProfiles {
+		for _, blank := range []string{"", "   "} {
+			for _, cursorLast := range []bool{false, true} {
+				t.Run(fmt.Sprintf("%s/spaces=%d/cursorLast=%t", agent, len(blank), cursorLast), func(t *testing.T) {
+					paint := slashComposerPaint(agent, "/model", blank)
+					if agent == "codex" {
+						// Two input rows, one separator, then the native footer.
+						paint += "\x1b[23;3HGPT-6.1-Sol default · /fixture\x1b[20;9H"
+					}
+					s := peerSnapshot(t, paint)
+					profile, _ := profileForHarness(agent, true)
+					r := profile.recognize(s)
+					if !r.Active || !r.region.valid {
+						t.Fatal("fixture lacks composer")
+					}
+					s.Cursor.Y, s.Cursor.X = r.region.top, r.region.left+6
+					if cursorLast {
+						s.Cursor.Y++
+						s.Cursor.X = r.region.left + len(blank)
+					}
+					if got := decidePlainReturn(profile, false, &s); got.submits || !bytes.Equal(got.bytes, profile.keymap.plainCR) {
+						t.Fatalf("multiline continuation erased after cursor move: %+v", got)
+					}
+				})
+			}
+		}
+	}
+}
+
+func TestSlashReturnDeclinesFooterlessCodexAmbiguity(t *testing.T) {
+	profile, _ := profileForHarness("codex", true)
+	for _, text := range []string{"/model", "/model opus  "} {
+		paint := "\x1b[20;1H\x1b[1m›\x1b[22m " + text + "\x1b[?25h\x1b[20;3H"
+		s := peerSnapshot(t, paint)
+		if !profile.recognize(s).Active {
+			t.Fatal("activity lost")
+		}
+		if got := decidePlainReturn(profile, false, &s); got.submits || !bytes.Equal(got.bytes, profile.keymap.plainCR) {
+			t.Fatalf("unbounded Codex slash granted authority: %+v", got)
+		}
+		if text, known := qualifiedComposerText("codex", s); known {
+			t.Fatalf("unbounded slash proof %q", text)
+		}
 	}
 }

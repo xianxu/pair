@@ -5,6 +5,8 @@ import (
 	"strings"
 
 	uv "github.com/charmbracelet/ultraviolet"
+
+	"github.com/xianxu/pair/cmd/internal/agentdrive"
 )
 
 type PeerComposerState uint8
@@ -114,7 +116,13 @@ func peerInputColumn(agent string) int {
 // input and overlays additionally gate delivery in the input owner. No model
 // execution-idle observation is required. Unknown screens decline.
 func peerComposerText(agent string, s terminalSnapshot) (string, bool) {
-	text, ok := qualifiedComposerText(agent, s)
+	region, ok := qualifiedComposerRegion(agent, s)
+	if !ok {
+		return "", false
+	}
+	// Peer delivery keeps its established padding representation. Slash
+	// authority uses the full structural projection below instead.
+	text, ok := projectComposerCellsWithLines(s, region, s.CellAt, false)
 	if !ok || strings.HasPrefix(strings.TrimSpace(text), "/") || strings.HasPrefix(strings.TrimSpace(text), "!") {
 		return "", false
 	}
@@ -124,39 +132,47 @@ func peerComposerText(agent string, s terminalSnapshot) (string, bool) {
 // qualifiedComposerText recognizes the composer geometry without granting
 // ordinary peer delivery permission to overwrite command or shell drafts.
 func qualifiedComposerText(agent string, s terminalSnapshot) (string, bool) {
+	region, ok := qualifiedComposerRegion(agent, s)
+	if !ok {
+		return "", false
+	}
+	return projectComposerRegion(s, region)
+}
+
+func qualifiedComposerRegion(agent string, s terminalSnapshot) (composerRegion, bool) {
 	var top, bottom int
 	switch agent {
 	case "claude":
 		var ok bool
 		top, bottom, ok = ruledBoxComposerBounds(s, claudeComposerSpec())
 		if !ok || s.CellAt(0, top).Content != "❯" {
-			return "", false
+			return composerRegion{}, false
 		}
 	case "qoder":
 		var ok bool
 		top, bottom, ok = ruledBoxComposerBounds(s, qoderComposerSpec())
 		if !ok {
-			return "", false
+			return composerRegion{}, false
 		}
 	case "codex":
 		if card, pending := codexStartupStatus(s); card && pending && !peerCodexModernStartup(s) {
-			return "", false
+			return composerRegion{}, false
 		}
 		var footer int
 		var ok bool
 		top, footer, ok = codexComposerBounds(s)
 		if !ok {
-			return "", false
+			return composerRegion{}, false
 		}
 		var extentOK bool
 		bottom, extentOK = codexComposerBottom(s, top, footer)
 		if !extentOK {
-			return "", false
+			return composerRegion{}, false
 		}
 	default:
-		return "", false
+		return composerRegion{}, false
 	}
-	return projectComposerRegion(s, composerRegion{top: top, bottom: bottom, left: peerInputColumn(agent), agent: agent, valid: true})
+	return composerRegion{top: top, bottom: bottom, left: peerInputColumn(agent), agent: agent, valid: true}, true
 }
 
 // projectComposerRegion reads the full located input, including blank cursor
@@ -167,6 +183,10 @@ func projectComposerRegion(s terminalSnapshot, region composerRegion) (string, b
 
 // projectComposerCells projects immutable cells through one bounded row pass.
 func projectComposerCells(s terminalSnapshot, region composerRegion, cellAt func(int, int) *uv.Cell) (string, bool) {
+	return projectComposerCellsWithLines(s, region, cellAt, true)
+}
+
+func projectComposerCellsWithLines(s terminalSnapshot, region composerRegion, cellAt func(int, int) *uv.Cell, preserveLines bool) (string, bool) {
 	if !region.valid || region.top < 0 || region.bottom > s.Height || region.bottom <= region.top || region.left < 0 || region.left >= s.Width {
 		return "", false
 	}
@@ -194,8 +214,14 @@ func projectComposerCells(s terminalSnapshot, region composerRegion, cellAt func
 		}
 		lines = append(lines, strings.TrimRight(b.String(), " "))
 	}
-	for len(lines) > 1 && lines[len(lines)-1] == "" && top+len(lines)-1 > s.Cursor.Y {
-		lines = lines[:len(lines)-1]
+	// Only the legacy footerless Codex shape contains inferred terminal
+	// padding. A positively bounded region owns every row, even blank rows
+	// below the cursor. Its line structure must never normalize away.
+	openBottom := agent == "codex" && bottom == s.Height
+	if !preserveLines || openBottom {
+		for len(lines) > 1 && lines[len(lines)-1] == "" && top+len(lines)-1 > s.Cursor.Y {
+			lines = lines[:len(lines)-1]
+		}
 	}
 	text := strings.Join(lines, "\n")
 	if (agent == "qoder" && peerQoderPlaceholder(s, top, text)) || (agent != "qoder" && composerPlaceholder(s, top, region.left, text)) {
@@ -205,6 +231,12 @@ func projectComposerCells(s terminalSnapshot, region composerRegion, cellAt func
 	// authored/suggested input is unknown; never promote its visible suffix
 	// to authored command evidence merely because the cursor moved.
 	if hasSuggestion {
+		return "", false
+	}
+	// Without a footer, a slash and a slash followed by blank input rows
+	// can be cell-identical after cursor movement. Retain ordinary peer/prose
+	// reads, but this ambiguous shape cannot supply slash authority.
+	if preserveLines && openBottom && agentdrive.SlashCommand(text) {
 		return "", false
 	}
 	return text, true

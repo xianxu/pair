@@ -249,7 +249,7 @@ func TestAgentDriveRecoveryCodexCommandProof(t *testing.T) {
 	d := newPeerDelivery(couchmessage.Binding{Agent: "codex"}, func() time.Time { return now })
 	f.proxy.peer = d
 	d.driveProbe = f.proxy.agentDriveScreenLocked
-	paint := "\x1b[?2026h\x1b[2J\x1b[20;1H\x1b[1m›\x1b[22m /model\x1b[?25h\x1b[20;9H\x1b[?2026l"
+	paint := "\x1b[?2026h\x1b[2J\x1b[20;1H\x1b[1m›\x1b[22m /model\x1b[22;3HGPT-6.1-Sol default · /fixture\x1b[?25h\x1b[20;9H\x1b[?2026l"
 	f.output(paint)
 	screen := f.proxy.agentDriveScreen()
 	if !screen.Recoverable || screen.Idle || screen.ComposerText != "/model" {
