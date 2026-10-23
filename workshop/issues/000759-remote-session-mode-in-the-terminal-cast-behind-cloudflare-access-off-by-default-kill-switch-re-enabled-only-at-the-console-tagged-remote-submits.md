@@ -963,3 +963,28 @@ and preserve/reapply the local pure checkpoint, qualify the bump alone on an
 exact recorded head before dependency integration. Finish compile-only pinned
 v1.104.2 closure/security/license/binary measurements and estimate revision;
 node/enrolled RSS tests still require the operator's explicit enrollment window.
+
+
+### 2026-10-22 — shutdown checkpoint; directive-only suite passed
+
+TL9e217a66 directs no new merges/landings and commit/push before21:45 for
+the planned22:00–23:00 full shutdown. No merge is active here; no live probe,
+node or enrollment is active. Source tree was clean at checkpoint start.
+
+The retained directive-only recorded suite completed successfully on exact head
+729246582127657ef456446b111d0e46e0932dbb: exit0 in11m55s, recorded as
+sdlc-local/suite. Attempt40c81bb875dedee0ff366c6fbe41a503, former lease-779340230,
+terminal47076 now finished. Full saved log SHA-256: c8517d2f7d1630cdf4eb6681b0216b7c4bf92878c8f602123386af243746eaba.
+This qualifies the1.27.1 directive-only head; it does not qualify the later pure
+checkpoint or the future1.27.3 directive/dependency. No run was restarted.
+
+Next after restart: wait for TL confirmation that Go1.27.3 is installed, verify
+go version and use GOTOOLCHAIN=local to prevent downloads. Preserve the pushed
+pure checkpoint f3246b4ce and this Log, amend the isolated directive baseline to
+1.27.3 and reapply the pure checkpoint; use an exact recorded head to prove the
+Go1.27.3-only bump before adding tailscale.com v1.104.2. Then do compile-only
+module/license/security/transitive closure and matched binary measurements,
+finish the estimate revision, and integrate the adapter per approved plan.
+No node/auth key/Start/Listen/LocalClient until the operator enrollment test;
+RSS and native identity/revocation acceptance remain unqualified. Stay idle
+until TL confirms the upgrade; no new merge or landing.
