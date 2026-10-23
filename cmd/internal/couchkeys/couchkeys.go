@@ -26,17 +26,10 @@ const SwitchLegacy = 0x00
 // protocol, so this only bites with the protocol off.
 const PreviousLegacy = 0x08
 
-// NewestPageSequence is ctrl+return under the Kitty protocol: codepoint 13 with
-// modifier bitmask 4 encoded as 4+1, the same construction as ctrl-space's row.
-//
-// It has no legacy form: CR is also ordinary Return. Couch maintains the
-// disambiguation flag while it owns a supporting terminal; an unsupported host
-// retains Ctrl+Space then Return as the notification-jump fallback.
-//
-// Named because two sites need the same bytes: its row in the table below, and
-// the panel arm of couchtty's onNewestPageHotkey, which hands them to the
-// panel's decoder.
-const NewestPageSequence = "\x1b[13;5u"
+// CtrlReturnSequence is Ctrl+Return under the Kitty protocol: codepoint 13
+// with Ctrl's modifier bitmask 4 encoded as 4+1. It has no legacy form because
+// CR is ordinary Return; unsupported hosts retain the bell/attention shortcut.
+const CtrlReturnSequence = "\x1b[13;5u"
 
 // Scope is where Couch acts on a chord.
 type Scope uint8
@@ -57,7 +50,6 @@ type Action uint8
 const (
 	ActionSwitch Action = iota + 1
 	ActionPrevious
-	ActionNewestPage
 	ActionDetach
 	ActionPark
 	ActionRelaunch
@@ -85,8 +77,8 @@ var bindings = []Binding{
 		Encodings: [][]byte{{SwitchLegacy}, []byte("\x1b[32;5u")}},
 	{Action: ActionPrevious, Scope: ScopeEveryPane, Key: "Ctrl+Backspace", Help: "return to the previous Couch thread",
 		Encodings: [][]byte{{PreviousLegacy}, []byte("\x1b[127;5u")}},
-	{Action: ActionNewestPage, Scope: ScopeEveryPane, Key: "Ctrl+Return", Help: "jump to the newest notification thread",
-		Encodings: [][]byte{[]byte(NewestPageSequence), []byte("\x1b[13;5:1u"), []byte("\x1b[13;5:2u")}},
+	{Action: ActionAttention, Scope: ScopeEveryPane, Key: "Ctrl+Return", Help: "open or close the attention list",
+		Encodings: [][]byte{[]byte(CtrlReturnSequence), []byte("\x1b[13;5:1u"), []byte("\x1b[13;5:2u")}},
 	// Relaunch is taken from every pane (#284): Pair's own restart refuses under
 	// Couch, so passing it through left a key that confirmed and did nothing.
 	// From a Pair pane it relaunches the thread on screen, in the switcher the

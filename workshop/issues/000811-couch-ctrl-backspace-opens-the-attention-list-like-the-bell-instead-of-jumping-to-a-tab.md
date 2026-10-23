@@ -82,25 +82,25 @@ is introduced. Release events, ordinary Return, other Return modifiers and
 bracketed paste keep their current forwarding behavior. Repeat events toggle,
 consistent with retaining the currently recognized encodings.
 
-- [ ] Add failing production-input regressions in couchtty: all three
+- [x] Add failing production-input regressions in couchtty: all three
   Ctrl+Return encodings open then close a populated list, from both actor and
   switcher focus, without switching actor, acknowledging a page, consuming an
   item, changing the switch tracker or accepting the selected switcher row.
   Exercise empty-list behavior and Ctrl+Alt+a interoperability. Preserve the
   bell/Enter item-selection tests, including notification arrival and previous
   thread assertions.
-- [ ] Update the physical-key test in `console_keyboard_test.go` to generate
+- [x] Update the physical-key test in `console_keyboard_test.go` to generate
   Ctrl+Return from negotiated terminal state after each existing child-output
   mode/replay scenario, assert attention toggling, then close the overlay and
   prove ordinary Return still reaches the original child. Keep the split-byte,
   explicit event, release, neighboring modifier and literal-paste regressions
   in `keys_test.go`/`console_keyboard_test.go`, expecting HitAttention.
-- [ ] Implement the shared-action mapping and remove the obsolete jump path.
+- [x] Implement the shared-action mapping and remove the obsolete jump path.
   Replace old newest-page behavior tests while retaining shared fixture/helpers
   used by other notification tests. Pin Ctrl+Backspace's legacy and Kitty forms
   through production input after a manual switch and after an attention-item
   jump; verify the overlay toggle leaves the return target intact.
-- [ ] Update README shortcut tables/hosted-session note, generated help wording
+- [x] Update README shortcut tables/hosted-session note, generated help wording
   in couchkeys, `couchtty/menu.go`, and atlas/couch.md's attention/navigation
   sections plus stale source comments. Explain actor and switcher behavior,
   ordinary Enter, unsupported-terminal fallback, Ctrl+Alt+a and previous-tab
@@ -138,6 +138,50 @@ attention action rather than retaining an independently named jump handler
 (ARCH-DRY); all input encodings/focus contexts are covered above (ARCH-PURPOSE).
 Next: send this committed plan to the hub; await its response before entering
 change-code, as this dispatch requested claim and plan only.
+
+### 2026-10-23 — approved implementation; package verification
+
+Hub approval receipt a9d41597-7856-4a83-a994-e40721223a5d is submitted:
+shared attention action, actor/switcher toggle, unchanged Enter/previous keys;
+stage on pair:0 when ready, with the operator's live key check in the morning.
+Entered change-code; SDLC inferred quick flow.
+
+Before production edits the new input regression failed in all six combinations
+(three Ctrl+Return encodings × actor/switcher): “Ctrl+Return navigated instead
+of opening attention”; the empty-list case got the old “nothing is paging”.
+Mapped both attention chords to the same existing action/handler, deleted the
+obsolete jump path, and retained shared notification fixture helpers in a
+renamed test file. Updated physical-key protocol tests and docs/help/atlas.
+
+The initial implementation exposed the overlay's existing modified-Return
+normalization: routeAttentionKey consumed Ctrl+Return as Enter before shortcut
+recognition, so the second press selected an item. The production input seam
+now recognizes the declared chord before overlay decoding and gives only
+HitAttention priority; other keys keep overlay-first routing, including Escape.
+Two superseded in-flight targeted builds were interrupted while correcting that
+ordering; they are not passing verification or recorded-suite evidence.
+
+Final verification: complete couchkeys PASS 0.073s, complete couchtty PASS
+46.430s; targeted race console/physical-key/event/attention/previous regressions
+PASS 3.440s. make test-affected-inventory PASS without any reader repair;
+git diff --check PASS. No live-terminal or recorded affected-check result yet.
+Next: push source, retain one recorded affected-check runner, stage the verified
+head on pair:0, then obtain the morning operator key acceptance before landing.
+
+## Operator live check
+
+On a fresh Couch process using the staged revision (running sessions retain the
+old binary), with at least one attention item:
+
+1. From a hosted actor, press Ctrl+Return: attention opens and the actor stays.
+   Press it again: attention closes and the actor stays.
+2. Open the switcher with Ctrl+Space, then Ctrl+Return twice: the same overlay
+   opens/closes and the switcher selection stays. Ordinary Enter still selects.
+3. Open attention with Ctrl+Alt+a or the bell, close with Ctrl+Return, reopen and
+   press ordinary Enter to visit an item. Ctrl+Backspace returns to the previous
+   thread; also verify previous-tab after an ordinary manual switch.
+4. Record actual revision and result. Worker clears its owned stage after the
+   check. Empty-list behavior is already pinned by the automated regression.
 
 ## Revisions
 

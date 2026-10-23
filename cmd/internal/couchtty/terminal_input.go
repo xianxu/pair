@@ -73,15 +73,6 @@ func (c *Console) routeInputEvent(event terminal.InputEvent) {
 	case uv.MouseClickEvent, uv.MouseReleaseEvent, uv.MouseMotionEvent, uv.MouseWheelEvent:
 		c.routeMouseEvent(event)
 		return
-	case uv.KeyPressEvent:
-		// The open attention list (pair#673), then the Codes menu (pair#495),
-		// take their arrows, Enter and Escape.
-		if c.routeAttentionKey(event.Raw, event.Canonical) {
-			return
-		}
-		if c.routeCodesMenuKey(event.Raw, event.Canonical) {
-			return
-		}
 	}
 	c.mu.Lock()
 	panel := c.focus.IsPanel()
@@ -113,14 +104,27 @@ func (c *Console) routeInputEvent(event terminal.InputEvent) {
 		c.deliverChildInput(event.Event)
 		return
 	}
-	if bytes.Equal(event.Canonical, []byte{27}) {
-		route(event.Canonical)
-		return
-	}
 	// Framing already completed in Decoder. Interceptor is now only a product
 	// chord recognizer; retaining any prefix would lose its associated UV event.
 	var policy Interceptor
 	before, hit, _ := policy.FeedHit(productKey(event))
+	// The attention toggle must precede overlay decoding: its Ctrl+Return
+	// encoding otherwise looks like Enter and selects an item instead of
+	// closing the list (#811). Other keys retain overlay-first routing.
+	if hit != HitAttention {
+		if _, press := event.Event.(uv.KeyPressEvent); press {
+			if c.routeAttentionKey(event.Raw, event.Canonical) {
+				return
+			}
+			if c.routeCodesMenuKey(event.Raw, event.Canonical) {
+				return
+			}
+		}
+	}
+	if bytes.Equal(event.Canonical, []byte{27}) {
+		route(event.Canonical)
+		return
+	}
 	if hit == HitNone {
 		route(event.Canonical)
 		return
