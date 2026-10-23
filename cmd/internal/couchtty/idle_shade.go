@@ -88,11 +88,27 @@ func FadeStyle(p Palette, level IdleLevel, base styleBase) string {
 		}
 		return "\x1b[90m"
 	}
+	return blendedStyle(p, idleBlend[level], base)
+}
+
+// inactiveOwnerStyle makes quiet chips and their counts recede together.
+// Unknown palettes retain the existing terminal-owned faint rendition.
+func inactiveOwnerStyle(p Palette, level IdleLevel, base styleBase) string {
+	if p.NoColor {
+		return ""
+	}
+	if !p.Known {
+		return "\x1b[2m"
+	}
+	return blendedStyle(p, max(0.5, idleBlend[level]), base)
+}
+
+func blendedStyle(p Palette, weight float64, base styleBase) string {
 	from := p.FG
 	if base == baseAmber {
 		from = amberRGB
 	}
-	c := blend(from, p.BG, idleBlend[level])
+	c := blend(from, p.BG, weight)
 	if p.TrueColor {
 		return fmt.Sprintf("\x1b[38;2;%d;%d;%dm", c.R, c.G, c.B)
 	}

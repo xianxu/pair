@@ -283,3 +283,13 @@ this rule. Pure synthetic positive and negative cases live in
 `fixture_identity_rule_test.go`; the ordinary catalog walk checks real sources.
 This is a syntactic guard, not execution proof: constructor renames require the
 rule to be updated. Allocation and installed-command tests prove behavior.
+
+The Pair-local `quit-trigger-private-home` rule (#797), implemented in
+`internal/repolint/quit_trigger_home_rule_test.go` and registered in the local
+catalog, protects direct `TriggerQuit`/`TriggerBoundQuit` calls inside Couch
+`Test*` functions. A private checker DataDir does not isolate their compatibility
+quit marker in HOME/.cache/pair. The syntax check requires preceding lexical
+private-HOME setup, inherited by nested blocks, through TempDir values or the
+existing sandboxedChecker fixture. It covers refused calls too. It does not infer
+types, dynamic aliases or interprocedural helper isolation; native fleet helpers
+retain their existing caller-owned fixture boundary.

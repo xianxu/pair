@@ -166,6 +166,8 @@ type Console struct {
 	menuExtents []ActorExtent
 	// statusChips is the same for the reserved row.
 	statusChips    []ChipSpan
+	tabStyle       TabStyle
+	statusGroups   []GroupCountSpan
 	statusRows     int
 	statusRevision uint64
 	// statusControl is the broadcast cell's span on the last drawn row.
@@ -301,6 +303,7 @@ func New(host hostty.Host, stdin io.Reader) *Console {
 	lifetime, cancelLifetime := context.WithCancel(context.Background())
 	c := &Console{
 		host:                host,
+		tabStyle:            DefaultTabStyle,
 		presenter:           terminal.NewPresenter(host, terminal.AnyMotion),
 		terminalCommands:    make(chan terminalCommand, 16),
 		stdin:               stdin,
@@ -1563,6 +1566,7 @@ func (c *Console) onHotkey() {
 		}
 		c.menu.Frames = c.menu.Frames[:1]
 		c.menu.Frames[0].Filter = ""
+		c.menu.Frames[0].GroupScope = nil
 		reconcileRootSelection(&c.menu, focus)
 	}
 	c.mu.Unlock()

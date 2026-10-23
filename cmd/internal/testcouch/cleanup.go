@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/xianxu/pair/cmd/internal/couchcore"
+	"github.com/xianxu/pair/cmd/internal/launcher"
 	"github.com/xianxu/pair/cmd/internal/procutil"
 	"github.com/xianxu/pair/cmd/internal/testcouch/agentfixture"
 )
@@ -35,6 +36,16 @@ func nativeFailureEvidence(store string) (string, error) {
 			after = fmt.Sprint(*failure.AfterExit)
 		}
 		fmt.Fprintf(&out, "nonce=%s slot=%s stage=%s before_exit=%s after_exit=%s launch=%q final=%q cleanup=%q stream=%q output=%q\n", failure.Nonce, failure.Slot, failure.Stage, before, after, failure.LaunchError, failure.FinalError, failure.CleanupError, failure.Stream, failure.Output)
+		query := (launcher.NativeQueryEvidence{Args: failure.ZellijArgs, Executable: failure.ZellijExecutable, Stdout: failure.ZellijStdout, Stderr: failure.ZellijStderr, StdoutBytes: failure.ZellijStdoutBytes, StderrBytes: failure.ZellijStderrBytes, StdoutTruncated: failure.ZellijStdoutTruncated, StderrTruncated: failure.ZellijStderrTruncated, ExitCode: failure.ZellijExit, Version: failure.ZellijVersion}).Bounded()
+		if len(query.Args) == 0 && query.Executable == "" && query.Stdout == nil && query.Stderr == nil && query.StdoutBytes == 0 && query.StderrBytes == 0 && !query.StdoutTruncated && !query.StderrTruncated && query.ExitCode == nil && query.Version == "" {
+			out.WriteString("zellij=absent\n")
+			continue
+		}
+		exit := "unobserved"
+		if query.ExitCode != nil {
+			exit = fmt.Sprint(*query.ExitCode)
+		}
+		fmt.Fprintf(&out, "zellij_executable=%q zellij_args=%q zellij_version=%q zellij_exit=%s zellij_stdout=%q zellij_stdout_bytes=%d zellij_stdout_truncated=%t zellij_stderr=%q zellij_stderr_bytes=%d zellij_stderr_truncated=%t\n", query.Executable, query.Args, query.Version, exit, query.Stdout, query.StdoutBytes, query.StdoutTruncated, query.Stderr, query.StderrBytes, query.StderrTruncated)
 	}
 	return out.String(), nil
 }

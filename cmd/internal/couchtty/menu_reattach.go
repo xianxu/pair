@@ -411,13 +411,29 @@ func menuThread(state MenuState, address couchcore.ThreadAddress) (couchcore.Act
 
 // visibleMenuRows is the root list after the filter, with the pass's view.
 func visibleMenuRows(state MenuState, frame MenuFrame) []couchcore.ActionableThreadSummary {
-	rows := visibleRootThreads(menuRows(state), frame)
+	rows := visibleRootThreads(scopedRootThreads(state, frame), frame)
 	if frame.View == MenuViewFocus {
 		rows = slices.DeleteFunc(rows, func(row couchcore.ActionableThreadSummary) bool {
 			return !row.Live() || menuFocusSummary(row) == ""
 		})
 	}
 	return rows
+}
+
+// scopedRootThreads derives exact membership from the same presentation authority
+// as the chrome. Scope precedes text filtering, so an empty group stays empty.
+func scopedRootThreads(state MenuState, frame MenuFrame) []couchcore.ActionableThreadSummary {
+	rows := menuRows(state)
+	if frame.GroupScope == nil {
+		return rows
+	}
+	var scoped []couchcore.ActionableThreadSummary
+	for _, entry := range PresentThreads(rows, state.SlotGit, state.Hub, state.HubOwnership) {
+		if (StatusGroupID{OwnerHub: entry.OwnerHub, GroupKey: entry.GroupKey}) == *frame.GroupScope {
+			scoped = append(scoped, entry.Row)
+		}
+	}
+	return scoped
 }
 
 func menuFocusSummary(row couchcore.ActionableThreadSummary) string {
@@ -452,10 +468,13 @@ func replaceMenuInventory(state MenuState, inventory []couchcore.ActionableThrea
 }
 
 // reorderMenuInventory re-sorts the installed inventory after the order's
-// inputs change (the hub, pair#491). Rows are unchanged, so frames need no
-// reconciliation.
+// inputs change (the hub, pair#491). Scope membership can change with ownership,
+// so a scoped root must reconcile even when inventory rows are unchanged.
 func reorderMenuInventory(state MenuState) MenuState {
 	state.Inventory = orderedMenuInventory(state.Inventory, state.Hub, state.HubOwnership)
+	if len(state.Frames) > 0 && state.Frames[0].GroupScope != nil {
+		reconcileRootSelection(&state, state.Frames[0].SelectedAddress)
+	}
 	return state
 }
 

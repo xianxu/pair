@@ -108,6 +108,7 @@ func (c *Console) commitChrome(bar RenderedStatusBar) {
 	c.mu.Lock()
 	c.statusRows, c.statusRevision = bar.Height(), state.Revision
 	c.statusChips = bar.Chips
+	c.statusGroups = bar.GroupCounts
 	c.statusControl = row.Control
 	c.statusPointer, c.statusNotes = row.Pointer, row.Notes
 	c.statusWebcast, c.statusWebFocus, c.statusWebNotes, c.statusWebDrive = row.Webcast, row.WebFocus, row.WebNotes, row.WebDrive
