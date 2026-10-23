@@ -22,6 +22,14 @@ func ThreadAsleep(record ThreadRecord) (time.Time, bool) {
 	return record.Asleep.At, true
 }
 
+func asleepAt(record ThreadRecord) *time.Time {
+	at, ok := ThreadAsleep(record)
+	if !ok {
+		return nil
+	}
+	return &at
+}
+
 // ParkCause is why a park was asked for: the zero value is the operator's
 // plain park of one thread; a non-empty cause marks the park asleep.
 type ParkCause = threadrecord.SleepCause
