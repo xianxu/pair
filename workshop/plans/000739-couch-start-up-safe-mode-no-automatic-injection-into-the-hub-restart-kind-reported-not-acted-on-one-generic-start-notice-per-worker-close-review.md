@@ -742,3 +742,71 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-23T09:31:42-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 739 — couch: start-up safe mode: no automatic injection into the hub, restart kind reported not acted on, one generic start notice per worker |
+| repo | pair |
+| issue file | workshop/issues/000739-couch-start-up-safe-mode-no-automatic-injection-into-the-hub-restart-kind-reported-not-acted-on-one-generic-start-notice-per-worker.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | dd37e0ad135c4a91fb4de345a455f8ce829df488..9bc066d843f6345aa6aab8cf72b37849b15307ef |
+| command | sdlc close --issue 739 |
+| reviewer | codex (openai; author openai) |
+| isolation | fenced |
+| timestamp | 2026-10-23T09:31:42-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+The interdiff resolves the three inventory conflicts without changing startup behavior, the Spec, or the implementation plan. Both sides’ manifest entries survive, reader certificates match the merged sources, and no new blocking defects were found. Previously disposed findings remain closed.
+
+```findings
+{}
+```
+
+1. **Strengths**
+   - `cmd/internal/artifactpath/manifest.go:679` preserves the complete conflict union without lost or duplicated entries.
+   - Both reader certificates match their source hashes. All 62 `run_test.go` tests remain registered in `SOURCE_GUARDS`.
+   - Reader classifications remain consistent with their inputs: repository README scanning versus isolated fixtures.
+
+2. **Critical findings:** None.
+
+3. **Important findings:** None.
+
+4. **Minor findings:** None.
+
+5. **Test coverage notes:** Passed `make test-affected-inventory`, targeted artifact classification/inventory tests, and range `git diff --check`. No full-suite rerun or mutation testing was performed; this window introduces no behavior-changing fix.
+
+6. **Architectural notes**
+   - **ARCH-DRY — pass:** inventory entries remain unique.
+   - **ARCH-PURE — pass:** resolutions add no IO or business logic.
+   - **ARCH-PURPOSE — pass:** all three resolutions preserve both sides’ intent.
+   - **ARCH-EVOLVE — pass:** certificate schemas and dispositions remain unchanged.
+
+   No new architectural or user-facing surface requires atlas or README updates.
+
+7. **Plan revision recommendations:** None.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"7db49f05-0ccb-463d-93bd-0fb4a0c6c58f","repository":"github.com/xianxu/pair","issue_id":"000739","recipe":"fix-review","round":8,"attempt":1,"agent":"codex","root":"/Volumes/TestScratch/review-checkouts/9d45e95d397c4561","reviewed_head":"9bc066d843f6345aa6aab8cf72b37849b15307ef","slot":"pair:7","requested_at":"2026-10-23T16:30:33.647878Z"},"phase":"finished","pid":60639,"started_at":"2026-10-23T16:30:33.8196Z","finished_at":"2026-10-23T16:31:41.13943Z","session_id":"01a16999-9117-7f51-8415-0b1ca8a5c2d7","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 3.200843375s
+head: "9bc066d843f6345aa6aab8cf72b37849b15307ef"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412
