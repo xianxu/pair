@@ -16,6 +16,7 @@ claimant:
     workspace: pair:6
     worktree: /Users/xianxu/workspace/worktree/pair-slot6/pair
     repository: github.com/xianxu/pair
+flow: {kind: quick, provenance: inferred, spec: "d12da403", done: "f6148d87"}
 ---
 
 # Global Alt+x marks parked slots 'asleep'; one 'wake all' brings back exactly those
