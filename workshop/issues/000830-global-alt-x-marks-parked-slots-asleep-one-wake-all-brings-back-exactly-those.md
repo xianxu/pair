@@ -59,7 +59,7 @@ Durable plan: `workshop/plans/000830-global-alt-x-marks-parked-slots-asleep-one-
 - [x] T3 BeginPark cause; Leave fresh drives mark asleep; resume/reattach clear
 - [x] T4 summary + switcher shows asleep
 - [x] T5 `asleep_at` in `couch --recover-plan-from-sdlc` rows
-- [ ] T5b `couch --wake`: main hub only, from a live hub; resumes the other asleep hubs; idempotent; one summary. Drop the Alt+Shift+x key.
+- [x] T5b `couch --wake`: main hub only, from a live hub; resumes the other asleep hubs; idempotent; one summary. Drop the Alt+Shift+x key.
 - [ ] T6 native fleet acceptance (Claude, Codex): full quit, resume main hub, `couch --wake`
 - [x] T7 atlas, lessons, ariadne#564 contract
 
@@ -91,3 +91,4 @@ Durable plan: `workshop/plans/000830-global-alt-x-marks-parked-slots-asleep-one-
 - pair:6 claimed and planned. The mark is written in BeginPark's CAS and bound to the park nonce; asleep is derived (receipt nonce = mark nonce), so every park-ending path and older builds leave it inert (ARCH-ORDER, ARCH-EVOLVE). It is a top-level member because nested park types are strict. tl-lead reads `couch --asleep --json`. `couch --drain` (#722) is not implemented yet; the cause is a Leave parameter so it can choose.
 
 ### 2026-10-22
+- 2026-10-23: T5b done (62c24192e). `couch --wake` is the broker op `wake`, main hub only (`HubOwnership.Wakes`). It reads the asleep set from the store alone (`Couch.AsleepSlots`) and admits one resume per other asleep hub, each with a re-proving effect gate. The CLI polls the receipts (shared `pollSlotOperation`) to one summary. The Alt+Shift+x key is removed. Tests: Wakes table, asleepSlotRows, a service rig (worker and extra hub refused; main hub admits exactly bench and third; a repeat is busy; an empty set gives an empty report), CLI parse, summary and poll round trip, and protocol validation. Mutations of the target filter and the main-hub check both fail the rig. couchkeys, couchmessage, artifactpath, threadrecord, couchcore, couchcmd, couchtty and cmd/couch pass, and test-affected-inventory is clean. T6 still waits on #739: on main a primary launch has no hub ownership, so wake has no other hubs.
