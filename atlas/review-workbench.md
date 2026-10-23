@@ -10,6 +10,20 @@ returns. The contract between them is a small set of seam files + git commits.
 
 ## Modules (`nvim/review/`)
 
+Rounds carry optional `Span.presentation` (`direct`, `highlight`, `propose`).
+An absent span value inherits `Round.presentation`, then highlight. Direct spans
+have no change decorations; highlight spans carry change ink, and proposal markers
+retain their marker rendering. `round_watch.lua` and `reconstruct.lua` share the
+fallback. `RoundBody` materializes each record's effective presentation so resume
+keeps a legacy round's inherited setting. Go codecs reject recursive duplicate
+keys and invalid owned fields while retaining opaque extension values through
+round/artifact/record rewrites. Pair's Lua record codec retains additive fields.
+The producer/Parley consumer fixture is
+`cmd/internal/sessionsync/testdata/editorial-rounds/presentation.json`: source and
+result hashes, valid byte positions, mixed explicit/absent modes, both legacy
+fallbacks and a mixed commit/resume round-trip. Parley #419 pins this fixture
+after landing; its consumer acceptance is independent of Pair's headless tests.
+
 Pure core (run under `nvim -l`, colocated `*_test.lua`, `make test-lua`):
 
 - `marker_codec.lua` — shared 🤖 delimiter escaping/unescaping used by both

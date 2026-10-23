@@ -186,7 +186,7 @@ func (c *sequenceClock) Now() time.Time {
 	return c.last
 }
 
-func TestParkWorkerBeginDeadlineHasZeroExternalEffectsAtOneSecond(t *testing.T) {
+func TestParkWorkerBeginDeadlineHasZeroExternalEffectsAtThreshold(t *testing.T) {
 	t.Parallel()
 
 	for _, test := range []struct {
@@ -196,8 +196,8 @@ func TestParkWorkerBeginDeadlineHasZeroExternalEffectsAtOneSecond(t *testing.T) 
 		wantLifecycle int
 		wantEffect    int
 	}{
-		{name: "999ms commits before deadline", elapsed: 999 * time.Millisecond, wantPhase: ParkAwaitingCompletion, wantLifecycle: 3, wantEffect: 1},
-		{name: "exactly 1s refuses", elapsed: time.Second, wantPhase: ParkRequested, wantEffect: 0},
+		{name: "just under threshold commits", elapsed: parkCommitDeadline - time.Millisecond, wantPhase: ParkAwaitingCompletion, wantLifecycle: 3, wantEffect: 1},
+		{name: "exactly threshold refuses", elapsed: parkCommitDeadline, wantPhase: ParkRequested, wantEffect: 0},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			store, _, thread := createControllerThread(t)
@@ -225,7 +225,7 @@ func TestParkWorkerBeginDeadlineHasZeroExternalEffectsAtOneSecond(t *testing.T) 
 			if getErr != nil || len(persisted.Incarnations) != 1 {
 				t.Fatalf("deadline occupancy = %+v, %v", persisted, getErr)
 			}
-			if test.elapsed >= time.Second {
+			if test.elapsed >= parkCommitDeadline {
 				if persisted.Park != nil || len(persisted.ParkHistory) != 1 || !persisted.ParkHistory[0].Tombstoned || !result.SoftTargetMissed {
 					t.Fatalf("expired unpublished begin not rolled back: %+v", persisted)
 				}

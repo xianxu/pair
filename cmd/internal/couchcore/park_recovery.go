@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"time"
 
 	"github.com/xianxu/pair/cmd/internal/pairlifecycle"
 )
@@ -246,14 +245,36 @@ func (c *PairLifecycleController) recoverInterruptedPark(ctx context.Context, ad
 // rollbackUnpublishedPark is called only by the initiating worker while it
 // still owns the address, and only with positive no-publication authority.
 func (c *PairLifecycleController) rollbackUnpublishedPark(result ParkResult, current ThreadRecord, cause error) (ParkResult, error) {
-	cleanupCtx, cancel := context.WithTimeout(context.Background(), time.Second)
+	// The rollback is one coordinated write, like the commit it undoes, so it
+	// gets the commit's budget: a fixed 1s expired under load once foreground
+	// writes began waiting out preview reads (#827), turning a provable
+	// rollback into an uncertain one.
+	cleanupCtx, cancel := context.WithTimeout(context.Background(), parkCommitDeadline)
 	defer cancel()
 	rolled, err := c.Threads.rollbackUnpublishedPark(cleanupCtx, current)
 	if err == nil {
 		result.Thread = rolled
+		return result, &parkRolledBackError{cause: cause, nonce: current.Park.Identity.Nonce}
 	}
 	return result, errors.Join(cause, err)
 }
+
+// parkRolledBackError marks a failure the controller itself proved harmless:
+// the transaction was never published and its rollback committed. It is the
+// only positive no-publication proof a full-quit leave accepts before minting
+// a fresh park (#827). It adds no text, so refusals read as before.
+type parkRolledBackError struct {
+	cause error
+	nonce string
+}
+
+func (e *parkRolledBackError) Error() string {
+	if e.cause == nil {
+		return "unpublished park rolled back"
+	}
+	return e.cause.Error()
+}
+func (e *parkRolledBackError) Unwrap() error { return e.cause }
 
 var errParkCleanupFailed = errors.New("Pair cleanup failed")
 

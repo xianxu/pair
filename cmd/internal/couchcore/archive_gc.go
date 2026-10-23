@@ -56,7 +56,7 @@ func (s *ThreadStore) withRetentionWrite(held *storagegc.Locked, fn func() error
 	if err := held.RegisterStore(s.namespace.Dir()); err != nil {
 		return err
 	}
-	return retentionLockError(s.withStoreLockChecked(fn, held.CheckContext))
+	return retentionLockError(s.withStoreLockChecked(fn, held.CheckContext, 0))
 }
 func (s *ThreadStore) readArchiveReceiptLocked(request ArchiveDetachRequest) ([]byte, bool, error) {
 	raw, err := s.readRetentionFile(s.archiveReceiptPath(request.OperationID))

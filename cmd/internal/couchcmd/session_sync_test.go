@@ -229,7 +229,7 @@ func TestSessionSyncRefusalsExitNonZeroWithACode(t *testing.T) {
 	os.WriteFile(file+".lock", []byte("holder: operator\n"), 0o644)
 	body := filepath.Join(t.TempDir(), "body")
 	os.WriteFile(body, []byte("new"), 0o644)
-	code, _, errout := runSS(t, rt, "write", "--section", "Needs you", body, file, "--if-hash", sessionsync.Hash("\nold\n"))
+	code, _, errout := runSS(t, rt, "write", "--section", "Needs you", body, file, "--if-hash", sessionSyncSectionHash(t, rt, file, "Needs you"))
 	if code != sessionsync.ExitOperatorLock || !strings.Contains(errout, "operator holds the lock") {
 		t.Fatalf("exit %d: %s", code, errout)
 	}
@@ -256,12 +256,12 @@ func TestSessionSyncWriteFoldsAndStatusTextShowsIt(t *testing.T) {
 	os.WriteFile(body, []byte("handled d1"), 0o644)
 	_, out, _ = runSS(t, rt, "read", "--section", "Needs you", file)
 	hash, rest, _ := strings.Cut(strings.TrimPrefix(out, "hash: "), "\n")
-	if rest != "\nold\n" || hash != sessionsync.Hash(rest) {
+	if rest != "\nold\n" || hash != sessionSyncSectionHash(t, rt, file, "Needs you") {
 		t.Fatalf("read text %q", out)
 	}
 	code, out, errout := runSS(t, rt, "write", "--section", "Needs you", body, file, "--fold", "d1", "--if-hash", hash)
 	if code != 0 || !strings.Contains(out, "wrote ## Needs you") || !strings.Contains(out, "folded d1") ||
-		!strings.Contains(out, "hash: "+sessionsync.Hash("\nhandled d1\n")) {
+		!strings.Contains(out, "hash: "+sessionSyncSectionHash(t, rt, file, "Needs you")) {
 		t.Fatalf("exit %d out %q err %q", code, out, errout)
 	}
 	if _, out, _ = runSS(t, rt, "status", file); !strings.Contains(out, "owed: 0") {
@@ -278,7 +278,7 @@ func TestSessionSyncStaleAndReadJSON(t *testing.T) {
 		Hash string
 	}
 	if err := json.Unmarshal([]byte(out), &got); err != nil || code != 0 || got.Code != "ok" ||
-		got.Read.Body != "\nold\n" || got.Read.Hash != sessionsync.Hash("\nold\n") || got.Read.Section != "Needs you" {
+		got.Read.Body != "\nold\n" || len(got.Read.Hash) != 16 || got.Read.Editorial == nil || got.Read.EditorialCoordinates != "document-byte-offsets" || got.Read.Section != "Needs you" {
 		t.Fatalf("exit %d out %s", code, out)
 	}
 	body := filepath.Join(t.TempDir(), "body")
@@ -351,8 +351,9 @@ func TestSessionSyncWriteTelemetryBestEffort(t *testing.T) {
 				out, errout string
 			}
 			done := make(chan result, 1)
+			hash := sessionSyncSectionHash(t, rt, file, "Needs you")
 			go func() {
-				code, out, errout := runSS(t, rt, "write", "--section", "Needs you", body, file, "--fold", "d1", "--if-hash", sessionsync.Hash("\nold\n"))
+				code, out, errout := runSS(t, rt, "write", "--section", "Needs you", body, file, "--fold", "d1", "--if-hash", hash)
 				done <- result{code, out, errout}
 			}()
 			var got result
@@ -516,4 +517,19 @@ func TestSessionSyncApplyAndRoundCLIContract(t *testing.T) {
 	if code != 1 || !strings.Contains(out, `"round-invalid"`) || !strings.Contains(out, `"Round":null`) {
 		t.Fatalf("malformed round exit %d %q", code, out)
 	}
+}
+
+// section tokens bind policy as well as bytes; callers must reuse the opaque
+// value the read endpoint returned rather than reconstruct a body-only hash.
+func sessionSyncSectionHash(t *testing.T, rt testRT, file, heading string) string {
+	t.Helper()
+	code, out, errout := runSS(t, rt, "read", "--section", heading, file, "--json")
+	var response struct {
+		Code string
+		Read sessionsync.ReadResult
+	}
+	if err := json.Unmarshal([]byte(out), &response); err != nil || code != 0 || response.Code != "ok" || len(response.Read.Hash) != 16 {
+		t.Fatalf("section read %d %s %s", code, out, errout)
+	}
+	return response.Read.Hash
 }

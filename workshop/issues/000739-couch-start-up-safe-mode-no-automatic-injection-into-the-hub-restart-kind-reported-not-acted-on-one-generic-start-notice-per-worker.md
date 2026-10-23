@@ -793,3 +793,10 @@ Merged targeted cohort PASS: artifactpath0.168s, couchcmd8.297s, couchcore25.788
 ### 2026-10-23 — integrated suite survived restart and passed
 
 Retained run88d3d5919c0ea4c1859393b07b247572/lease-2992196955 finished exit0 on integrated head1c94b2857cba472ddb2cf171b1b98e0fb893deb9 in12m37s, log SHA256 prefix6c088b0e9063. Saved /Users/xianxu/workspace/pair/.git/sdlc/local-checks/1c94b2857cba472ddb2cf171b1b98e0fb893deb9/suite.log. Every script/package completed. Authenticated Couch restart noticeee02a694 prompted checking the retained result; no duplicate or replacement runner was launched. No runtime or tests changed after this result. Next fast inventory, narrow re-close with this full integrated evidence, then merge on SHIP. Hub owns project state and live restart follow-up; no new stage.
+
+
+### 2026-10-23 — round8 SHIP; newer main atlas-only conflict
+
+Narrow round8 SHIP, no new/open findings, accepted the three additive inventory resolutions with full integrated suite evidence. Immediately re-entered sdlc merge --yes; gate vouched PR510 atb421eb4a7. Newer origineb5171b07c91b8784139a1ab8cd42f6cc35e8c66 then conflicted only in atlas/index.md. Tool aborted its disposable merge and directed source integration/re-close. Resolved that same merge by retaining main's #827 full-quit description and #739's startup automation/cue link. All code auto-merged; no code-conflict resolution or new branch behavior. Reader inventory passes unchanged, no hash refresh. Targeted startup/automation/worker/admission/quit/artifact checks PASS couchcmd7.373s, couchtty1.325s, artifactpath0.176s; diff check passes.
+
+Next commit/push this integration, record affected verification on the exact new head, then required fast inventory and narrow re-close. The last full integrated PASS12m37s remains historical evidence on1c94b285; do not claim it tested this newer main. Narrow close's code-conflict full-suite precondition does not apply to this atlas-only resolution; let the gate check it rather than bypassing it. The landing gate still owns a full suite on the final integrated code. No active previous merge runner remains after its exit1.

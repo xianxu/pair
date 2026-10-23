@@ -36,9 +36,10 @@ type FileApplyResult struct {
 // RoundArtifact is the review pane's round file: which document, the round,
 // and the commit body.
 type RoundArtifact struct {
-	File  string `json:"file"`
-	Round Round  `json:"round"`
-	Body  string `json:"body"`
+	File    string `json:"file"`
+	Round   Round  `json:"round"`
+	Body    string `json:"body"`
+	unknown map[string]json.RawMessage
 }
 
 // ApplyFile writes one edit through the shared engine, in the apply order:
@@ -75,11 +76,15 @@ func ApplyFile(req FileApplyRequest) (FileApplyResult, error) {
 		return FileApplyResult{}, &Refusal{Exit: ExitStale, Code: "stale", Hash: h, Reason: fmt.Sprintf(
 			"it changed since you read it (hash now %s, you passed %s); read it again, rebuild the records, and apply again", h, req.IfHash)}
 	}
+	policy, err := compileEditorial(base)
+	if err != nil {
+		return FileApplyResult{}, err
+	}
 	// A reply with no edits (pair#690) skips BuildEdit, which refuses an
 	// empty list for the Couch path, and lands as an empty round below.
 	edit := Edit{Next: base}
 	if len(req.Edits) != 0 {
-		if edit, err = BuildEdit(base, req.Edits, req.Now, false); err != nil {
+		if edit, err = buildEditWithPolicy(base, req.Edits, req.Now, false, policy); err != nil {
 			return FileApplyResult{}, err
 		}
 	}
@@ -92,9 +97,9 @@ func ApplyFile(req FileApplyRequest) (FileApplyResult, error) {
 	} else {
 		// The empty round: nothing to write or commit, but the pane still
 		// sees the reply. Its time tells it apart from the round before.
-		round = Round{BaseHash: res.Hash, ResultHash: res.Hash, At: req.Now.UTC(), Presentation: Presentation(base), Spans: []Span{}}
+		round = Round{BaseHash: res.Hash, ResultHash: res.Hash, At: req.Now.UTC(), Presentation: policy.Defaults.Presentation, Spans: []Span{}}
 	}
-	artifact, err := json.Marshal(RoundArtifact{File: req.File, Round: round, Body: body})
+	artifact, err := (RoundArtifact{File: req.File, Round: round, Body: body}).MarshalJSON()
 	if err != nil {
 		return FileApplyResult{}, err
 	}
@@ -123,6 +128,8 @@ type roundRecord struct {
 	New           string `json:"new"`
 	Explain       string `json:"explain,omitempty"`
 	NewOccurrence int    `json:"new_occurrence,omitempty"`
+	Presentation  string `json:"presentation,omitempty"`
+	unknown       map[string]json.RawMessage
 }
 
 // RoundBody is the agent's commit body for a round: a summary line, then a
@@ -132,17 +139,24 @@ func RoundBody(r Round, result string) (string, error) {
 	starts := lineStarts(result)
 	records := make([]roundRecord, len(r.Spans))
 	for i, s := range r.Spans {
-		records[i] = roundRecord{Old: s.Old, New: s.New, Explain: s.Explain}
+		records[i] = roundRecord{Old: s.Old, New: s.New, Explain: s.Explain, Presentation: spanPresentation(s, r.Presentation), unknown: s.unknown}
 		if s.New != "" {
 			records[i].NewOccurrence = occurrenceAt(result, s.New, starts[s.Start[0]]+s.Start[1])
 		}
 	}
 	var buf bytes.Buffer
-	enc := json.NewEncoder(&buf)
-	enc.SetEscapeHTML(false)
-	if err := enc.Encode(records); err != nil {
-		return "", err
+	buf.WriteByte('[')
+	for i, record := range records {
+		if i != 0 {
+			buf.WriteByte(',')
+		}
+		raw, err := record.MarshalJSON()
+		if err != nil {
+			return "", err
+		}
+		buf.Write(raw)
 	}
+	buf.WriteByte(']')
 	// The fence is nvim/review/record.lua's OPEN; its extract reads it back.
 	var body strings.Builder
 	fmt.Fprintf(&body, "agent round: %d change(s)\n\n", len(records))
@@ -176,17 +190,9 @@ func ReadRoundArtifact(path string) (*RoundArtifact, error) {
 	if err != nil {
 		return nil, roundInvalid(err.Error())
 	}
-	var a struct {
-		File  string          `json:"file"`
-		Round json.RawMessage `json:"round"`
-		Body  string          `json:"body"`
-	}
+	var a RoundArtifact
 	if err := json.Unmarshal(raw, &a); err != nil || a.File == "" {
 		return nil, roundInvalid("not a round artifact")
 	}
-	r, err := decodeRound(a.Round)
-	if err != nil {
-		return nil, err
-	}
-	return &RoundArtifact{File: a.File, Round: *r, Body: a.Body}, nil
+	return &a, nil
 }

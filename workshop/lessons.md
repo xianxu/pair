@@ -7,6 +7,7 @@ representative evidence, not an exhaustive index.
 
 ## Proof and verification
 
+- #827 PQ-1: joining dispatch callers does not join their asynchronous producers. When cancellation can return from Await early, retain the exact admitted future and defer gate/capacity release and final reporting until producer completion; pin ordinary caller behavior when adding an opt-in joined path.
 - #832: A process-group kill can precede publication of an in-progress fork. Keep the direct parent unreaped until terminal observation, then send the final group signal before retiring authority and joining output. Execution cancellation or writer failure must not skip the cleanup barrier; pin ordering and unknown-proof refusal with stateful seams and repeat the native race.
 
 - #758 BR-4: write-call and record-count assertions do not prove a byte budget. Measure actual payload lengths at the writer boundary, count cumulative bytes and compare N/2N against the stated growth model; retry/no-op and repeated-reopen tests must assert byte effects, not infer them from row counts.
@@ -37,7 +38,7 @@ representative evidence, not an exhaustive index.
 - Cached parent inventory is also a pass-wide capacity ledger: reserve a slot for every potentially completed create, retain it after an uncertain acknowledgment, and carry confirmed IDs forward. A per-attempt full-parent guard alone permits successive creates to exceed the reader limit. Test both root/year and year/month creation sequences near capacity. (#706 BR-1)
 
 
-- A durable plan names each risky function and its adversarial input class plus mechanical guard. Prefer fuzz, generated event sequences and independent invariants over prose case inventories; keep resource and operation-count assertions explicit. (#706 PQ-1)
+- A durable plan names each risky function and its adversarial input class plus mechanical guard. Prefer fuzz, generated event sequences and independent invariants over prose case inventories; keep resource and operation-count assertions explicit. (#706 PQ-1; #823 PQ-1)
 - Additive wire fields still break an older strict decoder. Inspect the actual mixed-version reader before promising compatibility; pin the legacy refusal and current-reader absence behavior, and name the coordinated upgrade contract when that is the intended rollout. (#736 PQ-1)
 
 - #735: Replay native recordings with resize events as well as bytes before blaming footer wording. A duplicate geometry update may receive no native repaint; preserve existing cursor/frame evidence on a synchronized no-op, while a retry after an aborted real resize must still restore synchronization and await a fresh cursor. Regress both paths and expose the missing evidence in retained wait receipts without copying screen contents.
@@ -2742,6 +2743,28 @@ and external temporary roots rather than relying on the host's TMPDIR.
   keep semantic mismatches non-retriable. Audit structural call-site manifests
   when a collector method changes, even when the effect remains read-only.
 
+- #809 MISTAKE CLASS: a test that asserts a wrapper's int exit code while passing
+  io.Discard as the wrapper's diagnostic writer cannot classify its own failure.
+  Every fatal site in such a wrapper collapses to the same int, so the assertion
+  reports the wrapper's abort as the subject's misbehavior ("child exit 42
+  propagated as 1" when the child never started) and the one string naming the
+  site is destroyed. Capture the diagnostic writer and assert it empty *first*,
+  separately, before asserting the int. Assessed as a mechanical rule for
+  ariadne's pkg/golint catalog and rejected: io.Discard is correct for most
+  writers, and telling a diagnostic sink from an output sink needs semantics the
+  catalog's Match funcs do not have, so any such rule fires on false positives.
+  Recorded here instead; a real rule would need its own ariadne issue.
+- #809: on darwin/arm64 a failing syscall can hand back a *negated* errno —
+  XNU's ptmx allocation race was measured rendering "errno -6" for ENXIO at the
+  open of /dev/ptmx, where every observed failure occurred; the ioctl path
+  shares that convention and is normalised as a precaution, not because it was
+  seen failing. errors.Is(err, syscall.ENXIO) is false for the negated value,
+  while an ordinary failure such
+  as ENOENT arrives positive. A guard written the obvious way compiles, reads
+  correctly, passes review, and never fires. Normalise the sign of
+  syscall.Errno before comparing, and measure the actual error rather than
+  assuming the platform's convention; the first harness here used unix.Open
+  (libSystem, positive) and so attributed a step it had not really exercised.
 - #791 PQ-1: Active plan concept tables must name the production transition/encoder functions as well as their data types. State one adversarial test strategy per risky function (generated event sequences for timing/once/reset invariants, fuzzed styled data for valid bounded encoding); put case inventories in executable tests.
 
 - #791 BR-1: A diagnostic byte cap must preserve evidence that actually fits. Do not divide the raw-screen allowance by worst-case escaping expansion and discard fitting screens; count actual escaped bytes incrementally under a hard construction bound. Pair cap/truncation oracles with a fitting styled-screen preservation regression.
@@ -2790,3 +2813,24 @@ and external temporary roots rather than relying on the host's TMPDIR.
 - #739 live acceptance: label immutable startup observations as history in persistent status output. A recovered actor must not appear currently missing because its startup absence was retained. Startup safety notices must name the explicit recovery action as well as explain what automation was suppressed.
 
 - #739: host bytes are not a presentation-complete barrier. A startup-ordering test must finish through the console event loop, with a held-write control; asynchronous Stop exercises cancellation instead. Qualify the current exit semantics (Escape need not quit an empty switcher), and track shared cancellation-cause loss separately rather than ignoring generic presenter errors.
+- #823 PQ-2: Additive persisted JSON contracts require recursive duplicate-key rejection as well as strict owned-field presence/type checks and raw unknown-field preservation. Reuse strictjson split/encode helpers at each changed boundary; plain json.Unmarshal is not an authority validator.
+
+- #823 codec review: validate each positional tuple coordinate independently before ordering endpoints. A later end line does not make a negative end column valid; retain cross-line negative-column regression coverage.
+
+- #823 compiler review: preserve the isolated YAML key/value mapping context when decoding owned values. Removing key indentation changes explicit block-scalar indentation and instruction text. Test quoted/indented mappings, explicit indent/chomp modifiers and mixed header/body line endings independently of canonical flat fixtures.
+- #823 integration: apply base-coordinate transforms before automatic restamping. A restamp can grow with an extreme year; applying earlier offsets after that growth truncates output and bypasses prospective byte-limit tests.
+
+- #823 guard review: preserve parsed marker identity and extent, not only old bytes. Endpoint appends or deleting separators can forge a new human turn; code examples never grant approval. Source-coordinate code masks must reach proposal exceptions as well as scope classification.
+- #823 guard review: choose chat asks by the section's shallowest source indentation, not each Markdown list root. Preserve pending escaped answer links as linked; distinguish line-ending real links from code and prose mentions.
+- #823 integration: attribute final spans from validated base pieces. Re-resolving at a heading boundary can lend the next section's policy to content inserted before it.
+
+- #823 BR-1: Markdown AST content Lines are not full source ownership: fences and empty blocks may omit delimiters or all lines. Observe source membership at existing parser container transitions, preserve lazy continuations, and test exact protected bytes plus final append location through the production seam.
+- #823 BR-2: New operator settings and migration commands need README examples at close, even when CLI help and atlas already document them. Name defaults, heading adjacency, ownership and exact preview/confirm steps.
+
+- #823 BR-1 round2: Original bytes can survive while their Markdown role changes. A permitted append needs a renderable base tail and a real candidate link at the exact inserted source location; use independent rendering regressions for fence/code/HTML/thematic tails and a positive ordinary continuation.
+
+- #823 suite: rewrite a function's full godoc when refactoring its authority/presentation contract; appending a replacement opener leaves contradictory prose and fails the existing cross-package TestNoDeclarationCarriesTwoStackedGodocs guard. Run that guard after broad function-comment edits.
+- #827 BR-1: when a plan's state table maps outcomes to visible states, enumerate every outcome the code can produce (here leaveSkipped) against it, not only the error paths. A full operation reports complete only on positive proof for every target; any outcome short of that proof is unresolved.
+- #827: a recovery hint belongs to one field. If a summary carries a dedicated next-action field, strip the same advice from the reason text, or the operator reads it twice.
+- #827: before adding a context-aware path through a nested lock, check every acquirer of that lock, including readers outside the outer coordinator. A nonblocking inner acquire under a blocking outer lock fails at once against an uncoordinated reader.
+- #827 round 2: when a change adds a member to an enumerated contract, grep the field or type name and update every comment that lists its members in the same commit.
