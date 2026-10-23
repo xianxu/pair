@@ -1,6 +1,6 @@
 ---
 id: 000802
-status: working
+status: codecomplete
 created: 2026-10-22
 updated: 2026-10-23
 estimate_hours:
@@ -14,6 +14,14 @@ claimant:
     workspace: pair:8
     worktree: /Users/xianxu/workspace/worktree/pair-slot8/pair
     repository: github.com/xianxu/pair
+actual_hours: 1.29
+tracker:
+    version: 1
+    completion:
+        token: close-04564bdbdfb8
+        repository: github.com/xianxu/pair
+        reviewed_head: 3f4c34fc99b4a74101c9ad363eed0c78d3e15a43
+        evidence_commit: 0650d0c0c70b1ed954adfbc0efd0e01d3d987995
 ---
 
 # Couch: shorten common statuses
