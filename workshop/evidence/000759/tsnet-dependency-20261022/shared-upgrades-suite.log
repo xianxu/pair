@@ -1,0 +1,1580 @@
+host-preflight ok
+[test-lock] waiting 0s for one of 2 full-suite slots (/Users/xianxu/.local/state/ariadne/test-suite.lock*); held by:
+  - ariadne (/Users/xianxu/workspace/worktree/ariadne-slot2/ariadne), make pid 96696, since 2026-10-22T21:55:12
+  normal FIFO
+  position 11 in line; next in line: ariadne (/Users/xianxu/workspace/worktree/ariadne-slot5/ariadne), make pid 62058, since 2026-10-22T21:57:15
+[test-lock] waiting 30s for one of 2 full-suite slots (/Users/xianxu/.local/state/ariadne/test-suite.lock*); held by:
+  - ariadne (/Users/xianxu/workspace/worktree/ariadne-slot2/ariadne), make pid 96696, since 2026-10-22T21:55:12
+  normal FIFO
+  position 11 in line; next in line: ariadne (/Users/xianxu/workspace/worktree/ariadne-slot5/ariadne), make pid 62058, since 2026-10-22T21:57:15
+[test-lock] waiting 60s for one of 2 full-suite slots (/Users/xianxu/.local/state/ariadne/test-suite.lock*); held by:
+  - ariadne (/Users/xianxu/workspace/worktree/ariadne-slot2/ariadne), make pid 96696, since 2026-10-22T21:55:12
+  normal FIFO
+  position 11 in line; next in line: ariadne (/Users/xianxu/workspace/worktree/ariadne-slot5/ariadne), make pid 62058, since 2026-10-22T21:57:15
+[test-lock] waiting 90s for one of 2 full-suite slots (/Users/xianxu/.local/state/ariadne/test-suite.lock*); held by:
+  - ariadne (/Users/xianxu/workspace/worktree/ariadne-slot2/ariadne), make pid 96696, since 2026-10-22T21:55:12
+  normal FIFO
+  position 11 in line; next in line: ariadne (/Users/xianxu/workspace/worktree/ariadne-slot5/ariadne), make pid 62058, since 2026-10-22T21:57:15
+[test-lock] waiting 93s for one of 2 full-suite slots (/Users/xianxu/.local/state/ariadne/test-suite.lock*); held by:
+  - ariadne (/Users/xianxu/workspace/worktree/ariadne-slot2/ariadne), make pid 96696, since 2026-10-22T21:55:12
+  normal FIFO
+  position 10 in line; next in line: ariadne (/Users/xianxu/workspace/worktree/ariadne-slot5/ariadne), make pid 62058, since 2026-10-22T21:57:15
+[test-lock] waiting 123s for one of 2 full-suite slots (/Users/xianxu/.local/state/ariadne/test-suite.lock*); held by:
+  - ariadne (/Users/xianxu/workspace/worktree/ariadne-slot2/ariadne), make pid 96696, since 2026-10-22T21:55:12
+  normal FIFO
+  position 10 in line; next in line: ariadne (/Users/xianxu/workspace/worktree/ariadne-slot5/ariadne), make pid 62058, since 2026-10-22T21:57:15
+[test-lock] waiting 154s for one of 2 full-suite slots (/Users/xianxu/.local/state/ariadne/test-suite.lock*); held by:
+  - ariadne (/Users/xianxu/workspace/worktree/ariadne-slot2/ariadne), make pid 96696, since 2026-10-22T21:55:12
+  normal FIFO
+  position 10 in line; next in line: ariadne (/Users/xianxu/workspace/worktree/ariadne-slot5/ariadne), make pid 62058, since 2026-10-22T21:57:15
+[test-lock] waiting 184s for one of 2 full-suite slots (/Users/xianxu/.local/state/ariadne/test-suite.lock*); held by:
+  - ariadne (/Users/xianxu/workspace/worktree/ariadne-slot2/ariadne), make pid 96696, since 2026-10-22T21:55:12
+  normal FIFO
+  position 10 in line; next in line: ariadne (/Users/xianxu/workspace/worktree/ariadne-slot5/ariadne), make pid 62058, since 2026-10-22T21:57:15
+[test-lock] waiting 215s for one of 2 full-suite slots (/Users/xianxu/.local/state/ariadne/test-suite.lock*); held by:
+  - ariadne (/Users/xianxu/workspace/worktree/ariadne-slot2/ariadne), make pid 96696, since 2026-10-22T21:55:12
+  normal FIFO
+  position 10 in line; next in line: ariadne (/Users/xianxu/workspace/worktree/ariadne-slot5/ariadne), make pid 62058, since 2026-10-22T21:57:15
+[test-lock] waiting 245s for one of 2 full-suite slots (/Users/xianxu/.local/state/ariadne/test-suite.lock*); held by:
+  - ariadne (/Users/xianxu/workspace/worktree/ariadne-slot2/ariadne), make pid 96696, since 2026-10-22T21:55:12
+  normal FIFO
+  position 10 in line; next in line: ariadne (/Users/xianxu/workspace/worktree/ariadne-slot5/ariadne), make pid 62058, since 2026-10-22T21:57:15
+[test-lock] waiting 275s for one of 2 full-suite slots (/Users/xianxu/.local/state/ariadne/test-suite.lock*); held by:
+  - ariadne (/Users/xianxu/workspace/worktree/ariadne-slot2/ariadne), make pid 96696, since 2026-10-22T21:55:12
+  normal FIFO
+  position 10 in line; next in line: ariadne (/Users/xianxu/workspace/worktree/ariadne-slot5/ariadne), make pid 62058, since 2026-10-22T21:57:15
+[test-lock] waiting 305s for one of 2 full-suite slots (/Users/xianxu/.local/state/ariadne/test-suite.lock*); held by:
+  - ariadne (/Users/xianxu/workspace/worktree/ariadne-slot2/ariadne), make pid 96696, since 2026-10-22T21:55:12
+  normal FIFO
+  position 10 in line; next in line: ariadne (/Users/xianxu/workspace/worktree/ariadne-slot5/ariadne), make pid 62058, since 2026-10-22T21:57:15
+[test-lock] waiting 335s for one of 2 full-suite slots (/Users/xianxu/.local/state/ariadne/test-suite.lock*); held by:
+  - ariadne (/Users/xianxu/workspace/worktree/ariadne-slot2/ariadne), make pid 96696, since 2026-10-22T21:55:12
+  normal FIFO
+  position 10 in line; next in line: ariadne (/Users/xianxu/workspace/worktree/ariadne-slot5/ariadne), make pid 62058, since 2026-10-22T21:57:15
+[test-lock] waiting 366s for one of 2 full-suite slots (/Users/xianxu/.local/state/ariadne/test-suite.lock*); held by:
+  - ariadne (/Users/xianxu/workspace/worktree/ariadne-slot2/ariadne), make pid 96696, since 2026-10-22T21:55:12
+  normal FIFO
+  position 10 in line; next in line: ariadne (/Users/xianxu/workspace/worktree/ariadne-slot5/ariadne), make pid 62058, since 2026-10-22T21:57:15
+[test-lock] waiting 396s for one of 2 full-suite slots (/Users/xianxu/.local/state/ariadne/test-suite.lock*); held by:
+  - ariadne (/Users/xianxu/workspace/worktree/ariadne-slot2/ariadne), make pid 96696, since 2026-10-22T21:55:12
+  normal FIFO
+  position 10 in line; next in line: ariadne (/Users/xianxu/workspace/worktree/ariadne-slot5/ariadne), make pid 62058, since 2026-10-22T21:57:15
+[test-lock] waiting 426s for one of 2 full-suite slots (/Users/xianxu/.local/state/ariadne/test-suite.lock*); held by:
+  - ariadne (/Users/xianxu/workspace/worktree/ariadne-slot2/ariadne), make pid 96696, since 2026-10-22T21:55:12
+  normal FIFO
+  position 10 in line; next in line: ariadne (/Users/xianxu/workspace/worktree/ariadne-slot5/ariadne), make pid 62058, since 2026-10-22T21:57:15
+[test-lock] waiting 456s for one of 2 full-suite slots (/Users/xianxu/.local/state/ariadne/test-suite.lock*); held by:
+  - ariadne (/Users/xianxu/workspace/worktree/ariadne-slot2/ariadne), make pid 96696, since 2026-10-22T21:55:12
+  normal FIFO
+  position 10 in line; next in line: ariadne (/Users/xianxu/workspace/worktree/ariadne-slot5/ariadne), make pid 62058, since 2026-10-22T21:57:15
+[test-lock] waiting 487s for one of 2 full-suite slots (/Users/xianxu/.local/state/ariadne/test-suite.lock*); held by:
+  - ariadne (/Users/xianxu/workspace/worktree/ariadne-slot2/ariadne), make pid 96696, since 2026-10-22T21:55:12
+  normal FIFO
+  position 10 in line; next in line: ariadne (/Users/xianxu/workspace/worktree/ariadne-slot5/ariadne), make pid 62058, since 2026-10-22T21:57:15
+[test-lock] waiting 517s for one of 2 full-suite slots (/Users/xianxu/.local/state/ariadne/test-suite.lock*); held by:
+  - ariadne (/Users/xianxu/workspace/worktree/ariadne-slot2/ariadne), make pid 96696, since 2026-10-22T21:55:12
+  normal FIFO
+  position 10 in line; next in line: ariadne (/Users/xianxu/workspace/worktree/ariadne-slot5/ariadne), make pid 62058, since 2026-10-22T21:57:15
+[test-lock] waiting 519s for one of 2 full-suite slots (/Users/xianxu/.local/state/ariadne/test-suite.lock*); held by:
+  - ariadne (/Users/xianxu/workspace/worktree/ariadne-slot5/ariadne), make pid 62058, since 2026-10-22T22:13:25
+  normal FIFO
+  position 9 in line; next in line: parley.nvim (/Users/xianxu/workspace/worktree/parley.nvim-slot3/parley.nvim), make pid 98816, since 2026-10-22T21:58:10
+[test-lock] waiting 549s for one of 2 full-suite slots (/Users/xianxu/.local/state/ariadne/test-suite.lock*); held by:
+  - ariadne (/Users/xianxu/workspace/worktree/ariadne-slot5/ariadne), make pid 62058, since 2026-10-22T22:13:25
+  normal FIFO
+  position 9 in line; next in line: parley.nvim (/Users/xianxu/workspace/worktree/parley.nvim-slot3/parley.nvim), make pid 98816, since 2026-10-22T21:58:10
+[test-lock] waiting 580s for one of 2 full-suite slots (/Users/xianxu/.local/state/ariadne/test-suite.lock*); held by:
+  - ariadne (/Users/xianxu/workspace/worktree/ariadne-slot5/ariadne), make pid 62058, since 2026-10-22T22:13:25
+  normal FIFO
+  position 9 in line; next in line: parley.nvim (/Users/xianxu/workspace/worktree/parley.nvim-slot3/parley.nvim), make pid 98816, since 2026-10-22T21:58:10
+[test-lock] waiting 610s for one of 2 full-suite slots (/Users/xianxu/.local/state/ariadne/test-suite.lock*); held by:
+  - ariadne (/Users/xianxu/workspace/worktree/ariadne-slot5/ariadne), make pid 62058, since 2026-10-22T22:13:25
+  normal FIFO
+  position 9 in line; next in line: parley.nvim (/Users/xianxu/workspace/worktree/parley.nvim-slot3/parley.nvim), make pid 98816, since 2026-10-22T21:58:10
+[test-lock] waiting 640s for one of 2 full-suite slots (/Users/xianxu/.local/state/ariadne/test-suite.lock*); held by:
+  - ariadne (/Users/xianxu/workspace/worktree/ariadne-slot5/ariadne), make pid 62058, since 2026-10-22T22:13:25
+  normal FIFO
+  position 9 in line; next in line: parley.nvim (/Users/xianxu/workspace/worktree/parley.nvim-slot3/parley.nvim), make pid 98816, since 2026-10-22T21:58:10
+[test-lock] waiting 670s for one of 2 full-suite slots (/Users/xianxu/.local/state/ariadne/test-suite.lock*); held by:
+  - ariadne (/Users/xianxu/workspace/worktree/ariadne-slot5/ariadne), make pid 62058, since 2026-10-22T22:13:25
+  normal FIFO
+  position 9 in line; next in line: parley.nvim (/Users/xianxu/workspace/worktree/parley.nvim-slot3/parley.nvim), make pid 98816, since 2026-10-22T21:58:10
+[test-lock] waiting 701s for one of 2 full-suite slots (/Users/xianxu/.local/state/ariadne/test-suite.lock*); held by:
+  - ariadne (/Users/xianxu/workspace/worktree/ariadne-slot5/ariadne), make pid 62058, since 2026-10-22T22:13:25
+  normal FIFO
+  position 9 in line; next in line: parley.nvim (/Users/xianxu/workspace/worktree/parley.nvim-slot3/parley.nvim), make pid 98816, since 2026-10-22T21:58:10
+[test-lock] waiting 731s for one of 2 full-suite slots (/Users/xianxu/.local/state/ariadne/test-suite.lock*); held by:
+  - ariadne (/Users/xianxu/workspace/worktree/ariadne-slot5/ariadne), make pid 62058, since 2026-10-22T22:13:25
+  normal FIFO
+  position 9 in line; next in line: parley.nvim (/Users/xianxu/workspace/worktree/parley.nvim-slot3/parley.nvim), make pid 98816, since 2026-10-22T21:58:10
+[test-lock] waiting 761s for one of 2 full-suite slots (/Users/xianxu/.local/state/ariadne/test-suite.lock*); held by:
+  - ariadne (/Users/xianxu/workspace/worktree/ariadne-slot5/ariadne), make pid 62058, since 2026-10-22T22:13:25
+  normal FIFO
+  position 9 in line; next in line: parley.nvim (/Users/xianxu/workspace/worktree/parley.nvim-slot3/parley.nvim), make pid 98816, since 2026-10-22T21:58:10
+[test-lock] waiting 791s for one of 2 full-suite slots (/Users/xianxu/.local/state/ariadne/test-suite.lock*); held by:
+  - ariadne (/Users/xianxu/workspace/worktree/ariadne-slot5/ariadne), make pid 62058, since 2026-10-22T22:13:25
+  normal FIFO
+  position 9 in line; next in line: parley.nvim (/Users/xianxu/workspace/worktree/parley.nvim-slot3/parley.nvim), make pid 98816, since 2026-10-22T21:58:10
+[test-lock] waiting 822s for one of 2 full-suite slots (/Users/xianxu/.local/state/ariadne/test-suite.lock*); held by:
+  - ariadne (/Users/xianxu/workspace/worktree/ariadne-slot5/ariadne), make pid 62058, since 2026-10-22T22:13:25
+  normal FIFO
+  position 9 in line; next in line: parley.nvim (/Users/xianxu/workspace/worktree/parley.nvim-slot3/parley.nvim), make pid 98816, since 2026-10-22T21:58:10
+[test-lock] waiting 852s for one of 2 full-suite slots (/Users/xianxu/.local/state/ariadne/test-suite.lock*); held by:
+  - ariadne (/Users/xianxu/workspace/worktree/ariadne-slot5/ariadne), make pid 62058, since 2026-10-22T22:13:25
+  normal FIFO
+  position 9 in line; next in line: parley.nvim (/Users/xianxu/workspace/worktree/parley.nvim-slot3/parley.nvim), make pid 98816, since 2026-10-22T21:58:10
+[test-lock] waiting 882s for one of 2 full-suite slots (/Users/xianxu/.local/state/ariadne/test-suite.lock*); held by:
+  - ariadne (/Users/xianxu/workspace/worktree/ariadne-slot5/ariadne), make pid 62058, since 2026-10-22T22:13:25
+  normal FIFO
+  position 9 in line; next in line: parley.nvim (/Users/xianxu/workspace/worktree/parley.nvim-slot3/parley.nvim), make pid 98816, since 2026-10-22T21:58:10
+[test-lock] waiting 912s for one of 2 full-suite slots (/Users/xianxu/.local/state/ariadne/test-suite.lock*); held by:
+  - ariadne (/Users/xianxu/workspace/worktree/ariadne-slot5/ariadne), make pid 62058, since 2026-10-22T22:13:25
+  normal FIFO
+  position 9 in line; next in line: parley.nvim (/Users/xianxu/workspace/worktree/parley.nvim-slot3/parley.nvim), make pid 98816, since 2026-10-22T21:58:10
+[test-lock] waiting 943s for one of 2 full-suite slots (/Users/xianxu/.local/state/ariadne/test-suite.lock*); held by:
+  - ariadne (/Users/xianxu/workspace/worktree/ariadne-slot5/ariadne), make pid 62058, since 2026-10-22T22:13:25
+  normal FIFO
+  position 9 in line; next in line: parley.nvim (/Users/xianxu/workspace/worktree/parley.nvim-slot3/parley.nvim), make pid 98816, since 2026-10-22T21:58:10
+[test-lock] waiting 973s for one of 2 full-suite slots (/Users/xianxu/.local/state/ariadne/test-suite.lock*); held by:
+  - ariadne (/Users/xianxu/workspace/worktree/ariadne-slot5/ariadne), make pid 62058, since 2026-10-22T22:13:25
+  normal FIFO
+  position 9 in line; next in line: parley.nvim (/Users/xianxu/workspace/worktree/parley.nvim-slot3/parley.nvim), make pid 98816, since 2026-10-22T21:58:10
+[test-lock] waiting 1003s for one of 2 full-suite slots (/Users/xianxu/.local/state/ariadne/test-suite.lock*); held by:
+  - ariadne (/Users/xianxu/workspace/worktree/ariadne-slot5/ariadne), make pid 62058, since 2026-10-22T22:13:25
+  normal FIFO
+  position 9 in line; next in line: parley.nvim (/Users/xianxu/workspace/worktree/parley.nvim-slot3/parley.nvim), make pid 98816, since 2026-10-22T21:58:10
+[test-lock] waiting 1034s for one of 2 full-suite slots (/Users/xianxu/.local/state/ariadne/test-suite.lock*); held by:
+  - ariadne (/Users/xianxu/workspace/worktree/ariadne-slot5/ariadne), make pid 62058, since 2026-10-22T22:13:25
+  normal FIFO
+  position 9 in line; next in line: parley.nvim (/Users/xianxu/workspace/worktree/parley.nvim-slot3/parley.nvim), make pid 98816, since 2026-10-22T21:58:10
+[test-lock] waiting 1064s for one of 2 full-suite slots (/Users/xianxu/.local/state/ariadne/test-suite.lock*); held by:
+  - ariadne (/Users/xianxu/workspace/worktree/ariadne-slot5/ariadne), make pid 62058, since 2026-10-22T22:13:25
+  normal FIFO
+  position 9 in line; next in line: parley.nvim (/Users/xianxu/workspace/worktree/parley.nvim-slot3/parley.nvim), make pid 98816, since 2026-10-22T21:58:10
+[test-lock] waiting 1094s for one of 2 full-suite slots (/Users/xianxu/.local/state/ariadne/test-suite.lock*); held by:
+  - ariadne (/Users/xianxu/workspace/worktree/ariadne-slot5/ariadne), make pid 62058, since 2026-10-22T22:13:25
+  normal FIFO
+  position 9 in line; next in line: parley.nvim (/Users/xianxu/workspace/worktree/parley.nvim-slot3/parley.nvim), make pid 98816, since 2026-10-22T21:58:10
+[test-lock] waiting 1124s for one of 2 full-suite slots (/Users/xianxu/.local/state/ariadne/test-suite.lock*); held by:
+  - ariadne (/Users/xianxu/workspace/worktree/ariadne-slot5/ariadne), make pid 62058, since 2026-10-22T22:13:25
+  normal FIFO
+  position 9 in line; next in line: parley.nvim (/Users/xianxu/workspace/worktree/parley.nvim-slot3/parley.nvim), make pid 98816, since 2026-10-22T21:58:10
+[test-lock] waiting 1155s for one of 2 full-suite slots (/Users/xianxu/.local/state/ariadne/test-suite.lock*); held by:
+  - ariadne (/Users/xianxu/workspace/worktree/ariadne-slot5/ariadne), make pid 62058, since 2026-10-22T22:13:25
+  normal FIFO
+  position 9 in line; next in line: parley.nvim (/Users/xianxu/workspace/worktree/parley.nvim-slot3/parley.nvim), make pid 98816, since 2026-10-22T21:58:10
+[test-lock] waiting 1185s for one of 2 full-suite slots (/Users/xianxu/.local/state/ariadne/test-suite.lock*); held by:
+  - ariadne (/Users/xianxu/workspace/worktree/ariadne-slot5/ariadne), make pid 62058, since 2026-10-22T22:13:25
+  normal FIFO
+  position 9 in line; next in line: parley.nvim (/Users/xianxu/workspace/worktree/parley.nvim-slot3/parley.nvim), make pid 98816, since 2026-10-22T21:58:10
+[test-lock] waiting 1215s for one of 2 full-suite slots (/Users/xianxu/.local/state/ariadne/test-suite.lock*); held by:
+  - ariadne (/Users/xianxu/workspace/worktree/ariadne-slot5/ariadne), make pid 62058, since 2026-10-22T22:13:25
+  normal FIFO
+  position 9 in line; next in line: parley.nvim (/Users/xianxu/workspace/worktree/parley.nvim-slot3/parley.nvim), make pid 98816, since 2026-10-22T21:58:10
+[test-lock] waiting 1245s for one of 2 full-suite slots (/Users/xianxu/.local/state/ariadne/test-suite.lock*); held by:
+  - ariadne (/Users/xianxu/workspace/worktree/ariadne-slot5/ariadne), make pid 62058, since 2026-10-22T22:13:25
+  normal FIFO
+  position 9 in line; next in line: parley.nvim (/Users/xianxu/workspace/worktree/parley.nvim-slot3/parley.nvim), make pid 98816, since 2026-10-22T21:58:10
+[test-lock] waiting 1275s for one of 2 full-suite slots (/Users/xianxu/.local/state/ariadne/test-suite.lock*); held by:
+  - ariadne (/Users/xianxu/workspace/worktree/ariadne-slot5/ariadne), make pid 62058, since 2026-10-22T22:13:25
+  normal FIFO
+  position 9 in line; next in line: parley.nvim (/Users/xianxu/workspace/worktree/parley.nvim-slot3/parley.nvim), make pid 98816, since 2026-10-22T21:58:10
+[test-lock] waiting 1305s for one of 2 full-suite slots (/Users/xianxu/.local/state/ariadne/test-suite.lock*); held by:
+  - ariadne (/Users/xianxu/workspace/worktree/ariadne-slot5/ariadne), make pid 62058, since 2026-10-22T22:13:25
+  normal FIFO
+  position 9 in line; next in line: parley.nvim (/Users/xianxu/workspace/worktree/parley.nvim-slot3/parley.nvim), make pid 98816, since 2026-10-22T21:58:10
+[test-lock] waiting 1335s for one of 2 full-suite slots (/Users/xianxu/.local/state/ariadne/test-suite.lock*); held by:
+  - ariadne (/Users/xianxu/workspace/worktree/ariadne-slot5/ariadne), make pid 62058, since 2026-10-22T22:13:25
+  normal FIFO
+  position 9 in line; next in line: parley.nvim (/Users/xianxu/workspace/worktree/parley.nvim-slot3/parley.nvim), make pid 98816, since 2026-10-22T21:58:10
+[test-lock] waiting 1366s for one of 2 full-suite slots (/Users/xianxu/.local/state/ariadne/test-suite.lock*); held by:
+  - ariadne (/Users/xianxu/workspace/worktree/ariadne-slot5/ariadne), make pid 62058, since 2026-10-22T22:13:25
+  normal FIFO
+  position 9 in line; next in line: parley.nvim (/Users/xianxu/workspace/worktree/parley.nvim-slot3/parley.nvim), make pid 98816, since 2026-10-22T21:58:10
+[test-lock] waiting 1381s for one of 2 full-suite slots (/Users/xianxu/.local/state/ariadne/test-suite.lock*); held by:
+  - parley.nvim (/Users/xianxu/workspace/worktree/parley.nvim-slot3/parley.nvim), make pid 98816, since 2026-10-22T22:27:47
+  - parley.nvim (/Users/xianxu/workspace/worktree/parley.nvim-slot1/parley.nvim), make pid 1837, since 2026-10-22T22:27:47
+  normal FIFO
+  position 7 in line; next in line: pair (/Users/xianxu/workspace/worktree/pair-slot2/pair), make pid 21637, since 2026-10-22T21:58:53
+[test-lock] waiting 1411s for one of 2 full-suite slots (/Users/xianxu/.local/state/ariadne/test-suite.lock*); held by:
+  - parley.nvim (/Users/xianxu/workspace/worktree/parley.nvim-slot3/parley.nvim), make pid 98816, since 2026-10-22T22:27:47
+  - parley.nvim (/Users/xianxu/workspace/worktree/parley.nvim-slot1/parley.nvim), make pid 1837, since 2026-10-22T22:27:47
+  normal FIFO
+  position 7 in line; next in line: pair (/Users/xianxu/workspace/worktree/pair-slot2/pair), make pid 21637, since 2026-10-22T21:58:53
+[test-lock] waiting 1441s for one of 2 full-suite slots (/Users/xianxu/.local/state/ariadne/test-suite.lock*); held by:
+  - parley.nvim (/Users/xianxu/workspace/worktree/parley.nvim-slot3/parley.nvim), make pid 98816, since 2026-10-22T22:27:47
+  - parley.nvim (/Users/xianxu/workspace/worktree/parley.nvim-slot1/parley.nvim), make pid 1837, since 2026-10-22T22:27:47
+  normal FIFO
+  position 7 in line; next in line: pair (/Users/xianxu/workspace/worktree/pair-slot2/pair), make pid 21637, since 2026-10-22T21:58:53
+[test-lock] waiting 1471s for one of 2 full-suite slots (/Users/xianxu/.local/state/ariadne/test-suite.lock*); held by:
+  - parley.nvim (/Users/xianxu/workspace/worktree/parley.nvim-slot3/parley.nvim), make pid 98816, since 2026-10-22T22:27:47
+  - parley.nvim (/Users/xianxu/workspace/worktree/parley.nvim-slot1/parley.nvim), make pid 1837, since 2026-10-22T22:27:47
+  normal FIFO
+  position 7 in line; next in line: pair (/Users/xianxu/workspace/worktree/pair-slot2/pair), make pid 21637, since 2026-10-22T21:58:53
+[test-lock] waiting 1501s for one of 2 full-suite slots (/Users/xianxu/.local/state/ariadne/test-suite.lock*); held by:
+  - parley.nvim (/Users/xianxu/workspace/worktree/parley.nvim-slot3/parley.nvim), make pid 98816, since 2026-10-22T22:27:47
+  - parley.nvim (/Users/xianxu/workspace/worktree/parley.nvim-slot1/parley.nvim), make pid 1837, since 2026-10-22T22:27:47
+  normal FIFO
+  position 7 in line; next in line: pair (/Users/xianxu/workspace/worktree/pair-slot2/pair), make pid 21637, since 2026-10-22T21:58:53
+[test-lock] waiting 1532s for one of 2 full-suite slots (/Users/xianxu/.local/state/ariadne/test-suite.lock*); held by:
+  - parley.nvim (/Users/xianxu/workspace/worktree/parley.nvim-slot3/parley.nvim), make pid 98816, since 2026-10-22T22:27:47
+  - parley.nvim (/Users/xianxu/workspace/worktree/parley.nvim-slot1/parley.nvim), make pid 1837, since 2026-10-22T22:27:47
+  normal FIFO
+  position 7 in line; next in line: pair (/Users/xianxu/workspace/worktree/pair-slot2/pair), make pid 21637, since 2026-10-22T21:58:53
+[test-lock] waiting 1562s for one of 2 full-suite slots (/Users/xianxu/.local/state/ariadne/test-suite.lock*); held by:
+  - parley.nvim (/Users/xianxu/workspace/worktree/parley.nvim-slot3/parley.nvim), make pid 98816, since 2026-10-22T22:27:47
+  - parley.nvim (/Users/xianxu/workspace/worktree/parley.nvim-slot1/parley.nvim), make pid 1837, since 2026-10-22T22:27:47
+  normal FIFO
+  position 7 in line; next in line: pair (/Users/xianxu/workspace/worktree/pair-slot2/pair), make pid 21637, since 2026-10-22T21:58:53
+[test-lock] waiting 1592s for one of 2 full-suite slots (/Users/xianxu/.local/state/ariadne/test-suite.lock*); held by:
+  - parley.nvim (/Users/xianxu/workspace/worktree/parley.nvim-slot3/parley.nvim), make pid 98816, since 2026-10-22T22:27:47
+  - parley.nvim (/Users/xianxu/workspace/worktree/parley.nvim-slot1/parley.nvim), make pid 1837, since 2026-10-22T22:27:47
+  normal FIFO
+  position 7 in line; next in line: pair (/Users/xianxu/workspace/worktree/pair-slot2/pair), make pid 21637, since 2026-10-22T21:58:53
+[test-lock] waiting 1622s for one of 2 full-suite slots (/Users/xianxu/.local/state/ariadne/test-suite.lock*); held by:
+  - parley.nvim (/Users/xianxu/workspace/worktree/parley.nvim-slot3/parley.nvim), make pid 98816, since 2026-10-22T22:27:47
+  - parley.nvim (/Users/xianxu/workspace/worktree/parley.nvim-slot1/parley.nvim), make pid 1837, since 2026-10-22T22:27:47
+  normal FIFO
+  position 7 in line; next in line: pair (/Users/xianxu/workspace/worktree/pair-slot2/pair), make pid 21637, since 2026-10-22T21:58:53
+[test-lock] waiting 1652s for one of 2 full-suite slots (/Users/xianxu/.local/state/ariadne/test-suite.lock*); held by:
+  - parley.nvim (/Users/xianxu/workspace/worktree/parley.nvim-slot3/parley.nvim), make pid 98816, since 2026-10-22T22:27:47
+  - parley.nvim (/Users/xianxu/workspace/worktree/parley.nvim-slot1/parley.nvim), make pid 1837, since 2026-10-22T22:27:47
+  normal FIFO
+  position 7 in line; next in line: pair (/Users/xianxu/workspace/worktree/pair-slot2/pair), make pid 21637, since 2026-10-22T21:58:53
+[test-lock] waiting 1683s for one of 2 full-suite slots (/Users/xianxu/.local/state/ariadne/test-suite.lock*); held by:
+  - parley.nvim (/Users/xianxu/workspace/worktree/parley.nvim-slot3/parley.nvim), make pid 98816, since 2026-10-22T22:27:47
+  - parley.nvim (/Users/xianxu/workspace/worktree/parley.nvim-slot1/parley.nvim), make pid 1837, since 2026-10-22T22:27:47
+  normal FIFO
+  position 7 in line; next in line: pair (/Users/xianxu/workspace/worktree/pair-slot2/pair), make pid 21637, since 2026-10-22T21:58:53
+[test-lock] waiting 1713s for one of 2 full-suite slots (/Users/xianxu/.local/state/ariadne/test-suite.lock*); held by:
+  - parley.nvim (/Users/xianxu/workspace/worktree/parley.nvim-slot3/parley.nvim), make pid 98816, since 2026-10-22T22:27:47
+  - parley.nvim (/Users/xianxu/workspace/worktree/parley.nvim-slot1/parley.nvim), make pid 1837, since 2026-10-22T22:27:47
+  normal FIFO
+  position 7 in line; next in line: pair (/Users/xianxu/workspace/worktree/pair-slot2/pair), make pid 21637, since 2026-10-22T21:58:53
+[test-lock] waiting 1743s for one of 2 full-suite slots (/Users/xianxu/.local/state/ariadne/test-suite.lock*); held by:
+  - parley.nvim (/Users/xianxu/workspace/worktree/parley.nvim-slot3/parley.nvim), make pid 98816, since 2026-10-22T22:27:47
+  - parley.nvim (/Users/xianxu/workspace/worktree/parley.nvim-slot1/parley.nvim), make pid 1837, since 2026-10-22T22:27:47
+  normal FIFO
+  position 7 in line; next in line: pair (/Users/xianxu/workspace/worktree/pair-slot2/pair), make pid 21637, since 2026-10-22T21:58:53
+[test-lock] waiting 1773s for one of 2 full-suite slots (/Users/xianxu/.local/state/ariadne/test-suite.lock*); held by:
+  - parley.nvim (/Users/xianxu/workspace/worktree/parley.nvim-slot3/parley.nvim), make pid 98816, since 2026-10-22T22:27:47
+  - parley.nvim (/Users/xianxu/workspace/worktree/parley.nvim-slot1/parley.nvim), make pid 1837, since 2026-10-22T22:27:47
+  normal FIFO
+  position 7 in line; next in line: pair (/Users/xianxu/workspace/worktree/pair-slot2/pair), make pid 21637, since 2026-10-22T21:58:53
+[test-lock] waiting 1803s for one of 2 full-suite slots (/Users/xianxu/.local/state/ariadne/test-suite.lock*); held by:
+  - parley.nvim (/Users/xianxu/workspace/worktree/parley.nvim-slot3/parley.nvim), make pid 98816, since 2026-10-22T22:27:47
+  - parley.nvim (/Users/xianxu/workspace/worktree/parley.nvim-slot1/parley.nvim), make pid 1837, since 2026-10-22T22:27:47
+  normal FIFO
+  position 7 in line; next in line: pair (/Users/xianxu/workspace/worktree/pair-slot2/pair), make pid 21637, since 2026-10-22T21:58:53
+[test-lock] waiting 1826s for one of 2 full-suite slots (/Users/xianxu/.local/state/ariadne/test-suite.lock*); held by:
+  - parley.nvim (/Users/xianxu/workspace/worktree/parley.nvim-slot3/parley.nvim), make pid 98816, since 2026-10-22T22:27:47
+  - pair (/Users/xianxu/workspace/worktree/pair-slot2/pair), make pid 21637, since 2026-10-22T22:35:13
+  normal FIFO
+  position 6 in line; next in line: parley.nvim (/Users/xianxu/workspace/worktree/parley.nvim-slot4/parley.nvim), make pid 24124, since 2026-10-22T21:59:00
+[test-lock] waiting 1831s for one of 2 full-suite slots (/Users/xianxu/.local/state/ariadne/test-suite.lock*); held by:
+  - parley.nvim (/Users/xianxu/workspace/worktree/parley.nvim-slot4/parley.nvim), make pid 24124, since 2026-10-22T22:35:17
+  - pair (/Users/xianxu/workspace/worktree/pair-slot2/pair), make pid 21637, since 2026-10-22T22:35:13
+  normal FIFO
+  position 5 in line; next in line: pair (/Users/xianxu/workspace/worktree/pair-slot6/pair), make pid 42691, since 2026-10-22T21:59:41
+[test-lock] waiting 1861s for one of 2 full-suite slots (/Users/xianxu/.local/state/ariadne/test-suite.lock*); held by:
+  - parley.nvim (/Users/xianxu/workspace/worktree/parley.nvim-slot4/parley.nvim), make pid 24124, since 2026-10-22T22:35:17
+  - pair (/Users/xianxu/workspace/worktree/pair-slot2/pair), make pid 21637, since 2026-10-22T22:35:13
+  normal FIFO
+  position 5 in line; next in line: pair (/Users/xianxu/workspace/worktree/pair-slot6/pair), make pid 42691, since 2026-10-22T21:59:41
+[test-lock] waiting 1891s for one of 2 full-suite slots (/Users/xianxu/.local/state/ariadne/test-suite.lock*); held by:
+  - parley.nvim (/Users/xianxu/workspace/worktree/parley.nvim-slot4/parley.nvim), make pid 24124, since 2026-10-22T22:35:17
+  - pair (/Users/xianxu/workspace/worktree/pair-slot2/pair), make pid 21637, since 2026-10-22T22:35:13
+  normal FIFO
+  position 5 in line; next in line: pair (/Users/xianxu/workspace/worktree/pair-slot6/pair), make pid 42691, since 2026-10-22T21:59:41
+[test-lock] waiting 1921s for one of 2 full-suite slots (/Users/xianxu/.local/state/ariadne/test-suite.lock*); held by:
+  - parley.nvim (/Users/xianxu/workspace/worktree/parley.nvim-slot4/parley.nvim), make pid 24124, since 2026-10-22T22:35:17
+  - pair (/Users/xianxu/workspace/worktree/pair-slot2/pair), make pid 21637, since 2026-10-22T22:35:13
+  normal FIFO
+  position 5 in line; next in line: pair (/Users/xianxu/workspace/worktree/pair-slot6/pair), make pid 42691, since 2026-10-22T21:59:41
+[test-lock] waiting 1951s for one of 2 full-suite slots (/Users/xianxu/.local/state/ariadne/test-suite.lock*); held by:
+  - parley.nvim (/Users/xianxu/workspace/worktree/parley.nvim-slot4/parley.nvim), make pid 24124, since 2026-10-22T22:35:17
+  - pair (/Users/xianxu/workspace/worktree/pair-slot2/pair), make pid 21637, since 2026-10-22T22:35:13
+  normal FIFO
+  position 5 in line; next in line: pair (/Users/xianxu/workspace/worktree/pair-slot6/pair), make pid 42691, since 2026-10-22T21:59:41
+[test-lock] waiting 1982s for one of 2 full-suite slots (/Users/xianxu/.local/state/ariadne/test-suite.lock*); held by:
+  - parley.nvim (/Users/xianxu/workspace/worktree/parley.nvim-slot4/parley.nvim), make pid 24124, since 2026-10-22T22:35:17
+  - pair (/Users/xianxu/workspace/worktree/pair-slot2/pair), make pid 21637, since 2026-10-22T22:35:13
+  normal FIFO
+  position 5 in line; next in line: pair (/Users/xianxu/workspace/worktree/pair-slot6/pair), make pid 42691, since 2026-10-22T21:59:41
+[test-lock] waiting 2012s for one of 2 full-suite slots (/Users/xianxu/.local/state/ariadne/test-suite.lock*); held by:
+  - parley.nvim (/Users/xianxu/workspace/worktree/parley.nvim-slot4/parley.nvim), make pid 24124, since 2026-10-22T22:35:17
+  - pair (/Users/xianxu/workspace/worktree/pair-slot2/pair), make pid 21637, since 2026-10-22T22:35:13
+  normal FIFO
+  position 5 in line; next in line: pair (/Users/xianxu/workspace/worktree/pair-slot6/pair), make pid 42691, since 2026-10-22T21:59:41
+[test-lock] waiting 2042s for one of 2 full-suite slots (/Users/xianxu/.local/state/ariadne/test-suite.lock*); held by:
+  - parley.nvim (/Users/xianxu/workspace/worktree/parley.nvim-slot4/parley.nvim), make pid 24124, since 2026-10-22T22:35:17
+  - pair (/Users/xianxu/workspace/worktree/pair-slot2/pair), make pid 21637, since 2026-10-22T22:35:13
+  normal FIFO
+  position 5 in line; next in line: pair (/Users/xianxu/workspace/worktree/pair-slot6/pair), make pid 42691, since 2026-10-22T21:59:41
+[test-lock] waiting 2072s for one of 2 full-suite slots (/Users/xianxu/.local/state/ariadne/test-suite.lock*); held by:
+  - parley.nvim (/Users/xianxu/workspace/worktree/parley.nvim-slot4/parley.nvim), make pid 24124, since 2026-10-22T22:35:17
+  - pair (/Users/xianxu/workspace/worktree/pair-slot2/pair), make pid 21637, since 2026-10-22T22:35:13
+  normal FIFO
+  position 5 in line; next in line: pair (/Users/xianxu/workspace/worktree/pair-slot6/pair), make pid 42691, since 2026-10-22T21:59:41
+[test-lock] waiting 2102s for one of 2 full-suite slots (/Users/xianxu/.local/state/ariadne/test-suite.lock*); held by:
+  - parley.nvim (/Users/xianxu/workspace/worktree/parley.nvim-slot4/parley.nvim), make pid 24124, since 2026-10-22T22:35:17
+  - pair (/Users/xianxu/workspace/worktree/pair-slot2/pair), make pid 21637, since 2026-10-22T22:35:13
+  normal FIFO
+  position 5 in line; next in line: pair (/Users/xianxu/workspace/worktree/pair-slot6/pair), make pid 42691, since 2026-10-22T21:59:41
+[test-lock] waiting 2132s for one of 2 full-suite slots (/Users/xianxu/.local/state/ariadne/test-suite.lock*); held by:
+  - parley.nvim (/Users/xianxu/workspace/worktree/parley.nvim-slot4/parley.nvim), make pid 24124, since 2026-10-22T22:35:17
+  - pair (/Users/xianxu/workspace/worktree/pair-slot2/pair), make pid 21637, since 2026-10-22T22:35:13
+  normal FIFO
+  position 5 in line; next in line: pair (/Users/xianxu/workspace/worktree/pair-slot6/pair), make pid 42691, since 2026-10-22T21:59:41
+[test-lock] waiting 2163s for one of 2 full-suite slots (/Users/xianxu/.local/state/ariadne/test-suite.lock*); held by:
+  - parley.nvim (/Users/xianxu/workspace/worktree/parley.nvim-slot4/parley.nvim), make pid 24124, since 2026-10-22T22:35:17
+  - pair (/Users/xianxu/workspace/worktree/pair-slot2/pair), make pid 21637, since 2026-10-22T22:35:13
+  normal FIFO
+  position 5 in line; next in line: pair (/Users/xianxu/workspace/worktree/pair-slot6/pair), make pid 42691, since 2026-10-22T21:59:41
+[test-lock] waiting 2166s for one of 2 full-suite slots (/Users/xianxu/.local/state/ariadne/test-suite.lock*); held by:
+  - pair (/Users/xianxu/workspace/worktree/pair-slot6/pair), make pid 42691, since 2026-10-22T22:40:52
+  - pair (/Users/xianxu/workspace/worktree/pair-slot2/pair), make pid 21637, since 2026-10-22T22:35:13
+  normal FIFO
+  position 4 in line; next in line: pair (/Users/xianxu/workspace/worktree/pair-slot9/pair), make pid 94805, since 2026-10-22T22:01:04
+[test-lock] waiting 2196s for one of 2 full-suite slots (/Users/xianxu/.local/state/ariadne/test-suite.lock*); held by:
+  - pair (/Users/xianxu/workspace/worktree/pair-slot6/pair), make pid 42691, since 2026-10-22T22:40:52
+  - pair (/Users/xianxu/workspace/worktree/pair-slot2/pair), make pid 21637, since 2026-10-22T22:35:13
+  normal FIFO
+  position 4 in line; next in line: pair (/Users/xianxu/workspace/worktree/pair-slot9/pair), make pid 94805, since 2026-10-22T22:01:04
+[test-lock] waiting 2226s for one of 2 full-suite slots (/Users/xianxu/.local/state/ariadne/test-suite.lock*); held by:
+  - pair (/Users/xianxu/workspace/worktree/pair-slot6/pair), make pid 42691, since 2026-10-22T22:40:52
+  - pair (/Users/xianxu/workspace/worktree/pair-slot2/pair), make pid 21637, since 2026-10-22T22:35:13
+  normal FIFO
+  position 4 in line; next in line: pair (/Users/xianxu/workspace/worktree/pair-slot9/pair), make pid 94805, since 2026-10-22T22:01:04
+[test-lock] waiting 2256s for one of 2 full-suite slots (/Users/xianxu/.local/state/ariadne/test-suite.lock*); held by:
+  - pair (/Users/xianxu/workspace/worktree/pair-slot6/pair), make pid 42691, since 2026-10-22T22:40:52
+  - pair (/Users/xianxu/workspace/worktree/pair-slot2/pair), make pid 21637, since 2026-10-22T22:35:13
+  normal FIFO
+  position 4 in line; next in line: pair (/Users/xianxu/workspace/worktree/pair-slot9/pair), make pid 94805, since 2026-10-22T22:01:04
+[test-lock] waiting 2286s for one of 2 full-suite slots (/Users/xianxu/.local/state/ariadne/test-suite.lock*); held by:
+  - pair (/Users/xianxu/workspace/worktree/pair-slot6/pair), make pid 42691, since 2026-10-22T22:40:52
+  - pair (/Users/xianxu/workspace/worktree/pair-slot2/pair), make pid 21637, since 2026-10-22T22:35:13
+  normal FIFO
+  position 4 in line; next in line: pair (/Users/xianxu/workspace/worktree/pair-slot9/pair), make pid 94805, since 2026-10-22T22:01:04
+[test-lock] waiting 2316s for one of 2 full-suite slots (/Users/xianxu/.local/state/ariadne/test-suite.lock*); held by:
+  - pair (/Users/xianxu/workspace/worktree/pair-slot6/pair), make pid 42691, since 2026-10-22T22:40:52
+  - pair (/Users/xianxu/workspace/worktree/pair-slot2/pair), make pid 21637, since 2026-10-22T22:35:13
+  normal FIFO
+  position 4 in line; next in line: pair (/Users/xianxu/workspace/worktree/pair-slot9/pair), make pid 94805, since 2026-10-22T22:01:04
+[test-lock] waiting 2346s for one of 2 full-suite slots (/Users/xianxu/.local/state/ariadne/test-suite.lock*); held by:
+  - pair (/Users/xianxu/workspace/worktree/pair-slot6/pair), make pid 42691, since 2026-10-22T22:40:52
+  - pair (/Users/xianxu/workspace/worktree/pair-slot2/pair), make pid 21637, since 2026-10-22T22:35:13
+  normal FIFO
+  position 4 in line; next in line: pair (/Users/xianxu/workspace/worktree/pair-slot9/pair), make pid 94805, since 2026-10-22T22:01:04
+[test-lock] waiting 2377s for one of 2 full-suite slots (/Users/xianxu/.local/state/ariadne/test-suite.lock*); held by:
+  - pair (/Users/xianxu/workspace/worktree/pair-slot6/pair), make pid 42691, since 2026-10-22T22:40:52
+  - pair (/Users/xianxu/workspace/worktree/pair-slot2/pair), make pid 21637, since 2026-10-22T22:35:13
+  normal FIFO
+  position 4 in line; next in line: pair (/Users/xianxu/workspace/worktree/pair-slot9/pair), make pid 94805, since 2026-10-22T22:01:04
+[test-lock] waiting 2407s for one of 2 full-suite slots (/Users/xianxu/.local/state/ariadne/test-suite.lock*); held by:
+  - pair (/Users/xianxu/workspace/worktree/pair-slot6/pair), make pid 42691, since 2026-10-22T22:40:52
+  - pair (/Users/xianxu/workspace/worktree/pair-slot2/pair), make pid 21637, since 2026-10-22T22:35:13
+  normal FIFO
+  position 4 in line; next in line: pair (/Users/xianxu/workspace/worktree/pair-slot9/pair), make pid 94805, since 2026-10-22T22:01:04
+[test-lock] waiting 2437s for one of 2 full-suite slots (/Users/xianxu/.local/state/ariadne/test-suite.lock*); held by:
+  - pair (/Users/xianxu/workspace/worktree/pair-slot6/pair), make pid 42691, since 2026-10-22T22:40:52
+  - pair (/Users/xianxu/workspace/worktree/pair-slot2/pair), make pid 21637, since 2026-10-22T22:35:13
+  normal FIFO
+  position 4 in line; next in line: pair (/Users/xianxu/workspace/worktree/pair-slot9/pair), make pid 94805, since 2026-10-22T22:01:04
+[test-lock] waiting 2467s for one of 2 full-suite slots (/Users/xianxu/.local/state/ariadne/test-suite.lock*); held by:
+  - pair (/Users/xianxu/workspace/worktree/pair-slot6/pair), make pid 42691, since 2026-10-22T22:40:52
+  - pair (/Users/xianxu/workspace/worktree/pair-slot2/pair), make pid 21637, since 2026-10-22T22:35:13
+  normal FIFO
+  position 4 in line; next in line: pair (/Users/xianxu/workspace/worktree/pair-slot9/pair), make pid 94805, since 2026-10-22T22:01:04
+[test-lock] waiting 2497s for one of 2 full-suite slots (/Users/xianxu/.local/state/ariadne/test-suite.lock*); held by:
+  - pair (/Users/xianxu/workspace/worktree/pair-slot6/pair), make pid 42691, since 2026-10-22T22:40:52
+  - pair (/Users/xianxu/workspace/worktree/pair-slot2/pair), make pid 21637, since 2026-10-22T22:35:13
+  normal FIFO
+  position 4 in line; next in line: pair (/Users/xianxu/workspace/worktree/pair-slot9/pair), make pid 94805, since 2026-10-22T22:01:04
+[test-lock] waiting 2527s for one of 2 full-suite slots (/Users/xianxu/.local/state/ariadne/test-suite.lock*); held by:
+  - pair (/Users/xianxu/workspace/worktree/pair-slot6/pair), make pid 42691, since 2026-10-22T22:40:52
+  - pair (/Users/xianxu/workspace/worktree/pair-slot9/pair), make pid 94805, since 2026-10-22T22:46:55
+  normal FIFO
+  position 3 in line; next in line: pair (/Users/xianxu/workspace/worktree/pair-slot1/pair), make pid 3416, since 2026-10-22T22:01:16
+[test-lock] waiting 2558s for one of 2 full-suite slots (/Users/xianxu/.local/state/ariadne/test-suite.lock*); held by:
+  - pair (/Users/xianxu/workspace/worktree/pair-slot6/pair), make pid 42691, since 2026-10-22T22:40:52
+  - pair (/Users/xianxu/workspace/worktree/pair-slot9/pair), make pid 94805, since 2026-10-22T22:46:55
+  normal FIFO
+  position 3 in line; next in line: pair (/Users/xianxu/workspace/worktree/pair-slot1/pair), make pid 3416, since 2026-10-22T22:01:16
+[test-lock] waiting 2588s for one of 2 full-suite slots (/Users/xianxu/.local/state/ariadne/test-suite.lock*); held by:
+  - pair (/Users/xianxu/workspace/worktree/pair-slot6/pair), make pid 42691, since 2026-10-22T22:40:52
+  - pair (/Users/xianxu/workspace/worktree/pair-slot9/pair), make pid 94805, since 2026-10-22T22:46:55
+  normal FIFO
+  position 3 in line; next in line: pair (/Users/xianxu/workspace/worktree/pair-slot1/pair), make pid 3416, since 2026-10-22T22:01:16
+[test-lock] waiting 2618s for one of 2 full-suite slots (/Users/xianxu/.local/state/ariadne/test-suite.lock*); held by:
+  - pair (/Users/xianxu/workspace/worktree/pair-slot6/pair), make pid 42691, since 2026-10-22T22:40:52
+  - pair (/Users/xianxu/workspace/worktree/pair-slot9/pair), make pid 94805, since 2026-10-22T22:46:55
+  normal FIFO
+  position 3 in line; next in line: pair (/Users/xianxu/workspace/worktree/pair-slot1/pair), make pid 3416, since 2026-10-22T22:01:16
+[test-lock] waiting 2648s for one of 2 full-suite slots (/Users/xianxu/.local/state/ariadne/test-suite.lock*); held by:
+  - pair (/Users/xianxu/workspace/worktree/pair-slot6/pair), make pid 42691, since 2026-10-22T22:40:52
+  - pair (/Users/xianxu/workspace/worktree/pair-slot9/pair), make pid 94805, since 2026-10-22T22:46:55
+  normal FIFO
+  position 3 in line; next in line: pair (/Users/xianxu/workspace/worktree/pair-slot1/pair), make pid 3416, since 2026-10-22T22:01:16
+[test-lock] waiting 2678s for one of 2 full-suite slots (/Users/xianxu/.local/state/ariadne/test-suite.lock*); held by:
+  - pair (/Users/xianxu/workspace/worktree/pair-slot6/pair), make pid 42691, since 2026-10-22T22:40:52
+  - pair (/Users/xianxu/workspace/worktree/pair-slot9/pair), make pid 94805, since 2026-10-22T22:46:55
+  normal FIFO
+  position 3 in line; next in line: pair (/Users/xianxu/workspace/worktree/pair-slot1/pair), make pid 3416, since 2026-10-22T22:01:16
+[test-lock] waiting 2708s for one of 2 full-suite slots (/Users/xianxu/.local/state/ariadne/test-suite.lock*); held by:
+  - pair (/Users/xianxu/workspace/worktree/pair-slot6/pair), make pid 42691, since 2026-10-22T22:40:52
+  - pair (/Users/xianxu/workspace/worktree/pair-slot9/pair), make pid 94805, since 2026-10-22T22:46:55
+  normal FIFO
+  position 3 in line; next in line: pair (/Users/xianxu/workspace/worktree/pair-slot1/pair), make pid 3416, since 2026-10-22T22:01:16
+[test-lock] waiting 2739s for one of 2 full-suite slots (/Users/xianxu/.local/state/ariadne/test-suite.lock*); held by:
+  - pair (/Users/xianxu/workspace/worktree/pair-slot6/pair), make pid 42691, since 2026-10-22T22:40:52
+  - pair (/Users/xianxu/workspace/worktree/pair-slot9/pair), make pid 94805, since 2026-10-22T22:46:55
+  normal FIFO
+  position 3 in line; next in line: pair (/Users/xianxu/workspace/worktree/pair-slot1/pair), make pid 3416, since 2026-10-22T22:01:16
+[test-lock] waiting 2769s for one of 2 full-suite slots (/Users/xianxu/.local/state/ariadne/test-suite.lock*); held by:
+  - pair (/Users/xianxu/workspace/worktree/pair-slot6/pair), make pid 42691, since 2026-10-22T22:40:52
+  - pair (/Users/xianxu/workspace/worktree/pair-slot9/pair), make pid 94805, since 2026-10-22T22:46:55
+  normal FIFO
+  position 3 in line; next in line: pair (/Users/xianxu/workspace/worktree/pair-slot1/pair), make pid 3416, since 2026-10-22T22:01:16
+[test-lock] waiting 2799s for one of 2 full-suite slots (/Users/xianxu/.local/state/ariadne/test-suite.lock*); held by:
+  - pair (/Users/xianxu/workspace/worktree/pair-slot6/pair), make pid 42691, since 2026-10-22T22:40:52
+  - pair (/Users/xianxu/workspace/worktree/pair-slot9/pair), make pid 94805, since 2026-10-22T22:46:55
+  normal FIFO
+  position 3 in line; next in line: pair (/Users/xianxu/workspace/worktree/pair-slot1/pair), make pid 3416, since 2026-10-22T22:01:16
+[test-lock] waiting 2818s for one of 2 full-suite slots (/Users/xianxu/.local/state/ariadne/test-suite.lock*); held by:
+  - pair (/Users/xianxu/workspace/worktree/pair-slot1/pair), make pid 3416, since 2026-10-22T22:51:45
+  - pair (/Users/xianxu/workspace/worktree/pair-slot9/pair), make pid 94805, since 2026-10-22T22:46:55
+  normal FIFO
+  position 2 in line; next in line: pair (/Users/xianxu/workspace/worktree/pair-slot7/pair), make pid 40601, since 2026-10-22T22:02:44
+[test-lock] waiting 2848s for one of 2 full-suite slots (/Users/xianxu/.local/state/ariadne/test-suite.lock*); held by:
+  - pair (/Users/xianxu/workspace/worktree/pair-slot1/pair), make pid 3416, since 2026-10-22T22:51:45
+  - pair (/Users/xianxu/workspace/worktree/pair-slot9/pair), make pid 94805, since 2026-10-22T22:46:55
+  normal FIFO
+  position 2 in line; next in line: pair (/Users/xianxu/workspace/worktree/pair-slot7/pair), make pid 40601, since 2026-10-22T22:02:44
+[test-lock] waiting 2878s for one of 2 full-suite slots (/Users/xianxu/.local/state/ariadne/test-suite.lock*); held by:
+  - pair (/Users/xianxu/workspace/worktree/pair-slot1/pair), make pid 3416, since 2026-10-22T22:51:45
+  - pair (/Users/xianxu/workspace/worktree/pair-slot9/pair), make pid 94805, since 2026-10-22T22:46:55
+  normal FIFO
+  position 2 in line; next in line: pair (/Users/xianxu/workspace/worktree/pair-slot7/pair), make pid 40601, since 2026-10-22T22:02:44
+[test-lock] waiting 2908s for one of 2 full-suite slots (/Users/xianxu/.local/state/ariadne/test-suite.lock*); held by:
+  - pair (/Users/xianxu/workspace/worktree/pair-slot1/pair), make pid 3416, since 2026-10-22T22:51:45
+  - pair (/Users/xianxu/workspace/worktree/pair-slot9/pair), make pid 94805, since 2026-10-22T22:46:55
+  normal FIFO
+  position 2 in line; next in line: pair (/Users/xianxu/workspace/worktree/pair-slot7/pair), make pid 40601, since 2026-10-22T22:02:44
+[test-lock] waiting 2939s for one of 2 full-suite slots (/Users/xianxu/.local/state/ariadne/test-suite.lock*); held by:
+  - pair (/Users/xianxu/workspace/worktree/pair-slot1/pair), make pid 3416, since 2026-10-22T22:51:45
+  - pair (/Users/xianxu/workspace/worktree/pair-slot9/pair), make pid 94805, since 2026-10-22T22:46:55
+  normal FIFO
+  position 2 in line; next in line: pair (/Users/xianxu/workspace/worktree/pair-slot7/pair), make pid 40601, since 2026-10-22T22:02:44
+[test-lock] waiting 2969s for one of 2 full-suite slots (/Users/xianxu/.local/state/ariadne/test-suite.lock*); held by:
+  - pair (/Users/xianxu/workspace/worktree/pair-slot1/pair), make pid 3416, since 2026-10-22T22:51:45
+  - pair (/Users/xianxu/workspace/worktree/pair-slot9/pair), make pid 94805, since 2026-10-22T22:46:55
+  normal FIFO
+  position 2 in line; next in line: pair (/Users/xianxu/workspace/worktree/pair-slot7/pair), make pid 40601, since 2026-10-22T22:02:44
+[test-lock] waiting 2999s for one of 2 full-suite slots (/Users/xianxu/.local/state/ariadne/test-suite.lock*); held by:
+  - pair (/Users/xianxu/workspace/worktree/pair-slot1/pair), make pid 3416, since 2026-10-22T22:51:45
+  - pair (/Users/xianxu/workspace/worktree/pair-slot9/pair), make pid 94805, since 2026-10-22T22:46:55
+  normal FIFO
+  position 2 in line; next in line: pair (/Users/xianxu/workspace/worktree/pair-slot7/pair), make pid 40601, since 2026-10-22T22:02:44
+[test-lock] waiting 3029s for one of 2 full-suite slots (/Users/xianxu/.local/state/ariadne/test-suite.lock*); held by:
+  - pair (/Users/xianxu/workspace/worktree/pair-slot1/pair), make pid 3416, since 2026-10-22T22:51:45
+  - pair (/Users/xianxu/workspace/worktree/pair-slot9/pair), make pid 94805, since 2026-10-22T22:46:55
+  normal FIFO
+  position 2 in line; next in line: pair (/Users/xianxu/workspace/worktree/pair-slot7/pair), make pid 40601, since 2026-10-22T22:02:44
+[test-lock] waiting 3059s for one of 2 full-suite slots (/Users/xianxu/.local/state/ariadne/test-suite.lock*); held by:
+  - pair (/Users/xianxu/workspace/worktree/pair-slot1/pair), make pid 3416, since 2026-10-22T22:51:45
+  - pair (/Users/xianxu/workspace/worktree/pair-slot9/pair), make pid 94805, since 2026-10-22T22:46:55
+  normal FIFO
+  position 2 in line; next in line: pair (/Users/xianxu/workspace/worktree/pair-slot7/pair), make pid 40601, since 2026-10-22T22:02:44
+[test-lock] waiting 3089s for one of 2 full-suite slots (/Users/xianxu/.local/state/ariadne/test-suite.lock*); held by:
+  - pair (/Users/xianxu/workspace/worktree/pair-slot1/pair), make pid 3416, since 2026-10-22T22:51:45
+  - pair (/Users/xianxu/workspace/worktree/pair-slot9/pair), make pid 94805, since 2026-10-22T22:46:55
+  normal FIFO
+  position 2 in line; next in line: pair (/Users/xianxu/workspace/worktree/pair-slot7/pair), make pid 40601, since 2026-10-22T22:02:44
+[test-lock] waiting 3119s for one of 2 full-suite slots (/Users/xianxu/.local/state/ariadne/test-suite.lock*); held by:
+  - pair (/Users/xianxu/workspace/worktree/pair-slot1/pair), make pid 3416, since 2026-10-22T22:51:45
+  - pair (/Users/xianxu/workspace/worktree/pair-slot9/pair), make pid 94805, since 2026-10-22T22:46:55
+  normal FIFO
+  position 2 in line; next in line: pair (/Users/xianxu/workspace/worktree/pair-slot7/pair), make pid 40601, since 2026-10-22T22:02:44
+[test-lock] waiting 3150s for one of 2 full-suite slots (/Users/xianxu/.local/state/ariadne/test-suite.lock*); held by:
+  - pair (/Users/xianxu/workspace/worktree/pair-slot1/pair), make pid 3416, since 2026-10-22T22:51:45
+  - pair (/Users/xianxu/workspace/worktree/pair-slot9/pair), make pid 94805, since 2026-10-22T22:46:55
+  normal FIFO
+  position 2 in line; next in line: pair (/Users/xianxu/workspace/worktree/pair-slot7/pair), make pid 40601, since 2026-10-22T22:02:44
+[test-lock] waiting 3180s for one of 2 full-suite slots (/Users/xianxu/.local/state/ariadne/test-suite.lock*); held by:
+  - pair (/Users/xianxu/workspace/worktree/pair-slot1/pair), make pid 3416, since 2026-10-22T22:51:45
+  - pair (/Users/xianxu/workspace/worktree/pair-slot9/pair), make pid 94805, since 2026-10-22T22:46:55
+  normal FIFO
+  position 2 in line; next in line: pair (/Users/xianxu/workspace/worktree/pair-slot7/pair), make pid 40601, since 2026-10-22T22:02:44
+[test-lock] waiting 3181s for one of 2 full-suite slots (/Users/xianxu/.local/state/ariadne/test-suite.lock*); held by:
+  - pair (/Users/xianxu/workspace/worktree/pair-slot1/pair), make pid 3416, since 2026-10-22T22:51:45
+  - pair (/Users/xianxu/workspace/worktree/pair-slot7/pair), make pid 40601, since 2026-10-22T22:57:47
+  normal FIFO
+  position 1 in line: next to run
+[test-lock] waiting 3211s for one of 2 full-suite slots (/Users/xianxu/.local/state/ariadne/test-suite.lock*); held by:
+  - pair (/Users/xianxu/workspace/worktree/pair-slot1/pair), make pid 3416, since 2026-10-22T22:51:45
+  - pair (/Users/xianxu/workspace/worktree/pair-slot7/pair), make pid 40601, since 2026-10-22T22:57:47
+  normal FIFO
+  position 1 in line: next to run
+[test-lock] waiting 3241s for one of 2 full-suite slots (/Users/xianxu/.local/state/ariadne/test-suite.lock*); held by:
+  - pair (/Users/xianxu/workspace/worktree/pair-slot1/pair), make pid 3416, since 2026-10-22T22:51:45
+  - pair (/Users/xianxu/workspace/worktree/pair-slot7/pair), make pid 40601, since 2026-10-22T22:57:47
+  normal FIFO
+  position 1 in line: next to run
+[test-lock] waiting 3271s for one of 2 full-suite slots (/Users/xianxu/.local/state/ariadne/test-suite.lock*); held by:
+  - pair (/Users/xianxu/workspace/worktree/pair-slot1/pair), make pid 3416, since 2026-10-22T22:51:45
+  - pair (/Users/xianxu/workspace/worktree/pair-slot7/pair), make pid 40601, since 2026-10-22T22:57:47
+  normal FIFO
+  position 1 in line: next to run
+[test-lock] waiting 3301s for one of 2 full-suite slots (/Users/xianxu/.local/state/ariadne/test-suite.lock*); held by:
+  - pair (/Users/xianxu/workspace/worktree/pair-slot1/pair), make pid 3416, since 2026-10-22T22:51:45
+  - pair (/Users/xianxu/workspace/worktree/pair-slot7/pair), make pid 40601, since 2026-10-22T22:57:47
+  normal FIFO
+  position 1 in line: next to run
+[test-lock] waiting 3332s for one of 2 full-suite slots (/Users/xianxu/.local/state/ariadne/test-suite.lock*); held by:
+  - pair (/Users/xianxu/workspace/worktree/pair-slot1/pair), make pid 3416, since 2026-10-22T22:51:45
+  - pair (/Users/xianxu/workspace/worktree/pair-slot7/pair), make pid 40601, since 2026-10-22T22:57:47
+  normal FIFO
+  position 1 in line: next to run
+[test-lock] waiting 3362s for one of 2 full-suite slots (/Users/xianxu/.local/state/ariadne/test-suite.lock*); held by:
+  - pair (/Users/xianxu/workspace/worktree/pair-slot1/pair), make pid 3416, since 2026-10-22T22:51:45
+  - pair (/Users/xianxu/workspace/worktree/pair-slot7/pair), make pid 40601, since 2026-10-22T22:57:47
+  normal FIFO
+  position 1 in line: next to run
+[test-lock] waiting 3392s for one of 2 full-suite slots (/Users/xianxu/.local/state/ariadne/test-suite.lock*); held by:
+  - pair (/Users/xianxu/workspace/worktree/pair-slot1/pair), make pid 3416, since 2026-10-22T22:51:45
+  - pair (/Users/xianxu/workspace/worktree/pair-slot7/pair), make pid 40601, since 2026-10-22T22:57:47
+  normal FIFO
+  position 1 in line: next to run
+[test-lock] waiting 3422s for one of 2 full-suite slots (/Users/xianxu/.local/state/ariadne/test-suite.lock*); held by:
+  - pair (/Users/xianxu/workspace/worktree/pair-slot1/pair), make pid 3416, since 2026-10-22T22:51:45
+  - pair (/Users/xianxu/workspace/worktree/pair-slot7/pair), make pid 40601, since 2026-10-22T22:57:47
+  normal FIFO
+  position 1 in line: next to run
+[test-lock] waiting 3452s for one of 2 full-suite slots (/Users/xianxu/.local/state/ariadne/test-suite.lock*); held by:
+  - pair (/Users/xianxu/workspace/worktree/pair-slot1/pair), make pid 3416, since 2026-10-22T22:51:45
+  - pair (/Users/xianxu/workspace/worktree/pair-slot7/pair), make pid 40601, since 2026-10-22T22:57:47
+  normal FIFO
+  position 1 in line: next to run
+[test-lock] lock acquired after 3481s
+bash tests/lib/with-pair-test-binary.sh /Library/Developer/CommandLineTools/usr/bin/make test
+go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime
+host-preflight ok
+python3 -B tests/test-affected-test.py
+.............
+----------------------------------------------------------------------
+Ran 13 tests in 8.362s
+
+OK
+python3 -B tests/affected-go-readers-test.py
+test_changed_source_reader_prints_executable_required_disposition (__main__.FastInventoryCLI.test_changed_source_reader_prints_executable_required_disposition) ... ok
+test_duplicate_keys_refuse_without_rewrite (__main__.FastInventoryCLI.test_duplicate_keys_refuse_without_rewrite) ... ok
+test_fast_check_names_exact_repair_and_preserves_unknown_fields (__main__.FastInventoryCLI.test_fast_check_names_exact_repair_and_preserves_unknown_fields) ... ok
+test_independent_reader_updates_merge_with_real_git (__main__.FastInventoryCLI.test_independent_reader_updates_merge_with_real_git) ... ok
+test_legacy_aggregate_and_bad_certificate_path_refuse (__main__.FastInventoryCLI.test_legacy_aggregate_and_bad_certificate_path_refuse) ... ok
+test_make_regenerates_only_an_explicitly_named_audit (__main__.FastInventoryCLI.test_make_regenerates_only_an_explicitly_named_audit) ... ok
+test_missing_certificate_and_invalid_records_refuse (__main__.FastInventoryCLI.test_missing_certificate_and_invalid_records_refuse) ... ok
+test_named_record_leaves_other_changed_reader_unaccepted (__main__.FastInventoryCLI.test_named_record_leaves_other_changed_reader_unaccepted) ... ok
+test_non_json_constants_refuse_without_rewrite (__main__.FastInventoryCLI.test_non_json_constants_refuse_without_rewrite) ... ok
+test_record_refuses_untracked_and_scanner_waivers_without_writing (__main__.FastInventoryCLI.test_record_refuses_untracked_and_scanner_waivers_without_writing) ... ok
+test_removed_reader_has_exact_removal_command (__main__.FastInventoryCLI.test_removed_reader_has_exact_removal_command) ... ok
+test_unknown_numbers_roundtrip_without_precision_or_type_changes (__main__.FastInventoryCLI.test_unknown_numbers_roundtrip_without_precision_or_type_changes) ... ok
+test_changed_and_deleted_audited_file_refuse (__main__.ReaderInventoryTest.test_changed_and_deleted_audited_file_refuse) ... ok
+test_duplicate_or_invalid_disposition_refuses (__main__.ReaderInventoryTest.test_duplicate_or_invalid_disposition_refuses) ... ok
+test_fixed_scanner_requires_every_registered_test (__main__.ReaderInventoryTest.test_fixed_scanner_requires_every_registered_test) ... ok
+test_native_helper_api_requires_repository_input_classification (__main__.ReaderInventoryTest.test_native_helper_api_requires_repository_input_classification) ... ok
+test_new_relative_and_joined_readers_refuse (__main__.ReaderInventoryTest.test_new_relative_and_joined_readers_refuse) ... ok
+test_repository_inventory_and_fixed_preflight (__main__.ReaderInventoryTest.test_repository_inventory_and_fixed_preflight) ... ok
+test_repository_source_walk_cannot_be_waived_as_local (__main__.ReaderInventoryTest.test_repository_source_walk_cannot_be_waived_as_local) ... ok
+test_seeded_cross_package_violation_stops_actual_affected_run (__main__.ReaderInventoryTest.test_seeded_cross_package_violation_stops_actual_affected_run) ... ok
+test_untracked_and_nonreader_files_are_outside_inventory (__main__.ReaderInventoryTest.test_untracked_and_nonreader_files_are_outside_inventory) ... ok
+
+----------------------------------------------------------------------
+Ran 21 tests in 33.098s
+
+OK
+python3 -B tests/affected-config-test.py
+test_check_config (__main__.AffectedConfigTest.test_check_config) ... skipped 'upstream ariadne#517 affected/jsonstrict source unavailable; install it or set ARIADNE_AFFECTED_SOURCE (and optional ARIADNE_AFFECTED_REF) to qualify its candidate'
+
+----------------------------------------------------------------------
+Ran 1 test in 0.009s
+
+OK (skipped=1)
+python3 -B tests/build-go-atomic-test.py
+........
+----------------------------------------------------------------------
+Ran 8 tests in 1.636s
+
+OK
+python3 -m unittest discover -s scripts/supervision-labels
+................
+----------------------------------------------------------------------
+Ran 16 tests in 0.090s
+
+OK
+bash tests/host-preflight.sh
+host-preflight ok
+go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime
+bash tests/retention-test.sh
+retention real CLI/editor integration passed
+public pair gc preview leaves storage unchanged
+bash tests/nvim-pidfile-lifecycle-test.sh
+nvim-pidfile-lifecycle-test:
+  ok   draft: publishes its embed pid (28073)
+  ok   draft: the record names a live process
+  ok   draft: a clean exit removes the record
+  ok   draft: a SIGKILLed embed keeps its record
+  ok   draft: a clean exit keeps a record a later embed republished
+  ok   scrollback: publishes its embed pid (28924)
+  ok   scrollback: the record names a live process
+  ok   scrollback: a clean exit removes the record
+  ok   scrollback: a SIGKILLed embed keeps its record
+  ok   scrollback: a clean exit keeps a record a later embed republished
+  ok   changelog: publishes its embed pid (29570)
+  ok   changelog: the record names a live process
+  ok   changelog: a clean exit removes the record
+  ok   changelog: a SIGKILLed embed keeps its record
+  ok   changelog: a clean exit keeps a record a later embed republished
+  ok   review: publishes its embed pid (30042)
+  ok   review: the record names a live process
+  ok   review: the record binds the file it serves
+  ok   review: a clean exit removes the record
+  ok   review: a SIGKILLed embed keeps its record
+  ok   review: a clean exit keeps a record a later embed republished
+nvim-pidfile-lifecycle-test: all passed
+bash tests/run-headless-test.sh
+run-headless-test:
+  ok   clean exit returns 0, no noise
+  ok   modified-buffer bare-qall hang → rc=124
+  ok   hang bounded (~3s, timeout 3s)
+  ok   fails loud (TIMEOUT diagnostic names #60)
+  ok   generic non-terminating child bounded → rc=124 (~2s)
+run-headless-test: all passed
+nvim -l tests/zellij-observation_test.lua
+zellij observation tests passed
+nvim -l tests/review-restore-admission-test.lua
+review restore admission integration passed
+bash tests/nvim-route-poke-admission-test.sh
+nvim-route-poke-admission-test ok
+nvim -l nvim/dom_transport_test.lua
+dom_transport_test: passed
+nvim -l nvim/dom_admission_test.lua
+dom_admission_test ok
+nvim -l nvim/dom_admission_cli_test.lua
+dom_admission_cli_test ok
+nvim -l nvim/fs_watch_test.lua
+fs_watch: close ownership, late callbacks and start refusals passed
+nvim -l nvim/retention_test.lua
+retention: intent ordering, unchanged writes, failure protection passed
+<estScratch/tmp/pair-slot6/p759-go1273.fQOeV7/nvim.xianxu/TqRkgE/0" 
+<pair-slot6/p759-go1273.fQOeV7/nvim.xianxu/TqRkgE/0" 1L, 12B written
+nvim -l nvim/confirm_quit_test.lua
+confirm_quit_test: ok
+nvim -l nvim/lifecycle_command_test.lua
+lifecycle_command_test: ok
+nvim -l nvim/workbench_route_test.lua
+workbench_route_test ok
+bash tests/workbench-route-nvim-test.sh
+workbench-route-nvim-test ok
+nvim -l nvim/slug_test.lua
+nvim/slug.lua: all tests passed
+nvim -l nvim/normalization_test.lua
+all normalization.lua tests passed
+nvim -l nvim/submission_test.lua
+all submission.lua tests passed
+nvim -l nvim/draft_send_test.lua
+draft_send_test ok
+nvim -l nvim/interrupt_test.lua
+interrupt_test ok
+nvim -l nvim/bang_tag_test.lua
+bang_tag_test: all passed
+nvim -l nvim/pairlog_test.lua
+pairlog_test ok
+pairlog_test peer ok
+nvim -l nvim/scrollback_test.lua
+scrollback refresh failed: boom
+scrollback refresh skipped buffer reload: pending annotations kept
+nvim/scrollback.lua: prompt pattern tests passed
+nvim -l nvim/annotate_test.lua
+ok annotate_test
+nvim -l nvim/changelog_test.lua
+ok changelog_test
+python3 -B tests/changelog-isolation-test.py
+..
+----------------------------------------------------------------------
+Ran 2 tests in 0.106s
+
+OK
+nvim -l nvim/adapt_test.lua
+nvim/adapt.lua: emitter tests passed
+nvim -l nvim/doctor_test.lua
+all doctor.lua tests passed
+nvim -l nvim/review/record_test.lua
+record_test ok
+nvim -l nvim/review/reconstruct_test.lua
+reconstruct_test ok
+nvim -l nvim/review/resolve_fixtures_test.lua
+ok — 16 shared edit-record fixtures, 9 propose fixtures
+nvim -l nvim/review/round_watch_test.lua
+ok — round_watch and oplock
+nvim -l nvim/review/define_test.lua
+define_test ok
+nvim -l nvim/review/markers_test.lua
+markers_test ok
+nvim -l nvim/review/comment_codec_test.lua
+comment_codec_test ok
+nvim -l nvim/review/comment_thread_test.lua
+comment_thread_test ok
+nvim -l nvim/review/comment_view_test.lua
+comment_view_test ok
+nvim -l nvim/review/comment_float_test.lua
+ok comment float save/conflict/movement/duplicate/discard/teardown/size
+nvim -l nvim/review/comment_test.lua
+-- INSERT --ok comment attachment, cursor/options, idempotence, bounded projection
+nvim -l nvim/review/seam_test.lua
+seam_test ok
+nvim -l nvim/review/mode_test.lua
+mode_test ok
+nvim -l nvim/review/poke_bodies_test.lua
+poke_bodies_test ok
+nvim -l nvim/review/wrap_test.lua
+wrap_test ok
+nvim -l nvim/review/readiness_test.lua
+readiness_test ok
+nvim -l nvim/review/spinner_test.lua
+spinner_test ok
+nvim -l nvim/review/resolve_test.lua
+resolve_test ok
+nvim -l nvim/review/menu_test.lua
+menu_test ok
+nvim -l nvim/review/restore_test.lua
+restore_test ok
+nvim -l nvim/review/identity_test.lua
+review identity: native failure diagnostics and deadlines preserved
+nvim -l nvim/review/restore_client_test.lua
+restore client tests passed
+nvim -l nvim/review/restore_controller_test.lua
+restore_controller_test ok
+nvim -l nvim/review/document_bytes_test.lua
+document byte activation tests passed
+nvim -l nvim/review/recovery_test.lua
+recovery tests passed
+nvim -l nvim/review/recovery_observer_test.lua
+recovery_observer_test ok
+nvim -l nvim/review/definition_seam_test.lua
+definition seam tests passed
+nvim -l nvim/review/round_authority_test.lua
+round_authority_test ok
+nvim -l nvim/review/agent_round_rule_test.lua
+review: the agent applied a round while you have unsaved edits; your buffer was kept
+agent_round_rule_test ok
+bash tests/lifecycle-command-nvim-test.sh
+lifecycle-command-nvim-test:
+  ok   Alt+x quit
+  ok   Alt+d detach
+  ok   Alt+n restart
+  ok   Shift+Alt+N agent restart
+  ok   no direct vim.fn.system call
+  all passed
+bash scripts/build-go-atomic.sh "bin/pair" -ldflags "-X main.defaultPairHome=/Volumes/TestScratch/tmp/pair-slot6/p759-go1273.fQOeV7/shared-upgrades" ./cmd/pair-go
+python3 doctor/perf_budget_test.py
+.........
+----------------------------------------------------------------------
+Ran 9 tests in 4.971s
+
+OK
+sh doctor/perf_test.sh
+capture timing: elapsed_seconds=5 budget_seconds=6
+perf.sh shape tests passed
+bash tests/queue-send-test.sh
+queue-send-test:
+  ok   send +3 w/ draft: CCC→history, draft parked at +1, no duplicate
+  ok   send +2 w/ empty draft: BBB→history, nothing parked, no duplicate
+  ok   send from *: HELLO→history, queue untouched
+  ok   draft submit command uses semantic Alt Enter
+  ok   log append failure preserves draft and queue without history evidence
+queue-send-test: all passed
+bash tests/submission-transaction-nvim-test.sh
+  ok   submission transaction focus-agent
+  ok   submission transaction write-body
+  ok   submission transaction submit
+  ok   submission transaction focus-draft
+  ok   submission transaction commit
+submission-transaction-nvim-test: all passed
+dom_submission_state_test: passed
+pane_identity_test: passed
+dom_submission_test: passed
+dom_transport_test: passed
+dom-submission-nvim-test: passed
+bash tests/bang-tag-nvim-test.sh
+  ok   bang tag couch
+  ok   bang tag standalone
+  ok   bang tag missing
+  ok   bang tag nonzero
+  ok   bang tag slow
+  ok   bang tag retry
+  ok   bang tag describe
+  ok   bang tag describe-standalone
+  ok   bang tag describe-nonzero
+  ok   bang tag describe-missing
+bang-tag-nvim-test: all passed
+bash tests/autopair-test.sh
+autopair-test:
+  ok   paren EOL
+  ok   bracket EOL
+  ok   brace EOL
+  ok   paren pre-space
+  ok   paren pre-word
+  ok   bracket pre-word
+  ok   paren pre-close
+  ok   dquote EOL
+  ok   backtick EOL
+  ok   dquote pre-word
+  ok   apostrophe dont
+  ok   dquote jump-over
+autopair-test: all passed
+bash tests/draft-complete-mode-test.sh
+draft-complete-mode-test:
+  ok   test seam exported
+  ok   runner exported
+  ok   normal: driver is outside insert mode
+  ok   normal: runner skips without E785
+  ok   visual: driver is outside insert mode
+  ok   visual: runner skips without E785
+  ok   scheduled: driver is outside insert mode
+  ok   scheduled: runner skips without E785
+  ok   scheduled callback ran
+draft-complete-mode-test: all passed
+bash tests/pair-doctor-test.sh
+pair-doctor-test:
+  ok   test seam exported
+  ok   a capture appends exactly one row
+  ok   row uses perf.sh key pipe_hop_ms, not hop_ms
+  ok   row uses fork_exec_ms, not exec_ms
+  ok   an n/a probe is OMITTED from the row, never coerced to a number
+  ok   every probe key has a matching baseline: fork_exec_ms
+  ok   every probe key has a matching baseline: pipe_hop_ms
+  ok   text typed during the capture is never destroyed
+  ok   a failed capture preserves the note
+  ok   the timed completion chain reaches its candidate build, not just its gates
+  ok   time_editor leaves no scratch buffer behind
+  ok   a failed send preserves the note
+  ok   a successful send consumes the note
+  ok   the pid join runs and its rates reach the payload
+  ok   churn -- the spawn-storm signature -- reaches the payload
+  ok   with no UI the redraw leg renders n/a rather than ~0.0ms
+  ok   an n/a leg forces the verdict to unknown
+  ok   with a UI the redraw leg is actually timed
+  ok   the payload names a sidecar path
+  ok   the sidecar exists on disk
+  ok   the sidecar carries the operator note, not just the measurements
+  ok   the note in the sidecar is the one the operator actually wrote
+  ok   a failed rolling-log append notifies rather than failing silently
+  ok   a throwing spawn resets the in-flight guard
+pair-doctor-test: all passed
+bash tests/perf-key-conformance-test.sh
+perf-key-conformance-test:
+  ok   perf.sh emits load
+  ok   perf.sh emits cpu_idle_pct
+  ok   perf.sh emits windowserver_cpu_pct
+  ok   perf.sh emits pair_family_procs
+  ok   perf.sh emits build_procs
+  ok   perf.sh emits swapins_per_s
+  ok   perf.sh emits pipe_hop_ms
+  ok   perf.sh emits fork_exec_ms
+  ok   perf.sh emits zellij_action_ms
+  ok   perf.sh emits elapsed_seconds
+perf-key-conformance-test: all passed
+bash tests/plan-superseded-facts-test.sh
+plan-superseded-facts-test:
+plan-superseded-facts-test: all passed
+bash tests/paint-gate-consumers-test.sh
+terminal ownership: migrated compositors have no raw replay or paint gate
+bash tests/cr-newline-test.sh
+cr-newline-test:
+  ok   no popup -> newline
+  ok   no popup (sel irrelevant)
+  ok   typing: popup + selection -> accept
+  ok   typing: nothing picked -> C-e + newline
+  ok   z=: nothing picked -> clean dismiss, no newline
+  ok   z=: popup + selection -> accept
+  ok   live <CR> map routes through cr_keys (no popup)
+cr-newline-test: all passed
+bash tests/statusline-pos-test.sh
+statusline-pos-test:
+  ok   draft-review-hint shows marker in normal mode
+  ok   star shows marker in normal mode
+  ok   hist-1 shows marker in normal mode
+  ok   hist-2 shows marker in normal mode
+  ok   queue-1 shows marker in normal mode
+  ok   review-compact shows marker in normal mode
+  ok   minimized-click-first shows marker in normal mode
+statusline-pos-test: all passed
+bash tests/changelog-notify-test.sh
+changelog-notify-test:
+  ok   baseline shows cheatsheet
+  ok   baseline has no notification
+  ok   flash shows the message
+  ok   flash uses the PairNotify highlight
+  ok   flash replaces the cheatsheet
+  ok   reverts to the cheatsheet after the timer
+  ok   exact ready marker consumed
+  ok   exact marker fires the flash
+changelog-notify-test: all passed
+bash doctor/doctor_test.sh
+  ok   exits 0 despite a malformed line
+  ok   tallies the good lines, drops the bad one
+  ok   surfaces the near-miss drift finding
+  ok   emitter-health section renders
+  ok   NO-DATA path exits 0 with notice
+
+all doctor tests passed
+bash tests/adapt-schema-test.sh
+  ok   shell == Lua == canonical fixture (== Go, see TestGoldenMatchesFixture)
+  ok   60 concurrent appenders → 8 intact lines; optional contended records may skip
+
+all adapt-schema tests passed
+bash tests/dev-rebuild-test.sh
+  ok   deployed (PAIR_DEV unset) invokes no toolchain
+  ok   dev (PAIR_DEV=1) runs make build
+  ok   build failure is errexit-safe (launcher continues)
+  ok   couch-dev execs the sibling couch with PAIR_DEV=1 and every argument
+  ok   couch-dev rebuilds its own tree before launching
+  ok   couch-dev still launches couch when the build fails
+
+all dev-rebuild tests passed
+bash tests/pair-go-install-layout-test.sh
+pair-go install layout test passed
+python3 tests/without-ancestors-test.py
+.......
+----------------------------------------------------------------------
+Ran 7 tests in 2.155s
+
+OK
+bash tests/pair-embedded-runtime-test.sh
+pair embedded runtime smoke passed
+bash tests/pair-restart-quit-test.sh
+PASS pair-restart-quit
+bash tests/pair-rename.sh
+[33m::[0m T1 clean rename
+  [32mok[0m gone: /tmp/pair-rename.QI8Afp/t1.BDBe7Y/agent-t1
+  [32mok[0m gone: /tmp/pair-rename.QI8Afp/t1.BDBe7Y/agent-pid-t1
+  [32mok[0m gone: /tmp/pair-rename.QI8Afp/t1.BDBe7Y/outer-tty-t1
+  [32mok[0m gone: /tmp/pair-rename.QI8Afp/t1.BDBe7Y/draft-t1.md
+  [32mok[0m gone: /tmp/pair-rename.QI8Afp/t1.BDBe7Y/log-t1.md
+  [32mok[0m gone: /tmp/pair-rename.QI8Afp/t1.BDBe7Y/workbench-layout-t1
+  [32mok[0m gone: /tmp/pair-rename.QI8Afp/t1.BDBe7Y/config-t1-claude.json
+  [32mok[0m gone: /tmp/pair-rename.QI8Afp/t1.BDBe7Y/scrollback-t1-claude.raw
+  [32mok[0m gone: /tmp/pair-rename.QI8Afp/t1.BDBe7Y/queue-t1
+  [32mok[0m gone: /tmp/pair-rename.QI8Afp/t1.BDBe7Y/nvim-pid-t1-draft
+  [32mok[0m exists: /tmp/pair-rename.QI8Afp/t1.BDBe7Y/agent-t2
+  [32mok[0m exists: /tmp/pair-rename.QI8Afp/t1.BDBe7Y/agent-pid-t2
+  [32mok[0m exists: /tmp/pair-rename.QI8Afp/t1.BDBe7Y/outer-tty-t2
+  [32mok[0m exists: /tmp/pair-rename.QI8Afp/t1.BDBe7Y/draft-t2.md
+  [32mok[0m exists: /tmp/pair-rename.QI8Afp/t1.BDBe7Y/log-t2.md
+  [32mok[0m exists: /tmp/pair-rename.QI8Afp/t1.BDBe7Y/workbench-layout-t2
+  [32mok[0m exists: /tmp/pair-rename.QI8Afp/t1.BDBe7Y/config-t2-claude.json
+  [32mok[0m exists: /tmp/pair-rename.QI8Afp/t1.BDBe7Y/scrollback-t2-claude.raw
+  [32mok[0m exists: /tmp/pair-rename.QI8Afp/t1.BDBe7Y/queue-t2
+  [32mok[0m exists: /tmp/pair-rename.QI8Afp/t1.BDBe7Y/nvim-pid-t2-draft
+  [32mok[0m agent file content preserved
+[33m::[0m T2 substring safety (brain vs brain-2)
+  [32mok[0m exists: /tmp/pair-rename.QI8Afp/t2.8G8eYT/agent-brain-2
+  [32mok[0m exists: /tmp/pair-rename.QI8Afp/t2.8G8eYT/outer-tty-brain-2
+  [32mok[0m exists: /tmp/pair-rename.QI8Afp/t2.8G8eYT/draft-brain-2.md
+  [32mok[0m exists: /tmp/pair-rename.QI8Afp/t2.8G8eYT/config-brain-2-claude.json
+  [32mok[0m exists: /tmp/pair-rename.QI8Afp/t2.8G8eYT/scrollback-brain-2-claude.raw
+  [32mok[0m exists: /tmp/pair-rename.QI8Afp/t2.8G8eYT/queue-brain-2
+  [32mok[0m gone: /tmp/pair-rename.QI8Afp/t2.8G8eYT/agent-brain
+  [32mok[0m gone: /tmp/pair-rename.QI8Afp/t2.8G8eYT/config-brain-claude.json
+  [32mok[0m gone: /tmp/pair-rename.QI8Afp/t2.8G8eYT/scrollback-brain-claude.raw
+  [32mok[0m exists: /tmp/pair-rename.QI8Afp/t2.8G8eYT/agent-new-brain
+  [32mok[0m exists: /tmp/pair-rename.QI8Afp/t2.8G8eYT/config-new-brain-claude.json
+  [32mok[0m exists: /tmp/pair-rename.QI8Afp/t2.8G8eYT/scrollback-new-brain-claude.raw
+[33m::[0m T3 refuse when new tag is occupied
+  [32mok[0m rejected: run_rename /tmp/pair-rename.QI8Afp/t3.RDmknP src dst
+  [32mok[0m exists: /tmp/pair-rename.QI8Afp/t3.RDmknP/agent-src
+  [32mok[0m exists: /tmp/pair-rename.QI8Afp/t3.RDmknP/agent-dst
+[33m::[0m T4 refuse when old tag has no files
+  [32mok[0m rejected: run_rename /tmp/pair-rename.QI8Afp/t4.gDmeBz ghost newname
+[33m::[0m T5 refuse when old == new
+  [32mok[0m rejected: run_rename /tmp/pair-rename.QI8Afp/t5.M7U64u t1 t1
+[33m::[0m T6 refuse invalid tag charset
+  [32mok[0m rejected: run_rename /tmp/pair-rename.QI8Afp/t6.LV0BbO t1 bad name
+  [32mok[0m rejected: run_rename /tmp/pair-rename.QI8Afp/t6.LV0BbO t1 bad/slash
+  [32mok[0m rejected: run_rename /tmp/pair-rename.QI8Afp/t6.LV0BbO  newname
+  [32mok[0m exists: /tmp/pair-rename.QI8Afp/t6.LV0BbO/agent-t1
+[33m::[0m T7 preserves exact pair-prefixed identities
+  [32mok[0m gone: /tmp/pair-rename.QI8Afp/t7.q2RAfg/agent-pair-t1
+  [32mok[0m exists: /tmp/pair-rename.QI8Afp/t7.q2RAfg/agent-pair-t2
+  [32mok[0m exists: /tmp/pair-rename.QI8Afp/t7.q2RAfg/agent-t1
+  [32mok[0m exists: /tmp/pair-rename.QI8Afp/t7.q2RAfg/agent-t2
+  [32mok[0m exact content: t1
+  [32mok[0m exact content: t2
+  [32mok[0m exact content: pair-t2
+  [32mok[0m rejected: run_rename /tmp/pair-rename.QI8Afp/t7.q2RAfg pair-t1 another
+  [32mok[0m exists: /tmp/pair-rename.QI8Afp/t7.q2RAfg/draft-t1.md
+  [32mok[0m gone: /tmp/pair-rename.QI8Afp/t7.q2RAfg/draft-another.md
+[33m::[0m T8 renames all agents under one tag
+  [32mok[0m gone: /tmp/pair-rename.QI8Afp/t8.BB400a/config-multi-claude.json
+  [32mok[0m exists: /tmp/pair-rename.QI8Afp/t8.BB400a/config-renamed-claude.json
+  [32mok[0m gone: /tmp/pair-rename.QI8Afp/t8.BB400a/scrollback-multi-claude.raw
+  [32mok[0m exists: /tmp/pair-rename.QI8Afp/t8.BB400a/scrollback-renamed-claude.raw
+  [32mok[0m gone: /tmp/pair-rename.QI8Afp/t8.BB400a/config-multi-codex.json
+  [32mok[0m exists: /tmp/pair-rename.QI8Afp/t8.BB400a/config-renamed-codex.json
+  [32mok[0m gone: /tmp/pair-rename.QI8Afp/t8.BB400a/scrollback-multi-codex.raw
+  [32mok[0m exists: /tmp/pair-rename.QI8Afp/t8.BB400a/scrollback-renamed-codex.raw
+  [32mok[0m gone: /tmp/pair-rename.QI8Afp/t8.BB400a/config-multi-agy.json
+  [32mok[0m exists: /tmp/pair-rename.QI8Afp/t8.BB400a/config-renamed-agy.json
+  [32mok[0m gone: /tmp/pair-rename.QI8Afp/t8.BB400a/scrollback-multi-agy.raw
+  [32mok[0m exists: /tmp/pair-rename.QI8Afp/t8.BB400a/scrollback-renamed-agy.raw
+[33m::[0m T9 --restart-check is a dry-run validate
+  [32mok[0m exists: /tmp/pair-rename.QI8Afp/t9.Q4x8xb/agent-src
+  [32mok[0m gone: /tmp/pair-rename.QI8Afp/t9.Q4x8xb/agent-dst
+  [32mok[0m rejected: run_rename /tmp/pair-rename.QI8Afp/t9.Q4x8xb --restart-check src dst
+
+pair rename: [32m67[0m passed, [32m0[0m failed
+bash tests/emitter-health-test.sh
+  ok   marker present ⇒ 0
+  ok   marker absent ⇒ 1
+  ok   no file ⇒ 2 (can't-tell)
+  ok   pipefail + large binary ⇒ marker still found (no SIGPIPE false-negative)
+  ok   no pidfile ⇒ resolves via PATH
+  ok   pidfile present ⇒ prefers running binary
+  ok   report flags a stale pair-wrap
+  ok   report marks a fresh pair-slug ok
+  ok   all-fresh ⇒ no STALE line
+
+all emitter-health tests passed
+bash tests/pair-session-watch-test.sh
+pair session-watch causal-round tests PASS
+sh tests/changelog-open-test.sh
+PASS changelog-open-test
+sh tests/changelog-session-key-test.sh
+PASS changelog-session-key-test
+sh tests/scrollback-open-test.sh
+PASS scrollback-open-test
+bash tests/copy-on-select-test.sh
+PASS copy-on-select in_nvim detection + right-terminal gate (#125)
+bash tests/term-pane-shortcuts-test.sh
+PASS right Alt+t stays local to pair term
+PASS right Alt+w stays local to pair term
+PASS right Alt+r stays local to pair term
+PASS right Alt+Shift+d splits terminal down as a native tiled split
+PASS Alt+Shift+Left delivers previous-tab into the right terminal
+PASS Alt+Shift+Right delivers next-tab into the right terminal
+PASS Alt+Shift+t delivers new-tab into the right terminal (#243)
+PASS Alt+Shift+Left moves no focus
+PASS right Alt+x focuses then routes quit to draft
+PASS Alt+r no longer uses a content-area prompt
+PASS right Alt+j is no-op
+PASS draft Alt+Shift+Enter enters focus on the right terminal
+PASS focus entry confirms current tab independently of effects
+PASS focus entry confirms pane context before effects
+PASS right Alt+Shift+Enter exits fullscreen and restores draft focus
+PASS right Alt+k falls back to draft
+PASS right Alt+k returns to last left pane
+PASS draft Alt+k production path focuses terminal by id
+PASS draft Alt+k production path records pane
+PASS review Alt+r does not rename tab
+PASS review Alt+Shift+d is not hijacked by terminal split
+PASS stale terminal template cannot split without ownership
+PASS stale terminal template cannot receive a delivered tab chord
+PASS stale terminal focus reports a refusal
+PASS stale terminal template cannot receive focus
+PASS Alt+Shift+Enter forwards distinct KKP sequence
+PASS Alt+Shift+d forwards distinct KKP sequence
+PASS Alt+x forwards distinct KKP sequence
+PASS all draft-routed globals forward one distinct sequence
+PASS global KDL contains no draft Lua injection
+PASS right terminal is a tiled pane (no floating layer, no filler)
+PASS draft rungs have 3-pane and 4-pane (split) swap variants incl. small
+PASS small-split is the last swap layout (cycle order preserved)
+PASS layout2 stays agent and draft only
+PASS layout2 and layout3 share agent and draft launch commands
+PASS Alt+Shift+N restarts only supervised agent
+PASS Zellij startup tips are disabled
+PASS Zellij focus does not follow the mouse across asymmetric layers
+PASS Zellij mouse support stays enabled
+PASS draft Alt+k focuses terminal by pane id
+PASS agent Alt+k no longer uses relative move-focus right
+PASS right terminal split leaves borderless to the layout, not the call site
+PASS split and recovery share the layout3 terminal command
+PASS Zellij explicitly enables Kitty keyboard protocol
+PASS Neovim confirmations do not block on inventory activity
+PASS Neovim has no native session path/stat fallback
+term-pane-shortcuts-test ok
+go test ./cmd/internal/titlepoller ./cmd/internal/procutil -count=1
+ok  	github.com/xianxu/pair/cmd/internal/titlepoller	1.039s
+ok  	github.com/xianxu/pair/cmd/internal/procutil	0.561s
+bash tests/zellij-trace-test.sh
+  ok   returns zellij exit code
+  ok   returns zellij stdout
+  ok   writes trace file
+  ok   records label
+  ok   records body length
+  ok   records body hash
+  ok   redacts prompt body
+  ok   still sends full body to zellij
+zellij-trace-test ok
+bash tests/review-docflow-test.sh
+  ok   forwards 'round --side agent'
+  ok   forwards --body
+  ok   agent subject shape
+  ok   agent round authored by agent
+  ok   records block in agent commit body
+  ok   human round authored by operator
+  ok   agent round staged the in-scope doc
+  ok   out-of-scope file NOT staged
+  ok   docflow.lua flags unavailable for a missing binary (code 127)
+  ok   review.start does not crash (touches no docflow — agent owns git)
+  ok   review.start emits no docflow notify (invariant #1)
+  skip real-docflow smoke (ariadne not found at /Volumes/TestScratch/tmp/pair-slot6/p759-go1273.fQOeV7/shared-upgrades/../ariadne/scripts/docflow.sh)
+review-docflow-test ok
+bash tests/review-apply-test.sh
+--- results ---
+ok render: 2 extmarks placed
+ok render: 2 diagnostics placed
+ok render: decorations on the right lines (1 and 2)
+ok render diagnostics preserve distinct same-line columns
+ok render marker proposal: no redundant highlight
+ok render marker proposal keeps diagnostic
+ok snapshot captures a multi-line exact extmark range
+ok snapshot captures exact single-line columns
+ok snapshot captures diagnostics
+ok apply_snapshot restores the multi-line exact range
+ok apply_snapshot restores exact single-line columns
+ok apply_snapshot restores diagnostics
+ok render embedded marker proposal: no redundant highlight
+ok render embedded marker proposal keeps diagnostic
+ok clear_at_line reports a cleared decoration
+ok clear_at_line leaves other highlights intact
+ok clear_at_line leaves other diagnostics intact
+ok clear_at_line reports false outside decorations
+apply_test ok
+review-apply-test ok
+bash tests/review-applied-round-test.sh
+--- results ---
+ok pair review apply exit 0, Code ok
+ok the pane reloaded the file pair wrote
+ok the pane did not modify the buffer for the agent round
+ok the round's explain is the diagnostic
+ok the commit body carries the round as records
+ok decorations reconstruct from the body
+ok the operator lock is taken
+ok apply under the lock exits 3 operator-lock
+ok nothing written under the lock
+ok after the send the apply lands
+ok the pane follows the next round
+ok bad batch: exit 1 edits-invalid, record listed
+ok a refused batch writes nothing
+applied_round_test ok
+review-applied-round-test ok
+bash tests/review-projection-test.sh
+--- results ---
+ok round placed decorations
+ok watcher autocmd registered
+ok undo restores the empty pre-round snapshot (decorations cleared)
+ok redo restores decorations
+ok restored decoration keeps its multi-line span (end_row)
+ok decorations ride a manual edit
+ok undo of the manual edit restores round decorations
+ok undo returns to the round-1 content
+ok round-1 decorations survive (record_empty_for idempotence guard)
+projection_test ok
+review-projection-test ok
+bash tests/review-poke-test.sh
+  ok   _cmds builds the id-based argv
+  ok   writes the please-review body to agent pane as one paste
+  ok   submits with semantic Alt+Enter to agent pane
+  ok   does not change focus
+  ok   no relative move-focus
+  ok   writes zellij action trace
+  ok   traces pane lookup
+  ok   traces body write
+  ok   records redacted body length (29 + 12 marker bytes)
+  ok   redacts review poke body
+review-poke-test ok
+bash tests/review-window-test.sh
+  ok   :PairReview exists with complete=file
+  ok   pair review open errors on a missing file
+  ok   spawns a floating pane
+  ok   launches nvim -u nvim/review.lua
+  ok   review markers do not poison markdown HTML syntax
+  ok   review.lua loaded the review core
+  ok   Alt+Return keymap wired
+  ok   Alt+a/Alt+r/Alt+q review maps wired
+  ok   Alt+x no-op map wired in review pane
+  ok   Shift+Alt+d definition map wired
+  ok   Shift+Alt+d forwarded KKP definition map wired
+  ok   Alt+o is not bound in review pane
+  ok   Alt+Shift+Return global fullscreen keymap wired
+  ok   :PairReviewShip command wired
+  ok   open-state file written
+  ok   🤖 markers rendered
+  ok   multi-line 🤖<…> renders a cross-row span
+  ok   review pane yanks to system clipboard
+  ok   review pane uses blinking cursor
+  ok   review pane indents soft-wrapped lines
+  ok   review pane smooth-scrolls soft-wrapped lines
+  ok   review pane loads a colorscheme
+  ok   review pane hides command line until : commands
+  ok   review pane sets ignorecase+smartcase
+  ok   review search is smartcase (/foo matches Foo, /Foo does not match foo)
+  ok   review statusline is compact in mode state
+  ok   review user marker highlight matches parley
+  ok   review agent marker highlight matches parley
+  ok   review quoted marker highlight matches parley
+  ok   review strike marker highlight matches parley
+  ok   diagnostic virtual lines follow cursor span
+  ok   failed poke does not leave spinner awaiting
+  ok   Alt+a accepts quoted agent replacement
+  ok   Alt+r rejects to original quoted text
+  ok   resolve_at_cursor matches a multi-line marker from any of its lines
+  ok   resolve_paragraph_to_cursor handles a multi-line marker; leaves other paragraphs
+  ok   Alt+a resolves the marker under cursor
+  ok   Alt+Shift+a accepts paragraph suggestions through cursor
+  ok   Alt+Shift+r rejects paragraph suggestions through cursor
+  ok   Alt+a clears agent styling outside markers
+  ok   Alt+q inserts a human comment marker
+  ok   Alt+q wraps visual selection as quoted marker
+  ok   Alt+q quoted marker preserves delimiter text
+  ok   Alt+Return saves the human edits (agent commits the round)
+  ok   Alt+Return clears stale agent styling
+  ok   nvim writes no git on Alt+Return
+  ok   nvim writes no git on :PairReviewShip
+  ok   human submit switches statusline to awaiting spinner
+  ok   awaiting spinner redraws at 100ms
+  ok   Alt+Return pokes human_finished with posture
+  ok   human_finished omits standing Edit marker rule
+  ok   human_finished omits standing comment-resolution rule
+  ok   :PairReviewShip pokes the agent ship request
+  ok   menu send pokes human_finished with mode and instruction
+  ok   menu send persists selected review mode
+  ok   send menu submit saves the reviewed document buffer
+  ok   review pane does not send redundant open handshake
+  ok   an applied round reloads and clears the awaiting spinner
+  ok   an empty round ends the turn without reloading
+  ok   VimLeave saves a modified buffer (unsent edit durability)
+review-window-test ok
+bash tests/review-controls-test.sh
+ok review hints, modes, float dismissal, marker wrapping and draft return
+bash tests/review-comments-test.sh
+ok painted compact comments, literal fallback, speaker colors, native Enter, thread save/discard, undo/redo repaint and pre-edit cursor admission
+bash tests/overlay-return-test.sh
+ok scrollback/changelog Escape and :qa hide overlays, emit annotations, then focus draft
+bash tests/review-toggle-test.sh
+  ok   other-session target ignored (smoke #6)
+  ok   :PairReview prepares target locally
+  ok   pure target_stale: ts-same
+  ok   pure target_stale: ts-diff
+  ok   pure target_stale: ts-nocur
+  ok   pure target_stale: ts-noid
+  ok   old unscoped target remains stale
+  ok   same-nvim unscoped target remains readable
+  ok   read_target uses established inventory session
+  ok   write_target stamps established inventory session
+  ok   current session does not guess from live Codex files
+  ok   unverified live target is stale
+  ok   unverified live target remains unstamped
+  ok   session lookup launches no ps/lsof subprocess
+  ok   pure: no target → prompt
+  ok   pure: target ready → open
+  ok   pure: target proposed → wait
+  ok   pure: alive+visible → hide
+  ok   pure: alive+hidden → show
+  ok   live+visible → hide-floating-panes
+  ok   live+hidden → show-floating-panes
+  ok   no target → :PairReview prompt (no open/show/hide)
+  ok   stale ready target cannot override non-review branch
+  ok   target proposed → wait (no open)
+  ok   never toggle-floating-panes
+  ok   Alt+c bound in config.kdl
+  ok   Alt+c forwards to focused process for draft routing
+  ok   Alt+r forwards ESC+r for review-pane reject
+  ok   Alt+r has no global tab action
+  ok   Alt+o default zellij tab-move disabled
+  ok   old pair-review-toggle pane gone
+  ok   Alt+x forwards to focused process for local routing
+  ok   Alt+x no longer injects quit command from zellij
+review-toggle-test ok
+bash tests/pair-review-target-test.sh
+  ok   uses PAIR_SESSION_ID when set
+  ok   no established binding stamps no session
+pair-review-target-test ok
+bash tests/review-readiness-cli-test.sh
+  ok   emits valid JSON with quoted branch/path fields
+  ok   prepare creates review branch for clean tracked file
+  ok   prepare marks review target ready
+  ok   prepare emits xx-fix deferred-load ack instruction
+  ok   zero-round branch has no invented identity
+  ok   verified preparation receipt enables first open
+  ok   current branch rounds resolve document and agent body
+review-readiness-cli-test ok
+bash tests/review-indicator-test.sh
+  ok   _pair_review_bar exposed
+  ok   off a review branch → 🤖0/0 (ignores other docs' shipped rounds)
+  ok   on review/<slug> → that slug's rounds only (🤖agent/human)
+review-indicator-test ok
+bash tests/review-resume-test.sh
+  ok   reconstruct-on-open placed decorations (placed=true hl=1 diag=1)
+  ok   change-highlights repainted from commit
+  ok   diagnosis repainted from commit
+  ok   resolved history repaints selected branch despite inherited identical anchors and stale shell status
+  ok   ambiguous branch refuses reconstruction without decorations
+  ok   resolution and reconstruction leave checkout unchanged
+review-resume-test ok
+python3 -B tests/review-resume-isolation-test.py
+.
+----------------------------------------------------------------------
+Ran 1 test in 8.336s
+
+OK
+bash tests/review-definition-test.sh
+--- results ---
+ok visual definition normalizes 1-based inclusive marks to selected term
+ok visual result applies
+ok visual definition inserts ref immediately after selected term
+ok shifted pending result applies
+ok pending definition follows inserted text before selection
+ok request helper returns request metadata
+ok request json records id and term
+ok request context is current document text
+ok result applies
+ok definition persisted as managed footnote
+ok definition highlight spans only term plus footnote ref
+ok definition diagnostic uses exact span and stored definition
+ok undo removes definition text
+ok undo clears definition highlights through projection
+ok undo clears definition diagnostics through projection
+ok redo restores definition text
+ok redo restores definition highlight through projection
+ok definition request context strips managed footnote footer
+ok redefinition applies
+ok redefinition updates existing footnote without duplicate ref
+ok clear_all removes definition highlights before rehydrate
+ok rehydrate_definitions redraws exact span from durable footnote
+ok continued-review context artifact strips managed definition footer
+ok changed selection refuses definition application
+ok refused definition response remains preserved
+ok old definition applies while newer response is published
+ok definition acceptance does not delete replacement payload
+definition_test ok
+review-definition-test ok
+bash tests/review-branch-restore-test.sh
+review-branch-restore-test ok
+python3 -B tests/review-observation-diagnostics-test.py
+.............
+----------------------------------------------------------------------
+Ran 13 tests in 17.475s
+
+OK
+bash tests/review-observation-test.sh
+review-observation-test ok
+python3 -B tests/review-fresh-restore-diagnostics-test.py
+..
+----------------------------------------------------------------------
+Ran 2 tests in 1.427s
+
+OK
+bash tests/review-fresh-restore-test.sh
+  ok  fresh-restores-history
+  ok  wrong-conversation-ack-refused
+  ok  missing-history-does-not-adopt-old-receipt
+  ok  ambiguous-history-does-not-open
+  ok  detached-identity-does-not-open
+review-fresh-restore-test ok
+bash tests/make-test-env-test.sh
+PASS make-test-env (345 derived knobs kept, session identity dropped)
+PASS additive Go flags, command-line overrides and nested Make
+PASS make-test-env (345 derived knobs kept, session identity dropped)
+PASS additive Go flags, command-line overrides and nested Make
+# pair#610: temporary 20m per-package budget; couchcore is ~580s idle.
+# pair#611 profiles/splits/shards it before removing this allowance.
+go test ./... -count=1 -timeout 20m
+--- FAIL: TestBareCouchInstalledCommand (24.19s)
+    --- FAIL: TestBareCouchInstalledCommand/pty_launches_and_attaches_current_hub (15.07s)
+        main_test.go:165: timed out waiting for installed couch hub attachment and wrapper; output="couch: launch failed during spawn: spawn /Volumes/TestScratch/tmp/pair-slot6/p759-go1273.fQOeV7/TestBareCouchInstalledCommand3703723124/002/alpha: start pair-launch-helper in /Volumes/TestScratch/tmp/pair-slot6/p759-go1273.fQOeV7/TestBareCouchInstalledCommand3703723124/002/a… [attempt start-fa39aa52bdafd266; diagnostics /Volumes/TestScratch/pc-2711492906/store/launch-diagnostics/failures.json]; inspect with couch --show '/Volumes/TestScratch/tmp/pair-slot6/p759-go1273.fQOeV7/TestBareCouchInstalledCommand3703723124/002/alpha'\r\n" calls="sdlc workspace --json\nsdlc workspace --json\nsdlc workspace --json\n" zellij=""
+FAIL
+FAIL	github.com/xianxu/pair/cmd/couch	25.564s
+ok  	github.com/xianxu/pair/cmd/internal/adapt	1.025s
+ok  	github.com/xianxu/pair/cmd/internal/agentcmd	0.150s
+ok  	github.com/xianxu/pair/cmd/internal/agentdrive	0.306s
+ok  	github.com/xianxu/pair/cmd/internal/ansi	0.140s
+ok  	github.com/xianxu/pair/cmd/internal/archivecmd	2.527s
+?   	github.com/xianxu/pair/cmd/internal/archivetestenv	[no test files]
+--- FAIL: TestProductionArtifactReferencesAreExactlyClassified (2.90s)
+    coverage_test.go:205: NEW unclassified artifact references (fix them; do not add them to testdata/known-artifact-violations.txt):
+        cmd/internal/remotesession/tailnet_identity.go: production source is absent from the exhaustive inventory
+        cmd/internal/remotesession/tailnet_node.go: production source is absent from the exhaustive inventory
+FAIL
+FAIL	github.com/xianxu/pair/cmd/internal/artifactpath	9.559s
+ok  	github.com/xianxu/pair/cmd/internal/broadcast	46.396s
+ok  	github.com/xianxu/pair/cmd/internal/castlock	0.387s
+ok  	github.com/xianxu/pair/cmd/internal/cdp	0.138s
+ok  	github.com/xianxu/pair/cmd/internal/changelogcmd	5.058s
+ok  	github.com/xianxu/pair/cmd/internal/checkpoint	0.420s
+ok  	github.com/xianxu/pair/cmd/internal/clipcmd	13.093s
+ok  	github.com/xianxu/pair/cmd/internal/commitoutcome	0.126s
+ok  	github.com/xianxu/pair/cmd/internal/contextcmd	0.923s
+ok  	github.com/xianxu/pair/cmd/internal/continuationcmd	4.625s
+couch: terminal: terminal: presenter unavailable
+terminal: parent output write accepted 0/224 bytes: file already closed
+terminal: parent modes not restored (run `reset`): terminal: parent output write accepted 0/99 bytes: file already closed
+couch: terminal: terminal: presenter unavailable
+terminal: parent output write accepted 0/33 bytes: file already closed
+terminal: parent modes not restored (run `reset`): terminal: parent output write accepted 0/99 bytes: file already closed
+--- FAIL: TestRecoveryNativeOnlyProductionComposition (0.28s)
+    recovery_acceptance_test.go:716: switch-agent: required executable pair is unavailable: exec: "pair": executable file not found in $PATH
+FAIL
+write budget couchcmd: bytes=77058048 cap=100663296 repeats=1
+FAIL	github.com/xianxu/pair/cmd/internal/couchcmd	89.741s
+ok  	github.com/xianxu/pair/cmd/internal/couchcore	237.517s
+?   	github.com/xianxu/pair/cmd/internal/couchcoretest	[no test files]
+ok  	github.com/xianxu/pair/cmd/internal/couchidentity	1.463s
+ok  	github.com/xianxu/pair/cmd/internal/couchkeys	0.128s
+ok  	github.com/xianxu/pair/cmd/internal/couchmessage	28.163s
+ok  	github.com/xianxu/pair/cmd/internal/couchscratch	0.726s
+ok  	github.com/xianxu/pair/cmd/internal/couchsingleton	2.569s
+ok  	github.com/xianxu/pair/cmd/internal/couchtty	53.470s
+ok  	github.com/xianxu/pair/cmd/internal/crashreport	1.790s
+ok  	github.com/xianxu/pair/cmd/internal/ctxmeter	0.125s
+ok  	github.com/xianxu/pair/cmd/internal/diagnosticcmd	0.229s
+ok  	github.com/xianxu/pair/cmd/internal/diagnosticlog	21.788s
+ok  	github.com/xianxu/pair/cmd/internal/dispatcher	0.239s
+ok  	github.com/xianxu/pair/cmd/internal/draftroute	2.464s
+ok  	github.com/xianxu/pair/cmd/internal/durablefile	0.126s
+ok  	github.com/xianxu/pair/cmd/internal/editorendpoint	1.550s
+ok  	github.com/xianxu/pair/cmd/internal/entrypoint	0.116s
+ok  	github.com/xianxu/pair/cmd/internal/execalarm	8.192s
+ok  	github.com/xianxu/pair/cmd/internal/gccmd	0.772s
+ok  	github.com/xianxu/pair/cmd/internal/gcruntime	5.277s
+ok  	github.com/xianxu/pair/cmd/internal/historyarchive	100.603s
+ok  	github.com/xianxu/pair/cmd/internal/historyarchive/archivetest	0.155s
+ok  	github.com/xianxu/pair/cmd/internal/hoprttcmd	0.426s
+ok  	github.com/xianxu/pair/cmd/internal/hostty	0.236s
+ok  	github.com/xianxu/pair/cmd/internal/keyhelp	0.142s
+ok  	github.com/xianxu/pair/cmd/internal/keyscmd	0.306s
+--- FAIL: TestLookupSocketUsesNativeSymlinkParentTraversal (0.67s)
+    --- FAIL: TestLookupSocketUsesNativeSymlinkParentTraversal/temporary/native-present-cleaned-absent (0.00s)
+        zellij_lookup_path_test.go:93: open /Volumes/TestScratch/s761-2338898908/sockets/TestLookupSocketUsesNativeSymlinkParentTraversaltemporarynativ1673821626/001/frames.json: no such file or directory
+    --- FAIL: TestLookupSocketUsesNativeSymlinkParentTraversal/temporary/native-absent-cleaned-present (0.01s)
+        zellij_lookup_path_test.go:93: open /Volumes/TestScratch/s761-3947740597/sockets/TestLookupSocketUsesNativeSymlinkParentTraversaltemporarynativ4190611058/001/frames.json: no such file or directory
+FAIL
+FAIL	github.com/xianxu/pair/cmd/internal/launcher	79.757s
+ok  	github.com/xianxu/pair/cmd/internal/layoutcmd	7.879s
+ok  	github.com/xianxu/pair/cmd/internal/lifetimelease	0.701s
+ok  	github.com/xianxu/pair/cmd/internal/mockserve	3.252s
+ok  	github.com/xianxu/pair/cmd/internal/mocktemplate	4.000s
+ok  	github.com/xianxu/pair/cmd/internal/model	0.657s
+ok  	github.com/xianxu/pair/cmd/internal/mouseinput	0.473s
+ok  	github.com/xianxu/pair/cmd/internal/nativeid	0.122s
+ok  	github.com/xianxu/pair/cmd/internal/nativelock	0.270s
+ok  	github.com/xianxu/pair/cmd/internal/notifycmd	0.128s
+ok  	github.com/xianxu/pair/cmd/internal/notifyosc	0.131s
+ok  	github.com/xianxu/pair/cmd/internal/notifytransport	1.317s
+ok  	github.com/xianxu/pair/cmd/internal/opener	0.397s
+ok  	github.com/xianxu/pair/cmd/internal/orientation	0.129s
+ok  	github.com/xianxu/pair/cmd/internal/osfs	0.127s
+ok  	github.com/xianxu/pair/cmd/internal/pairlifecycle	0.165s
+ok  	github.com/xianxu/pair/cmd/internal/pairlifecycletest	1.638s
+ok  	github.com/xianxu/pair/cmd/internal/pairlog	0.461s
+ok  	github.com/xianxu/pair/cmd/internal/panebirth	0.139s
+?   	github.com/xianxu/pair/cmd/internal/pathscope	[no test files]
+ok  	github.com/xianxu/pair/cmd/internal/perfbudget	0.119s
+ok  	github.com/xianxu/pair/cmd/internal/procutil	0.521s
+ok  	github.com/xianxu/pair/cmd/internal/ptychild	1.028s
+ok  	github.com/xianxu/pair/cmd/internal/readiness	0.133s
+ok  	github.com/xianxu/pair/cmd/internal/remotesession	6.172s
+ok  	github.com/xianxu/pair/cmd/internal/resumeform	0.115s
+ok  	github.com/xianxu/pair/cmd/internal/retentioncmd	0.263s
+ok  	github.com/xianxu/pair/cmd/internal/reviewapply	0.170s
+ok  	github.com/xianxu/pair/cmd/internal/reviewcmd	14.866s
+ok  	github.com/xianxu/pair/cmd/internal/rowtext	0.124s
+ok  	github.com/xianxu/pair/cmd/internal/runtimebundle	0.189s
+?   	github.com/xianxu/pair/cmd/internal/runtimebundle/generatecmd	[no test files]
+?   	github.com/xianxu/pair/cmd/internal/runtimebundle/manifestmodel	[no test files]
+ok  	github.com/xianxu/pair/cmd/internal/runtimebundlegen	4.740s
+ok  	github.com/xianxu/pair/cmd/internal/scribecmd	26.903s
+ok  	github.com/xianxu/pair/cmd/internal/scrollbackcmd	0.580s
+ok  	github.com/xianxu/pair/cmd/internal/sessioninventory	18.110s
+ok  	github.com/xianxu/pair/cmd/internal/sessioninventorytest	0.139s
+ok  	github.com/xianxu/pair/cmd/internal/sessionledger	0.800s
+ok  	github.com/xianxu/pair/cmd/internal/sessionsync	20.417s
+ok  	github.com/xianxu/pair/cmd/internal/sessionwatch	22.521s
+ok  	github.com/xianxu/pair/cmd/internal/slugcmd	0.961s
+ok  	github.com/xianxu/pair/cmd/internal/slugline	0.136s
+ok  	github.com/xianxu/pair/cmd/internal/storagegc	17.904s
+ok  	github.com/xianxu/pair/cmd/internal/strictjson	0.143s
+ok  	github.com/xianxu/pair/cmd/internal/submission	4.840s
+ok  	github.com/xianxu/pair/cmd/internal/tailmarkup	0.132s
+ok  	github.com/xianxu/pair/cmd/internal/termcmd	5.370s
+ok  	github.com/xianxu/pair/cmd/internal/terminal	43.388s
+ok  	github.com/xianxu/pair/cmd/internal/terminalcapture	0.962s
+ok  	github.com/xianxu/pair/cmd/internal/terminalqualify	0.239s
+ok  	github.com/xianxu/pair/cmd/internal/testcouch	27.830s
+ok  	github.com/xianxu/pair/cmd/internal/testcouch/agentfixture	23.221s
+ok  	github.com/xianxu/pair/cmd/internal/testcouch/agentfixture/cmd	0.546s
+ok  	github.com/xianxu/pair/cmd/internal/testdisk	16.423s
+ok  	github.com/xianxu/pair/cmd/internal/testgit	0.228s
+ok  	github.com/xianxu/pair/cmd/internal/testpair	16.621s
+ok  	github.com/xianxu/pair/cmd/internal/testwait	0.131s
+ok  	github.com/xianxu/pair/cmd/internal/textwidth	0.118s
+ok  	github.com/xianxu/pair/cmd/internal/threadactivity	0.995s
+ok  	github.com/xianxu/pair/cmd/internal/threadrecord	0.199s
+ok  	github.com/xianxu/pair/cmd/internal/titlepoller	2.026s
+ok  	github.com/xianxu/pair/cmd/internal/ttyio	5.765s
+ok  	github.com/xianxu/pair/cmd/internal/webcast	13.691s
+ok  	github.com/xianxu/pair/cmd/internal/webcast/assets	2.923s
+ok  	github.com/xianxu/pair/cmd/internal/webcast/board	5.088s
+ok  	github.com/xianxu/pair/cmd/internal/webcast/capability	0.178s
+ok  	github.com/xianxu/pair/cmd/internal/webcast/drive	0.362s
+ok  	github.com/xianxu/pair/cmd/internal/webcast/fidelity	0.181s
+ok  	github.com/xianxu/pair/cmd/internal/webcast/notedraft	7.542s
+ok  	github.com/xianxu/pair/cmd/internal/webcast/notes	0.887s
+ok  	github.com/xianxu/pair/cmd/internal/webcast/query	5.714s
+ok  	github.com/xianxu/pair/cmd/internal/webcast/recorder	4.742s
+ok  	github.com/xianxu/pair/cmd/internal/webcast/recording	1.884s
+?   	github.com/xianxu/pair/cmd/internal/webcast/recording/internal/fixturegen	[no test files]
+ok  	github.com/xianxu/pair/cmd/internal/webcast/sketch	0.148s
+ok  	github.com/xianxu/pair/cmd/internal/webcast/submission	0.175s
+ok  	github.com/xianxu/pair/cmd/internal/workbenchperftest	0.525s
+ok  	github.com/xianxu/pair/cmd/internal/workbenchshortcut	0.418s
+?   	github.com/xianxu/pair/cmd/internal/workbenchshortcut/generatecmd	[no test files]
+ok  	github.com/xianxu/pair/cmd/internal/wrapcmd	69.463s
+ok  	github.com/xianxu/pair/cmd/internal/zellijexec	14.698s
+ok  	github.com/xianxu/pair/cmd/internal/zellijpane	0.168s
+ok  	github.com/xianxu/pair/cmd/internal/zellijquery	16.988s
+ok  	github.com/xianxu/pair/cmd/internal/zellijreply	0.315s
+ok  	github.com/xianxu/pair/cmd/internal/zellijsession	0.151s
+ok  	github.com/xianxu/pair/cmd/internal/zellijtest	20.519s
+ok  	github.com/xianxu/pair/cmd/pair-go	15.397s
+?   	github.com/xianxu/pair/cmd/pair-launch-helper	[no test files]
+?   	github.com/xianxu/pair/cmd/probes/couchnestedrows	[no test files]
+?   	github.com/xianxu/pair/cmd/probes/couchstartrecovery	[no test files]
+?   	github.com/xianxu/pair/cmd/probes/reattachcost	[no test files]
+?   	github.com/xianxu/pair/cmd/probes/termctrlc	[no test files]
+ok  	github.com/xianxu/pair/cmd/probes/terminalqualify	0.133s
+?   	github.com/xianxu/pair/cmd/probes/termrows	[no test files]
+?   	github.com/xianxu/pair/cmd/probes/zellijrepaint	[no test files]
+?   	github.com/xianxu/pair/cmd/probes/zellijrepainttiming	[no test files]
+ok  	github.com/xianxu/pair/internal/repolint	14.620s
+ok  	github.com/xianxu/pair/internal/reporoot	0.403s
+ok  	github.com/xianxu/pair/internal/testbinary	0.144s
+ok  	github.com/xianxu/pair/internal/testoracle	1.892s
+ok  	github.com/xianxu/pair/probes/claudedraftsend	0.126s
+?   	github.com/xianxu/pair/probes/cursorsaveslots	[no test files]
+?   	github.com/xianxu/pair/probes/escsmoke	[no test files]
+ok  	github.com/xianxu/pair/probes/messageidle	0.117s
+?   	github.com/xianxu/pair/probes/mousemodesmoke	[no test files]
+?   	github.com/xianxu/pair/probes/termsmoke	[no test files]
+ok  	github.com/xianxu/pair/probes/zellijbirthrace	0.138s
+ok  	github.com/xianxu/pair/probes/zellijcalls	1.135s
+?   	github.com/xianxu/pair/probes/zellijpark	[no test files]
+ok  	github.com/xianxu/pair/probes/zellijprobe	0.228s
+?   	github.com/xianxu/pair/probes/zellijscrollregion	[no test files]
+ok  	github.com/xianxu/pair/probes/zellijwrapmargin	0.152s
+ok  	github.com/xianxu/pair/probes/zellijwritechars	0.281s
+FAIL
+make[1]: *** [test] Error 1
+make: *** [test] Error 2

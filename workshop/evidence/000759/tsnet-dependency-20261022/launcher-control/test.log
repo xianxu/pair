@@ -1,0 +1,19 @@
+=== RUN   TestLookupSocketUsesNativeSymlinkParentTraversal
+=== RUN   TestLookupSocketUsesNativeSymlinkParentTraversal/explicit/native-present-cleaned-absent
+=== RUN   TestLookupSocketUsesNativeSymlinkParentTraversal/explicit/native-absent-cleaned-present
+=== RUN   TestLookupSocketUsesNativeSymlinkParentTraversal/temporary/native-present-cleaned-absent
+    zellij_lookup_path_test.go:93: open /Volumes/TestScratch/s761-3976553843/sockets/TestLookupSocketUsesNativeSymlinkParentTraversaltemporarynativ711401304/001/frames.json: no such file or directory
+=== RUN   TestLookupSocketUsesNativeSymlinkParentTraversal/temporary/native-absent-cleaned-present
+    zellij_lookup_path_test.go:93: open /Volumes/TestScratch/s761-3971081736/sockets/TestLookupSocketUsesNativeSymlinkParentTraversaltemporarynativ3514583413/001/frames.json: no such file or directory
+=== RUN   TestLookupSocketUsesNativeSymlinkParentTraversal/runtime/native-present-cleaned-absent
+=== RUN   TestLookupSocketUsesNativeSymlinkParentTraversal/runtime/native-absent-cleaned-present
+--- FAIL: TestLookupSocketUsesNativeSymlinkParentTraversal (0.45s)
+    --- PASS: TestLookupSocketUsesNativeSymlinkParentTraversal/explicit/native-present-cleaned-absent (0.11s)
+    --- PASS: TestLookupSocketUsesNativeSymlinkParentTraversal/explicit/native-absent-cleaned-present (0.10s)
+    --- FAIL: TestLookupSocketUsesNativeSymlinkParentTraversal/temporary/native-present-cleaned-absent (0.00s)
+    --- FAIL: TestLookupSocketUsesNativeSymlinkParentTraversal/temporary/native-absent-cleaned-present (0.00s)
+    --- PASS: TestLookupSocketUsesNativeSymlinkParentTraversal/runtime/native-present-cleaned-absent (0.12s)
+    --- PASS: TestLookupSocketUsesNativeSymlinkParentTraversal/runtime/native-absent-cleaned-present (0.11s)
+FAIL
+FAIL	github.com/xianxu/pair/cmd/internal/launcher	0.645s
+FAIL

@@ -1,0 +1,8 @@
+=== RUN   TestBareCouchInstalledCommand
+=== RUN   TestBareCouchInstalledCommand/pty_launches_and_attaches_current_hub
+=== RUN   TestBareCouchInstalledCommand/pipe_refuses_before_effects
+--- PASS: TestBareCouchInstalledCommand (13.40s)
+    --- PASS: TestBareCouchInstalledCommand/pty_launches_and_attaches_current_hub (2.15s)
+    --- PASS: TestBareCouchInstalledCommand/pipe_refuses_before_effects (0.02s)
+PASS
+ok  	github.com/xianxu/pair/cmd/couch	13.600s

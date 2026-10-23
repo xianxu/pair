@@ -1,0 +1,8 @@
+{
+  "before_path": "/Users/xianxu/workspace/ariadne/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin",
+  "before_helpers": {
+    "pair": null,
+    "pair-launch-helper": null
+  },
+  "stimulus": "Add only owned same-source/same-module executable prerequisites to PATH; no test assertions, code, deadlines or modules change."
+}

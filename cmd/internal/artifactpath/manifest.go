@@ -714,6 +714,8 @@ var NonArtifactSources = []string{
 	"cmd/internal/remotesession/replay.go",
 	"cmd/internal/remotesession/session.go",
 	"cmd/internal/remotesession/state.go",
+	"cmd/internal/remotesession/tailnet_identity.go",
+	"cmd/internal/remotesession/tailnet_node.go",
 	"cmd/internal/remotesession/store_codec.go",
 
 	// #758 endpoint model and native editor transport name no Pair artifact paths.

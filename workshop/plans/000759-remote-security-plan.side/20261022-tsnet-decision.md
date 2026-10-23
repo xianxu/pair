@@ -1,54 +1,71 @@
 # #759: tsnet decision for the operator
 
-**Draft — upgrade-only full suite pending; extra native-history coverage blocked by #828. No enrollment.**
+**Decision required; no enrollment or product dependency added.**
 
-**Recommendation:** retain A as the preferred security boundary, but do not accept
-this default dependency build yet. It gives Couch its own tailnet HTTPS listener
-and connection-based WhoIs without a root daemon or a locally spoofable proxy.
-Proceed only if the isolated shared-upgrade tests pass, the agreed telemetry policy is verified,
-and the operator accepts a freshly measured, reduced build. If those conditions
-cannot be met, return to the root-daemon option rather than weakening identity.
+**Recommendation: still A, conditionally.** A dedicated tsnet node gives Couch
+its own HTTPS listener and connection-based WhoIs without a root daemon or
+spoofable local proxy headers. Accept its shared dependency risk only after
+qualification; this experiment does **not** clear the default build for release.
+If that cost is unacceptable, return to the root-daemon option rather than
+weaken identity. Public Cloudflare casts remain unchanged.
 
-| Measured on Go1.27.3, Darwin/arm64 | Existing Couch | tsnet linkage probe |
+| Measured: Go1.27.3, Darwin/arm64 | Existing Couch | tsnet linkage probe |
 | --- | ---: | ---: |
 | Binary bytes | 37,566,322 | 62,699,650 |
 | Nonstandard compiled packages | 129 | 461 |
 | Compiled module identities | 27 | 54 |
 
-The probe adds25,133,328bytes (23.97MiB,66.9%). It retains selected tsnet API
-symbols but is not the final adapter; neither probe binary was run. Cached
-repeat builds were0.613s/0.610s; first-use candidate build59.811s has different
-cache conditions from the5.089s baseline and is not a cold-build comparison.
-RSS, enrolled startup and four-session load are **unmeasured** until the operator
-authorizes the one-device enrollment test.
+Added25,133,328 bytes (**23.97MiB /66.9%**). Neither binary ran; this is selected
+API linkage, not the final adapter. RSS, startup and four-session load remain
+unmeasured until authorized enrollment. Cached builds were0.613s/0.610s;
+first-use builds had unequal cache conditions and do not establish cold cost.
 
-**Shared-upgrade risk:** module selection forces ten existing upgrades, including
-ultraviolet, ansi, colorprofile, runewidth, terminfo and go-colorful, plus
-x/net, oauth2, sync and term. They affect all Couch rendering, not just remote.
-Scratch tests use these upgrades without tsnet: native direct/wrapped Zellij,
-Claude/Codex PTY layout, live Neovim and scrolling passed; cleanup confirmed.
-Complete terminal package passed (186 top-level tests, eight skips). Seven extra
-native-history cases are unqualified: six failed on shell output, while an
-equality-only test passed on that wrong source. One matched original-module
-control failed identically; #828 owns the fixture integrity gap. Both full suites
-are queued. No upgrade-caused regression has been established; this is not full
-rendering clearance. The ten upgraded
-root license texts are unchanged. New embedded web/font asset notices are not
-yet cleared; the compile-only build is not redistribution approval.
+**What the ten shared upgrades broke:** no upgrade-caused regression established.
+The Go1.27.3-only recorded suite passed in10m52s. The upgrade-only full suite
+(no tsnet) completed **exit2**, four failed tests,133 passing Go packages:
+two failures were my scratch PATH omitting Pair/helper; both pass with only
+private same-source prerequisites supplied. One was our missing pure-file
+inventory entries, now audited/fixed with the complete artifactpath package
+passing. The fourth is a symlink-TMPDIR fixture failure reproduced with original
+modules (#831). These controls classify failures; they do not replace the failed
+full run with a green status.
 
-| Risk | Proposed mitigation before product implementation/enrollment |
-| --- | --- |
-| Watch schema is unstable; WhoIs is a local lookup, not fresh control-plane proof | Pin1.104.2 and its initial-status/peer-delta/removal schema; require the initial snapshot and fail closed on signaled overflow, terminal error/EOF, expiry or watch loss. There is no general sequence-based gap detector. WhoIs uses only the captured accepted connection address, exact login policy and current node evidence. Native revocation tests must measure propagation; no promise of instantaneous revocation during partitions. |
-| ListenTLS calls Up with a background context; its certificate helper can wait one minute | Proposed: serialize Start, then context-bound the readiness wait, use tailnet-only Listen and owned TLS wrapping with exact assigned-host SNI. Bind CertPair to epoch cancellation and a handshake deadline. Up calls Start synchronously; its context cannot bound Start. Retain uncertain opening, suppress late readiness. This composition requires review and fake/native qualification. |
-| Close has no whole-call deadline and discards subordinate errors | Revoke sessions/dispatch first, close HTTP listeners, and join exactly one owned Close worker only after Start settles. Five seconds bounds the UI wait, not an asserted library teardown guarantee. Timeout retains ownership in blocked state, no replacement node/reset; confirmed prior-process termination permits explicit recovery under the persisted latch. Restart alone proves neither graceful cleanup nor logout and grants no permission. Qualify this explicitly; do not claim an abandoned goroutine was joined. |
-| Default logtail uploads and unnecessary embedded management UI | Prefer qualifying ts_omit_logtail and ts_omit_webclient build tags, to omit logtail-backed debug/network-log uploads and the management-web import path; verify the resulting asset closure and remaining obligations; measure that new build, do not reuse these size numbers. Tags cannot undo Go module selection or the ten shared upgrades. Alternative logtail.Disable() before any Start is an irreversible process-wide upload opt-out, not a per-node setting or a promise that all telemetry is off. Logf alone is insufficient. No global environment mutation. |
+Native direct/wrapped Zellij, Claude/Codex PTY, nvim and scrolling passed, as did
+the required xterm oracle and complete terminal package (186 top-level passes,
+eight skips). Seven extra native-history cases remain unqualified: six failures
+and one equality-only pass on shell output; original-module control also fails
+(#828). Shared upgrades affect ultraviolet, ansi, colorprofile, runewidth,
+terminfo, go-colorful, x/net, oauth2, sync and term. A clean combined qualification
+is still required before integration.
 
-**Operator setup remains:** approve one Couch node through a console-only login
-link; keep its keys in owned0700 state/0600 files; display its actual assigned
-hostname. No auth key is required. The current desktop app stays installed.
-Off/kill revoke first; link rotation, four-session cap, exact login allowlist,
-capture refusal, audit/transcript provenance and physical-host-only reset remain.
+**Mitigations proposed for approval:**
 
-Evidence: [measurements and exact module changes](../../evidence/000759/tsnet-dependency-20261022/closure-summary.json),
-[pinned API review](../../evidence/000759/tsnet-dependency-20261022/review.md),
-[license inventory](../../evidence/000759/tsnet-dependency-20261022/licenses-summary.md).
+- **Watch/identity:** pin1.104.2; require initial snapshot, terminal-error/EOF and
+  signaled-overflow handling, expiry and exact login policy. WhoIs uses only
+  captured accepted-connection addresses. No general sequence-gap detector or
+  instantaneous revocation promise during partitions.
+- **ListenTLS:** avoid its background-context convenience path. Serialize Start,
+  then context-bound readiness; use tailnet-only Listen with owned TLS wrapping,
+  exact assigned-host SNI and CertPair bounded by epoch and handshake deadline.
+  Up(ctx) cannot cancel synchronous Start. Retain uncertain opening and suppress
+  late readiness. This composition needs review and fake/native qualification.
+- **Close:** revoke first; join one owned Close worker after Start. Five seconds
+  bounds UI waiting, not library cleanup. Timeout stays blocked, with no reset or
+  replacement. Confirmed prior-process termination permits explicit recovery
+  under the persisted latch; restart alone grants no permission or logout proof.
+- **Privacy/cost:** qualify ts_omit_logtail and ts_omit_webclient, then remeasure.
+  They omit logtail-backed debug/network uploads and the management-web import;
+  verify remaining telemetry and license obligations. They cannot undo module
+  selection or shared upgrades. Logf suppression is insufficient; pre-Start
+  logtail.Disable() is an alternative process-wide, irreversible upload opt-out.
+
+The ten upgraded root licenses are unchanged; embedded web/font notices remain
+uncleared. A reduced build needs its own closure and notice review. Operator
+setup remains one console-approved Couch node, actual assigned hostname,
+owned0700 state/0600 files; existing desktop Tailscale stays. Kill/revoke,
+four-session cap, physical-host reset and audit/transcript provenance remain.
+
+[Exact measurements and failure summary](../../evidence/000759/tsnet-dependency-20261022/shared-upgrades-suite-summary.json) ·
+[Pinned API review](../../evidence/000759/tsnet-dependency-20261022/review.md) ·
+[Cost graph](../../evidence/000759/tsnet-dependency-20261022/closure-summary.json) ·
+[License inventory](../../evidence/000759/tsnet-dependency-20261022/licenses-summary.md)

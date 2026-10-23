@@ -945,3 +945,25 @@ instead of the unbounded ListenTLS convenience; one joined Close owner with
 uncertainty retaining blocked authority; and mandatory logtail upload disablement.
 These are proposed API/build refinements awaiting review, not silently substituted
 implementation. The original approved transport/security requirements remain.
+
+
+### 2026-10-22 — dependency decision evidence complete; refinements remain proposals
+
+The isolated Go1.27.3 directive baseline passes. Shared-upgrade-only full suite
+failed four tests: two controlled PATH omissions now pass with private tools,
+one audited pure-file inventory omission is fixed with complete package pass,
+and one independent launcher fixture failure reproduces with original modules
+(#831). Extra native-history oracles remain unqualified under #828. No dependency
+integration or enrollment is cleared by this evidence. See the final one-page
+20261022-tsnet-decision.md side note and preserved logs for operator review.
+
+Clarification to the preceding proposed mitigations: Up(ctx) synchronously calls
+Start, so only readiness after serialized Start is context-bound. Watch supplies
+initial snapshot and terminal/error/EOF/signaled-overflow evidence, no general
+sequence-gap detector. Proposed TLS composition must bind CertPair and handshake
+to epoch/deadline; it is not yet qualified. Close timeout retains blocked owner;
+confirmed prior-process death permits only explicit persisted-latch recovery,
+never automatic reset. Build tags omit specific logtail/web paths, not proven all
+telemetry or license obligations, and cannot undo forced shared module upgrades.
+These API/build choices await review before implementation; existing authority
+and no-enrollment boundaries remain unchanged.

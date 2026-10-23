@@ -1,0 +1,13 @@
+{
+  "kind": "scratch diagnostic, not a recorded passing product head",
+  "start": 1792731886.2677388,
+  "pid": 44474,
+  "cwd": "/Volumes/TestScratch/tmp/pair-slot6/p759-go1273.fQOeV7/shared-upgrades",
+  "command": [
+    "make",
+    "-k",
+    "test"
+  ],
+  "modfile_sha256": "a00b01e78093b2e57c8ba368486c74bf83a907afb95636190ee2c946bc2bd00f",
+  "no_tsnet": true
+}

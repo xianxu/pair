@@ -1073,3 +1073,48 @@ Saved as sdlc-local/suite; full log SHA-256 20a8776c93c7a8561ac19a990aa568d6314f
 Copied log and metadata into the dependency evidence directory. This proves the
 compiler/directive baseline alone; shared-upgrade diagnostic remains queued,
 currently position2. It is not a pass for the candidate dependency or enrollment.
+
+
+### 2026-10-22 — shared-upgrade experiment complete; operator decision required
+
+The retained upgrade-only diagnostic completed exit2 after4070.595s total,
+including3481s queue wait (~9m50s execution). Full shell/editor phases finished;
+Go reported133 passing packages and FOUR failed tests. All failures and the
+original full log/result/command/environment are preserved in the dependency
+evidence directory, not substituted with a passing status.
+
+1. cmd/couch.TestBareCouchInstalledCommand failed before wrapper launch; private
+   experiment PATH omitted pair-launch-helper. Preflight confirms no helper.
+2. couchcmd.TestRecoveryNativeOnlyProductionComposition explicitly failed because
+   pair was absent from that PATH. Built both prerequisites privately from SAME
+   source and upgraded modules; changed only PATH. Both exact tests PASS, no
+   assertion, timeout, source or module change. This is a setup correction, not
+   a same-stimulus retry or flake claim; setup-control/ preserves both results.
+3. artifactpath.TestProductionArtifactReferencesAreExactlyClassified correctly
+   rejected our new tailnet_identity.go and tailnet_node.go absent from inventory.
+   Audited both: pure values/partial IO interface, no artifact constructor or
+   filename authority. Added precisely those NonArtifactSources entries on the
+   issue branch, no quarantine/hash refresh. Complete artifactpath package PASS
+   33.930s on product modules. The diagnostic worktree is left unchanged.
+4. launcher.TestLookupSocketUsesNativeSymlinkParentTraversal failed both temporary
+   subcases constructing frames.json. One matched ORIGINAL-module control on the
+   same source and explicit environment fails identically; explicit/runtime cases
+   pass. Source sets TMPDIR containing alias/.. then allocates fake files with
+   t.TempDir/filepath.Join, the suspected native-vs-cleaned fixture mismatch.
+   Filed #831 unclaimed; no launcher fix folded into #759 and no candidate retry.
+
+Thus no shared-upgrade regression is established, but this is NOT clean full-suite
+clearance. Extra native-history coverage remains unqualified under #828. Primary
+native cohort, required xterm oracle and ordinary terminal package pass. No node,
+SDK Start/LocalClient, auth key, enrollment, visible window or live fleet action.
+Both retained full-suite runners and targeted controls have now exited; no queued
+check or merge remains owned here.
+
+Final one-page decision note: workshop/plans/000759-remote-security-plan.side/20261022-tsnet-decision.md.
+Recommendation remains A conditionally, with the measured23.97MiB/66.9% binary
+cost, shared-upgrade risk, honest test limits and proposed bounded TLS, watch,
+Close and upload-disable mitigations. Next is TL/operator review of those tradeoffs
+and refinements; do not integrate dependency or enroll before that decision.
+No full-suite retry, bypass, flake registration or production transport change.
+
+Final root internal/repolint PASS6.987s; git diff --check clean. No go.mod/go.sum dependency change. Existing exhaustive artifact inventory test is the guard for the two-file omission; no exception/quarantine was added. Both full-suite and all classification control processes are joined. Scratch worktrees retain no authority and may be removed after their text evidence is committed.

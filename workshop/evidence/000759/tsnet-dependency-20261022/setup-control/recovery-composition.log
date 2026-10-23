@@ -1,0 +1,5 @@
+=== RUN   TestRecoveryNativeOnlyProductionComposition
+--- PASS: TestRecoveryNativeOnlyProductionComposition (0.19s)
+PASS
+write budget couchcmd: bytes=176128 cap=100663296 repeats=1
+ok  	github.com/xianxu/pair/cmd/internal/couchcmd	0.559s

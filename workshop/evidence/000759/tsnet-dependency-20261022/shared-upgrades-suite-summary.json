@@ -1,0 +1,21 @@
+{
+  "source": "bfa3f4a22c1e2583e1b1b2eefc118e19ec54d70d",
+  "no_tsnet": true,
+  "exit": 2,
+  "queue_seconds": 3481,
+  "elapsed_seconds_including_queue": 4070.595,
+  "go_pass_packages": 133,
+  "failed_packages": [
+    "FAIL\tgithub.com/xianxu/pair/cmd/couch\t25.564s",
+    "FAIL\tgithub.com/xianxu/pair/cmd/internal/artifactpath\t9.559s",
+    "FAIL\tgithub.com/xianxu/pair/cmd/internal/couchcmd\t89.741s",
+    "FAIL\tgithub.com/xianxu/pair/cmd/internal/launcher\t79.757s"
+  ],
+  "failed_top_level_tests": [
+    "--- FAIL: TestBareCouchInstalledCommand (24.19s)",
+    "--- FAIL: TestProductionArtifactReferencesAreExactlyClassified (2.90s)",
+    "--- FAIL: TestRecoveryNativeOnlyProductionComposition (0.28s)",
+    "--- FAIL: TestLookupSocketUsesNativeSymlinkParentTraversal (0.67s)"
+  ],
+  "interpretation": "Original full run failed. PATH prerequisite controls pass with only private executables added. Missing artifact inventory entries repaired on issue branch, complete root artifactpath package passes. Original-module launcher control reproduces both missing-frames subcases. No upgraded-module regression established; extra native history cases remain unqualified under #828."
+}

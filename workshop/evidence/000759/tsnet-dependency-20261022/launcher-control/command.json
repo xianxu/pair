@@ -1,0 +1,23 @@
+{
+  "argv": [
+    "go",
+    "test",
+    "-modfile=/Volumes/TestScratch/tmp/pair-slot6/p759-go1273.fQOeV7/native-results/original-module-control/baseline.mod",
+    "./cmd/internal/launcher",
+    "-run",
+    "^TestLookupSocketUsesNativeSymlinkParentTraversal$",
+    "-count=1",
+    "-v"
+  ],
+  "environment": {
+    "HOME": "/Users/xianxu",
+    "PATH": "/Volumes/TestScratch/tmp/pair-slot6/p759-go1273.fQOeV7/setup-control/bin:/Users/xianxu/workspace/ariadne/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin",
+    "TMPDIR": "/Volumes/TestScratch/tmp/pair-slot6/p759-go1273.fQOeV7",
+    "GOTOOLCHAIN": "local",
+    "GOWORK": "off",
+    "LANG": "en_US.UTF-8",
+    "TERM": "xterm-256color"
+  },
+  "source": "bfa3f4a22",
+  "control": "Original modules, exact failed test, same scratch environment, no source changes"
+}

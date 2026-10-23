@@ -1,0 +1,54 @@
+[
+  {
+    "name": "build-helper",
+    "argv": [
+      "go",
+      "build",
+      "-o",
+      "/Volumes/TestScratch/tmp/pair-slot6/p759-go1273.fQOeV7/setup-control/bin/pair-launch-helper",
+      "./cmd/pair-launch-helper"
+    ],
+    "exit": 0,
+    "seconds": 19.98779797554016
+  },
+  {
+    "name": "build-pair",
+    "argv": [
+      "go",
+      "build",
+      "-o",
+      "/Volumes/TestScratch/tmp/pair-slot6/p759-go1273.fQOeV7/setup-control/bin/pair",
+      "./cmd/pair-go"
+    ],
+    "exit": 0,
+    "seconds": 15.945157766342163
+  },
+  {
+    "name": "installed-couch",
+    "argv": [
+      "go",
+      "test",
+      "./cmd/couch",
+      "-run",
+      "^TestBareCouchInstalledCommand$",
+      "-count=1",
+      "-v"
+    ],
+    "exit": 0,
+    "seconds": 30.535691022872925
+  },
+  {
+    "name": "recovery-composition",
+    "argv": [
+      "go",
+      "test",
+      "./cmd/internal/couchcmd",
+      "-run",
+      "^TestRecoveryNativeOnlyProductionComposition$",
+      "-count=1",
+      "-v"
+    ],
+    "exit": 0,
+    "seconds": 3.8153719902038574
+  }
+]
