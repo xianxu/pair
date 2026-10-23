@@ -1,13 +1,13 @@
 ---
 id: 000823
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-10-22
 updated: 2026-10-23
 estimate_hours: 4.274
 collaboration-mode: collaboration
-card_mirror: 'fa9f9e93bc2fe7a608cc705372ab1b6b99dfcc4b' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '77f226dc27424a9e499b34e93f7aef1e185c8914' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-23T03:16:56-07:00
 claimant:
     operator: Xian Xu
@@ -17,6 +17,7 @@ claimant:
     worktree: /Users/xianxu/workspace/worktree/pair-slot9/pair
     repository: github.com/xianxu/pair
 flow: {kind: full, provenance: operator}
+actual_hours: 4.31
 ---
 
 # unified-editorial-interface: Couch parses, protects and enforces per-section modes (heading comments, aliases, migration)
