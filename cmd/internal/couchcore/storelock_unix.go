@@ -12,6 +12,10 @@ import (
 	"golang.org/x/sys/unix"
 )
 
+// onStoreLockContended observes each contended poll of a foreground writer,
+// so a test releases a held lock only once the writer is waiting. Tests only.
+var onStoreLockContended func()
+
 // acquireThreadStoreLockWithin takes store.lock for a foreground writer that
 // already holds the retention coordinator (#827). Preview reads take
 // store.lock outside the coordinator, so a writer that refused at the first
@@ -19,10 +23,6 @@ import (
 // overlapped it -- the parks a full quit then left behind. It polls like
 // retentionReadLock, within wait and while check passes, and past wait
 // returns the typed ErrThreadStoreBusy.
-// onStoreLockContended observes each contended poll of a foreground writer,
-// so a test releases a held lock only once the writer is waiting. Tests only.
-var onStoreLockContended func()
-
 func acquireThreadStoreLockWithin(root string, wait time.Duration, check func() error) (*threadStoreLock, error) {
 	deadline := time.Now().Add(wait)
 	for {

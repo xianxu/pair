@@ -216,6 +216,14 @@ for TL: codex rows can list "binding lost — repairable" after a verified park 
 lands before transcript discovery (resume-binding, not park). Atlas couch.md + index
 updated. Next: verification sweep, inventory audit, pushed-head suite, close.
 
+2026-10-23 — Recorded affected run on 0178970cc failed on two branch defects (not
+flakes): artifactpath exhaustive inventory lacked leave_park.go (added beside
+parkworker.go), and onStoreLockContended was inserted between
+acquireThreadStoreLockWithin's godoc and its func (moved above). Both targeted tests
+green; requeued. couchtty TestNativeAgentExitDiagnostics/hup failed once in my
+unrecorded targeted run and passed 3x on the same head; register refused for lack of
+recorded evidence, it did not recur in the recorded suite.
+
 ## Estimate
 
 Produced via brain/data/life/42shots/velocity/estimate-logic-v3.1.md against
