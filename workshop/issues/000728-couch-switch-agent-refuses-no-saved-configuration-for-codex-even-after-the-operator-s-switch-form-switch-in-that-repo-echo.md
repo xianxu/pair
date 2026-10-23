@@ -1,13 +1,13 @@
 ---
 id: 000728
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-10-20
-updated: 2026-10-20
+updated: 2026-10-22
 estimate_hours: 14.58
 collaboration-mode: collaboration
-card_mirror: '087579056e70ca221fbcd3d8626feabeada1fb57' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '35ee9a23f3266658914458caa18cc4c90b6ac20d' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-20T23:31:35-07:00
 claimant:
     operator: Xian Xu
@@ -17,6 +17,7 @@ claimant:
     worktree: /Users/xianxu/workspace/worktree/pair-slot3/pair
     repository: github.com/xianxu/pair
 flow: {kind: full, provenance: inferred}
+actual_hours: 6.89
 ---
 
 # couch --switch-agent refuses 'no saved configuration for codex' even after the operator's switch-form switch in that repo (echo)
