@@ -1,6 +1,6 @@
 ---
 id: 000827
-status: codecomplete
+status: done
 created: 2026-10-22
 updated: 2026-10-23
 estimate_hours: 2.691
@@ -21,6 +21,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: 54ee25977fe7c6710ccc08173c9f7f3907f23a02
         evidence_commit: cdd36de674fc6b8befd857545de48ee04cd21dbf
+        landed_commit: 25905e0ecc875ce080ab401cfb445f54fcfcc20b
 ---
 
 # Alt+x full quit needed three presses: park commits miss the 1 s deadline under load
