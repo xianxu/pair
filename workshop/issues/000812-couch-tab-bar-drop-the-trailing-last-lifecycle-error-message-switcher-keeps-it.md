@@ -157,6 +157,13 @@ Inventory named only renicer_test.go after these edits. Owner audited its entire
 
 Next: commit/push this tested class correction; submit a fresh recorded affected/full run on its exact head; re-run full close for explicit BR-3/BR-4 disposition. No recorded check currently runs: both earlier queued old-head runs were explicitly cancelled for subsequent executable corrections, not passing retries. Local close may precede live acceptance per TL, but recorded proof and coordinated real-console check still precede landing. Stage remains held for #811; await explicit TL go.
 
+
+### 2026-10-23 — round3 verifies sources; async test ordering blocks
+
+Round3 reviewed cafbf526b5ca0ecfbd4b75518de7ac3758585ebf: BR-3 and BR-4 addressed, independently reversed; complete couchtty PASS54.4s and focused five-package/race checks pass. REWORK BR-5 (Important, regression-oracles-follow-contract): lifecycle_diagnostic_attention_test.go queues a diagnostic then opens attention before publication; the helper toggles an empty list, which stays closed after later publication. Reviewer complete couchcmd stalled470.7s at this test and was interrupted, not passed. Our earlier whole-package pass does not refute the controlled ordering gap. ARCH-ORDER correction: require publication acknowledgment in the shared helper, enumerate every caller, and force both publication/input orders without production changes. Bounded test repair delegated; complete couchcmd rerun follows.
+
+Recorded suite lease-2349723115 on cafbf526 never started (FIFO position6 after697s); cancelled with sdlc local-check cancel and runner terminal context-canceled confirmed. No suite pass or retained queue position claimed. Fresh run must use the corrected pushed head. Close measured2.99h, window2026-10-23T05:01:56-07:00 to06:16:43-07:00,7 admitted sessions,1 ownership interval; code cafbf526b5ca0ecfbd4b75518de7ac3758585ebf, tracker51698e2f7f3866a4baad5443693d03b62a3d5c1e. Close did not finalize. Stage/live acceptance remain pending TL go after811.
+
 ## Revisions
 
 ### 2026-10-23 — BR-3/BR-4 exhaustive completion

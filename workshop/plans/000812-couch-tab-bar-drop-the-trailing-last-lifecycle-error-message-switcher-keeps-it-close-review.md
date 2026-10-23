@@ -219,3 +219,110 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-23T06:30:41-07:00 (REWORK)
+
+| field | value |
+|-------|-------|
+| issue | 812 — Couch tab bar: drop the trailing last lifecycle/error message (switcher keeps it) |
+| repo | pair |
+| issue file | workshop/issues/000812-couch-tab-bar-drop-the-trailing-last-lifecycle-error-message-switcher-keeps-it.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | c0dbb32decc052500172ded01ff36e3fa8e49cc9..cafbf526b5ca0ecfbd4b75518de7ac3758585ebf |
+| command | sdlc close --issue 812 |
+| reviewer | codex (openai; author openai) |
+| isolation | fenced |
+| timestamp | 2026-10-23T06:30:41-07:00 |
+| verdict | REWORK |
+
+## Review
+
+```verdict
+verdict: REWORK
+confidence: high
+```
+
+The presentation change and both prior corrections are supported by code and regression evidence. One new test-ordering defect blocks qualification: an asynchronous warning test can open an empty attention list before publication, then wait indefinitely for a closed panel to render. The complete `couchcmd` run stalled there; focused passes do not resolve that ordering gap.
+
+```findings
+dispose:
+  - id: BR-3
+    disposition: addressed
+    note: |
+      Production uses newConsoleRenicer with exact binding identity. Reverting Warn to Notify in a disposable checkout fails TestRenicerConsoleWarningIsOncePerExactBinding; normal-priority controls pass. The plan now enumerates remaining producer classes.
+  - id: BR-4
+    disposition: addressed
+    note: |
+      Named terminal oracles now assert supported badges, retained feed and switcher surfaces while preserving ordering/focus invariants. Startup supplies retained ownership evidence and joins restart-drained. It passes 20 repetitions; restoring the previous fixture fails all five reversal runs.
+findings:
+  - id: new
+    severity: Important
+    kind: defect
+    family: regression-oracles-follow-contract
+    title: |
+      Async warning test opens attention before publication is guaranteed
+    detail: |
+      cmd/internal/couchcmd/lifecycle_diagnostic_attention_test.go:19 calls openWarningAttention immediately after queuing the diagnostic. The helper at notice_attention_test.go:45 toggles first, but console_attention.go:144 leaves an empty list closed; later warning publication does not open it. The complete package run stalled here for minutes, confirmed by its captured stack, and was interrupted at 470.7 seconds. This is the 2nd finding in family regression-oracles-follow-contract. ARCH-ORDER: fix the class by requiring publication acknowledgment before opening attention across every asynchronous helper caller, and force both publication/input orderings in regression coverage.
+```
+
+1. **Strengths**
+
+   - Removing `StatusModel.Notice` eliminates the trailing message path from both layouts.
+   - `console_menu.go:54` derives switcher text from retained Feed history while preserving operation/copy precedence.
+   - `renicer.go:199` preserves the producer’s exact binding through production warning wiring.
+   - README and atlas document the changed presentation, warning classification and navigation.
+
+2. **Critical findings**
+
+   None.
+
+3. **Important findings**
+
+   The asynchronous attention-test race above. Add a publication barrier to the shared testing contract and audit its callers; avoid fixing only this test.
+
+4. **Minor findings**
+
+   None.
+
+5. **Test coverage notes**
+
+   - Complete `couchtty`: PASS, 54.4 seconds.
+   - Focused tests across five affected packages: PASS.
+   - Focused `couchtty`/`couchcmd` race checks: PASS.
+   - Startup success fixture: PASS ×20; both reversal checks failed as expected.
+   - Inventory and diff whitespace checks: PASS.
+   - Complete `couchcmd`: interrupted after the confirmed stall; no package pass claimed.
+   - Disposable reversal checkout removed; reviewed checkout unchanged.
+
+6. **Architectural notes**
+
+   - **ARCH-DRY — pass:** Feed remains the history owner; shared snapshot projection serves both menu paths.
+   - **ARCH-PURE — pass:** rendering and warning projection remain pure; publication stays in console glue.
+   - **ARCH-PURPOSE — pass:** removal, switcher retention and explicit producer classification fulfill the requested behavior.
+   - **ARCH-MOCK — pass:** changed behavior uses existing injected process/browser/terminal seams.
+   - **ARCH-CONSTRAINTS — pass:** attention projection retains existing capacity and expiry bounds.
+   - **ARCH-SECURE — pass:** projected text is bounded and sanitized; lockout tests check secret safety.
+   - **ARCH-ORDER — flag:** asynchronous test input lacks a publication barrier, as detailed above.
+   - **ARCH-FUNERAL — pass:** no new durable artifact family; attention retains existing dismissal/expiry.
+   - **ARCH-EVOLVE — pass:** no persisted-format change; cleanup warning is explicitly nonserialized.
+
+7. **Plan revision recommendations**
+
+   Add a `## Revisions` entry requiring publication acknowledgment before attention-panel assertions, an audit of all asynchronous helper callers, and controlled coverage of both event orderings. Preserve the separately pending recorded-check and live-acceptance requirements.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"a09cbb80-6972-4c9c-b4ed-07931fc6c3c5","repository":"github.com/xianxu/pair","issue_id":"000812","recipe":"milestone-review","round":3,"attempt":1,"agent":"codex","root":"/Volumes/TestScratch/review-checkouts/53e4eba121cf521e","reviewed_head":"cafbf526b5ca0ecfbd4b75518de7ac3758585ebf","slot":"pair:1","requested_at":"2026-10-23T13:20:21.224581Z"},"phase":"finished","pid":68622,"started_at":"2026-10-23T13:20:21.333787Z","finished_at":"2026-10-23T13:30:39.668318Z","session_id":"01a168eb-6c8a-7a01-b817-90049483eede","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 2.219503916s
+head: "cafbf526b5ca0ecfbd4b75518de7ac3758585ebf"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412

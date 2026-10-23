@@ -214,3 +214,7 @@ Chrome callback sub-enumeration remains the preceding BR-2 revision: recovered o
 | CLI-only diagnostic branches | Existing stderr; no console publication to migrate. |
 
 Authenticated TLd40218f2-3381-4372-b703-fbbf844e9c74 approves exactly one capacity latch bool under the existing publisher mutex, set at first128-hub overflow, limiting that capacity warning to once per publisher lifetime. Capacity cannot recover within that lifetime. No other new source state, map, queue, lock or retry is approved. This is the only added suppression latch in this correction; existing source once/episode guards otherwise remain the owner.
+
+### 2026-10-23 — BR-5 publication before test input
+
+Asynchronous warning acceptance helpers must acknowledge actual attention publication before sending the opening key; queuing or callback admission is not publication. Audit all openWarningAttention callers, including synchronous producers, and force both early-input and already-published orderings in regression coverage. Keep production empty-list behavior unchanged. Qualification remains pending a corrected complete package, recorded check, clean close and coordinated real-console acceptance.
