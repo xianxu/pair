@@ -572,6 +572,12 @@ $(BIN_DIR)/pair: $(PAIR_GO_SRCS)
 $(BIN_DIR)/couch: $(PAIR_GO_SRCS)
 	bash scripts/build-go-atomic.sh "$@" ./cmd/couch
 
+.PHONY: couch-conformance-bridge
+couch-conformance-bridge: $(BIN_DIR)/couch-conformance-bridge
+
+$(BIN_DIR)/couch-conformance-bridge: $(PAIR_GO_SRCS)
+	bash scripts/build-go-atomic.sh "$@" ./cmd/couch-conformance-bridge
+
 $(BIN_DIR)/pair-launch-helper: $(PAIR_GO_SRCS)
 	bash scripts/build-go-atomic.sh "$@" ./cmd/pair-launch-helper
 
