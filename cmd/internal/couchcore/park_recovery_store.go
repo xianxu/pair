@@ -23,10 +23,10 @@ func (s *ThreadStore) withUpdateLockContext(ctx context.Context, run func() erro
 			if err := held.RegisterStore(s.namespace.Dir()); err != nil {
 				return err
 			}
-			return s.withStoreLockChecked(run, held.CheckContext)
+			return s.withStoreLockChecked(run, held.CheckContext, storeReadLockWait)
 		})
 	}
-	return s.withStoreLockChecked(run, ctx.Err)
+	return s.withStoreLockChecked(run, ctx.Err, storeReadLockWait)
 }
 
 // RetireInterruptedPark closes failed bookkeeping and retires only the exact
@@ -53,7 +53,8 @@ func (s *ThreadStore) rollbackUnpublishedPark(ctx context.Context, current Threa
 }
 
 // recoveryBackend bounds both routing reads and the explicit journal replay
-// needed after a lost mutation reply. It never waits on a nested busy store.
+// needed after a lost mutation reply. It waits on a busy nested store only
+// within storeReadLockWait, then refuses typed (#827).
 func (s *ThreadStore) recoveryBackend(ctx context.Context, address ThreadAddress) (*ThreadStore, error) {
 	if err := validateThreadAddress(address); err != nil {
 		return nil, err

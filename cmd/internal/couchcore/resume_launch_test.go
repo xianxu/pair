@@ -85,14 +85,21 @@ func TestResumeLaunchExactProfileMatrix(t *testing.T) {
 					env.Artifacts.SetPairSession(parked.Address, continuationChildSession(t, env.Runner, id), true)
 					return nil
 				}
-				env.Couch.RepoAgentDefault = func(_, _ string) (LaunchProfile, bool, error) {
-					t.Fatal("resume consulted repository defaults")
-					return LaunchProfile{}, false, nil
+				seedSwitchRepoArguments(t, env.Couch, parked.StartingPath, LaunchProfile{Agent: agent, Argv: []string{"--model", "different-repo-setting"}})
+				beforePreferences, err := env.Couch.Threads.previewRepoPreferences()
+				if err != nil {
+					t.Fatal(err)
 				}
 
+				startupBegan := time.Now()
 				record, handle, err := env.Couch.Resume(parked.Address)
+				startupReturned := time.Now()
 				if err != nil {
 					t.Fatalf("Resume: %v", err)
+				}
+				afterPreferences, err := env.Couch.Threads.previewRepoPreferences()
+				if err != nil || !reflect.DeepEqual(beforePreferences, afterPreferences) {
+					t.Fatalf("automatic resume learned configuration: %+v %v", afterPreferences, err)
 				}
 				child := env.Runner.Child(handle.ID())
 				if record.Thread != parked.Address || child.Dir != "/repo/sub" ||
@@ -113,7 +120,8 @@ func TestResumeLaunchExactProfileMatrix(t *testing.T) {
 					launcher.CouchLaunchProfileEnv + "=" + strings.TrimSpace(raw),
 					"PAIR_USE_REPO_DEFAULT=",
 				}
-				wantEnv = append(wantEnv, managedIntentEnvForTest(t, child.Env))
+				wantEnv = append(wantEnv, managedIntentEnvForTest(t, child.Env),
+					startupDeadlineEnvForTest(t, child.Env, startupBegan, startupReturned))
 				if !slices.Equal(child.Env, wantEnv) {
 					t.Fatalf("resume env = %q, want %q", child.Env, wantEnv)
 				}

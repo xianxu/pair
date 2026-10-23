@@ -3,13 +3,46 @@
 package couchcore
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
+	"time"
 
 	"golang.org/x/sys/unix"
 )
+
+// onStoreLockContended observes each contended poll of a foreground writer,
+// so a test releases a held lock only once the writer is waiting. Tests only.
+var onStoreLockContended func()
+
+// acquireThreadStoreLockWithin takes store.lock for a foreground writer that
+// already holds the retention coordinator (#827). Preview reads take
+// store.lock outside the coordinator, so a writer that refused at the first
+// EWOULDBLOCK failed whenever a sibling's routing read or a switcher refresh
+// overlapped it -- the parks a full quit then left behind. It polls like
+// retentionReadLock, within wait and while check passes, and past wait
+// returns the typed ErrThreadStoreBusy.
+func acquireThreadStoreLockWithin(root string, wait time.Duration, check func() error) (*threadStoreLock, error) {
+	deadline := time.Now().Add(wait)
+	for {
+		lock, err := acquireThreadStoreLockMode(root, true)
+		if err == nil || !(errors.Is(err, unix.EWOULDBLOCK) || errors.Is(err, unix.EAGAIN)) {
+			return lock, err
+		}
+		if err := check(); err != nil {
+			return nil, err
+		}
+		if !time.Now().Before(deadline) {
+			return nil, fmt.Errorf("lock thread store: %w", ErrThreadStoreBusy)
+		}
+		if onStoreLockContended != nil {
+			onStoreLockContended()
+		}
+		time.Sleep(storeReadLockPoll)
+	}
+}
 
 func acquireThreadStoreLockMode(root string, nonblocking bool) (*threadStoreLock, error) {
 	if err := os.MkdirAll(root, 0o700); err != nil {
@@ -37,4 +70,17 @@ func unlockThreadStoreFile(file *os.File) error {
 		return nil
 	}
 	return errors.Join(unix.Flock(int(file.Fd()), unix.LOCK_UN), file.Close())
+}
+
+// waitForStoreLockContext waits between nonblocking admission attempts.
+// A cancellable wake avoids leaving a goroutine blocked in flock after return.
+func waitForStoreLockContext(ctx context.Context) error {
+	timer := time.NewTimer(10 * time.Millisecond)
+	defer timer.Stop()
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-timer.C:
+		return nil
+	}
 }

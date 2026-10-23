@@ -140,6 +140,12 @@ func expectedRowActions(s menuRowShape) []string {
 		}
 		return []string{"detach", "relaunch", "park", "switch-agent", "reboot", "alias", "add-slot"}
 	case couchcore.ThreadParked, couchcore.ThreadDetached:
+		if s.state == couchcore.ThreadParked && !unfinished {
+			if s.slot {
+				return []string{"recover", "resume", "reboot", "switch-agent"}
+			}
+			return []string{"recover", "resume", "reboot", "switch-agent", "add-slot"}
+		}
 		// A stopped :0 still offers add slot: a new slot needs nothing from
 		// :0's agent (pair#402).
 		if !s.slot {
@@ -148,6 +154,9 @@ func expectedRowActions(s menuRowShape) []string {
 		return []string{"recover", "resume", "reboot"}
 	case couchcore.ThreadUnusable:
 		offers := expectedUnusableActions(s, unfinished)
+		if !unfinished && (couchcore.IsBindingFailure(s.reason) || s.reason == couchcore.ReasonSessionGone) {
+			offers = append(offers, "switch-agent")
+		}
 		// Ordinary unusable rows may additionally offer add slot.
 		if !s.slot && len(offers) > 0 && s.reason != couchcore.ReasonPathMissing && s.reason != couchcore.ReasonNeedsRelaunch && s.reason != couchcore.ReasonUnknown {
 			offers = append(offers, "add-slot")
@@ -633,15 +642,15 @@ func TestReapSuccessClosesItsConfirmation(t *testing.T) {
 func TestOperationProgressUpdatesOnlyItsOwnNotice(t *testing.T) {
 	state := MenuState{Notice: MenuNotice{Level: MenuNoticeProgress, Text: "recovering pair:6…", Owner: MenuProgressOwner{OperationAttempt: 7}}}
 	setTestMenuOperation(&state, MenuOperationOrigin{Operation: "recover", Attempt: 7})
-	next := updateOperationProgress(state, 7, "step 1/2: reaping orphaned server PID 9090")
+	next := updateOperationProgress(state, 7, "step 1/2: reaping orphaned server PID 9090", state.ObservedAt)
 	if !strings.Contains(next.Notice.Text, "step 1/2: reaping orphaned server PID 9090") || next.Notice.Level != MenuNoticeProgress {
 		t.Fatalf("notice = %+v", next.Notice)
 	}
-	if other := updateOperationProgress(state, 8, "stale"); other.Notice.Text != state.Notice.Text {
+	if other := updateOperationProgress(state, 8, "stale", state.ObservedAt); other.Notice.Text != state.Notice.Text {
 		t.Fatalf("another attempt's progress changed the notice: %q", other.Notice.Text)
 	}
 	state.Notice.Level = MenuNoticeError
-	if done := updateOperationProgress(state, 7, "late"); done.Notice.Text != state.Notice.Text {
+	if done := updateOperationProgress(state, 7, "late", state.ObservedAt); done.Notice.Text != state.Notice.Text {
 		t.Fatalf("progress overwrote a finished notice: %q", done.Notice.Text)
 	}
 }

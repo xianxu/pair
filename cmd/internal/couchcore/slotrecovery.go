@@ -401,7 +401,7 @@ func (c *Couch) startFreshSlotWithRecovery(ctx context.Context, path, agent stri
 			ArgvSource:  accepted.ArgvSource,
 		}
 	} else {
-		profile, err = c.slotLaunchProfile(local, slot, cwd, agent)
+		profile, err = c.slotLaunchProfile(ctx, local, slot, cwd, agent)
 		if err != nil {
 			return StartResult{}, err
 		}
@@ -423,7 +423,8 @@ func (c *Couch) startFreshSlotWithRecovery(ctx context.Context, path, agent stri
 	}
 	var recoveryIntent threadrecord.RecoveryIntent
 	record, nonce, err := c.claimFreshRecord(ctx, freshClaimInput{
-		ScopeKey: scope.Key, Cwd: cwd, RepoIdentity: slot.RepoIdentity, TagPrefix: filepath.Base(slot.PrimaryRoot),
+		RememberConfiguration: mode == freshSlotOrdinary,
+		ScopeKey:              scope.Key, Cwd: cwd, RepoIdentity: slot.RepoIdentity, TagPrefix: filepath.Base(slot.PrimaryRoot),
 		Profile: profile, Used: used, Store: local,
 		Commit: func(record ThreadRecord) error {
 			if mode == freshSlotRecordlessRecovery {
@@ -474,41 +475,29 @@ func (c *Couch) startFreshSlotWithRecovery(ctx context.Context, path, agent stri
 	return StartResult{Record: actor, Handle: handle}, err
 }
 
-func (c *Couch) slotLaunchProfile(local *ThreadStore, slot SlotIdentity, cwd, agent string) (LaunchProfileResolution, error) {
-	preference, found, err := local.GetPathLaunchPreference(slot.RepoIdentity, cwd)
+func (c *Couch) slotLaunchProfile(ctx context.Context, local *ThreadStore, slot SlotIdentity, cwd, agent string) (LaunchProfileResolution, error) {
+	// Repository preview always reads the global Couch namespace without writes,
+	// including when recovery supplies a read-only local thread backend.
+	document, _, err := c.previewRepositoryPreferences(ctx)
 	if err != nil {
 		return LaunchProfileResolution{}, err
 	}
-	var saved *PathLaunchPreference
-	if found {
+	var saved *RepoLaunchPreference
+	if preference, found := document.Repositories[slot.RepoIdentity]; found {
 		saved = &preference
 	}
 	root := c.RootAgent
 	if root == "" {
 		root = "claude"
 	}
-	inputs := LaunchProfileInputs{ExplicitAgent: agent, Path: saved, RootAgent: root}
-	selected, err := ResolveLaunchProfile(inputs)
+	selected, err := ResolveLaunchProfile(LaunchProfileInputs{ExplicitAgent: agent, Repo: saved, RootAgent: root})
 	if err != nil {
 		return selected, err
 	}
 	if !launcher.IsSupportedAgent(selected.Profile.Agent) {
 		return selected, errors.New("unsupported slot launch agent")
 	}
-	if c.RepoAgentDefault != nil {
-		scope, scopeErr := launcher.ResolveRepoScope(slot.WorktreeRoot)
-		if scopeErr != nil {
-			return selected, scopeErr
-		}
-		value, ok, err := c.repoLaunchDefault(cwd, slot.PrimaryRoot, selected.Profile.Agent, slot.RepoIdentity, scope.Key)
-		if err != nil {
-			return selected, err
-		}
-		if ok {
-			inputs.RepoDefault = &value
-		}
-	}
-	return ResolveLaunchProfile(inputs)
+	return selected, nil
 }
 
 // OpenSlot resumes the current conversation, or reconstructs exactly one

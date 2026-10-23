@@ -1,0 +1,4 @@
+real: PASS: native frontend/private-socket/register/same-attach-retry/desktop-takeover/stale-register/stale-unregister/detach/lookup-retirement/side-doc/same-editor-distinct-listeners/producer-native-handshake/exact-supersession-notice
+fake: PASS: native frontend/private-socket/register/same-attach-retry/desktop-takeover/stale-register/stale-unregister/detach/lookup-retirement/side-doc/same-editor-distinct-listeners (fake client/authority controls; producer native handshake and advisory notification unqualified)
+PASS: deliberately corrupted fake rejected by production-client probe
+All fixture, singleton and adopted-store paths were temporary and have been removed on exit.

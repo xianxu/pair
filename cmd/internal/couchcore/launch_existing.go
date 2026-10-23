@@ -12,6 +12,7 @@ import (
 	"encoding/json"
 	"github.com/xianxu/pair/cmd/internal/launcher"
 	"github.com/xianxu/pair/cmd/internal/panebirth"
+	"github.com/xianxu/pair/cmd/internal/startupbudget"
 )
 
 // RecoveryLaunchUnconfirmed preserves an attempt that may already own a native
@@ -28,6 +29,7 @@ func (e *RecoveryLaunchUnconfirmed) Error() string {
 func (e *RecoveryLaunchUnconfirmed) Unwrap() error { return e.Cause }
 
 type trackedThreadLaunch struct {
+	Rollback       *startRollbackReceipt
 	Recovery       bool
 	Background     bool
 	Context        context.Context
@@ -58,13 +60,21 @@ func (c *Couch) launchTrackedThread(in trackedThreadLaunch) (ActorRecord, Handle
 	if ctx == nil {
 		ctx = context.Background()
 	}
+	caller := ctx
+	ctx, startupDeadline, stopStartup, startupErr := c.trackedStartupBudget(ctx, in.Resume || in.Fresh)
+	if startupErr != nil {
+		return ActorRecord{}, nil, errors.Join(startupErr, c.rollbackTrackedStart(in.Thread, in.Nonce))
+	}
+	defer stopStartup()
+	ctx, describeStartupFailure := trackStartupProgress(ctx)
+	reportProgress(ctx, "preparing startup")
 	steps := newLaunchSteps(ctx, in.Begun)
 	stage := "prepare"
 	fail := func(h Handle, cause error, cleanup func() error) error {
-		return c.captureLaunchFailure(in, stage, h, cause, cleanup)
+		return c.captureLaunchFailure(in, stage, h, describeStartupFailure(cause), cleanup)
 	}
 	rollback := func(thread ThreadRecord, cause error) error {
-		return fail(nil, cause, func() error { return c.rollbackTrackedStart(thread, in.Nonce) })
+		return fail(nil, cause, func() error { return c.rollbackTrackedStartObserved(thread, in.Nonce, in.Rollback) })
 	}
 	if err := freshNonceReachesPair(in); err != nil {
 		return ActorRecord{}, nil, rollback(in.Thread, err)
@@ -173,7 +183,7 @@ func (c *Couch) launchTrackedThread(in trackedThreadLaunch) (ActorRecord, Handle
 		return ActorRecord{}, nil, rollback(thread, err)
 	}
 	argv = append([]string{argv[0], launcher.CouchSessionFlag}, argv[1:]...)
-	env = append(env, launcher.CouchSessionIntentEnv+"="+string(intent))
+	env = append(env, launcher.CouchSessionIntentEnv+"="+string(intent), startupbudget.DeadlineEnv+"="+startupbudget.Encode(startupDeadline))
 	steps.mark("prepare")
 	stage = "spawn"
 	launchDir := in.Args.WorkingDir()
@@ -182,13 +192,13 @@ func (c *Couch) launchTrackedThread(in trackedThreadLaunch) (ActorRecord, Handle
 		// Keep recorded paths intact; use a neutral existing helper directory.
 		launchDir = string(filepath.Separator)
 	}
-	h, err := c.Runner.StartBlocked(ctx, launchDir, argv, env, 10*time.Second)
+	h, err := c.Runner.StartBlocked(ctx, launchDir, argv, env, time.Until(startupDeadline))
 	steps.mark("spawn")
 	if err != nil {
 		return ActorRecord{}, nil, rollback(thread, fmt.Errorf("spawn %s: %w", in.Args.Worktree, err))
 	}
 	if err := ctx.Err(); err != nil {
-		return ActorRecord{}, h, fail(h, err, func() error { return c.failTrackedPreAckStart(thread, in.Nonce, h, nil) })
+		return ActorRecord{}, h, fail(h, err, func() error { return c.failTrackedPreAckStart(thread, in.Nonce, h, nil, in.Rollback) })
 	}
 	recorded, err := c.Threads.AdvanceStart(thread.Address, thread.Revision, StartEvent{
 		Kind:   StartHelperRecorded,
@@ -197,12 +207,12 @@ func (c *Couch) launchTrackedThread(in trackedThreadLaunch) (ActorRecord, Handle
 	})
 	if err != nil {
 		return ActorRecord{}, h, fail(h, fmt.Errorf("record blocked helper %+v: %w", thread.Address, err), func() error {
-			return c.failTrackedPreAckStart(thread, in.Nonce, h, nil)
+			return c.failTrackedPreAckStart(thread, in.Nonce, h, nil, in.Rollback)
 		})
 	}
 	thread = recorded
 	if err := ctx.Err(); err != nil {
-		return ActorRecord{}, h, fail(h, err, func() error { return c.failTrackedPreAckStart(thread, in.Nonce, h, nil) })
+		return ActorRecord{}, h, fail(h, err, func() error { return c.failTrackedPreAckStart(thread, in.Nonce, h, nil, in.Rollback) })
 	}
 	// A cold resume starts a new zellij server, so its registration must not
 	// ask zellij anything until the thread's pane has been born (#287).
@@ -213,27 +223,28 @@ func (c *Couch) launchTrackedThread(in trackedThreadLaunch) (ActorRecord, Handle
 	if shape == StartColdResume {
 		var err error
 		if birth, err = c.coldResumeBirthBaseline(thread.Address); err != nil {
-			return ActorRecord{}, h, fail(h, err, func() error { return c.failTrackedPreAckStart(thread, in.Nonce, h, nil) })
+			return ActorRecord{}, h, fail(h, err, func() error { return c.failTrackedPreAckStart(thread, in.Nonce, h, nil, in.Rollback) })
 		}
 	}
 	steps.mark("record+baseline")
 	stage = "acknowledge"
+	reportProgress(ctx, "waiting for helper acknowledgement")
 	ackErr := h.Acknowledge()
 	if ackErr != nil {
 		ackErr = fmt.Errorf("acknowledge blocked helper %+v: %w", thread.Address, ackErr)
 		if !in.Recovery {
-			return ActorRecord{}, h, fail(h, ackErr, func() error { return c.failTrackedPostAckStart(shape, thread, in.Nonce, h, nil) })
+			return ActorRecord{}, h, fail(h, ackErr, func() error { return c.failTrackedPostAckStart(shape, thread, in.Nonce, h, nil, in.Rollback) })
 		}
 	}
 	if err := ctx.Err(); err != nil && !in.Recovery {
-		return ActorRecord{}, h, fail(h, err, func() error { return c.failTrackedPostAckStart(shape, thread, in.Nonce, h, nil) })
+		return ActorRecord{}, h, fail(h, err, func() error { return c.failTrackedPostAckStart(shape, thread, in.Nonce, h, nil, in.Rollback) })
 	}
 	recoveryObserved := false
 	reobserve := func() error {
 		recoveryObserved = true
 		// A cancelled caller ends its wait, not the native launch. This independent
 		// read-only look is bounded and addresses only the already-started attempt.
-		final, cancel := context.WithTimeout(context.WithoutCancel(ctx), exitedFinalLook)
+		final, cancel := context.WithTimeout(context.WithoutCancel(caller), exitedFinalLook)
 		defer cancel()
 		return c.reobserveRecoveryRegistration(final, thread, in, birth)
 	}
@@ -241,7 +252,7 @@ func (c *Couch) launchTrackedThread(in trackedThreadLaunch) (ActorRecord, Handle
 		if !recoveryObserved {
 			cause = errors.Join(cause, reobserve())
 		}
-		final, cancel := context.WithTimeout(context.WithoutCancel(ctx), recoveryObservationTimeout)
+		final, cancel := context.WithTimeout(context.WithoutCancel(caller), recoveryObservationTimeout)
 		released, dispositionErr := c.finalizeFailedRecoveryLaunch(final, thread, in.Nonce, h)
 		cancel()
 		if released {
@@ -250,22 +261,18 @@ func (c *Couch) launchTrackedThread(in trackedThreadLaunch) (ActorRecord, Handle
 		cause = errors.Join(cause, dispositionErr)
 		return &RecoveryLaunchUnconfirmed{Address: thread.Address, Nonce: in.Nonce, Cause: fail(h, cause, nil)}
 	}
-	registrationTimeout := pairRegistrationTimeout
-	if (in.Resume || in.Fresh) && c.resumeRegistrationTimeout > 0 {
-		registrationTimeout = c.resumeRegistrationTimeout
-	}
+	registrationTimeout := time.Until(startupDeadline)
 	steps.mark("ack")
+	registrationContext, stopExitWatch := whileHelperAlive(ctx, h)
 	deadline := c.registrationDeadline
 	if deadline == nil {
 		deadline = context.WithTimeout
 	}
-	// The exit watch sits under the deadline, so the deadline's own
-	// cancellation reaches the wait loops directly.
-	registrationContext, stopExitWatch := whileHelperAlive(ctx, h)
 	registrationContext, cancelRegistration := deadline(registrationContext, registrationTimeout)
 	await := func(ctx context.Context) error {
 		switch {
 		case in.Fresh:
+			reportProgress(ctx, "waiting for agent readiness")
 			if err := c.awaitFreshRegistration(ctx, thread.Address, in.Args.Stack, in.Nonce); err != nil {
 				return err
 			}
@@ -273,6 +280,7 @@ func (c *Couch) launchTrackedThread(in trackedThreadLaunch) (ActorRecord, Handle
 		case in.Resume:
 			return c.awaitResumeRegistration(ctx, thread.Address, birth)
 		}
+		reportProgress(ctx, "waiting for Pair registration")
 		return c.awaitThreadRegistration(ctx, thread.Address)
 	}
 	stage = "registration"
@@ -281,6 +289,9 @@ func (c *Couch) launchTrackedThread(in trackedThreadLaunch) (ActorRecord, Handle
 		err = await(registrationContext)
 	}
 	cancelRegistration()
+	if err == nil && !in.Recovery {
+		err = ctx.Err()
+	}
 	exited := stopExitWatch()
 	if in.Recovery {
 		if err != nil || exited {
@@ -292,7 +303,7 @@ func (c *Couch) launchTrackedThread(in trackedThreadLaunch) (ActorRecord, Handle
 		}
 	} else if exited {
 		// Ordinary launch retains its existing post-exit final look.
-		final, cancelFinal := context.WithTimeout(ctx, exitedFinalLook)
+		final, cancelFinal := context.WithTimeout(caller, exitedFinalLook)
 		if await(final) == nil {
 			err, exited = nil, false
 		}
@@ -305,7 +316,7 @@ func (c *Couch) launchTrackedThread(in trackedThreadLaunch) (ActorRecord, Handle
 			diagnosis = " (Pair exited before registering -- look at the launch: its stderr and the zellij log)"
 		}
 		cause := fmt.Errorf("await Pair registration %+v: %w [steps: %s]%s", thread.Address, err, steps, diagnosis)
-		return ActorRecord{}, h, fail(h, cause, func() error { return c.failTrackedPostAckStart(shape, thread, in.Nonce, h, nil) })
+		return ActorRecord{}, h, fail(h, cause, func() error { return c.failTrackedPostAckStart(shape, thread, in.Nonce, h, nil, in.Rollback) })
 	}
 	// The layout witness rides this transaction, and only at a cold boundary:
 	// `in.Warm` chose no layout (see the argv above), so it records none -- nil,
@@ -315,6 +326,7 @@ func (c *Couch) launchTrackedThread(in trackedThreadLaunch) (ActorRecord, Handle
 		chosen := c.Layout
 		registeredLayout = &chosen
 	}
+	configuration := acceptedConfigurationForStart(thread, in)
 	stage = "promote registration"
 	registeredThread, err := c.Threads.AdvanceStart(thread.Address, thread.Revision, StartEvent{
 		Kind: StartRegistered, Nonce: in.Nonce, Layout: registeredLayout,
@@ -330,7 +342,7 @@ func (c *Couch) launchTrackedThread(in trackedThreadLaunch) (ActorRecord, Handle
 		if in.Recovery {
 			return ActorRecord{}, h, unconfirmed(cause)
 		}
-		return ActorRecord{}, h, fail(h, cause, func() error { return c.failTrackedPostAckStart(shape, thread, in.Nonce, h, nil) })
+		return ActorRecord{}, h, fail(h, cause, func() error { return c.failTrackedPostAckStart(shape, thread, in.Nonce, h, nil, in.Rollback) })
 	}
 	thread = registeredThread
 
@@ -349,6 +361,7 @@ func (c *Couch) launchTrackedThread(in trackedThreadLaunch) (ActorRecord, Handle
 		}
 		return record, h, fail(h, cause, func() error { return c.failPostAckStart(thread.Address, h, shape, nil) })
 	}
+	record.configuration = configuration
 	steps.mark("promotion+registry")
 	return record, h, nil
 }
@@ -391,14 +404,14 @@ func (c *Couch) reobserveRecoveryRegistration(ctx context.Context, thread Thread
 	return ctx.Err()
 }
 
-func (c *Couch) failTrackedPreAckStart(thread ThreadRecord, nonce string, h BlockedHandle, cause error) error {
+func (c *Couch) failTrackedPreAckStart(thread ThreadRecord, nonce string, h BlockedHandle, cause error, receipt *startRollbackReceipt) error {
 	cancelErr := h.Cancel()
 	if cancelErr == nil {
 		_ = h.Wait()
 	}
 	var rollbackErr error
 	if cancelErr == nil && !h.Alive() {
-		rollbackErr = c.rollbackTrackedStart(thread, nonce)
+		rollbackErr = c.rollbackTrackedStartObserved(thread, nonce, receipt)
 	}
 	return errors.Join(cause, cancelErr, rollbackErr)
 }
@@ -411,8 +424,8 @@ func (c *Couch) failTrackedPreAckStart(thread ThreadRecord, nonce string, h Bloc
 // tail, a cold resume may end the session it created, and a warm reattach must
 // end only its helper, because the session it attached to predates it and holds
 // the agent the reattach exists to preserve.
-func (c *Couch) failTrackedPostAckStart(shape StartShape, thread ThreadRecord, nonce string, h Handle, cause error) error {
-	return errors.Join(cause, c.applyStartCleanup(shape, thread.Address, nonce, h, false))
+func (c *Couch) failTrackedPostAckStart(shape StartShape, thread ThreadRecord, nonce string, h Handle, cause error, receipt *startRollbackReceipt) error {
+	return errors.Join(cause, c.applyStartCleanupObserved(shape, thread.Address, nonce, h, false, receipt))
 }
 
 // observeSessionPresence answers the decider's Presence input, and returns WHY
@@ -504,6 +517,7 @@ func (c *Couch) awaitResumeRegistration(ctx context.Context, address ThreadAddre
 	wait := &registrationWaitError{phase: "ownership poll", last: "none"}
 	start := time.Now()
 	if birth != nil {
+		reportProgress(ctx, "waiting for pane birth")
 		err := c.awaitPaneBirth(ctx, address, *birth)
 		wait.birth = time.Since(start)
 		if err != nil {
@@ -511,6 +525,7 @@ func (c *Couch) awaitResumeRegistration(ctx context.Context, address ThreadAddre
 			return wait
 		}
 	}
+	reportProgress(ctx, "verifying terminal registration")
 	polling := time.Now()
 	ticker := time.NewTicker(10 * time.Millisecond)
 	defer ticker.Stop()

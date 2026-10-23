@@ -2,7 +2,6 @@ package couchcore
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"strconv"
@@ -326,17 +325,23 @@ func CouchLiveOwnerExecutor(c *Couch) OperationExecutor {
 			}
 			var argv *[]string
 			if raw, present := a["argv"]; present {
-				var parameters []string
 				if len(raw) > 32768 {
 					return nil, fmt.Errorf("startup parameters exceed transport limit")
 				}
-				if err := json.Unmarshal([]byte(raw), &parameters); err != nil || parameters == nil {
-					return nil, fmt.Errorf("startup parameters must be a JSON string array")
+				parameters, err := DecodeArgumentArray([]byte(raw))
+				if err != nil {
+					return nil, err
 				}
 				argv = &parameters
 			}
 			if call.Operation.Name == "prepare-switch-agent" {
+				if _, local := call.TypedPayload.(LocalForceSwitchPreview); local {
+					return c.PrepareForcedAgentSwitch(ctx, address, a["agent"], argv)
+				}
 				return c.PrepareAgentSwitch(ctx, address, a["agent"], argv)
+			}
+			if value := a["interrupt-first"]; value != "" && value != "true" && value != "false" {
+				return nil, fmt.Errorf("interrupt-first must be true or false")
 			}
 			known := a["known-config"] == "true"
 			if argv == nil && !known {
@@ -346,7 +351,8 @@ func CouchLiveOwnerExecutor(c *Couch) OperationExecutor {
 			if argv != nil {
 				args = *argv
 			}
-			return c.SwitchAgent(ctx, SwitchAgentRequest{Address: address, Agent: a["agent"], KnownConfig: known, Argv: args, AcceptedFingerprint: a["fingerprint"], Source: a["source"]})
+			restart, force := acceptedAgentSwitchPayload(call.TypedPayload)
+			return c.SwitchAgent(ctx, SwitchAgentRequest{Restart: restart, Force: force, InterruptFirst: a["interrupt-first"] == "true", Address: address, Agent: a["agent"], KnownConfig: known, Argv: args, AcceptedFingerprint: a["fingerprint"], Source: a["source"]})
 		case "recovery-confirmation":
 			return c.ConfirmRecovery(ctx, a["token"])
 		case "reboot":
@@ -595,4 +601,19 @@ func exactParkRecoveryAddress(args map[string]string) (ThreadAddress, error) {
 		return ThreadAddress{}, err
 	}
 	return address, nil
+}
+
+// acceptedAgentSwitchPayload accepts only local typed authority. Legacy direct
+// force consent remains valid, while wire maps and decoded empty values confer
+// no restart or force permission.
+func acceptedAgentSwitchPayload(payload any) (*EditedRestartIntent, *AgentSwitchForceConsent) {
+	switch accepted := payload.(type) {
+	case *AgentSwitchAcceptance:
+		if accepted != nil {
+			return cloneEditedRestartIntent(accepted.restart), accepted.force
+		}
+	case *AgentSwitchForceConsent:
+		return nil, accepted
+	}
+	return nil, nil
 }

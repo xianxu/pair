@@ -1,8 +1,10 @@
 package board
 
 import (
+	"github.com/xianxu/pair/cmd/internal/webcast/sketchimage"
 	"maps"
 	"slices"
+	"strconv"
 	"time"
 
 	"github.com/xianxu/pair/cmd/internal/broadcast"
@@ -23,17 +25,20 @@ const OperatorStrokeFadeMS int64 = 1500
 const MaxOperatorStrokes = 128
 
 type OperatorView struct {
-	SketchCursor         SketchDeliveryCursor `json:"sketch_cursor"`
-	SketchAnchorRevision uint64               `json:"sketch_anchor_revision"`
-	Revision             uint64               `json:"revision"`
-	Seg                  int                  `json:"seg"`
-	Doc                  int                  `json:"doc"`
-	T                    int64                `json:"t"`
-	Paused               bool                 `json:"paused"`
-	Ended                bool                 `json:"ended"`
-	Driver               string               `json:"driver"`
-	Notes                []*recording.Note    `json:"notes"`
-	Strokes              []OperatorStroke     `json:"strokes"`
+	FeedbackContext      sketchimage.PageScene `json:"feedback_context"`
+	NoteRevisions        map[string]string     `json:"note_revisions"`
+	FeedbackMask         LiveFeedbackMask      `json:"feedback_mask"`
+	SketchCursor         SketchDeliveryCursor  `json:"sketch_cursor"`
+	SketchAnchorRevision uint64                `json:"sketch_anchor_revision"`
+	Revision             uint64                `json:"revision"`
+	Seg                  int                   `json:"seg"`
+	Doc                  int                   `json:"doc"`
+	T                    int64                 `json:"t"`
+	Paused               bool                  `json:"paused"`
+	Ended                bool                  `json:"ended"`
+	Driver               string                `json:"driver"`
+	Notes                []*recording.Note     `json:"notes"`
+	Strokes              []OperatorStroke      `json:"strokes"`
 }
 
 func (b *Board) pruneOperatorLocked(now time.Time) {
@@ -98,6 +103,9 @@ func cloneNote(n *recording.Note) *recording.Note {
 func (b *Board) operatorViewLocked() OperatorView {
 	v := OperatorView{Revision: b.operatorRevision, Seg: b.st.Seg, Doc: b.st.DocSeg, T: b.st.T, Paused: b.st.Paused(), Ended: b.closed || b.st.Ended || b.broken != nil, Notes: []*recording.Note{}, Strokes: []OperatorStroke{}}
 	v.SketchCursor = b.sketchDeliveryCursorLocked()
+	v.FeedbackMask = cloneFeedbackMask(b.feedbackDisplay.mask)
+	v.FeedbackContext = b.currentFeedbackPageLocked()
+	v.NoteRevisions = map[string]string{}
 	v.SketchAnchorRevision = b.st.Sketches.AnchorRevision()
 	if b.st.Control.Driver != nil {
 		v.Driver = b.st.Control.Driver.Name
@@ -106,8 +114,9 @@ func (b *Board) operatorViewLocked() OperatorView {
 		}
 	}
 	for _, n := range b.st.Notes {
-		if n.State == recording.NoteOpen {
+		if n.State == recording.NoteOpen && !b.noteFeedbackHiddenLocked(n.ID, n.Revision) {
 			v.Notes = append(v.Notes, cloneNote(n.Note))
+			v.NoteRevisions[n.ID] = strconv.FormatUint(n.Revision, 10)
 		}
 	}
 	for _, s := range b.operatorStrokes {

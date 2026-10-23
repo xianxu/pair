@@ -348,7 +348,11 @@ func exchangeSlotOperation(inv cliInvocation, op string, rt Runtime, call messag
 		}
 		if clock.now().Sub(told) >= slotOperationProgressEvery {
 			told = clock.now()
-			fmt.Fprintf(progress, "couch: %s %s still %s after %s%s\n", inv.ref, op, receipt.Status, told.Sub(start).Round(time.Second), stale())
+			detail := string(receipt.Status)
+			if p := receipt.Progress; p != nil && p.Stage != "" && !p.Started.IsZero() {
+				detail = fmt.Sprintf("%s (%s, %s)", receipt.Status, p.Stage, max(time.Duration(0), told.Sub(p.Started)).Round(time.Second))
+			}
+			fmt.Fprintf(progress, "couch: %s %s still %s after %s%s\n", inv.ref, op, detail, told.Sub(start).Round(time.Second), stale())
 		}
 		clock.sleep(slotOperationPollInterval)
 		result, err := exchange(status, couchmessage.AdmissionTimeout)

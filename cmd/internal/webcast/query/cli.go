@@ -19,6 +19,8 @@ const Flag = "--broadcast-web-query"
 const Usage = `couch ` + Flag + ` DIR dom [--at T] [--sel SELECTOR] [--max-lines N] [--json]
 couch ` + Flag + ` DIR events --from T1 --to T2 [--max-lines N] [--json]
 couch ` + Flag + ` DIR notes [--note ID] [--before MS] [--json]
+couch ` + Flag + ` DIR sketches [--sketch ID] [--at T] [--json]
+couch ` + Flag + ` DIR sketch-image --sketch ID --out DIR [--at T]
 couch ` + Flag + ` DIR link [--at T]
   DIR is a recording directory. Times are ms since the recording started; --at defaults
   to its end (link's to 0), --before (the actions shown before each note) to 10000.
@@ -32,11 +34,11 @@ couch ` + Flag + ` DIR link [--at T]
 const DefaultBefore = 10000
 
 type args struct {
-	dir, verb, sel, note  string
-	at, from, to, before  int64
-	atSet, fromSet, toSet bool
-	maxLines              int
-	json                  bool
+	dir, verb, sel, note, sketch, out string
+	at, from, to, before              int64
+	atSet, fromSet, toSet             bool
+	maxLines                          int
+	json                              bool
 }
 
 func parseArgs(argv []string) (args, error) {
@@ -46,10 +48,12 @@ func parseArgs(argv []string) (args, error) {
 	}
 	a.dir, a.verb = argv[0], argv[1]
 	allowed := map[string]map[string]bool{
-		"dom":    {"--at": true, "--sel": true, "--max-lines": true, "--json": true},
-		"events": {"--from": true, "--to": true, "--max-lines": true, "--json": true},
-		"notes":  {"--note": true, "--before": true, "--json": true},
-		"link":   {"--at": true},
+		"dom":          {"--at": true, "--sel": true, "--max-lines": true, "--json": true},
+		"events":       {"--from": true, "--to": true, "--max-lines": true, "--json": true},
+		"notes":        {"--note": true, "--before": true, "--json": true},
+		"link":         {"--at": true},
+		"sketches":     {"--sketch": true, "--at": true, "--json": true},
+		"sketch-image": {"--sketch": true, "--out": true, "--at": true},
 	}[a.verb]
 	if allowed == nil {
 		return a, fmt.Errorf("unknown query %q (dom, events, notes or link)", a.verb)
@@ -77,6 +81,10 @@ func parseArgs(argv []string) (args, error) {
 		switch f {
 		case "--sel":
 			a.sel = v
+		case "--out":
+			a.out = v
+		case "--sketch":
+			a.sketch = v
 		case "--note":
 			a.note = v
 		default:
@@ -101,6 +109,9 @@ func parseArgs(argv []string) (args, error) {
 			}
 		}
 	}
+	if a.verb == "sketch-image" && (a.sketch == "" || a.out == "") {
+		return a, fmt.Errorf("sketch-image requires --sketch ID and --out DIR")
+	}
 	if a.json && a.maxLines > 0 {
 		return a, fmt.Errorf("--json answers in full; --max-lines budgets the text")
 	}
@@ -118,6 +129,13 @@ type Linker func(dir string, at int64) (string, error)
 // usage error and 1 when the recording can't answer. link asks link; nil
 // refuses it.
 func Run(argv []string, link Linker, stdout, stderr io.Writer) int {
+	return RunWithOptions(argv, RunOptions{Link: link}, stdout, stderr)
+}
+
+// RunWithOptions preserves ordinary queries while injecting image publication.
+// Query itself never launches a browser or creates image output files.
+func RunWithOptions(argv []string, options RunOptions, stdout, stderr io.Writer) int {
+	link := options.Link
 	a, err := parseArgs(argv)
 	if err != nil {
 		fmt.Fprintf(stderr, "couch: %s: %v\nusage:\n%s", Flag, err, Usage)
@@ -147,6 +165,14 @@ func Run(argv []string, link Linker, stdout, stderr io.Writer) int {
 	q := New(rec.Records, notes.Structural{})
 	q.PageLines = a.maxLines
 	out := scrubber{stdout}
+	if a.verb == "sketch-image" {
+		if err := exportSketchImage(q, a, options); err != nil {
+			fmt.Fprintf(stderr, "couch: %s: %s\n", Flag, strings.TrimPrefix(err.Error(), "query: "))
+			return 1
+		}
+		fmt.Fprintln(out, a.out)
+		return 0
+	}
 	if err := answer(q, a, out); err != nil {
 		fmt.Fprintf(stderr, "couch: %s: %s\n", Flag, strings.TrimPrefix(err.Error(), "query: "))
 		return 1
@@ -174,6 +200,36 @@ func (s scrubber) Write(p []byte) (int, error) {
 
 func answer(q *Querier, a args, w io.Writer) error {
 	switch a.verb {
+	case "sketches":
+		if !a.atSet {
+			a.at = q.End()
+		}
+		views, err := q.SketchesAt(a.at)
+		if err != nil {
+			return err
+		}
+		if a.sketch != "" {
+			found := false
+			for _, v := range views {
+				if v.History.Begin.ID == a.sketch {
+					views = []SketchView{v}
+					found = true
+					break
+				}
+			}
+			if !found {
+				return fmt.Errorf("query: sketch %q missing at history cutoff", a.sketch)
+			}
+		}
+		if a.json {
+			return json.NewEncoder(w).Encode(views)
+		}
+		for _, v := range views {
+			if _, err := io.WriteString(w, SketchText(v)); err != nil {
+				return err
+			}
+		}
+		return nil
 	case "dom":
 		if !a.atSet {
 			a.at = q.End()

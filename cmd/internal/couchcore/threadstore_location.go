@@ -324,19 +324,3 @@ func recordInSlotRepositories(record ThreadRecord, manifest threadManifest) bool
 	}
 	return false
 }
-
-// repoLaunchDefault reads the primary repository's defaults for a numbered
-// workspace. fallback preserves the caller's ordinary-path behavior and the
-// known primary root during first creation, before the slot is enrolled.
-func (c *Couch) repoLaunchDefault(path, fallback, agent, commonGit, scope string) (LaunchProfile, bool, error) {
-	view := *c.Threads
-	view.readOnly = true // Default lookup must not turn a start preview into a write.
-	backend, err := view.storeForPath(path, scope, commonGit)
-	if err != nil {
-		return LaunchProfile{}, false, err
-	}
-	if backend.slot != nil {
-		fallback = backend.slot.PrimaryRoot
-	}
-	return c.RepoAgentDefault(fallback, agent)
-}

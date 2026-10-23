@@ -166,6 +166,8 @@ type Console struct {
 	menuExtents []ActorExtent
 	// statusChips is the same for the reserved row.
 	statusChips    []ChipSpan
+	tabStyle       TabStyle
+	statusGroups   []GroupCountSpan
 	statusRows     int
 	statusRevision uint64
 	// statusControl is the broadcast cell's span on the last drawn row.
@@ -301,6 +303,7 @@ func New(host hostty.Host, stdin io.Reader) *Console {
 	lifetime, cancelLifetime := context.WithCancel(context.Background())
 	c := &Console{
 		host:                host,
+		tabStyle:            DefaultTabStyle,
 		presenter:           terminal.NewPresenter(host, terminal.AnyMotion),
 		terminalCommands:    make(chan terminalCommand, 16),
 		stdin:               stdin,
@@ -1563,6 +1566,7 @@ func (c *Console) onHotkey() {
 		}
 		c.menu.Frames = c.menu.Frames[:1]
 		c.menu.Frames[0].Filter = ""
+		c.menu.Frames[0].GroupScope = nil
 		reconcileRootSelection(&c.menu, focus)
 	}
 	c.mu.Unlock()
@@ -1852,11 +1856,11 @@ func (c *Console) runMenuOperation(effect MenuEffect) {
 		operationContext = context.WithValue(operationContext, menuOperationContextKey{}, menuOperationContext{origin: origin})
 		operationContext = couchcore.WithOperationProgress(operationContext, func(detail string) {
 			c.mu.Lock()
-			c.menu = updateOperationProgress(c.menu, origin.Attempt, detail)
+			c.menu = updateOperationProgress(c.menu, origin.Attempt, detail, time.Now())
 			c.mu.Unlock()
 			c.repaint()
 		})
-		return fn(couchcore.OperationCall{Name: effect.Operation, Args: requestArgs, Implicit: true, Context: operationContext})
+		return fn(couchcore.OperationCall{Name: effect.Operation, Args: requestArgs, TypedPayload: effect.TypedPayload, Implicit: true, Context: operationContext})
 	}}
 	if effect.Operation == "switch" {
 		c.mu.Lock()
@@ -2146,11 +2150,6 @@ func (c *Console) finishOperation(completed operationCompletion) bool {
 		c.requestMenuRefresh()
 		c.forceSwitch(startedHandleID)
 		return false
-	}
-	if result, ok := completed.value.(couchcore.SwitchAgentResult); ok && err == nil {
-		if result.Warning != "" {
-			c.reduceMenu(MenuEvent{Kind: MenuEventNotice, Error: result.Warning})
-		}
 	}
 	c.requestMenuRefresh()
 	if panelFocused {

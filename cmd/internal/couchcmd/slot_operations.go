@@ -17,8 +17,8 @@ import (
 
 // slotOperationRunner enqueues one slot operation on the console's queue
 // (couchtty.Console.EnqueueRemoteOperation with Couch.PrepareSlotOperation).
-// When it returns an error it never calls started or finished.
-type slotOperationRunner func(key, op, target string, opts couchcore.LiveRestartOptions, started func(), finished func(any, error)) error
+// When it returns an error it never calls started, progress or finished.
+type slotOperationRunner func(key, op, target string, opts couchcore.LiveRestartOptions, started func(), progress couchcore.OperationProgress, finished func(any, error)) error
 
 // maxSlotOperationReceipts bounds the receipts held at once (about 1 KiB each);
 // the next admission is refused overloaded.
@@ -32,13 +32,13 @@ const maxSlotOperationReceipts = 64
 type slotOperations struct {
 	fleetRoot     string
 	reference     func(context.Context, string) (string, error)
-	recovery      func(string, string, couchmessage.Request, func(context.Context) error, func(), func(any, error)) error
+	recovery      func(string, string, couchmessage.Request, func(context.Context) error, func(), couchcore.OperationProgress, func(any, error)) error
 	run           slotOperationRunner
 	preparePark   func(context.Context, string, couchcore.RepositoryName, func(context.Context) error) (slotOperationRunner, error)
 	authorizePark func(context.Context, couchmessage.Binding, couchcore.HubSlot) error
-	guardedRun    func(string, string, string, couchcore.LiveRestartOptions, func(context.Context) error, func(), func(any, error)) error
+	guardedRun    func(string, string, string, couchcore.LiveRestartOptions, func(context.Context) error, func(), couchcore.OperationProgress, func(any, error)) error
 	preview       func(context.Context, string) (couchcore.RecoveryPreview, error)
-	candidate     func(string, string, string, func(), func(any, error), ...func(context.Context) error) error
+	candidate     func(string, string, string, func(), couchcore.OperationProgress, func(any, error), ...func(context.Context) error) error
 	names         func(context.Context) ([]couchcore.RepositoryName, error)
 	now           func() time.Time
 
@@ -139,44 +139,44 @@ func (s *slotOperations) handle(ctx context.Context, caller couchmessage.Binding
 			}
 		}
 	}
-	return s.admit(ctx, caller, r, func(key string, started func(), finished func(any, error)) error {
+	return s.admit(ctx, caller, r, func(key string, started func(), progress couchcore.OperationProgress, finished func(any, error)) error {
 		if r.Op == couchcore.OpRecoverPark && s.preparePark != nil && parkRunner == nil {
 			return errors.New("recovery receipt expired; inspect the current thread before recovering")
 		}
 		if parkRunner != nil {
-			return parkRunner(key, r.Op, r.Target, couchcore.LiveRestartOptions{}, started, finished)
+			return parkRunner(key, r.Op, r.Target, couchcore.LiveRestartOptions{}, started, progress, finished)
 		}
 		if s.recovery != nil && (r.Op == "resume" || r.Op == "reboot" || r.Op == "recovery-confirmation") {
 			var guard func(context.Context) error
 			if len(guards) > 0 {
 				guard = guards[0]
 			}
-			return s.recovery(key, recoveryActor(caller), r, guard, started, finished)
+			return s.recovery(key, recoveryActor(caller), r, guard, started, progress, finished)
 		}
 		if r.CandidateKey != "" {
 			if s.candidate == nil {
 				return errors.New("candidate resume unavailable")
 			}
-			return s.candidate(key, r.Target, r.CandidateKey, started, finished, guards...)
+			return s.candidate(key, r.Target, r.CandidateKey, started, progress, finished, guards...)
 		}
 		if len(guards) > 0 {
 			if s.guardedRun == nil {
 				return errors.New("hub-aware operation queue unavailable")
 			}
-			return s.guardedRun(key, r.Op, r.Target, couchcore.LiveRestartOptions{SameBinary: r.SameBinary, ForceUnknown: r.ForceUnknown}, guards[0], started, finished)
+			return s.guardedRun(key, r.Op, r.Target, couchcore.LiveRestartOptions{SameBinary: r.SameBinary, ForceUnknown: r.ForceUnknown}, guards[0], started, progress, finished)
 		}
-		return s.run(key, r.Op, r.Target, couchcore.LiveRestartOptions{SameBinary: r.SameBinary, ForceUnknown: r.ForceUnknown}, started, finished)
+		return s.run(key, r.Op, r.Target, couchcore.LiveRestartOptions{SameBinary: r.SameBinary, ForceUnknown: r.ForceUnknown}, started, progress, finished)
 	}, queueKeys...)
 }
 
 // admit shares the receipt state machine and queue admission across slot operations.
 func (s *slotOperations) admit(ctx context.Context, caller couchmessage.Binding, r couchmessage.Request,
-	run func(string, func(), func(any, error)) error, queueKeys ...string) couchmessage.Response {
+	run func(string, func(), couchcore.OperationProgress, func(any, error)) error, queueKeys ...string) couchmessage.Response {
 	key := receiptKey{caller.Scope, caller.Tag, r.ID}
 	if err := slotOperationConfirmation(r); err != nil {
 		return couchmessage.Response{Code: "confirmation-required", Error: err.Error()}
 	}
-	event := couchmessage.ReceiptEvent{Kind: couchmessage.ReceiptAdmit, IntentDigest: driveIntentDigest(r), CandidateKey: r.CandidateKey, RecoveryConfirmation: r.RecoveryConfirmation, ID: r.ID, Op: r.Op, Target: r.Target, Agent: r.Agent, ToHub: r.ToHub, Persist: r.Persist, At: s.now()}
+	event := couchmessage.ReceiptEvent{Kind: couchmessage.ReceiptAdmit, IntentDigest: operationIntentDigest(r), CandidateKey: r.CandidateKey, RecoveryConfirmation: r.RecoveryConfirmation, ID: r.ID, Op: r.Op, Target: r.Target, Agent: r.Agent, ToHub: r.ToHub, Persist: r.Persist, At: s.now()}
 	s.mu.Lock()
 	s.sweepLocked()
 	existing, held := s.receipts[key]
@@ -221,6 +221,9 @@ func (s *slotOperations) admit(ctx context.Context, caller couchmessage.Binding,
 	// Enqueue never blocks, so holding the lock is safe; a job that starts at
 	// once waits in started until this admission returns.
 	err = run(queueKey, func() { s.apply(key, couchmessage.ReceiptEvent{Kind: couchmessage.ReceiptStart, ID: r.ID}) },
+		func(stage string) {
+			s.apply(key, couchmessage.ReceiptEvent{Kind: couchmessage.ReceiptProgress, ID: r.ID, Stage: stage, At: s.now()}, receipt.Admitted)
+		},
 		func(value any, err error) {
 			s.apply(key, couchmessage.ReceiptEvent{Kind: couchmessage.ReceiptFinish, ID: r.ID, Outcome: slotOperationOutcome(value, err), At: s.now()})
 		})
@@ -251,12 +254,13 @@ func receiptAdmissionResponse(receipt couchmessage.OperationReceipt, err error) 
 }
 
 // apply moves one held receipt; an event the table refuses (a late or
-// repeated finish) leaves it unchanged.
-func (s *slotOperations) apply(key receiptKey, e couchmessage.ReceiptEvent) {
+// repeated finish) leaves it unchanged. Progress also binds the original
+// admission, so a retired request ID cannot update a later incarnation.
+func (s *slotOperations) apply(key receiptKey, e couchmessage.ReceiptEvent, admission ...time.Time) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	receipt, held := s.receipts[key]
-	if !held {
+	if !held || len(admission) > 0 && !receipt.Admitted.Equal(admission[0]) {
 		return
 	}
 	if next, err := couchmessage.ApplyReceiptEvent(receipt, e); err == nil {

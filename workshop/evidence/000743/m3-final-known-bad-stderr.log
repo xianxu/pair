@@ -1,0 +1,82 @@
+go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime
+Native baseline: zellij 0.45.1
+
+added 2 packages in 606ms
+npm notice
+npm notice New major version of npm available! 10.9.9 -> 12.2.0
+npm notice Changelog: https://github.com/npm/cli/releases/tag/v12.2.0
+npm notice To update run: npm install -g npm@12.2.0
+npm notice
+TAP version 13
+# Subtest: phase breadcrumbs remain separate from the unchanged frame JSON
+ok 1 - phase breadcrumbs remain separate from the unchanged frame JSON
+  ---
+  duration_ms: 49.548291
+  type: 'test'
+  ...
+# Subtest: each chunk has one ordered write and snapshot breadcrumb
+ok 2 - each chunk has one ordered write and snapshot breadcrumb
+  ---
+  duration_ms: 105.41425
+  type: 'test'
+  ...
+# Subtest: ordinary request rejection keeps the observed phase and no fake frame
+ok 3 - ordinary request rejection keeps the observed phase and no fake frame
+  ---
+  duration_ms: 69.6625
+  type: 'test'
+  ...
+# Subtest: the configured Node report contains runtime evidence without environment data
+ok 4 - the configured Node report contains runtime evidence without environment data
+  ---
+  duration_ms: 93.202709
+  type: 'test'
+  ...
+1..4
+# tests 4
+# suites 0
+# pass 4
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 362.61675
+go: downloading golang.org/x/sys v0.48.0
+go: downloading github.com/creack/pty v1.1.24
+go: downloading golang.org/x/term v0.43.0
+go: downloading github.com/charmbracelet/ultraviolet v0.0.0-20260303162955-0b88c25f3fff
+go: downloading github.com/charmbracelet/x/ansi v0.11.7
+go: downloading github.com/charmbracelet/colorprofile v0.4.2
+go: downloading github.com/charmbracelet/x/term v0.2.2
+go: downloading github.com/charmbracelet/x/termios v0.1.1
+go: downloading github.com/charmbracelet/x/windows v0.2.2
+go: downloading github.com/lucasb-eyer/go-colorful v1.4.0
+go: downloading github.com/muesli/cancelreader v0.2.2
+go: downloading github.com/rivo/uniseg v0.4.7
+go: downloading github.com/xo/terminfo v0.0.0-20220910002029-abceb7e1c41e
+go: downloading golang.org/x/sync v0.19.0
+go: downloading github.com/charmbracelet/x/exp/ordered v0.1.0
+go: downloading github.com/clipperhouse/displaywidth v0.11.0
+go: downloading github.com/clipperhouse/uax29/v2 v2.7.0
+go: downloading github.com/mattn/go-runewidth v0.0.23
+go: downloading github.com/xianxu/ariadne v0.0.0-20261018104241-81c832d5e000
+go: downloading golang.org/x/image v0.46.0
+Traceback (most recent call last):
+  File "/private/tmp/pair-vm-4707bf4e66d1e984ec1ea2c445a46105/checkout/tests/conformance-vm.py", line 226, in <module>
+    raise SystemExit(main())
+                     ^^^^^^
+  File "/private/tmp/pair-vm-4707bf4e66d1e984ec1ea2c445a46105/checkout/tests/conformance-vm.py", line 218, in main
+    return guest_main()
+           ^^^^^^^^^^^^
+  File "/private/tmp/pair-vm-4707bf4e66d1e984ec1ea2c445a46105/checkout/tests/conformance-vm.py", line 201, in guest_main
+    ci.main()
+  File "/private/tmp/pair-vm-4707bf4e66d1e984ec1ea2c445a46105/checkout/tests/native-terminal-ci.py", line 99, in main
+    qualify(command, env, Path(scratch))
+  File "/private/tmp/pair-vm-4707bf4e66d1e984ec1ea2c445a46105/checkout/tests/native-terminal-ci.py", line 58, in qualify
+    status = run_tests(command, env, evidence, required)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/private/tmp/pair-vm-4707bf4e66d1e984ec1ea2c445a46105/checkout/tests/native-terminal-ci.py", line 42, in run_tests
+    _validator.validate_results(lines(), REQUIRED_BY_PACKAGE if required is None else required)
+  File "/private/tmp/pair-vm-4707bf4e66d1e984ec1ea2c445a46105/checkout/tests/conformance-vm.py", line 64, in validate_results
+    raise RuntimeError(f"conformance {action}: {event.get('Test') or event.get('Package') or event.get('ImportPath')}")
+RuntimeError: conformance skip: TestLiveConsoleNvimPreservesContentAndChrome

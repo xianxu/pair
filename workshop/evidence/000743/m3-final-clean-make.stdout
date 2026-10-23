@@ -1,0 +1,4 @@
+go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime
+bash scripts/build-go-atomic.sh "bin/pair" -ldflags "-X main.defaultPairHome=/Volumes/TestScratch/tmp/pair-slot3/pair743-m3-final-8ihqzgxl/clean" ./cmd/pair-go
+python3 -B tests/conformance-vm.py host
+timeout 20m0s + cleanup up to 10 s

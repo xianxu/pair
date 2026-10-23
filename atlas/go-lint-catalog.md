@@ -225,6 +225,22 @@ and shell protocol correctness are outside its scope. Other commands and helpers
 are unaffected. Public scribe's generic-command exposure is tracked separately
 in #768; this fixture rule does not claim a production launch-policy fix.
 
+## Startup admission budget (#773)
+
+The Pair-local `startup-admission-budget` rule in
+`internal/repolint/local_catalog_test.go` protects launcher's probe-only
+`birthBound` from reuse as a terminal admission deadline. It rejects that direct
+identifier in the budget argument of `coordinateTerminalHandoff`,
+`CoordinateTerminalHandoff` and `context.WithTimeout` (including parentheses
+and explicit aliases of the standard context import). Birth watches, watched
+launches, diagnostics, other packages and unrelated bounds remain allowed.
+
+`TestStartupAdmissionBudgetRule` qualifies this through the ordinary composed
+repository scanner. This is a narrow syntax guard: it does not resolve shadowed
+symbols, local bound aliases, computed/conversion expressions, function values
+or arbitrary dataflow. Runtime startup-deadline propagation is independently
+qualified at the production boundaries; the rule does not replace those tests.
+
 ## Manual-clock delivery proof (#771)
 
 The Pair-local `manual-clock-rendezvous` rule is registered in
@@ -267,3 +283,13 @@ this rule. Pure synthetic positive and negative cases live in
 `fixture_identity_rule_test.go`; the ordinary catalog walk checks real sources.
 This is a syntactic guard, not execution proof: constructor renames require the
 rule to be updated. Allocation and installed-command tests prove behavior.
+
+The Pair-local `quit-trigger-private-home` rule (#797), implemented in
+`internal/repolint/quit_trigger_home_rule_test.go` and registered in the local
+catalog, protects direct `TriggerQuit`/`TriggerBoundQuit` calls inside Couch
+`Test*` functions. A private checker DataDir does not isolate their compatibility
+quit marker in HOME/.cache/pair. The syntax check requires preceding lexical
+private-HOME setup, inherited by nested blocks, through TempDir values or the
+existing sandboxedChecker fixture. It covers refused calls too. It does not infer
+types, dynamic aliases or interprocedural helper isolation; native fleet helpers
+retain their existing caller-owned fixture boundary.

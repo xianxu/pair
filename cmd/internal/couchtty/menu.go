@@ -79,6 +79,7 @@ type MenuFrame struct {
 	RecoveryPreview      *couchcore.RecoveryPreview
 	SwitchPrepared       *couchcore.PreparedAgentSwitch
 	SwitchStage          int
+	SwitchSubmitAction   string
 	SwitchEdited         bool
 	// Rune distance from the end; zero keeps newly prefilled parameters at end.
 	SwitchCursorFromEnd int
@@ -87,6 +88,7 @@ type MenuFrame struct {
 	Kind            MenuFrameKind
 	View            MenuRootView
 	Filter          string
+	GroupScope      *StatusGroupID
 	SelectedKey     couchcore.ThreadRowKey
 	RowKey          couchcore.ThreadRowKey
 	SelectedAddress couchcore.ThreadAddress
@@ -347,6 +349,8 @@ type MenuEvent struct {
 
 // MenuEffect is an operation request for the thin Console shell.
 type MenuEffect struct {
+	// TypedPayload carries owner-local consent; it must never cross JSON.
+	TypedPayload  any `json:"-"`
 	RowKey        couchcore.ThreadRowKey
 	CancelPreview uint64
 	Operation     string
@@ -722,6 +726,12 @@ func reduceRootKey(state MenuState, key PanelKey) (MenuState, []MenuEffect) {
 		if frame.Filter != "" {
 			selected := frame.SelectedAddress
 			frame.Filter = ""
+			reconcileRootSelection(&state, selected)
+			return state, nil
+		}
+		if frame.GroupScope != nil {
+			selected := frame.SelectedAddress
+			frame.GroupScope = nil
 			reconcileRootSelection(&state, selected)
 			return state, nil
 		}

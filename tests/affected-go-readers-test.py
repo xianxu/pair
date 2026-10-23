@@ -34,7 +34,7 @@ READER = re.compile(
 )
 # These APIs compile/read the real checkout and runtime assets even when the
 # calling test contains no literal repository path. They are not source scanners.
-NATIVE_HELPER_READER = re.compile(r'\b(?:testcouch\.(?:Build|New)|runtimeEnvironment)\s*\(')
+NATIVE_HELPER_READER = re.compile(r'\b(?:testcouch\.(?:Build|New|BuildOwned|NewOwned)|NewOwned|NewNativeOwner|runtimeEnvironment)\s*\(')
 TEST = re.compile(r'^func (Test\w+)\(t \*testing\.T\)', re.MULTILINE)
 DISPOSITIONS = {"fixed_scanner", "non_go_full_fallback", "local_or_literal_fixture"}
 
@@ -531,7 +531,7 @@ class ReaderInventoryTest(unittest.TestCase):
                          "selected groups ran after the failed preflight")
 
     def test_native_helper_api_requires_repository_input_classification(self):
-        for helper in ("testcouch.Build", "testcouch.New", "runtimeEnvironment"):
+        for helper in ("testcouch.Build", "testcouch.New", "testcouch.BuildOwned", "testcouch.NewOwned", "NewOwned", "NewNativeOwner", "runtimeEnvironment"):
             with self.subTest(helper=helper):
                 self.write("cmd/scan/scan_test.go",
                     "package scan\nfunc TestScan(t *testing.T) { " + helper + "(t) }\n")

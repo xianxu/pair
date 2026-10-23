@@ -5,11 +5,14 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
 	"sync/atomic"
 
 	"github.com/xianxu/pair/cmd/internal/couchcore"
 	"github.com/xianxu/pair/cmd/internal/couchmessage"
 	"github.com/xianxu/pair/cmd/internal/couchtty"
+	"github.com/xianxu/pair/cmd/internal/pathscope"
 )
 
 // The wrapper connection token changes even when a re-exec keeps its PID/nonce.
@@ -26,44 +29,231 @@ type switchServiceGuard struct {
 }
 
 // ConfirmAgentSwitch is shared by the human form and queued remote operations.
-// An empty token selects the form's current source, never bypasses its checks.
-func (g *switchServiceGuard) ConfirmAgentSwitch(ctx context.Context, address couchcore.ThreadAddress, source string) error {
+// An empty token selects the form's current source. The returned token pins
+// that exact connection for every later guard in the same operation.
+func (g *switchServiceGuard) ConfirmAgentSwitch(ctx context.Context, address couchcore.ThreadAddress, source string, evidence couchcore.SwitchSourceEvidence) (string, error) {
+	if evidence.Vacant() {
+		return source, g.confirmAgentSwitchAdmission(ctx, address, source, evidence, false)
+	}
+	s := g.service.Load()
+	if s == nil {
+		return "", errors.New("switch-agent: supervisor unavailable")
+	}
+	live, err := inspectSwitchLiveSource(ctx, s, address, source, true)
+	if err != nil {
+		return "", err
+	}
+	return switchSourceToken(live), nil
+}
+
+// Cooperative admission waives only the idle check, never source/Git proof.
+// Input remains on the owned lifecycle phase, not a request worker.
+func (g *switchServiceGuard) confirmAgentSwitchAdmission(ctx context.Context, address couchcore.ThreadAddress, source string, evidence couchcore.SwitchSourceEvidence, interruptFirst bool) error {
+	return g.confirmAgentSwitchAdmissionObserved(ctx, address, source, evidence, interruptFirst, nil)
+}
+
+func (g *switchServiceGuard) confirmAgentSwitchAdmissionObserved(ctx context.Context, address couchcore.ThreadAddress, source string, evidence couchcore.SwitchSourceEvidence, interruptFirst bool, observed *retainedSwitchAdmission) error {
 	s := g.service.Load()
 	if s == nil {
 		return errors.New("switch-agent: supervisor unavailable")
 	}
+	if evidence.Vacant() {
+		if observed != nil {
+			_, err := inspectVacantSwitchSourceObserved(ctx, s, address, source, evidence, false, observed)
+			return err
+		}
+		return g.confirmVacantAgentSwitch(ctx, s, address, source, evidence)
+	}
+	_, err := inspectSwitchLiveSource(ctx, s, address, source, !interruptFirst)
+	return err
+}
+
+func inspectSwitchLiveSource(ctx context.Context, s *messageService, address couchcore.ThreadAddress, source string, requireIdle bool) (couchmessage.SlotLiveness, error) {
+	live, _, err := inspectSwitchLiveSourceWithOptions(ctx, s, address, source, switchSourceOptions{requireIdle: requireIdle})
+	return live, err
+}
+
+type switchSourceOptions struct {
+	requireIdle   bool
+	allowUnclean  bool
+	forceEvidence *couchcore.SwitchSourceEvidence
+}
+
+func inspectSwitchLiveSourceWithOptions(ctx context.Context, s *messageService, address couchcore.ThreadAddress, source string, options switchSourceOptions) (couchmessage.SlotLiveness, couchcore.SlotGitStatus, error) {
+	fail := func(err error) (couchmessage.SlotLiveness, couchcore.SlotGitStatus, error) {
+		return couchmessage.SlotLiveness{}, couchcore.SlotGitStatus{}, err
+	}
 	live, ok := s.LivenessForThread(address.RepoScope, string(address.Tag))
 	if !ok || !s.isConnected(live.Binding) || source != "" && source != switchSourceToken(live) {
-		return errors.New("switch-agent: source changed or disconnected; retry switch")
+		return fail(errors.New("switch-agent: source changed or disconnected; retry switch"))
 	}
-	if live.Settled == nil || !*live.Settled {
-		return errors.New("switch-agent: source must be known idle; retry after its turn finishes")
+	if options.requireIdle && (live.Settled == nil || !*live.Settled) {
+		return fail(errors.New("switch-agent: source must be known idle; retry after its turn finishes"))
 	}
 	if _, err := s.authority.current(ctx, live.Binding); err != nil {
-		return err
+		return fail(err)
 	}
 	identity, err := s.connectedWorkspace(ctx, live.Binding)
 	if err != nil {
-		return err
+		return fail(err)
 	}
-	git, err := s.authority.branch(ctx, identity.WorktreeRoot)
+	if options.forceEvidence != nil {
+		if err := verifyForcedSwitchLiveSource(ctx, s, live, address, *options.forceEvidence, identity); err != nil {
+			return fail(err)
+		}
+	}
+	git, err := inspectSwitchGit(ctx, s, identity.WorktreeRoot, options.allowUnclean)
 	if err != nil {
-		return fmt.Errorf("switch-agent: Git state unknown: %w", err)
-	}
-	if git.Dirty {
-		return errors.New("switch-agent: source is dirty; ask it to commit first")
+		return fail(err)
 	}
 	latest, ok := s.LivenessForThread(address.RepoScope, string(address.Tag))
-	if !ok || switchSourceToken(latest) != switchSourceToken(live) || latest.Settled == nil || !*latest.Settled || !s.isConnected(latest.Binding) {
-		return errors.New("switch-agent: source changed while checking; retry switch")
+	if !ok || switchSourceToken(latest) != switchSourceToken(live) || options.requireIdle && (latest.Settled == nil || !*latest.Settled) || !s.isConnected(latest.Binding) {
+		return fail(errors.New("switch-agent: source changed while checking; retry switch"))
 	}
-	return ctx.Err()
+	if options.forceEvidence != nil {
+		if err := verifyForcedSwitchLiveSource(ctx, s, latest, address, *options.forceEvidence, identity); err != nil {
+			return fail(err)
+		}
+	}
+	return latest, git, ctx.Err()
+}
+
+func inspectSwitchGit(ctx context.Context, s *messageService, path string, allowUnclean bool) (couchcore.SlotGitStatus, error) {
+	git, err := s.authority.branch(ctx, path)
+	if ctx.Err() != nil {
+		return couchcore.SlotGitStatus{}, ctx.Err()
+	}
+	if err != nil {
+		if allowUnclean {
+			return couchcore.SlotGitStatus{}, nil
+		}
+		return couchcore.SlotGitStatus{}, fmt.Errorf("switch-agent: Git state unknown: %w", err)
+	}
+	if git.Dirty && !allowUnclean {
+		return couchcore.SlotGitStatus{}, errors.New("switch-agent: source is dirty; ask it to commit first")
+	}
+	return git, nil
+}
+
+// The core's exact vacancy classification replaces only the live-wrapper gate.
+// Workspace/Git proof and retained selection must still survive both checks.
+func (g *switchServiceGuard) confirmVacantAgentSwitch(ctx context.Context, s *messageService, address couchcore.ThreadAddress, source string, evidence couchcore.SwitchSourceEvidence) error {
+	_, err := inspectVacantSwitchSource(ctx, s, address, source, evidence, false)
+	return err
+}
+
+func inspectVacantSwitchSource(ctx context.Context, s *messageService, address couchcore.ThreadAddress, source string, evidence couchcore.SwitchSourceEvidence, force bool) (couchcore.SlotGitStatus, error) {
+	return inspectVacantSwitchSourceObserved(ctx, s, address, source, evidence, force, nil)
+}
+
+func inspectVacantSwitchSourceObserved(ctx context.Context, s *messageService, address couchcore.ThreadAddress, source string, evidence couchcore.SwitchSourceEvidence, force bool, observed *retainedSwitchAdmission) (couchcore.SlotGitStatus, error) {
+	fail := func(err error) (couchcore.SlotGitStatus, error) { return couchcore.SlotGitStatus{}, err }
+	if source != "" {
+		return fail(errors.New("switch-agent: live source changed; review the parked source again"))
+	}
+	if s.authority.record == nil || s.authority.workspace == nil || s.authority.branch == nil {
+		return fail(errors.New("switch-agent: vacant source verification unavailable"))
+	}
+	if observed != nil && (force || observed.address != address || observed.workspace.RepoIdentity != evidence.RepositoryIdentity()) {
+		return fail(errors.New("switch-agent: admission workspace does not match the prepared source"))
+	}
+	current := func() error {
+		if observed != nil {
+			if err := observed.recheck(ctx); err != nil {
+				return err
+			}
+			// A saved working directory can be nested beneath the verified Git
+			// root. Resolve it again around Git inspection so symlink drift,
+			// disappearance or a non-directory never inherits the observation.
+			physical, err := filepath.EvalSymlinks(evidence.WorkingPath())
+			if err != nil {
+				return fmt.Errorf("switch-agent: admission working path is unavailable: %w", err)
+			}
+			if !pathscope.Within(observed.workspace.WorktreeRoot, physical) {
+				return errors.New("switch-agent: admission working path is outside its workspace")
+			}
+			info, err := os.Stat(physical)
+			if err != nil {
+				return fmt.Errorf("switch-agent: admission working path is unavailable: %w", err)
+			}
+			if !info.IsDir() {
+				return errors.New("switch-agent: admission working path is not a directory")
+			}
+		}
+		if live, ok := s.LivenessForThread(address.RepoScope, string(address.Tag)); ok && s.isConnected(live.Binding) {
+			return errors.New("switch-agent: vacant source reconnected; review it again")
+		}
+		record, err := s.authority.record(ctx, address)
+		if err != nil {
+			return err
+		}
+		if !evidence.MatchesRecord(record) {
+			return errors.New("switch-agent: vacant source changed; review it again")
+		}
+		return ctx.Err()
+	}
+	if err := current(); err != nil {
+		return fail(err)
+	}
+	var identity couchcore.WorkspaceIdentity
+	var err error
+	if observed != nil {
+		identity = observed.workspace
+	} else {
+		identity, err = s.authority.workspace(ctx, evidence.WorkingPath())
+	}
+	if err != nil {
+		return fail(err)
+	}
+	if force {
+		if err := verifyForcedSwitchWorkspace(ctx, s, evidence, identity); err != nil {
+			return fail(err)
+		}
+	}
+	git, err := inspectSwitchGit(ctx, s, identity.WorktreeRoot, force)
+	if err != nil {
+		return fail(err)
+	}
+	if force {
+		if err := verifyForcedSwitchWorkspace(ctx, s, evidence, identity); err != nil {
+			return fail(err)
+		}
+	}
+	return git, current()
 }
 
 type agentSwitchService struct {
-	guard   *switchServiceGuard
-	prepare func(context.Context, couchcore.ThreadAddress, string) (couchcore.PreparedAgentSwitch, error)
-	enqueue func(string, func(context.Context) (couchcore.OperationCall, error), func(), func(any, error)) error
+	resolveTarget func(context.Context, string) (couchcore.ThreadAddress, couchcore.WorkspaceIdentity, error)
+	recheckTarget func(context.Context, string, couchcore.ThreadAddress, couchcore.WorkspaceIdentity) error
+	guard         *switchServiceGuard
+	prepare       func(context.Context, couchcore.ThreadAddress, string, *[]string) (couchcore.PreparedAgentSwitch, error)
+	enqueue       func(string, func(context.Context) (couchcore.OperationCall, error), func(), func(any, error)) error
+}
+
+// This observation belongs only to one admission. Queued and effect guards
+// retain the full resolver; they never receive this value as workspace proof.
+type retainedSwitchAdmission struct {
+	address   couchcore.ThreadAddress
+	workspace couchcore.WorkspaceIdentity
+	recheck   func(context.Context) error
+}
+
+func (s *messageService) authorizeRetainedSwitchWorkspace(ctx context.Context, caller couchmessage.Binding, identity couchcore.WorkspaceIdentity) error {
+	origin, err := s.connectedWorkspace(ctx, caller)
+	if err != nil {
+		return err
+	}
+	if origin.WorktreeRoot == identity.WorktreeRoot {
+		return errors.New("switch-agent: a caller cannot switch its own slot")
+	}
+	slot, ok := hubWorkspaceSlot(identity)
+	if !ok {
+		return errors.New("switch-agent: target slot identity unavailable")
+	}
+	if s.authority.hubs != nil {
+		return authorizeHubMutation(origin, slot, s.authority.hubs.snapshot())
+	}
+	return ctx.Err()
 }
 
 func (s *messageService) switchCaller(ctx context.Context, r couchmessage.Request) (couchmessage.Binding, error) {
@@ -110,26 +300,66 @@ func (s *messageService) handleAgentSwitch(ctx context.Context, r couchmessage.R
 		}
 	}
 	source, _, err := s.tailBinding(ctx, couchmessage.Request{Target: r.Target}, bindings)
-	if err != nil {
+	var address couchcore.ThreadAddress
+	token := ""
+	var authorize func(context.Context) error
+	var observed *retainedSwitchAdmission
+	switch {
+	case err == nil:
+		address = couchcore.ThreadAddress{RepoScope: source.Scope, Tag: couchcore.ThreadTag(source.Tag)}
+		live, ok := s.LivenessForThread(source.Scope, source.Tag)
+		if !ok || live.Binding != source {
+			return refuse(errors.New("switch-agent: source wrapper unavailable"))
+		}
+		token = switchSourceToken(live)
+		authorize = func(ctx context.Context) error { return s.authorizeHubBinding(ctx, caller, source) }
+	case errors.Is(err, couchmessage.ErrUnavailable) && service.resolveTarget != nil:
+		var identity couchcore.WorkspaceIdentity
+		address, identity, err = service.resolveTarget(ctx, r.Target)
+		if err != nil {
+			return refuse(err)
+		}
+		if service.recheckTarget != nil {
+			observed = &retainedSwitchAdmission{address: address, workspace: identity,
+				recheck: func(ctx context.Context) error { return service.recheckTarget(ctx, r.Target, address, identity) }}
+		}
+		authorize = func(ctx context.Context) error {
+			currentAddress, current, err := service.resolveTarget(ctx, r.Target)
+			if err != nil {
+				return err
+			}
+			if currentAddress != address || current.WorktreeRoot != identity.WorktreeRoot || current.RepoIdentity != identity.RepoIdentity || current.PrimaryRoot != identity.PrimaryRoot {
+				return errors.New("switch-agent: retained slot selection changed; review it again")
+			}
+			return s.authorizeRetainedSwitchWorkspace(ctx, caller, current)
+		}
+	default:
 		return refuse(err)
 	}
-	if source.Scope == caller.Scope && source.Tag == caller.Tag {
+	if address.RepoScope == caller.Scope && string(address.Tag) == caller.Tag {
 		return refuse(errors.New("switch-agent: a caller cannot switch its own slot"))
 	}
-	if err := s.authorizeHubBinding(ctx, caller, source); err != nil {
+	authorizeAdmission := authorize
+	if observed != nil {
+		authorizeAdmission = func(ctx context.Context) error {
+			if err := observed.recheck(ctx); err != nil {
+				return err
+			}
+			return s.authorizeRetainedSwitchWorkspace(ctx, caller, observed.workspace)
+		}
+	}
+	if err := authorizeAdmission(ctx); err != nil {
 		return refuse(err)
 	}
-	address := couchcore.ThreadAddress{RepoScope: source.Scope, Tag: couchcore.ThreadTag(source.Tag)}
-	live, ok := s.LivenessForThread(source.Scope, source.Tag)
-	if !ok || live.Binding != source {
-		return refuse(errors.New("switch-agent: source wrapper unavailable"))
+	var explicit *[]string
+	if argv, present := r.AgentArgs.Argv(); present {
+		explicit = &argv
 	}
-	token := switchSourceToken(live)
-	if err = service.guard.ConfirmAgentSwitch(ctx, address, token); err != nil {
-		return refuse(err)
-	}
-	prepared, err := service.prepare(ctx, address, r.Agent)
+	prepared, err := service.prepare(ctx, address, r.Agent, explicit)
 	if err != nil {
+		return refuse(err)
+	}
+	if err = service.guard.confirmAgentSwitchAdmissionObserved(ctx, address, token, prepared.SourceEvidence(), r.InterruptFirst, observed); err != nil {
 		return refuse(err)
 	}
 	guard := func(ctx context.Context) error {
@@ -138,17 +368,27 @@ func (s *messageService) handleAgentSwitch(ctx context.Context, r couchmessage.R
 				return err
 			}
 		}
-		if err := s.authorizeHubBinding(ctx, caller, source); err != nil {
+		if err := authorize(ctx); err != nil {
 			return err
 		}
-		return service.guard.ConfirmAgentSwitch(ctx, address, token)
+		return service.guard.confirmAgentSwitchAdmission(ctx, address, token, prepared.SourceEvidence(), r.InterruptFirst)
 	}
-	return s.slotOps.admit(ctx, caller, r, func(key string, started func(), finished func(any, error)) error {
+	return s.slotOps.admit(ctx, caller, r, func(key string, started func(), _ couchcore.OperationProgress, finished func(any, error)) error {
 		return service.enqueue(key, func(ctx context.Context) (couchcore.OperationCall, error) {
 			call := couchcore.OperationCall{Name: "switch-agent", Args: map[string]string{
 				"repo-scope": address.RepoScope, "tag": string(address.Tag), "agent": r.Agent,
-				"known-config": "true", "fingerprint": prepared.Fingerprint, "source": token,
+				"fingerprint": prepared.Fingerprint, "source": token,
 			}}
+			call.TypedPayload = prepared.AcceptAgentSwitch(false)
+			if r.InterruptFirst {
+				call.Args["interrupt-first"] = "true"
+			}
+			if explicit != nil {
+				raw, _ := json.Marshal(*explicit)
+				call.Args["argv"] = string(raw)
+			} else {
+				call.Args["known-config"] = "true"
+			}
 			call.FailureTarget = &couchcore.LifecycleFailureTarget{Address: address, Target: r.Target}
 			if err := guard(ctx); err != nil {
 				return call, err
@@ -169,7 +409,7 @@ func (s *slotOperations) existingSwitch(caller couchmessage.Binding, r couchmess
 	if !ok {
 		return couchmessage.Response{}, false
 	}
-	if old.Op != r.Op || old.Target != r.Target || old.Agent != r.Agent {
+	if old.Op != r.Op || old.Target != r.Target || old.Agent != r.Agent || old.IntentDigest != operationIntentDigest(r) {
 		return couchmessage.Response{Code: "id-conflict", Error: "request ID already names another operation"}, true
 	}
 	return couchmessage.Response{Code: "accepted", Operation: &old}, true
@@ -178,7 +418,12 @@ func (s *slotOperations) existingSwitch(caller couchmessage.Binding, r couchmess
 func (s *messageService) installAgentSwitchService(console *couchtty.Console, c *couchcore.Couch, guard *switchServiceGuard) {
 	guard.service.Store(s)
 	lifecycleQueue := newLifecycleRemoteQueue(console, c)
-	s.switches.Store(&agentSwitchService{guard: guard, prepare: c.PrepareKnownAgentSwitch,
+	s.switches.Store(&agentSwitchService{resolveTarget: c.ResolveAgentSwitchTarget, recheckTarget: c.RecheckAgentSwitchTarget, guard: guard, prepare: func(ctx context.Context, address couchcore.ThreadAddress, agent string, argv *[]string) (couchcore.PreparedAgentSwitch, error) {
+		if argv == nil {
+			return c.PrepareKnownAgentSwitch(ctx, address, agent)
+		}
+		return c.PrepareAgentSwitch(ctx, address, agent, argv)
+	},
 		enqueue: func(key string, prepare func(context.Context) (couchcore.OperationCall, error), started func(), finished func(any, error)) error {
 			return lifecycleQueue.Enqueue(key, "switch-agent", prepare, started, finished)
 		},

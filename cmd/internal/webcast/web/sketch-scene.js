@@ -172,9 +172,13 @@ export function createSketchScene({
         );
       };
       try {
-        renderer = rendererFactory(currentFrame(frame), next, resolve);
+        // Final-prefix validation/asset admission stays separate from the
+        // state each historical mutation needs while rebuilding the DOM.
+        const renderModel = modelFactory();
+        renderer = rendererFactory(currentFrame(frame), renderModel, resolve);
         if (host) host.hidden = false;
         for (const record of records) {
+          renderModel.apply(record);
           renderer.apply(record);
           if (record.k === 'seg') layout();
         }

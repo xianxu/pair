@@ -250,21 +250,6 @@ func (r OSRuntime) NewCouchWith(runner couchcore.Runner, namespace couchcore.Cou
 		c.ContinuationGeneration = status.Generation
 	}
 
-	c.RepoAgentDefault = func(repoRoot, agent string) (couchcore.LaunchProfile, bool, error) {
-		scopeDir := launcher.ScopedLaunchDataDir(dataDir, repoRoot)
-		raw, err := os.ReadFile(launcher.AgentDefaultPath(scopeDir, agent))
-		if errors.Is(err, os.ErrNotExist) {
-			return couchcore.LaunchProfile{}, false, nil
-		}
-		if err != nil {
-			return couchcore.LaunchProfile{}, false, err
-		}
-		value, err := launcher.ParseAgentDefault(agent, string(raw))
-		if err != nil {
-			return couchcore.LaunchProfile{}, false, err
-		}
-		return couchcore.LaunchProfile{Agent: value.Agent, Argv: value.Args}, true, nil
-	}
 	return c, nil
 }
 
@@ -347,7 +332,15 @@ func RunWithRuntime(args []string, stdin io.Reader, stdout, stderr io.Writer, rt
 			lease.Close()
 			return prepared.StoreDir(), nil
 		}
-		return query.Run(invocation.args, replayLinker(store, couchmessage.Call, slotPollClock{now: time.Now, sleep: time.Sleep}, stderr), stdout, stderr)
+		ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+		defer stop()
+		return query.RunWithOptions(invocation.args, query.RunOptions{Context: ctx, Link: replayLinker(store, couchmessage.Call, slotPollClock{now: time.Now, sleep: time.Sleep}, stderr), ExportSketchImage: func(ctx context.Context, request query.SketchImageRequest) error {
+			bin, err := webcast.FindChrome(rt.Getenv, exec.LookPath, fileExists)
+			if err != nil {
+				return err
+			}
+			return webcast.ExportSketchImage(ctx, webcast.NewSketchImageRenderer(bin), request)
+		}}, stdout, stderr)
 	}
 	if invocation.kind == cliWebReplay {
 		// Reads recordings in the store a running Couch records to, and
@@ -422,7 +415,7 @@ func RunWithRuntime(args []string, stdin io.Reader, stdout, stderr io.Writer, rt
 			return 1
 		}
 		op, _ := Resolve("start")
-		return runTypedOperation(op, map[string]string{}, map[string]string{"path": invocation.path}, true, invocation.layout, inFile, outFile, stdin, stdout, stderr, rt, invocation.hubPaths...)
+		return runTypedOperationStyle(op, map[string]string{}, map[string]string{"path": invocation.path}, true, invocation.layout, invocation.tabStyle, inFile, outFile, stdin, stdout, stderr, rt, invocation.hubPaths...)
 	}
 
 	var op couchcore.Operation
@@ -489,6 +482,10 @@ func terminalFiles(stdin io.Reader, stdout io.Writer) (*os.File, *os.File, bool)
 }
 
 func runTypedOperation(op couchcore.Operation, parsed, prepareArgs map[string]string, forceConsole bool, layout couchcore.Layout, inFile, outFile *os.File, stdin io.Reader, stdout, stderr io.Writer, rt Runtime, hubPaths ...string) int {
+	return runTypedOperationStyle(op, parsed, prepareArgs, forceConsole, layout, couchtty.DefaultTabStyle, inFile, outFile, stdin, stdout, stderr, rt, hubPaths...)
+}
+
+func runTypedOperationStyle(op couchcore.Operation, parsed, prepareArgs map[string]string, forceConsole bool, layout couchcore.Layout, style couchtty.TabStyle, inFile, outFile *os.File, stdin io.Reader, stdout, stderr io.Writer, rt Runtime, hubPaths ...string) int {
 	var hubs *hubRuntime
 	var setup []func(*couchcore.Couch) error
 	if len(hubPaths) > 0 {
@@ -502,7 +499,7 @@ func runTypedOperation(op couchcore.Operation, parsed, prepareArgs map[string]st
 		wireTitles(console, c, rt.Getenv)
 		return runConsole(console, c, start, out, hubs)
 	}
-	return runTypedOperationWithConsole(op, parsed, prepareArgs, forceConsole, layout, inFile, outFile, stdin, stdout, stderr, rt, finish, setup...)
+	return runTypedOperationWithConsoleStyle(op, parsed, prepareArgs, forceConsole, layout, style, inFile, outFile, stdin, stdout, stderr, rt, finish, setup...)
 }
 
 type consoleFinisher func(*couchtty.Console, *couchcore.Couch, couchcore.StartResult, io.Writer) int
@@ -521,6 +518,10 @@ func singleReference(op couchcore.Operation, ref string) string {
 }
 
 func runTypedOperationWithConsole(op couchcore.Operation, parsed, prepareArgs map[string]string, forceConsole bool, layout couchcore.Layout, inFile, outFile *os.File, stdin io.Reader, stdout, stderr io.Writer, rt Runtime, finishConsole consoleFinisher, setup ...func(*couchcore.Couch) error) (code int) {
+	return runTypedOperationWithConsoleStyle(op, parsed, prepareArgs, forceConsole, layout, couchtty.DefaultTabStyle, inFile, outFile, stdin, stdout, stderr, rt, finishConsole, setup...)
+}
+
+func runTypedOperationWithConsoleStyle(op couchcore.Operation, parsed, prepareArgs map[string]string, forceConsole bool, layout couchcore.Layout, style couchtty.TabStyle, inFile, outFile *os.File, stdin io.Reader, stdout, stderr io.Writer, rt Runtime, finishConsole consoleFinisher, setup ...func(*couchcore.Couch) error) (code int) {
 	_, workspaceRef, referenceErr := couchcore.ParseWorkspaceReference(singleReference(op, parsed["ref"]))
 	if referenceErr != nil {
 		renderError(stderr, referenceErr)
@@ -580,6 +581,7 @@ func runTypedOperationWithConsole(op couchcore.Operation, parsed, prepareArgs ma
 		return 1
 	}
 	if console != nil {
+		console.SetTabStyle(style)
 		defer func() {
 			if captureErr := console.CloseCapture(); captureErr != nil {
 				fmt.Fprintln(stderr, "couch: capture incomplete:", captureErr)
@@ -1039,11 +1041,16 @@ func wireResolver(console *couchtty.Console, c *couchcore.Couch, configuredHubs 
 				}
 				if call.Operation.Effect == couchcore.EffectConsole {
 					result, err := console.ExecuteConsoleOperation(call)
+					if err == nil && call.Operation.Name == "attach" {
+						if start, ok := call.TypedPayload.(couchcore.StartResult); ok {
+							c.PublishAdoptedConfiguration(start)
+						}
+					}
 					if err != nil && call.Operation.Name == "attach" {
 						if start, ok := call.TypedPayload.(couchcore.StartResult); ok {
-							// Attach runs on the console goroutine, and the abort may
-							// wait on the thread's gate: run it off that goroutine so
-							// the console keeps rendering and draining results
+							// Attach runs on a lifecycle worker (or before Run at
+							// startup). Abort may wait on the thread's gate, so keep
+							// cleanup tracked without delaying the attach reply
 							// (pair#205). The attach error is the operation's answer;
 							// a cleanup failure beyond it follows as a notice.
 							attachErr := err
@@ -1439,7 +1446,7 @@ func usage(w io.Writer) { usageWith(w, couchkeys.Bindings()) }
 func usageWith(w io.Writer, bindings []couchkeys.Binding) {
 	fmt.Fprintln(w, "couch - supervise agent actors, one per working tree")
 	fmt.Fprintln(w)
-	verbLine(w, launchVerb, "usage: couch [path ...] [--layout2|--layout3]")
+	verbLine(w, launchVerb, "usage: couch [path ...] [--layout2|--layout3] [--tab-style collapse|multiline]")
 	verbLine(w, "mock", "       couch mock serve DIR [--port N] [--real URL] | mock use DIR mock-N | mock check DIR")
 	verbLine(w, "--list", "       couch --list")
 	verbLine(w, "--show", "       couch --show <thread>")
@@ -1452,7 +1459,7 @@ func usageWith(w io.Writer, bindings []couchkeys.Binding) {
 	verbLine(w, "--recover-plan-from-sdlc", "       couch --recover-plan-from-sdlc")
 	fmt.Fprintln(w, "             Recovery report: one JSON row per slot joining sdlc's claims and")
 	fmt.Fprintln(w, "             slot verdicts with Couch's threads, with a suggested next step.")
-	verbLine(w, "--switch-agent", "       couch --switch-agent repo:N --agent NAME --confirm [--json]")
+	verbLine(w, "--switch-agent", "       couch --switch-agent repo:N --agent NAME [--agent-args PARAMETERS] [--interrupt-first] --confirm [--json]")
 	verbLine(w, "--keys", "       couch --keys repo:N STEP... [--json]")
 	fmt.Fprintf(w, "             Hub only. STEP: %s\n", agentdrive.StepSyntax())
 	fmt.Fprintln(w, "             Steps, rules and the slash-command panel round trip: couch --keys --help.")
@@ -1552,6 +1559,9 @@ func usageWith(w io.Writer, bindings []couchkeys.Binding) {
 	// Deliberately free of the words the public-surface test forbids: they are
 	// internal operation names, and the remedy for a refusal belongs in the
 	// refusal itself, where it can name the actual threads.
+	fmt.Fprintln(w, "  --tab-style collapse   one row; fold quiet slots and inactive hubs into group counts (default).")
+	fmt.Fprintln(w, "  --tab-style multiline  show the existing one/two-row tab bar.")
+	fmt.Fprintln(w, "             Click +N to open that hub and group in the switcher; Escape clears the scope.")
 	fmt.Fprintln(w, "  --layout3  give every thread pair's right-hand terminal (default: --layout3).")
 	fmt.Fprintln(w, "  --layout2  use the two-pane workbench without the right-hand terminal.")
 	fmt.Fprintln(w, "             One layout per couch: it refuses to run alongside a thread")

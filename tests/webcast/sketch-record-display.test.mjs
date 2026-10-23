@@ -71,3 +71,27 @@ test('actual pause and annotation clear apply accepted seal/visibility facts', (
   adapter.accept(clear);
   assert.equal(adapter.paths().length, 0);
 });
+
+test('constant-size accepted version metadata survives display bootstrap and incremental commits',()=>{
+ const {m,adapter,record}=setup();
+ const last=record('sketch-points',{sketch:'s',id:'p',chunk:0,pts:[[1,2,.5]],digest:'b'.repeat(64)});
+ assert.equal(m.sketchMetadata('s').digest,last.digest);
+ assert.equal(adapter.metadata('s').digest,last.digest);
+ assert.equal(adapter.metadata('s').next_sequence,3);
+ const boot=render.createSketchRecordDisplay(m);
+ assert.deepEqual(boot.metadata('s'),adapter.metadata('s'));
+ const display=render.createSketchDisplay();display.install(adapter.snapshot());
+ assert.deepEqual(display.metadata('s'),adapter.metadata('s'));
+ record('sketch-stroke-end',{sketch:'s',id:'p',digest:'c'.repeat(64)});
+ assert.equal(adapter.metadata('s').digest,'c'.repeat(64));assert.equal(adapter.metadata('s').next_sequence,4);
+});
+
+test('restored accepted digest is constant-size metadata without changing persisted projection',async()=>{
+ const {restoreSketchState,sketchMetadata,sketchProjection}=await import('../../cmd/internal/webcast/web/sketch-model.js');
+ const {m,record}=setup();record('sketch-points',{sketch:'s',id:'p',chunk:0,pts:[[1,2,.5]],digest:'b'.repeat(64)});
+ const projection=m.sketchProjection(),restored=restoreSketchState(projection);
+ assert.deepEqual(sketchProjection(restored),projection);
+ restored.sketches.get('s').receipts.values=()=>assert.fail('metadata cannot enumerate receipt history');
+ assert.equal(sketchMetadata(restored,'s').digest,'b'.repeat(64));
+ assert.equal(sketchMetadata(restored,'s').next_sequence,3);
+});

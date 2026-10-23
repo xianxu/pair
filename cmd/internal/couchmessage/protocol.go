@@ -28,9 +28,12 @@ type Request struct {
 	Op, Scope, Tag, Session, Nonce, ID, Target, Body string
 	Title                                            string `json:",omitempty"` // notify only
 	// Agent narrows a send or selects the switch destination harness.
-	Agent                string `json:",omitempty"`
-	RecoveryConfirmation string `json:",omitempty"`
-	CandidateKey         string `json:",omitempty"`
+	Agent string `json:",omitempty"`
+	// AgentArgs preserves absent versus explicitly empty switch parameters.
+	AgentArgs            SwitchArguments `json:",omitzero"`
+	InterruptFirst       bool            `json:",omitempty"`
+	RecoveryConfirmation string          `json:",omitempty"`
+	CandidateKey         string          `json:",omitempty"`
 	// Confirmed declares the operator's confirmation for an operation whose
 	// declaration requires one (reboot); resume and reboot only.
 	Confirmed bool `json:",omitempty"`
@@ -102,6 +105,8 @@ type LegacyOrphanSignalResult struct {
 // SubmissionStatus is a durable evidence submission's current outcome. Polling
 // it never repeats capture or delivery; the client retains ID through retries.
 type SubmissionStatus struct {
+	Sketches  int                      `json:"sketches,omitempty"`
+	Remaining int                      `json:"remaining,omitempty"`
 	Progress  *core.SubmissionProgress `json:"progress,omitempty"`
 	Slot      string                   `json:"slot,omitempty"`
 	HowToRead string                   `json:"how_to_read,omitempty"`
@@ -175,6 +180,9 @@ func validMessageID(id string) bool {
 }
 
 func ValidateRequest(r Request) error {
+	if r.Op != "switch-agent" && (!r.AgentArgs.IsZero() || r.InterruptFirst) {
+		return errors.New("startup parameters and interrupt-first apply only to switch-agent")
+	}
 	if r.Op != "reap-orphan-signal" && r.OrphanTarget != nil {
 		return errors.New("proven orphan target applies only to reap-orphan-signal")
 	}
@@ -404,6 +412,14 @@ func ValidateRequest(r Request) error {
 		}
 		if r.Body != "" {
 			return errors.New("switch-agent does not accept content")
+		}
+		if argv, present := r.AgentArgs.Argv(); present {
+			if err := validateSwitchArgumentText(argv); err != nil {
+				return err
+			}
+			if err := launcher.ValidateFreshAgentArgs(r.Agent, argv); err != nil {
+				return err
+			}
 		}
 
 	case couchcore.IsSlotOperation(r.Op):

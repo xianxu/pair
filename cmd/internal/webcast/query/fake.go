@@ -64,7 +64,7 @@ func (f FakeSurface) Notes(before int64) ([]NoteView, error) {
 		if !ok {
 			continue
 		}
-		v := NoteView{Note: st.Notes[len(st.Notes)-1]}
+		v := NoteView{Note: st.Notes[len(st.Notes)-1], Elements: noteElementFacts(st, n)}
 		if el := st.Node(n.At.Node); el != nil {
 			v.Element = Outline(el)
 			ctx, err := f.Model.Context(st, n.At)
@@ -129,4 +129,10 @@ func Outline(n *recording.DOMNode) string {
 	}
 	walk(n, 0)
 	return b.String()
+}
+
+// SketchesAt shares the pure history/fact projection; fake IO does not replace
+// the recording's transition owner with a permissive sketch model.
+func (f FakeSurface) SketchesAt(at int64, selected ...SketchSelection) ([]SketchView, error) {
+	return New(f.Records, f.Model).SketchesAt(at, selected...)
 }

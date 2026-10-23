@@ -31,6 +31,24 @@ func (f *parkFuture) Await(ctx context.Context) (ParkResult, error) {
 	}
 }
 
+// AwaitJoined waits for this exact future to finish even after ctx ends
+// (#827). Await may return on cancellation while the admitted work is still
+// settling, which suits an interactive caller; a full-quit leave must instead
+// keep its thread hold until the work it started has published its final
+// state, so it never reports, releases or retries over unsettled effects.
+// Cancellation still reaches the work through the context it was submitted
+// with; the result is the work's own.
+func (f *parkFuture) AwaitJoined(ctx context.Context) (ParkResult, error) {
+	if f == nil {
+		return ParkResult{}, errors.New("nil park future")
+	}
+	<-f.done
+	return f.work.result, f.work.err
+}
+
+// parkAwait selects how a submitter waits on its admitted future.
+type parkAwait func(*parkFuture, context.Context) (ParkResult, error)
+
 type activeParkWork struct {
 	nonce  string
 	future *parkFuture

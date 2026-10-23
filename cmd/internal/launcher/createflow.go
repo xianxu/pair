@@ -327,8 +327,15 @@ type launchStep struct {
 // handedOff=false with the exit code already messaged on stderr.
 func runOnce(opts LaunchOptions, env Env, rt Runtime, stderr io.Writer) (launchStep, error) {
 	if opts.Args.CouchSession != nil {
+		startup, stopStartup, err := terminalStartupContext(opts.lifetimeContext(), opts.StartupContext)
+		if err != nil {
+			fmt.Fprintf(stderr, "pair: startup: %v\n", err)
+			return launchStep{code: 1}, nil
+		}
+		defer stopStartup()
+		opts.StartupContext = startup
 		var cancel context.CancelFunc
-		opts.queryContext, cancel = zellijreply.AdmissionContext(opts.lifetimeContext())
+		opts.queryContext, cancel = zellijreply.AdmissionContext(startup)
 		defer cancel()
 	}
 
@@ -723,7 +730,9 @@ func runCreate(opts LaunchOptions, env Env, rt Runtime, live []Session, decision
 
 	var agentDefault AgentDefault
 	var defaultFound bool
-	if !opts.Args.ResumeRequired && !opts.Args.FreshRequired && opts.ContinueCheckpoint.Version == 0 {
+	// A validated Couch profile already resolved its arguments. Pair's defaults
+	// and saved-config picker remain authorities only for standalone launches.
+	if !opts.Args.AgentArgsFromCouch && !opts.Args.ResumeRequired && !opts.Args.FreshRequired && opts.ContinueCheckpoint.Version == 0 {
 		agentDefault, defaultFound = rt.ReadAgentDefault(agent)
 	}
 	argDecision := DecideLaunchArgs(LaunchArgInputs{
@@ -740,7 +749,7 @@ func runCreate(opts LaunchOptions, env Env, rt Runtime, live []Session, decision
 	// Tag-restart config picker (#000016): a saved config for this (tag, agent)
 	// offers to reuse its args / resume its session, unless an explicit resume
 	// token on argv already made the choice.
-	if !opts.SkipConfigPicker && !opts.Args.ResumeRequired && !opts.Args.FreshRequired && opts.ContinueCheckpoint.Version == 0 {
+	if !opts.Args.AgentArgsFromCouch && !opts.SkipConfigPicker && !opts.Args.ResumeRequired && !opts.Args.FreshRequired && opts.ContinueCheckpoint.Version == 0 {
 		callerSelection, parseErr := ParseNativeResumeSelector(agent, agentArgs)
 		if parseErr != nil {
 			fmt.Fprintf(stderr, "pair: native resume selector: %v\n", parseErr)
@@ -827,6 +836,13 @@ func runCreate(opts LaunchOptions, env Env, rt Runtime, live []Session, decision
 		return launchStep{code: 1}, nil
 	}
 
+	startup, stopStartup, startupErr := terminalStartupContext(opts.lifetimeContext(), opts.StartupContext)
+	if startupErr != nil {
+		fmt.Fprintf(stderr, "pair: startup: %v\n", startupErr)
+		return launchStep{code: 1}, nil
+	}
+	defer stopStartup()
+	opts.StartupContext = startup
 	var defaultReady <-chan error
 	// Every new Couch wrapper needs readiness evidence, including cold resume.
 	// The native conversation survives resume; the wrapper incarnation does not.
@@ -1025,10 +1041,10 @@ func runCreate(opts LaunchOptions, env Env, rt Runtime, live []Session, decision
 	opts.startupTiming.handoff("create-handoff")
 	if opts.queryContext == nil {
 		var cancel context.CancelFunc
-		opts.queryContext, cancel = zellijreply.AdmissionContext(opts.lifetimeContext())
+		opts.queryContext, cancel = zellijreply.AdmissionContext(opts.StartupContext)
 		defer cancel()
 	}
-	code, verdict, err := launchWatchedContext(opts.lifetimeContext(), opts.queryContext, rt, opts.birthClock(), birthEvidence, session, configDir, layout, bound)
+	code, verdict, err := launchWatchedContext(opts.lifetimeContext(), opts.StartupContext, opts.queryContext, rt, opts.birthClock(), birthEvidence, session, configDir, layout, bound)
 	if err != nil {
 		restoreLayoutRecord(rt, dataDir, chosenTag, priorLayout)
 		fmt.Fprintf(stderr, "pair: failed to launch zellij session '%s': %v\n", session, err)

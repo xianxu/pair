@@ -2,6 +2,7 @@ package testcouch
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -146,5 +147,55 @@ func TestCommandWrappersJoinCanceledDescendants(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestDefaultBuildConfigCanonicalizesTempAliasWithoutScratchVolume(t *testing.T) {
+	physical, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	alias := filepath.Join(t.TempDir(), "temp-alias")
+	if err := os.Symlink(physical, alias); err != nil {
+		t.Fatal(err)
+	}
+	// This is Build's actual config-selection seam. The absent-volume fact is
+	// supplied without unmounting the machine scratch disk or changing TMPDIR.
+	cfg := defaultBuildConfig("/selected/checkout", nil, alias, false)
+	if cfg.ScratchParent != physical || cfg.Source != "/selected/checkout" {
+		t.Fatalf("default build selected unphysical temp: %+v; physical=%s", cfg, physical)
+	}
+	if err := validateScratchParent(cfg.ScratchParent); err != nil {
+		t.Fatalf("selected default cannot enter strict owner: %v", err)
+	}
+}
+
+func TestBuildOwnedExplicitScratchAliasStillRefusedBeforeEffects(t *testing.T) {
+	source := t.TempDir()
+	for _, name := range []string{"go.mod", "tests/lib/pair-test-binary.sh", "cmd/couch/main.go"} {
+		path := filepath.Join(source, name)
+		if err := os.MkdirAll(filepath.Dir(path), 0700); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, []byte("fixture"), 0600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	physical, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	alias := filepath.Join(t.TempDir(), "explicit-alias")
+	if err := os.Symlink(physical, alias); err != nil {
+		t.Fatal(err)
+	}
+	looked := false
+	owner, err := buildOwned(t.Context(), BuildConfig{Source: source, ScratchParent: alias}, buildDependencies{resolve: func(string) (string, error) { looked = true; return "", fmt.Errorf("unexpected lookup") }})
+	if owner != nil || err == nil || !strings.Contains(err.Error(), "physical scratch parent required") || looked {
+		t.Fatalf("explicit alias reached build effects: owner=%v err=%v looked=%v", owner, err, looked)
+	}
+	entries, err := os.ReadDir(physical)
+	if err != nil || len(entries) != 0 {
+		t.Fatalf("explicit refusal created files: %v %v", entries, err)
 	}
 }

@@ -1,0 +1,114 @@
+[?2026h[?25l[2D[3B[H[2K[1B[2K[1B[2K[1B[2K[1B[2K[1B[2K[1B[2K[1B[2K[1B[2K[1B[2K[1B[2K[1B[2K[1B[2K[1B[2K[1B[2K[1B[2K[1B[2K[1B[2K[1B[2K[1B[2K[1B[2K[1B[2K[1B[2K[1B[2K[1B[2K[1B[2K[1B[2K[1B[2K[1B[2K[1B[2K[1B[2K[1B[2K[1B[2K[1B[2K[1B[2K[1B[2K[1B[2K[1B[2K[1B[2K[1B[H
+[38;2;153;153;153mx[3Gxxxxxx[10Gxxx[14Gxx[17Gx[19Gxxxx[24Gxxxx[29Gxx[39m
+
+[48;2;55;55;55m[38;2;153;153;153mx [38;2;255;255;255mxxxxxx xxxxxxx xxxxxxxx xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx[39m                               [49m
+[48;2;55;55;55m  [38;2;255;255;255mxxxx xxxxxxxxxxxxx xxxxxxx xx xxx xxxx xxx xxx xxxxxxx xxxxxxx xxx xxxxxxx xx xxxxx xxx [39m    [49m
+[48;2;55;55;55m  [38;2;255;255;255mxxxx xxx xxxxxx xxxxxx xxxxxxxxxxxxxx xxxxx xxx xxxxxxxxxxxxx xx [39m                           [49m
+[48;2;55;55;55m  [38;2;255;255;255mxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx[39m                                      [49m
+
+[38;2;255;255;255mx[3G[39mxxxxxxxxxxxxx[17Gxx[20Gxxxxx[26Gxxxx[31Gxxxxxxx[39Gxxx[43Gxxxxxxxxxxxxxxxxx[61Gxxxxx[67Gxxx[71Gxxxxxxx[79Gxxx[83Gxxxx[88Gxxxx[93Gxx
+[3Gxxxx[8Gxxxx[13Gxxxxxxx
+
+[38;2;153;153;153mx[3Gxxxxxx[10Gxxx[14Gxx[17Gx[19Gxxxx[24Gxxxx[29Gxx[39m
+
+[48;2;55;55;55m[38;2;153;153;153mx [38;2;255;255;255mxxxxxx xxxx xxxx xxxxxxx xxxxxxxx xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx[39m                     [49m
+[48;2;55;55;55m  [38;2;255;255;255mxxxx xxxxxxxxxxxxxxxx xxxxxxxx xxxx xxx xxx xx xxxxxxxxxx xxxxxx xxxxxxxxxxxx xxx xxxxxx [39m   [49m
+[48;2;55;55;55m  [38;2;255;255;255mxxxxxx xxxxxxxx xxxxxxxx xxxxxxxxxxxxxxx xxx xxx xxxxxx xxxxxxxxx xxxxxxxxxxx xxxxxxxxx [39m    [49m
+[48;2;55;55;55m  [38;2;255;255;255mxxxxxxx xxx xxxxx xxxxx xxxxxxxxxxx xxxxxxxxx xx xxxxx xxxxxxxxxx xxxx xxx xx xxxxxxxxx [39m    [49m
+[48;2;55;55;55m  [38;2;255;255;255mxxxxx xxxxxxxxx xxxxxxxxx xxxxxxx xxxxxxx xxxxx xxxxxx xxx xxxxxxxx xxx xxxxxxx xx xxxxxx [39m  [49m
+[48;2;55;55;55m  [38;2;255;255;255mxxxxx xxxxxx xxxx xxxx xxxxxxxx xxxx xxxxxxxx xxxxx xxxxxxx xx xxx xxxx xx xxxx xxxxxxxxxx [39m [49m
+[48;2;55;55;55m  [38;2;255;255;255mxx xxxxxxx xxxxxxx xx xxxxxxxxxxxxxxx xxx xxxxxxxxx xxxxxxxxxx xx xxxxx xxxx xxxxxxxxxxx [39m   [49m
+[48;2;55;55;55m  [38;2;255;255;255mxxx xxxxxxxxxxxxxxxxxxxxxx[39m                                                                  [49m
+
+[38;2;78;186;101mx[3G[39m[1mxxxx[22mxxxxxx[14Gxxxxxxxxx[24Gxxxxxx[31Gxxxxxxxxx[41Gxxx[45Gxxxxxxxx[54Gxxxxx[60Gxxxxx[66Gxxx[70Gxxxxxx[77Gxxxxxx[84Gxx[87Gxxxx[92Gxxx
+[7Gxxxxxx[14Gxxxxx[20Gxxx[24Gxxxx[29Gxx[32Gxxxxxx[39Gxxxxx[45Gxxxxxxx[53Gxxxxx[59Gxxxxxxxx[68Gxxx[72Gxx[75Gxxxxx
+[38;2;153;153;153m [3Gx[5G [39mxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx[43Gxxxxx[49Gxx[52Gxxxxxx[59Gxxxxxx
+
+[38;2;255;255;255mx[3G[39mxxxxxxxxx[13Gxxx[17Gxxxxx[23Gxxxxxxxx[32Gxxx[36Gxxxxxxxxxx[47Gxxx[51Gxxx[55Gxxxxxxxx[64Gxxxxxx[71Gxxxxx[77Gxx[80Gxxxxxxxx[89Gxx
+[3Gxxxxx[9Gxxxxxx[16Gxxx[20Gxxxxxx[27Gxxxxxx[34Gxx[37Gxxxx[42Gxxx[46Gxxxxxx[53Gxxxxxx[60Gxxx[64Gxx[67Gxxxxx[73Gxxxxxxxx[82Gxx[85Gxxxx
+[3Gxxxxxxxx[12Gxxxxxxxx[21Gxx[24Gxxx[28Gxxxxxxxxx[38Gxxxxxx[45Gxxxxxxx[53Gxxxxxxxx[62Gxxxx[67Gxxxxx[73Gxxxxx[79Gxxxxxxx[87Gxx[90Gxxxx
+[3Gxx[6Gxxxxx[12Gxxxxxxxxx[22Gxxxx[27Gxxxxx[33Gxxxx[38Gxxxxxxx[46Gxxxxxxx[54Gxxxxxx[61Gxxxx[66Gxx[69Gxxxxxxxx[78Gxxxxxxxxxx[89Gxx
+[3Gxxxxxxxx[12Gxxxx[17Gxx[20Gxxxx[25Gxxxxxxxx[34Gxxxx[39Gxxx[43Gxxxxx[49Gxxxxxxx
+
+[38;2;153;153;153mx[3Gxxxxxxx[11Gxxx[15Gxxx[19Gx[21Gxxxx[26Gxxxx[31Gxx[39m
+
+[38;2;136;136;136m──────────────────────────────────────────────────────────────────────────────────────────────[39m
+❯ 
+[38;2;136;136;136m──────────────────────────────────────────────────────────────────────────────────────────────[39m
+[3G[38;2;255;107;128m⏵⏵[6Gbypass[13Gpermissions[25Gon[38;2;153;153;153m (shift+tab[39Gto[42Gcycle)[55G[38;2;78;186;101m✔[57GUpdate[64Ginstalled[74G·[76GRestart[84Gto[87Gupdate[39m
+[2C[3A[?25h[?2026l]xxx;xxxxxx;xxxxxxxxxxx;xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx[?2026h[?25l[2D[3B[H[2K[1B[2K[1B[2K[1B[2K[1B[2K[1B[2K[1B[2K[1B[2K[1B[2K[1B[2K[1B[2K[1B[2K[1B[2K[1B[2K[1B[2K[1B[2K[1B[2K[1B[2K[1B[2K[1B[2K[1B[2K[1B[2K[1B[2K[1B[2K[1B[2K[1B[2K[1B[2K[1B[2K[1B[2K[1B[2K[1B[2K[1B[2K[1B[2K[1B[2K[1B[2K[1B[2K[1B[2K[1B[2K[1B[H[38;2;153;153;153mx[3Gxxxxxx[10Gxxx[14Gxx[17Gx[19Gxxxx[24Gxxxx[29Gxx[39m
+
+[48;2;55;55;55m[38;2;153;153;153mx [38;2;255;255;255mxxxxxx xxxxxxx xxxxxxxx xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx[39m                               [49m
+[48;2;55;55;55m  [38;2;255;255;255mxxxx xxxxxxxxxxxxx xxxxxxx xx xxx xxxx xxx xxx xxxxxxx xxxxxxx xxx xxxxxxx xx xxxxx xxx [39m    [49m
+[48;2;55;55;55m  [38;2;255;255;255mxxxx xxx xxxxxx xxxxxx xxxxxxxxxxxxxx xxxxx xxx xxxxxxxxxxxxx xx [39m                           [49m
+[48;2;55;55;55m  [38;2;255;255;255mxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx[39m                                      [49m
+
+[38;2;255;255;255mx[3G[39mxxxxxxxxxxxxx[17Gxx[20Gxxxxx[26Gxxxx[31Gxxxxxxx[39Gxxx[43Gxxxxxxxxxxxxxxxxx[61Gxxxxx[67Gxxx[71Gxxxxxxx[79Gxxx[83Gxxxx[88Gxxxx[93Gxx
+[3Gxxxx[8Gxxxx[13Gxxxxxxx
+
+[38;2;153;153;153mx[3Gxxxxxx[10Gxxx[14Gxx[17Gx[19Gxxxx[24Gxxxx[29Gxx[39m
+
+[48;2;55;55;55m[38;2;153;153;153mx [38;2;255;255;255mxxxxxx xxxx xxxx xxxxxxx xxxxxxxx xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx[39m                     [49m
+[48;2;55;55;55m  [38;2;255;255;255mxxxx xxxxxxxxxxxxxxxx xxxxxxxx xxxx xxx xxx xx xxxxxxxxxx xxxxxx xxxxxxxxxxxx xxx xxxxxx [39m   [49m
+[48;2;55;55;55m  [38;2;255;255;255mxxxxxx xxxxxxxx xxxxxxxx xxxxxxxxxxxxxxx xxx xxx xxxxxx xxxxxxxxx xxxxxxxxxxx xxxxxxxxx [39m    [49m
+[48;2;55;55;55m  [38;2;255;255;255mxxxxxxx xxx xxxxx xxxxx xxxxxxxxxxx xxxxxxxxx xx xxxxx xxxxxxxxxx xxxx xxx xx xxxxxxxxx [39m    [49m
+[48;2;55;55;55m  [38;2;255;255;255mxxxxx xxxxxxxxx xxxxxxxxx xxxxxxx xxxxxxx xxxxx xxxxxx xxx xxxxxxxx xxx xxxxxxx xx xxxxxx [39m  [49m
+[48;2;55;55;55m  [38;2;255;255;255mxxxxx xxxxxx xxxx xxxx xxxxxxxx xxxx xxxxxxxx xxxxx xxxxxxx xx xxx xxxx xx xxxx xxxxxxxxxx [39m [49m
+[48;2;55;55;55m  [38;2;255;255;255mxx xxxxxxx xxxxxxx xx xxxxxxxxxxxxxxx xxx xxxxxxxxx xxxxxxxxxx xx xxxxx xxxx xxxxxxxxxxx [39m   [49m
+[48;2;55;55;55m  [38;2;255;255;255mxxx xxxxxxxxxxxxxxxxxxxxxx[39m                                                                  [49m
+
+[38;2;78;186;101mx[3G[39m[1mxxxx[22mxxxxxx[14Gxxxxxxxxx[24Gxxxxxx[31Gxxxxxxxxx[41Gxxx[45Gxxxxxxxx[54Gxxxxx[60Gxxxxx[66Gxxx[70Gxxxxxx[77Gxxxxxx[84Gxx[87Gxxxx[92Gxxx
+[7Gxxxxxx[14Gxxxxx[20Gxxx[24Gxxxx[29Gxx[32Gxxxxxx[39Gxxxxx[45Gxxxxxxx[53Gxxxxx[59Gxxxxxxxx[68Gxxx[72Gxx[75Gxxxxx
+[38;2;153;153;153m [3Gx[5G [39mxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx[43Gxxxxx[49Gxx[52Gxxxxxx[59Gxxxxxx
+
+[38;2;255;255;255mx[3G[39mxxxxxxxxx[13Gxxx[17Gxxxxx[23Gxxxxxxxx[32Gxxx[36Gxxxxxxxxxx[47Gxxx[51Gxxx[55Gxxxxxxxx[64Gxxxxxx[71Gxxxxx[77Gxx[80Gxxxxxxxx[89Gxx
+[3Gxxxxx[9Gxxxxxx[16Gxxx[20Gxxxxxx[27Gxxxxxx[34Gxx[37Gxxxx[42Gxxx[46Gxxxxxx[53Gxxxxxx[60Gxxx[64Gxx[67Gxxxxx[73Gxxxxxxxx[82Gxx[85Gxxxx
+[3Gxxxxxxxx[12Gxxxxxxxx[21Gxx[24Gxxx[28Gxxxxxxxxx[38Gxxxxxx[45Gxxxxxxx[53Gxxxxxxxx[62Gxxxx[67Gxxxxx[73Gxxxxx[79Gxxxxxxx[87Gxx[90Gxxxx
+[3Gxx[6Gxxxxx[12Gxxxxxxxxx[22Gxxxx[27Gxxxxx[33Gxxxx[38Gxxxxxxx[46Gxxxxxxx[54Gxxxxxx[61Gxxxx[66Gxx[69Gxxxxxxxx[78Gxxxxxxxxxx[89Gxx
+[3Gxxxxxxxx[12Gxxxx[17Gxx[20Gxxxx[25Gxxxxxxxx[34Gxxxx[39Gxxx[43Gxxxxx[49Gxxxxxxx
+
+[38;2;153;153;153mx[3Gxxxxxxx[11Gxxx[15Gxxx[19Gx[21Gxxxx[26Gxxxx[31Gxx[39m
+
+[38;2;136;136;136m──────────────────────────────────────────────────────────────────────────────────────────────[39m
+❯ 
+[38;2;136;136;136m──────────────────────────────────────────────────────────────────────────────────────────────[39m
+[3G[38;2;255;107;128m⏵⏵[6Gbypass[13Gpermissions[25Gon[38;2;153;153;153m (shift+tab[39Gto[42Gcycle)[55G[38;2;78;186;101m✔[57GUpdate[64Ginstalled[74G·[76GRestart[84Gto[87Gupdate[39m
+[2C[3A[?25h[?2026l[?2026h[?25l[2D[3B[H[2K[1B[2K[1B[2K[1B[2K[1B[2K[1B[2K[1B[2K[1B[2K[1B[2K[1B[2K[1B[2K[1B[2K[1B[2K[1B[2K[1B[2K[1B[2K[1B[2K[1B[2K[1B[2K[1B[2K[1B[2K[1B[2K[1B[2K[1B[2K[1B[2K[1B[2K[1B[2K[1B[2K[1B[2K[1B[2K[1B[2K[1B[2K[1B[2K[1B[2K[1B[2K[1B[2K[1B[2K[1B[2K[1B[2K[1B[H
+[38;2;153;153;153mx[3Gxxxxxx[10Gxxx[14Gxx[17Gx[19Gxxxx[24Gxxxx[29Gxx[39m
+
+[48;2;55;55;55m[38;2;153;153;153mx [38;2;255;255;255mxxxxxx xxxxxxx xxxxxxxx xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx[39m                               [49m
+[48;2;55;55;55m  [38;2;255;255;255mxxxx xxxxxxxxxxxxx xxxxxxx xx xxx xxxx xxx xxx xxxxxxx xxxxxxx xxx xxxxxxx xx xxxxx xxx [39m    [49m
+[48;2;55;55;55m  [38;2;255;255;255mxxxx xxx xxxxxx xxxxxx xxxxxxxxxxxxxx xxxxx xxx xxxxxxxxxxxxx xx [39m                           [49m
+[48;2;55;55;55m  [38;2;255;255;255mxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx[39m                                      [49m
+
+[38;2;255;255;255mx[3G[39mxxxxxxxxxxxxx[17Gxx[20Gxxxxx[26Gxxxx[31Gxxxxxxx[39Gxxx[43Gxxxxxxxxxxxxxxxxx[61Gxxxxx[67Gxxx[71Gxxxxxxx[79Gxxx[83Gxxxx[88Gxxxx[93Gxx
+[3Gxxxx[8Gxxxx[13Gxxxxxxx
+
+[38;2;153;153;153mx[3Gxxxxxx[10Gxxx[14Gxx[17Gx[19Gxxxx[24Gxxxx[29Gxx[39m
+
+[48;2;55;55;55m[38;2;153;153;153mx [38;2;255;255;255mxxxxxx xxxx xxxx xxxxxxx xxxxxxxx xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx[39m                     [49m
+[48;2;55;55;55m  [38;2;255;255;255mxxxx xxxxxxxxxxxxxxxx xxxxxxxx xxxx xxx xxx xx xxxxxxxxxx xxxxxx xxxxxxxxxxxx xxx xxxxxx [39m   [49m
+[48;2;55;55;55m  [38;2;255;255;255mxxxxxx xxxxxxxx xxxxxxxx xxxxxxxxxxxxxxx xxx xxx xxxxxx xxxxxxxxx xxxxxxxxxxx xxxxxxxxx [39m    [49m
+[48;2;55;55;55m  [38;2;255;255;255mxxxxxxx xxx xxxxx xxxxx xxxxxxxxxxx xxxxxxxxx xx xxxxx xxxxxxxxxx xxxx xxx xx xxxxxxxxx [39m    [49m
+[48;2;55;55;55m  [38;2;255;255;255mxxxxx xxxxxxxxx xxxxxxxxx xxxxxxx xxxxxxx xxxxx xxxxxx xxx xxxxxxxx xxx xxxxxxx xx xxxxxx [39m  [49m
+[48;2;55;55;55m  [38;2;255;255;255mxxxxx xxxxxx xxxx xxxx xxxxxxxx xxxx xxxxxxxx xxxxx xxxxxxx xx xxx xxxx xx xxxx xxxxxxxxxx [39m [49m
+[48;2;55;55;55m  [38;2;255;255;255mxx xxxxxxx xxxxxxx xx xxxxxxxxxxxxxxx xxx xxxxxxxxx xxxxxxxxxx xx xxxxx xxxx xxxxxxxxxxx [39m   [49m
+[48;2;55;55;55m  [38;2;255;255;255mxxx xxxxxxxxxxxxxxxxxxxxxx[39m                                                                  [49m
+
+[38;2;78;186;101mx[3G[39m[1mxxxx[22mxxxxxx[14Gxxxxxxxxx[24Gxxxxxx[31Gxxxxxxxxx[41Gxxx[45Gxxxxxxxx[54Gxxxxx[60Gxxxxx[66Gxxx[70Gxxxxxx[77Gxxxxxx[84Gxx[87Gxxxx[92Gxxx
+[7Gxxxxxx[14Gxxxxx[20Gxxx[24Gxxxx[29Gxx[32Gxxxxxx[39Gxxxxx[45Gxxxxxxx[53Gxxxxx[59Gxxxxxxxx[68Gxxx[72Gxx[75Gxxxxx
+[38;2;153;153;153m [3Gx[5G [39mxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx[43Gxxxxx[49Gxx[52Gxxxxxx[59Gxxxxxx
+
+[38;2;255;255;255mx[3G[39mxxxxxxxxx[13Gxxx[17Gxxxxx[23Gxxxxxxxx[32Gxxx[36Gxxxxxxxxxx[47Gxxx[51Gxxx[55Gxxxxxxxx[64Gxxxxxx[71Gxxxxx[77Gxx[80Gxxxxxxxx[89Gxx
+[3Gxxxxx[9Gxxxxxx[16Gxxx[20Gxxxxxx[27Gxxxxxx[34Gxx[37Gxxxx[42Gxxx[46Gxxxxxx[53Gxxxxxx[60Gxxx[64Gxx[67Gxxxxx[73Gxxxxxxxx[82Gxx[85Gxxxx
+[3Gxxxxxxxx[12Gxxxxxxxx[21Gxx[24Gxxx[28Gxxxxxxxxx[38Gxxxxxx[45Gxxxxxxx[53Gxxxxxxxx[62Gxxxx[67Gxxxxx[73Gxxxxx[79Gxxxxxxx[87Gxx[90Gxxxx
+[3Gxx[6Gxxxxx[12Gxxxxxxxxx[22Gxxxx[27Gxxxxx[33Gxxxx[38Gxxxxxxx[46Gxxxxxxx[54Gxxxxxx[61Gxxxx[66Gxx[69Gxxxxxxxx[78Gxxxxxxxxxx[89Gxx
+[3Gxxxxxxxx[12Gxxxx[17Gxx[20Gxxxx[25Gxxxxxxxx[34Gxxxx[39Gxxx[43Gxxxxx[49Gxxxxxxx
+
+[38;2;153;153;153mx[3Gxxxxxxx[11Gxxx[15Gxxx[19Gx[21Gxxxx[26Gxxxx[31Gxx[39m
+
+[38;2;136;136;136m──────────────────────────────────────────────────────────────────────────────────────────────[39m
+❯ 
+[38;2;136;136;136m──────────────────────────────────────────────────────────────────────────────────────────────[39m
+[3G[38;2;255;107;128m⏵⏵[6Gbypass[13Gpermissions[25Gon[38;2;153;153;153m (shift+tab[39Gto[42Gcycle)[55G[38;2;78;186;101m✔[57GUpdate[64Ginstalled[74G·[76GRestart[84Gto[87Gupdate[39m
+[2C[3A[?25h[?2026l

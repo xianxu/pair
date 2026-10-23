@@ -88,7 +88,7 @@ func TestCastRecordsToDirAndViewers(t *testing.T) {
 	}
 	for i := range recs {
 		ev, data := s.next()
-		for ev == "capabilities" {
+		for ev == "capabilities" || ev == "feedback" {
 			ev, data = s.next()
 		}
 		if ev != "rec" {

@@ -474,6 +474,8 @@ couch . ../bench         open several hubs; first is main
 couch --move-slot pair:7,pair:8 --to-hub bench:0 [--persist]
 couch --layout2          opt into pair's two-pane workbench
 couch --layout3          threads also get pair's right-hand terminal (the default)
+couch --tab-style collapse   one-row tabs with quiet slots folded into counts (default)
+couch --tab-style multiline  the previous one/two-row tab bar
 couch --list             every durable work thread across all repositories
 couch --show <ref>       one current-repository thread by tag or path, or a slot (repo:N)
 couch --reconcile repo:N converge a slot's workspace now and show what it did
@@ -545,7 +547,7 @@ couch --reboot repo:N --confirm [--json]
                          request Start fresh on the current binary; attributed running processes require an exact stop-set offer
 couch --recovery-confirmation TOKEN [--json]
                          approve that offer from the authenticated owning hub; no repeated target or TUI is needed
-couch --switch-agent repo:N --agent NAME --confirm [--json]
+couch --switch-agent repo:N --agent NAME [--agent-args PARAMETERS] [--interrupt-first] --confirm [--json]
                          from the hub: switch another idle, clean slot using saved target-agent settings
 couch --keys repo:N STEP... [--json]
                          owning hub: drive named keys in an idle, empty agent composer and return its styled tail
@@ -673,16 +675,38 @@ session remains Continue; claim age never authorizes killing its supervisor.
 An older live wrapper with a broken message endpoint remains usable through its
 terminal and reports “messaging unavailable until next relaunch.”
 
-`couch --switch-agent` accepts one exact slot and a different agent. It refuses
-`self`, the caller's own slot, busy or dirty targets, and targets whose state
-cannot be verified. It uses the target agent's last successful starting-path
-settings, falling back to its explicit repository default. Missing settings
-require the operator's Switch coding agent form; agents cannot supply argv or
-edit defaults through this API. The form remains the operator's parameter editor.
-A switch parks the source and starts a fresh conversation. Pair delivers no
-handoff or orientation; the saved startup parameters are used unchanged.
-The hub captures any context it needs before switching and decides what to send
-later. Compaction and continuation remain separate operations.
+`couch --switch-agent` accepts one exact other slot and a supported agent.
+It refuses `self`, the caller's own slot and unverified source ownership.
+Without `--agent-args`, it uses that agent's saved Couch repository arguments;
+missing or conflicting settings require explicit arguments or the operator's
+Switch coding agent form. It never silently borrows another repository's flags.
+`--agent-args PARAMETERS` accepts literal parameter text with quotes and empty
+arguments, using the same parser as the form. An explicitly empty value selects
+no parameters. Native resume selectors are refused. Accepted arguments become
+that repository's saved choice only after successful console adoption.
+
+Ordinary switching requires a clean worktree and a source proved idle or vacant
+by Couch's lifecycle evidence. `--interrupt-first --confirm` permits one existing
+authenticated interrupt when a working turn is proved, then requires fresh idle
+within one thirty-second phase. Unknown working state sends no input; uncertain
+interruption, changed ownership or timeout refuses replacement. It never retries
+an interrupt automatically. Operator **Force switch** is available only in the
+console form, with one warning about unsaved turn progress. It keeps on-disk
+uncommitted files, displays their count (or unknown), and starts the target only
+after the existing park owner confirms exact-source cleanup. CLI and hub requests
+cannot force a switch.
+
+A different-agent switch parks the source and starts a fresh conversation at the
+same thread and working path. Pair delivers no handoff or orientation. The hub
+captures any context it needs before switching and decides what to send later.
+Compaction and continuation remain separate operations.
+
+Selecting the same agent restarts its exact previous conversation with the new
+parameters. If Couch positively confirms that conversation is missing, it may
+start fresh once, after confirming cleanup of any failed resume, and reports
+“no previous conversation found; started fresh with the new parameters”. Unknown
+or replaced conversation evidence refuses the restart. The accepted parameters
+are saved only after successful console adoption in either outcome.
 
 An accepted receipt means the operation was queued; inspect it with
 `couch --operation-status ID`. On failure, use the existing park/recover/resume
@@ -786,6 +810,17 @@ storage retention period. A failure names the resource and its cause, and says t
 run it again only when something else was running. Otherwise it hands the slot to
 the repository's `:0` agent, and a failed `--reconcile` also prints the resources
 it observed.
+
+A terminal start uses one startup deadline across helper acknowledgement, pane
+birth, agent readiness and registration. An explicit caller deadline owns the
+whole attempt; without one, the existing two-minute hang ceiling applies. The
+progress notice names the current stage and its elapsed time; a failed start
+keeps that stage, elapsed time and the underlying reason. Native observations
+still have their shorter bounds inside the remaining startup window. The
+initial ten-second birth probe is diagnostic, not a readiness cutoff. Once
+admitted, a working interactive client is independent of the startup deadline.
+Inspect an unconfirmed attempt with its existing recovery action before starting
+another one; expiration alone does not prove that the native agent is absent.
 
 `couch --resume repo:N` and `couch --reboot repo:N --confirm` run one slot's step
 through the running Couch. Only an agent in a live Couch slot may call them: Couch
@@ -1190,9 +1225,10 @@ pair      /workspace/pair
 
 Tabs use the same group order: `pair :1 :2`. If the primary has no tab, the
 first slot shows the repo name: `pair:1 :2`. Parked slots stay in the switcher;
-tabs show attached threads and pending reattachments. Narrow terminals clip the
-right end of the bar, keeping each visible slot after its repo context. Custom
-names remain searchable and appear beside grouped workspace rows.
+tabs show attached threads and pending reattachments. By default, quiet slots
+fold into a count within their repository group. The active and attention chips
+have priority when space is scarce. Custom names remain searchable and appear
+beside grouped workspace rows.
 
 Each repository checkout, including standalone repositories without slots, shows
 quick-status glyphs after its name, in both
@@ -1294,15 +1330,30 @@ evicted sooner. Unknown writers and live open holders remain blocked.}
 evidence refuses further growth at the limit. Parked recovery
 captures use their separate age policy and exact reader protections.
 
-The tab bar starts with the hub, the checkout you started Couch from, and then
-lists every other slot grouped by repository:
-`ops  ariadne  :1  :2  blog  pair  :1  :2`. In the switcher the hub is the first line and the rest sit indented
-under it. The hub tab uses reversed colours as a bookmark; switcher hub rows
-are underlined, and only the selected row uses reverse video. Focus brackets
-still mark the active tab, and a selected hub keeps its underline and bold
-cursor arrow. When the tabs don't fit, a repository's numbered slots fold into a
-count (`pair  +2`), starting from the right. A red, belled or focused tab is
-never folded away, and the switcher always lists everything.
+Couch defaults to `--tab-style collapse`: the tab bar stays on one row.
+It groups tabs by hub and repository, showing the active tab and slots needing
+attention while groups with at least three collapsible quiet slots or inactive
+hubs fold into counts such as `pair +3`. One or two stay visible in full. Clicking a group count opens the switcher scoped to exactly that
+hub and repository group, including the slots folded into it. The scope survives
+refreshes and returning from an action. Escape clears a text filter first, then
+the group scope; opening the ordinary switcher starts with the full list.
+
+The active and attention chips win space before ordinary chips. At impossible
+widths, some labels must be hidden: the remaining overflow count says `+N !`
+when hidden slots need attention, if that complete marker fits. The bell still
+opens the full attention list. A clipped or omitted count has no click action.
+
+Use `couch --tab-style multiline` for the previous packer, which uses one row
+when everything fits and wraps onto a second row before hiding overflow. The
+choice applies only to the Couch session being launched and composes with the
+layout and hub-path options. Collapse avoids content-driven changes to child
+terminal height as slots, focus and attention change; resizing the host terminal
+still resizes its children.
+
+In the switcher the hub is the first line and the rest sit indented under it.
+The hub tab uses reversed colours as a bookmark; switcher hub rows are
+underlined, and only the selected row uses reverse video. Focus brackets mark
+the active tab, and a selected hub keeps its underline and bold cursor arrow.
 
 With `couch . ../bench`, each directory is a hub. The first owns unclaimed slots;
 each started hub’s `.hub` file can claim repositories or exact slots. Exact claims
@@ -1324,36 +1375,43 @@ Launching Couch allocates a pty for the session and **reserves the bottom row of
 your screen** for a status line. The path argument is optional and defaults to
 `.`, so `cd <repo> && couch` is the usual form.
 
-For a new thread, the TUI's agent field resolves explicitly selected agents,
-then the last agent
-successfully used at that exact physical path, then couch's own `$PAIR_AGENT`
-(or Claude when Couch was started outside Pair). Arguments resolve
-independently: Couch reuses the selected agent's last successful arguments at
-that path, never another agent's; otherwise it uses that agent's repository
-default. Thus switching Claude → Codex → Claude restores each harness's own
-arguments.
+For a new thread, an explicit agent selection wins; otherwise Couch uses its own
+`$PAIR_AGENT` (or Claude when started outside Pair). Arguments resolve separately
+for each agent from Couch's
+repository configuration. Every slot of the same verified Git repository shares
+these settings; switching Claude → Codex → Claude restores each agent's own
+arguments. Explicitly empty arguments remain empty.
 
-For numbered slots, repository defaults come from the primary checkout. A new
-slot starts with the current Couch agent and that agent's repository defaults;
-it does not copy `:0`'s personal settings. Use **Switch agent** in a thread's
-menu to select an agent and edit its parameters (selecting the current agent
-starts a fresh context too). Successful launch saves those settings only for
-that workspace. Explicitly empty parameters remain empty. Resume uses the
-conversation's recorded profile; Start fresh retains the slot's saved per-agent
-preferences. These settings survive Couch restart and conversation replacement.
-Numbered settings live in `<environment>/.couch/preferences.json`; primary
-settings retain their existing global storage. Couch launches never update
-repository defaults. There is no separate preferred-model setting.
+Use **Switch agent** in a thread's menu to edit and accept startup parameters.
+When the repository has no saved configuration for that agent, the form may
+offer arguments marked **Borrowed — not saved for this repository**, with their
+donor repository. Accepting that offer saves it for the current repository only
+after successful launch and console attachment; cancellation saves nothing.
+Conflicting legacy settings are shown as a configuration conflict requiring
+explicit acceptance of parameters. A command-line start or switch never silently
+uses a borrowed offer.
 
-Couch sends the exact resolved vector to Pair in a tag-bound one-shot profile,
-so Pair does not reopen its tag-specific saved-config picker. It sets
-`PAIR_USE_REPO_DEFAULT=1` only when repository-default provenance won and sends
-an authoritative empty value otherwise; Pair consumes both keys at entry so
-neither reaches sidecars, Zellij, or panes.
-Only successful Pair registration updates the thread profile and path history;
-selection, cancellation, fork failure, and registration failure do not. For
-now, change a repository default by launching Pair directly in that repo with
-`pair -- <agent-arguments>` before returning to Couch.
+Couch owns one global `threadstore/repo-preferences.json` document in its
+namespace, keyed by verified repository identity and agent. Older Couch
+per-path and numbered `.couch/preferences.json` records are migration inputs,
+not current settings; their original bytes remain intact. Pair's standalone
+folder defaults are independent. Launching `pair -- <agent-arguments>` changes
+Pair's defaults, not Couch's repository settings. There is no separate
+preferred-model setting.
+
+Couch sends the accepted vector to Pair in a validated tag-bound launch profile.
+Pair skips its folder-default lookup and saved-config picker for that profile;
+standalone Pair keeps both. Resume uses the conversation's historical profile
+without replacing a later repository edit. Start fresh uses the repository's
+current per-agent settings, and automatic recovery or warm attachment does not
+learn configuration merely because it ran.
+
+Successful registration records execution history. Only explicitly accepted
+configuration is published after the final console attachment; selection,
+cancellation and failed adoption do not change repository settings. If settings
+cannot be saved after attachment, the agent stays running and Couch reports that
+the parameters were not remembered. Repair Couch storage, then explicitly accept
+the configuration again.
 
 **`Ctrl-Space`, `Ctrl-Backspace` and `Ctrl-Return` belong to couch while a
 session is hosted.** They are intercepted before the child sees them, so they
@@ -1439,6 +1497,8 @@ just before it. These need no running Couch. `link [--at MS]` is the exception:
 it asks the running Couch to share the recording and prints its replay link
 alone on stdout (any note goes to stderr), and with no Couch it refuses.
 `couch --broadcast-web-query` alone prints its usage. See [atlas/webcast-format.md](atlas/webcast-format.md#agent-queries-462).
+
+🤖{Sketch evidence uses the same operator submission chord, Shift+Ctrl+Alt+Return: the console shows Pending feedback with sketch and annotation counts, indexed shape thumbnails and notes before submission. It submits only feedback actually visible on the current console, with up to eight completed sketches; deferred feedback stays visible as N more sketches and N more annotations. A stale visible selection refuses preparation. One full-viewport replay image reconstructs the current recorded prefix pinned at the submission chord, with matching number badges and current projections for the chosen shapes; original page URLs, literal element IDs and pressure paths stay unchanged. Saved note crops retain their original draw-time pixels. The sketch_page provenance is replay-rendered-current-view; pointer gestures and private tool UI are excluded. Legacy shared and per-sketch bundles remain readable. Confirmed delivery removes only the submitted sketch versions and note revisions from the live display; unsent or newer feedback stays. Original ink and notes remain in recording history and replay. Local tools can inspect `couch --broadcast-web-query DIR sketches [--sketch ID] [--at MS] [--json]` or export a private image and metadata with `couch --broadcast-web-query DIR sketch-image --sketch ID --out NEW_DIR [--at MS]`. These tools never dispatch to an agent. See [sketch evidence and retry behavior](atlas/webcast-submission.md).}
 
 `couch --broadcast-web-replay [ID|DIR] [--at MS]` plays recordings in the
 viewer: play, pause, speed, and a timeline that shows pauses as gaps, notes,
@@ -1792,14 +1852,21 @@ all live threads and returns to the shell; `Alt+x` parks them after confirmation
 Those two chords are not intercepted while a Pair pane is displayed. They
 reach the agent or invoke the draft/right pane's existing Pair actions. Use the
 switcher for Couch's durable retirement.
-In a live thread's actions, **switch coding agent** opens the coding
+In an eligible live or proven-vacant thread's actions, **switch coding agent** opens the coding
 agent switch form. Choose an agent, then edit its prefilled startup parameters (an
 empty value is allowed). This second screen names the source and target and
-contains **Switch** and **Cancel**. Tab or Up/Down move between the
+contains **Switch**, **Interrupt then switch**, **Force switch** and **Cancel**.
+Tab or Up/Down move between the
 parameter field and buttons; Left/Right move the text cursor while editing.
 Enter on **Switch** submits the change after checking that the source is idle
-and clean. Choose a different agent; switching keeps the thread and working
-path and launches a fresh conversation with an empty composer. The switcher
+and clean. **Interrupt then switch** uses the bounded cooperative path above.
+**Force switch** opens one confirmation: “Force switch? The current turn's
+unsaved progress may be lost.” It preserves on-disk edits and reports the file
+count; Cancel sends no input and starts nothing. Choosing the same agent changes
+the form to **Restart with new parameters** and **Restart**: it resumes the
+previous conversation, with the disclosed missing-conversation fallback above.
+Choosing a different agent keeps the thread and working path and launches a
+fresh conversation with an empty composer. The switcher
 stays open. Capture any needed native transcript coordinates before switching;
 the previous tty recording remains available through `couch --peek repo:N
 --previous`.
@@ -2212,6 +2279,8 @@ From a non-agent Pair pane, detach with `Alt+d`. For Couch-managed work, use the
 
 ## Storage retention
 
+🤖{Use `pair vm run --checkout /absolute/repo -- COMMAND ARGS...` to run a literal command against a private tracked checkout in a disposable macOS Tart VM. A qualified machine image must already be installed; ordinary runs do not provision it. Use `pair vm provision --checkout /absolute/repo` to build a fresh image from the checksum-pinned guest tool lock, using the ad-hoc lane and a 60-minute budget plus cleanup up to 10 seconds. Activation follows guest qualification and confirmed cleanup; two retained image candidates block further refresh until inspected. Provisioning preserves `pair-test` and cached source images. The default ad-hoc lane is separate from the train/nightly lane (`--lane train`). `--timeout 20m` covers waiting through execution, followed by cleanup up to 10 seconds. Inspect the printed artifact path and managed VM when cleanup remains unconfirmed; the durable claim prevents another run from reusing that lane. `--artifacts /absolute/fresh-directory` retains caller-owned results. Use `make conformance-vm` for strict native terminal and lifecycle checks in the train lane. It retains raw Go JSON stdout separately from diagnostics and rejects missing, skipped or failed cases. Set host-only `PAIR_VM_ARTIFACTS_DIR` to a fresh absolute directory when retaining a caller-owned result bundle. GitHub PR conformance remains required during local burn-in. See [VM runner](atlas/vm.md) for isolation, budgets and qualification state. The deterministic [nightly command and scheduler handoff](scripts/vm/scheduled-task.md) retains failed and partial nights separately; production named-check acceptance waits for the supported SDLC declaration on main. Nightly retention holds a full possible bundle for every retained date until explicit archive. At 12 nights or 75% of its 4 GiB budget, and at the cap, the nightly command exits 10 to wake the hub before another check starts. Inspect the retained evidence and reconcile any surviving writers, then run the one shell-quoted `mv` archive command printed on stderr. It moves the entire evidence root to a unique sibling archive without deleting its contents; the next invocation creates a fresh root. Keep the archive for #745’s promotion decision and dispose of it explicitly afterward.}
+
 `pair gc` previews Pair-owned storage by retention bucket, with byte totals and
 reasons for keeping or collecting each group. Use `pair gc --json` for exact
 paths. Preview does not change your files or initialize retention clocks.
@@ -2521,6 +2590,16 @@ SDLC/Weave, Git, Zellij and nvim, and uses private state and queue roots without
 models or credentials. Portable helper tests run normally; the native consumer
 opts in only through this target or `PAIR_NATIVE_COUCH_FLEET=1`.
 See [fleet ownership and evidence](atlas/couch-testing.md).
+
+External editor conformance consumers can build `make couch-conformance-bridge`
+and launch the absolute `bin/couch-conformance-bridge --scratch-parent /private/tmp`
+(with optional `--couch ABS`). The existing parent is shared; the producer creates
+and removes only its own private children. Use pipe stdin/stdout/stderr, read its single bounded JSON
+readiness line, and replace the whole client environment with Environment. Its
+Documents are registered parent/side Markdown fixtures; no consumer-owned Couch
+launcher is needed. Close editors, then close stdin or send TERM; exit0 confirms
+joined cleanup. See the [bridge contract](atlas/couch-testing.md#external-conformance-bridge-801).
+
 
 `tests/terminal-performance.py --help` describes isolated baseline/candidate
 measurements using real Pair terminal processes and independent screen receipts.

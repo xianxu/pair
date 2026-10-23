@@ -6,6 +6,7 @@ import "time"
 // of process by comparing Identity, because Couch owns the console and so every
 // read runs in a second process with no Handle.
 type ActorRecord struct {
+	configuration *AcceptedConfiguration
 	// AttachmentNotice is one attachment result, never durable registry state.
 	AttachmentNotice string        `json:"-"`
 	ID               ActorID       `json:"id"`

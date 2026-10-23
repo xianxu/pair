@@ -2068,13 +2068,13 @@ func (f *fakeRuntime) ProbeSessionNameContext(ctx context.Context, session strin
 	}
 	return f.ProbeSessionName(session)
 }
-func (f *fakeRuntime) AttachSessionContext(lifetime, admission context.Context, session, config string) (int, error) {
+func (f *fakeRuntime) AttachSessionContext(lifetime, startup, admission context.Context, session, config string) (int, error) {
 	if err := admission.Err(); err != nil {
 		return 1, err
 	}
 	return f.AttachSession(session, config)
 }
-func (f *fakeRuntime) LaunchSessionContext(lifetime, admission context.Context, session, config, layout string) (int, error) {
+func (f *fakeRuntime) LaunchSessionContext(lifetime, startup, admission context.Context, session, config, layout string) (int, error) {
 	if err := admission.Err(); err != nil {
 		return 1, err
 	}

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"strconv"
 
 	"github.com/xianxu/pair/cmd/internal/webcast/recording"
 )
@@ -49,11 +50,13 @@ type SketchDisplayStroke struct {
 	Truncated bool                     `json:"truncated"`
 }
 type SketchDisplaySketch struct {
-	Begin   SketchDisplayBegin    `json:"begin"`
-	Phase   string                `json:"phase"`
-	Reason  string                `json:"reason"`
-	Label   string                `json:"label"`
-	Strokes []SketchDisplayStroke `json:"strokes"`
+	NextSequence uint64                `json:"next_sequence,string,omitempty"`
+	Digest       string                `json:"digest,omitempty"`
+	Begin        SketchDisplayBegin    `json:"begin"`
+	Phase        string                `json:"phase"`
+	Reason       string                `json:"reason"`
+	Label        string                `json:"label"`
+	Strokes      []SketchDisplayStroke `json:"strokes"`
 }
 type SketchDisplay struct {
 	Sketches []SketchDisplaySketch `json:"sketches"`
@@ -112,6 +115,13 @@ func (b *Board) refreshSketchDeliveryLocked(r recording.Record, before sketchDel
 		case *recording.SketchLabel, *recording.SketchInterrupt, *recording.Seg, *recording.Stop, *recording.Ctl:
 			patch["header"] = map[string]any{"phase": change.Sketch.Phase, "reason": change.Sketch.Reason, "label": change.Sketch.Label}
 		}
+		header, ok := patch["header"].(map[string]any)
+		if !ok {
+			header = map[string]any{}
+			patch["header"] = header
+		}
+		header["next_sequence"] = strconv.FormatUint(change.Sketch.NextSequence, 10)
+		header["digest"] = change.Sketch.Digest
 		if v := change.Stroke; v != nil {
 			flags := map[string]any{"id": v.ID, "visible": v.Visible, "sealed": v.Sealed, "truncated": v.Truncated}
 			if _, begin := r.(*recording.SketchStrokeBegin); begin {
@@ -251,6 +261,10 @@ func sketchDisplayProjection(projection recording.SketchProjection) SketchDispla
 		}
 		b := s.Begin
 		v := SketchDisplaySketch{Begin: SketchDisplayBegin{ID: b.ID, Author: b.Author, Doc: b.Doc, Tab: b.Tab, VP: b.VP, T: b.T}, Phase: s.Phase, Reason: s.Reason, Label: s.Label, Strokes: []SketchDisplayStroke{}}
+		v.NextSequence = s.NextSequence
+		if len(s.Receipts) > 0 {
+			v.Digest = s.Receipts[len(s.Receipts)-1].Digest
+		}
 		visible := map[string]bool{}
 		for _, id := range s.Visible {
 			visible[id] = true

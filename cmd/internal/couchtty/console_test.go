@@ -46,6 +46,8 @@ func newFixtureBeforeRun(t *testing.T, rows, cols uint16, beforeRun func(*Consol
 	host := newVTHost(rows, cols)
 	pr, pw := io.Pipe()
 	con := New(host, pr)
+	// These existing fixtures pin multiline compatibility; default collapse has dedicated integration tests.
+	con.SetTabStyle(TabStyleMultiline)
 
 	child := ptychild.NewFakeChild(nil)
 	child.SetSink(func(ctx context.Context, batch ptychild.OutputBatch) error { return con.Deliver(ctx, "c1", batch) })

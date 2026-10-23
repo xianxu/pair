@@ -162,7 +162,7 @@ func (s *messageService) handleAgentDrive(ctx context.Context, r couchmessage.Re
 	}
 	deadline := time.Now().Add(30 * time.Second)
 	payload := agentDrivePayload{endpoint: endpoint, id: r.ID, start: couchmessage.DriveStart{Request: *r.Drive, Deadline: deadline, Instance: observation.Instance, Sequence: observation.Sequence}, callerCurrent: callerCurrent}
-	return s.slotOps.admit(ctx, caller, r, func(key string, started func(), finished func(any, error)) error {
+	return s.slotOps.admit(ctx, caller, r, func(key string, started func(), _ couchcore.OperationProgress, finished func(any, error)) error {
 		return service.enqueue(key, r.Op, deadline, func(ctx context.Context) (couchcore.OperationCall, error) {
 			if err := guard(ctx); err != nil {
 				return couchcore.OperationCall{}, err
@@ -245,7 +245,7 @@ func (s *slotOperations) existingDrive(caller couchmessage.Binding, r couchmessa
 	if !ok {
 		return couchmessage.Response{}, false
 	}
-	if old.Op != r.Op || old.Target != r.Target || old.IntentDigest != driveIntentDigest(r) {
+	if old.Op != r.Op || old.Target != r.Target || old.IntentDigest != operationIntentDigest(r) {
 		return couchmessage.Response{Code: "id-conflict", Error: "request ID already names another intent"}, true
 	}
 	return couchmessage.Response{Code: "accepted", Operation: &old}, true

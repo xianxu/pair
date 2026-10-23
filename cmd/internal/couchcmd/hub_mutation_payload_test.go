@@ -116,7 +116,7 @@ func TestCandidateResumeRechecksHubAuthorityBeforePreparationAndEffect(t *testin
 			})
 			done := make(chan error, 1)
 			ops := consoleSlotOperations(r.console, r.c, nil)
-			if err := ops.candidate("guarded-candidate", r.address, "candidate-token", func() {}, func(_ any, err error) { done <- err }, guard); err != nil {
+			if err := ops.candidate("guarded-candidate", r.address, "candidate-token", func() {}, nil, func(_ any, err error) { done <- err }, guard); err != nil {
 				t.Fatal(err)
 			}
 			select {
