@@ -79,3 +79,9 @@ A bounded disposable probe reproduced the exact failure with /Library/Developer/
 Recommended narrow capability: selected Git --exec-path -> validated physical git-upload-pack -> Binaries -> existing private runtime inventory. Alternative: append selected Git's whole exec directory to PATH or export it as GIT_EXEC_PATH; rejected because this expands runtime capability beyond the observed local-fetch need. Ambient helper lookup is rejected because it can select a different installation. Existing command runner bounds and CandidateOwner cleanup cover failed selection; runtime inventory validates every source before installation effects. Additional state/action table is unnecessary: this adds one immutable selected tool, not mutable user state. Existing startup/shutdown owners and protocols stay unchanged (ARCH-ORDER/FUNERAL/EVOLVE); trust remains selected executable provenance (ARCH-SECURE). Work is startup-only and adds one bounded metadata query plus one symlink, with no new scan/growth dimension (ARCH-CONSTRAINTS). Native fetch plus service lifetime proof covers the issue's actual purpose and external dependency (ARCH-PURPOSE/MOCK).
 
 Plan committed and sent to TL as requested; hold change-code until the hub responds. No live fleet calls, environment widening, timeout change or code edits.
+
+## Revisions
+
+### 2026-10-23 — TL approval (40e2eb78)
+
+Approved the selected Git --exec-path helper, validation, Binaries ownership and single named private symlink. No helper directory or ambient PATH. Proceed; notify ariadne:4 when landed.
