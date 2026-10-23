@@ -122,3 +122,8 @@ Public native qualification showed a proved raw slash Return generating syntheti
 ### 2026-10-22 — Public test readiness uses current wrapper evidence
 
 Authenticated ops:0 delivery651ebb9f approves the shared testcouch read-only ObserveDrive helper over the real public Actors binding and owned namespace. Cached resources have a60s cadence and cannot gate successive admission inside a120s fixture lifetime. Poll the existing current wrapper Idle proof, then issue each public keys command once; input admission remains authoritative. Keep cached resources and live Cursor evidence only as bounded diagnostics. Test-only process isolation must select the canonical owned root explicitly, with helper refusal on missing/foreign selection; no new RPC, credential fabrication, production state, deadline or cadence change. If this third readiness design still cannot qualify, stop and decide the native gap with the hub rather than add another patch or retry.
+
+
+### 2026-10-22 — Authorized overnight acceptance hold
+
+Authenticated ops:0 deliveriesc207f32b and6fca9a0a hold Qoder qualification until after07:00 Pacific2026-10-23 (credits available, cheap-window restriction). Close also waits for ariadne:3 to diagnose/restore the named #151 measurement evidence; no actual-hours bypass. Keep the existing162 recorded-suite and806 merge runners, start nothing more tonight. Landing still requires Qoder pass or a separately approved documented conditional gap, the recorded suite and mandatory close review. Product behavior and verification bounds are unchanged.
