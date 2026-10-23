@@ -661,7 +661,15 @@ its attempt for inspection; peek/show before another recovery request.
 
 ## Reading a broadcast-web recording
 
-A DOM submission points to `submission.json` and relative `crop-N.png` files.
+A DOM submission points to `submission.json`, relative `crop-N.png` note files
+and one `sketch-page.png` for a shared sketch batch (legacy bundles retain
+`sketch-N.png`). Match numbered image badges to each sketch's `index`, note and
+original `paths`. New `sketch_page.provenance: "replay-rendered-current-view"`
+images reconstruct the current recorded prefix pinned when the submission chord
+is admitted. Read `sketch_page.current` for current projections; each sketch's
+`source`, `finish` and element facts retain their original historical contexts.
+Read the root `sketch_page` privacy/limitations as well as each item's.
+Only selected unsent ink appears; pointer and private tool UI never enter it.
 The manifest includes recorded note context, draw-time box text/accessibility
 names, capture identity, and `source.recording_path`. Crops show the original
 page when the note box was drawn, not the page at submission. Navigation or a
@@ -687,14 +695,52 @@ as **not on this view**; absence of a live box does not resolve the note. A DOM
 submission packages saved evidence and resolves selected revisions only after
 confirmed dispatch. Prepared, pending and superseded are not delivery claims.
 
-### Filing an issue from notes
+Completed sketches join the same operator draft submission. One finished sketch
+may contain several strokes sharing one attached note. Read each sketch's
+`source.url`, `source.title`, `source.provenance: "recorded-dom"`, author, note,
+`elements`, and image transform/limitations. New bundles reference one
+`sketch-page.png` through `sketch_page`: a replay reconstruction of the current
+console viewport, with only selected ink and numbered badges matching each
+sketch's `index`. Its provenance is `replay-rendered-current-view`; current
+projections in `sketch_page.current` record the actually painted target locators,
+boxes and clipping. Original coordinates and pressure remain in each sketch's
+`paths`, with its exact `finish` context. Legacy bundles retain per-sketch
+`sketch-N.png` images and `image.plan.paths`; legacy shared pages keep their
+recorded finish-time context. These images reconstruct recorded content;
+uncaptured visuals and animation phase may differ from live pixels. Apply the
+shared page's privacy decision as well as each item's before sharing it.
 
-Read each version-3 note's `privacy` and `privacy_rule` before selecting its
-evidence (the submission-level fields on older versions). Only an explicit
-`privacy: shareable` decision makes that note's content eligible. The version-3
-top-level privacy is a conservative summary, never a grant for a private note.
+The source `record_index` fixes the exact begin boundary; `history_record_index`
+fixes the accepted later history, including undo/redo and contextual truncation.
+Indices disambiguate records sharing a timestamp; a timestamp-only DOM query can
+include later same-time changes. `elements` preserves literal `id`/`data-*`
+attributes for original anchors, ancestors and nearby recorded elements, with
+explicit bounds/truncation. Do not infer application meanings from these values.
+Ordinary notes also carry these facts at their recorded context/capture moment.
+
+The operator sees the next selection before the existing draft chord sends:
+only feedback actually visible on the current console is eligible, with at most
+eight unsent finished sketches. The Pending feedback panel shows annotation and
+sketch counts, plus deferred **N more sketches** and **N more annotations**.
+Off-view feedback stays pending. A stale visible selection refuses preparation;
+partial selected ink, unsupported clipping, an open editor or a held drawing
+scene also refuses preparation. The operator reviews a fresh completed paint
+before trying again. The chord pins its current recorded prefix; pointer
+gestures and private tool UI never enter the submission. Confirmed dispatched/resolved manifests acknowledge only their
+exact sketch versions, across targets. Those exact sketch versions and note
+revisions disappear from live console/viewer painting after confirmation; unsent
+or newer feedback stays. Original ink and notes remain in recording history and
+replay. Remaining shapes wait for another explicit operator submission. Prepared,
+delivering and superseded bundles are not proof of delivery.
+
+### Filing an issue from notes and sketches
+
+Read each version-3 note or sketch's `privacy` and `privacy_rule` before selecting
+its evidence (the submission-level fields on older versions). Only an explicit
+`privacy: shareable` decision makes that item's content eligible. The version-3
+top-level privacy is a conservative summary, never a grant for a private item.
 Absent, private, or unrecognized privacy values and invalid policy files mean
-private: summarize without quoting `box_text` and attach no crops. An invalid
+private: summarize without quoting `box_text` and attach no crops or sketch images. An invalid
 policy file produces `privacy: private`,
 `privacy_rule: 'invalid policy file: <reason>'`, and a Couch notice; it does not
 fail the submission. A null `privacy_rule` is not a sharing grant.
@@ -705,7 +751,7 @@ Write the issue text first: page URL without secrets, element/classes,
 operator's request, appropriate shareable box text or a private summary, and
 one line explaining what a crop would demonstrate. Sanitize identifying or
 sensitive details in all issue prose, including URLs and element attributes.
-Keep the issue understandable without the capture. Attach only relevant crops,
+Keep the issue understandable without the capture. Attach only relevant crops or sketch images,
 only when explicitly shareable and the repository's asset policy allows them,
 using its ariadne#337 issue asset folder convention. If that policy is unknown,
 keep the issue text-only. Shareable is eligibility, not an instruction to copy
@@ -723,6 +769,14 @@ than reading the JSON lines; the answers are sized for your context:
 - `notes [--note ID] [--before MS]`: each note with who wrote it and when,
   its element as of that moment, the context around it, and the user's
   actions just before it (a driver's actions say `by <viewer>`).
+- `sketches [--sketch ID] [--at T] [--json]`: source page/identity at begin,
+  selected later history, attached note, pressure paths, visible/redo stacks and
+  declared element IDs. `--at` bounds history; it does not move the source page.
+  Unfinished, interrupted, cleared or undone sketches stay explicit.
+- `sketch-image --sketch ID --out DIR [--at T]`: explicitly export the historical
+  image and transform/provenance JSON into a new private local directory. The
+  exporter refuses existing output and source-recording descendants; rendering
+  limitations remain explicit. This exports evidence without sending it.
 - `dom [--at T] [--sel SELECTOR]`: the page at time T (ms since the recording
   started; default the end), every element named `@N`. Pass `--sel @N` to
   see one element whole; `--json` for every attribute.

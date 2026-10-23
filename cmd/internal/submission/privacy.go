@@ -216,6 +216,7 @@ func checkJSONKeys(data []byte, check func(depth int, key string) error) error {
 	// Inspect keys before struct decoding loses duplicates and case aliases.
 	// The caller checks its schema; the scanner rejects duplicates everywhere.
 	d := json.NewDecoder(bytes.NewReader(data))
+	d.UseNumber()
 	var value func(int) error
 	value = func(depth int) error {
 		token, err := d.Token()
@@ -277,23 +278,10 @@ func strictJSON(data []byte, out any) error {
 // can discard duplicates or accept case-folded field aliases. Keep this on the
 // complete manifest, not its embedded decision, so other fields still decode.
 func (s *Submission) UnmarshalJSON(data []byte) error {
-	if err := checkJSONKeys(data, func(depth int, key string) error {
-		for _, canonical := range []string{"privacy", "privacy_rule", "privacy_origin", "version", "source", "page", "source_document", "document", "url", "title", "provenance"} {
-			if strings.EqualFold(key, canonical) && key != canonical {
-				return errors.New("noncanonical privacy JSON key")
-			}
-		}
-		return nil
-	}); err != nil {
+	decoded, err := DecodePreserving(data)
+	if err != nil {
 		return err
 	}
-	type wire Submission
-	var decoded wire
-	d := json.NewDecoder(bytes.NewReader(data))
-	d.DisallowUnknownFields()
-	if err := d.Decode(&decoded); err != nil {
-		return err
-	}
-	*s = Submission(decoded)
+	*s = decoded
 	return nil
 }

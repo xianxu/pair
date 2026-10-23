@@ -1,21 +1,114 @@
-# Send cast notes to the agent (#483)
+# Send cast notes and sketches to the agent (#483, #753)
 
 Press **Shift+Ctrl+Alt+Return** in the draft Neovim, in normal or insert mode,
-to send the draft text and all open notes across the cast recording's documents
-to the agent in that view. Each note carries focused recorded context, a replay
-link, draw-time box text, and its saved PNG crop when available. Overlapping notes
-retain separate captures; submission never recaptures a changed page.
-The selection is frozen when Couch admits the request; notes added afterward
-wait for the next submission.
+to send the draft text and eligible saved notes and completed sketches actually
+visible on the current console to the agent in that view. Each selected note
+carries focused recorded context, a replay link, draw-time box text, and its
+saved PNG crop when available. Overlapping notes retain separate captures;
+submission never recaptures a changed page for those crops. Off-view notes stay
+reachable as **not on this view** and wait for a later visible selection.
+The acknowledged visible selection is frozen when Couch admits the request;
+new or deferred feedback waits for the next submission.
 
 Confirmed submissions resolve their selected note revisions: acknowledgment
 transfers ownership of those notes to the agent; whatever follows (a pensive, an issue, a fix) is the agent's.
 
-The draft is optional: an empty or comment-only draft can send notes. With no
-notes, nonempty text follows ordinary draft submission; with neither, the chord
+The draft is optional: an empty or comment-only draft can send notes or sketches.
+With neither kind of evidence, nonempty text follows ordinary draft submission; with no text or evidence, the chord
 does nothing. Ordinary Alt+Return keeps its existing behavior. A paused cast
 refuses new draw-time captures and note-state writes; resume before drawing a
 new note or retrying pending note resolution.
+
+## Completed sketch evidence (#753)
+
+A shape means one finished, labeled sketch, including its accepted visible
+strokes. Labeled interrupted sketches retain their interruption/truncation
+facts. Unfinished, cleared and entirely undone sketches remain queryable but
+are not automatically submitted.
+
+The private operator Chrome UI shows **Pending feedback**, with both the sketch
+and annotation counts. Indexed pressure-ink thumbnails and attached sketch notes
+show the chosen shapes before the existing draft chord freezes the acknowledged
+selection. Only actually painted, finished unsent sketches and placed open-note
+revisions are eligible. At most eight sketches are selected in creation order;
+other feedback remains visible as **N more sketches** and **N more annotations**.
+The eight limit applies only to sketches. Annotation crop cards in this mixed
+panel are the separate #805 follow-up.
+
+A stale visible selection, changed note revision, sketch version, mask or private
+host refuses preparation and refreshes the preview; draft and ink remain intact.
+A held drawing scene, open editor, incomplete paint or partial shape placement
+cannot establish a visible selection. There is no browser
+send button or viewer agent-dispatch route. Remaining shapes wait for the next
+explicit submission.
+
+Confirmed dispatched/resolved manifests also derive a **live display mask**:
+exact sketch sequence/digest and note revision disappear from console and viewer
+painting, while unsent or newer versions remain. The existing preview worker
+loads this projection even without a private console host; full masks travel in
+the console OperatorView and the viewer's live `feedback` stream, including
+reconnect. This changes no recorded vectors or history, and historical replay
+does not consume the mask. Existing conditional note resolution stays separate.
+The projection dies with the cast and is rederived from confirmed Store evidence;
+there is no acknowledgment sidecar. Its full wire image uses the existing 64 MiB
+bundle envelope, with atomic refusal rather than truncation. Historical notes
+are not limited by the per-page admission count.
+
+New version-3 manifests retain two typed lists, `notes` and `sketches`, and add
+one `sketch_page` referencing **sketch-page.png** with provenance
+**replay-rendered-current-view**. At the submission chord, the current recorded
+prefix and completed console paint are pinned together. The image reconstructs
+that viewport with the selected ink and numbered badges matching preview cards
+and sketch `index` values. `sketch_page.current` retains the current projections:
+actual painted target locators, boxes and clips. Pointer and private tool UI are
+absent. Missing, ambiguous, hidden or partially unprojectable selected paths
+refuse the whole batch. Unsupported clipping refuses preparation; ordinary
+pressure fringe clipped at the viewport edge is declared explicitly. The replay
+image can still differ from live browser pixels in uncaptured visuals and
+animation phase.
+
+Each sketch retains its original URL/title and `recorded-dom` begin source,
+author/color, note, accepted sequence/digest, phase/reason, bounded literal
+element IDs and `data-*` attributes. Original coordinates, pressure and anchors
+remain unchanged in `paths`; `finish` records that selected version's completion
+context. The root page contains the full-viewport region, scale, dimensions,
+clipping and limitations. Reflow projection changes only painted placement.
+Missing recorded assets, uncaptured visuals and animation-phase differences
+remain explicit limitations.
+
+Legacy shared bundles with replay-rendered finish-time pages and individual
+`image`/`sketch-N.png` plans remain readable and immutable. New shared items omit `image`; older decoders requiring
+it refuse instead of acknowledging only part of a new submission. The new
+codec preserves unknown nested extensions through delivery rewrites while
+rejecting mixed or incomplete representations.
+
+`source.record_index` fixes the ordered begin prefix and `history_record_index`
+fixes the selected later history. Both are zero-based inclusive indices, so
+later changes at the same timestamp cannot replace the selected source/history.
+A timestamp-only DOM query may include later same-time records. Each original
+anchor retains its recording node handle; bounded ancestor and nearby-element
+facts are literal declarations, never inferred application meanings or proof
+of current live-node identity. Ordinary notes use the same declaration extractor
+at their recorded context or saved-capture moment.
+
+Query locally with `couch --broadcast-web-query DIR sketches [--sketch ID]
+[--at T] [--json]`. Here `--at` limits accepted history while source remains at
+begin. `sketch-image --sketch ID --out DIR [--at T]` exports the image and
+transform/provenance JSON together to an explicit new private directory; it
+refuses existing output and paths inside the source recording. Exporting sends
+nothing. Both local tools use already-read recording input; single-sketch export keeps
+its original begin-page crop. Submission uses the separate current-view full-viewport plan with the same replay
+session, pressure painter and cleanup machinery.
+
+The existing private bundle store publishes all images before delivery. Confirmed
+`dispatched`/`resolved` manifests suppress only those exact sketch versions from
+future selections across targets; no recording event, separate acknowledgment
+file or ink clear is added. Unknown delivery does not establish that the agent
+received the bundle. A later label/history version remains eligible after an
+older acknowledgment. Each note and sketch has its own original-origin privacy
+decision. The shared image additionally carries a conservative full-page decision
+covering its base URL and every painted sketch; a private contribution makes
+the composite private. Replay rendering grants no publication permission.
 
 ## Draw, capture and save (#538)
 
@@ -73,7 +166,8 @@ Couch writes the complete bundle before sending anything:
   crop-1.png
 ```
 
-The agent receives the draft text, absolute manifest path, and the manifest's `how_to_read` guide. The guide names the recording path and query commands. Pair's
+The agent receives the draft text, selected and deferred sketch and annotation counts when available,
+absolute manifest path, and the manifest's `how_to_read` guide. The guide names the recording path and query commands. Pair's
 authored log retains the original draft; generated evidence references belong
 to the outgoing prompt. Crops are files, not clipboard attachments. The folder
 is portable, with relative crop paths; its recording and replay references
@@ -251,8 +345,8 @@ sharing. Older bundles without privacy fields are private.
 
 When notes become an issue, write evidence as self-contained text: a page URL
 without secrets, element/classes, the operator request, appropriate text evidence
-and one line describing what the crop demonstrates. For each private note,
-summarize instead of quoting box text, and attach no crops. Explicitly shareable
+and one line describing what the crop demonstrates. For each private note or sketch,
+summarize sensitive text and attach no crops or sketch images. Explicitly shareable
 note evidence allows only relevant crops and only when the repository's asset policy permits
 its issue asset folder (ariadne#337); absent or unclear repository policy means
 text only. This is an agent rule, repeated in the shipped Couch skill and

@@ -89,16 +89,14 @@ func (s *Store) ConfirmPrepared(expected Submission, crops map[string][]byte) (P
 	if !bytes.Equal(have, want) {
 		return unknown, fmt.Errorf("published submission differs from prepared evidence")
 	}
-	files := map[string]bool{}
-	for _, note := range expected.Notes {
-		if note.Crop.File != "" {
-			files[note.Crop.File] = true
-		}
+	files, err := EvidenceFiles(expected)
+	if err != nil {
+		return unknown, err
 	}
 	if len(files) != len(crops) {
 		return unknown, fmt.Errorf("publication crop set differs")
 	}
-	for file := range files {
+	for _, file := range files {
 		want, ok := crops[file]
 		if !ok {
 			return unknown, fmt.Errorf("publication crop missing")

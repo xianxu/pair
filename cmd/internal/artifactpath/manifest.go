@@ -676,6 +676,33 @@ var SourceClassifications = []SourceClassification{
 // the artifact namespace requires an explicit SourceClassification.
 // pair:m5-concept pure
 var NonArtifactSources = []string{
+	// #753 historical sketch evidence uses Couch recording/submission namespaces,
+	// private caller-selected exports and in-memory projections; no Pair artifact family.
+	"cmd/internal/submission/codec.go",
+	"cmd/internal/submission/sketch.go",
+	"cmd/internal/submission/sketch_page.go",
+	"cmd/internal/submission/delivered_feedback.go",
+	"cmd/internal/submission/preview_selection.go",
+	"cmd/internal/submission/visible_feedback.go",
+	"cmd/internal/webcast/chrome_feedback_visibility.go",
+	"cmd/internal/webcast/recorder/feedback_paths.go",
+	"cmd/internal/couchtty/console_submission_preview.go",
+	"cmd/internal/webcast/cast_submission_candidates.go",
+	"cmd/internal/webcast/chrome_submission_preview.go",
+	"cmd/internal/webcast/query/sketch_export.go",
+	"cmd/internal/webcast/sketchimage/render.go",
+	"cmd/internal/webcast/sketchimage/page.go",
+	"cmd/internal/webcast/sketchimage/page_fake.go",
+	"cmd/internal/webcast/sketchimage/fake.go",
+	"cmd/internal/webcast/sketch_image.go",
+	"cmd/internal/webcast/sketch_page_image.go",
+	"cmd/internal/webcast/board/feedback_context.go",
+	"cmd/internal/webcast/board/feedback_display.go",
+	"cmd/internal/webcast/sketch_image_export.go",
+	"cmd/internal/webcast/sketch_image_publish_darwin.go",
+	"cmd/internal/webcast/sketch_image_publish_linux.go",
+	"cmd/internal/webcast/sketch_image_publish_other.go",
+
 	// #743 VM request/image/launch ownership data is outside Pair artifacts.
 	"cmd/internal/vmcmd/cli.go",
 	"cmd/internal/vmcmd/provision.go",
@@ -1130,6 +1157,7 @@ var NonArtifactSources = []string{
 	"cmd/internal/submission/delivery.go",
 	"cmd/internal/submission/model.go",
 	"cmd/internal/submission/privacy.go",
+	"cmd/internal/submission/preview.go",
 	"cmd/internal/submission/store.go",
 	"cmd/internal/couchcmd/submission.go",
 	"cmd/internal/couchtty/console_submission.go",
@@ -1173,6 +1201,7 @@ var NonArtifactSources = []string{
 	"cmd/internal/couchcmd/replay.go",
 	"cmd/internal/webcast/assets/reopen.go",
 	"cmd/internal/webcast/replay.go",
+	"cmd/internal/webcast/replay_image.go",
 	// #477 replay shares: mount recordings on the broadcast Host, in memory
 	// for Couch's run; reads recordings, writes nothing.
 	"cmd/internal/webcast/shares.go",
@@ -1191,6 +1220,8 @@ var NonArtifactSources = []string{
 	// #462 agent queries: read a recording directory the caller names
 	// (couch --broadcast-web-query DIR) and write only to stdout.
 	"cmd/internal/webcast/query/cli.go",
+	"cmd/internal/webcast/query/element_facts.go",
+	"cmd/internal/webcast/query/sketch.go",
 	"cmd/internal/webcast/query/contract.go",
 	"cmd/internal/webcast/query/events.go",
 	"cmd/internal/webcast/query/fake.go",
@@ -1220,6 +1251,7 @@ var NonArtifactSources = []string{
 	"cmd/internal/webcast/recording/sketch_snapshot.go",
 	"cmd/internal/webcast/recording/sketch_state.go",
 	"cmd/internal/webcast/sketch/geometry.go",
+	"cmd/internal/webcast/sketchimage/contract.go",
 	"cmd/internal/webcast/recording/reduce.go",
 	"cmd/internal/webcast/recording/validate.go",
 	// #458 recorder: writes records, screenshots and asset bodies into the

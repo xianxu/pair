@@ -1,0 +1,22 @@
+{
+  "source_revision": "542da06cfadec93dda02b6dab6694004624a0b88",
+  "command": [
+    "env",
+    "WEBCAST_LIVE_CHROME=1",
+    "go",
+    "test",
+    "./cmd/internal/webcast",
+    "-run",
+    "TestLiveSketchPage|TestLiveSketchImage|TestOperatorSketchLiveDrawing|TestSketchLiveTwoViewers|TestLiveFidelity",
+    "-count=1",
+    "-v"
+  ],
+  "outcome": "pass",
+  "duration_seconds": 92.338,
+  "log_sha256": "8b70bd782c696c41741f44647786dddf906a24bddefb2b04dca8a2f1f97aa88e",
+  "qualification": "Native macOS headless Chrome: console selective/full live masking with preserved vectors/history/preview sources; both viewers hide, reconnect stays hidden, replay retains ink; annotation-off sketching/private preview/focus; shared pressure/indices/strict-anchor refusal; legacy export/cancellation; fidelity. Revised real-operator disappearance recheck remains separate. BR-10: both actual native EventSource error handlers invoked twice while retaining page/model/source and receiving no replacement full mask; submitted ink stays blank, newer/source projection and replay remain intact.",
+  "limitations": [
+    "Existing rec-stress fidelity baseline has1of3frames above3percent; qualified fixture test passes.",
+    "Live note pins/list/dialog filtering is covered by controlled browser fixtures and Board/SSE/manager integration; the renewed operator recheck includes an annotation."
+  ]
+}

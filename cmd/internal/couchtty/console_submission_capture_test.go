@@ -34,6 +34,7 @@ func TestSubmissionRecoversClaimsBeforeStartingNewBundle(t *testing.T) {
 	m, base, target := newSubmissionManagerTest(t)
 	f := &captureSubmissionCast{submissionCastFake: base, pendingErr: errors.New("old publication unknown")}
 	m.current = func() (submissionCast, error) { return f, nil }
+	acknowledgeSubmissionFeedback(t, m, base)
 	run := submissionWorkQueue(t, m)
 	if _, err := m.request(context.Background(), "prepare", "new-capture", target); err != nil {
 		t.Fatal(err)
@@ -58,6 +59,7 @@ func TestSubmissionCapturePublicationReconciled(t *testing.T) {
 			m, base, target := newSubmissionManagerTest(t)
 			f := &captureSubmissionCast{submissionCastFake: base}
 			m.current = func() (submissionCast, error) { return f, nil }
+			acknowledgeSubmissionFeedback(t, m, base)
 			run := submissionWorkQueue(t, m)
 			if _, err := m.request(context.Background(), "prepare", "capture", target); err != nil {
 				t.Fatal(err)
