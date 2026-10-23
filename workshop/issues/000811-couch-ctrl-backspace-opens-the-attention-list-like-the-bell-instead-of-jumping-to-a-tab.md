@@ -7,7 +7,7 @@ created: 2026-10-22
 updated: 2026-10-23
 estimate_hours:
 collaboration-mode: collaboration
-card_mirror: '3b4d0353c33f53123fcf9f24ac379348cea4a3e6' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '11aeff60c97e7187941cf355191f6cf60281010f' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-23T04:07:36-07:00
 claimant:
     operator: Xian Xu
@@ -16,29 +16,29 @@ claimant:
     workspace: pair:3
     worktree: /Users/xianxu/workspace/worktree/pair-slot3/pair
     repository: github.com/xianxu/pair
-flow: {kind: quick, provenance: inferred, spec: "af96eb45", done: "7a3694a8"}
+flow: {kind: quick, provenance: inferred, spec: "892aecf4", done: "e7a389ca"}
 ---
 
-# Couch: Ctrl+Return toggles the attention list; Ctrl+Backspace stays previous
+# Couch: Ctrl+Return toggles the notification list (bell); Ctrl+Backspace stays previous
 
 ## Problem
 
 ## Spec
 
-Operator request (10-22, corrected the same day): rebind **Ctrl+Return** under Couch to **open the attention list**,
+Operator request (10-22, corrected the same day): rebind **Ctrl+Return** under Couch to **open the notification list (bell)**,
 exactly as clicking the bell icon does (the same panel Ctrl+Alt+a opens, pair#673/#733). Today Ctrl+Return jumps to
 the tab that needs attention (answers the newest page, pair#221); the operator doesn't use that, since notifications
 come often and jumping into a tab is too heavy. **Ctrl+Backspace is unchanged** (it jumps to the previous tab, which
 the operator uses).
 
-- Ctrl+Return opens the attention panel (toggle: pressing it again closes it, like the bell). The jump-to-tab
+- Ctrl+Return opens the notification list (bell) (toggle: pressing it again closes it, like the bell). The jump-to-tab
   behaviour is removed from that chord; jumping stays available from inside the panel.
 - Every place Ctrl+Return is recognised today keeps recognising it (encodings, focused panes); check the
   actor/page answering paths that use Ctrl+Return (pair#221, atlas/couch.md) and say what replaces them, if anything.
 - README's shortcut tables, the hosted-session note and atlas/couch.md updated; Ctrl+Alt+a keeps working.
 
 ## Done when
-- A test drives Ctrl+Return and sees the attention panel open (and close on a second press), with no tab switch.
+- A test drives Ctrl+Return and sees the notification list (bell) open (and close on a second press), with no tab switch.
 - Ctrl+Backspace still switches to the previous tab (test).
 - Docs name the new behaviour.
 
@@ -75,7 +75,7 @@ or click), close (Escape), navigate switcher (ordinary Enter), previous tab
 
 This intentionally removes both old actor/page shortcuts: no direct newest-page
 jump or acknowledgement, and no modified-Return acceptance of the selected
-switcher row. Ordinary Enter retains its switcher behavior; the attention list's
+switcher row. Ordinary Enter retains its switcher behavior; the notification list (bell)'s
 Enter/click retains its notification jump and Ctrl+Backspace return-home rule.
 Ctrl+Space then Enter remains the existing paging route. No replacement chord
 is introduced. Release events, ordinary Return, other Return modifiers and
@@ -111,11 +111,13 @@ consistent with retaining the currently recognized encodings.
   affected-inventory reader inputs before its exact per-file repair; run
   `make test-affected-inventory` before close. Push and record the declared
   affected check via `sdlc local-check run --name affected`, retaining its runner.
-- [ ] Request a hub-authorized real-terminal live check before landing: stage
-  with `sdlc stage --build` only when authorized; open/close the list from a
-  hosted actor and switcher, select an item with Enter, and use Ctrl+Backspace
-  to return. Confirm Ctrl+Alt+a/bell parity. Record actual revision/outcome and
-  clear the owned stage. Then SDLC whole close/review, PR and merge.
+- [x] Stage the verified source for the hub-authorized real-terminal check and
+  record actual acceptance: operator confirmed open/close with a notification
+  present at 09:35 on 2f634183; actor/switcher, Enter, previous keys and protocol
+  encodings are covered by production-input/physical-key automated regressions.
+  The hub accepted that boundary and handed pair:0's stage to pair:1 for #812.
+  Do not clear or replace the successor's stage. Whole close/review and merge
+  follow from this branch with the required recorded check and inventory.
 
 ## Log
 
@@ -218,16 +220,52 @@ on the held stage, then clear it, run inventory before close, and whole close /
 merge using the recorded source evidence. No live acceptance or close verdict
 is claimed.
 
+### 2026-10-23 — real operator acceptance; no input defect
+
+Hub reported initial apparent failure (receipt
+9ba35ad7-99c9-4d91-8080-daa400d300a6): Ctrl+Return appeared to do nothing in
+Couch PID45877, launched from the staged source at 09:27:30. Read-only process
+inspection proved Ghostty1508 -> login1516 -> zsh1525 -> Couch45877 on ttys000;
+no outer Zellij or wrapper PTY sat between Ghostty and the console. No raw input
+trace was open, so no wire bytes were claimed or inferred from that observation.
+The suggested live restart was declined as disruptive; a disposable shared
+harness capture was authorized, then explicitly held before any harness or
+product changes were made.
+
+The operator's bell was empty/hidden. Hub sent a test notification; operator
+acceptance PASSED at 09:35 with a notification present: Ctrl+Return opens and
+closes the notification list (receipt a854db81-f3f5-4fb5-9715-6b41d62421fe).
+The initial observation was the existing empty-list behavior, already pinned
+by TestCtrlReturnEmptyAttentionUsesBellNotice, not evidence of protocol loss.
+No raw capture exists and no input/keyboard fix is being made. Acceptance is
+limited to the open/close result the operator reported; other actor/switcher,
+Enter, history and encoding cases retain their automated evidence.
+
+Applied the operator's naming correction in user help, README, atlas, current
+contract and checklist: “notification list (bell)” distinguishes Couch's bell
+from Parley's document-finder attention list. Internal ActionAttention and its
+existing state are unchanged. Hub authorized close and land, followed by stage
+handoff to pair:1 for #812. Next: verify the wording-only source delta, push,
+record its affected check, whole close/review and merge; clear our stage.
+
+### 2026-10-23 — naming verification
+
+Wording-only source delta passed focused couchkeys (0.161s) and couchtty
+(0.648s), including Ctrl+Return and help/shortcut guards; inventory and diff
+whitespace checks pass. A new recorded affected check is due on this pushed
+source because generated help strings are compiled code, even though input
+behavior and the operator-accepted source remain unchanged.
+
 ## Operator live check
 
 On a fresh Couch process using the staged revision (running sessions retain the
-old binary), with at least one attention item:
+old binary), with at least one notification item:
 
-1. From a hosted actor, press Ctrl+Return: attention opens and the actor stays.
-   Press it again: attention closes and the actor stays.
-2. Open the switcher with Ctrl+Space, then Ctrl+Return twice: the same overlay
+1. From a hosted actor, press Ctrl+Return: notification list (bell) opens and the actor stays.
+   Press it again: notification list (bell) closes and the actor stays.
+2. Open the switcher with Ctrl+Space, then Ctrl+Return twice: the same notification overlay
    opens/closes and the switcher selection stays. Ordinary Enter still selects.
-3. Open attention with Ctrl+Alt+a or the bell, close with Ctrl+Return, reopen and
+3. Open the notification list (bell) with Ctrl+Alt+a or the bell, close with Ctrl+Return, reopen and
    press ordinary Enter to visit an item. Ctrl+Backspace returns to the previous
    thread; also verify previous-tab after an ordinary manual switch.
 4. Record actual revision and result. Worker clears its owned stage after the
@@ -241,3 +279,19 @@ Expanded the empty Plan into a single-pass implementation/verification plan
 using the already-corrected operator decision. Clarified that Ctrl+Return in
 the switcher also toggles attention; ordinary Enter keeps row acceptance.
 No change to the existing Spec or Done when contract.
+
+### 2026-10-23 — operator vocabulary correction
+
+Per ops:0 receipt 9ba35ad7-99c9-4d91-8080-daa400d300a6, replace user-facing
+“attention list” with “notification list (bell)” in the current contract, help,
+docs and checklist; the old wording and its reason remain in prior Log entries.
+No behavior, binding, internal state, or acceptance requirement changed.
+
+### 2026-10-23 — accepted live boundary and stage handoff
+
+Hub acceptance a854db81-f3f5-4fb5-9715-6b41d62421fe closed the real-terminal
+check on the reported open/close result plus the automated matrix, rather than
+claiming unreported live Enter/history/focus outcomes. Updated the final Plan
+row to that measured boundary. Authenticated follow-up
+60be68cd-46b1-470c-8211-2a0e039f559e hands pair:0's stage to pair:1 for #812:
+worker must land from this branch and must not clear the successor's stage.
