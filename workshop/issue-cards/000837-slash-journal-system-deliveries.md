@@ -1,6 +1,6 @@
 ---
 id: 000837
-status: codecomplete
+status: done
 created: 2026-10-23
 updated: 2026-10-23
 estimate_hours:
@@ -21,6 +21,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: 8921526e56df56a0194463b58d903ed49af7e935
         evidence_commit: 2f3d3290190763358e9aad628a7e2bf3cff64a60
+        landed_commit: 02b6c408888e70735c9aefb0914efa97bc966ad5
 ---
 
 # Fence slash qualification journal against system deliveries
