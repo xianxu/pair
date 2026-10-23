@@ -8,6 +8,7 @@ representative evidence, not an exhaustive index.
 ## Proof and verification
 
 - #827 PQ-1: joining dispatch callers does not join their asynchronous producers. When cancellation can return from Await early, retain the exact admitted future and defer gate/capacity release and final reporting until producer completion; pin ordinary caller behavior when adding an opt-in joined path.
+- #832: A process-group kill can precede publication of an in-progress fork. Keep the direct parent unreaped until terminal observation, then send the final group signal before retiring authority and joining output. Execution cancellation or writer failure must not skip the cleanup barrier; pin ordering and unknown-proof refusal with stateful seams and repeat the native race.
 
 - #758 BR-4: write-call and record-count assertions do not prove a byte budget. Measure actual payload lengths at the writer boundary, count cumulative bytes and compare N/2N against the stated growth model; retry/no-op and repeated-reopen tests must assert byte effects, not infer them from row counts.
 
@@ -2526,6 +2527,7 @@ and external temporary roots rather than relying on the host's TMPDIR.
 - #746 BR-1: A generated repair command must satisfy the same current constraints as its executor, ahead of historical classification. Execute emitted commands in private fixtures for each classification transition; checking only their text or the manual command misses advice that cannot work.
 - #749: Acceptance fixtures must execute the one shared Pair image through testpair.At or tests/lib/pair-test-binary.sh, preserving inode identity even across volumes. A raw executable copy triggers another AMFI assessment before the CLI starts and can consume a fixture deadline; verify file identity rather than extending the timeout. Resolve the shared binary before installing a hermetic fixture environment.
 
+- #728: A refusal test must establish the intended refusal cause. Seed compatibility settings through an initialized store: writing only a JSON file can leave store.lock absent and make an invalid-argument regression pass on unrelated ENOENT. Observe the intended red before adding the admission guard.
 - #743 native image: privileged symlinks inherit the private guest umask. Darwin may execute through a root-owned unreadable link while readlink fails, breaking relocated Go root discovery. Set explicit searchable/readable modes on generated tool links and regress strict realpath as well as execution.
 
 - #743 native result audit: embedding a lossless manifest type in a default JSON marshal drops its unknown provenance. Persist it through the manifest codec and a raw-preserving envelope; test the final retained result, including nested raw values.
@@ -2652,6 +2654,18 @@ and external temporary roots rather than relying on the host's TMPDIR.
 - #775: A new executable Zellij double must use the shared reply serializer and producer-specific catalog, including malformed/non-query envelopes as explicit classified faults. Run TestEveryZellijFixtureReplyUsesProductionDecoder and the reader-inventory preflight before queuing the full suite; source registration alone cannot certify independent wire serialization.
 - #771 review: Check the branch patch for whitespace after generated prose is recorded; review transcripts can introduce blank-line spaces. Trim prose-only whitespace before publishing, while preserving byte-exact terminal recordings and upstream evidence.
 
+- #753 plan-quality: A visible acknowledgment gate needs one pure transition authority and an atomic freeze API, not merely promises about stale callbacks. Name production functions and their adversarial/mechanical test strategies; keep case enumeration in executable tests.
+
+- #753 BR-1: cancellation must settle an owned asynchronous operation through its state machine before processing identical-input wakes. Cover preloaded, duplicate and catchup notifications, joined teardown, and success returned after the original deadline.
+- #753 BR-2/3: spend an evidence budget in promised output-priority order, never during traversal of unselected inputs. Preserve mandatory handles before optional attributes, and exercise valid absent-anchor/region-only inputs when adding stricter evidence.
+- #753 BR-4: Go JSON decoding can accept null as a scalar zero. Preserving codecs must validate known scalar and tuple-member types explicitly while distinguishing intentionally nullable containers/pointers; unknown extensions remain raw JSON.
+- #753 BR-5/6: reconcile the final symbol/path and PURE/INTEGRATION inventory against actual source. Pin native conformance to committed source and retain raw output/hash; a restricted review environment's refusal needs supported-environment evidence, not a passing assertion or a timeout bump.
+
+- #753 ACK recovery: a successful idempotent durability confirmation must invalidate derived delivery caches even if the disposition was already visible. A failed acknowledgment may publish bytes before confirmation; compare against observed confirmation, not only the prior enum.
+
+- #753 BR-7: strict persisted evidence has two independent dimensions: a present member's type and a required member's presence. Inventory both explicitly, then delete every required field in regression tests, including fields whose legitimate zero/false/empty values pass semantic validation. Preserve intentional legacy omissions and nullable containers separately.
+
+- #753 recorded suite: run the existing repository-wide godoc/catalog guards after extracting declarations or adding concurrency regressions. Keep a function's godoc adjacent when inserting constants; inside synctest, block on the owned deadline/cancellation event rather than a fixed virtual sleep. Existing structural guards enforce both classes; add no quarantine or duplicate rule.
 - #779 staging: a long-lived SHIP branch may predate accepted live features. Compare its ancestry with current main before restarting the operator’s supervisor; an approved stage slot does not establish baseline freshness. Integrate accepted main changes, run targeted integration checks, and keep the full suite owned by the landing turn.
 - #778: Separate private socket roots still collide when independent fixture identity authorities reset to the same native name and admission uses a host-wide census. Seed fixture authorities through one shared initializer, preserve the real allocator and refusal, and prove distinct names through actual constructors. Temp basenames alone are not cross-parent uniqueness. Validate fixture seed extrema against the allocator's next step, including its exhausted-counter refusal.
 
@@ -2660,6 +2674,11 @@ and external temporary roots rather than relying on the host's TMPDIR.
 - #778 BR-1: after main integration or a compatibility fix, mark final verification pending in the active Plan checklist until the replacement exact-source suite completes. Keep older green receipts as history; review/suite overlap permits concurrent work, not a completed acceptance claim.
 # #803 — shared native read boundaries
 
+- #753 shared preview: when a complete admission witness changes, sweep every producer, including opt-in native fixtures. Construct integration witnesses through the production selector; a manually populated item list can correctly fail closed yet hide that mismatch behind a long retry. Keep close-time native evidence pinned to committed source.
+- #753 shared page: legible bundle indices need bounded alternate positions for ordinary overlapping design shapes. Test several identical starts as well as exhausted viewport space; a single collision should not refuse otherwise projectable ink when a fixed nearby position is available.
+
+- #753 BR-8: Historical evidence must require the connected original recorded identity; live replacement matching can silently move ink to a different node. Test the actual Renderer adapter with a matching replacement plus connected, missing, hidden, conflicting and document/tab controls, and replay a real replacement record before the selected finish.
+- #753 BR-9: A submission format change must sweep generated agent prompts and embedded skills as well as the canonical reading guide. Explicitly distinguish shared-page and legacy per-sketch image paths, original vectors, privacy and batch context; exercise the emitted prompt through the real transaction path.
 - A production seam migration must include live-conformance adapters that issue
   their own native queries; otherwise a green production unit test can leave the
   reported native failure on the old boundary. Preserve per-attempt streams and
@@ -2692,6 +2711,13 @@ and external temporary roots rather than relying on the host's TMPDIR.
 
 - #792 landing: when an existing atlas guide already has an index link, put new feature detail in that guide. Appending feature clauses to its shared index summary creates avoidable landing conflicts; keep the index as a stable navigation map.
 
+- #753 BR-10: Transport uncertainty must not erase confirmed display knowledge while its model stays visible. Test the outage interval, not only eventual reconnect; preserve the revision fence and install a validated replacement atomically. Sweep inactive/omitted/stale full-view producers and hold historical catch-up prefixes below known confirmed evidence, while keeping newer current feedback visible.
+
+- #753 BR-11: A handoff-format change sweeps assertions as well as emitted guides: shared sketch_page provenance/index/paths/privacy and explicitly legacy per-sketch paths must agree in both ReadingGuide and the embedded skill tests. Run couchcmd plus submission guide tests before queuing final verification.
+- #728 M1 BR-1/2/3: a state migration includes its currently reachable presentation, repair documentation and old regression fixtures. If borrowing becomes active in M1, its donor/conflict labels ship in M1 even when broader form changes are deferred. Run complete affected packages before queuing the recorded suite; selected new-test patterns can miss old authority assertions.
+
+- #728 M1 BR-4: a deadline on preview does not bound the write after it. Hold competing writer/coordinator authority after preview releases its read lock; spend migration time first and assert writer admission uses only the remaining budget. Preserve concurrent serialization by releasing outer authority between bounded nested-lock attempts. Trace actual execution ownership before adding workers: a shared dispatcher can already be on lifecycle workers while its initial-start caller precedes the event loop.
+
 - #797 BR-1: Separate immutable authorization data from its validator in core-concept tables. Trace every validator's injected readers before calling it PURE; a readiness-file reader remains IO even when the surrounding comparison uses a captured process snapshot.
 
 - #797: A private Pair DataDir does not isolate compatibility quit markers: TriggerQuit/TriggerBoundQuit writes through HOME/.cache/pair. In-process quit-trigger tests must isolate HOME as well as thread storage, including refusal cases that may acquire effects after future changes.
@@ -2703,6 +2729,29 @@ and external temporary roots rather than relying on the host's TMPDIR.
   keep semantic mismatches non-retriable. Audit structural call-site manifests
   when a collector method changes, even when the effect remains read-only.
 
+- #791 PQ-1: Active plan concept tables must name the production transition/encoder functions as well as their data types. State one adversarial test strategy per risky function (generated event sequences for timing/once/reset invariants, fuzzed styled data for valid bounded encoding); put case inventories in executable tests.
+
+- #791 BR-1: A diagnostic byte cap must preserve evidence that actually fits. Do not divide the raw-screen allowance by worst-case escaping expansion and discard fitting screens; count actual escaped bytes incrementally under a hard construction bound. Pair cap/truncation oracles with a fitting styled-screen preservation regression.
+- #806 BR-1: Diagnostic reader tests do not prove lifecycle retention. Test the real cleanup caller across failure/success and option combinations, with controlled cancellation/join boundaries, root removal and repeated close; remove each capture call in a mutation check so missing wiring cannot remain green.
+
+- #806 BR-1 round2: Distinguish every teardown join in the regression: admitted requests joining does not prove native child/IO completion. Emit a final marker from the later producer and reject a mutation moving diagnostics across that specific join.
+- #728 M2: optional argv is an intent, including its absence. Use one comparable presence-aware literal-array carrier, bind presence/content/consent in both early receipt replay and queued admission, and share strict element decoding across wire and internal dispatch; JSON null elements must not become empty strings.
+
+- #728 M2 retained-target review: selection must preserve a backend error even beside a readable partial record; do not rely on a projected row to retain it. Typed source authority derives from the private admitted record, never mutable public preview mirrors, and serialization must strip the authority.
+
+- #728 M2: inspect every concurrent preflight result before committing or claiming green; a joined test pass cannot stand in for an unread reader-inventory result. Register each new production helper in the exhaustive artifact inventory before checkpointing. The shipped skill's command examples are executable inputs: use concrete parsed commands there, leaving bracketed synopses to CLI help. Existing inventory and skill-command tests own these backstops.
+
+- #728 M2 BR-5: a phase that selects current authority must return its exact token to the operation owner. An empty local-form token is only an initial selection request; retain the verified connection through every later guard. Test reconnect after phase return as well as during observation, for ordinary/cooperative and local/remote paths. This is an operation invariant, pinned by stateful guard regressions rather than a syntactic lint.
+
+- #728 M2 BR-6: shallow frame copies share prepared preview pointers with render snapshots. Copy the preview value before replacing a field; never mutate nested shared reducer input. Exercise both cancellation routes concurrently with snapshot rendering under the race detector.
+
+- #728 admission fixture: install messageAuthority callbacks before starting the socket service. Even an unrelated field write can race a value-receiver read of the whole authority during EffectConnect. Inject mutable fault state through synchronized fakes; omit unused wrapper connections. The race suite owns the cross-field concurrency invariant.
+
+- #728 M3 ad-hoc review: a terminal authority/binding refusal cannot be erased by a later healthy or absent observation. Pin a one-shot replacement followed by absence at every later boundary; a fixture that keeps returning the replacement can accidentally refuse an unauthorized fallback and hide the bad transition. The pure decision and actual owner adapter must both preserve terminal evidence (ARCH-ORDER).
+
+- #728 operator check: give distinct restart/switch actions separate focused rows in navigation order. When controls grow vertically, test the minimum terminal with independent error/clipboard banners and every focused action; preserve parameter input, provenance and Cancel instead of relying on final clipping. This is a presentation invariant owned by render tests, not a syntactic lint rule.
+
+- #728 BR-7/BR-8: A read-only preview contract covers the full public preparation path, including its first thread lookup and transitive classification, not only preference discovery. Seed pending journals in every backend and compare actual routed bytes through cancellation. Finish all fixture source transitions before starting any Console workers; gating one provider leaves other observers free to contend with setup.
 - #743 native fixture: concurrent commands must record whole invocations independently. Per-argument shell printf appends can interleave even though each argument is correct; use unique records and NUL framing, compare the exact run vector, and count command fields rather than argument text. A two-command fixture regression pins empty, whitespace, newline and literal shell-looking arguments.
 - #801 ad-hoc lifetime audit: detaching an admitted resource's lifetime must not detach its constructor from cancellation. Carry startup admission separately, check it after subordinate builders, and gate each installation effect; successful construction must still survive the startup context ending.
 - #801 ad-hoc lifetime audit: after nested cleanup succeeds, recovery evidence must name the resource still owned. A deleted outer root must never hide a surviving candidate directory when the cleanup budget expires.

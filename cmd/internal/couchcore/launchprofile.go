@@ -18,7 +18,10 @@ const (
 type ArgvSource string
 
 const (
-	ArgvSourceExplicit    ArgvSource = "explicit"
+	ArgvSourceExplicit ArgvSource = "explicit"
+	// Keep Pair's existing trusted-profile protocol unchanged. Couch now owns
+	// the repository default's data; the launcher receives its usual source tag.
+	ArgvSourceRepository  ArgvSource = "repo-default"
 	ArgvSourcePath        ArgvSource = "path"
 	ArgvSourceRepoDefault ArgvSource = "repo-default"
 )
@@ -44,6 +47,7 @@ type PathLaunchPreference struct {
 type LaunchProfileInputs struct {
 	ExplicitAgent string
 	ExplicitArgv  *[]string
+	Repo          *RepoLaunchPreference
 	Path          *PathLaunchPreference
 	RootAgent     string
 	RepoDefault   *LaunchProfile
@@ -75,8 +79,25 @@ func ResolveLaunchProfile(in LaunchProfileInputs) (LaunchProfileResolution, erro
 	}
 
 	if in.ExplicitArgv != nil {
+		if in.Repo != nil {
+			if _, err := ResolveRepoArguments(in.Repo, out.Profile.Agent, in.ExplicitArgv); err != nil {
+				return LaunchProfileResolution{}, err
+			}
+		}
 		out.Profile.Argv = cloneArgv(*in.ExplicitArgv)
 		out.ArgvSource = ArgvSourceExplicit
+		return out, nil
+	}
+	if in.Repo != nil {
+		resolved, err := ResolveRepoArguments(in.Repo, out.Profile.Agent, nil)
+		if err != nil {
+			return LaunchProfileResolution{}, err
+		}
+		if resolved.Conflict {
+			return LaunchProfileResolution{}, fmt.Errorf("repository arguments for %s conflict; explicitly accept startup parameters", out.Profile.Agent)
+		}
+		out.Profile.Argv = cloneArgv(resolved.Argv)
+		out.ArgvSource = ArgvSourceRepository
 		return out, nil
 	}
 	if in.Path != nil {
@@ -142,38 +163,6 @@ func clonePathLaunchPreference(preference PathLaunchPreference) PathLaunchPrefer
 		out.ArgvByAgent[agent] = cloneArgv(argv)
 	}
 	return out
-}
-
-func RecordSuccessfulLaunch(current *PathLaunchPreference, repoIdentity, physicalPath string, profile LaunchProfile) (PathLaunchPreference, error) {
-	if repoIdentity == "" || !filepath.IsAbs(physicalPath) {
-		return PathLaunchPreference{}, fmt.Errorf("successful launch requires repository identity and absolute path")
-	}
-	if profile.Agent == "" || profile.Argv == nil {
-		return PathLaunchPreference{}, fmt.Errorf("successful launch has incomplete profile")
-	}
-	var next PathLaunchPreference
-	if current == nil {
-		next = PathLaunchPreference{
-			SchemaVersion: PathLaunchPreferenceSchemaVersion,
-			RepoIdentity:  repoIdentity, PhysicalPath: physicalPath,
-			ArgvByAgent: map[string][]string{}, Revision: 1,
-		}
-	} else {
-		if err := validatePathLaunchPreference(*current); err != nil {
-			return PathLaunchPreference{}, err
-		}
-		if current.RepoIdentity != repoIdentity || current.PhysicalPath != physicalPath {
-			return PathLaunchPreference{}, fmt.Errorf("path launch preference address mismatch")
-		}
-		next = clonePathLaunchPreference(*current)
-		next.Revision++
-	}
-	next.LastAgent = profile.Agent
-	next.ArgvByAgent[profile.Agent] = cloneArgv(profile.Argv)
-	if err := validatePathLaunchPreference(next); err != nil {
-		return PathLaunchPreference{}, err
-	}
-	return next, nil
 }
 
 func cloneArgv(argv []string) []string {

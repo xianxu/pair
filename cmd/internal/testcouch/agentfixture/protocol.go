@@ -19,6 +19,7 @@ import (
 )
 
 const MaxCommandBytes = 16 << 10
+const MaxReadyBytes = 32 << 10
 const MaxOutputBytes = 32 << 10
 const MaxRequests = 128
 const MaxConcurrentCLI = 4
@@ -51,6 +52,7 @@ type Command struct {
 	DeadlineUnixNano int64         `json:"deadline_unix_nano,omitempty"`
 	PID              int           `json:"pid,omitempty"`
 	RunID            string        `json:"run_id,omitempty"`
+	Generation       string        `json:"generation,omitempty"`
 	ID               string        `json:"id"`
 	Kind             CommandKind   `json:"kind"`
 	Args             []string      `json:"args,omitempty"`
@@ -82,7 +84,7 @@ func ValidateCommand(c Command) error {
 	if c.Timeout < 0 || c.Timeout > MaxCLITimeout || (c.Timeout != 0 && c.Kind != Exec) {
 		return errors.New("invalid fixture CLI timeout")
 	}
-	if c.PID < 0 || len(c.RunID) > 128 {
+	if c.PID < 0 || len(c.RunID) > 128 || len(c.Generation) > 1024 {
 		return errors.New("invalid fixture actor generation")
 	}
 	if !requestID.MatchString(c.ID) {
@@ -108,7 +110,7 @@ func ValidateCommand(c Command) error {
 			return errors.New("invalid retained descendant request")
 		}
 	case SetState:
-		if len(c.Args) != 0 || (c.State != Idle && c.State != Working && c.State != Picker) {
+		if len(c.Args) != 0 || (c.State != Idle && c.State != Working && c.State != Picker && c.State != SyntheticClaudeLimit) {
 			return errors.New("invalid fixture state request")
 		}
 	case Stop:
@@ -211,7 +213,7 @@ func WriteCommand(control string, c Command) error {
 	} else if !errors.Is(err, os.ErrNotExist) {
 		return err
 	}
-	readyRaw, err := readBounded(filepath.Join(control, "ready.json"), 4096)
+	readyRaw, err := readBounded(filepath.Join(control, "ready.json"), MaxReadyBytes)
 	if err != nil {
 		return err
 	}
@@ -227,6 +229,9 @@ func WriteCommand(control string, c Command) error {
 	}
 	if c.RunID == "" {
 		c.RunID = ready.RunID
+	}
+	if c.Generation == "" {
+		c.Generation = ready.Generation
 	}
 	if c.Kind == Exec && c.DeadlineUnixNano == 0 {
 		c.DeadlineUnixNano = time.Now().Add(commandCLITimeout(c)).UnixNano()
@@ -382,7 +387,7 @@ func CancelCommand(control, id string) error {
 	if err != nil {
 		return err
 	}
-	if command.ID != id || command.Kind != Exec {
+	if command.ID != id || (command.Kind != Exec && command.Kind != SetState) {
 		return errors.New("fixture cancellation request correlation/kind mismatch")
 	}
 	return atomicJSON(filepath.Join(control, "cancellations", id+".json"), command, false)
@@ -400,7 +405,7 @@ func commandCanceled(control string, command Command) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	if canceled.ID != command.ID || canceled.Kind != Exec || canceled.PID != command.PID || canceled.RunID != command.RunID || canceled.DeadlineUnixNano != command.DeadlineUnixNano {
+	if canceled.ID != command.ID || canceled.Kind != command.Kind || (canceled.Kind != Exec && canceled.Kind != SetState) || canceled.PID != command.PID || canceled.RunID != command.RunID || canceled.Generation != command.Generation || canceled.DeadlineUnixNano != command.DeadlineUnixNano {
 		return false, errors.New("fixture cancellation correlation mismatch")
 	}
 	return true, nil

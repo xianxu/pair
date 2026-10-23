@@ -609,3 +609,11 @@ test('explicit cancel end truncates accepted partial path and permits continuati
  apply('sketch-undo',{id:'p'});apply('sketch-redo',{id:'p'});apply('sketch-stroke-begin',{id:'q',at:{node:3,box:[0,0,10,10]},width:3});apply('sketch-stroke-end',{id:'q'});apply('sketch-label',{label:'partial'});
  view=sketchProjection(s).sketches[0];assert.equal(view.strokes[0].truncated,true);assert.equal(view.phase,'complete');
 });
+
+test('accepted display digest is owned by the prepared receipt rather than mutable caller input',async()=>{
+ const {createSketchState,nextSketch,sketchMetadata}=await sketchModule();
+ const state=createSketchState(),record=begin(),accepted=record.digest;
+ const delta=nextSketch(state,record,{live:true,ended:false,doc:1,tab:'a',driver:''});
+ record.digest='b'.repeat(64);delta.commit();
+ assert.equal(sketchMetadata(state,'s').digest,accepted);
+});

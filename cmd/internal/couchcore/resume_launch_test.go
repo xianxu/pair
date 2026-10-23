@@ -85,9 +85,10 @@ func TestResumeLaunchExactProfileMatrix(t *testing.T) {
 					env.Artifacts.SetPairSession(parked.Address, continuationChildSession(t, env.Runner, id), true)
 					return nil
 				}
-				env.Couch.RepoAgentDefault = func(_, _ string) (LaunchProfile, bool, error) {
-					t.Fatal("resume consulted repository defaults")
-					return LaunchProfile{}, false, nil
+				seedSwitchRepoArguments(t, env.Couch, parked.StartingPath, LaunchProfile{Agent: agent, Argv: []string{"--model", "different-repo-setting"}})
+				beforePreferences, err := env.Couch.Threads.previewRepoPreferences()
+				if err != nil {
+					t.Fatal(err)
 				}
 
 				startupBegan := time.Now()
@@ -95,6 +96,10 @@ func TestResumeLaunchExactProfileMatrix(t *testing.T) {
 				startupReturned := time.Now()
 				if err != nil {
 					t.Fatalf("Resume: %v", err)
+				}
+				afterPreferences, err := env.Couch.Threads.previewRepoPreferences()
+				if err != nil || !reflect.DeepEqual(beforePreferences, afterPreferences) {
+					t.Fatalf("automatic resume learned configuration: %+v %v", afterPreferences, err)
 				}
 				child := env.Runner.Child(handle.ID())
 				if record.Thread != parked.Address || child.Dir != "/repo/sub" ||

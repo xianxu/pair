@@ -236,9 +236,10 @@ func TestConsoleStopDuringAttachRefusesPartialPaneAndKeepsTerminalRestored(t *te
 }
 
 func TestSwitchWithoutLocalPaneResumesExactThread(t *testing.T) {
-	f := newFixture(t, 24, 80)
 	address := menuAddress("surviving-terminal")
-	f.con.menu = NewMenuState([]couchcore.ActionableThreadSummary{{Address: address, State: couchcore.ThreadLive}}, address)
+	f := newFixtureBeforeRun(t, 24, 80, func(c *Console) {
+		c.menu = NewMenuState([]couchcore.ActionableThreadSummary{{Address: address, State: couchcore.ThreadLive}}, address)
+	})
 	started, _ := attachStartResult(t, "surviving-client", address)
 	calls := 0
 	f.con.SetOperationDispatcher(func(call couchcore.OperationCall) (any, error) {

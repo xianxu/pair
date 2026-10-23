@@ -85,32 +85,36 @@ type Board struct {
 	palette []string
 	newID   func() string
 
-	command           sync.Mutex // serializes annotation validation/dispatch and cleanup
-	annotation        capability.CapabilityState
-	annotationProblem string
-	annotationCleanup AnnotationCleanup
-	annotationAttempt *annotationAttempt
-	annotationSubs    map[chan capability.Snapshot]struct{}
-	mu                sync.Mutex
-	st                *recording.State
-	broken            error // the board's reducer refused a record: it can't trust its state
-	pending           map[string]pending
-	subs              map[chan []LiveNote]struct{}
-	last              []LiveNote
-	closed            bool
-	operatorSubs      map[chan OperatorView]struct{}
-	operatorRevision  uint64
-	operatorSeq       uint64
-	operatorStrokes   []OperatorStroke
-	operatorDoc       int
-	sketchDelivery    sketchDeliveryJournal
-	sketchService     *SketchService
+	command              sync.Mutex // serializes annotation validation/dispatch and cleanup
+	annotation           capability.CapabilityState
+	annotationProblem    string
+	annotationCleanup    AnnotationCleanup
+	annotationAttempt    *annotationAttempt
+	annotationSubs       map[chan capability.Snapshot]struct{}
+	mu                   sync.Mutex
+	st                   *recording.State
+	broken               error // the board's reducer refused a record: it can't trust its state
+	pending              map[string]pending
+	subs                 map[chan []LiveNote]struct{}
+	last                 []LiveNote
+	closed               bool
+	operatorSubs         map[chan OperatorView]struct{}
+	operatorRevision     uint64
+	operatorSeq          uint64
+	operatorStrokes      []OperatorStroke
+	operatorDoc          int
+	sketchDelivery       sketchDeliveryJournal
+	sketchService        *SketchService
+	submissionGeneration uint64
+	feedback             feedbackContexts
+	feedbackDisplay      feedbackDisplay
+	submissionSubs       map[chan struct{}]struct{}
 }
 
 // New makes a board that anchors notes with model and writes through emit.
 func New(model notes.Model, emit Emit) *Board {
 	return &Board{model: model, emit: emit, palette: broadcast.PointerPalette(), newID: randomID,
-		st: recording.NewState(), pending: map[string]pending{}, subs: map[chan []LiveNote]struct{}{}, annotationSubs: map[chan capability.Snapshot]struct{}{}}
+		st: recording.NewState(), pending: map[string]pending{}, subs: map[chan []LiveNote]struct{}{}, annotationSubs: map[chan capability.Snapshot]struct{}{}, feedbackDisplay: feedbackDisplay{mask: LiveFeedbackMask{Scope: randomID()}}}
 }
 
 func randomID() string {
@@ -141,6 +145,8 @@ func (b *Board) Put(r recording.Record) error {
 		return nil
 	}
 	b.refreshSketchDeliveryLocked(r, sketchBefore)
+	b.refreshFeedbackContextLocked(r, sketchBefore.duplicate)
+	b.pruneFeedbackMaskLocked(r)
 	b.retireSketchSourceLocked()
 	if recording.SketchReceiptKey(r) != "" {
 		// Drawing has its own bounded delta wake. Rebuilding unrelated note
@@ -175,6 +181,14 @@ func (b *Board) Close() error {
 	defer b.mu.Unlock()
 	if !b.closed {
 		b.closed = true
+		for ch := range b.submissionSubs {
+			close(ch)
+		}
+		b.submissionSubs = nil
+		for ch := range b.feedbackDisplay.subs {
+			close(ch)
+		}
+		b.feedbackDisplay.subs = nil
 		b.retireSketchSourceLocked()
 		b.closeSketchDeliveryLocked()
 		b.annotation, _ = capability.NextCapability(b.annotation, capability.Event{Kind: capability.End})

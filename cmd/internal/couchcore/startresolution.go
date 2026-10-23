@@ -53,6 +53,7 @@ type StartResolution struct {
 	Worktree           Worktree                   `json:"worktree"`
 	Issue              string                     `json:"issue,omitempty"`
 	RequestedAgent     string                     `json:"requested_agent,omitempty"`
+	RequestedArgv      *[]string                  `json:"requested_argv,omitempty"`
 	Profile            LaunchProfile              `json:"profile"`
 	AgentSource        AgentSource                `json:"agent_source"`
 	ArgvSource         ArgvSource                 `json:"argv_source"`
@@ -77,6 +78,15 @@ func ResolveStartResolution(input StartResolutionInput) (StartResolution, error)
 		return StartResolution{}, errors.New("start resolution has no repository identity")
 	}
 	var preferenceRevision uint64
+	if preference := input.LaunchProfileInputs.Repo; preference != nil {
+		if err := validateRepoPreference(*preference); err != nil {
+			return StartResolution{}, err
+		}
+		if preference.RepoIdentity != input.RepoIdentity {
+			return StartResolution{}, errors.New("start resolution repository arguments do not match candidate")
+		}
+		preferenceRevision = preference.Revision
+	}
 	if preference := input.LaunchProfileInputs.Path; preference != nil {
 		if err := validatePathLaunchPreference(*preference); err != nil {
 			return StartResolution{}, err
@@ -113,11 +123,19 @@ func ResolveStartResolution(input StartResolutionInput) (StartResolution, error)
 		PreferenceRevision: preferenceRevision,
 		DefaultDigest:      defaultDigest,
 	}
+	if input.LaunchProfileInputs.ExplicitArgv != nil {
+		argv := cloneArgv(*input.LaunchProfileInputs.ExplicitArgv)
+		resolution.RequestedArgv = &argv
+	}
 	resolution.Fingerprint = fingerprintStartResolution(resolution)
 	return resolution, nil
 }
 
 func cloneStartResolution(resolution StartResolution) StartResolution {
+	if resolution.RequestedArgv != nil {
+		argv := cloneArgv(*resolution.RequestedArgv)
+		resolution.RequestedArgv = &argv
+	}
 	if resolution.Family != nil {
 		family := *resolution.Family
 		resolution.Family = &family

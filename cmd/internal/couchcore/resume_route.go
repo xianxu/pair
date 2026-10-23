@@ -242,7 +242,7 @@ func (c *Couch) resumeListedSlotSurvivor(ctx context.Context, path string) (Star
 			if err != nil {
 				return StartResult{}, err
 			}
-			profile, err := c.slotLaunchProfile(local, slot, cwd, "")
+			profile, err := c.slotLaunchProfile(ctx, local, slot, cwd, "")
 			if err != nil {
 				return StartResult{}, err
 			}

@@ -54,6 +54,11 @@ function metadata(value, current = { phase: 'drawing', reason: '', label: '' }) 
       need(typeof value[k] === 'string', 'invalid sketch metadata');
       out[k] = value[k];
     }
+  if ('next_sequence' in value || 'digest' in value) {
+    const sequence=typeof value.next_sequence==='number'?String(value.next_sequence):value.next_sequence;
+    need(typeof sequence==='string'&&/^[1-9][0-9]*$/.test(sequence)&&sequence.length<=16&&Number.isSafeInteger(Number(sequence))&&typeof value.digest==='string'&&/^[0-9a-f]{64}$/.test(value.digest),'invalid display version');
+    out.next_sequence=sequence;out.digest=value.digest;
+  }
   return out;
 }
 function flags(value, current = { visible: false, sealed: false, truncated: false }) {
@@ -75,6 +80,7 @@ export function displayFromSketchProjection(projection) {
         phase: s.phase,
         reason: s.reason,
         label: s.label,
+        ...(s.next_sequence && s.receipts?.length ? {next_sequence:String(s.next_sequence),digest:s.receipts.at(-1).digest}:{}),
         strokes: s.strokes.map((p) => ({
           begin: strokeBegin(p.begin),
           pts: copyPoints(p.pts),
@@ -302,6 +308,7 @@ export function createSketchDisplay() {
       if (!s) return null;
       const p = s.strokes.get(stroke);
       return { phase: s.header.phase, reason: s.header.reason, label: s.header.label,
+        ...(s.header.next_sequence!==undefined?{next_sequence:Number(s.header.next_sequence),digest:s.header.digest}:{}),
         ...(p ? { stroke: { sealed: p.sealed, truncated: p.truncated } } : {}) };
     },
     hasAnchor: (document, node) =>
@@ -448,7 +455,7 @@ export function createSketchRecordDisplay(model) {
       if (!info.begin || info.phase === 'cleared') return;
       const patch = {
         sketch: key,
-        header: { begin: info.begin, phase: info.phase, reason: info.reason, label: info.label },
+        header: { begin: info.begin, phase: info.phase, reason: info.reason, label: info.label, next_sequence:info.next_sequence,digest:info.digest },
       };
       if (info.stroke) {
         const p = info.stroke;
@@ -463,6 +470,7 @@ export function createSketchRecordDisplay(model) {
     // Borrowed display paths are read synchronously by the painter. This is
     // display-only data, not the authoritative Model or a receipt projection.
     paths: () => display.paths({ borrow: true }),
+    metadata: (sketch,stroke) => display.metadata(sketch,stroke),
     snapshot: () => display.snapshot(),
     stats: () => display.stats(),
   };

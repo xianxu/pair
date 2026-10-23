@@ -357,6 +357,10 @@ func (c *Console) startMenuPreview(request PreviewRequest) {
 		if request.Agent != "" {
 			args["agent"] = request.Agent
 		}
+		var typedPayload any
+		if request.SwitchForce {
+			typedPayload = couchcore.LocalForceSwitchPreview{}
+		}
 		var switchPrepared *couchcore.PreparedAgentSwitch
 		operation := "prepare-start"
 		if request.SwitchAddress != (couchcore.ThreadAddress{}) {
@@ -384,7 +388,7 @@ func (c *Console) startMenuPreview(request PreviewRequest) {
 		} else {
 			var value any
 			value, err = fn(couchcore.OperationCall{
-				Name: operation, Args: args, Implicit: true, Context: ctx,
+				Name: operation, Args: args, TypedPayload: typedPayload, Implicit: true, Context: ctx,
 			})
 			if err == nil && operation == "resume-candidates" {
 				accepted, ok := value.(couchcore.RecoveryPreview)

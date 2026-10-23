@@ -79,6 +79,7 @@ type MenuFrame struct {
 	RecoveryPreview      *couchcore.RecoveryPreview
 	SwitchPrepared       *couchcore.PreparedAgentSwitch
 	SwitchStage          int
+	SwitchSubmitAction   string
 	SwitchEdited         bool
 	// Rune distance from the end; zero keeps newly prefilled parameters at end.
 	SwitchCursorFromEnd int
@@ -348,6 +349,8 @@ type MenuEvent struct {
 
 // MenuEffect is an operation request for the thin Console shell.
 type MenuEffect struct {
+	// TypedPayload carries owner-local consent; it must never cross JSON.
+	TypedPayload  any `json:"-"`
 	RowKey        couchcore.ThreadRowKey
 	CancelPreview uint64
 	Operation     string

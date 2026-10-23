@@ -111,6 +111,17 @@ attribution and pane querying; an unknown nonce labels only the current observed
 identity. The final wrapper projection runs again after writers join to capture
 buffered terminal records, without another native query.
 
+Failed fleets additionally retain two escaped private Zellij server-log tails:
+one before cancellation or teardown effects, one after native producers and IO
+join. Each snapshot retains at most 8192 bytes, with same-descriptor size/offset,
+truncation and read errors. One-shot phase budgets include failed reads and
+repeated cleanup. The path derives from this Fleet's private TMPDIR; ambient
+logs, final symlinks, nonregular files and root escapes are refused. The
+`RetainStartupServerLog` test option also captures successful diagnostic
+controls; other successful fleets leave it off. Shared-log lines need matching
+session/launch/generation chronology before attribution. Truncated or unavailable
+evidence never proves absence or grants cleanup authority (#806).
+
 At most four exact failure or recently emitted private thread identities are
 selected. Each scope census reads at most 129 directory entries, reports its
 128-entry scan limit and retains at most 32 readiness sibling names. The exact
@@ -139,6 +150,35 @@ distinct names independently of temporary-directory parents. The seed record is
 removed by the existing root owner. It is not a permanent identity scheme across
 PID reuse: crashed native residue still meets the unchanged fail-closed census.
 No production launch budget, retry or ownership rule changes.
+
+## Delayed peer refusal evidence (#791)
+
+`wrapcmd`'s `TestPeerWaitCapture*` tests force the existing pre-paste refusal
+through `dispatchPeer` with controlled time and the stateful peer/terminal
+fixtures. They pin no capture before 15 seconds, one `PEER-wait` record per active
+delivery head at the threshold, exact refusal/cursor/style/frame evidence,
+recovery without altered admission, and both input/mailbox locks released before
+writer invocation. Repeated polls, a failed sink or disabled diagnostics cannot
+change the safe delivery decision. `FuzzEncodePeerWaitCapture` checks arbitrary
+styled cells for valid JSON, explicit screen truncation and the complete-record
+64 KiB cap.
+
+Records stay in the existing per-slot wrap-events JSONL selected by
+`artifactpath.Paths.WrapEvents()`, under the proxy's existing `diagnosticlog`
+buffered writer and retention/GC. `PAIR_WRAP_EVENTS=0` disables this diagnostic
+stream; disabled/unavailable/failed diagnostics leave delivery safety unchanged.
+Captured screens are private local evidence, with no automatic public upload.
+`TestPeerVisibleTabWrapNativeResize` uses the status-bar planner and sanitized
+native Claude2.1.304 bytes through one/two/one chrome rows, including ordinary
+and batch admission. `TestPeerResizeThenSilencePreservesRefusal` deliberately
+withholds output after a real resize: it pins cursor-hidden refusal through
+300 simulated seconds, one capture with resize timing, then safe admission after
+the retained native repaint. This demonstrates a mechanism; the retained native
+event log has no resize timestamps and does not prove historical causation.
+`TestTerminalResizeEvidenceGeneratedTransactions` and
+`TestTerminalDiagnosticSnapshotConcurrentResize` qualify transaction timing and
+coherent screen/resize copies. Recognition remains unchanged; #810 owns the
+approved follow-up plan for redraw and re-observation.
 
 ## External conformance bridge (#801)
 

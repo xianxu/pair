@@ -28,12 +28,13 @@ type Address struct {
 }
 
 type StartClaim struct {
-	RecoveryIntent *RecoveryIntent               `json:"recovery_intent,omitempty"`
-	SessionBinding *couchidentity.SessionBinding `json:"session_binding,omitempty"`
-	Nonce          string                        `json:"nonce"`
-	OwnerPID       int                           `json:"owner_pid"`
-	OwnerIdentity  string                        `json:"owner_identity"`
-	LaunchProfile  *LaunchProfile                `json:"launch_profile,omitempty"`
+	RememberConfiguration bool                          `json:"remember_configuration,omitempty"`
+	RecoveryIntent        *RecoveryIntent               `json:"recovery_intent,omitempty"`
+	SessionBinding        *couchidentity.SessionBinding `json:"session_binding,omitempty"`
+	Nonce                 string                        `json:"nonce"`
+	OwnerPID              int                           `json:"owner_pid"`
+	OwnerIdentity         string                        `json:"owner_identity"`
+	LaunchProfile         *LaunchProfile                `json:"launch_profile,omitempty"`
 }
 
 type LaunchProfile struct {

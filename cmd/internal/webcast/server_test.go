@@ -68,7 +68,7 @@ func (s *sse) next() (string, string) {
 func (s *sse) nextState() wireState {
 	s.t.Helper()
 	ev, data := s.next()
-	for ev == "capabilities" {
+	for ev == "capabilities" || ev == "feedback" {
 		ev, data = s.next()
 	}
 	if ev != "state" {
@@ -205,7 +205,7 @@ func (s *sse) nextRecs(n int) []recording.Record {
 	var out []recording.Record
 	for len(out) < n {
 		ev, data := s.next()
-		if ev == "state" || ev == "capabilities" {
+		if ev == "state" || ev == "capabilities" || ev == "feedback" {
 			continue
 		}
 		if ev != "rec" {

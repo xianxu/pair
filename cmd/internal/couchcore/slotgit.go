@@ -11,11 +11,13 @@ import (
 // v2 status read (pair#317). It is display evidence for the slot quick-status
 // glyph, never mutation authority: the checkout can change the moment after.
 type SlotGitStatus struct {
-	Branch      string
-	Detached    bool
-	Dirty       bool
-	HasUpstream bool
-	Ahead       int
+	Branch   string
+	Detached bool
+	Dirty    bool
+	// ChangedFiles is nil when the observation cannot prove a file count.
+	ChangedFiles *int
+	HasUpstream  bool
+	Ahead        int
 	// Behind is as fresh as the checkout's last fetch: the probe reads the
 	// local remote-tracking ref and never touches the network.
 	Behind int
@@ -103,6 +105,7 @@ func SlotGitChangedPaths(out string) []string {
 func ParseSlotGitStatus(out string) (SlotGitStatus, error) {
 	var s SlotGitStatus
 	sawHead, sawAB := false, false
+	dirtyEntries := 0
 	for _, line := range strings.Split(out, "\n") {
 		switch {
 		case line == "# branch.head" || strings.HasPrefix(line, "# branch.head "):
@@ -137,12 +140,26 @@ func ParseSlotGitStatus(out string) (SlotGitStatus, error) {
 		case line == "" || strings.HasPrefix(line, "#") || strings.HasPrefix(line, "! "):
 		case len(line) > 2 && strings.IndexByte("12u?", line[0]) >= 0 && line[1] == ' ':
 			s.Dirty = true
+			dirtyEntries++
 		default:
 			return SlotGitStatus{}, fmt.Errorf("unknown status line %q", line)
 		}
 	}
 	if !sawHead {
 		return SlotGitStatus{}, fmt.Errorf("missing branch.head")
+	}
+	paths := SlotGitChangedPaths(out)
+	countKnown := len(paths) == dirtyEntries
+	for _, path := range paths {
+		// Default porcelain may collapse several untracked files into one
+		// directory entry, including a C-quoted directory name.
+		countKnown = countKnown && path != "" && !strings.HasSuffix(path, "/") && !strings.HasSuffix(path, "/\"")
+	}
+	// Keep the existing dirty/grammar contract for truncated recognized entries,
+	// but never present their incomplete path projection as a precise count.
+	if countKnown {
+		count := len(paths)
+		s.ChangedFiles = &count
 	}
 	return s, nil
 }
