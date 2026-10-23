@@ -181,7 +181,7 @@ The following current criteria supersede the retained September checklist below:
 - Fixture, pure reducer, stateful delayed-echo and counted-growth tests from the approved durable plan pass; ordinary peer delivery and exact /model cleanup authority stay unchanged.
 - Disposable native conformance covers Claude and Codex, and Qoder when credits permit, with captures retained for replay; required recorded checks and close review pass before landing.
 
-### September checklist retained for history — superseded where different
+## Historical September checklist — superseded where different
 
 - `/login` typed in the **agent pane** submits on plain Enter, no Alt. Same for
   `/clear`, `/context`.
@@ -211,10 +211,10 @@ Current implementation follows ../plans/000162-enter-sends-harness-addressed-lin
 - [x] Add red grammar/region/Return regressions, then shared recognition evidence and the native-command Return branch.
 - [x] Add red delayed-echo/reducer/writer regressions, then exact command expectation and final immutable-frame proof.
 - [x] Migrate the complete slash-producer/help family while preserving public submit, peer/prose sends and model cleanup limits.
-- [ ] Run counted-cost tests, focused packages and audited affected-reader inventory, then disposable native conformance and retain captures.
-- [ ] Update atlas and complete required recorded checks, mandatory close review and SDLC landing.
+- [x] Run counted-cost tests, focused packages and audited affected-reader inventory, then disposable native conformance and retain captures (Qoder trust gap approved; follow-up #836).
+- [x] Update atlas and complete required recorded checks; prepare the mandatory close review and SDLC landing, whose outcomes remain tracked in the Log.
 
-### September plan retained for history — superseded where different
+## Historical September plan — superseded where different
 
 TENTATIVE — written 2026-09-17, decisions settled by the operator the same day
 (see `## Log`). One boundary, no `Mx`: shipping the agent pane without the draft
@@ -385,6 +385,10 @@ Authenticated ops:0 dispatch48a143ee-38a9-4508-9666-a3308d605cb1 and scope confi
 
 Current-source differences from the old analysis: codexComposerBounds and ruledBoxComposerBounds already exist, as does qualifiedComposerText for Claude/Codex/Qoder. That reader intentionally excludes unknown/shell modes and must not widen ordinary peer input. Current profiles include Muse/Agy/Grok too. Design must preserve activity recognition even when a complete single-line text witness is unavailable; unknown text must keep the active composer's newline mapping rather than accidentally granting bare Return (ARCH-DRY, ARCH-PURPOSE).
 
+### 2026-10-23 — Close checklist separates historical scope and gate outcomes
+
+Promote the retained September checklist and plan to explicitly historical sections so the active October Plan contains only approved deliverables. Their original unchecked rows remain untouched; deferred sigils, draft behavior and the switch are not claimed complete. The final October row now records completed atlas/check preparation, while review and landing outcomes stay pending in the Log rather than being falsely checked before their gates run. Ops:0 delivery2c96c0c9 authorizes close with the Qoder native trust gap, retaining six-profile fixture coverage and Claude/Codex native evidence; unclaimed #836 owns the remaining already-trusted-checkout qualification.
+
 ## Planning checkpoint
 
 2026-10-22: claimed162 and entered its own main-based branch000162-enter-sends-harness-addressed-lines at09c8964de39cdb5e6bd9db20601c232446af6949, with no806 source commits. Catch-up hit the known ariadne#557 seeded workflow diff; per the fleet instruction saved /Volumes/TestScratch/tmp/pair-slot2/pair162-seeded-refresh.taoYmx/merge-check.yml.patch and restored only that workflow before rerunning start-plan successfully. No code edited or tests/native launched for162.
@@ -531,3 +535,12 @@ Next: wait for the #151 measurement repair and the07:00 Pacific window on2026-10
 Authenticated ops:0 delivery fe295a65 authorizes the precise sdlc close --no-actual flag after Qoder qualification, because ariadne#569 will not be built. Delivery aa6237be corrects the reason to omit the unverified cutover date. The close --verified evidence must include exactly: "legacy-era overlap with pair#151 and #161 across the measurement cutover; measurement unavailable by design (ariadne#569)". No typed hours. This supersedes the earlier dependency on repairing #151 measurement evidence; the historical refusal remains recorded above.
 
 Next: qualify Qoder after07:00 Pacific within the approved command-only scope, then reconcile the active checklist, run make test-affected-inventory immediately before the mandatory close review, and close with --no-actual and the exact reason above. Qoder acceptance, recorded test evidence, review and landing gates remain required. No additional measurement retry or production change is needed for this exception.
+
+
+### 2026-10-23 07:09 Pacific — Qoder trust blocker retained; conditional close approved
+
+One command-only native invocation ran inside the approved window using installed Qoder1.1.78 and the existing bounded TTY owner, with a temporary test-only overlay selecting /version and tools disabled. Production source stayed unchanged at the pushed documentation descendant e8de0bb4082286a2b2bf1dcb4c66100696755516. The check reached workspace trust for the pair:2 checkout and sent no input (stage0); it ended at the existing15s bound, package16.136s, capture20936 bytes, with joined cleanup. No trust entry or settings change, no model turn and no retry. The generic state label was recognizer-drift; the retained rendered screen explicitly proves workspace trust, not a slash Return failure.
+
+Evidence: /Volumes/TestScratch/tmp/pair-slot2/pair162-qoder-native.9jq5vcma/native.log SHA256 b0e96d576e40990e9e29763d92980608c1dbe042f24ca620d129fb3205ee6b77; native.raw SHA256 e5b925a702044beb7b06d09e25e01baaf46c918332df003988da8ebb0b5ebcb5; probe_test.go SHA256 4d09f577632a3fb1fb3e016217540c5108dbb35cf092068926d8100839cb338c. The overlay selected the personality/read-only command and completion assertion only; it is not a tracked production candidate or a claimed passing native check.
+
+Authenticated ops:0 delivery2c96c0c9 authorizes close with this native Qoder gap explicitly documented. Six-profile fixture coverage, actual Claude/Codex native evidence, both disposable public checks and the required suite PASS11m36s remain the positive evidence. Filed unclaimed #836 on origin: qualify Qoder from an already-trusted checkout, never writing trust. Next: inventory preflight, mandatory full close review with --no-actual and the exact approved measurement reason, then normal PR/merge gates after review findings clear. No operator stage or real trust modification is authorized.

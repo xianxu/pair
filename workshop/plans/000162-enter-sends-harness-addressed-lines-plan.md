@@ -132,3 +132,8 @@ Authenticated ops:0 deliveriesc207f32b and6fca9a0a hold Qoder qualification unti
 ### 2026-10-23 — Approved legacy measurement exception
 
 Ops:0 deliveries fe295a65 and aa6237be supersede the measurement-repair dependency in the overnight hold. Ariadne#569 will not be built; after Qoder qualification after07:00 Pacific, close uses only the precise --no-actual flag, with --verified citing: "legacy-era overlap with pair#151 and #161 across the measurement cutover; measurement unavailable by design (ariadne#569)". No typed hours and no unverified cutover date. The prior measured refusal remains evidence; Qoder acceptance, recorded checks, mandatory review and normal landing gates remain required.
+
+
+### 2026-10-23 — Qoder native trust gap accepted for close
+
+The one in-window Qoder1.1.78 command-only probe stopped at workspace trust before any input, retaining native.log/native.raw under /Volumes/TestScratch/tmp/pair-slot2/pair162-qoder-native.9jq5vcma. No trust change or retry. Ops:0 delivery2c96c0c9 approves close with the gap documented, six-profile fixture coverage and Claude/Codex native passes preserved. Unclaimed #836 owns the native check from an already-trusted checkout without writing trust. This changes the conditional acceptance disposition only, not production behavior, bounds or grammar. Mandatory review and normal landing gates remain required; use the approved --no-actual reason verbatim.
