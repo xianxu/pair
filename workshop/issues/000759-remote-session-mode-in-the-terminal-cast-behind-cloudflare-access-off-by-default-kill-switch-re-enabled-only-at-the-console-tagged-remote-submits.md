@@ -1044,3 +1044,22 @@ disablement. Alternate bounded TLS composition and build-tag choices are proposa
 for plan review, not implemented authority changes. No Start/LocalClient/node/auth
 key/enrollment has occurred. Next: retain both checks; record every failure and
 coverage gap, finalize and send the decision note to TL for operator review.
+
+
+### 2026-10-22 — decision-note source review corrections
+
+Fresh static review of the proposed mitigation note found overstated guarantees:
+Up(ctx) calls Start synchronously, so only the readiness wait after serialized
+Start is context-bound. CertPair needs epoch cancellation AND a TLS handshake
+deadline. Watch supports initial snapshot and terminal ErrMessage/EOF overflow
+handling, not a general sequence gap detector. Confirmed prior-process death may
+permit explicit recovery under the persisted latch; restart alone grants no
+permission and proves neither graceful cleanup nor logout. Build-tag omission
+is limited to logtail-backed debug/network uploads and management-web import;
+remaining telemetry and license obligations must be verified. Corrected the
+operator draft and added the class lesson. These remain proposed mitigations,
+not implemented adapters or enrollment authority.
+
+Central sdlc queue status reported suite helper inspect unavailable: exit status2
+after the slot rebuild; reported to TL via4ae420b3 (submitted). Own retained
+runner output still confirms normal FIFO waits, with no cancellation or duplicate.

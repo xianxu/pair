@@ -5,7 +5,7 @@
 **Recommendation:** retain A as the preferred security boundary, but do not accept
 this default dependency build yet. It gives Couch its own tailnet HTTPS listener
 and connection-based WhoIs without a root daemon or a locally spoofable proxy.
-Proceed only if the isolated shared-upgrade tests pass, telemetry is disabled,
+Proceed only if the isolated shared-upgrade tests pass, the agreed telemetry policy is verified,
 and the operator accepts a freshly measured, reduced build. If those conditions
 cannot be met, return to the root-daemon option rather than weakening identity.
 
@@ -30,18 +30,18 @@ Claude/Codex PTY layout, live Neovim and scrolling passed; cleanup confirmed.
 Complete terminal package passed (186 top-level tests, eight skips). Seven extra
 native-history cases are unqualified: six failed on shell output, while an
 equality-only test passed on that wrong source. One matched original-module
-control failed identically; #828 owns the fixture integrity gap. The full suite
-is queued. No upgrade-caused regression has been established; this is not full
+control failed identically; #828 owns the fixture integrity gap. Both full suites
+are queued. No upgrade-caused regression has been established; this is not full
 rendering clearance. The ten upgraded
 root license texts are unchanged. New embedded web/font asset notices are not
 yet cleared; the compile-only build is not redistribution approval.
 
 | Risk | Proposed mitigation before product implementation/enrollment |
 | --- | --- |
-| Watch schema is unstable; WhoIs is a local lookup, not fresh control-plane proof | Pin1.104.2 and its initial-status/peer-delta/removal schema; maintain a validated snapshot and fail closed on gaps, overflow, expiry or watch loss. WhoIs uses only the captured accepted connection address, exact login policy and current node evidence. Native revocation tests must measure propagation; no promise of instantaneous revocation during partitions. |
-| ListenTLS calls Up with a background context; its certificate helper can wait one minute | Avoid that convenience path: bounded Up(ctx), tailnet-only Listen, then owned TLS wrapping with exact assigned-host SNI and context-bounded LocalClient.CertPair. Serialize Start with cleanup; retain any uncertain opening attempt, never publish late readiness. This equivalent API composition requires plan review and fake/native qualification. |
-| Close has no whole-call deadline and discards subordinate errors | Revoke sessions/dispatch first, close HTTP listeners, and join exactly one owned Close worker only after Start settles. Five seconds bounds the UI wait, not an asserted library teardown guarantee. Timeout retains ownership in blocked state, no replacement node/reset; local Couch restart is recovery. Qualify this explicitly; do not claim an abandoned goroutine was joined. |
-| Default logtail uploads and unnecessary embedded management UI | Prefer qualifying ts_omit_logtail and ts_omit_webclient build tags, including removal of network-log upload features and asset closure; measure that new build, do not reuse these size numbers. Alternative logtail.Disable() before any Start is an irreversible process-wide upload opt-out, not a per-node setting or a promise that all telemetry is off. Logf alone is insufficient. No global environment mutation. |
+| Watch schema is unstable; WhoIs is a local lookup, not fresh control-plane proof | Pin1.104.2 and its initial-status/peer-delta/removal schema; require the initial snapshot and fail closed on signaled overflow, terminal error/EOF, expiry or watch loss. There is no general sequence-based gap detector. WhoIs uses only the captured accepted connection address, exact login policy and current node evidence. Native revocation tests must measure propagation; no promise of instantaneous revocation during partitions. |
+| ListenTLS calls Up with a background context; its certificate helper can wait one minute | Proposed: serialize Start, then context-bound the readiness wait, use tailnet-only Listen and owned TLS wrapping with exact assigned-host SNI. Bind CertPair to epoch cancellation and a handshake deadline. Up calls Start synchronously; its context cannot bound Start. Retain uncertain opening, suppress late readiness. This composition requires review and fake/native qualification. |
+| Close has no whole-call deadline and discards subordinate errors | Revoke sessions/dispatch first, close HTTP listeners, and join exactly one owned Close worker only after Start settles. Five seconds bounds the UI wait, not an asserted library teardown guarantee. Timeout retains ownership in blocked state, no replacement node/reset; confirmed prior-process termination permits explicit recovery under the persisted latch. Restart alone proves neither graceful cleanup nor logout and grants no permission. Qualify this explicitly; do not claim an abandoned goroutine was joined. |
+| Default logtail uploads and unnecessary embedded management UI | Prefer qualifying ts_omit_logtail and ts_omit_webclient build tags, to omit logtail-backed debug/network-log uploads and the management-web import path; verify the resulting asset closure and remaining obligations; measure that new build, do not reuse these size numbers. Tags cannot undo Go module selection or the ten shared upgrades. Alternative logtail.Disable() before any Start is an irreversible process-wide upload opt-out, not a per-node setting or a promise that all telemetry is off. Logf alone is insufficient. No global environment mutation. |
 
 **Operator setup remains:** approve one Couch node through a console-only login
 link; keep its keys in owned0700 state/0600 files; display its actual assigned

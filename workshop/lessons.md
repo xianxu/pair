@@ -7,6 +7,8 @@ representative evidence, not an exhaustive index.
 
 ## Proof and verification
 
+- #759 dependency review: a context parameter does not bound synchronous work performed before the first context check. Trace Start/readiness/handshake/Close separately; state which wait is bounded, retain uncertain ownership, and never equate process restart with permission or graceful cleanup. Watch streams without sequence numbers cannot prove arbitrary gap detection.
+
 - #759 M2 BR-8: A missing success handle does not prove teardown. Preserve cleanup outcomes across canceled/failed opening independently of the mount result; cancellation must join an already-closing owner. Qualify held-open/failed-close, failed-open/listener-close failure and held-close cancellation through the actual supervisor, including Join, blocked status and reset refusal.
 
 - #759 M2 BR-7: Recovery is an end-to-end projection: enumerate configuration, admission, startup, persistence and cleanup failures, then preserve classified secret-free detail through supervisor status, CLI and console. A correct internal reason does not help when presentation drops it; test busy, invalid-config and uncertainty on each surface without exposing raw connector errors.
