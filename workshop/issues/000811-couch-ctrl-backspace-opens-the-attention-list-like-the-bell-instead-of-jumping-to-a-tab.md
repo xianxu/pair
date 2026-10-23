@@ -105,7 +105,7 @@ consistent with retaining the currently recognized encodings.
   sections plus stale source comments. Explain actor and switcher behavior,
   ordinary Enter, unsupported-terminal fallback, Ctrl+Alt+a and previous-tab
   behavior consistently; sweep old newest-page chord claims.
-- [ ] Run targeted couchkeys/couchtty keyboard, interceptor, attention,
+- [x] Run targeted couchkeys/couchtty keyboard, interceptor, attention,
   notification, previous-thread and switcher regressions, then both complete
   packages (include race coverage of the console regressions). Audit any
   affected-inventory reader inputs before its exact per-file repair; run
@@ -197,6 +197,26 @@ check on the exact staged build using the checklist below. After acceptance,
 clear the owned stage, rerun the mandatory inventory before whole close,
 record actual evidence, and use SDLC close/review then merge. No continuation
 writer/restart while our recorded check is queued/running.
+
+### 2026-10-23 — retained recorded affected check passed
+
+After the authenticated Couch restart notice, joined the original exec
+session13291: terminal EXIT0, recorded affected PASS 2m54s on
+2f634183e290332fd1029341d49b3a8c6b4dc05e, eight selected Go packages plus
+shell checks and their normal preparation/guards, no failed tests or reruns.
+The stage's Git HEAD still equals that source; no restage or suite requeue.
+Log: /Users/xianxu/workspace/pair/.git/sdlc/local-checks/2f634183e290332fd1029341d49b3a8c6b4dc05e/affected.log
+SHA256: c2ffbabaea2f66f843004018a5315bd696fed483ffcb9a9af5a7d6d938a2c89b.
+Selected package results: couch 8.225s, couchcmd 60.879s, couchkeys 0.123s,
+couchtty 45.418s, dispatcher 0.165s, keyscmd 0.420s, wrapcmd 56.407s,
+pair-go 9.804s. PR556's four checks are SUCCESS, including hosted conformance.
+
+Resent readiness to the hub after restart (receipt
+bc247b8d-eb47-4460-8177-6f8fa8bd3466). The original runner is finished; do not
+poll/recreate it. Remaining next step: obtain the operator's real key acceptance
+on the held stage, then clear it, run inventory before close, and whole close /
+merge using the recorded source evidence. No live acceptance or close verdict
+is claimed.
 
 ## Operator live check
 
