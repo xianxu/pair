@@ -254,3 +254,82 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-22T22:50:52-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 806 — Replacement Zellij disconnects before first wrapper startup |
+| repo | pair |
+| issue file | workshop/issues/000806-replacement-zellij-startup-disconnect.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | d7cf48b171cb51e2bd8189bcb8062c3f8f8400ba..c683e0a4406c8c9792285a0ab325b0ba8fa4ee3e |
+| command | sdlc close --issue 806 |
+| reviewer | codex (openai; author openai) |
+| isolation | fenced |
+| timestamp | 2026-10-22T22:50:52-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+The interdiff preserves both sides of the Fleet conflict: main’s minimal `Reporter` interface and the diagnostic capture budgets. BR-1 remains addressed. Pinned tracker revisions record verification and integration recovery; the diagnostic-only scope revision already existed at base. No new defects found.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      startup_server_log_test.go:180-275 exercises real Fleet.Close across all four failure/option combinations, cancellation, native producer/IO completion, root removal and repeated close. Independent overlay mutations removing either capture fail all three capture-enabled cases.
+```
+
+1. **Strengths**
+
+   - `fleet.go:52` retains the minimal interface consumed by standalone owners.
+   - `fleet.go:64-65` preserves independent one-shot capture budgets.
+   - Lifecycle tests distinguish admitted-call completion from native producer/IO completion.
+
+2. **Critical findings:** None.
+
+3. **Important findings:** None.
+
+4. **Minor findings:** None.
+
+5. **Test coverage notes**
+
+   - Startup-evidence tests: PASS.
+   - Complete `testcouch` package: PASS.
+   - `make test-affected-inventory`: PASS.
+   - Removing either capture independently makes lifecycle tests fail.
+   - Diff whitespace check: PASS. Source files unchanged by review.
+
+6. **Architectural notes**
+
+   - **ARCH-DRY — pass:** shared reporter and capture helpers retained.
+   - **ARCH-PURE — pass:** diagnostic IO remains in the integration harness.
+   - **ARCH-PURPOSE — pass:** resolution preserves diagnostic retention across every selected lifecycle path.
+   - **ARCH-EVOLVE — pass:** no persisted-format changes.
+   - No new architectural or user-facing surface requires atlas or README updates in this interdiff.
+
+7. **Plan revision recommendations:** None.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"3736809e-4cc3-4842-a7dc-9572512c2399","repository":"github.com/xianxu/pair","issue_id":"000806","recipe":"fix-review","round":4,"attempt":1,"agent":"codex","root":"/Volumes/TestScratch/review-checkouts/f07a2eb1a089ef19","reviewed_head":"c683e0a4406c8c9792285a0ab325b0ba8fa4ee3e","slot":"pair:2","requested_at":"2026-10-23T05:49:05.91181Z"},"phase":"finished","pid":44203,"started_at":"2026-10-23T05:49:06.093378Z","finished_at":"2026-10-23T05:50:51.339827Z","session_id":"01a1674e-4a46-7641-a0c1-214923fbaa29","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 2.98757975s
+head: "c683e0a4406c8c9792285a0ab325b0ba8fa4ee3e"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000411
