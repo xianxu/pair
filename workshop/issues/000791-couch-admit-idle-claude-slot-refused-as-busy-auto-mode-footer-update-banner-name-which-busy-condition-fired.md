@@ -123,6 +123,18 @@ Integrated recorded suite is alive and running at18:31: session52499, lease-1887
 Exact next step: poll retained session52499 and inspect its final exact-head status/log. On success, use that full-suite evidence for sdlc close --issue791 --fixed-then-ship --full-suite '<completed integrated suite receipt>' --verified '<inventory resolution plus integrated verification>'; do not invent a passing receipt. On failure, preserve/classify named failures and follow registered-flake resume only when eligible. After the authorized shutdown, verify retained/completed checks and workflow state again, rebuild as directed by the upgraded-toolchain rollout, and wait for explicit lift of the landing hold before a new sdlc merge --yes. #807 stays paused, #810 and #737 parked; no new items taken. No continuation restart is requested while the suite is live.
 
 
+
+### 2026-10-22 — restart recovery; first-occurrence flake classified and resumed
+
+Authenticated worker-start notice worker-start-d6a994ac7b0ee06192eed61b56b2144b4bddf510115bca7aa4d6ff397fa5712e recovered this clean branch at318e1a91b5cfa301067c5c5c01e4a3b80e963f3d. Old exec session52499 is unavailable, but immutable attempt6a7b76c66a1bd111dc09a1e528491529 and GitHub status prove integrated suite finished18:39:15 PDT, exit2/11m58s, sole failure agentfixture.TestCancellationRetirementAllowsIDReuseWithoutInheritedRevocation: request_lifetime_test.go188 “cycle10 leaked results: 1 <nil>”. Log SHA2566aaf63a073fcf06cbde5713b2f4dd0a9951f74a19ab50615c624040d3cfe101a. This is a completed failure, not a dead runner eligible for blind requeue.
+
+Authenticated TL40b13625-8fe1-42b2-910b-5611746c09b9 lifts the freeze and directs first-occurrence flake registration/resume if #791 does not change that package. Git's complete branch patch against integrated main09c8964de39cdb5e6bd9db20601c232446af6949 contains no agentfixture edits; package tree remains c6e34e3c913580f23de43c0a3394aa91ceceb959 on failed8171265c and docs descendant318e1a91b. One targeted whole-test diagnostic passed3.428s on the docs descendant under Go1.27.3; retained honestly as a targeted pass, not exact-head full-suite evidence. Registered unclaimed #825 with this evidence and TL authority using flake register --evidence; no code changed or failure erased.
+
+Recorded local-check resume selected original8171265c7567f5abadd78882590bf2c380b9997d and parent6a7b76c66a1bd111dc09a1e528491529. Child7ef6cf342506267473f2155c0f739d42/lease-2039819211 ran exactly one whole top-level test in the exact agentfixture package, PASS3.161s. Command exited0 and recorded “resume 6a7b76c66a1b/7ef6cf342506 · pass · known flake #000825 rerun · exit2 in11m58s” on original head, retaining the original duration/exit/log as designed. No full suite rerun or needs-reconcile. Current make test-affected-inventory passed before the upcoming narrow re-close; no inventory hash repair needed.
+
+Authenticated fleet notice6caf4955-7125-486e-886a-5d38572475b1 confirms shutdown complete, freeze lifted and Go1.27.3; rebuild this slot's tools before the next suite/merge, using ariadne:0 sdlc (PATH symlink verified). make build completed; bin/pair, bin/couch and bin/pair-launch-helper build metadata all report Go1.27.3, revision318e1a91b5cfa301067c5c5c01e4a3b80e963f3d, vcs.modified=false. Next: queue-status sanity check, commit this evidence, then narrow re-close with the integrated known-flake resume receipt and retry landing. Current prior close covers old code; integration fix review remains pending. #737/#810 remain parked and #807 paused until #791 lands.
+
+
 ## Revisions
 
 ### 2026-10-22 — operator/TL expanded reproduction and capture scope
