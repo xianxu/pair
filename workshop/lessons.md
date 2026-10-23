@@ -37,7 +37,7 @@ representative evidence, not an exhaustive index.
 - Cached parent inventory is also a pass-wide capacity ledger: reserve a slot for every potentially completed create, retain it after an uncertain acknowledgment, and carry confirmed IDs forward. A per-attempt full-parent guard alone permits successive creates to exceed the reader limit. Test both root/year and year/month creation sequences near capacity. (#706 BR-1)
 
 
-- A durable plan names each risky function and its adversarial input class plus mechanical guard. Prefer fuzz, generated event sequences and independent invariants over prose case inventories; keep resource and operation-count assertions explicit. (#706 PQ-1)
+- A durable plan names each risky function and its adversarial input class plus mechanical guard. Prefer fuzz, generated event sequences and independent invariants over prose case inventories; keep resource and operation-count assertions explicit. (#706 PQ-1; #823 PQ-1)
 - Additive wire fields still break an older strict decoder. Inspect the actual mixed-version reader before promising compatibility; pin the legacy refusal and current-reader absence behavior, and name the coordinated upgrade contract when that is the intended rollout. (#736 PQ-1)
 
 - #735: Replay native recordings with resize events as well as bytes before blaming footer wording. A duplicate geometry update may receive no native repaint; preserve existing cursor/frame evidence on a synchronized no-op, while a retry after an aborted real resize must still restore synchronization and await a fresh cursor. Regress both paths and expose the missing evidence in retained wait receipts without copying screen contents.
@@ -2750,3 +2750,5 @@ and external temporary roots rather than relying on the host's TMPDIR.
 - #796: Geometry tests must derive click coordinates from physical terminal cells, independently of layout's width helper. Emoji/VS16/ZWJ labels can pass self-consistent hit-map tests while their final cells are unclickable. Use the terminal's grapheme metric for measurement and fitting, preserve no-allocation fitting paths, and retain allocation-budget checks when replacing shared text helpers.
 
 - #796: When adding a display mode, parameterize established pending/reattach regressions over both modes. A legacy fixture that explicitly selects the compatibility mode cannot prove the new default preserves pending states. Count branches also need owner/style invariants from ordinary chips, not only correct text and hit spans.
+
+- #823 PQ-2: Additive persisted JSON contracts require recursive duplicate-key rejection as well as strict owned-field presence/type checks and raw unknown-field preservation. Reuse strictjson split/encode helpers at each changed boundary; plain json.Unmarshal is not an authority validator.

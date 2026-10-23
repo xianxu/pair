@@ -83,7 +83,7 @@ Proposed round wire shared with Parley #419:
 {"presentation":"highlight","spans":[{"start":[8,0],"end":[8,3],"old":"old","new":"new","presentation":"direct"}]}
 ```
 
-`Span.presentation` is optional for legacy artifacts, and is `direct|highlight|propose` when present. New rounds stamp each span from base policy. Keep `Round.presentation` as the document default; no invented `mixed` value. Carry the same optional field into commit `review-records` and resume reconstruction. Direct spans receive no change decoration, highlight spans do, and proposal markers retain existing proposal rendering. Explicit known invalid/null values refuse; unrelated extension fields survive rewrites. Mixed-mode UI acceptance requires #419's consumer upgrade; an older Parley ignoring this field cannot be claimed compatible. Coordinate landing/stage order with TL.
+`Span.presentation` is optional for legacy artifacts, and is `direct|highlight|propose` when present. New rounds stamp each span from base policy. Keep `Round.presentation` as the document default; no invented `mixed` value. Carry the same optional field into commit `review-records` and resume reconstruction. Direct spans receive no change decoration, highlight spans do, and proposal markers retain existing proposal rendering. Known invalid/null values and duplicate JSON keys at any object depth refuse, including duplicates nested in otherwise unknown members; unrelated valid extension fields survive rewrites. Mixed-mode UI acceptance requires #419's consumer upgrade; an older Parley ignoring this field cannot be claimed compatible. Coordinate landing/stage order with TL.
 
 One base snapshot, one policy compilation and one existing document lock own each write transaction. Resolved edits are classified in base coordinates. Use existing diff narrowing to remove unchanged record context; split independently representable changes at region boundaries. If a genuine indivisible edit crosses different policies, refuse atomically and ask for separate edits. No partial acceptance of a batch. At insertion boundaries, determine the containing base region explicitly; a deleted heading cannot lend a later region's permission to preceding content.
 
@@ -112,49 +112,69 @@ Actions: read, correct settings in editor, retry after fresh read, split a cross
 
 Covered: data preservation, per-snapshot rules, refusal atomicity, legacy readability and targeted conversion. Not covered: authenticating human identity against arbitrary same-UID code; semantically proving an answer is correct; moving old side docs; rewriting an unrequested external ops-echo file. These boundaries must remain visible in help/tests and the TL handoff.
 
+## Named functions and verification strategies
+
+The following entry points own the tests; implementation tasks reference these strategies rather than reproduce case inventories. Test names may group the same function's invariant, but production names in this table must track delivered symbols.
+
+| Function / location | Adversarial input strategy and mechanical guard |
+|---|---|
+| `Catalog.ResolveProcessing` / `editorial/catalog.go` | Generate exact names and all prefixes from pinned metadata plus malformed selectors; assert resolution is unique or a located refusal, and legacy brief ordering/first flags retain producer intent. |
+| `Compile` / `editorial/document.go` | Fuzz bounded Markdown and isolated owned YAML with producer fixtures as seeds; compare nested inheritance to a small independent heading-stack oracle, count source walks, and require deterministic diagnostics without mutation or panics. |
+| `parseOwnedSource` / `editorial/source.go` | Generate delimiter, duplicate-key and comment-association mutations around code/heading boundaries; assert only recognized authority participates and all retained raw source slices reconstruct byte exactly. |
+| `FillCanonical` / `editorial/source.go` | Replay pinned before/after fixtures then fuzz additions of opaque metadata; assert idempotence, unchanged existing values/aliases, preservation of effective policy and zero candidate bytes on nonrepresentable legacy selectors. |
+| `PlanMigration` / `editorial/migrate.go` | Generate heading trees, duplicate normalized names and maps; independently compare old/new routing over every original text region, assert untouched bytes/other axes survive, and any conflict produces no candidate. |
+| `ValidateEdits` / `editorial/edits.go` | Generate sorted base-coordinate edit batches across region/owned-source boundaries; independently project changed ranges and assert no authority change, chat-item rewrite or scope/frontier escape, with atomic refusal. |
+| `sectionPolicyHash` / `sessionsync/file.go` | Metamorphically mutate body, ancestor/document authority and irrelevant text; assert every relevant change invalidates the opaque scope token while unrelated changes preserve its intended concurrency scope. |
+| `read`, `prepareWrite`, `contentStep`, `ApplyFile` / `sessionsync/` | Drive every registered/legacy/empty-edit seam with the same policy fixture; snapshot file/Shadow/round around refusals and use existing controlled lock barriers for publication/CAS order, requiring zero pre-admission effects. |
+| `Round.UnmarshalJSON`, `Span.UnmarshalJSON`, `roundRecord.UnmarshalJSON`, `decodeRound`, `encodeRound` / `sessionsync/round.go`, `applyfile.go` | Mutate known member types/presence, inject duplicates at arbitrary nesting depth and opaque extensions; strict decode refuses ambiguity, and valid decode/re-encode preserves raw nested extensions and legacy omissions. Reuse `strictjson.SplitObjectPreserveNumbers` and its matching encoder rather than another duplicate scanner. |
+| `round_watch.decorations`, `reconstruct.decorate`, `record.encode/decode` / `nvim/review/` | Generate mixed presentation records and their legacy projection; compare live/resume visibility to one enum oracle and retain opaque fields through serialization. |
+| `parseSessionSyncCLI`, `runSessionSyncCLI` and new `runEditorialMigration` / `couchcmd/` | Parse malformed invocation streams and drive a stateful temporary registry/filesystem through preview/confirmed apply/stale/held phases; assert the only publishable bytes are the verified transform for the captured source hash. |
+
+Strict persisted boundary: `Round.UnmarshalJSON`, `Span.UnmarshalJSON` and `roundRecord.UnmarshalJSON` split owned and unknown fields using the existing strictjson additive-object helpers. The splitter rejects duplicates recursively before typed decoding, including unknown nested objects. Typed owned decoding checks required presence separately from valid zero values and intentional legacy omissions; it never accepts null as a scalar zero. Matching encoders preserve opaque raw member values, including large number tokens. The existing round byte cap bounds input; no permissive json.Unmarshal fallback may bypass these checks. RoundArtifact's enclosing object must use the same strict split when rewritten so nested payload validation is not weakened.
+
 ## Implementation tasks
 
 ### Task 1: Pin executable contract fixtures and mode sources
 
 Files: create `cmd/internal/editorial/testdata/contract/` and `cmd/internal/editorial/modes/`; add `catalog.go`, `catalog_test.go`, `contract_test.go`; modify `go.mod`/`go.sum` only for needed producer packages/parser dependencies.
 
-- [ ] Write a provenance test verifying the pinned source bytes/digests, all eight fill cases, heading-chat, and mode metadata/brief resolution; it must fail before copied artifacts/catalog exist.
-- [ ] Copy exact producer bytes using the recorded commit and implement the small immutable Catalog. Add exact/prefix/ambiguous/unknown mode tests, ordered legacy brief tests and first-mode flags.
+- [ ] Write the provenance test and failing Catalog.ResolveProcessing tests from the strategy table; missing pinned artifacts/catalog must fail explicitly.
+- [ ] Copy exact producer bytes using the recorded commit and implement the small immutable Catalog; retain producer metadata as its value owner.
 - [ ] Run `go test ./cmd/internal/editorial -run 'TestContract|TestCatalog'`; expect PASS. Commit the source pin and catalog with issue/trailer attribution.
 
 ### Task 2: Compile document policy and plan migration purely
 
 Files: create `document.go`, `source.go`, `migrate.go` and matching `_test.go` files in `cmd/internal/editorial/`.
 
-- [ ] Write table tests first: defaults, canonical presence, independent alias components, flow/block maps, all ATX levels, fences, nearest per-axis inheritance, repeated heading names, malformed recognized comments, detached/ordinary comments and duplicate adjacent directives.
+- [ ] Write failing Compile and parseOwnedSource tests using the generated/fuzz strategies above, seeded with the pinned producer fixtures.
 - [ ] Use Markdown parsing/code masks rather than a competing fence regex. Parse isolated owned YAML values with YAML nodes while preserving raw source slices; legacy composite `process-instruction` syntax must remain readable even where it is not valid whole-document YAML. Reject ambiguous duplicate owned keys. Never serialize an entire frontmatter map to make a narrow change.
 - [ ] Implement the compiler and byte-preserving additive fill as pure transforms. Replay the eight fill fixtures; multi-mode refusal must return no candidate bytes. Normal fill preserves legacy maps.
-- [ ] Add migration tests for every duplicate match, child inheritance, existing other-axis comments, identical/conflicting existing collaboration assignments, unmatched names, CRLF/final-newline preservation and unchanged unknown metadata. Prove before/after effective routing equality for mapped source ranges.
+- [ ] Write failing PlanMigration property tests from the strategy table, then implement the constrained transform with independent before/after routing equivalence.
 - [ ] Run `go test ./cmd/internal/editorial`; expect PASS. Commit the compiler, fill and migration transform.
 
 ### Task 3: Enforce base-snapshot policy across every write path
 
 Files: create `cmd/internal/editorial/edits.go`, `edits_test.go`; modify `cmd/internal/sessionsync/{sync.go,file.go,round.go,applyfile.go}` and corresponding tests, plus `round_write_test.go`, `marker_test.go`, `race_test.go`.
 
-- [ ] Start with failing tests for adding/removing/changing a heading comment under direct/highlight/propose; operator editor changes followed by fresh read must pass. Cover canonical/alias settings, byte-equivalent-value rewrites and heading re-association attempts.
-- [ ] Add stale-section tests: keep body fixed while changing document defaults, parent heading policy or a legacy map; all old scoped writes must refuse. Confirm unrelated body edits outside scope preserve existing concurrency behavior where policy is unchanged.
+- [ ] Write failing ValidateEdits preservation tests from the strategy table across all presentation modes, with operator editor changes observed through a fresh snapshot as the positive control.
+- [ ] Write the sectionPolicyHash metamorphic tests before changing its implementation; include the unchanged-body/changing-document-policy stale-write regression.
 - [ ] Add the resolved read payload and scoped digest. Validate before Shadow acknowledgement. Route whole/section/frontmatter write, registered/legacy apply and standalone ApplyFile through the same policy guard, including empty edits. Retain current owner/type/lock/CAS behavior.
-- [ ] Add one mixed-round fixture with chat, collaboration, discussion and processing overrides, including chat asks below a frontier, pending markers and a narrow ready side-doc exception. Test one direct region, one highlight region and one propose region in a single atomic write. Assert cross-boundary refusal leaves file, Shadow and round unchanged.
+- [ ] Replay a pinned mixed-region acceptance fixture through every write seam and the controlled transaction strategy above; assert presentation, routing instructions and refusal atomicity against the compiled base policy.
 - [ ] Run `go test ./cmd/internal/editorial ./cmd/internal/sessionsync ./cmd/internal/reviewapply`; expect PASS. Use controlled concurrent writers to verify one winner and a stale loser; never sleep to approximate the lock window. Commit the shared enforcement.
 
 ### Task 4: Carry presentation through live and resumed review consumers
 
 Files: modify `sessionsync/round.go`, `applyfile.go` and tests; modify `nvim/review/{round_watch.lua,reconstruct.lua,record.lua}` only where required and their existing tests. Coordinate the exact schema and fixtures with Parley #419.
 
-- [ ] Write mixed direct/highlight/propose live/resume cases, legacy absent-span fallback and invalid known-field tests. Round-trip a fixture with unknown round/span/record fields without losing them.
+- [ ] Write failing codec and live/resume consumer tests from the strategy table, including recursive duplicate injection and the legacy omission contract.
 - [ ] Implement base-policy span attribution and round-record propagation. Pair's current Lua record codec already keeps arbitrary table fields; retain that behavior. Pair's live/resume decoration paths currently highlight every change and must honor effective span presentation consistently.
-- [ ] Run focused Go round/apply tests and the existing Lua review test targets discovered in the Makefile; record exact commands/results in the issue Log. Obtain #419 consumer fixture agreement before claiming end-to-end mixed rendering. Commit schema and local consumers together.
+- [ ] Run focused Go round/apply tests and `bash tests/review-applied-round-test.sh` plus the existing Lua round-watch/record/reconstruct test entry points; record exact commands/results in the issue Log. Obtain #419 consumer fixture agreement before claiming end-to-end mixed rendering. Commit schema and local consumers together.
 
 ### Task 5: Expose operator migration and update actual agent interfaces
 
 Files: modify `cmd/internal/couchcmd/session_sync.go`, `run.go`, existing `session_sync*_test.go`; add `session_sync_editorial_test.go`; update the emitted Couch skill at its canonical source, and `atlas/`'s existing session-sync/review pages and index.
 
-- [ ] Write CLI parser/transaction tests for preview, confirmed transform, stale preview, conflicting comments, held operator buffer, symlink/canonical identity, retained permissions, and refusal before publication. Confirm no generic body payload is accepted by the migration verb.
+- [ ] Write failing parser/runEditorialMigration tests using the stateful registry/preview strategy above; no generic body payload is accepted by the migration verb.
 - [ ] Add `migrate-editorial` preview and a narrowly confirmed apply form agreed with TL. Reuse registry/flock/guard/replaceShared rather than an unlock-write-relock sequence. No migration runs during ordinary read/review/fill, and no external live file is changed by this implementation task.
 - [ ] Update agent guidance to read resolved policy on every round, use briefs/instruction and section routing, preserve owned comments, and create new side docs with three defaults under the month layout. Keep old flat/qa links valid; test both through existing side-doc authorization rules. No parent legacy brief is copied to a new side doc.
 - [ ] Qualify agent-facing guidance on the disposable Couch harness for Claude and Codex (Qoder when credits permit), with the same mixed-region contract fixture; never use the live fleet as a test fixture. Record deterministic contract checks separately from semantic live observations.
@@ -174,3 +194,7 @@ Files: modify `cmd/internal/couchcmd/session_sync.go`, `run.go`, existing `sessi
 ### 2026-10-23 — Initial author plan from landed #562
 
 Pinned the producer fixtures rather than interpreting alias semantics independently. Made #419's per-span consumer upgrade an explicit dependency. Code inventory found no Couch side-doc creator, no semantic review orchestrator and no authenticated human identity in session-sync; the proposed design keeps those boundaries explicit. Existing section CAS omits document policy, so scoped authority is included in the transaction design before implementation.
+
+### 2026-10-23 — Plan-quality round 1, PQ-1 and PQ-2
+
+Replaced prose test-case inventories with named production-function/adversarial-strategy contracts, retaining the producer fixtures as executable acceptance anchors (PQ-1). Required recursive duplicate-key rejection at every changed persisted round/span/record boundary and reused the existing strictjson additive codec rather than creating a second scanner (PQ-2, ARCH-DRY/ARCH-EVOLVE). Known-field presence/null/type validation remains distinct from opaque extension preservation. These refine the approved design without changing the product boundaries.

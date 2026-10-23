@@ -126,3 +126,15 @@ then derive the estimate through the gate. No suite, stage or implementation has
 Added the durable plan and approval points without changing the operator's settled three-axis contract. The plan
 accounts for the missing section-policy CAS binding and for #419's explicit consumer ownership. No automatic
 legacy-map migration, external operator-document rewrite or new Couch side-doc service is proposed.
+
+
+### 2026-10-23 — Plan-quality round 1 refinement
+
+Initial change-code inferred quick from design line count; re-ran with explicit `--flow full` to honor the approved
+full-flow plan before implementation. The fresh Codex review returned two Important findings: PQ-1 named-function
+adversarial test strategies and PQ-2 recursive duplicate handling in persisted JSON. Replaced case inventories with
+one function/strategy table and specified strictjson's existing preserving split/encode helpers for the changed
+round/span/record boundaries. Recorded the class lessons; no implementation or estimate before plan acceptance.
+
+**NEXT ACTION:** re-run `sdlc change-code --issue 823 --flow full`; after plan-quality accepts, derive and set the
+estimate using the named v3.1 calibration and re-enter the gate. Ledger is binary-owned; do not edit it by hand.
