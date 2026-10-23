@@ -345,6 +345,29 @@ tail/item joins. Ready-referral-only reshape and inline approved edits remain su
 cannot piggyback on a referral reshape. Re-audited edits_test.go's unchanged local non-Go fixture inputs and
 individually refreshed its existing full-fallback certificate.
 
+### 2026-10-23 — SHIP, final native pass and read-only real-document audit
+
+Full close round3 SHIP/high confidence, no findings; evidence5c69989257669939a9b55a43ddbe0ff693f902b4,
+code d72901e10c6f0d5de5aef2daf05c1aba13130ae3. Reviewer verified both source-extent and safe-answer mutation
+regressions fail without fixes; full package/Lua/pane checks and compiler fuzz58,974 executions pass. Final code
+native TestNativeEditorial PASS38.692s (Claude12.30s/Codex14.29s), both disposable generations and IO fully joined.
+Recorded suite lease-515637891 is queued on that code head; no recorded suite pass claimed yet.
+
+TL disposition631aff87: land on suite pass, no staging; semantic acceptance end to end with parley.nvim#419.
+A temporary binary importing the candidate editorial package called DefaultCatalog/Compile over ops/session.md,
+all recursively nested ops/session.side Markdown and brain equivalents: 285 files/1,025,315 bytes. Every read's
+before/after source hash matched; helper invoked no session-sync IO and wrote no source/sidecars. 280 compiled,
+all default discussion/highlight/free-form, with brain Chat correctly inheriting chat from the legacy map. No
+presentation differences against the pre-823 reader. Warnings:158 deprecated process-instruction aliases and1
+legacy brain map, all as designed. Five TL-authored Oct19 ops side docs initially refused answer/archive values.
+
+TL disposition7216d20a: TL corrected the five own noncanonical values to discussion; recheck only those five,
+then merge on suite pass. Read-only recheck PASS5/5, no warnings/refusals: 06-second-machine,07-fleet-health-history,
+08-history-backup-status,09-introduce-team-status,10-pair4-qoder (all2026-10-19). Each resolves discussion/highlight/
+free-form; all five before/after hashes match. Both temporary source helpers removed. Audit JSON retained in
+local scratch pair823-audit.ivNfzH/report.json and five-report.json. No external document was edited by this worker.
+TL owns the project tick. No stage or :0 mutation is authorized or needed; suite pass is the remaining merge gate.
+
 ## Revisions
 
 ### 2026-10-23 — Implementation boundaries from source inventory
