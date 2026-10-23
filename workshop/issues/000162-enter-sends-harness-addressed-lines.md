@@ -567,3 +567,14 @@ Cancelled only owned queued suite lease-2773762032 through sdlc local-check canc
 
 
 Final BR-3 package evidence: complete wrapcmd PASS76.081s after all fixture and peer changes. Shared testcouch PASS23.452s, agentfixture20.628s, fixture/cmd0.435s; agentdrive cached PASS; repolint20.142s, artifactpath7.236s, termcmd4.162s. Reader inventory PASS. No source change after these runs; atlas now explains structural command proof versus established peer padding representation. Next: commit/push and qualify the shared public fixture once per personality before fresh recorded suite and close round3.
+
+
+### 2026-10-23 — Final-head disposable qualification and approved oracle interference
+
+On96abb5a7a4dee4c49e9a56afd8c6410c16ba605e, one disposable Claude run accepted /model exactly once (receipt663d25eb-e060-43f0-8186-8415c53f7006), and the public live pane retained slash-keys-ordinary-prose-claude with its newline. The run then failed the frozen accepted-journal oracle because a legitimate Couch restart notice arrived after baseline. The journal contains only /model and that system deliverya2965831-4006-4231-910e-52b5c2a34aab, no ordinary prose submission. No native retry or source correction. Log /Volumes/TestScratch/tmp/pair-slot2/pair162-review-regressions.pykj07ci/public-claude.log SHA256a6269662c6e86f6ff9a18fb3fa27cd966a131391572cd48074556f6cab7b6b9d. Disposable root absence independently verified after deferred cleanup. This is measured startup-notice interference, not a claimed test pass or a registered flake.
+
+Authenticated ops:0 deliveryc64e1031 accepts that measured behavior for162, directs the separate unclaimed native-oracle hardening, and authorizes one Codex check then close on it plus existing passes and current unit/full-package proofs. Filed unclaimed #837 on origin, preserving the accepted entries and log. No journal filtering, extra readiness mechanism or deadline tuning added here.
+
+The one current-head Codex public check PASS26.308s (subtest20.06s), receipt a94b0d47-5cec-4ecf-b81b-5c790a35ab32: /model exactly once, prose retained, public recovery and exact owned-generation/root cleanup with direct child and IO joined. Log /Volumes/TestScratch/tmp/pair-slot2/pair162-review-regressions.pykj07ci/public-codex.log SHA2565aeb04c89bb3520f24eb433be2b96f50fa901e588112fad58366274447f2c0e9. These are deterministic fixture personalities over native transport, distinct from actual Claude/Codex UI evidence retained earlier. Qoder actual UI remains blocked on trust, approved gap #836. No fourth proof-code finding has been raised; if one is, stop before correction per3e343c17.
+
+Next: fresh required recorded suite on this documentation descendant of96abb5a7; mandatory full close round3 with the exact approved --no-actual reason; normal PR and landing gates only when fresh suite and review clear. No live runner remains from the cancelled stale suite; preserve the next runner's queue place.
