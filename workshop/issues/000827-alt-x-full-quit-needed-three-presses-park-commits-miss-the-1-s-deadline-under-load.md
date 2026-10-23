@@ -201,6 +201,13 @@ its fixed 1s cleanup ctx -> uncertain; rollback cleanup now uses parkCommitDeadl
 budget as the commit it undoes). Fleet 15/30 green; isolated wall ~0.7-1.2s, 0 contended
 polls. Full couchcore package ok (315s, unsandboxed). Next: Task 4 console summary.
 
+2026-10-23 — Task 4 (console) done: Leave(LeavePark) failure returns typed
+LeaveParkIncompleteError whose text is FormatLeaveParkSummary, so the existing error
+notice (and its copy key) carries every unresolved thread + next action; Couch stays
+open; success path unchanged. Console test: one Alt+x + confirmation dispatches leave
+once, notice ends with the whole summary (surface prefixes "Couch: "). Next: testcouch
+physical ParkAndQuit helper + native 4/8-slot Claude/Codex fleet acceptance.
+
 ## Estimate
 
 Produced via brain/data/life/42shots/velocity/estimate-logic-v3.1.md against

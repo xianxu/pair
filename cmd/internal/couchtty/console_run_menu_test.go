@@ -3,6 +3,7 @@ package couchtty
 import (
 	"bytes"
 	"context"
+	"errors"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -279,6 +280,52 @@ func TestConsoleRunConfirmedLeaveCarriesItsDispositionAndExits(t *testing.T) {
 	case <-f.done:
 	case <-testwait.After(t):
 		t.Fatal("successful leave did not exit Console.Run")
+	}
+}
+
+// #827: one Alt+x and one confirmation own the whole full quit. When it cannot
+// prove every thread parked, Couch stays open and the error notice -- the text
+// the copy key copies -- is the complete summary, every unresolved thread with
+// its next action, however narrow the rendered row.
+func TestConsoleRunIncompleteFullQuitStaysOpenWithTheCompleteSummary(t *testing.T) {
+	f := liveMenuFixture(t)
+	result := couchcore.LeaveResult{
+		Disposition: couchcore.LeavePark,
+		Parked:      []couchcore.ThreadAddress{{RepoScope: "0123456789abcdef", Tag: "couch-00000000000000a1"}},
+		Unresolved: []couchcore.LeaveUnresolved{
+			{Address: couchcore.ThreadAddress{RepoScope: "0123456789abcdef", Tag: "couch-00000000000000a2"}, Reason: strings.Repeat("a long refusal ", 20), Next: "couch --recover-park pair:2"},
+			{Address: couchcore.ThreadAddress{RepoScope: "0123456789abcdef", Tag: "couch-00000000000000a3"}, Reason: "not started before the full quit ended", Next: "resolve the error, then quit again (Alt+x)"},
+		},
+	}
+	leaveErr := &couchcore.LeaveParkIncompleteError{Result: result, Err: errors.New("leave couch: park failed")}
+	var calls atomic.Int32
+	setTestOps(f.con, func(name string, _ map[string]string) (any, error) {
+		if name == "leave" {
+			calls.Add(1)
+			return result, leaveErr
+		}
+		return nil, nil
+	})
+	_, _ = f.stdin.Write([]byte("\x00\x1bx\x1b[B\r"))
+	want := couchcore.FormatLeaveParkSummary(result)
+	waitFor(t, "the complete summary notice", func() bool {
+		// The notice surface labels its source ("Couch: "); the summary
+		// itself must arrive whole after it.
+		notice := f.con.menuSnapshot().Notice
+		return notice.Level == MenuNoticeError && strings.HasSuffix(notice.Text, want)
+	})
+	for _, tag := range []string{"couch-00000000000000a2", "couch-00000000000000a3"} {
+		if strings.Count(want, "\n- "+tag+":") != 1 {
+			t.Fatalf("summary does not name %s once:\n%s", tag, want)
+		}
+	}
+	select {
+	case code := <-f.done:
+		t.Fatalf("couch exited (%d) on an incomplete full quit", code)
+	case <-time.After(100 * time.Millisecond):
+	}
+	if got := calls.Load(); got != 1 {
+		t.Fatalf("one confirmed Alt+x dispatched leave %d times", got)
 	}
 }
 

@@ -336,6 +336,10 @@ func TestLeaveParkExhaustedTargetIsNamedOnce(t *testing.T) {
 	if f.lifecycle.triggers[f.sessions[1]] != 0 {
 		t.Fatal("an unpublished park sent a quit")
 	}
+	var incomplete *LeaveParkIncompleteError
+	if !errors.As(err, &incomplete) || err.Error() != FormatLeaveParkSummary(result) {
+		t.Fatalf("leave error is not the complete summary: %v", err)
+	}
 	summary := FormatLeaveParkSummary(result)
 	if strings.Count(summary, "\n- "+string(stuck.Address.Tag)+":") != 1 || !strings.Contains(summary, "next:") || !strings.Contains(summary, "incomplete") {
 		t.Fatalf("summary does not name the stuck thread once with its next action:\n%s", summary)

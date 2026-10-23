@@ -319,6 +319,9 @@ dispatch:
 		}
 	}
 	if err := errors.Join(errs...); err != nil {
+		if disposition == LeavePark {
+			return result, &LeaveParkIncompleteError{Result: result, Err: err}
+		}
 		return result, err
 	}
 	return result, nil

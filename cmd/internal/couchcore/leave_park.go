@@ -210,3 +210,15 @@ func FormatLeaveParkSummary(result LeaveResult) string {
 	}
 	return b.String()
 }
+
+// LeaveParkIncompleteError is a full quit that could not prove every thread
+// parked. Its text is the complete summary (FormatLeaveParkSummary), so every
+// surface that shows the error -- the switcher notice and its copy key, the
+// CLI -- carries every unresolved thread and its next action (#827).
+type LeaveParkIncompleteError struct {
+	Result LeaveResult
+	Err    error
+}
+
+func (e *LeaveParkIncompleteError) Error() string { return FormatLeaveParkSummary(e.Result) }
+func (e *LeaveParkIncompleteError) Unwrap() error { return e.Err }
