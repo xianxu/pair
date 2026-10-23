@@ -16,6 +16,7 @@ claimant:
     workspace: pair:9
     worktree: /Users/xianxu/workspace/worktree/pair-slot9/pair
     repository: github.com/xianxu/pair
+flow: {kind: quick, provenance: inferred, spec: "38603a9c", done: "622e9fdd"}
 ---
 
 # Bell notifications: highlight slot (repo:N) and issue (repo#N) references in an accent color
