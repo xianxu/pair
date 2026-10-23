@@ -305,6 +305,9 @@ func menuBreadcrumb(state MenuState, frame MenuFrame) string {
 		// A global frame: it names couch, not a thread.
 		return "threads › leave couch"
 	}
+	if frame.Kind == MenuFrameConfirmation && frame.Action == "wake" {
+		return "threads › wake asleep hubs"
+	}
 	thread, ok := menuThreadTarget(state, frame.RowKey, frame.Thread)
 	if !ok {
 		return "threads"

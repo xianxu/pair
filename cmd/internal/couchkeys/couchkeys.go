@@ -64,6 +64,7 @@ const (
 	ActionBroadcast
 	ActionWebcast
 	ActionAttention
+	ActionWake
 )
 
 // Binding is one chord Couch declares. Chord is the Pair chord it shares (a
@@ -109,6 +110,11 @@ var bindings = []Binding{
 		Encodings: [][]byte{[]byte("\x1b[97;7u")}},
 	pairChord(ScopeSwitcher, ActionDetach, workbenchshortcut.ChordAltD, "Alt+d", "detach every live thread and leave Couch; their sessions keep running"),
 	pairChord(ScopeSwitcher, ActionPark, workbenchshortcut.ChordAltX, "Alt+x", "shut down every live thread and leave Couch (asks first)"),
+	// Wake (pair#830) mirrors Alt+x: the hubs a full quit put to sleep come
+	// back; their workers wait for each hub. A Couch-only key in the switcher,
+	// declared once here so the operator's choice of key is a one-line change.
+	{Action: ActionWake, Scope: ScopeSwitcher, Key: "Alt+Shift+x", Help: "wake the hubs a full quit put to sleep (asks first)",
+		Encodings: [][]byte{[]byte("\x1bX"), []byte("\x1b[120;4u"), []byte("\x1b[88;4u")}},
 }
 
 // pairChord declares a chord whose bytes are Pair's: a switcher chord shares
