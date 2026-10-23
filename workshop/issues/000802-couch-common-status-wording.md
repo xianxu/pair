@@ -78,6 +78,8 @@ Claimed and planned as rung 3 at the hub's direction. #789 is still unlanded (PR
 
 Evidence: `go test ./cmd/internal/couchcmd ./cmd/internal/couchtty -count=1` green (couchtty 48s, couchcmd 106s after the picker fix); `go vet` both packages clean; `make test-affected-inventory` green. Atlas `couch.md` wait-notice body shape updated to `Mm`. The drain diagnostic renders `1 slots'` at N=1 as approved; flagged to the TL.
 
+Boundary review verdict FIX-THEN-SHIP with one Important finding: the embedded `skills/couch/SKILL.md` still quoted `waiting M min` and `idle off its resting branch` — a missed restatement of the same format, the class the atlas edit should have swept. Fixed in 4c0239406 after a repo-wide sweep found no other live copy (the remaining hits are archived issues and a descriptive test comment). The review's Minor formatting note on the reader certificate stands: the inventory tool itself writes one-line JSON, and siblings are mixed, so no change.
+
 ## Revisions
 
 - **2026-10-23 08:20 — plan review steers.** Reason: the TL approved the set with two corrections. Delta: the wait-notice body keeps `mute: add %s to %s`, because "mute: X in PATH" reads as a state rather than an action, and shortens only `min` to `m`; the drain diagnostic becomes `Lifecycle: %d slots' metadata unverified at restart drain`, because "N slot metadata" does not parse. The other five strings stand as written, and the rejected scope stays out.
