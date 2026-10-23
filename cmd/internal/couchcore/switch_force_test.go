@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"github.com/xianxu/pair/cmd/internal/launcher"
+	"github.com/xianxu/pair/cmd/internal/sessioninventory"
 	"os"
 	"path/filepath"
 	"strings"
@@ -102,71 +103,87 @@ func TestForceSwitchConsentIsLocalBoundAndConsumedOnce(t *testing.T) {
 
 func TestForceSwitchReusesParkCleanupAndPreservesWorktreeFiles(t *testing.T) {
 	for _, agent := range []string{"claude", "codex"} {
-		for _, cleanup := range []string{"confirmed", "missing-completion", "helper-survives"} {
-			t.Run(agent+"/"+cleanup, func(t *testing.T) {
-				root := t.TempDir()
-				path := filepath.Join(root, "unsaved.txt")
-				contents := []byte("operator changes\x00\n")
-				if err := os.WriteFile(path, contents, 0600); err != nil {
-					t.Fatal(err)
-				}
-				base := newTestEnv(t, root)
-				r := validThreadRecord(t)
-				r.StartingPath = root
-				r.WorkingPath = root
-				r.Reservation = false
-				profile := LaunchProfile{Agent: agent, Argv: []string{}}
-				r.Incarnations = []ThreadIncarnation{{PID: 42, Identity: "pair-helper", State: IncarnationLive, LaunchProfile: &profile}}
-				r.LatestLaunchProfile = &profile
-				source, err := base.Couch.Threads.CreateThread(r)
-				if err != nil {
-					t.Fatal(err)
-				}
-				env := withParkLifecycle(t, base, source, 42, "pair-helper")
-				env.Couch.reg = env.Couch.reg.Insert(ActorRecord{ID: "source", Thread: source.Address, Args: StartArgs{Worktree: Worktree(root)}, PID: 42, Identity: "pair-helper"})
-				env.Couch.FreshRegistration = func(context.Context, ThreadAddress, string, string) (bool, error) { return true, nil }
-				checks := 0
-				env.Couch.SwitchGuard = forceSwitchTestGuard{switchGuardFunc: func(context.Context, ThreadAddress, string) error {
-					t.Fatal("force used ordinary dirty/idle gate")
-					return context.Canceled
-				}, confirm: func(context.Context, ThreadAddress, string, SwitchSourceEvidence) error { checks++; return nil }}
-				if cleanup != "confirmed" {
-					env.Artifacts.TriggerQuitHook = func(_ string, _ launcher.QuitIntent) error {
-						if cleanup == "helper-survives" {
-							completion := successCompletion(env.Lifecycle.lastRequest, env.Now)
-							env.Lifecycle.completion = &completion
+		for _, mode := range []string{"switch", "restart"} {
+			for _, cleanup := range []string{"confirmed", "missing-completion", "helper-survives"} {
+				t.Run(agent+"/"+mode+"/"+cleanup, func(t *testing.T) {
+					root := t.TempDir()
+					path := filepath.Join(root, "unsaved.txt")
+					contents := []byte("operator changes\x00\n")
+					if err := os.WriteFile(path, contents, 0600); err != nil {
+						t.Fatal(err)
+					}
+					base := newTestEnv(t, root)
+					r := validThreadRecord(t)
+					r.StartingPath = root
+					r.WorkingPath = root
+					r.Reservation = false
+					profile := LaunchProfile{Agent: agent, Argv: []string{}}
+					r.Incarnations = []ThreadIncarnation{{PID: 42, Identity: "pair-helper", State: IncarnationLive, LaunchProfile: &profile}}
+					r.LatestLaunchProfile = &profile
+					source, err := base.Couch.Threads.CreateThread(r)
+					if err != nil {
+						t.Fatal(err)
+					}
+					env := withParkLifecycle(t, base, source, 42, "pair-helper")
+					env.Couch.reg = env.Couch.reg.Insert(ActorRecord{ID: "source", Thread: source.Address, Args: StartArgs{Worktree: Worktree(root)}, PID: 42, Identity: "pair-helper"})
+					env.Couch.FreshRegistration = func(context.Context, ThreadAddress, string, string) (bool, error) { return true, nil }
+					checks := 0
+					env.Couch.SwitchGuard = forceSwitchTestGuard{switchGuardFunc: func(context.Context, ThreadAddress, string) error {
+						t.Fatal("force used ordinary dirty/idle gate")
+						return context.Canceled
+					}, confirm: func(context.Context, ThreadAddress, string, SwitchSourceEvidence) error { checks++; return nil }}
+					if cleanup != "confirmed" {
+						env.Artifacts.TriggerQuitHook = func(_ string, _ launcher.QuitIntent) error {
+							if cleanup == "helper-survives" {
+								completion := successCompletion(env.Lifecycle.lastRequest, env.Now)
+								env.Lifecycle.completion = &completion
+							}
+							return nil
 						}
-						return nil
+						env.Couch.PairLifecycle.Wait = func(context.Context, time.Duration) error { return context.DeadlineExceeded }
 					}
-					env.Couch.PairLifecycle.Wait = func(context.Context, time.Duration) error { return context.DeadlineExceeded }
-				}
-				target := "claude"
-				if agent == "claude" {
-					target = "codex"
-				}
-				argv := []string{}
-				p, err := env.Couch.PrepareForcedAgentSwitch(context.Background(), source.Address, target, &argv)
-				if err != nil {
-					t.Fatal(err)
-				}
-				result, err := env.Couch.SwitchAgent(context.Background(), SwitchAgentRequest{Address: source.Address, Agent: target, Argv: argv, AcceptedFingerprint: p.Fingerprint, Force: p.Force.Confirm()})
-				if cleanup == "confirmed" {
-					if err != nil || result.Outcome != SwitchStarted || env.Proc.Exists(42) != Dead {
-						t.Fatalf("force failed: %+v %v", result, err)
+					target := "claude"
+					if agent == "claude" {
+						target = "codex"
 					}
-				} else {
-					if err == nil || result.Outcome != SwitchParkIncomplete || len(env.Runner.Ops) != 0 {
-						t.Fatalf("unconfirmed cleanup launched target: %+v %v ops%+v", result, err, env.Runner.Ops)
+					if mode == "restart" {
+						target = agent
+						env.Artifacts.SetNativeBinding(source.Address, agent, sessioninventory.BindingEstablished, bindID(3))
+						env.Runner.AfterAcknowledge = func(id string) error {
+							env.Artifacts.SetPairSession(source.Address, continuationChildSession(t, env.Runner, id), true)
+							env.Artifacts.SetPaneSidecar(source.Address, agent)
+							return nil
+						}
 					}
-				}
-				if checks != 1 {
-					t.Fatalf("force guard checks=%d", checks)
-				}
-				after, err := os.ReadFile(path)
-				if err != nil || !bytes.Equal(after, contents) {
-					t.Fatalf("on-disk files changed: %q %v", after, err)
-				}
-			})
+					argv := []string{}
+					p, err := env.Couch.PrepareForcedAgentSwitch(context.Background(), source.Address, target, &argv)
+					if err != nil {
+						t.Fatal(err)
+					}
+					accepted := p.AcceptAgentSwitch(true)
+					result, err := env.Couch.SwitchAgent(context.Background(), SwitchAgentRequest{Restart: accepted.restart, Address: source.Address, Agent: target, Argv: argv, AcceptedFingerprint: p.Fingerprint, Force: accepted.force})
+					if cleanup == "confirmed" {
+						if err != nil || result.Outcome != SwitchStarted || env.Proc.Exists(42) != Dead {
+							t.Fatalf("force failed: %+v %v", result, err)
+						}
+					} else {
+						if err == nil || result.Outcome != SwitchParkIncomplete || len(env.Runner.Ops) != 0 {
+							t.Fatalf("unconfirmed cleanup launched target: %+v %v ops%+v", result, err, env.Runner.Ops)
+						}
+					}
+					wantChecks := 1
+					if mode == "restart" && cleanup == "confirmed" {
+						wantChecks = 2
+					}
+					if checks != wantChecks {
+						t.Fatalf("force guard checks=%d", checks)
+					}
+					after, err := os.ReadFile(path)
+					if err != nil || !bytes.Equal(after, contents) {
+						t.Fatalf("on-disk files changed: %q %v", after, err)
+					}
+				})
+			}
 		}
 	}
 }

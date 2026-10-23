@@ -68,54 +68,6 @@ func TestSwitchAgentEditedRestartResumesExactNativeOrDisclosesFresh(t *testing.T
 	}
 }
 
-// A replacement seen by the binding owner is terminal for this operation,
-// even if a later read could positively report no conversation at all.
-type replacingEditedRestartArtifacts struct {
-	*FakeThreadArtifactCollisionChecker
-	a, b     string
-	replaced bool
-}
-
-func (f *replacingEditedRestartArtifacts) BindTranscript(_ context.Context, thread ThreadRecord) (TranscriptBind, error) {
-	if hasOccupiedIncarnation(thread) {
-		f.replaced = true
-		return TranscriptBind{Resolution: NativeBindingResolution{Status: sessioninventory.BindingEstablished, NativeID: f.b}}, nil
-	}
-	if f.replaced {
-		return TranscriptBind{Resolution: NativeBindingResolution{Status: sessioninventory.BindingUnbound}}, refuseBinding(ResumeBindingUnbound)
-	}
-	return TranscriptBind{Resolution: NativeBindingResolution{Status: sessioninventory.BindingEstablished, NativeID: f.a}}, nil
-}
-
-func TestSwitchAgentEditedRestartCannotForgetObservedReplacement(t *testing.T) {
-	for _, agent := range []string{"claude", "codex"} {
-		t.Run(agent, func(t *testing.T) {
-			env := newTestEnv(t, "/repo")
-			source := createParkedThreadInCouch(t, env, LaunchProfile{Agent: agent, Argv: []string{}})
-			env.Artifacts.SetNativeBinding(source.Address, agent, sessioninventory.BindingEstablished, bindID(3))
-			artifacts := &replacingEditedRestartArtifacts{FakeThreadArtifactCollisionChecker: env.Artifacts, a: bindID(3), b: bindID(5)}
-			env.Couch.Artifacts = artifacts
-			argv := []string{}
-			p, err := env.Couch.PrepareAgentSwitch(context.Background(), source.Address, agent, &argv)
-			if err != nil {
-				t.Fatal(err)
-			}
-			env.Couch.FreshRegistration = func(context.Context, ThreadAddress, string, string) (bool, error) { return true, nil }
-			env.Runner.AfterAcknowledge = func(id string) error {
-				env.Artifacts.SetPairSession(source.Address, continuationChildSession(t, env.Runner, id), true)
-				return nil
-			}
-			got, err := env.Couch.SwitchAgent(context.Background(), SwitchAgentRequest{Restart: p.AcceptAgentSwitch(false).restart, Address: source.Address, Agent: agent, Argv: argv, AcceptedFingerprint: p.Fingerprint})
-			if !artifacts.replaced {
-				t.Fatal("did not reach post-claim replacement")
-			}
-			if !errors.Is(err, ErrSwitchResolutionChanged) || got.Outcome == SwitchStarted || countStarts(env.Runner) != 0 {
-				t.Fatalf("forgot observed replacement: outcome=%s starts=%d err=%v", got.Outcome, countStarts(env.Runner), err)
-			}
-		})
-	}
-}
-
 func TestSwitchAgentEditedRestartFailedAttemptRequiresPositiveAbsenceAndCleanup(t *testing.T) {
 	for _, agent := range []string{"claude", "codex"} {
 		for _, scenario := range []string{"missing", "still-found", "replacement", "unknown", "cancelled", "cleanup-unknown"} {
@@ -173,5 +125,64 @@ func TestSwitchAgentEditedRestartFailedAttemptRequiresPositiveAbsenceAndCleanup(
 				}
 			})
 		}
+	}
+}
+
+type editedRestartFallbackClaimArtifacts struct {
+	*FakeThreadArtifactCollisionChecker
+	failed        bool
+	fallbackNonce string
+	firstNonce    string
+}
+
+func (f *editedRestartFallbackClaimArtifacts) BindTranscript(_ context.Context, thread ThreadRecord) (TranscriptBind, error) {
+	for _, incarnation := range thread.Incarnations {
+		if incarnation.Start != nil {
+			if f.firstNonce == "" {
+				f.firstNonce = incarnation.Start.Nonce
+			}
+			if incarnation.Start.Nonce == f.firstNonce {
+				continue
+			}
+			f.fallbackNonce = incarnation.Start.Nonce
+			return TranscriptBind{Resolution: NativeBindingResolution{Status: sessioninventory.BindingEstablished, NativeID: bindID(5)}}, nil
+		}
+	}
+	if f.failed {
+		return TranscriptBind{Resolution: NativeBindingResolution{Status: sessioninventory.BindingUnbound}}, refuseBinding(ResumeBindingUnbound)
+	}
+	return TranscriptBind{Resolution: NativeBindingResolution{Status: sessioninventory.BindingEstablished, NativeID: bindID(3)}}, nil
+}
+
+func TestSwitchAgentEditedRestartFailureNamesActiveFallbackAttempt(t *testing.T) {
+	for _, agent := range []string{"claude", "codex"} {
+		t.Run(agent, func(t *testing.T) {
+			env := newTestEnv(t, "/repo")
+			env.Couch.FreshRegistration = func(context.Context, ThreadAddress, string, string) (bool, error) { return true, nil }
+			source := createParkedThreadInCouch(t, env, LaunchProfile{Agent: agent, Argv: []string{}})
+			env.Artifacts.SetNativeBinding(source.Address, agent, sessioninventory.BindingEstablished, bindID(3))
+			artifacts := &editedRestartFallbackClaimArtifacts{FakeThreadArtifactCollisionChecker: env.Artifacts}
+			env.Couch.Artifacts = artifacts
+			argv := []string{}
+			p, err := env.Couch.PrepareAgentSwitch(context.Background(), source.Address, agent, &argv)
+			if err != nil {
+				t.Fatal(err)
+			}
+			env.Runner.BeforeAcknowledge = func(string) error {
+				artifacts.failed = true
+				return errors.New("first resume failed")
+			}
+			_, err = env.Couch.SwitchAgent(context.Background(), SwitchAgentRequest{Restart: p.AcceptAgentSwitch(false).restart, Address: source.Address, Agent: agent, Argv: argv, AcceptedFingerprint: p.Fingerprint})
+			var failure *launchFailureError
+			if artifacts.fallbackNonce == "" || !errors.As(err, &failure) {
+				t.Fatalf("missing fallback refusal: %v", err)
+			}
+			if failure.failure.Nonce != artifacts.fallbackNonce {
+				t.Fatalf("failure names %q, active fallback is %q", failure.failure.Nonce, artifacts.fallbackNonce)
+			}
+			if countStarts(env.Runner) != 1 {
+				t.Fatal("refused fresh claim launched child")
+			}
+		})
 	}
 }

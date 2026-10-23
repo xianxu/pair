@@ -86,21 +86,8 @@ func TestSwitchGuardAdmitsCoreProvedVacancyWithoutWrapper(t *testing.T) {
 func TestSwitchAgentSocketSelectsRetainedParkedTargetWithoutWrapper(t *testing.T) {
 	for _, fault := range []string{"none", "foreign-hub", "queued-selection", "queued-dirty", "queued-owner", "effect-owner"} {
 		t.Run(fault, func(t *testing.T) {
-			cold := newColdResumeRig(t)
-			rig, queue, hub, _, _ := leanSwitchRig(t)
-			guard := &switchServiceGuard{}
-			rig.s.installAgentSwitchService(cold.console, cold.c, guard)
-			rig.s.switches.Load().enqueue = queue.enqueue
-			rig.slotOps.names = func(context.Context) ([]couchcore.RepositoryName, error) {
-				return []couchcore.RepositoryName{{Key: cold.parked.StartingPath, Dir: "repo"}}, nil
-			}
-			rig.s.authority.workspace = cold.c.Slots.(couchcore.SlotWorkspaceResolver).ResolveWorkspace
-			rig.s.authority.record = func(ctx context.Context, address couchcore.ThreadAddress) (couchcore.ThreadRecord, error) {
-				return cold.c.Threads.PreviewThreadContext(ctx, address)
-			}
-			rig.s.authority.branch = func(context.Context, string) (couchcore.SlotGitStatus, error) { return couchcore.SlotGitStatus{}, nil }
-			hubs := guardHubState(t)
-			rig.s.authority.hubs = hubs
+			observed := newSwitchAdmissionObservationRig(t)
+			cold, rig, queue, hub, hubs := observed.cold, observed.service, observed.queue, observed.hub, observed.hubs
 			move := func() {
 				hubs.mu.Lock()
 				defer hubs.mu.Unlock()
@@ -142,9 +129,9 @@ func TestSwitchAgentSocketSelectsRetainedParkedTargetWithoutWrapper(t *testing.T
 					t.Fatal(err)
 				}
 			case "queued-dirty":
-				rig.s.authority.branch = func(context.Context, string) (couchcore.SlotGitStatus, error) {
+				observed.setBranch(func(context.Context, string) (couchcore.SlotGitStatus, error) {
 					return couchcore.SlotGitStatus{Dirty: true}, nil
-				}
+				})
 			case "queued-owner":
 				move()
 			}

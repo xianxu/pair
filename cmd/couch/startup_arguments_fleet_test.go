@@ -37,21 +37,7 @@ func TestDisposableStartupArguments(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			// Real weave setup creates these policy files after provisioning's
-			// initial commit. Record only those generated inputs in this private
-			// fixture before agents start; normal switching still requires clean Git.
-			for _, args := range [][]string{
-				{"add", "--", ".gitignore", ".gitattributes"},
-				{"-c", "user.name=Couch Fixture", "-c", "user.email=fixture@example.invalid", "-c", "commit.gpgsign=false", "commit", "-m", "fixture generated setup baseline"},
-				{"status", "--porcelain=v1", "--untracked-files=all"},
-			} {
-				command := exec.CommandContext(t.Context(), binaries.Git, args...)
-				command.Dir, command.Env = fleet.Workspaces.Workers[1], fleet.Environment
-				output, err := command.CombinedOutput()
-				if err != nil || (args[0] == "status" && len(output) != 0) {
-					t.Fatalf("private setup baseline %q: %s %v", args, output, err)
-				}
-			}
+			startupArgumentsBaseline(t, fleet)
 			ctx, cancel := context.WithTimeout(t.Context(), 240*time.Second)
 			defer cancel()
 			if err := fleet.Start(ctx); err != nil {
@@ -299,5 +285,23 @@ func TestStartupArgumentsFreshIdle(t *testing.T) {
 				t.Fatalf("fresh idle=%v want=%v", got, tc.want)
 			}
 		})
+	}
+}
+
+// startupArgumentsBaseline records only generated policy inputs in a disposable
+// fixture; all subsequent ordinary switches still require a clean worktree.
+func startupArgumentsBaseline(t *testing.T, fleet *testcouch.Fleet) {
+	t.Helper()
+	for _, args := range [][]string{
+		{"add", "--", ".gitignore", ".gitattributes"},
+		{"-c", "user.name=Couch Fixture", "-c", "user.email=fixture@example.invalid", "-c", "commit.gpgsign=false", "commit", "-m", "fixture generated setup baseline"},
+		{"status", "--porcelain=v1", "--untracked-files=all"},
+	} {
+		command := exec.CommandContext(t.Context(), fleet.Binaries.Git, args...)
+		command.Dir, command.Env = fleet.Workspaces.Workers[1], fleet.Environment
+		output, err := command.CombinedOutput()
+		if err != nil || (args[0] == "status" && len(output) != 0) {
+			t.Fatalf("private setup baseline %q: %s %v", args, output, err)
+		}
 	}
 }

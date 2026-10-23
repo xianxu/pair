@@ -699,6 +699,13 @@ same thread and working path. Pair delivers no handoff or orientation. The hub
 captures any context it needs before switching and decides what to send later.
 Compaction and continuation remain separate operations.
 
+Selecting the same agent restarts its exact previous conversation with the new
+parameters. If Couch positively confirms that conversation is missing, it may
+start fresh once, after confirming cleanup of any failed resume, and reports
+“no previous conversation found; started fresh with the new parameters”. Unknown
+or replaced conversation evidence refuses the restart. The accepted parameters
+are saved only after successful console adoption in either outcome.
+
 An accepted receipt means the operation was queued; inspect it with
 `couch --operation-status ID`. On failure, use the existing park/recover/resume
 operations: retry switching when the old agent is still running; after a failed
@@ -1824,9 +1831,11 @@ Enter on **Switch** submits the change after checking that the source is idle
 and clean. **Interrupt then switch** uses the bounded cooperative path above.
 **Force switch** opens one confirmation: “Force switch? The current turn's
 unsaved progress may be lost.” It preserves on-disk edits and reports the file
-count; Cancel sends no input and starts nothing. Choose a different agent;
-switching keeps the thread and working
-path and launches a fresh conversation with an empty composer. The switcher
+count; Cancel sends no input and starts nothing. Choosing the same agent changes
+the form to **Restart with new parameters** and **Restart**: it resumes the
+previous conversation, with the disclosed missing-conversation fallback above.
+Choosing a different agent keeps the thread and working path and launches a
+fresh conversation with an empty composer. The switcher
 stays open. Capture any needed native transcript coordinates before switching;
 the previous tty recording remains available through `couch --peek repo:N
 --previous`.

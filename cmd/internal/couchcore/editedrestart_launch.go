@@ -90,6 +90,7 @@ func (c *Couch) executeEditedRestart(ctx context.Context, prepared PreparedAgent
 	}
 	for launch != nil {
 		startedAt := c.Clock.Now()
+		active := trackedThreadLaunch{Context: ctx, Thread: thread, Nonce: launch.Nonce, Args: StartArgs{Stack: launch.Profile.Agent}, Resume: launch.Shape == StartColdResume, Fresh: launch.Shape == StartFreshExisting}
 		var transcript *threadrecord.TranscriptBinding
 		if launch.Shape == StartColdResume {
 			transcript = threadrecord.CloneTranscriptBinding(native.Transcript)
@@ -99,13 +100,14 @@ func (c *Couch) executeEditedRestart(ctx context.Context, prepared PreparedAgent
 		}
 		claimed, err := c.Threads.CommitStartClaim(thread.Address, launch.ExpectedRevision, prepared.repoIdentity, startedAt, StartEvent{Kind: StartClaimed, Shape: launch.Shape, Nonce: launch.Nonce, Owner: owner, Profile: &launch.Profile, Transcript: transcript, RememberConfiguration: true})
 		if err != nil {
-			return result, err
+			return result, c.captureLaunchFailure(active, "switch claim", nil, err, nil)
 		}
+		active.Thread = claimed
 		claimEvent := editedRestartEvent(*intent)
 		claimEvent.Kind, claimEvent.AttemptNonce, claimEvent.ClaimRevision, claimEvent.RecordRevision = EditedRestartClaimRecorded, launch.Nonce, claimed.Revision, claimed.Revision
 		state, _, err = AdvanceEditedRestart(*intent, state, claimEvent)
 		if err != nil {
-			return result, errors.Join(err, c.rollbackTrackedStart(claimed, launch.Nonce))
+			return result, c.captureLaunchFailure(active, "switch claim", nil, err, func() error { return c.rollbackTrackedStart(claimed, launch.Nonce) })
 		}
 		receipt := &startRollbackReceipt{}
 		var record ActorRecord
@@ -134,7 +136,7 @@ func (c *Couch) executeEditedRestart(ctx context.Context, prepared PreparedAgent
 			// terminal. A later absence cannot erase a replacement or IO error.
 			// Only positive absence at this boundary can request clean fallback.
 			if launch.Shape != StartColdResume || native.Kind != EditedRestartNativeMissing || ResumeDiagnosticOf(launchErr) != ResumeTranscriptMissing {
-				return result, launchErr
+				return result, c.captureLaunchFailure(active, "switch preparation", nil, launchErr, nil)
 			}
 		} else {
 			record, handle, launchErr = c.launchTrackedThread(trackedThreadLaunch{Context: ctx, Thread: claimed, Nonce: launch.Nonce, Args: StartArgs{Worktree: Worktree(thread.StartingPath), Cwd: thread.WorkingPath, Stack: launch.Profile.Agent, ExtraArgs: cloneArgv(launch.Profile.Argv)}, StartedAt: startedAt, ProfileRaw: profileRaw, Resume: launch.Shape == StartColdResume, Fresh: launch.Shape == StartFreshExisting, Rollback: receipt})
