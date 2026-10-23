@@ -11,6 +11,22 @@ import (
 )
 
 func (r OSRuntime) DeleteSessionContext(ctx context.Context, session string) error {
+	ops, wait, poll := r.sessionQuiescenceSettings()
+	return quiesceZellijSession(ctx, session, ops, wait, poll)
+}
+
+// DeleteOwnedSessionContext retains the positively observed server generation
+// even after stopping its children removes their live pane command evidence.
+// Later observations may confirm absence, but never authorize another server.
+func (r OSRuntime) DeleteOwnedSessionContext(ctx context.Context, owner SessionOwnerObservation) error {
+	if owner.State != SessionOwnerOwned || owner.Name == "" || filepath.IsAbs(owner.Name) || filepath.Base(owner.Name) != owner.Name || !validQuiescenceServer(owner.Server, owner.Name) {
+		return errors.New("delete owned session requires positive exact server ownership")
+	}
+	ops, wait, poll := r.sessionQuiescenceSettings()
+	return quiesceAuthorizedSession(ctx, owner.Name, []SessionServerIdentity{owner.Server}, ops, wait, poll)
+}
+
+func (r OSRuntime) sessionQuiescenceSettings() (sessionQuiescenceOps, time.Duration, time.Duration) {
 	ops := r.sessionQuiescence
 	if ops == nil {
 		ops = newOSSessionQuiescenceOps()
@@ -23,10 +39,7 @@ func (r OSRuntime) DeleteSessionContext(ctx context.Context, session string) err
 	if poll <= 0 {
 		poll = 25 * time.Millisecond
 	}
-	if err := quiesceZellijSession(ctx, session, ops, wait, poll); err != nil {
-		return err
-	}
-	return nil
+	return ops, wait, poll
 }
 
 func (r OSRuntime) ReapNvimContext(ctx context.Context, paths lifecycleEditorPaths) error {

@@ -100,6 +100,13 @@ func (c *Couch) withSlotTree(ctx context.Context, record ThreadRecord, r Recover
 				return err
 			}
 		}
+		// Live pane commands prove session ownership. Quiesce while the added
+		// wrapper tree still carries that evidence; held panes lose it on exit.
+		if session != "" {
+			if err := quiescer.QuiesceNamed(ctx, record.Address, session); err != nil {
+				return fmt.Errorf("slot zellij session %s kill not confirmed: %w", session, err)
+			}
+		}
 		for _, stop := range added {
 			if stop.PID > 0 && observeExactProcess(c.Proc, ProcessIdentity{PID: stop.PID, Identity: stop.Identity}) == Live {
 				if err := c.Proc.Signal(stop.PID, TermSignal); err != nil && observeExactProcess(c.Proc, ProcessIdentity{PID: stop.PID, Identity: stop.Identity}) == Live {
@@ -112,11 +119,6 @@ func (c *Couch) withSlotTree(ctx context.Context, record ThreadRecord, r Recover
 				if err := c.awaitExactProcessExit(ctx, ProcessIdentity{PID: stop.PID, Identity: stop.Identity}); err != nil {
 					return fmt.Errorf("slot %s kill not confirmed: %w", stop.Role, err)
 				}
-			}
-		}
-		if session != "" {
-			if err := quiescer.QuiesceNamed(ctx, record.Address, session); err != nil {
-				return fmt.Errorf("slot zellij session %s kill not confirmed: %w", session, err)
 			}
 		}
 		return nil

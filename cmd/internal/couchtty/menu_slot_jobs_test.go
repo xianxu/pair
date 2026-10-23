@@ -68,7 +68,7 @@ func TestMenuConcurrentOperationsKeepImmutableProgressAndIndependentResults(t *t
 				t.Fatal("independent jobs did not retain separate owners")
 			}
 			beforeProgress := cloneMenuState(state)
-			state = updateOperationProgress(state, a[0].Attempt, "restarting child")
+			state = updateOperationProgress(state, a[0].Attempt, "restarting child", state.ObservedAt)
 
 			keyA, _, _ := menuOperationForAttempt(state, a[0].Attempt)
 			if beforeProgress.Operations[keyA].Detail != "" {
@@ -102,7 +102,7 @@ func TestMenuOperationDetailStorageIsBoundedUTF8AndRowSafe(t *testing.T) {
 	state := NewMenuState(menuThreads(), menuAddress("couch-one"))
 	state, effects := dispatchThreadOperation(state, "relaunch", menuAddress("couch-one"))
 	text := strings.Repeat("界", menuTextLimit) + "\xff\x1b[2J\nforged"
-	state = updateOperationProgress(state, effects[0].Attempt, text)
+	state = updateOperationProgress(state, effects[0].Attempt, text, state.ObservedAt)
 	_, job, _ := menuOperationForAttempt(state, effects[0].Attempt)
 	if len(job.Detail) > menuTextLimit || !utf8.ValidString(job.Detail) {
 		t.Fatalf("progress detail bytes=%d valid=%v", len(job.Detail), utf8.ValidString(job.Detail))
@@ -140,7 +140,7 @@ func TestMenuOperationElapsedAndResultsRenderAtMinimumGeometry(t *testing.T) {
 	state := NewMenuState(menuThreads(), menuAddress("couch-one"))
 	state.ObservedAt = at
 	state, effects := dispatchThreadOperation(state, "relaunch", menuAddress("couch-one"))
-	state = updateOperationProgress(state, effects[0].Attempt, "step A\ncontrol\x1b[2J")
+	state = updateOperationProgress(state, effects[0].Attempt, "step A\ncontrol\x1b[2J", state.ObservedAt)
 	_, job, _ := menuOperationForAttempt(state, effects[0].Attempt)
 	if text := menuOperationRowText(job, at.Add(7*time.Second)); !strings.Contains(text, "7s") || !strings.Contains(text, "step A") || strings.ContainsAny(text, "\n\x1b") {
 		t.Fatalf("elapsed row=%q", text)

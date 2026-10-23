@@ -90,7 +90,9 @@ func TestResumeLaunchExactProfileMatrix(t *testing.T) {
 					return LaunchProfile{}, false, nil
 				}
 
+				startupBegan := time.Now()
 				record, handle, err := env.Couch.Resume(parked.Address)
+				startupReturned := time.Now()
 				if err != nil {
 					t.Fatalf("Resume: %v", err)
 				}
@@ -113,7 +115,8 @@ func TestResumeLaunchExactProfileMatrix(t *testing.T) {
 					launcher.CouchLaunchProfileEnv + "=" + strings.TrimSpace(raw),
 					"PAIR_USE_REPO_DEFAULT=",
 				}
-				wantEnv = append(wantEnv, managedIntentEnvForTest(t, child.Env))
+				wantEnv = append(wantEnv, managedIntentEnvForTest(t, child.Env),
+					startupDeadlineEnvForTest(t, child.Env, startupBegan, startupReturned))
 				if !slices.Equal(child.Env, wantEnv) {
 					t.Fatalf("resume env = %q, want %q", child.Env, wantEnv)
 				}

@@ -110,7 +110,7 @@ func (s *messageService) handleHubMove(ctx context.Context, r couchmessage.Reque
 		return refuse(err)
 	}
 	payload := hubMoveCall{service: s, caller: caller, move: move, persist: r.Persist}
-	return s.slotOps.admit(ctx, caller, r, func(key string, started func(), finished func(any, error)) error {
+	return s.slotOps.admit(ctx, caller, r, func(key string, started func(), _ couchcore.OperationProgress, finished func(any, error)) error {
 		return service.enqueue(key, "move-slot", func(ctx context.Context) (couchcore.OperationCall, error) {
 			call := couchcore.OperationCall{Name: "move-slot", TypedPayload: payload, FailureTarget: &couchcore.LifecycleFailureTarget{Target: r.Target}}
 			if _, err := s.authority.current(ctx, caller); err != nil {

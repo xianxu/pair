@@ -9,25 +9,86 @@ package textwidth
 
 import (
 	"strings"
-	"unicode"
+	"unicode/utf8"
+
+	"github.com/charmbracelet/x/ansi"
 )
 
-// Width counts terminal columns. Only the wide case that actually occurs in
-// Pair's output is modeled: emoji and other East-Asian-Wide runes take two
-// columns.
+// Width counts plain text in terminal columns using the same grapheme metric as
+// terminal.StyledRows. Leading zero-width scalars are ignored, as in that parser;
+// selectors, modifiers and joiners within a printable cluster stay together.
 func Width(s string) int {
+	if printableASCII(s) {
+		return len(s)
+	}
 	w := 0
-	for _, r := range s {
-		if unicode.Is(unicode.Mn, r) || unicode.Is(unicode.Me, r) {
-			continue
-		}
-		if isWide(r) {
-			w += 2
-			continue
-		}
-		w++
+	for s != "" {
+		_, width, rest := nextCluster(s)
+		w += width
+		s = rest
 	}
 	return w
+}
+
+// Fit returns the longest prefix fitting the column budget without splitting a
+// grapheme. Unsupported leading zero-width scalars are dropped, matching chrome.
+func Fit(s string, width int) string {
+	if width <= 0 {
+		return ""
+	}
+	if printableASCII(s) {
+		return s[:min(len(s), width)]
+	}
+	original := s
+	var out strings.Builder
+	used, end := 0, 0
+	rewritten := false
+	for s != "" {
+		cluster, w, rest := nextCluster(s)
+		if used+w > width {
+			break
+		}
+		consumed := len(s) - len(rest)
+		// Most text needs only a prefix slice, including complete Unicode
+		// clusters. Allocate only when ignored leading scalars create a gap.
+		if consumed != len(cluster) && !rewritten {
+			out.WriteString(original[:end])
+			rewritten = true
+		}
+		if rewritten {
+			out.WriteString(cluster)
+		}
+		used += w
+		end += consumed
+		s = rest
+	}
+	if rewritten {
+		return out.String()
+	}
+	return original[:end]
+}
+
+func printableASCII(s string) bool {
+	for i := 0; i < len(s); i++ {
+		if s[i] < ' ' || s[i] > '~' {
+			return false
+		}
+	}
+	return true
+}
+
+func nextCluster(s string) (cluster string, width int, rest string) {
+	for s != "" {
+		_, n := utf8.DecodeRuneInString(s)
+		_, leadWidth := ansi.FirstGraphemeCluster(s[:n], ansi.GraphemeWidth)
+		if leadWidth == 0 {
+			s = s[n:]
+			continue
+		}
+		cluster, width = ansi.FirstGraphemeCluster(s, ansi.GraphemeWidth)
+		return cluster, width, s[len(cluster):]
+	}
+	return "", 0, ""
 }
 
 // Pad left-aligns s in a field of w terminal columns.
@@ -40,23 +101,4 @@ func Pad(s string, w int) string {
 		return s + strings.Repeat(" ", pad)
 	}
 	return s
-}
-
-// isWide covers the double-width ranges Pair's output can contain — the emoji
-// planes plus the CJK/symbol blocks that render wide in a terminal.
-func isWide(r rune) bool {
-	switch {
-	case r >= 0x1100 && r <= 0x115F, // Hangul Jamo
-		r >= 0x2E80 && r <= 0xA4CF, // CJK radicals .. Yi
-		r >= 0xAC00 && r <= 0xD7A3, // Hangul syllables
-		r >= 0xF900 && r <= 0xFAFF, // CJK compatibility ideographs
-		r >= 0xFE30 && r <= 0xFE6F, // CJK compatibility forms
-		r >= 0xFF00 && r <= 0xFF60, // fullwidth forms
-		r >= 0xFFE0 && r <= 0xFFE6,
-		r >= 0x1F300 && r <= 0x1F64F, // misc symbols + pictographs, emoticons
-		r >= 0x1F900 && r <= 0x1F9FF, // supplemental symbols + pictographs
-		r >= 0x20000 && r <= 0x3FFFD:
-		return true
-	}
-	return false
 }

@@ -2582,6 +2582,8 @@ and external temporary roots rather than relying on the host's TMPDIR.
 - #767: Prove inherited descriptor usability by operating on the descriptor, with an exact token or identity and absent/wrong-descriptor controls. On macOS a shell permission probe of /dev/fd/3 returned false while builtin read immediately recovered the correct token. Permission inspection is a separate pathname observation, not inheritance proof; an already-open descriptor also remains usable after chmod000. The Pair golint catalog rejects literal shell permission gates on /dev/fd/N.
 - #766: A PTY consumer cannot recover bytes the kernel discarded at last slave close. Native tee fixtures must own producer lifetime through an output/input acknowledgement and establish the controlling-terminal reference on Darwin; distinguish first-read EOF from a wrapper closing its master early. Audit public generic-command exposure and file that product defect separately from a fixture repair.
 
+- #773: A diagnostic birth-probe grace is not an admission deadline. Select the caller-owned absolute startup deadline before helper launch, carry it across exec without renewal, and keep it separate from short native observations and the admitted interactive client lifetime. Tests must cross the production selection boundary; a custom test-only timeout cannot detect a hardcoded production cap.
+- #773: Repeated reports of the same startup stage preserve the stage start time. Progress callbacks bind the exact request incarnation and cannot mutate a terminal receipt; final budget failure retains the consuming stage, elapsed time and cause.
 - #774: distinguish persisted file checkpoints from observations within a single operation. Remount equivalence belongs only at the persisted boundary; after capturing/rebinding a live identity, revalidation must stay strict. Never reuse a tolerant checkpoint matcher at every call site. Keep the original mismatch cause when an older intent cannot certify recovery.
 
 - #774 BR-1: preserving a strict matcher is insufficient if the caller discards the first observation. Carry its snapshot across phases and exercise the real preview-to-effect transition; a direct matcher unit test cannot prove the caller uses the right baseline.
@@ -2640,6 +2642,9 @@ and external temporary roots rather than relying on the host's TMPDIR.
   whose attempt counts encode the prior transport. Keep refusal assertions and
   pin recoverable cases separately from single-attempt native authority.
 
+- #773: when a launch adds a dynamic environment field, validate exactly one canonical value against the caller/fallback deadline, then retain exact ordered comparison of the full remaining environment. Do not drop arbitrary fields or weaken the profile/identity oracle merely to accept a timestamp. The fast reader-inventory check does not replace artifactpath's exhaustive production-source test.
+
+- #773 round1: sweep lifecycle-owned launches AND public borrowed-client attachment when changing startup authority. Likewise progress has remote and local consumers; test stage changes in both. A fixture duration used as a propagation sentinel becomes a real timing dependency if the production budget owner moves earlier; isolate that sentinel with controlled time, and keep general failure injection causal.
 - #792 BR-1: Before independently truncating evidence and legacy action lists, remove protected overlaps from the complete view. A projection must never drop a veto while retaining broader destructive authority; test the actual lossy projection through its action consumer.
 
 - #792 BR-2: Audit information loss before classification as well as transport. A later healthy sample cannot restore forgotten ownership; destructive fallback needs a process-lifetime fail-closed decision after any provenance loss, with overflow/recovery sequence tests. Distinguish an unobserved startup seed from a failed completed attempt.
@@ -2651,6 +2656,11 @@ and external temporary roots rather than relying on the host's TMPDIR.
 
 - #792 landing: when an existing atlas guide already has an index link, put new feature detail in that guide. Appending feature clauses to its shared index summary creates avoidable landing conflicts; keep the index as a stable navigation map.
 
+- #797 BR-1: Separate immutable authorization data from its validator in core-concept tables. Trace every validator's injected readers before calling it PURE; a readiness-file reader remains IO even when the surrounding comparison uses a captured process snapshot.
+
+- #797: A private Pair DataDir does not isolate compatibility quit markers: TriggerQuit/TriggerBoundQuit writes through HOME/.cache/pair. In-process quit-trigger tests must isolate HOME as well as thread storage, including refusal cases that may acquire effects after future changes.
+
+- #797 BR-3: A post-close repair that adds a new executable lint policy expands the deliverable, even when production is unchanged. Use a full close review for that addition; narrow fix-review only covers repairs within its prior scope.
 - #803 integrated-suite correction: enumerate transitive users of an OS adapter,
   not only packages edited by a seam migration. Stateful refusal fixtures must
   fault the entire physical-attempt budget; add transient recovery controls and
@@ -2660,3 +2670,12 @@ and external temporary roots rather than relying on the host's TMPDIR.
 - #791 PQ-1: Active plan concept tables must name the production transition/encoder functions as well as their data types. State one adversarial test strategy per risky function (generated event sequences for timing/once/reset invariants, fuzzed styled data for valid bounded encoding); put case inventories in executable tests.
 
 - #791 BR-1: A diagnostic byte cap must preserve evidence that actually fits. Do not divide the raw-screen allowance by worst-case escaping expansion and discard fitting screens; count actual escaped bytes incrementally under a hard construction bound. Pair cap/truncation oracles with a fitting styled-screen preservation regression.
+- #796: A launch default change must make old behavior explicit in compatibility fixtures, including native subprocess tests. Sweep direct Console constructors and geometry assertions as well as shared helpers; preserve the old multiline native matrix while adding collapse. When an early known mismatch consumes the package deadline, rerun the corrected package before treating late teardown failures as independent flakes.
+
+- #796 BR-1: A presentation run is not necessarily an entity group: numbered hubs deliberately split legacy tab runs. Use role for hub policy and exact owner/group identity for aggregation; pin primary and numbered hubs under both current and inactive ownership before relying on shared display grouping.
+
+- #796 BR-2: Before close, reconcile the complete concepts table with actual file ownership and new/modified/reused status. A planned integration point can be reused unchanged while its projection changes elsewhere; document that relationship rather than forcing a source diff to satisfy a predicted path.
+
+- #796: Geometry tests must derive click coordinates from physical terminal cells, independently of layout's width helper. Emoji/VS16/ZWJ labels can pass self-consistent hit-map tests while their final cells are unclickable. Use the terminal's grapheme metric for measurement and fitting, preserve no-allocation fitting paths, and retain allocation-budget checks when replacing shared text helpers.
+
+- #796: When adding a display mode, parameterize established pending/reattach regressions over both modes. A legacy fixture that explicitly selects the compatibility mode cannot prove the new default preserves pending states. Count branches also need owner/style invariants from ordinary chips, not only correct text and hit spans.

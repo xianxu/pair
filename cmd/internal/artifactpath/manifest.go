@@ -677,6 +677,12 @@ var SourceClassifications = []SourceClassification{
 // pair:m5-concept pure
 var NonArtifactSources = []string{
 	"cmd/internal/wrapcmd/peer_wait_capture.go",
+	// #773 carries deadlines and progress through existing launch owners;
+	// these helpers neither name nor construct Pair artifact files.
+	"cmd/internal/couchcore/startup_budget.go",
+	"cmd/internal/couchcore/startup_progress.go",
+	"cmd/internal/launcher/startup_budget.go",
+	"cmd/internal/startupbudget/budget.go",
 	// #758 endpoint model and native editor transport name no Pair artifact paths.
 	"cmd/internal/editorendpoint/model.go",
 	"cmd/internal/editorendpoint/state.go",
@@ -1600,6 +1606,11 @@ var NonArtifactSources = []string{
 	"cmd/internal/couchtty/panelkeys.go",
 	"cmd/internal/couchtty/reserve.go",
 	"cmd/internal/couchtty/status_layout.go",
+	// #796 presentation style, collapse candidates and menu scope own no artifacts.
+	"cmd/internal/couchtty/tab_style.go",
+	"cmd/internal/couchtty/console_tab_style.go",
+	"cmd/internal/couchtty/status_collapse.go",
+	"cmd/internal/couchtty/console_group_menu.go",
 	"cmd/internal/couchtty/idle_shade.go",
 	"cmd/internal/couchtty/console_activity.go",
 	"cmd/internal/couchtty/console_chrome_layout.go",

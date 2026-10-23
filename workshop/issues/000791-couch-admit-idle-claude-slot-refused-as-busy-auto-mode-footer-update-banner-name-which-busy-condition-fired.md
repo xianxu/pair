@@ -107,6 +107,12 @@ total: 1.597
 - Scratch-only native replay completed: `go test -overlay /Volumes/TestScratch/pair791-replay.v_daojgb/overlay.json ./cmd/internal/wrapcmd -run '^TestInvestigation791CaptureReplay$' -count=1 -v` PASS, package 4.596s. The retained ops:0 bypass/banner screen (54,648,427 bytes / 92 resize events), echo:3 earlier 1-echo-87 auto/banner pre-exit screen (80,031 bytes / 5 resizes), and parley.nvim:3 blank-line/one-warning screen (9,662,972 bytes / 48 resizes) all yielded PeerComposerEmpty, complete=true, cursor visible=true, at (2,33), (2,34), (2,35) respectively. This is a passing control, not reproduction of a stalled moment. The unconditional wait-detail helper is meaningful only on unknown composer; its generic string printed by this scratch probe does not describe a refusal when the composer enum is Empty.
 - Durable plan: workshop/plans/000791-couch-admission-plan.md. No production code changed. Proposed one active-delivery capture at 15s, 64KiB total record through existing bounded wrap-events writer, exact refusal and cursor/frame/style evidence; narrow read-only settle-observe for restart diagnostics without changing admission policy or session dialect. Root-cause fix remains blocked on a failing captured transition, not on a guessed banner match.
 
+
+### 2026-10-22 — recorded suite passed; main integration inventory conflict
+
+Retained session96595 completed successfully: sdlc-local/suite exit0 in11m33s on cc59a202d409d523f11dd747e64c028744d1389a; full log .git/sdlc/local-checks/cc59a202d409d523f11dd747e64c028744d1389a/suite.log, recorded digest prefix1c12ff8d1668. TL sweep cee95a4f-c37e-4d10-a633-958192ebb6e1 was authenticated and outcome e30e6271-d0a6-441d-b10f-95e87ed2a49b verified submitted. Entered merge promptly; landing readiness passed for PR546. Integration with origin/main09c8964de39cdb5e6bd9db20601c232446af6949 conflicted only in NonArtifactSources: preserve both this issue's peer_wait_capture.go and main's four startup-budget/progress sources. No source behavior changed by resolution. Prior green branch receipt does not verify the integrated code. Next: push integrated head, run required recorded suite, then re-close --fixed-then-ship with the new full-suite evidence and retry landing. No #807 implementation while this landing remains pending.
+
+
 ## Revisions
 
 ### 2026-10-22 — operator/TL expanded reproduction and capture scope
