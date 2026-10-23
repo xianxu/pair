@@ -428,6 +428,12 @@ Full close session19599 completed exit0: round9 SHIP/high confidence, no new Cri
 
 Hub report7d3b6ffc-2d4f-4968-9cec-56b9529605ca is canonically submitted. Ready for fresh authorized stage and operator-watched real-Claude/Codex rerun after #753 re-look and #739 shutdown check, per TL55e2cb84. Do not stage or merge until that authorization/acceptance: previous stage was cleared, failed watched result remains failure, private proof does not replace watched acceptance. No owned suite or review remains running. Exact next step: await TL GO, then sdlc stage --build and send verified printed revisions; TL drives queue/drain/lift and the operator watches. Preserve partial-delivery and missed-notice-lift checks in that rerun.
 
+### 2026-10-22 18:32 PDT — shutdown checkpoint; no new landing
+
+Authenticated submitted TL49e82968 announces the22:00–23:00 full Couch shutdown for #739 and the planned Go1.27.3 upgrade/rebuilds. Start no new merges/landings or items; commit/push durable work by21:45 and report only blockers. This slot has no admitted merge, landing turn, suite or review running. Worktree was clean at c838f4231aa79b583ef9abdb16a17176e229f091; this checkpoint changes only the Log. Keep #722 codecomplete/SHIP and claim; prior exact-source suite PASS11m56s remains retained proof, not an assertion about future rebuilt binaries. The old #722 stage was cleared and has not been reacquired. No blocker report is needed.
+
+Exact next step after restart: read this Log and verify branch/HEAD, #722 card/completion and PR477 state, then follow the operator/TL's upgraded-toolchain rebuild instructions and verify resulting provenance. Wait for fresh TL GO for #722's stage after #753/#739; then run sdlc stage --build and send printed binary revisions. TL/operator must perform the fresh watched real-Claude/Codex drain/lift check, including partial delivery and harmless lift after missed notice, before any landing. Shutdown/restart or absence of transient flags does not authorize stage, drain, queue controls or merge. Do not start a replacement check or runner: none is outstanding. Do not chase main or rerun native acceptance without a new gate/dispatch requirement.
+
 ## Revisions
 
 ### 2026-10-19 — authenticated acknowledgement and shared queue ownership
