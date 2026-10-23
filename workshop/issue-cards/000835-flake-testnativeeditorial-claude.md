@@ -5,7 +5,7 @@ created: 2026-10-23
 updated: 2026-10-23
 estimate_hours:
 github_issue:
-flake_tests: [github.com/xianxu/pair/cmd/couch.TestNativeEditorial/claude]
+flake_tests: [github.com/xianxu/pair/cmd/couch.TestNativeEditorial/claude, github.com/xianxu/pair/cmd/couch.TestNativeEditorial/codex]
 ---
 
 # flake: TestNativeEditorial/claude
