@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/xianxu/pair/cmd/internal/couchcore"
+	"github.com/xianxu/pair/cmd/internal/couchtty"
 )
 
 func TestHubCLIExplicitDirectoriesAndDefault(t *testing.T) {
@@ -16,7 +17,7 @@ func TestHubCLIExplicitDirectoriesAndDefault(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !reflect.DeepEqual(defaultCall, cliInvocation{kind: cliLaunch, path: ".", layout: couchcore.DefaultLayout}) {
+	if !reflect.DeepEqual(defaultCall, cliInvocation{kind: cliLaunch, path: ".", layout: couchcore.DefaultLayout, tabStyle: couchtty.DefaultTabStyle}) {
 		t.Fatalf("default changed: %+v", defaultCall)
 	}
 	for _, args := range [][]string{{".", "../bench"}, {"--layout3", ".", "../bench"}, {"--", ".", "../bench"}} {

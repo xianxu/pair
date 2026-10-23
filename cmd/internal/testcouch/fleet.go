@@ -2,8 +2,6 @@ package testcouch
 
 import (
 	"context"
-	"crypto/rand"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -49,7 +47,7 @@ type Fleet struct {
 	Binaries       Binaries
 	Environment    []string
 	RunID          string
-	t              testing.TB
+	t              Reporter
 	mu             sync.Mutex
 	closeMu        sync.Mutex
 	closing        bool
@@ -65,67 +63,21 @@ type Fleet struct {
 
 func New(t testing.TB, b Binaries, o Options) *Fleet {
 	t.Helper()
-	if err := validateOptions(o); err != nil {
-		t.Fatal(err)
-	}
-	if o.AgentKind == "" {
-		o.AgentKind = "claude"
-	}
-	if o.RuntimeBudget == 0 {
-		o.RuntimeBudget = 120 * time.Second
-	}
-	base := os.TempDir()
-	if info, err := os.Stat("/Volumes/TestScratch"); err == nil && info.IsDir() {
-		base = "/Volumes/TestScratch"
-	}
-	denied := []string{}
-	for _, key := range []string{"HOME", "COUCH_ISOLATED_ROOT", "COUCH_STORE_DIR", "COUCH_IDENTITY_DIR", "COUCH_PAIR_DATA_DIR", "PAIR_DATA_DIR", "COUCH_TREE", "ZELLIJ_SOCKET_DIR", "CODEX_HOME", "CLAUDE_CONFIG_DIR"} {
-		if value := os.Getenv(key); value != "" {
-			denied = append(denied, value)
-		}
-	}
-	p, err := allocateRoots(base, denied)
-	if err != nil {
-		t.Fatal(err)
-	}
-	// Worst-case wrapper name must fit before installing or launching anything.
-	if len(filepath.Join(p.Root, "m", "wrapper-2147483647-0000000000000000000000000000000000000000.sock")) > 103 {
-		_ = os.RemoveAll(p.Root)
-		p, err = allocateRoots("/tmp", denied)
-		if err != nil {
-			t.Fatal(err)
-		}
-	}
-	var nonce [16]byte
-	if _, err = rand.Read(nonce[:]); err != nil {
-		_ = os.RemoveAll(p.Root)
-		t.Fatal(err)
-	}
-	ctx, cancel := context.WithCancel(context.Background())
-	f := &Fleet{Roots: p, Options: o, Binaries: b, RunID: hex.EncodeToString(nonce[:]), t: t, ctx: ctx, cancel: cancel, idle: make(chan struct{})}
-	close(f.idle)
-	t.Cleanup(func() {
-		cleanup, cancel := context.WithTimeout(context.Background(), 15*time.Second)
-		defer cancel()
-		if err := f.Close(cleanup); err != nil {
-			t.Errorf("native fleet cleanup or ownership evidence failed; root=%s: %v", p.Root, err)
-		}
+	f, err := NewOwned(context.Background(), b, o, OwnerConfig{
+		ScratchParent: legacyScratchParent(), Reporter: t, AllowScratchFallback: true,
 	})
-	if err = installRuntime(b, p); err != nil {
-		t.Fatal(err)
+	if f != nil {
+		t.Cleanup(func() {
+			cleanup, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+			defer cancel()
+			if err := f.Close(cleanup); err != nil {
+				t.Errorf("native fleet cleanup or ownership evidence failed; root=%s: %v", f.Roots.Root, err)
+			}
+		})
 	}
-	if err = os.WriteFile(filepath.Join(p.Root, agentfixture.OwnershipFile), []byte(f.RunID), 0600); err != nil {
-		t.Fatal(err)
-	}
-	f.Environment, err = runtimeEnvironment(p, p.Mutable["bin"], o.AgentKind, f.RunID, b.Source, filepath.Join(p.Mutable["bin"], "couch"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	f.record(RunEvent{Kind: "ready"})
-	if err := f.ownershipError(); err != nil {
-		t.Fatal(err)
-	}
-	t.Logf("native fleet isolation: root=%s run=%s agent=%s workers=%d", p.Root, f.RunID, o.AgentKind, o.Workers)
 	return f
 }
 
@@ -134,6 +86,9 @@ func (f *Fleet) begin(ctx context.Context) (context.Context, func(), error) {
 	defer f.mu.Unlock()
 	if err := ctx.Err(); err != nil {
 		return nil, nil, err
+	}
+	if f.ctx != nil && f.ctx.Err() != nil {
+		return nil, nil, f.ctx.Err()
 	}
 	if f.publicationErr != nil {
 		return nil, nil, f.publicationErr

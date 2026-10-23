@@ -1,0 +1,16 @@
+provisioning go 1.26.3
+go installation layout: {"entrypoint": "/opt/pair/bin/go", "entrypoint_lstat": {"directory": false, "exists": true, "gid": 0, "mode": "0755", "uid": 0}, "entrypoint_resolved": "/opt/pair/store/go-1.26.3/go/bin/go", "entrypoint_target": "/opt/pair/store/go-1.26.3/go/bin/go", "installed_root": "/opt/pair/store/go-1.26.3/go", "pkg": {"directory": true, "exists": true, "gid": 0, "mode": "0755", "uid": 0}, "pkg_tool": {"directory": true, "exists": true, "gid": 0, "mode": "0755", "uid": 0}, "root": {"directory": true, "exists": true, "gid": 0, "mode": "0755", "uid": 0}, "store": {"directory": true, "exists": true, "gid": 0, "mode": "0755", "uid": 0}}
+provisioning node 22.23.3
+provisioning python3 3.12.10
+installer: Package name is Python
+installer: Installing at base path /
+installer: The install was successful.
+provisioning nvim 0.12.6
+provisioning zellij 0.45.1
+provisioning claude 2.1.306
+provisioning codex 0.163.0
+provisioning qodercli 1.1.75
+ea90e955e592b6b5074f8d0560f4896d4e6f96bd
+/Library/Developer/CommandLineTools/usr/bin/clang
+/Library/Developer/CommandLineTools/usr/bin/make
+image qualification: private environment, read-only input, independent Git, CLT, PTY, nvim, official Zellij verified

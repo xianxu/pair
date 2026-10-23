@@ -2,6 +2,7 @@ package couchcore
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"os"
 	"path/filepath"
@@ -310,4 +311,11 @@ func TestScopedArtifactClaimerRejectsNonScopedPathsAndFutureFamilies(t *testing.
 			}
 		})
 	}
+}
+
+func (d *fakeSessionDeleter) DeleteOwnedSessionContext(_ context.Context, owner launcher.SessionOwnerObservation) error {
+	return d.DeleteSession(owner.Name)
+}
+func (d *triggerSessionDeleter) DeleteOwnedSessionContext(_ context.Context, owner launcher.SessionOwnerObservation) error {
+	return d.DeleteSession(owner.Name)
 }

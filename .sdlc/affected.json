@@ -170,7 +170,10 @@
         "tests/scrollback-open-test.sh",
         "tests/term-pane-shortcuts-test.sh",
         "tests/zellij-trace-test.sh",
-        "zellij/**"
+        "zellij/**",
+        "tests/conformance-*.py",
+        "tests/conformance-paths.json",
+        "tests/native-terminal-ci*.py"
       ],
       "go": [
         "./cmd/internal/changelogcmd",

@@ -548,7 +548,18 @@ func renderRootMenuFrame(state MenuState, frame MenuFrame, width, height int, no
 	for _, entry := range presentations {
 		labels[menuRowKey(entry.Row)] = entry
 	}
-	lines := []string{"threads", clipMenuLine("Ctrl+Y copy last notice / selected error · Ctrl+G hub automation on/off", width)}
+	title := "threads"
+	if frame.GroupScope != nil {
+		label := "group unavailable"
+		for _, entry := range presentations {
+			if (StatusGroupID{OwnerHub: entry.OwnerHub, GroupKey: entry.GroupKey}) == *frame.GroupScope {
+				label = entry.Label
+				break
+			}
+		}
+		title = clipMenuLine("threads · "+label+" (Esc: all)", width)
+	}
+	lines := []string{title, clipMenuLine("Ctrl+Y copy last notice / selected error · Ctrl+G hub automation on/off", width)}
 	rowBudget := height - len(lines)
 	if frame.Filter != "" {
 		rowBudget--

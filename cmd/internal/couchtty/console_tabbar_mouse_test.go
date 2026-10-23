@@ -112,6 +112,7 @@ func TestConsolePendingChromeWaitsForAutomaticPaintBeforeClick(t *testing.T) {
 	host := &uncertainChromeHost{FakeHost: hostty.NewFakeHost(ptychild.Size{Rows: 24, Cols: 80})}
 	reader, input := io.Pipe()
 	c := New(host, reader)
+	c.SetTabStyle(TabStyleMultiline)
 	first, second := ptychild.NewFakeChild(nil), ptychild.NewFakeChild(nil)
 	t.Cleanup(func() { first.Close(); second.Close() })
 	c.attachThreadActor("c1", "one", menuAddress("one"), "/w/one", "one", first)

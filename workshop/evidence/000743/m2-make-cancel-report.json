@@ -1,0 +1,12 @@
+{
+  "barrier": "guest command stderr and positive owned launch claim",
+  "cleanup_grace_seconds": 30,
+  "launch_pid": 67501,
+  "launch_start_identity": "1792561985.493448",
+  "nonce": "77d2fadb34b32b642c9b3d99a3ae0859",
+  "cleanup_seconds": 2.544147749998956,
+  "result_exit": 130,
+  "lane_claim_retained": false,
+  "make_exit": -15,
+  "passed": true
+}

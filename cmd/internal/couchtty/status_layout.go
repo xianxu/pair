@@ -10,8 +10,9 @@ import (
 
 // RenderedStatusBar contains the rows and row-relative hit spans drawn together.
 type RenderedStatusBar struct {
-	Rows  []RenderedStatusRow
-	Chips []ChipSpan
+	Rows        []RenderedStatusRow
+	Chips       []ChipSpan
+	GroupCounts []GroupCountSpan
 }
 
 // Height is the chrome row count reserved for this exact rendering.
@@ -55,12 +56,16 @@ func renderStatusBar(width, maxRows int, m StatusModel, work *statusLayoutWork) 
 	if maxRows > 2 {
 		maxRows = 2
 	}
+	if m.TabStyle == TabStyleCollapse {
+		maxRows = 1
+		m.Actors = prepareCollapsedStatusChips(m.Actors, work)
+	}
 	// Run the shared prefix pass without actors or a transient notice. Its budget
 	// already reserves the first-row attention badge, without duplicating policy.
 	prefixModel := m
 	prefixModel.Notice = ""
 	_, prefix, budget := renderStatusCells(width, prefixModel, []chipCell{}, true, -1)
-	chips, groups := prepareStatusChips(m.Actors, width, work)
+	chips, groups := prepareStatusChips(m.Actors, width, m.TabStyle, work)
 	p := packStatusChips(m.Actors, chips, groups, len(chips), width, budget, prefix, maxRows, 0, false, true, work)
 	if !p.fits {
 		// An active chip wins scarce one-row space, including over fixed controls.
@@ -87,12 +92,19 @@ func renderStatusBar(width, maxRows int, m StatusModel, work *statusLayoutWork) 
 				}
 			}
 		}
-		suffix := "+" + strconv.Itoa(len(chips))
+		total := 0
+		for _, a := range m.Actors {
+			total += statusActorWeight(a)
+			if work != nil {
+				work.Visits++
+			}
+		}
+		suffix := "+" + strconv.Itoa(total)
 		for _, a := range m.Actors {
 			if work != nil {
 				work.Visits++
 			}
-			if chipKept(a) && !a.Active {
+			if (a.Bell || a.Blocked || m.TabStyle != TabStyleCollapse && a.Hub) && !a.Active {
 				suffix += " !"
 				break
 			}
@@ -111,12 +123,15 @@ func renderStatusBar(width, maxRows int, m StatusModel, work *statusLayoutWork) 
 			}
 		}
 		p = packStatusChips(m.Actors, chips, groups, lo, width, budget, prefix, maxRows, reserve, true, true, work)
-		hidden, hiddenAttention := len(chips)-lo, false
+		hidden, hiddenAttention := 0, false
 		for i, a := range m.Actors {
 			if work != nil {
 				work.Visits++
 			}
-			if chips[i].rank >= lo && chipKept(a) && !a.Active {
+			if chips[i].rank >= lo {
+				hidden += statusActorWeight(a)
+			}
+			if chips[i].rank >= lo && (a.Bell || a.Blocked || m.TabStyle != TabStyleCollapse && a.Hub) && !a.Active {
 				hiddenAttention = true
 			}
 		}
@@ -170,13 +185,17 @@ func renderStatusBar(width, maxRows int, m StatusModel, work *statusLayoutWork) 
 		for j := range row.Chips {
 			row.Chips[j].Row = i
 		}
+		for j := range row.GroupCounts {
+			row.GroupCounts[j].Row = i
+		}
+		bar.GroupCounts = append(bar.GroupCounts, row.GroupCounts...)
 		bar.Rows[i] = row
 		bar.Chips = append(bar.Chips, row.Chips...)
 	}
 	return bar
 }
 
-func prepareStatusChips(actors []StatusActor, width int, work *statusLayoutWork) ([]statusChip, []statusGroup) {
+func prepareStatusChips(actors []StatusActor, width int, style TabStyle, work *statusLayoutWork) ([]statusChip, []statusGroup) {
 	chips := make([]statusChip, len(actors))
 	for i, a := range actors {
 		if work != nil {
@@ -202,7 +221,7 @@ func prepareStatusChips(actors []StatusActor, width int, work *statusLayoutWork)
 				work.Visits++
 			}
 			p := 2
-			if chipKept(a) {
+			if chipKept(a) && (style != TabStyleCollapse || a.Bell || a.Blocked) {
 				p = 1
 			}
 			if a.Active {
