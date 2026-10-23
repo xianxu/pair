@@ -43,10 +43,10 @@ func keyboardFixture(t *testing.T) (*consoleFixture, *keyboardHost, *ptychild.Ch
 }
 
 // Generate the operator's key from terminal state, not from the chord table.
-func TestKeyboardPhysicalNotificationJump(t *testing.T) {
+func TestKeyboardPhysicalAttentionToggle(t *testing.T) {
 	for _, mode := range []string{"", "\x1b[=0u", "\x1b[>0u", "\x1b[<99u", "\x1bc", "\x1b[?1049h", "\x1b[=6u", "\x1b[?1049h\x1b[=0u\x1b[?1049l"} {
 		t.Run(strings.ReplaceAll(mode, "\x1b", "ESC"), func(t *testing.T) {
-			f, h, b := keyboardFixture(t)
+			f, h, _ := keyboardFixture(t)
 			f.child.Feed([]byte(mode))
 			// The key comes from the screen the child's output left the parent
 			// on, and that output is painted asynchronously. Encoding it at once
@@ -55,26 +55,21 @@ func TestKeyboardPhysicalNotificationJump(t *testing.T) {
 			awaitScreen(t, h, strings.HasSuffix(mode, "\x1b[?1049h"))
 			f.con.mu.Lock()
 			target := f.con.panes["c2"].thread
-			f.con.attention.Mark(target, "ready")
-			f.con.syncAttentionLocked()
 			f.con.mu.Unlock()
+			f.con.ObserveAttention(hubNotify(target, "ready"))
 			key := h.ctrlReturn()
 			if _, err := f.stdin.Write(key); err != nil {
 				t.Fatal(err)
 			}
-			waitFor(t, "jump or source input", func() bool { return activeOf(f) == "c2" || len(f.child.Writes()) > 0 })
-			if got := activeOf(f); got != "c2" {
-				t.Fatalf("physical Ctrl+Return encoded %q and reached source %q; active=%s", key, f.child.Writes(), got)
+			waitFor(t, "physical key opens attention or reaches child", func() bool { return f.attentionOpen() || len(f.child.Writes()) > 0 })
+			if !f.attentionOpen() || activeOf(f) != "c1" || f.attentionLen() != 1 {
+				t.Fatalf("physical Ctrl+Return encoded %q: open=%v active=%s child input=%q", key, f.attentionOpen(), activeOf(f), f.child.Writes())
 			}
-			f.con.mu.Lock()
-			pending := len(f.con.attention.Projection(target))
-			f.con.mu.Unlock()
-			if pending != 0 {
-				t.Fatal("notification not acknowledged")
-			}
+			_, _ = f.stdin.Write(key)
+			waitFor(t, "physical key closes attention", func() bool { return !f.attentionOpen() })
 			_, _ = f.stdin.Write([]byte("\r"))
-			waitFor(t, "ordinary Return forwarded", func() bool { return len(b.Writes()) > 0 })
-			if got := bytes.Join(b.Writes(), nil); !bytes.Equal(got, []byte("\r")) {
+			waitFor(t, "ordinary Return forwarded", func() bool { return len(f.child.Writes()) > 0 })
+			if got := bytes.Join(f.child.Writes(), nil); !bytes.Equal(got, []byte("\r")) {
 				t.Fatalf("ordinary Return = %q", got)
 			}
 		})
@@ -210,7 +205,7 @@ func TestKeyboardExplicitEventEncodings(t *testing.T) {
 				before, hit, rest := it.FeedHit(part)
 				forwarded = append(forwarded, before...)
 				forwarded = append(forwarded, rest...)
-				if hit == HitNewestPage {
+				if hit == HitAttention {
 					hits++
 				} else if hit != HitNone {
 					t.Fatalf("unexpected hit %v", hit)
