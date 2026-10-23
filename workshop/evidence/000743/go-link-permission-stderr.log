@@ -1,0 +1,2 @@
+provisioning go 1.26.3
+guest provisioning failed: [Errno 13] Permission denied: '/opt/pair/bin/go'

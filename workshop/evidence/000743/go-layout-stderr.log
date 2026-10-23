@@ -1,0 +1,3 @@
+provisioning go 1.26.3
+go: cannot find GOROOT directory: 'go' binary is trimmed and GOROOT is not set
+guest provisioning failed: Command '['/opt/pair/bin/go', 'version']' returned non-zero exit status 2.

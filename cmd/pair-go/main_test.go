@@ -678,3 +678,19 @@ func (f *fakeLegacyRuntime) LaunchNative(args []string, root string, stdout, std
 	f.launchNativeRoot = root
 	return f.launchNativeCode
 }
+
+func TestRunStreamingVMHelpReachesRunner(t *testing.T) {
+	var out, errOut bytes.Buffer
+	code := runStreamingSubcommand("vm run", []string{"--help"}, strings.NewReader(""), &out, &errOut)
+	if code != 0 || !strings.Contains(out.String(), "cleanup up to 10 s") {
+		t.Fatalf("VM route: code=%d stdout=%q stderr=%q", code, out.String(), errOut.String())
+	}
+}
+
+func TestVMProvisionStreamingHelp(t *testing.T) {
+	var out, errOut bytes.Buffer
+	code := runStreamingSubcommand("vm provision", []string{"--help"}, strings.NewReader(""), &out, &errOut)
+	if code != 0 || !strings.Contains(out.String(), "adhoc") {
+		t.Fatalf("code %d stdout %s stderr %s", code, out.String(), errOut.String())
+	}
+}

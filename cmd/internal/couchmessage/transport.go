@@ -34,10 +34,15 @@ const (
 // SocketPath only derives an address; it does not create runtime files. The
 // namespace must already be the caller's canonical absolute store path.
 func SocketPath(namespace, endpoint string) (string, error) {
+	return SocketPathForIsolation(namespace, endpoint, os.Getenv("COUCH_ISOLATED_ROOT"))
+}
+
+// SocketPathForIsolation derives an address from the selected client environment,
+// without reading or changing the process environment.
+func SocketPathForIsolation(namespace, endpoint, isolated string) (string, error) {
 	if !filepath.IsAbs(namespace) || namespace != filepath.Clean(namespace) || endpoint == "" {
 		return "", errors.New("message socket requires a canonical absolute namespace and endpoint")
 	}
-	isolated := os.Getenv("COUCH_ISOLATED_ROOT")
 	if isolated != "" {
 		root, err := isolatedMessageRoot(isolated)
 		if err != nil {

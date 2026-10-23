@@ -1,0 +1,49 @@
+{
+  "coverage": "legacy/native stand-ins; #744 genuine fleet/agent cases pending",
+  "events": 411,
+  "exit_code": 0,
+  "image": "pair-conformance-tahoe-20261021T044207.013507000",
+  "lane_claim_retained": false,
+  "named_check_acceptance": false,
+  "passed": {
+    "github.com/xianxu/pair/cmd/internal/couchcmd": [
+      "TestAgentShortcutInputConformanceLive/inherited-alt-f",
+      "TestAgentShortcutInputConformanceLive/inherited-alt-bracket",
+      "TestAgentShortcutInputConformanceLive/inherited-alt-plus",
+      "TestAgentShortcutInputConformanceLive/alt-up",
+      "TestAgentShortcutInputConformanceLive/alt-down",
+      "TestAgentShortcutInputConformanceLive/alt-left",
+      "TestAgentShortcutInputConformanceLive/alt-right",
+      "TestAgentShortcutInputConformanceLive/alt-h",
+      "TestAgentShortcutInputConformanceLive/alt-l",
+      "TestAgentShortcutInputConformanceLive/alt-x",
+      "TestAgentShortcutInputConformanceLive/reserved-shift-alt-t",
+      "TestAgentShortcutInputConformanceLive/reserved-shift-alt-left",
+      "TestAgentShortcutInputConformanceLive/reserved-shift-alt-right",
+      "TestAgentShortcutInputConformanceLive"
+    ],
+    "github.com/xianxu/pair/cmd/internal/couchcore": [
+      "TestParkLifecycleLiveIntentOnlyMutation",
+      "TestRecoveryRealHelperAndSessionConformanceLive/warm",
+      "TestRecoveryRealHelperAndSessionConformanceLive"
+    ],
+    "github.com/xianxu/pair/cmd/internal/couchtty": [
+      "TestLiveConsoleNvimPreservesContentAndChrome",
+      "TestLiveReservedRowSurvivesRealScrolling",
+      "TestNotificationPTYConformance",
+      "TestNativeConsoleWrapperZellij/direct-zellij-baseline",
+      "TestNativeConsoleWrapperZellij/wrapped-zellij",
+      "TestNativeConsoleWrapperZellij"
+    ],
+    "github.com/xianxu/pair/cmd/internal/launcher": [
+      "TestQuitLifecycleLive",
+      "TestTheAcceptorAgreesWithRealZellijLive",
+      "TestSessionQuiescenceLive",
+      "TestSessionDetachLive"
+    ],
+    "github.com/xianxu/pair/cmd/internal/layoutcmd": [
+      "TestTerminalRecoveryZellijConformance"
+    ]
+  },
+  "source": "008771fc0dd672f3824b8b75a208547ac10245bf"
+}

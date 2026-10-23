@@ -1,0 +1,45 @@
+[
+  {
+    "nonce": "24c185ef716e9576cbe3e6be48c559b5",
+    "head": "eb6edd16be7c8564707d8441d61437bd2952589c",
+    "exit_code": 1,
+    "lane_claim_retained": false,
+    "cause": "Strict checker omitted Go test2json artifacts metadata action emitted by -artifacts. Raw event stream retained; no passing rerun claimed.",
+    "correction": "Recognize artifacts and attr metadata with strict known string types, running-test identity and no completion authority; qualify literal and actual-producer streams before the next native attempt."
+  },
+  {
+    "nonce": "d4a80a4a1b16d346e53efaa9c0fee72c",
+    "head": "06b77d49d154895fddf30a260cf38ae59f308a47",
+    "exit_code": 1,
+    "lane_claim_retained": false,
+    "cause": "Native terminal population passed; shortcut fixture inherited bootstrap ZELLIJ_SOCKET_DIR, exhausting Darwin AF_UNIX path/session-name budget. Lowering TMPDIR alone does not override the explicit socket-root environment.",
+    "correction": "Existing shortcut fixture now explicitly owns a short socket root and cleanup; long-TMPDIR/inherited-root regression binds the longest actual session path under the 103-byte conservative budget. Existing native-fixture lint is extended for the same class."
+  },
+  {
+    "nonce": "d1dd5e6c788fe48d1cf869a9f9ad8fef",
+    "head": "3b665b4be9dec6ac03691502d3ddad5983d0b9b7",
+    "exit_code": 0,
+    "lane_claim_retained": false,
+    "events": 409,
+    "required_cases": 28
+  },
+  {
+    "nonce": "d1259cdad7fe14c2e0984efb009ed8ef",
+    "head": "3b665b4be9dec6ac03691502d3ddad5983d0b9b7",
+    "exit_code": 1,
+    "lane_claim_retained": false,
+    "expected_failure": true,
+    "input_mutation": "m2-known-bad-input.diff",
+    "observed_refusal": "conformance skip: TestLiveConsoleNvimPreservesContentAndChrome",
+    "events": 6
+  },
+  {
+    "nonce": "727e948abb68c357ea505ba81b18fb3b",
+    "head": "04ec9e29e476fb5d312e73e85acd1f6750bc6080",
+    "exit_code": 0,
+    "lane_claim_retained": false,
+    "events": 410,
+    "required_cases": 28,
+    "purpose": "Final shared-selection code qualification after BR-4 correction"
+  }
+]
