@@ -139,3 +139,19 @@ Files: `cmd/internal/couchcmd/skills/couch/SKILL.md`, `cmd/couch/editorial_accep
 ## Approval / next action
 
 Send this committed draft to ops:0. Approval requested for shared-scanner architecture, the lossless-only migration refusal, and #576 before final qualification. Await TL approval and dependency landing before code/change-code. There is no pending #811 runner or stage.
+
+## Revisions
+
+### 2026-10-23 14:08 — TL approval
+
+Authenticated ops:0 receipt a7ad7cf6-257b-419f-b538-e40f2b0a457b approves this
+design and both sequencing decisions. Lossless-only migration refusals must
+name the affected section when numbered tags would drop bullet or preamble
+asks. Legacy reads continue unchanged; no renumbering. Natural-language
+question/command/scope choices remain in shared agent instructions. The end
+operator stage check is the project's live acceptance, approved in principle;
+coordinate its timing and lease with the hub.
+
+The Draft/Approval text above records the proposal before approval. Current
+state: APPROVED, awaiting ariadne#575 landing before change-code. #576 gates
+final fixture pin, performance qualification and close.

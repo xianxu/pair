@@ -88,6 +88,23 @@ Next: commit/push this design and send it to ops:0; wait for plan approval and
 #575 landing before change-code, and #576 for final qualification. No estimate
 yet and no implementation started.
 
+### 2026-10-23 14:08 — approved; waiting for upstream landing
+
+Design commit f6ac0a46af6ffb9a75a28c1c6d520195c8eb426e is pushed. Plan report
+d8885e44-dd35-4de8-af81-86f68720e9e6 is submitted. Authenticated ops:0
+a7ad7cf6-257b-419f-b538-e40f2b0a457b approves the design: migration refusal
+names the affected section, no renumbering; code after ariadne#575 lands;
+final fixture pin/performance/close after ariadne#576; stage check is the
+project live acceptance. Approval is preserved in the plan's Revisions.
+
+Fresh tracker observation still reports ariadne#575 codecomplete/not-landed
+on candidate6ae80e4e69aacb72d8745e479791ada7c4454c17. Exact next step:
+verify its landing on main, refresh the ordinary Ariadne dependency, then run
+sdlc change-code --issue 838 --flow full and satisfy plan-quality before
+deriving the estimate or writing code. No code/change-code or tests yet;
+only design changed and git diff --check passed. No own background check,
+merge runner or stage remains.
+
 ## Revisions
 
 ### 2026-10-23 — initial implementation design
@@ -97,3 +114,9 @@ Spec and Done when. Recorded the approved ariadne#575 dependency, shared
 scanner ownership and one atomic review boundary. Proposed (not yet approved)
 lossless-only migration refusals and ariadne#576 final qualification, with the
 reasons and alternatives in the durable plan.
+
+### 2026-10-23 14:08 — approved migration detail
+
+TL approval makes the draft's lossless-only migration refusal part of this
+implementation contract; the refusal must name the affected section. Upstream
+sequencing and project operator acceptance are approved as recorded above.
