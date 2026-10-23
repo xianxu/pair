@@ -24,7 +24,7 @@ The plan writes no legacy mode frontmatter; that overrides the old plan-template
 - Scope: current/preceding paragraph or exact anchor by default; widen only when asked; a marker before the first heading addresses the document unless narrowed. The agent follows shared instructions and fixtures; Couch enforces source ownership and marker/chat structural guards.
 - New edits are clean text with highlight metadata. Old persisted direct/propose rounds remain readable/renderable; nothing rewrites their meaning.
 - The shared scanner owns exact tag grammar, heading extents, code exclusions, legacy names/defaults/comments, and notices. Convert its whole-document 1-based lines to original byte offsets once.
-- Tagged chat takes numbered shallowest-indent items. Legacy chat additionally takes `-` and `*`. Overlap is one chat scope; preserve the legacy item grammar where legacy authority applies. A marker inside a chat section remains an ordinary marker ask.
+- Tagged chat takes numbered shallowest-indent items; legacy chat additionally takes `-` and `*`. The innermost shared section governs each line; its Legacy flag chooses item grammar independently of Source. Same-heading tag plus legacy retains Legacy=true. Whole-document legacy governs the preamble and suppresses emitted inner tag sections. A marker inside a chat section remains an ordinary marker ask.
 - Protect real tags and their attachment against every agent write seam, including insertion, removal, rename/reparenting and code-fence tricks. Misplaced tags are ordinary text and get the shared misplaced-tag notice.
 - Ordinary rounds never add, remove or rewrite legacy settings. Malformed/unknown legacy values produce shared nonfatal notices. Other ownership, stale-hash, invalid-edit and lock refusals remain effective.
 - Return the shared notice sequence verbatim once in the round's read snapshot; the CLI/skill reports it once per round, without a persistent deduplication ledger.
@@ -96,6 +96,53 @@ Map conversion replaces only the requested map field and inserts tags above the 
 - **ARCH-FUNERAL:** policy/notice/line-index values die with the transaction. No new durable record family; existing round retirement, session-sync state and side-doc lifecycle stay with their owners. Pinned test fixtures/provenance live and archive with this issue under existing repository policy.
 - **ARCH-EVOLVE:** retain strict known-field/duplicate checks and nested unknown JSON preservation in old persisted rounds. New round writers always emit highlight. Never reinterpret an old direct/propose span under the new policy. Read.Editorial is a fresh projection, not a migration of saved round records.
 
+## Shared provenance contract — PQ-1
+
+The correction is owned upstream by ariadne#576. Its explicit chosen API is:
+
+```go
+type ChatSection struct {
+    Heading, End int
+    Source string
+    Legacy bool
+}
+type ChatScan struct {
+    Sections []ChatSection
+    Tags, Misplaced []int
+    Notices []string
+}
+func ChatSections(doc string) ChatScan
+func (s ChatScan) Innermost(line int) (ChatSection, bool)
+```
+
+This shape was verified in committed upstream candidate `9dbb69c87a7e5626753e29280bdb1eacb2bb96bd`; receipts fba9ba42-e53f-41f4-8983-b65306a5e152 and 13f616c6-968e-4f6e-841b-8e104a62d140 establish its owner and #576 landing boundary. No candidate source is installed.
+
+| Pair consumer | Shared authority fact |
+|---|---|
+| region routing | laminar section Heading/End; innermost containing section |
+| item grammar | governing section Legacy flag, never infer it from Source=tag |
+| protected tags/attachments | every line in Tags, including tags suppressed as sections by whole-document legacy; owning heading is tag+1 |
+| migration proof | before/after routing and eligible-item projection from the same shared facts |
+
+Source retains the visible owner (`tag` wins on its heading), while Legacy independently preserves mixed authority. Tags and Misplaced never share a line. The shared randomized 500-document oracle checks laminar/innermost semantics against smallest extents. Pair's generated interval/item oracle must separately reject lost legacy grammar and unauthorized tag detachment; use ordered interval/line joins instead of calling the linear Innermost search for every item.
+
+**Dependency gate:** #576's landed provenance API is required before implementing/qualifying `Compile`, tag ownership and `selectChatItems`; #575 alone cannot supply it. Other code entry still requires the approved plan-quality gate and estimates. Never compensate with a Pair legacy parser or tag recognizer. The owner is also extracting shared ChatItems from the existing TL splitter; consume that seam only after its signature/coordinate contract is explicit and the version is landed, recording the final API before editing the item adapter.
+
+## Function-scoped verification strategy
+
+| Production function | Adversarial input class -> mechanical guard |
+|---|---|
+| `Compile` | Arbitrary Markdown and legacy values -> shared fixture replay plus fuzz, independently compare byte-region coverage with scanner facts, one scanner call per snapshot and N/2N adapter counters. |
+| `ValidateEdits` | Generated source/candidate structural changes -> independent authority/unchanged-surviving-byte oracle; sorted monotone joins; reject the complete batch before effects. |
+| `selectChatItems` | Generated mixed-authority nested lists -> independent eligible-item oracle with numbered-only tags and legacy bullets, including overlapping authorities; N/2N join counts. |
+| `PlanMigration` | Generated legacy maps and headings -> unchanged eligible-item/heading projection, untouched unrelated bytes, deterministic section-naming refusal and idempotence. |
+| `sectionPolicyHash` | Operator changes policy attachment between read and write -> stale token refusal through actual transaction APIs; unrelated prose does not spuriously invalidate it. |
+| `Sync.read`, write/Apply/ApplyFile | Adversarial ownership and malformed retired metadata -> stateful filesystem rig proves nonfatal shared notices and no acknowledgement or partial write on refusal. |
+| `BuildEdit`, `contentStep`, `decodeRound`, Span/Round JSON codecs | Old/extended saved records and new writes -> golden historical rendering plus unknown-member round trips; new rounds highlight and old meanings stay unchanged. |
+| `Sync.MigrateEditorial` | Interleaved source changes, publication/retirement faults and duplicate confirmation -> stateful sequence tests assert exact-source authority and distinguish uncertain publication from absence. |
+
+Fixture examples remain source data rather than another prose case inventory. Commands in the execution tasks run these strategies; the native harness qualifies semantic instruction-following separately.
+
 ## Execution tasks — after approval and dependencies
 
 ### 1. Pin the landed shared contract
@@ -112,7 +159,7 @@ Files: `editorial/{document,source,edits,markdown,catalog}.go` and colocated tes
 
 - [ ] Adapt ChatScan sections/notices to byte intervals and protected source ownership, retaining Goldmark source facts for edit validation. One shared scan per Compile; include tag and owning heading/ancestor in section freshness tokens.
 - [ ] Delete retired processing/presentation/override resolution, domain/frontier enforcement and fill paths. Keep legacy declarations byte protected and nonfatal. Compile unknown/malformed settings using shared fallback without discarding unrelated ownership metadata.
-- [ ] Add tag insertion/removal/detachment/reparenting, fake headings/code masks, numbered-versus-legacy-bullet, overlap, tabs, nested sections, `→ done:` and actual-link tests. Preserve ready-marker referral behavior inside chat and pending-marker identity guards.
+- [ ] Implement the function-scoped strategies below for authority preservation and chat grammar; preserve existing ready-referral and pending-marker guards.
 - [ ] Pin adapter scan counts at N/2N and fuzz generated base/candidate edits with an independent interval/item oracle. Run `go test ./cmd/internal/editorial` and `go test -race ./cmd/internal/editorial`; expected PASS including existing item-integrity regressions.
 - [ ] Commit the coherent pure-core change with issue, Agent and Co-Authored-By trailers.
 
@@ -120,9 +167,9 @@ Files: `editorial/{document,source,edits,markdown,catalog}.go` and colocated tes
 
 Files: `sessionsync/{editorial,editorial_migration,editorial_codec,round,applyfile,sync}.go`, colocated tests; `couchcmd/session_sync.go` and `session_sync_editorial_test.go`.
 
-- [ ] Write failing public-seam tests for whole/section/frontmatter Write, Apply and ApplyFile: tag protection, stale attachment tokens, highlight spans, nonfatal diagnostics and unchanged shadow on refusal. Include malformed frontmatter/retired values beside valid registered identity.
+- [ ] Write failing public-seam tests through the stateful file rig for each write API; assert the common source/authority invariant and unchanged shadow on every rejected transaction.
 - [ ] Remove the runtime catalog dependency. Carry the shared notice sequence once in Read.Editorial; CLI renders the sequence without duplicated wrapper notices. Preserve old round codec/render semantics and unknown-field round trips.
-- [ ] Write failing map-to-tag migration tests including duplicate heading names, ancestor/descendant overlap, empty/default chat, legacy bullets, CRLF and idempotence. Implement only transformations proved to preserve chat items; test preview/no-op writes zero files, stale confirmation, lock refusal, size refusal and uncertain publication recovery.
+- [ ] Exercise PlanMigration with generated legacy documents and the independent chat-item projection oracle; test the existing confirmed transaction as event sequences. Implement only transformations proved to preserve chat items.
 - [ ] Run `go test ./cmd/internal/sessionsync ./cmd/internal/couchcmd -run 'Editorial|Round|SessionSync'`, then focused race tests. Commit the integration with the same trailers.
 
 ### 4. Agent contract, acceptance and close
@@ -155,3 +202,28 @@ coordinate its timing and lease with the hub.
 The Draft/Approval text above records the proposal before approval. Current
 state: APPROVED, awaiting ariadne#575 landing before change-code. #576 gates
 final fixture pin, performance qualification and close.
+
+### 2026-10-23 — PQ-2 function-scoped strategies
+
+The first plan-quality review identified prose case inventories. Replaced those
+inventories with one adversarial-input/mechanical-guard strategy per production
+function, keeping executable fixture replay, fuzz oracles, count checks and
+public transaction tests. This changes test description, not approved behavior.
+
+Dependency inspection also confirms Go imports resolve through the pinned
+Ariadne module in go.mod, not through the refreshed substrate checkout. Task 1
+therefore includes updating go.mod/go.sum to the verified landed #575 revision
+(with the #576 refresh for qualification), using an ordinary versioned module
+requirement, never a local replace or copied candidate source.
+
+### 2026-10-23 — PQ-1 shared authority projection
+
+The plan gate found Source alone loses independent legacy grammar when a tag
+and legacy chat declaration share a heading. The same authority class also
+includes valid tags suppressed as sections by whole-document legacy. Upstream
+#576 now explicitly supplies Legacy and all valid Tags, plus laminar/innermost
+semantics. The consumer table above sweeps routing, grammar, source ownership
+and migration proof. #576 must land before those core adapters can use the new
+API; the approved #575-only code-entry threshold cannot manufacture missing
+provenance. TL ccfe62c7-130f-4095-944f-e13cfa85b3d8 confirmed upstream
+ownership and rerunning the gate once the API is explicit.

@@ -105,6 +105,39 @@ deriving the estimate or writing code. No code/change-code or tests yet;
 only design changed and git diff --check passed. No own background check,
 merge runner or stage remains.
 
+### 2026-10-23 — #575 landed; first plan gate blocked
+
+Authenticated ariadne:2 receipt64863819-3103-415b-a904-e29579a5cebf
+reports #575/PR418 landed; GitHub reports MERGED at
+df49c55b9c768a37dfbf4455d13f3ff63543539b. A normal weave refresh correctly
+refused the issue branch before updates; `weave refresh --substrate --planning`
+then advanced the ordinary private substrate to
+c39d1899c04e1176d5bdce47f9f06848dd17ce2c, containing that merge (Git
+ancestor check EXIT0), preserving Pair HEAD. The stale seeded CI workflow was
+deferred without tracked source changes.
+
+change-code --issue838 --flow full ran its mandatory first plan review and
+exited1 before estimates/code: PQ-1 shared-authority-preserves-provenance and
+PQ-2 function-scoped-test-strategy, both Important. PQ-2 is revised into named
+function/adversarial-input/mechanical-guard strategies. PQ-1 was verified:
+Source=tag loses independent legacy grammar; whole-document legacy also
+suppresses valid inner tags needed for source ownership. Upstream #576 owns
+the correction, with Legacy and Tags APIs and their independent invariants
+now explicit in the plan. The item-parser extraction's final signature is
+still forthcoming from its owner. No fallback parser or candidate dependency.
+
+TL ccfe62c7-130f-4095-944f-e13cfa85b3d8 confirmed the upstream fix and normal
+pinned module update. `go get` updated go.mod/go.sum to the verified landed
+#575 pseudo-version v0.0.0-20261023212235-df49c55b9c76 (no replace).
+Existing focused catalog/contract tests passed0.155s with that dependency;
+this is module compatibility evidence, not new feature acceptance.
+
+Next: commit the revised design/ledger and module preparation, rerun the plan
+gate against the explicit #576 API, then derive estimates only on acceptance.
+#576's landed provenance API is necessary before the core adapters can compile;
+final fixture pin/performance/close continue to wait for it. No implementation
+or own long-running check is active.
+
 ## Revisions
 
 ### 2026-10-23 — initial implementation design
