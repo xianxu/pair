@@ -161,6 +161,33 @@ func TestPresenterFailureCauseSurvivesReleasedCompletion(t *testing.T) {
 			} else if err == nil || err.Error() != "terminal: presenter released" {
 				t.Errorf("healthy release refusal changed: %v", err)
 			}
+			if !failed {
+				_, queryErr := p.ChromeState(context.Background())
+				for _, refusal := range []error{queryErr, p.Present(context.Background(), nil)} {
+					if refusal == nil || refusal.Error() != "terminal: presenter unavailable" {
+						t.Errorf("healthy closed admission changed: %v", refusal)
+					}
+				}
+			}
 		})
+	}
+}
+
+func TestPresenterFailureKeepsFirstCause(t *testing.T) {
+	p, _, _, _ := presenterFixture(t, ChildRequested)
+	first := errors.New("first physical failure")
+	p.fail(first)
+	select {
+	case <-p.Failed():
+		if p.View().State != Failed || !errors.Is(p.Failure(), first) {
+			t.Fatal("failure notification preceded coherent state and cause")
+		}
+	default:
+		t.Fatal("failure was not announced")
+	}
+	retained := p.Failure()
+	p.fail(errors.New("later failure"))
+	if p.Failure() != retained {
+		t.Fatal("later failure replaced the first cause")
 	}
 }
