@@ -1,13 +1,13 @@
 ---
 id: 000819
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-10-22
 updated: 2026-10-22
 estimate_hours: 1.25375
 collaboration-mode: collaboration
-card_mirror: 'eb318bceb9fe6f9bf20248195e1578a099b8ef89' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '3973c22a8a7bfa08ffd3f34a050aac27262e2f78' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-22T16:54:59-07:00
 claimant:
     operator: Xian Xu
@@ -17,6 +17,7 @@ claimant:
     worktree: /Users/xianxu/workspace/worktree/pair-slot4/pair
     repository: github.com/xianxu/pair
 flow: {kind: full, provenance: operator}
+actual_hours: 0.36
 ---
 
 # Collapse tab bar: a one-glyph-per-slot state strip next to +N
