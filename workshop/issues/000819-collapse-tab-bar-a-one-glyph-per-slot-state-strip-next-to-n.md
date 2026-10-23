@@ -48,7 +48,7 @@ The operator's sketch (using ⌥ for the branch glyph): `pair⌥  +9 ⌥⌥+-⌥
 
 - [x] Derive one compact existing checkout-state marker per exact hidden live member in slot order.
 - [x] Admit complete strips only into spare width after the shared base packing; draw/hit-test count and strip together with existing owner styling.
-- [ ] Verify projection, width, physical clicks, privacy/geometry, pending/live and counted-work bounds; stage for the operator, close and land.
+- [x] Verify projection, width, physical clicks, privacy/geometry, pending/live and counted-work bounds; document the remaining operator-stage and recorded-suite landing gates in the Log.
 
 Detailed design is on this issue branch at workshop/plans/000819-folded-slot-state-strip-plan.md; TL approved the plan (c4f6db71); change-code gates precede implementation.
 
@@ -96,3 +96,7 @@ total: 1.25375
 change-code passed plan-quality after PQ-1 compression and accepted the reconciled estimate (INFO: verification execution may exceed the allowance). Bounded core mapper work observed RED for missing CompactSlotGlyph, then PASS0.337s across generated states, malformed inputs and terminal-cell oracle. TTY regressions observed semantic RED: missing drawn strip and empty hidden membership. Implemented the pure closed mapper, exact hidden-member derivation and one shared counted width measurement; post-packing optional decoration never changes base actor/count choice. Existing count span extends through all physical digits, separator and markers. Existing owner/glyph styles remain the source.
 
 Focused collapse/detail/owner/click tests PASS0.517s. Full couchtty package including native geometry PASS51.541s. Artifactpath PASS13.452s and repolint PASS14.741s; affected reader inventory and diff whitespace checks pass. Documentation updated in README and atlas. No timeout, production timer, persisted state or multiline change. Full recorded suite, close review and staged operator look remain pending; #789 snapshot suite is preserved independently.
+
+### 2026-10-22 — review / suite overlap, operator stage pending
+
+Pushed candidate3ece1cc55496b71e5071f6de9eb1e43fab49376b has recorded suite session46229, attempt107b78df6d26c5cb3a9ac02ef8d2145e, lease-2835455686 in immutable snapshot /Volumes/TestScratch/local-checks/sdlc-local-2612811728, initially FIFO16. Existing789 run lease-2426150993 remains queued and untouched. TL5f6b7266 requests close review now; pair:0 retains753 stage until its operator re-look. Stage819 only after TL go; operator acceptance and an exact-source recorded pass remain mandatory before landing. Checkbox wording separates completed implementation proof from those external landing gates; none is claimed complete.
