@@ -532,3 +532,111 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000411
+
+---
+
+## Re-review — 2026-10-23T05:03:51-07:00 (REWORK)
+
+| field | value |
+|-------|-------|
+| issue | 739 — couch: start-up safe mode: no automatic injection into the hub, restart kind reported not acted on, one generic start notice per worker |
+| repo | pair |
+| issue file | workshop/issues/000739-couch-start-up-safe-mode-no-automatic-injection-into-the-hub-restart-kind-reported-not-acted-on-one-generic-start-notice-per-worker.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 146a283c5a47b69f70e47cf0e91ef40e8ab167e7..3b38d4ebdea18c335bdf2540a478574db3783669 |
+| command | sdlc close --issue 739 |
+| reviewer | codex (openai; author openai) |
+| isolation | fenced |
+| timestamp | 2026-10-23T05:03:51-07:00 |
+| verdict | REWORK |
+
+## Review
+
+```verdict
+verdict: REWORK
+confidence: high
+```
+
+The interdiff preserves both sides of the inspected conflict resolutions, and focused checks pass. One boundary blocker remains: the plan changes acceptance scope after close by replacing the outstanding disposable-fleet qualification with narrower completed acceptance. The narrow-review contract requires a full `sdlc close` for that change. No additional runtime defect was found.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      Prior disposition retained; the corrected concept table identifies lifecycle suppression ownership and ObserveStartupContext at their implemented paths.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      Empty-switcher and seeded surviving-session startup tests pass, including ten repetitions of the selected cohort.
+  - id: BR-3
+    disposition: withdrawn
+    note: |
+      Prior withdrawal retained; this interdiff does not alter write budgets or reopen the previously resolved attribution finding.
+  - id: BR-4
+    disposition: addressed
+    note: |
+      Prior disposition retained; the automatic-input source guard and production artifact inventory pass.
+  - id: BR-5
+    disposition: addressed
+    note: |
+      Broker mailbox-commit and both queue-commit admission-policy tests pass; the interdiff preserves the admission guard.
+findings:
+  - id: new
+    severity: Critical
+    kind: defect
+    family: boundary-scope-control
+    title: |
+      scope changed after close — run a full `sdlc close`
+    detail: |
+      workshop/plans/000739-startup-safe-mode-plan.md:164 replaces the outstanding disposable-fleet acceptance requiring measured input/launch/notice counts and focus with completed full-shutdown acceptance plus existing socket/count tests. The new Revisions passage at lines 319–323 explicitly treats the rollout as complete while acknowledging the unrun matrix. This changes acceptance scope rather than recording a prior finding's fix (ARCH-PURPOSE). Submit the revised acceptance contract through a full sdlc close; this narrow fix review cannot admit that scope change.
+```
+
+1. **Strengths**
+
+   - Conflict resolutions retain editor endpoint initialization and cleanup alongside automation control.
+   - Protocol validation preserves orphan-payload restrictions and strict automation request shapes.
+   - The startup fixture now holds publication explicitly, queues normal host termination, and joins `Run` during cleanup.
+   - README and atlas explain recovery controls and distinguish startup history from current liveness.
+
+2. **Critical findings**
+
+   - The acceptance-scope change at `workshop/plans/000739-startup-safe-mode-plan.md:164` requires full-close review, as detailed above.
+
+3. **Important findings**
+
+   None.
+
+4. **Minor findings**
+
+   None.
+
+5. **Test coverage notes**
+
+   Passed focused startup, CLI, admission-guard, orphan-protocol, switcher and artifact-inventory tests. The selected startup/automation cohort also passed ten repetitions. `make test-affected-inventory` and pinned-range `git diff --check` passed. I did not independently rerun the full suite or live acceptance. The checkout remains unchanged.
+
+6. **Architectural notes**
+
+   - **ARCH-DRY — pass:** no duplicated policy logic introduced.
+   - **ARCH-PURE — pass:** wording changes preserve existing policy and IO boundaries; test synchronization stays in the fake host.
+   - **ARCH-PURPOSE — flag:** acceptance coverage changed after close and needs the broader review.
+   - **ARCH-EVOLVE — pass:** response fields are combined additively; no persisted format changes appear in this window.
+
+7. **Plan revision recommendations**
+
+   Add a `## Revisions` entry explicitly identifying the acceptance cases removed or replaced, their evidence, and any remaining obligations. Run a full `sdlc close` against that revised contract.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"28c6f05d-7fb4-4b81-8a5a-4cee479eded8","repository":"github.com/xianxu/pair","issue_id":"000739","recipe":"fix-review","round":6,"attempt":1,"agent":"codex","root":"/Volumes/TestScratch/review-checkouts/fcdc0533bb27099f","reviewed_head":"3b38d4ebdea18c335bdf2540a478574db3783669","slot":"pair:7","requested_at":"2026-10-23T12:01:53.756269Z"},"phase":"finished","pid":21999,"started_at":"2026-10-23T12:01:53.920418Z","finished_at":"2026-10-23T12:03:50.538622Z","session_id":"01a168a3-989d-79a3-879d-3a9cd48d9bcf","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 2.928415709s
+head: "3b38d4ebdea18c335bdf2540a478574db3783669"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412

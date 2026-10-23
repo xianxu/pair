@@ -761,3 +761,17 @@ Held-write corrected test passed20 repetitions0.601s; targeted startup/summary/a
 ### 2026-10-23 — corrected full recorded suite passed
 
 The one authorized corrected-head suite on9d3ab0e70aa05783ad47ef73544967d0142b5250 finished PASS exit0 in10m47s, attempta792a901883fb83113a37db329b949e9/lease-1721583275. Saved full log /Users/xianxu/workspace/pair/.git/sdlc/local-checks/9d3ab0e70aa05783ad47ef73544967d0142b5250/suite.log, reported SHA256 prefixb3f86c1f4b99. All scripts and Go packages completed; prior #679 package timeout and branch startup-fixture failure remain recorded above as failures, not erased or relabeled passes. No production code changed in the fixture correction. The tip stayed fixed throughout the recorded run. Next: required fast reader inventory again immediately before narrow re-close, then sdlc merge --yes on SHIP; landing owns current-main integration and its authoritative checks. No new manual main catch-up or pair:0 stage.
+
+
+### 2026-10-23 — BR-6 acceptance substitution submitted to full close
+
+The narrow round6 review correctly requires a full close for this acceptance change. This revision does not treat an unrun native matrix as completed. Operator/hub4339b063 explicitly directed close and landing after the coordinated real full-shutdown check and its two wording follow-ups; that rollout is the substitute for the earlier disposable-fleet acceptance contract.
+
+| Earlier acceptance obligation | Replacement or retained evidence | Remaining obligation |
+| --- | --- | --- |
+| Disposable full shutdown: no surviving hubs, automation OFF, startup status/recovery, explicit enable | Actual operator full shutdown around21:15 on staged eccddab6: OFF/full-shutdown, hubs absent until manual attach, ops and ops-echo recovered, TL explicitly enabled on first message; exact status stdout replay plus recovery-message regressions | No claim that the disposable version ran; full close must judge the substitution |
+| Disposable normal restart: surviving hub starts ON, retained worker gets no new start cue | Portable startup-observation cases for normal/mixed/unknown and private real-socket cross-supervisor cue-witness/count/negotiation regressions | Native normal-restart matrix removed from this landing acceptance, not marked passed |
+| Disposable fresh/relaunch worker: exactly one generic start cue | Wrapper delivery/count/guard regressions and actual worker-start cue delivered to this session after the coordinated shutdown | No native per-agent matrix or measured whole-fleet count claimed |
+| Scheduler pause/skip/notice suppression through automation | #739 getter/permit boundary and commit guard tests; documented lock order | #737's second lander owns actual scheduler wiring and combination qualification; no unlanded scheduler acceptance claimed |
+
+No outstanding planned implementation is hidden by these substitutions. Startup authority, message suppression, cue ownership and compatibility requirements are unchanged. Shared shutdown diagnostic gap #833 remains a separately filed known limitation; #739's ordering fixture now exits via its existing fake-host termination event after a held publication. Recorded full suite PASS10m47s on9d3ab0e7 remains valid for the unchanged code. Run full sdlc close with this explicit contract instead of narrow close; no review bypass or fabricated native evidence.
