@@ -29,10 +29,16 @@ mixes two kinds: slots not in use, and slots that were merely running when parke
 - Waking or resuming a slot clears its flag; the switcher shows asleep distinctly from parked.
 - Related: pair#827 (Alt+x must finish in one press), pair#739 (cold start stays manual).
 
+
+**Operator refinement (10-22, night): wake in two stages.** The operator's one gesture wakes only the **asleep hubs**.
+Each hub then wakes its own asleep worker slots: **first those with pending work, then the remaining asleep slots**.
+So "wake all" at the Couch level means "wake the asleep hubs"; the per-hub ordering lives in the hub's fleet resume
+(ariadne#564).
+
 ## Done when
 
 - After a global Alt+x, previously live slots show asleep and previously parked ones show parked (test).
-- One "wake all" resumes exactly the asleep set (test); individually parked slots are untouched.
+- The operator's wake gesture resumes only asleep hubs (test); each hub then wakes its asleep workers, pending-work first (test with ariadne#564's resume); individually parked slots are untouched.
 - The flag survives a full restart and clears on wake.
 
 ## Plan
