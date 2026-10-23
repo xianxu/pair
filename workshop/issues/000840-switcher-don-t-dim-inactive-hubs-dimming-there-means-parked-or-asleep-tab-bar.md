@@ -1,13 +1,13 @@
 ---
 id: 000840
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-10-23
 updated: 2026-10-23
 estimate_hours:
 collaboration-mode: collaboration
-card_mirror: '20e7dbb160a500159b1b5c55b9d61346df1a049d' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: 'c8904b6877e87424c5822cb1d5027bec94984193' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-23T12:07:39-07:00
 claimant:
     operator: Xian Xu
@@ -17,6 +17,7 @@ claimant:
     worktree: /Users/xianxu/workspace/worktree/pair-slot9/pair
     repository: github.com/xianxu/pair
 flow: {kind: quick, provenance: inferred, spec: "121c034b", done: "3487d723"}
+actual_hours: 0.13
 ---
 
 # Switcher: don't dim inactive hubs (dimming there means parked or asleep); tab bar keeps it
