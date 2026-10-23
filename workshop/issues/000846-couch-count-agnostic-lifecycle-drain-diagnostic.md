@@ -1,6 +1,6 @@
 ---
 id: 000846
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-10-23
@@ -8,7 +8,16 @@ updated: 2026-10-23
 estimate_hours:
 severity: low
 collaboration-mode: collaboration
-card_mirror: 'c3f5c51dc28fc011a1f2bae56dcee040bb7890d2' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '6357038784140395bdfab3729dd583ceb29e2244' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-23T15:07:20-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: Xian’s MacBook Pro
+    workspace: pair:8
+    worktree: /Users/xianxu/workspace/worktree/pair-slot8/pair
+    repository: github.com/xianxu/pair
+flow: {kind: quick, provenance: inferred, spec: "bdeeb9f3", done: "6df9dd6c"}
 ---
 
 # Couch: count-agnostic lifecycle drain diagnostic
