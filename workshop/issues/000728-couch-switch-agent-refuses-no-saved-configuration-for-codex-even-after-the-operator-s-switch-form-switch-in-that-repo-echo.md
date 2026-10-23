@@ -573,3 +573,13 @@ All action-row checks joined: focused race PASS1.575s, whole couchtty PASS48.207
 Committed/pushed2635a5d73e7f2abfe36df5ae43a8435ebbc1e314. Authorized sdlc stage --build runner61450 joined EXIT0 and replaced our prior stage; all four binaries (couch, pair, pair-launch-helper, pair-slug) report this exact revision, modified=false. Target HEAD was rechecked unchanged after build. Hub report receipt f48d814e-b4ab-42b5-9483-df385a3f9cd1 carries the revision and fresh-runtime requirement; live operator functional outcome remains pending.
 
 New final recorded affected selected the full suite on exact2635a5d73e7f2abfe36df5ae43a8435ebbc1e314. Runner83176, lease-2748664947, attempt4b4a41391cbd3d540d4a3b3a382d3255, detached snapshot /Volumes/TestScratch/local-checks/sdlc-local-1277872355, log /Users/xianxu/workspace/pair/.git/sdlc/test-stats/inflight/4b4a41391cbd3d540d4a3b3a382d3255/run.log; FIFO15 at admission. Existing#743 runner2840/lease-137818653 explicitly retained (FIFO3). No duplicate or restart; wait for both recorded results and operator acceptance. New UI delta is subject to the final issue-close review.
+
+
+### 2026-10-22 — Real operator acceptance received
+
+Authenticated submitted hub0c364b2f-fe92-41b5-8693-b0ea5025e2b1 reports the operator live check “works”: form argument seeding, saved-argument CLI reuse and force switch on echo:1, plus the one-action-per-line form fix. Echo arguments are now seeded in Couch by the operator. This is the real operator acceptance for staged943b01c and rendering-fix2635a5d as relayed by the hub; no optional echo:2 outcome, raw operation IDs, native IDs or transcript hashes were supplied, so none is inferred. Both-agent exact-native/missing-fallback and cleanup evidence remains the separately qualified disposable native run above.
+
+Hub directs record acceptance, clear our pair:0 stage, then whole close and land after the final recorded suite. Stage-clear runner90691 is running and must be joined. Final#728 suite83176/lease-2748664947 remains retained, last FIFO11; #743 suite2840 is actively running its final Go packages. No continuation restart or duplicate check.
+
+
+Stage-clear90691 joined EXIT0: pair:0 restored to main09c8964de39cdb5e6bd9db20601c232446af6949, verified0 behind/0 ahead origin/main; all four rebuilt binaries report that revision, modified=false. Owned stage released. #743 recorded runner2840 simultaneously joined PASS10m43s on integrateddccfef8a87a0b6931e58b391cf3de2d9150a6acc (including vmcmd24.577s). Checkpointing acceptance/clear here, then handling#743 narrow re-close/landing while#728 final runner83176 retains its separate immutable snapshot/FIFO. Return here for whole close once its final suite passes.
