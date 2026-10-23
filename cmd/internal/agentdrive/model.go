@@ -450,6 +450,7 @@ func ReduceDrive(input DriveState, event DriveEvent) (DriveState, []DriveEffect)
 			s, fx := write(s, KeyStep{Kind: KeyEnter}, next)
 			fx[0].ScreenEpoch = event.Screen.Epoch
 			fx[0].commandText = target
+			fx[0].Control = true
 			return s, fx
 		}
 		if s.request.InterruptOnly() {

@@ -112,3 +112,8 @@ Plan is proposed to the hub; full flow is expected because the activity/text dis
 ### 2026-10-22 — PQ-1 function-specific verification strategy
 
 Plan-quality accepted the design but required replacing the test-case inventory with named risky functions, adversarial input classes and mechanical guards (ARCH-PURE, ARCH-ORDER). The checklist above now names the shared grammar, locator/projector, expectation derivation, Return decision/emitter, reducer and final proof/writer. Generated sequence invariants and independent oracles supplement fixture replay; counted-work and withheld-echo mutation checks remain mandatory. Product scope, ownership, deadlines and accepted behavior are unchanged.
+
+
+### 2026-10-22 — Exact command effects retain control lifecycle semantics
+
+Public native qualification showed a proved raw slash Return generating synthetic conversational submission, canceling its own drive. Authenticated ops:0 delivery7e32642b approves marking only that exact-echo-bound Enter effect Control=true, as structured /model already does. Native turn observations, complete composer/proof, current ownership and all write vetoes remain mandatory. Ordinary public submit retains its existing conversational semantics. Add a regression through the lifecycle reducer and raw drive writer before the correction, then qualify each disposable personality once. No new state, deadline, retry or protocol. Claude native qualification uses only /status in the already-trusted checkout with safe mode/tools off, per delivery2282c209; Codex uses the existing settled production-drive owner. Preserve measured failures and distinguish command-native acceptance from synthetic negative fixtures.
