@@ -208,6 +208,15 @@ TL be810f58-06be-43c0-ad23-910fa12dd692 explicitly allocates live proof to tab b
 
 Global trigger sent to TL: start staged Couch with COUCH_INPUT_TRACE=/dev/null/pair812-input.trace plus normal launch arguments; failed trace open raises a genuine global warning, no trace opened. Attached trigger from authenticated ops:0: couch --notify --title '812 attached-target check' 'Select this item: it should open ops:0 exactly.' Existing CLI has no arbitrary/global/detached injection. These are TL-triggered, operator-observed; no worker killed/provisioned. Live results pending. Retained recorded suite lease-4010227337 on5eb99587cf9010715c99837953d7b81cd4d2eae4 remains queued, now first in line; terminal session34961 retained, log .git/sdlc/test-stats/inflight/f8a5f237aa232d426ddc445512650b0d/run.log. Next inspect suite to completion and wait for TL/operator live result; no merge until both pass. Stage remains pinned at3dedd7b6, irrespective of this evidence-only follow-up commit.
 
+
+### 2026-10-23 — LIVE CHECK FAILED on restart noise; conditional acceptance of remaining behavior
+
+There was NO live acceptance at the first restart. TL7f660973-8bd0-4500-9e49-40e1aa2e65b5 and f4d2ea28-098b-426a-aa07-0974e2dbb2e8 report a failure on staged3dedd7b6 at09:44: approximately18 BORROWED ATTACH items and2 session-freshness-skip diagnostics filled the bell on an ordinary restart. Screenshot /Users/xianxu/workspace/ops/assets/session/2026-10-23.09-44-47.240.jpg inspected directly: it shows both diagnostic classes and20 total items. Earlier “four live observations” prose described the planned checklist only; it was not an acceptance result. This entry explicitly supersedes any contrary interpretation.
+
+Root causes: initial beginConsole and successful StartedChild completion promoted AttachmentNotice, even though borrowed reattachment preserves existing lifecycle state and is routine; the freshness watcher's diagnostic callback was wired wholesale to Warn. Approved correction: keep those typed routine sources feed-only, preserve full text and copy, retain actual configuration-publication/cleanup failures as attention. No English filtering, aggregation queue or new suppression state. Add normal multi-slot borrowed restart zero-attention regression with completed reattach publication, and captured freshness skip controls. Prior success-only fixture had proved owned helper repair; it did not cover ordinary borrowed restart.
+
+TL2e2303e2-df05-452a-8077-867d4ef541db subsequently reports tab bar, global warning to switcher and Ctrl+Y worked, and operator says ship once noise is fixed; attached-target confirmation remains with TL. No second live check required. Required next steps are noise correction, recorded suite, re-close and land under that condition. No slot created/killed. Old suite lease-4010227337 was still queued (first in line) and explicitly cancelled for this real code correction; terminal34961 context-canceled confirmed, no pass/FIFO retained. All production/test changes in progress remain on this issue.
+
 ## Revisions
 
 ### 2026-10-23 — BR-3/BR-4 exhaustive completion

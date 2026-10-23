@@ -2782,3 +2782,5 @@ and external temporary roots rather than relying on the host's TMPDIR.
 - #812 BR-5: an async source being queued does not mean its UI event exists. Shared attention-opening test helpers must acknowledge publication before toggling; cover both input-before-publication and publication-before-input with controlled barriers, preserving the production empty-list behavior.
 
 - #812 BR-6: apply publication-order rules to every assertion, not only shared helper callers. Pane removal and cast phase changes can precede their warning/feedback; positive assertions await publication, and negative controls join the terminal callback or final feedback before checking absence.
+
+- #812 live restart: normal startup proof must include borrowed attachment ownership, not only fully attributed helper repair. A successful-result Warning string mixes routine retained ownership feedback with actual configuration-publication failure; classify typed components. Diagnostic-only skipped reminder checks remain feed-only, independent of actual generated stale reminders.
