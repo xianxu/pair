@@ -18,7 +18,7 @@ is a request, never operator approval or evidence that work is accepted.
 | Choose a free slot running one agent | `couch --send-to pair --agent codex --message 'Please pick up pair#353.'` |
 | Send a message containing code or shell syntax (backticks, `$(`, `<(`) | write it to a file with your editor tool, then `couch --send-to pair:1 --message-file PATH` |
 | Inspect a receipt | `couch --message-status ID --json` |
-| Owning hub: drive named keys in another idle slot | `couch --keys pair:7 clear-line text:/model submit wait:200 down enter` |
+| Owning hub: drive named keys in another idle slot | `couch --keys pair:7 clear-line text:/model enter wait:200 down enter` |
 | Owning hub: close a slash-command panel it opened (/usage, /status) | `couch --keys pair:7 esc` |
 | List the key steps, rules and the panel round trip | `couch --keys --help` |
 | Owning hub: cycle Claude's mode, or press another special key | `couch --keys pair:7 shift-tab` |
@@ -154,8 +154,10 @@ then ask the operator. An unrecognized panel refuses as before.
 `alt-LETTER`. Quote a text step containing spaces. `ctrl-c`, `ctrl-d`, `ctrl-z`,
 `ctrl-s` and `ctrl-q` are refused, as are `ctrl-i`, `ctrl-m` and `ctrl-u` (use `tab`,
 `enter`, `clear-line`); `couch --keys --help` gives each reason.
-`enter` follows Pair's ordinary Return (newline in a composer, select in a
-picker); `submit` follows Alt+Return. Separate `esc` steps stay separate. Limit
+`enter` follows Pair's ordinary Return (native submission for a proved single-line
+slash command, newline for ordinary composer text, select in a picker); `submit`
+follows Alt+Return. Authored slash sends wait for exact fresh command echo
+within the existing drive deadline before Enter; changed proof refuses input. Separate `esc` steps stay separate. Limit
 requests to 64 steps, 8 KiB aggregate printable text, waits of 0–1000 ms each
 and 5000 ms total. Raw success confirms writes and the final styled tail.
 

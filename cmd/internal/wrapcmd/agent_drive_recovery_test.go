@@ -172,9 +172,7 @@ func TestAgentDriveRecoveryTickUsesExactOwnedCommand(t *testing.T) {
 				t.Fatal(err)
 			}
 			var out bytes.Buffer
-			for i := 0; i < 3; i++ {
-				f.proxy.dispatchAgentDrive(&out)
-			}
+			writeDriveModelCommand(t, f, &out)
 			recoveryPaint(f, text)
 			f.proxy.dispatchAgentDrive(&out)
 			before := out.Len()

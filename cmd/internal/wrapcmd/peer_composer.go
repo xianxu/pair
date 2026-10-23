@@ -148,29 +148,34 @@ func qualifiedComposerText(agent string, s terminalSnapshot) (string, bool) {
 		if !ok {
 			return "", false
 		}
-		if footer >= 0 {
-			bottom = footer - 1 // Exclude native footer and its separator.
-			break
-		}
-		bottom = top + 1
-		for bottom < s.Height && !codexComposerRowPaintsLeftEdge(s, bottom) {
-			if bottom > s.Cursor.Y && bottom > top+1 && !snapshotRowPainted(s, bottom-1) && codexComposerFooter(s, bottom) && rowPaintedBetween(s, top, 2, s.Width) {
-				bottom--
-				break
-			}
-			bottom++
-		}
-		if bottom < s.Height && codexComposerRowPaintsLeftEdge(s, bottom) {
+		var extentOK bool
+		bottom, extentOK = codexComposerBottom(s, top, footer)
+		if !extentOK {
 			return "", false
 		}
 	default:
 		return "", false
 	}
+	return projectComposerRegion(s, composerRegion{top: top, bottom: bottom, left: peerInputColumn(agent), agent: agent, valid: true})
+}
+
+// projectComposerRegion reads the full located input, including blank cursor
+// lines and text after the cursor. It never trims user leading whitespace.
+func projectComposerRegion(s terminalSnapshot, region composerRegion) (string, bool) {
+	return projectComposerCells(s, region, s.CellAt)
+}
+
+// projectComposerCells projects immutable cells through one bounded row pass.
+func projectComposerCells(s terminalSnapshot, region composerRegion, cellAt func(int, int) *uv.Cell) (string, bool) {
+	if !region.valid || region.top < 0 || region.bottom > s.Height || region.bottom <= region.top || region.left < 0 || region.left >= s.Width {
+		return "", false
+	}
+	top, bottom, agent := region.top, region.bottom, region.agent
 	lines := make([]string, 0, bottom-top)
 	for y := top; y < bottom; y++ {
 		var b strings.Builder
-		for x := peerInputColumn(agent); x < s.Width; x++ {
-			c := s.CellAt(x, y)
+		for x := region.left; x < s.Width; x++ {
+			c := cellAt(x, y)
 			if c == nil {
 				return "", false
 			}
@@ -189,7 +194,7 @@ func qualifiedComposerText(agent string, s terminalSnapshot) (string, bool) {
 		lines = lines[:len(lines)-1]
 	}
 	text := strings.Join(lines, "\n")
-	if (agent == "qoder" && peerQoderPlaceholder(s, top, text)) || (agent != "qoder" && peerPlaceholder(s, top, text)) {
+	if (agent == "qoder" && peerQoderPlaceholder(s, top, text)) || (agent != "qoder" && composerPlaceholder(s, top, region.left, text)) {
 		return "", true
 	}
 	return text, true
@@ -199,10 +204,14 @@ func qualifiedComposerText(agent string, s terminalSnapshot) (string, bool) {
 // ANSI faint text at the empty input origin, independent of wording or color.
 // The wrapper separately retains human draft ownership even if text looks blank.
 func peerPlaceholder(s terminalSnapshot, row int, text string) bool {
-	if strings.TrimSpace(text) == "" || strings.ContainsAny(text, "\r\n") || s.Cursor.X != 2 || s.Cursor.Y != row {
+	return composerPlaceholder(s, row, 2, text)
+}
+
+func composerPlaceholder(s terminalSnapshot, row, left int, text string) bool {
+	if strings.TrimSpace(text) == "" || strings.ContainsAny(text, "\r\n") || s.Cursor.X != left || s.Cursor.Y != row {
 		return false
 	}
-	for x := 2; x < s.Width; x++ {
+	for x := left; x < s.Width; x++ {
 		c := s.CellAt(x, row)
 		if c == nil {
 			return false

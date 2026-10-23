@@ -2572,8 +2572,15 @@ or a pre-existing footer. Omitted effort follows the observed picker value.
 Raw steps are the `agentdrive.Steps` rows: `text:…`, `enter`, `submit`, the
 arrows, `tab`, `shift-tab`, `backspace`, `delete`, `home`, `end`, `pageup`,
 `pagedown`, `esc`, `clear-line`, `wait:MS`, `f1-f12`, `ctrl-LETTER` and
-`alt-LETTER`. Return translation stays shared with Pair: `enter` means newline
-in the qualified composer and selection in a picker; `submit` means Alt+Return.
+`alt-LETTER`. Return translation stays shared with Pair: `enter` natively submits a positively
+proved single-line slash command, inserts newline in ordinary composer text and
+selects in a picker; `submit` means Alt+Return. Paths, leading user whitespace,
+multiline input and incomplete text proof retain the existing newline mapping.
+Known authored slash sequences wait for exact fresh echo within the existing
+drive deadline. The final command proof and Return decision share one immutable
+frame; changed ownership or command text vetoes the write. Unsupported raw edits
+do not gain command prediction. Ordinary peer/prose sends and exact /model
+cleanup authority remain separate. Draft-pane Enter is unchanged.
 A lone ESC is flushed as one separate step. Raw success confirms acknowledged
 input and the final styled observation, without claiming an arbitrary command's
 semantic result. Printable UTF-8 text cannot hide terminal controls.

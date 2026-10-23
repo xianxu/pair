@@ -27,6 +27,21 @@ func driveFixture(t *testing.T) (*harnessSessionFake, *peerDelivery, *time.Time)
 	d.settled = true
 	return f, d, &now
 }
+
+// writeDriveModelCommand paints the command acknowledgement before native Enter.
+func writeDriveModelCommand(t *testing.T, f *harnessSessionFake, out *bytes.Buffer) {
+	t.Helper()
+	for i := 0; i < 2; i++ {
+		f.proxy.dispatchAgentDrive(out)
+	}
+	f.output("\x1b[?2026h\x1b[2J" + slashComposerPaint(f.proxy.agentBasename, "/model") + "\x1b[?2026l")
+	f.proxy.dispatchAgentDrive(out) // observe exact echo
+	f.proxy.dispatchAgentDrive(out) // write the proved command Enter
+	if !strings.HasSuffix(out.String(), "/model\r") {
+		t.Fatalf("command entry lacked native Return: %q", out.String())
+	}
+}
+
 func paintDrivePicker(t *testing.T, f *harnessSessionFake) {
 	t.Helper()
 	raw, err := os.ReadFile("testdata/drive/claude/2.1.299/session-before.screen")
@@ -45,9 +60,7 @@ func TestAgentDriveRejectsCachedApplyAfterRepaint(t *testing.T) {
 				t.Fatal(err)
 			}
 			var out bytes.Buffer
-			for i := 0; i < 3; i++ {
-				f.proxy.dispatchAgentDrive(&out)
-			}
+			writeDriveModelCommand(t, f, &out)
 			paintDrivePicker(t, f)
 			f.proxy.dispatchAgentDrive(&out) // observe target, cache session apply
 			d.mu.Lock()
@@ -75,9 +88,7 @@ func TestAgentDriveRevalidatesIdenticalPickerRepaint(t *testing.T) {
 		t.Fatal(err)
 	}
 	var out bytes.Buffer
-	for i := 0; i < 3; i++ {
-		f.proxy.dispatchAgentDrive(&out)
-	}
+	writeDriveModelCommand(t, f, &out)
 	paintDrivePicker(t, f)
 	f.proxy.dispatchAgentDrive(&out)
 	before := out.String()

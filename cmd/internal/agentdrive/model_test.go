@@ -67,10 +67,8 @@ func TestDriveClaudeSessionCaptured(t *testing.T) {
 	if e != nil {
 		t.Fatal(e)
 	}
-	s, _ = ReduceDrive(s, DriveEvent{Kind: EventStart, At: now, Screen: Screen{Epoch: 1, Complete: true, Idle: true}})
-	for i := 0; i < 3; i++ {
-		s, _ = ReduceDrive(s, DriveEvent{Kind: EventWritten, At: now})
-	}
+	s, _ = ReduceDrive(s, DriveEvent{Kind: EventStart, At: now, Screen: Screen{Epoch: 0, Complete: true, Idle: true}})
+	s = acknowledgeModelCommand(t, s, now)
 	s, fx := ReduceDrive(s, DriveEvent{Kind: EventScreen, At: now, Screen: Screen{Epoch: 2, Complete: true, Lines: claudeCapture(t, "session-before")}})
 	if len(fx) != 1 || fx[0].Key.Text != "s" {
 		t.Fatalf("%#v", fx)
@@ -89,10 +87,8 @@ func modelAtPicker(t *testing.T, req ModelRequest) (DriveState, time.Time) {
 	if e != nil {
 		t.Fatal(e)
 	}
-	s, _ = ReduceDrive(s, DriveEvent{Kind: EventStart, At: now, Screen: Screen{Epoch: 1, Idle: true, Complete: true}})
-	for i := 0; i < 3; i++ {
-		s, _ = ReduceDrive(s, DriveEvent{Kind: EventWritten, At: now})
-	}
+	s, _ = ReduceDrive(s, DriveEvent{Kind: EventStart, At: now, Screen: Screen{Epoch: 0, Idle: true, Complete: true}})
+	s = acknowledgeModelCommand(t, s, now)
 	return s, now
 }
 func TestDriveFreshNavigationRejectsStaleScreen(t *testing.T) {
@@ -234,8 +230,8 @@ func TestDriveCommandWritesHaveNoPickerProof(t *testing.T) {
 	now := time.Unix(100, 0)
 	s, _ := NewDrive(Request{Model: &ModelRequest{Model: "gpt-6.1-sol"}}, "codex", now.Add(time.Minute))
 	s, fx := ReduceDrive(s, DriveEvent{Kind: EventStart, At: now, Screen: Screen{Epoch: 10, Complete: true, Idle: true}})
-	for i := 0; i < 3; i++ {
-		if len(fx) != 1 || fx[0].ScreenEpoch != 0 {
+	for i := 0; i < 2; i++ {
+		if len(fx) != 1 || fx[0].Kind != EffectWrite || fx[0].ScreenEpoch != 0 {
 			t.Fatalf("command depends on picker proof %#v", fx)
 		}
 		s, fx = ReduceDrive(s, DriveEvent{Kind: EventWritten, At: now, Screen: Screen{Epoch: uint64(10 + i)}})
@@ -554,13 +550,18 @@ func TestDriveCapturedModelSession(t *testing.T) {
 	if e != nil {
 		t.Fatal(e)
 	}
-	s, fx := ReduceDrive(s, DriveEvent{Kind: EventStart, At: now, Screen: Screen{Epoch: 1, Idle: true, Complete: true}})
-	for _, want := range []KeyKind{KeyClearLine, KeyText, KeySubmit} {
+	s, fx := ReduceDrive(s, DriveEvent{Kind: EventStart, At: now, Screen: Screen{Epoch: 0, Idle: true, Complete: true}})
+	for _, want := range []KeyKind{KeyClearLine, KeyText} {
 		if len(fx) != 1 || fx[0].Key.Kind != want || !fx[0].Control {
 			t.Fatalf("%#v", fx)
 		}
 		s, fx = ReduceDrive(s, DriveEvent{Kind: EventWritten, At: now})
 	}
+	s, fx = ReduceDrive(s, DriveEvent{Kind: EventScreen, At: now, Screen: Screen{Epoch: 1, Complete: true, Recoverable: true, CommandKnown: true, CommandText: "/model"}})
+	if len(fx) != 1 || !fx[0].CommandEnter() {
+		t.Fatalf("missing command Enter: %#v", fx)
+	}
+	s, _ = ReduceDrive(s, DriveEvent{Kind: EventWritten, At: now, Screen: Screen{Epoch: 1}})
 	s, fx = ReduceDrive(s, DriveEvent{Kind: EventScreen, At: now, Screen: Screen{Epoch: 2, Complete: true, Lines: capture(t, "model-picker")}})
 	if len(fx) != 1 || fx[0].Key.Kind != KeyEnter {
 		t.Fatalf("%#v", fx)
@@ -612,10 +613,8 @@ func TestDriveMissingChoicesSurviveRecoveredPrompt(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			s, _ = ReduceDrive(s, DriveEvent{Kind: EventStart, At: now, Screen: Screen{Epoch: 1, Complete: true, Idle: true}})
-			for i := 0; i < 3; i++ {
-				s, _ = ReduceDrive(s, DriveEvent{Kind: EventWritten, At: now})
-			}
+			s, _ = ReduceDrive(s, DriveEvent{Kind: EventStart, At: now, Screen: Screen{Epoch: 0, Complete: true, Idle: true}})
+			s = acknowledgeModelCommand(t, s, now)
 			lines := capture(t, "model-picker")
 			if agent == "claude" {
 				lines = claudeCapture(t, "model-picker")
@@ -689,10 +688,8 @@ func TestChoiceFailureBoundsWholeLabels(t *testing.T) {
 func TestDriveClaudeUnsupportedEffortRetainsObservedChoice(t *testing.T) {
 	now := time.Unix(100, 0)
 	s, _ := NewDrive(Request{Model: &ModelRequest{Model: "opus 5.5", Effort: "missing-effort"}}, "claude", now.Add(time.Minute))
-	s, _ = ReduceDrive(s, DriveEvent{Kind: EventStart, At: now, Screen: Screen{Epoch: 1, Complete: true, Idle: true}})
-	for i := 0; i < 3; i++ {
-		s, _ = ReduceDrive(s, DriveEvent{Kind: EventWritten, At: now})
-	}
+	s, _ = ReduceDrive(s, DriveEvent{Kind: EventStart, At: now, Screen: Screen{Epoch: 0, Complete: true, Idle: true}})
+	s = acknowledgeModelCommand(t, s, now)
 	s, fx := ReduceDrive(s, DriveEvent{Kind: EventScreen, At: now, Screen: Screen{Epoch: 2, Complete: true, Lines: claudeCapture(t, "session-before")}})
 	if len(fx) != 1 || fx[0].Key.Kind != KeyEsc {
 		t.Fatalf("%#v", fx)
@@ -702,4 +699,18 @@ func TestDriveClaudeUnsupportedEffortRetainsObservedChoice(t *testing.T) {
 	if s.Result().Outcome != OutcomeFailed || !strings.Contains(s.Result().Detail, "medium") {
 		t.Fatalf("%#v", s.Result())
 	}
+}
+
+// acknowledgeModelCommand paints the authored command after its text write,
+// before acknowledging native Return. Picker fixtures begin at epoch two.
+func acknowledgeModelCommand(t *testing.T, s DriveState, now time.Time) DriveState {
+	t.Helper()
+	s, _ = ReduceDrive(s, DriveEvent{Kind: EventWritten, At: now})
+	s, _ = ReduceDrive(s, DriveEvent{Kind: EventWritten, At: now})
+	s, fx := ReduceDrive(s, DriveEvent{Kind: EventScreen, At: now, Screen: Screen{Epoch: 1, Complete: true, Recoverable: true, CommandKnown: true, CommandText: "/model"}})
+	if len(fx) != 1 || !fx[0].CommandEnter() {
+		t.Fatalf("missing command proof: %#v", fx)
+	}
+	s, _ = ReduceDrive(s, DriveEvent{Kind: EventWritten, At: now, Screen: Screen{Epoch: 1}})
+	return s
 }
