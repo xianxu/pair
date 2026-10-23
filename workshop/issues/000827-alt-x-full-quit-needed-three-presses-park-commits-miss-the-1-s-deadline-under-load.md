@@ -86,3 +86,12 @@ quit on unresolved state. Non-cancellable durability remains joined and can
 exceed the logical deadline; no hard wall-time guarantee. No measurement numbers
 or operator-incident causal conclusion are invented. No implementation or native
 run started. Plan goes to TL before change-code.
+
+
+### 2026-10-22 — plan approved
+
+TL3cbb3359 approved the measurement-first plan, conditional10s commit threshold,
+60s overall scheduling budget and up to3 safe drives, exact partial recovery
+summary, unchanged fan-out and separate1s relaunch diagnostics. The60s is not a
+hard process-exit ceiling; synchronous durability stays owned/joined. Proceed to
+change-code, then measure before changing the threshold. No #759 changes.
