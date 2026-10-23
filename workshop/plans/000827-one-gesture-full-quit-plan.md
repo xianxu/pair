@@ -68,19 +68,19 @@ No new durable states: existing park transitions remain authoritative. Per-addre
 
 Files: new opt-in couchcore/park_commit_timing_test.go; workshop/evidence/000827/.
 
-- [ ] Build on the real ThreadStore/controller with existing pairlifecycletest stateful completion/owner model and real clock. Do not create a second fake protocol.
-- [ ] Run one15-slot and one30-slot bounded commit/park pass with existing fan-out in an empty-base private environment. Record per-slot RequestedCommitDuration, full operation duration, phase/error and write volume. Record filesystem/compiler/build and contemporaneous machine load/co-tenancy.
-- [ ] Use a private primary-SSD root for this measurement and an APFS scratch control if useful; label healthy-load evidence honestly. No live fleet, operator files or artificial unbounded stress. Preserve all results, including failed/rolled-back commits, then delete owned data.
-- [ ] Record observed p50/p95/max, not a statistically inferred tail guarantee. If the operator's load is absent, say that the loaded incident remains unproven. Confirm provisional10s or propose5s with headroom; stop if neither is supported.
+- [x] Build on the real ThreadStore/controller with existing pairlifecycletest stateful completion/owner model and real clock. Do not create a second fake protocol.
+- [x] Run one15-slot and one30-slot bounded commit/park pass with existing fan-out in an empty-base private environment. Record per-slot RequestedCommitDuration, full operation duration, phase/error and write volume. Record filesystem/compiler/build and contemporaneous machine load/co-tenancy.
+- [x] Use a private primary-SSD root for this measurement and an APFS scratch control if useful; label healthy-load evidence honestly. No live fleet, operator files or artificial unbounded stress. Preserve all results, including failed/rolled-back commits, then delete owned data.
+- [x] Record observed p50/p95/max, not a statistically inferred tail guarantee. If the operator's load is absent, say that the loaded incident remains unproven. Confirm provisional10s or propose5s with headroom; stop if neither is supported.
 
 ### 2. Pin the new commit threshold with existing RED/GREEN tests
 
 Files: couchcore/park.go, relaunch.go, park_rollback_test.go, park_wait_test.go.
 
-- [ ] Extend existing fake-clock test first:2–3s commits proceed; selected-boundary/over-bound commits roll back before publication and return typed duration evidence. Failed rollback retains uncertainty and denies fresh retry.
-- [ ] Run targeted tests RED. Separate relaunch observation's existing1s timeout and pin its behavior unchanged.
-- [ ] Set the measured operator-approved threshold; derive diagnostics from that constant, retaining100ms diagnostic semantics. No hidden duplicate budget or generic Park behavior redesign.
-- [ ] Run the complete relevant park/relaunch test cohort GREEN.
+- [x] Extend existing fake-clock test first:2–3s commits proceed; selected-boundary/over-bound commits roll back before publication and return typed duration evidence. Failed rollback retains uncertainty and denies fresh retry.
+- [x] Run targeted tests RED. Separate relaunch observation's existing1s timeout and pin its behavior unchanged.
+- [x] Set the measured operator-approved threshold; derive diagnostics from that constant, retaining100ms diagnostic semantics. No hidden duplicate budget or generic Park behavior redesign.
+- [x] Run the complete relevant park/relaunch test cohort GREEN.
 
 ### 3. One bounded full-quit operation
 
@@ -100,24 +100,24 @@ Named risky functions and test strategies (PQ-2):
 | `Couch.Leave` | Controlled scheduler/deadline and15/30 targets including modeled2–3s commits; count one snapshot, at most3N drives, bounded publications, no repeat of successes and unchanged peak fan-out. Include unreadable snapshot addresses and every not-started/skipped outcome in final reporting. |
 | `formatLeaveParkSummary` and console leave completion | Generate partitioned final outcomes, assert each unresolved address appears exactly once with recovery and success never claims partial completion; physical-key fixture pins one confirmation and the existing full-copy notice surface. |
 
-- [ ] Write these direct/controlled tests and observe RED before implementation.
-- [ ] Add the typed policy and joined adapter, then wire the bounded pass without changing generic Park/Recover semantics or persisted formats.
-- [ ] Run targeted unit/integration/race cohorts GREEN; no sleeps as ordering assertions. Claude/Codex profiles share the30-target contract; Qoder if available.
+- [x] Write these direct/controlled tests and observe RED before implementation.
+- [x] Add the typed policy and joined adapter, then wire the bounded pass without changing generic Park/Recover semantics or persisted formats.
+- [x] Run targeted unit/integration/race cohorts GREEN; no sleeps as ordering assertions. Claude/Codex profiles share the30-target contract; Qoder if available.
 
 ### 4. One confirmation and one honest final report
 
 Files: couchtty/console.go, console_run_menu_test.go, console_test.go; testcouch/fleet.go; cmd/couch/fleet_acceptance_test.go.
 
-- [ ] RED: one physical Alt+x plus existing confirmation finishes a30-fake-slot quit, including slow commits/stragglers. No second gesture is needed for eligible automatic retries.
-- [ ] On full success retain current report-and-exit; on failure preserve partial progress and put one complete copyable summary into the existing notice/menu error surface. Names/recoveries must survive clipped visual rows. Keep Couch open on unresolved shutdown, not silent partial success.
-- [ ] Extend the existing testcouch owner with a physical ParkAndQuit helper mirroring Detach keyboard negotiation and confirmation; no improvised Couch fixture or production CLI shortcut.
-- [ ] One declared private4- and8-total-slot native flow across Claude and Codex, respecting existing harness caps. Prove console exit and verified inactive history for every targeted incarnation, and Close/AssertCleaned for all owned processes/IO. Preserve setup failures rather than retry around them.
+- [x] RED: one physical Alt+x plus existing confirmation finishes a30-fake-slot quit, including slow commits/stragglers. No second gesture is needed for eligible automatic retries.
+- [x] On full success retain current report-and-exit; on failure preserve partial progress and put one complete copyable summary into the existing notice/menu error surface. Names/recoveries must survive clipped visual rows. Keep Couch open on unresolved shutdown, not silent partial success.
+- [x] Extend the existing testcouch owner with a physical ParkAndQuit helper mirroring Detach keyboard negotiation and confirmation; no improvised Couch fixture or production CLI shortcut.
+- [x] One declared private4- and8-total-slot native flow across Claude and Codex, respecting existing harness caps. Prove console exit and verified inactive history for every targeted incarnation, and Close/AssertCleaned for all owned processes/IO. Preserve setup failures rather than retry around them.
 
 ### 5. Verification, documentation and landing
 
-- [ ] Record before/after commit and full-quit measurements; distinguish controlled slow-stimulus evidence from naturally loaded native measurements.
+- [x] Record before/after commit and full-quit measurements; distinguish controlled slow-stimulus evidence from naturally loaded native measurements.
 - [ ] Run targeted park/leave/relaunch, console and testcouch tests, appropriate race cohorts and internal/repolint. Full/affected evidence follows the repo's declared SDLC contract on the pushed final head.
-- [ ] Update atlas/couch.md and atlas/index.md for budgets, retry boundary and partial recovery. No project-file edits; report to TL.
+- [x] Update atlas/couch.md and atlas/index.md for budgets, retry boundary and partial recovery. No project-file edits; report to TL.
 - [ ] Before close run make test-affected-inventory and audit any named reader; no bulk hash refresh. Use normal SDLC close review and merge, with live/operator check coordinated through TL if required.
 
 ## Architecture review
@@ -145,3 +145,14 @@ prose case inventory with adversarial strategies and mechanical invariants.
 Unreadable snapshot identities are explicitly part of unresolved reporting.
 Prior plan/approval remain in commits d4e48dd68 and bac6943cb; no runtime code has
 been changed. This first mechanism refinement goes to TL before implementation.
+
+### 2026-10-23 — store-lock root cause (TL-approved option A)
+
+Implementation found a mechanism the plan did not name. Coordinated foreground park
+writes took the nested store.lock nonblocking, while preview and routing reads take it
+outside the coordinator, so fan-out parks failed at once ("resource temporarily
+unavailable"). TL approved: foreground ctx-aware writes poll within storeReadLockWait
+(1s) and then return typed ErrThreadStoreBusy; maintenance keeps its immediate yield.
+The unpublished rollback now gets parkCommitDeadline instead of a fixed 1s. A typed
+LeaveParkIncompleteError carries the summary to the existing notice. Native acceptance
+reads VerifiedPark from the private store; --list is logged as evidence only.

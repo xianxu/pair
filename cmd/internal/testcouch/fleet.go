@@ -305,6 +305,87 @@ func (f *Fleet) Detach(ctx context.Context) error {
 	})
 }
 
+// ParkAndQuit is the operator's full quit (#827): one physical Alt+x in the
+// switcher and its one confirmation. It returns once the console has exited;
+// an incomplete quit keeps Couch open, and its complete copyable summary is
+// returned as the error, through the public copy action like Detach.
+func (f *Fleet) ParkAndQuit(ctx context.Context) error {
+	ctx, done, err := f.begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer done()
+	f.mu.Lock()
+	p := f.console
+	f.mu.Unlock()
+	if p == nil {
+		return fmt.Errorf("supervisor is not started")
+	}
+	if err := p.press("\x00", 32, 5); err != nil {
+		return err
+	}
+	if err := waitUntil(ctx, func() (bool, error) {
+		return strings.Contains(p.Screen(), "Ctrl+Y copy last notice / selected error"), p.failure()
+	}); err != nil {
+		return fmt.Errorf("open switcher: %w; screen=%s", err, p.Screen())
+	}
+	if err := p.press("\x1bx", 120, 3); err != nil {
+		return err
+	}
+	if err := waitUntil(ctx, func() (bool, error) {
+		return strings.Contains(p.Screen(), "threads › leave couch"), p.failure()
+	}); err != nil {
+		return fmt.Errorf("open full-quit confirmation: %w; screen=%s", err, p.Screen())
+	}
+	// Cancel is first; the destructive item sits one row below it. Arrows keep
+	// their legacy encoding under every negotiated keyboard mode.
+	if err := p.Input([]byte("\x1b[B")); err != nil {
+		return err
+	}
+	if err := p.press("\r", 13, 1); err != nil {
+		return err
+	}
+	return waitUntil(ctx, func() (bool, error) {
+		select {
+		case <-p.done:
+			return true, nil
+		default:
+		}
+		if strings.Contains(p.Screen(), "Full quit incomplete") {
+			before := p.copiedVersion()
+			if err := p.press("\x19", 121, 5); err != nil {
+				return false, err
+			}
+			if err := waitUntil(ctx, func() (bool, error) { return p.copiedVersion() > before && p.copiedText() != "", p.failure() }); err != nil {
+				return false, fmt.Errorf("full quit incomplete: %s; copy notice: %w", p.Screen(), err)
+			}
+			return false, fmt.Errorf("full quit incomplete: %s", p.copiedText())
+		}
+		if err := ctx.Err(); err != nil {
+			return false, fmt.Errorf("full quit: %w; screen=%s", err, p.Screen())
+		}
+		return false, p.failure()
+	})
+}
+
+// ListThreads runs the private couch's own --list from the primary workspace,
+// readable after the supervisor has exited.
+func (f *Fleet) ListThreads(ctx context.Context) (string, error) {
+	ctx, done, err := f.begin(ctx)
+	if err != nil {
+		return "", err
+	}
+	defer done()
+	cmd := exec.CommandContext(ctx, filepath.Join(f.Roots.Mutable["bin"], "couch"), "--list")
+	cmd.Dir = f.Workspaces.Primary
+	cmd.Env = append([]string(nil), f.Environment...)
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return string(out), fmt.Errorf("couch --list: %w: %s", err, out)
+	}
+	return string(out), nil
+}
+
 func (f *Fleet) RestartSupervisor(ctx context.Context) error {
 	ctx, done, err := f.begin(ctx)
 	if err != nil {

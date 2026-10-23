@@ -20,3 +20,21 @@ the worst commit already used 71% of the 1s threshold, so a 1s overrun under hea
 load is plausible. 10s gives ~14x headroom over the observed max; 5s ~7x.
 Decision per approved plan: confirm the provisional 10s threshold. Owned cache dir removed
 (verified empty `ls ~/Library/Caches | grep pair-827`).
+
+## After (#827 branch)
+
+Controlled (couchcore, fake lifecycle, coordinated real store, modeled 2.5s commits,
+fan-out 4): `TestLeaveParkRetriesProvenRollbackWithinOneQuit` parks 15 and 30 targets in
+one Leave with every third target's first publish failing unpublished: drives = N + N/3
+(<= 3N), one quit trigger per target, isolated wall ~0.7-1.2s, 0 contended store-lock polls.
+Before the store-lock fix the same fixture failed with
+`lock thread store: resource temporarily unavailable` (23x in 3 runs).
+
+Native (shared disposable fleet, `make test-couch-fleet`, real zellij + Claude/Codex
+fixtures, natural machine load, not slow-stimulus): one Alt+x + one confirmation;
+quit wall time claude 4 slots 0.48s, 8 slots 1.30s; codex 4 slots 0.53s, 8 slots 1.40s;
+every thread VerifiedPark with no live incarnation; Close/AssertCleaned clean
+(`native-full-quit.txt`). Earlier runs: claude 8 slots 4.78s, codex 4 slots 2.50s.
+Codex rows sometimes list "binding lost — repairable" after a verified park (fixture quit
+soon after start, before Couch discovered the transcript): a resume-binding concern, not
+park state; reported to TL.

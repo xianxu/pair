@@ -208,6 +208,14 @@ open; success path unchanged. Console test: one Alt+x + confirmation dispatches 
 once, notice ends with the whole summary (surface prefixes "Couch: "). Next: testcouch
 physical ParkAndQuit helper + native 4/8-slot Claude/Codex fleet acceptance.
 
+2026-10-23 — Task 4 native done: testcouch Fleet.ParkAndQuit (physical Alt+x + confirm,
+incomplete summary via copy key) and ListThreads; TestDisposableCouchFleetFullQuit
+(claude/codex x 4/8 slots) in make test-couch-fleet: all PASS, quit 0.48-1.40s, every
+record VerifiedPark, Close/AssertCleaned clean. Evidence native-full-quit.txt. Finding
+for TL: codex rows can list "binding lost — repairable" after a verified park when quit
+lands before transcript discovery (resume-binding, not park). Atlas couch.md + index
+updated. Next: verification sweep, inventory audit, pushed-head suite, close.
+
 ## Estimate
 
 Produced via brain/data/life/42shots/velocity/estimate-logic-v3.1.md against
