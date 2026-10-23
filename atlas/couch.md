@@ -91,7 +91,12 @@ Explicit actionable asynchronous sources use `Console.Warn` and
 failures, cleanup/stale/supervision warnings, failed continuations and actionable
 cast or lockout failures. Routine progress, success and key feedback remain
 feed-only; already-routed prompts, questions and hub notifications keep their
-existing owner. Local queue, remote queue and direct-dispatch lifecycle attempts
+existing owner. A relaunch-required background priority warning keeps the exact
+slot binding. Lifecycle publication failures classify typed outcomes; projection
+capacity warns once per publisher lifetime under its existing mutex. An archive
+warning without a connected hub remains one global attention item. Routine
+pointer safety/layout shutdown and scratch disk fallback/retry stay feed-only.
+Local queue, remote queue and direct-dispatch lifecycle attempts
 each retain one terminal diagnostic owner. `lifecycleCompletionWarningSource`
 projects typed successful-result cleanup/adoption/configuration facts; ordinary
 recovery guidance remains feed-only. Switch cleanup carries a transient

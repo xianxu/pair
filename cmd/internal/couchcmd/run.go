@@ -635,7 +635,7 @@ func runTypedOperationWithConsoleStyle(op couchcore.Operation, parsed, prepareAr
 			// publishing every scratch status as attention would create noise.
 			notify = func(text string) { console.Notify(couchtty.Notice{Kind: "status", Body: text}) }
 		}
-		c.ScratchStartup(operationContext, notify)
+		c.ScratchStartup(withScratchWarnings(operationContext, console), notify)
 	}
 	if console != nil {
 		// Provisioning outlives initial attach and also runs from menu actions.

@@ -129,7 +129,39 @@ BR-2: actual recorded-cast end with a frame reproduced healthy fidelity falsely 
 
 Next: commit/push the correction, run a fresh recorded affected/full check on its exact head, and re-run full close review for explicit BR-1/BR-2 disposition. Live operator checklist still waits for TL stage go after #811; no landing before acceptance.
 
+### 2026-10-23 — boundary round2 REWORK; complete source and oracle sweep
+
+Round2 verified BR-1 and BR-2 addressed by independent reversal tests, but raised BR-3 Critical (second actionable-producer-coverage instance: unrecoverable low-priority-agent background relaunch instruction) and BR-4 Important (remaining removed-tab oracles; success fixture with legitimate borrowed ownership). No close finalized. Cancelled owned queued lease-1373756955 through SDLC and observed terminal cancellation; source correction needs another exact-head run. No suite pass claimed.
+
+The broader manual couchtty run was quiet because an additional stale oracle waited for inactive-exit text in chrome. Captured the owned manual test stack with SIGQUIT (interrupted, not pass), then repeated with JSON progress to identify TestInactiveChildExitKeepsFocusAndRecordsNotice precisely; stopped that owned manual test after diagnosis. The JSON log is /Volumes/TestScratch/tmp/pair-slot1/pair812-couchtty.NsTHdj. Current repaired complete-package run uses JSON progress rather than hiding an obsolete wait until the deadline. Parser-isolation/publication/resize/focus oracles were migrated to actual warning badges, retained feed and switcher, with committed-state channel sequencing instead of incidental sleeps. Focused RED2.746s, GREEN0.614s, race1.779s; inventory PASS.
+
+The durable plan now records the full console source enumeration under the general rule, rather than another isolated callback fix. TL3a019860-25e1-4345-8318-72004b300014 explicitly keeps layout-caused pointer-watch stop feed-only as routine safety; failed accepted async capability/drive operations warn. Composition-root callback enumeration and fixes are continuing in the same round. Qualification remains pending complete-package proof, recorded check and clean close.
+
+### 2026-10-23 — remaining class enumeration and whole-console proof
+
+The durable plan now enumerates all remaining couchtty and couchcmd producer branches under the shared source rule, including mixed lifecycle/scratch callbacks, renicer and absent-hub archive fallback. Automatic scratch fallback/retained-entry cleanup stays feed-only because coding remains usable and automatic retry owns recovery; typed metadata setup errors warn. Missing/disconnected archive hub must still create one global event through its existing notification owner. No English severity inference or blanket mixed callback promotion.
+
+TLd40218f2-3381-4372-b703-fbbf844e9c74 approved exactly one bool under existing lifecycle publisher mutex at first128-hub overflow, at most one capacity warning per publisher lifetime; no other new state. This prevents the capacity source from becoming a routine notification storm. Pointer-watch classification remains the earlier explicit feed-only TL decision.
+
+Complete JSON couchtty verification then found TestCouchProductionSoak's hardcoded right-edge chrome gesture opened the newly legitimate attention badge after an intentional attachment replacement. Isolated RED25.269s stopped at receipt7234 (r4, first iteration after replacement). Changed only that test's neutral press to its fixed fixture's midpoint, with assertions excluding all interactive chip/control/badge/group spans; all original receipt, mouse-origin, resize, focus and reattachment assertions remain. Narrow GREEN0.513s/race2.352s. Complete couchtty package now PASS57.651s (4360 passing test/subtest events), retained JSON /Volumes/TestScratch/tmp/pair-slot1/pair812-couchtty.MLp9aX, with write budget40091648/67108864. Earlier interrupted manual probes and cancelled queued suites remain non-passes.
+
+The accepted async capability/drive source correction has RED→GREEN and race14.835s including current/stale generation/cast, ordinary typed races/cancel/deadline, success/copy/retry and nonblocking controls. Pointer-watch negative regression confirms feedback/phase change without attention. Await final composition-root package proof and inventory before committing/requeuing/round3.
+
+### 2026-10-23 — complete source/oracle sweep verified before round3
+
+BR-3 class sweep is complete against the durable plan's console/composition tables: exact-binding renicer relaunch warnings; typed lifecycle publication/metadata/capacity failures; startup-only metadata configuration errors; and one global archive event when its hub is absent/disconnected. Routine callback branches remain feedback. TL-approved capacity latch observed RED100 warnings across100 drained overflow passes with128 roots, then GREEN1 warning/128 roots. Accepted async capability/drive failure and pointer safety controls are covered. Only the approved capacityWarned suppression bool is added; no new queue/lock/condition owner or persistence.
+
+BR-4 complete package verification exposed one further edited-restart acceptance oracle expecting a full joined warning in raw terminal bytes. It now observes an actual VT-emulated stable visible banner prefix and copies byte-for-byte full receipt.Warning through real Ctrl+Y/OSC52, with native clipboard tools hidden only after restart completion and PATH restored before cleanup. All12 cases across Claude/Codex and resume/fresh/publication outcomes passed twice (4.789s); focused race5.414s. Whole couchcmd PASS66.169s,1780 test/subtest passes plus package pass,0 failures; retained JSON /Volumes/TestScratch/tmp/pair812-couchcmd-round3-verified.LEAoXW/run.jsonl. Renicer exact-target navigation strengthening then passed race1.548s; no production changed after whole-package compilation. Whole couchtty PASS57.651s,4360 test/subtest passes plus package pass as above. Existing targeted source races also pass (2.800s final composition group,14.835s async-control group,2.352s repaired native soak).
+
+Inventory named only renicer_test.go after these edits. Owner audited its entire source: literal typed fake process tables/bindings; native test launches its own literal sleep/wait child and observes that process; benchmark uses native process table; no repository/non-Go file input edge changed. Recorded only that certificate as local_or_literal_fixture and rechecked inventory PASS; diff check PASS. No bulk refresh.
+
+Next: commit/push this tested class correction; submit a fresh recorded affected/full run on its exact head; re-run full close for explicit BR-3/BR-4 disposition. No recorded check currently runs: both earlier queued old-head runs were explicitly cancelled for subsequent executable corrections, not passing retries. Local close may precede live acceptance per TL, but recorded proof and coordinated real-console check still precede landing. Stage remains held for #811; await explicit TL go.
+
 ## Revisions
+
+### 2026-10-23 — BR-3/BR-4 exhaustive completion
+
+Apply the single actionable-source rule to every remaining callback/branch in console and composition root, preserving routine safety/recovery/feedback exclusions and existing attention owners. Migrate every removed-tab regression oracle while retaining its original parser, ordering, resize, focus and persistence contract; ordinary-startup negative controls need confirmed ownership and completed background work. No acceptance requirement is waived.
 
 ### 2026-10-23 — BR-1/BR-2 producer-class correction
 

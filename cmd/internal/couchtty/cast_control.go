@@ -116,7 +116,11 @@ func (c *Console) onWebCapabilityClick(kind webcast.CapabilityKind, right bool) 
 				if notice == "" {
 					notice = err.Error()
 				}
-				c.setNotice(notice)
+				if expectedControlFailure(err) {
+					c.setNotice(notice)
+				} else {
+					c.setWarning(notice)
+				}
 				return nil
 			}
 			if intent == "enable-copy" {

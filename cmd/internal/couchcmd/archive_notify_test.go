@@ -59,13 +59,13 @@ func TestArchiveWarningUnavailableOwner(t *testing.T) {
 			} else {
 				r.disconnect(slots[0])
 			}
-			var facts int
-			r.s.SetAttention(func(couchcore.AttentionFact) { facts++ })
+			var facts []couchcore.AttentionFact
+			r.s.SetAttention(func(f couchcore.AttentionFact) { facts = append(facts, f) })
 			var desktop, status string
 			r.s.SetDesktopNotify(func(_ context.Context, _, body string) error { desktop = body; return nil })
 			got, err := r.s.notifyArchiveWarning(context.Background(), "stale; /archive/continuous.log", func(v string) { status = v })
-			if err != nil || facts != 0 || got != desktop || got != status || !strings.Contains(got, "primary hub unavailable; full report in continuous.log") {
-				t.Fatalf("got=%q desktop=%q status=%q facts=%d err=%v", got, desktop, status, facts, err)
+			if err != nil || len(facts) != 1 || facts[0].Notify.Thread != (couchcore.ThreadAddress{}) || facts[0].Notify.Body != got || got != desktop || got != status || !strings.Contains(got, "primary hub unavailable; full report in continuous.log") {
+				t.Fatalf("got=%q desktop=%q status=%q facts=%+v err=%v", got, desktop, status, facts, err)
 			}
 		})
 	}

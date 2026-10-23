@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/charmbracelet/x/ansi"
@@ -123,12 +124,27 @@ func TestLifecycleQueueCleanupRaisesAttention(t *testing.T) {
 
 func TestHubStartupSuccessDoesNotRaiseAttention(t *testing.T) {
 	r := newHubStartupRig(t, false)
+	drained := make(chan struct{})
+	var once sync.Once
+	r.console.SetLifecycleObserver(func(observation couchtty.LifecycleObservation) {
+		if observation.Kind == "restart-drained" {
+			once.Do(func() { close(drained) })
+		}
+	})
 	startExplicitHubs(r.console, r.hubs)
 	r.run(t)
 	if call := r.await(t, "start-hub"); call.err != nil {
 		t.Fatal(call.err)
 	}
 	r.await(t, "attach")
+	// Join the warm-only background attachment as well as the explicit hub.
+	// A zero-attention assertion before that terminal completion can miss a
+	// legitimate borrowed-client warning from the background fixture.
+	select {
+	case <-drained:
+	case <-testwait.After(t):
+		t.Fatal("background reattachment completion never drained")
+	}
 	r.assertFirstUsable(t)
 	if strings.Contains(r.host.Written(), couchtty.AttentionGlyph) {
 		t.Fatal("ordinary successful startup raised attention")

@@ -2,6 +2,7 @@ package couchcmd
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"os"
@@ -169,6 +170,7 @@ func TestEditedRestartConsoleRemoteAdoption(t *testing.T) {
 					// Keep the complete combined notice visible in this fake host,
 					// including the storage diagnostic's private temporary path.
 					cold.host.SetSize(ptychild.Size{Rows: 24, Cols: 512})
+					screen := startupWarmScreen(t, 512, 24, cold.host.Written)
 					// Admission creates the private accepted anchor while found; the
 					// real queued operation must honor subsequent positive absence.
 					prepare := service.s.switches.Load().prepare
@@ -294,9 +296,32 @@ func TestEditedRestartConsoleRemoteAdoption(t *testing.T) {
 						t.Fatalf("remote receipt lost combined notices: %+v", receipt)
 					}
 					if receipt.Warning != "" {
+						t.Cleanup(func() {
+							if t.Failed() {
+								t.Logf("warning projection screen: %s", screen())
+							}
+						})
+						// The switcher banner is bounded. Verify its stable prefix,
+						// then the full retained notice through the real copy action.
+						if _, err := cold.input.Write([]byte("\x1b[32;5u")); err != nil {
+							t.Fatal(err)
+						}
 						testwait.Until(t, "visible edited restart notices", func() bool {
-							written := cold.host.Written()
-							return (mode != "fresh" || strings.Contains(written, couchcore.EditedRestartFallbackNotice)) && (adoption != "publication-refused" || strings.Contains(written, "startup parameters were not remembered"))
+							written := strings.Join(strings.Fields(screen()), " ")
+							return strings.Contains(written, receipt.Warning[:min(60, len(receipt.Warning))])
+						})
+						// All lifecycle and publication work has completed. Only now
+						// hide native clipboard tools; restore PATH before fixture
+						// teardown rather than changing restart/cleanup behavior.
+						originalPath := os.Getenv("PATH")
+						t.Setenv("PATH", t.TempDir())
+						defer func() { t.Setenv("PATH", originalPath) }()
+						if _, err := cold.input.Write([]byte("\x19")); err != nil {
+							t.Fatal(err)
+						}
+						encoded := base64.StdEncoding.EncodeToString([]byte(receipt.Warning))
+						testwait.Until(t, "full edited restart notice copied", func() bool {
+							return strings.Contains(cold.host.Written(), "\x1b]52;c;"+encoded)
 						})
 					}
 					result := <-completed

@@ -432,7 +432,7 @@ func TestLifecyclePublisherDrainsResolvableMetadataBeforeFreeze(t *testing.T) {
 	r.waitConnected(hub, true)
 	// Start the shell after producing its inputs, so a concurrent refresh cannot
 	// hide omission of the drain boundary's atomic metadata reduction.
-	p := &lifecyclePublisher{service: r.s, ready: map[uint64]couchcore.LifecycleNoticeEffect{}, attempts: map[uint64]lifecycleAttempt{}, roots: map[string]bool{}, identities: map[string]couchcore.WorkspaceIdentity{}, unresolved: map[string]unresolvedFact{}, diagnostics: map[string]string{}, wake: make(chan struct{}, 1), results: make(chan lifecycleAdmission, 128)}
+	p := &lifecyclePublisher{service: r.s, ready: map[uint64]couchcore.LifecycleNoticeEffect{}, attempts: map[uint64]lifecycleAttempt{}, roots: map[string]bool{}, identities: map[string]couchcore.WorkspaceIdentity{}, unresolved: map[string]unresolvedFact{}, diagnostics: map[string]lifecycleDiagnostic{}, wake: make(chan struct{}, 1), results: make(chan lifecycleAdmission, 128)}
 	p.observe(couchtty.LifecycleObservation{Kind: "restart-armed"})
 	p.observe(lifecycleSlotObservation(2, 1))
 	p.refresh()
@@ -619,7 +619,7 @@ func TestLifecyclePublisherOrdinaryFactWaitsForItsWorkspace(t *testing.T) {
 }
 
 func TestLifecyclePublisherReplacementBeforeAdmissionReleasesFrozenToken(t *testing.T) {
-	p := &lifecyclePublisher{ready: map[uint64]couchcore.LifecycleNoticeEffect{}, attempts: map[uint64]lifecycleAttempt{}, diagnostics: map[string]string{}}
+	p := &lifecyclePublisher{ready: map[uint64]couchcore.LifecycleNoticeEffect{}, attempts: map[uint64]lifecycleAttempt{}, diagnostics: map[string]lifecycleDiagnostic{}}
 	p.advanceLocked(couchcore.LifecycleNoticeEvent{Kind: couchcore.LifecycleNoticeConfirmed, Fact: couchcore.LifecycleNoticeFact{Hub: "/hub", Slot: "pair:2", Incarnation: "worker", Observation: 1, Kind: couchcore.LifecycleStarted}})
 	p.advanceLocked(couchcore.LifecycleNoticeEvent{Kind: couchcore.LifecycleNoticeHubReady, Hub: "/hub", Incarnation: "one", Ready: true})
 	p.advanceLocked(couchcore.LifecycleNoticeEvent{Kind: couchcore.LifecycleNoticeHubReady, Hub: "/hub", Incarnation: "two", Ready: true})

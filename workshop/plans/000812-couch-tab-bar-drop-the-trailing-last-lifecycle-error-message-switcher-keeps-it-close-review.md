@@ -105,3 +105,117 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-23T05:55:18-07:00 (REWORK)
+
+| field | value |
+|-------|-------|
+| issue | 812 — Couch tab bar: drop the trailing last lifecycle/error message (switcher keeps it) |
+| repo | pair |
+| issue file | workshop/issues/000812-couch-tab-bar-drop-the-trailing-last-lifecycle-error-message-switcher-keeps-it.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | c0dbb32decc052500172ded01ff36e3fa8e49cc9..2e1dccf9dd632fefffcbdf854c45b636b4f7525a |
+| command | sdlc close --issue 812 |
+| reviewer | codex (openai; author openai) |
+| isolation | fenced |
+| timestamp | 2026-10-23T05:55:18-07:00 |
+| verdict | REWORK |
+
+## Review
+
+```verdict
+verdict: REWORK
+confidence: high
+```
+
+The rendering change and both prior fixes are verified, including regression failures when those fixes are reversed. Shipping remains blocked by another actionable background warning that bypasses attention and by failing regression tests across the affected packages.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      finishLifecycleAttempt now calls Warn with the origin thread. Reversing that change made TestLifecycleLocalQueuedCompletionWarningOwnsExactOrigin fail for cleanup and diagnostic persistence; the pinned-head regression passes under race.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      Typed Warnf separates actionable failures from informational Logf. Restoring generic-log warning routing made the actual recorded-cast healthy-fidelity regression fail with attention=1; healthy/error regressions pass under race on the pinned head.
+findings:
+  - id: new
+    severity: Critical
+    kind: defect
+    family: actionable-producer-coverage
+    title: |
+      The background low-priority-agent warning still bypasses attention
+    detail: |
+      cmd/internal/couchcmd/message_service.go:582 wires the renicer to feed-only Notify. renicer.go:180 emits a once-per-slot instruction to relaunch an agent whose priority cannot be restored automatically; removing tab notices leaves this actionable asynchronous warning without attention. ARCH-PURPOSE: This is the 2nd finding in family `actionable-producer-coverage`. Earlier rounds fixed instances. State the rule covering all asynchronous sources requiring operator intervention, enumerate every remaining Notify/setNotice callback against it, and sweep that enumeration in this round. Route this source through Warn with its binding identity and add a production-wiring regression plus ordinary-operation negative controls.
+  - id: new
+    severity: Important
+    kind: defect
+    family: regression-oracles-follow-contract
+    title: |
+      Affected regression tests still enforce removed behavior or use an invalid success fixture
+    detail: |
+      cmd/internal/couchtty/terminal_migration_test.go:23,89,144,170, console_test.go:267, and cmd/internal/couchcmd/attention_ephemeral_test.go:90 still require notice text in terminal chrome and fail on the pinned head. Preserve their parser-isolation, publication-order, resize, focus, and persistence invariants using supported visible surfaces. Separately, notice_attention_test.go:124 calls a fixture with a background borrowed attachment “ordinary successful startup”; four of five diagnostic runs failed with the legitimate BORROWED ATTACH warning. Supply confirmed ownership and wait for background completions before asserting absence. ARCH-ORDER: retain controlled ordering coverage while migrating these oracles.
+```
+
+1. **Strengths**
+
+   - Removing `StatusModel.Notice` and its shared rendering path covers both tab layouts.
+   - `console_menu.go:54` derives switcher text from the existing feed, preserving operation and clipboard precedence.
+   - Lifecycle diagnostics retain terminal ownership and exact origin; Chrome severity is classified without English-text matching.
+   - README and atlas explain the changed presentation and navigation.
+
+2. **Critical findings**
+
+   - `message_service.go:582`: the renicer’s relaunch warning needs attention publication. Apply the source-class sweep described above.
+
+3. **Important findings**
+
+   - Migrate the stale rendering assertions while preserving their original invariants.
+   - Repair the successful-startup fixture and synchronize its negative assertion with background completion.
+
+4. **Minor findings**
+
+   - None.
+
+5. **Test coverage notes**
+
+   - Focused rendering, switcher, lifecycle, fidelity, ordering, and lifetime regressions passed under race.
+   - Targeted recorder and drive classification tests passed.
+   - The broader five-package selection failed in `couchtty` and `couchcmd`; `couchcore`, `webcast`, and `recorder` passed.
+   - Reversal tests reproduced both prior defects. The disposable copy was removed; the reviewed checkout remains unchanged.
+   - No complete-suite or live-acceptance pass is claimed.
+
+6. **Architectural notes**
+
+   - **ARCH-DRY — pass:** shared feed ownership and warning publication.
+   - **ARCH-PURE — pass:** pure rendering/projection; thin publication shell.
+   - **ARCH-PURPOSE — flag:** actionable producer coverage remains incomplete.
+   - **ARCH-MOCK — pass:** existing stateful external seams are reused.
+   - **ARCH-CONSTRAINTS — pass:** bounded text and attention capacity; no added synchronous external work.
+   - **ARCH-SECURE — pass:** attention text is sanitized and bounded; source identity is explicit.
+   - **ARCH-ORDER — flag:** affected publication/resize sequence tests need valid replacement oracles.
+   - **ARCH-FUNERAL — pass:** existing capacity and expiry govern new warnings.
+   - **ARCH-EVOLVE — pass:** no persisted-format change; `CleanupWarning` is excluded from serialization.
+
+7. **Plan revision recommendations**
+
+   Add `## Revisions` entries recording the complete remaining producer enumeration, including the renicer, and the regression-oracle migration across affected packages. Keep qualification unchecked until those tests pass; live acceptance remains pending under the documented close-before-stage sequencing.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"5c1563ac-423e-457c-afa5-4d89e9d5ab4e","repository":"github.com/xianxu/pair","issue_id":"000812","recipe":"milestone-review","round":2,"attempt":1,"agent":"codex","root":"/Volumes/TestScratch/review-checkouts/06e98f190d7d2bb0","reviewed_head":"2e1dccf9dd632fefffcbdf854c45b636b4f7525a","slot":"pair:1","requested_at":"2026-10-23T12:48:58.477558Z"},"phase":"finished","pid":73169,"started_at":"2026-10-23T12:48:58.57536Z","finished_at":"2026-10-23T12:55:17.272569Z","session_id":"01a168ce-b1e1-7723-8dee-3f2535a0c8f8","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 1.890501584s
+head: "2e1dccf9dd632fefffcbdf854c45b636b4f7525a"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412

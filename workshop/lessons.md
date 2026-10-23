@@ -2775,3 +2775,6 @@ and external temporary roots rather than relying on the host's TMPDIR.
 
 - #812 BR-1: audit each terminal completion owner (local queue, remote queue, direct dispatch) separately. A dispatcher diagnostic callback cannot cover attempts already owned by queues; test the actual local completion path and its once owner.
 - #812 BR-2: a generic Logf or Warning string is not a severity boundary. Trace all producers, including successful fidelity summaries, recovered overflow, aggregate close reports and transient busy replies; carry an explicit warning fact/callback at actionable sources and keep one owner for uncertainty alerts.
+
+- #812 BR-3: an operator-required relaunch instruction is actionable even when its component is named a priority helper. Enumerate every remaining publication callback by producer branches; normal mixed-family messages are not a reason to discard the failure branches.
+- #812 BR-4: when removing a presentation surface, migrate all tests that consume it while preserving their original ordering/parser/resize invariants. Run complete affected packages with JSON progress before the next review; an absence assertion must use confirmed ownership and joined background completion.

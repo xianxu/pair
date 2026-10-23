@@ -155,3 +155,62 @@ Authenticated TL1e4df14f-c092-4148-8ad7-6921cd401d30 reserves the next stage aft
 ### 2026-10-23 — boundary producer-class correction
 
 BR-1 requires all local/remote/direct terminal completion owners to route actionable diagnostics once; ordinary successful recovery guidance stays feed-only. BR-2 requires optional typed Warnf alongside informational Logf through existing cast/recorder configuration. Warnf falls back to Logf for legacy consumers, and only one callback handles each diagnostic. Healthy fidelity, recovered overflow/resync/aggregate-close and transient drive-busy reports stay informational; changed Recovery retains uncertain-input attention ownership. A transient SwitchAgentResult cleanup-warning fact may preserve the producer's exact meaning without parsing its mixed Notice string; it adds no persisted state or lifecycle. Retain real recorded-cast success/error, local queue failure, recovered overflow and transient-busy regression evidence before re-review.
+
+### 2026-10-23 — BR-3 complete source rule and console enumeration
+
+Rule: unsolicited failures and failed accepted asynchronous operations that require explicit operator repair use attention at their typed source. Routine progress/success, automatic recovery, expected races/cancellation, safety transitions caused by ordinary operator layout changes, and synchronous admission/key/copy feedback remain feed-only. Already represented prompts/questions/notifications retain their owner. Mixed callback families must carry a typed source distinction; a callback name or English text never grants severity. Exact source identity is preserved when available, otherwise the event is global. Local/remote/direct terminal completion owners publish once.
+
+Authenticated TL3a019860-25e1-4345-8318-72004b300014 explicitly keeps pointer-watch stop feed-only and approves warning routing for failed accepted async capability/drive operations. This is a source-class correction within the approved noise guard, not a new queue, condition or retry design.
+
+Complete couchtty publication enumeration (every remaining production feed call and callback, grouped by source function):
+
+| Sources | Classification and owner |
+|---|---|
+| onPointerClick (copy/create/enable/disable), copyLink, copyViewLink | Direct click/copy feedback; clipboard failure also has terminalError owner |
+| pointerOff / pointerOffByWatch | Manual or layout-caused routine safety stop; feed-only per explicit TL decision |
+| routeNotesMenu copy/resolve branches | Direct note-menu feedback |
+| applyDrive / driveNotices | State transitions; actual requests retain visible hand badge and selectable menu |
+| startDriveOperation pending/admission | Routine admission feedback |
+| driveResult | Typed expected stale/closed/not-live/cancel/deadline races and success quiet; unexpected accepted-operation error warns |
+| onWebCapabilityClick before worker | Synchronous transition/enqueue/copy feedback |
+| onWebCapabilityClick current worker completion | Failure warns after existing exact cast/generation/attempt guards; successful off/copy quiet |
+| runCodesSelection | Direct annotation/code-menu failure or success feedback |
+| onCodeRotated | Current guessing/lockout warnings; stale/duplicate/manual rotations suppressed |
+| toggleBroadcast / startBroadcast / stopBroadcast | Configuration/refusal/cancel/progress and explicit operator stop quiet |
+| broadcastStarted / broadcastEnded | Current async start/tap failure or unsolicited end warns; ordinary live/stop confirmation quiet |
+| SetWebcast callbacks | Typed Warnf warns; informational Logf stays feed-only; legacy fallback at source invokes only one callback |
+| toggleWebcast / startWebcast / endWebcast | Direct key refusal, progress or explicit stop quiet |
+| webcastStarted / webcastEnded / webcastUpdated | Async failures and changed Recovery warn; normal open/end/hand-close quiet; Recovery is sole uncertainty alert owner |
+| focusWebcast / copyWebcastLinkOf | Direct focus/copy/link-not-ready feedback |
+| SetReplayShares | OnReady is successful completion only; feed-only |
+| acceptContinuationRequests / finishContinuationOperation | Scan failure episode, missed continuation and nonbusy failure warn; busy retry silent |
+| SetInputTrace / SetMouseTrace / SetEventTrace | Trace open failures warn |
+| traceDropped | Trace-only missing-endpoint diagnostic; no repaint recursion |
+| onExit | Unexpected exit and forget failure warn with exact thread; expected exits quiet |
+| newestPage / reportPrevious / detachActive / relaunchActive / parkActive / onChord | Direct navigation/selection/restart-key admission feedback |
+| finishOperation / lifecycleCompletionWarningSource | Typed actionable successful-result facts warn once; ordinary recovery/fallback/NextCommand quiet |
+| finishLifecycleAttempt | Queue-owned terminal diagnostics warn once; remote/direct retain their separate once owners |
+| toggleAttention | Empty-list feedback cannot recursively raise attention |
+| Notify / setNotice / publishNotice / publishNoticeLocked | Generic feed wrappers; classification belongs to actual source above or couchcmd enumeration |
+| Warn / setWarning / publishWarningLocked | Explicit warning wrappers; existing cap/expiry, lock order and shutdown guard |
+| presenter.Notify in desktop_notify.go | Separate desktop protocol, not a feed publication |
+
+Chrome callback sub-enumeration remains the preceding BR-2 revision: recovered overflow/aggregate reports, successful fidelity, transient drive503, retryable retained draft cleanup and private-submission policy fallback are informational; explicit write/open/snapshot/segment/close, failed fidelity, notes reducer and drive502/500 failures are actionable. Uncertain input uses changed Recovery once.
+
+### 2026-10-23 — composition-root enumeration and exact capacity-latch approval
+
+| Remaining couchcmd producers | Classification and single owner |
+|---|---|
+| ScratchStartup manager callbacks | Normal-temp opt-out; no RAM/space/probe/identity safe disk fallback; successful sweep and retryable retained-entry cleanup errors stay feed-only. Coding remains usable; automatic retry owns recovery. |
+| Scratch startup metadata setup | Explicit MetadataDirectory/ConfigureMetadata errors use a startup-scoped typed warning sink; live-server metadata remaining on disk until reboot is expected feedback. No new couchscratch callback API. |
+| lifecyclePublisher diagnostic projection | Typed failed/refused/unsupported delivery outcomes, missing verified restart-drain slot metadata and projection capacity require attention; unavailable/cancelled recipient churn and uncertain canonical-receipt polling are routine/recovering feedback. |
+| Renicer | Once-per-binding unrecoverable agent priority warns with retained exact Thread/slot label. Normal descendant renice, permission-denied/table observations retain their existing facts without new attention. |
+| archive scheduler | Existing notifyArchiveWarning feed callback stays feed-only; pass/retention failure has separate actionable callback. |
+| notifyArchiveWarning | Connected hub uses existing exact notification; absent/disconnected hub uses the same existing notification owner with a global target. One event, feed and existing desktop effect, no Warn+Notify duplication. |
+| handleNotify / prompt / question sources | Existing attention lifecycle only. |
+| supervision callbacks | Unconfirmed/unavailable resend, escalation, automatic-input stall and released-but-inspect diagnostics require attention; ordinary startup/nudge sends are broker-only. |
+| crash / hub startup or conflict / startup adoption | Explicit actionable failure warns; exact source when retained, otherwise global. |
+| direct dispatch / local and remote lifecycle queues / failed attach rollback | Diagnostic persistence and unproven cleanup warn at their existing terminal once owner; no dispatcher double publication for queue-owned attempts. |
+| CLI-only diagnostic branches | Existing stderr; no console publication to migrate. |
+
+Authenticated TLd40218f2-3381-4372-b703-fbbf844e9c74 approves exactly one capacity latch bool under the existing publisher mutex, set at first128-hub overflow, limiting that capacity warning to once per publisher lifetime. Capacity cannot recover within that lifetime. No other new source state, map, queue, lock or retry is approved. This is the only added suppression latch in this correction; existing source once/episode guards otherwise remain the owner.

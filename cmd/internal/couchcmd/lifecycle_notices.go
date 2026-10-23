@@ -67,14 +67,26 @@ type lifecyclePublisher struct {
 	generation  uint64
 	unresolved  map[string]unresolvedFact
 	now         func() time.Time
-	diagnostics map[string]string
-	wake        chan struct{}
-	results     chan lifecycleAdmission
-	notice      func(string)
+	diagnostics map[string]lifecycleDiagnostic
+	// Roots never retire within this publisher. Report its fixed capacity
+	// failure once, even after the worker drains the transient diagnostic map.
+	capacityWarned bool
+	wake           chan struct{}
+	results        chan lifecycleAdmission
+	notice         func(string)
+	warning        func(string)
 }
 
-func startLifecyclePublisher(s *messageService, notice func(string)) *lifecyclePublisher {
-	p := &lifecyclePublisher{service: s, ready: map[uint64]couchcore.LifecycleNoticeEffect{}, attempts: map[uint64]lifecycleAttempt{}, roots: map[string]bool{}, identities: map[string]couchcore.WorkspaceIdentity{}, unresolved: map[string]unresolvedFact{}, diagnostics: map[string]string{}, wake: make(chan struct{}, 1), results: make(chan lifecycleAdmission, 128), notice: notice, now: s.authority.now}
+type lifecycleDiagnostic struct {
+	body       string
+	actionable bool
+}
+
+func startLifecyclePublisher(s *messageService, notice func(string), warning ...func(string)) *lifecyclePublisher {
+	p := &lifecyclePublisher{service: s, ready: map[uint64]couchcore.LifecycleNoticeEffect{}, attempts: map[uint64]lifecycleAttempt{}, roots: map[string]bool{}, identities: map[string]couchcore.WorkspaceIdentity{}, unresolved: map[string]unresolvedFact{}, diagnostics: map[string]lifecycleDiagnostic{}, wake: make(chan struct{}, 1), results: make(chan lifecycleAdmission, 128), notice: notice, now: s.authority.now}
+	if len(warning) > 0 {
+		p.warning = warning[0]
+	}
 	s.lifecycle.Store(p)
 	s.workers.Add(1)
 	go func() { defer s.workers.Done(); p.run(s.lifetime) }()
@@ -99,7 +111,7 @@ func (p *lifecyclePublisher) advanceLocked(e couchcore.LifecycleNoticeEvent) {
 		case couchcore.LifecycleNoticePublish:
 			p.ready[fx.Token] = fx
 		case couchcore.LifecycleNoticeDiagnostic:
-			p.diagnostics[fx.Hub] = fx.Body
+			p.diagnostics[fx.Hub] = lifecycleDiagnostic{body: fx.Body, actionable: e.Outcome != "unavailable" && e.Outcome != "cancelled" && e.Outcome != "uncertain"}
 		case couchcore.LifecycleNoticeCancel:
 			_, unstarted := p.ready[fx.Token]
 			delete(p.ready, fx.Token)
@@ -176,7 +188,7 @@ func (p *lifecyclePublisher) observe(e couchtty.LifecycleObservation) {
 			}
 		}
 		if missing > 0 {
-			p.diagnostics[""] = fmt.Sprintf("Couch lifecycle: %d observations lacked verified slot metadata at restart drain", missing)
+			p.diagnostics[""] = lifecycleDiagnostic{body: fmt.Sprintf("Couch lifecycle: %d observations lacked verified slot metadata at restart drain", missing), actionable: true}
 		}
 		clear(p.unresolved)
 		p.advanceLocked(couchcore.LifecycleNoticeEvent{Kind: couchcore.LifecycleNoticeDrain, Reason: fmt.Sprintf("restart reattachments complete; %d failed", e.Failures)})
@@ -229,7 +241,10 @@ func (p *lifecyclePublisher) observeFactLocked(e couchtty.LifecycleObservation) 
 		}
 	}
 	if !p.roots[hub] && len(p.roots) >= 128 {
-		p.diagnostics[""] = "Couch lifecycle: hub projection capacity reached; inspect Slots"
+		if !p.capacityWarned {
+			p.capacityWarned = true
+			p.diagnostics[""] = lifecycleDiagnostic{body: "Couch lifecycle: hub projection capacity reached; inspect Slots", actionable: true}
+		}
 		return
 	}
 	p.roots[hub] = true
@@ -338,11 +353,13 @@ func (p *lifecyclePublisher) run(ctx context.Context) {
 		generation := p.generation
 		p.ready = map[uint64]couchcore.LifecycleNoticeEffect{}
 		diagnostics := p.diagnostics
-		p.diagnostics = map[string]string{}
+		p.diagnostics = map[string]lifecycleDiagnostic{}
 		p.mu.Unlock()
 		for _, message := range diagnostics {
-			if p.notice != nil {
-				p.notice(message)
+			if message.actionable && p.warning != nil {
+				p.warning(message.body)
+			} else if p.notice != nil {
+				p.notice(message.body)
 			}
 		}
 		for token, fx := range jobs {
@@ -445,7 +462,7 @@ func (p *lifecyclePublisher) run(ctx context.Context) {
 						a.admitted = true
 						a.retired = true
 						p.attempts[result.token] = a
-						p.diagnostics[a.hub] = "Couch lifecycle admission uncertain; polling canonical receipt without retry"
+						p.diagnostics[a.hub] = lifecycleDiagnostic{body: "Couch lifecycle admission uncertain; polling canonical receipt without retry"}
 					} else {
 						a.cancel()
 						delete(p.attempts, result.token)
