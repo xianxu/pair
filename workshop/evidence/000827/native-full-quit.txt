@@ -1,0 +1,15 @@
+--- PASS: TestDisposableCouchFleet (71.50s)
+--- PASS: TestDisposableCouchFleet/claude (33.69s)
+--- PASS: TestDisposableCouchFleet/codex (31.97s)
+fleet_acceptance_test.go:239: native full quit: agent=claude slots=4 quit=478.921708ms elapsed=25.504763917s
+fleet_acceptance_test.go:239: native full quit: agent=claude slots=8 quit=1.304791334s elapsed=59.180228666s
+fleet_acceptance_test.go:239: native full quit: agent=codex slots=4 quit=528.578083ms elapsed=25.887065834s
+Start fresh: binding lost — repairable
+fleet_acceptance_test.go:239: native full quit: agent=codex slots=8 quit=1.40170225s elapsed=1m0.658116333s
+Start fresh: binding lost — repairable
+--- PASS: TestDisposableCouchFleetFullQuit (177.59s)
+--- PASS: TestDisposableCouchFleetFullQuit/claude/4 (25.93s)
+--- PASS: TestDisposableCouchFleetFullQuit/claude/8 (60.28s)
+--- PASS: TestDisposableCouchFleetFullQuit/codex/4 (26.33s)
+--- PASS: TestDisposableCouchFleetFullQuit/codex/8 (61.30s)
+ok  	github.com/xianxu/pair/cmd/couch	249.278s

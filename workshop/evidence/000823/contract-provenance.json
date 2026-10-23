@@ -1,0 +1,202 @@
+{
+  "repository": "github.com/xianxu/ariadne",
+  "commit": "4f10a45d038acb2324c5a19e74a78f4a593571e6",
+  "purpose": "Planning provenance; copy fixture bytes from this commit after implementation admission.",
+  "files": [
+    {
+      "source": "construct/local/universal-review/SKILL.md",
+      "bytes": 1432,
+      "sha256": "1d6e97cd2a53988e9a791e6eba42e6af099ecfa7e9a8dc6815db7985b6813628"
+    },
+    {
+      "source": "construct/local/universal-review/adapters/file-edit.md",
+      "bytes": 10096,
+      "sha256": "a6eca522ba7515bb27eb860d2cc7288b43b7c7eb1dcacaf51627177e38508be2"
+    },
+    {
+      "source": "construct/local/universal-review/collaboration-modes.md",
+      "bytes": 36535,
+      "sha256": "ccc219d1419180b78ff5186fc74e7b954a0fe1d86af4428243c0ec8b1a736f0f"
+    },
+    {
+      "source": "construct/local/universal-review/examples/editorial-fill-canonical-instruction/after/note.md",
+      "bytes": 239,
+      "sha256": "149b07aa5329288bb3b642e484fad61ab0d766b1a18153383faaa8c46408a224"
+    },
+    {
+      "source": "construct/local/universal-review/examples/editorial-fill-canonical-instruction/before/note.md",
+      "bytes": 182,
+      "sha256": "40b00facacdc4f3fef68b0975347733ef732d0ffc9958a5f7383532d1436b53a"
+    },
+    {
+      "source": "construct/local/universal-review/examples/editorial-fill-canonical-instruction/case.md",
+      "bytes": 390,
+      "sha256": "4531a2b922d4a34608d182e847b6f17b8c47c4177c0aa9820894d288c03654b7"
+    },
+    {
+      "source": "construct/local/universal-review/examples/editorial-fill-canonical-mode/after/note.md",
+      "bytes": 214,
+      "sha256": "cb055d29d5c38eaecd92f5619097c83cea514a2328c07246110aa86bf8b27fd0"
+    },
+    {
+      "source": "construct/local/universal-review/examples/editorial-fill-canonical-mode/before/note.md",
+      "bytes": 137,
+      "sha256": "a38245034fb792cccf16309a5a29e8030f6202dc8f8efe2331051e44e47bfd27"
+    },
+    {
+      "source": "construct/local/universal-review/examples/editorial-fill-canonical-mode/case.md",
+      "bytes": 348,
+      "sha256": "d122d3b516b6d6ea083bfea3feee59edbdd4c3bf6c4ab86885709cf9b4c5ae12"
+    },
+    {
+      "source": "construct/local/universal-review/examples/editorial-fill-empty/after/note.md",
+      "bytes": 120,
+      "sha256": "b760b9ce0476ddbff1ec122ecd4bcb5dd3d28eef16ff9410fec377beff3620b6"
+    },
+    {
+      "source": "construct/local/universal-review/examples/editorial-fill-empty/before/note.md",
+      "bytes": 24,
+      "sha256": "a42db15f422efd4c89b00f1ea4ee5082d3a6912fb4d7d3743f9f662aae3341cf"
+    },
+    {
+      "source": "construct/local/universal-review/examples/editorial-fill-empty/case.md",
+      "bytes": 148,
+      "sha256": "629d3923c51915402fe13520f8090e3a75f92b538e2f88682288dd0bbb0b5db7"
+    },
+    {
+      "source": "construct/local/universal-review/examples/editorial-fill-existing/after/note.md",
+      "bytes": 118,
+      "sha256": "6ed146ac721865962f138c6603546fe5b7ee6a7cb5df70e963c9598214bfea92"
+    },
+    {
+      "source": "construct/local/universal-review/examples/editorial-fill-existing/before/note.md",
+      "bytes": 87,
+      "sha256": "831dd90a71c62a3635358d3dc0efe1283d719cca95e433852646e2dc93870e4c"
+    },
+    {
+      "source": "construct/local/universal-review/examples/editorial-fill-existing/case.md",
+      "bytes": 151,
+      "sha256": "6383734766533294dffa424b456128eae25bb70badb0c19b834fe288fa9def7a"
+    },
+    {
+      "source": "construct/local/universal-review/examples/editorial-fill-legacy/after/note.md",
+      "bytes": 219,
+      "sha256": "70eae73d9fd2be342d1ed875251e3edf8ac66624bc4108ab60640b52df655d66"
+    },
+    {
+      "source": "construct/local/universal-review/examples/editorial-fill-legacy/before/note.md",
+      "bytes": 90,
+      "sha256": "cd27e40674969e6d46de68b00c512498f59837c7cff17925cc63228f023e08c1"
+    },
+    {
+      "source": "construct/local/universal-review/examples/editorial-fill-legacy/case.md",
+      "bytes": 331,
+      "sha256": "02d2c7fd6bebe5fb9377fd84ec945609c03f0e56de13bb943ac22b26126bf1f5"
+    },
+    {
+      "source": "construct/local/universal-review/examples/editorial-fill-multimode/after/note.md",
+      "bytes": 77,
+      "sha256": "761ee5a00a86c8cd1dd1574fec79d72f1177982dce9a514ac543dfebf1b04779"
+    },
+    {
+      "source": "construct/local/universal-review/examples/editorial-fill-multimode/before/note.md",
+      "bytes": 77,
+      "sha256": "761ee5a00a86c8cd1dd1574fec79d72f1177982dce9a514ac543dfebf1b04779"
+    },
+    {
+      "source": "construct/local/universal-review/examples/editorial-fill-multimode/case.md",
+      "bytes": 361,
+      "sha256": "af19a81e8d12e398250abd1a0511e7fe4e40393b4a36f9472948370291bbf42c"
+    },
+    {
+      "source": "construct/local/universal-review/examples/editorial-fill-presentation-empty/after/note.md",
+      "bytes": 115,
+      "sha256": "9a32ef456cbcf3b2aa3653e93a62c92fca9b8e24fc44144ad6e85ad5f70cb073"
+    },
+    {
+      "source": "construct/local/universal-review/examples/editorial-fill-presentation-empty/before/note.md",
+      "bytes": 57,
+      "sha256": "708986158a45f80b0f0758aae954d8c27e8a8ce6c66ae0e3fcf6d848197bfb8d"
+    },
+    {
+      "source": "construct/local/universal-review/examples/editorial-fill-presentation-empty/case.md",
+      "bytes": 401,
+      "sha256": "0d7f5dfe1a98996b42b9f7b9390b845cdc02d8f9fcf5d0ea64349d353ce053a3"
+    },
+    {
+      "source": "construct/local/universal-review/examples/editorial-fill-presentation-unknown/after/note.md",
+      "bytes": 120,
+      "sha256": "80c514233590e17d690b29051c940ecb12a036f7786d7ab8dafcf1170cb4ce67"
+    },
+    {
+      "source": "construct/local/universal-review/examples/editorial-fill-presentation-unknown/before/note.md",
+      "bytes": 62,
+      "sha256": "0876bee7a4fd344993e28b032e2cf6acf81d8ff405ca33b01db2da007d282d66"
+    },
+    {
+      "source": "construct/local/universal-review/examples/editorial-fill-presentation-unknown/case.md",
+      "bytes": 394,
+      "sha256": "6dc147b6705cf852f2a57d961968ec8b7b72e82b3d2e575054a56fae20c30a30"
+    },
+    {
+      "source": "construct/local/universal-review/examples/editorial-heading-chat/after/design.md",
+      "bytes": 363,
+      "sha256": "f83f161adc551202664c035296e5ba65cb31b9c8cbf402b8e8f97ee3c89a3cd8"
+    },
+    {
+      "source": "construct/local/universal-review/examples/editorial-heading-chat/after/design.side/2026-10/2026-10-23-01-retries.md",
+      "bytes": 343,
+      "sha256": "565dd5753a4d16e70c4316093334bb73b483ec39b4f88bfab21a6fca50c562fb"
+    },
+    {
+      "source": "construct/local/universal-review/examples/editorial-heading-chat/before/design.md",
+      "bytes": 228,
+      "sha256": "c39d241adff3adfe78782cea3173f31fd8851c27e484e4439c124beb47746318"
+    },
+    {
+      "source": "construct/local/universal-review/examples/editorial-heading-chat/case.md",
+      "bytes": 770,
+      "sha256": "f50ca85eb7961b1c684b2976d3dc5ca779aeb253c6bffde407229c9bb5a95b5f"
+    },
+    {
+      "source": "construct/local/universal-review/export.json",
+      "bytes": 6292,
+      "sha256": "ce49c548b3d414725f73789252e090afe23a9e38d2102ab5cb09adbc7a3f9e3b"
+    },
+    {
+      "source": "construct/local/universal-review/modes/copy-editing.md",
+      "bytes": 521,
+      "sha256": "a9d41b01c0976ab3f4b3cd0bd8cd7466ee163b1a4a5ccfcdc8a570eea0fd364e"
+    },
+    {
+      "source": "construct/local/universal-review/modes/developmental.md",
+      "bytes": 507,
+      "sha256": "38bb238efc36820083d208da36d4c160789725865c264731f94b04409290297e"
+    },
+    {
+      "source": "construct/local/universal-review/modes/fact-check.md",
+      "bytes": 484,
+      "sha256": "7d3a5265e59b090b710d9a9564f9bdeebfc5599e2b0f1a92e8a246eb508f7018"
+    },
+    {
+      "source": "construct/local/universal-review/modes/free-form.md",
+      "bytes": 474,
+      "sha256": "01a3bd7e40329cf8c5c9cfa929de00e86d5922c59792b27087689c6854718071"
+    },
+    {
+      "source": "construct/local/universal-review/modes/line-editing.md",
+      "bytes": 434,
+      "sha256": "226a2e35dcb233fab54827b7fda371df18ff43afc5236c9d287114939755cd71"
+    },
+    {
+      "source": "construct/local/universal-review/modes/proofreading.md",
+      "bytes": 447,
+      "sha256": "0b8a0d606fe9fb9e6402cabf14f9ac1d389a688ad1369d4a7d4c445ebe803a90"
+    },
+    {
+      "source": "construct/local/universal-review/round.md",
+      "bytes": 9696,
+      "sha256": "e2ab145933e9b241e991ffc463d4f82e101c85cf139a3606aa8bc5d614dea47f"
+    }
+  ]
+}

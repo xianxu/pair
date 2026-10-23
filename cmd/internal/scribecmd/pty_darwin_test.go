@@ -385,6 +385,71 @@ func TestDarwinStartClosesDescriptorsOnExecFailure(t *testing.T) {
 	}
 }
 
+// rawENXIO is ENXIO in the negated spelling that isTransientPTYAlloc
+// normalises; that comment is the single source for where it was measured.
+// Built through a variable because a constant -6 does not convert to uintptr.
+func rawENXIO() syscall.Errno {
+	e := syscall.ENXIO
+	return syscall.Errno(-int(e))
+}
+
+// #809: XNU's ptmx allocator returns ENXIO intermittently under concurrent
+// churn. Both sign conventions have to ride out — see isTransientPTYAlloc for
+// which one was measured and which is covered as a precaution. An exhausted
+// bound returns the error unchanged, which run turns into
+// exit 1 with the diagnostic intact — that mapping is pinned by
+// TestRunFatalSitesExitOneWithDiagnostic's pty-start case.
+func TestDarwinStartRidesOutTransientAllocationENXIO(t *testing.T) {
+	for _, tc := range []struct {
+		name     string
+		errno    syscall.Errno
+		failures int
+		wantOpen int
+		wantErr  bool
+	}{
+		{"raw spelling", rawENXIO(), 1, 2, false},
+		{"libSystem spelling", syscall.ENXIO, 1, 2, false},
+		{"recovers on the last attempt", rawENXIO(), ptyAllocAttempts - 1, ptyAllocAttempts, false},
+		{"exhausts the bound", rawENXIO(), ptyAllocAttempts, ptyAllocAttempts, true},
+		{"unrelated errno is not retried", syscall.EPERM, 1, 1, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			opened := 0
+			cmd := exec.Command("/usr/bin/true")
+			p, err := startPTYWithOpen(cmd, func() (*os.File, *os.File, error) {
+				opened++
+				if opened <= tc.failures {
+					return nil, nil, tc.errno
+				}
+				// openPTY, not pty.Open: this closure's own allocation is exposed
+				// to the same race, and a real ENXIO here would be absorbed by the
+				// outer openPTYRetry — re-entering the closure, so `opened` no
+				// longer counts what the case means, and in the last-attempt case
+				// consuming the bound under test.
+				return openPTY()
+			})
+			if opened != tc.wantOpen {
+				t.Errorf("open called %d times, want %d", opened, tc.wantOpen)
+			}
+			if tc.wantErr {
+				if !errors.Is(err, tc.errno) {
+					t.Fatalf("err = %v, want %v", err, tc.errno)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("startPTYWithOpen: %v", err)
+			}
+			defer func() {
+				_, _ = io.Copy(io.Discard, p.master)
+				_ = p.releaseSlave()
+				_ = cmd.Wait()
+				_ = p.master.Close()
+			}()
+		})
+	}
+}
+
 func TestDarwinLeaseResourceLifetimes(t *testing.T) {
 	for _, n := range []int{8, 16} {
 		leases := make([]*startedPTY, 0, n)
@@ -559,7 +624,7 @@ func TestDarwinRunLiveClosedStdio(t *testing.T) {
 }
 
 func TestDarwinRunInteractiveResizeAndRestore(t *testing.T) {
-	master, slave, err := pty.Open()
+	master, slave, err := openPTY()
 	if err != nil {
 		t.Fatal(err)
 	}

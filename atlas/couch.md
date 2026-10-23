@@ -3455,6 +3455,34 @@ caps three things:
 - **The startup reattach pass's in-flight set** (`ReattachPass.Limit`, fixed
   when the pass is armed).
 
+**One-gesture full quit** (#827). One confirmed switcher Alt+x owns the whole
+park leave (`leave_park.go`):
+- **Budget:** `LeaveParkBudget` (60s) is a scheduling budget shared by gate
+  waits, queueing, drives and reconciliation. Synchronous durable writes still
+  settle and are joined, so it is not a hard exit ceiling.
+- **Drives:** each target gets at most `leaveParkMaxDrives` (3), under one thread
+  hold. Each drive joins its exact admitted future (`parkFuture.AwaitJoined`,
+  through the Leave-only `parkJoined`/`recoverJoined`); public Park/Recover keep
+  the cancellable `Await`.
+- **Retry policy:** `decideLeaveParkRetry` is pure. An open transaction retries
+  through Recover under its own nonce. A fresh park needs `parkRolledBackError`
+  (the controller's proof that nothing was published and the rollback committed)
+  plus the same captured incarnation. Anything else is the operator's.
+- **Report:** a failure returns `LeaveParkIncompleteError`, whose text is
+  `FormatLeaveParkSummary`: every failed, not-started, skipped (unvouched
+  incarnation) or unreadable thread once,
+  in snapshot order, with its next action. The switcher's error notice and its
+  copy key carry it whole, and Couch stays open.
+- **Thresholds:** `parkCommitDeadline` is 10s (a measured 709ms worst commit at
+  30 slots under load; `workshop/evidence/000827/`). The unpublished rollback
+  gets the same budget. Relaunch's post-failure read keeps its own 1s
+  `relaunchObservationTimeout`.
+- **Store lock:** preview and routing reads take `store.lock` outside the
+  retention coordinator. Coordinated foreground writes (`withUpdateLockContext`)
+  therefore poll it within `storeReadLockWait` and then return
+  `ErrThreadStoreBusy`. Before #827 they refused at the first EWOULDBLOCK, which
+  is what left fan-out parks behind. Retention maintenance still yields at once.
+
 The console drains its operation queue with `Limit+1` workers, so the pass
 alone can never occupy all of them. Remote and continuation jobs share the
 spare worker. Results still reach the console goroutine through `q.results`. Every

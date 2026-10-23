@@ -58,6 +58,15 @@ eq(d.diags[2].message, 'changed by the agent (deleted: gone\n)', 'a deletion nam
 eq(d.diags[4].message, 'changed by the agent', 'no explain')
 
 -- watch: the round present at start is not replayed; the next one is.
+local mixed = W.decorations({ presentation = 'direct', spans = {
+  { start = {0,0}, ['end'] = {0,1}, old = 'a', new = 'b', presentation = 'highlight' },
+  { start = {1,0}, ['end'] = {1,1}, old = 'a', new = 'b', presentation = 'propose' },
+  { start = {2,0}, ['end'] = {2,1}, old = 'a', new = 'b', presentation = 'direct' },
+  { start = {3,0}, ['end'] = {3,1}, old = 'a', new = 'b' },
+} })
+eq(#mixed.hl, 1, 'only explicit highlight span receives change ink')
+eq(#mixed.diags, 2, 'direct spans and inherited direct have no diagnostics')
+
 local path = dir .. '/round.json'
 local function put(a) vim.fn.writefile({ vim.json.encode(a) }, path) end
 put(live('old'))

@@ -51,11 +51,14 @@ end
 function M.decorations(round)
   local hl, diags = {}, {}
   for _, s in ipairs(round.spans or {}) do
+    local presentation = reconstruct.presentation(s, round.presentation)
+    if presentation ~= 'direct' then
     local h = { line = s.start[1], col = s.start[2], end_line = s['end'][1], end_col = s['end'][2] }
-    if (s.new or '') ~= '' and not reconstruct.is_marker_proposal(s.new) then hl[#hl + 1] = h end
+    if presentation == 'highlight' and (s.new or '') ~= '' and not reconstruct.is_marker_proposal(s.new) then hl[#hl + 1] = h end
     local message = (s.explain and s.explain ~= '') and s.explain or 'changed by the agent'
     if (s.new or '') == '' then message = message .. ' (deleted: ' .. (s.old or '') .. ')' end
     diags[#diags + 1] = { lnum = h.line, col = h.col, end_lnum = h.end_line, end_col = h.end_col, message = message }
+    end
   end
   return { hl = hl, diags = diags }
 end
