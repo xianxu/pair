@@ -147,3 +147,7 @@ Plan-quality round1 confirmed the existing-behavior claims and architecture, but
 ### 2026-10-23 — collapse anchor name corrected
 
 The strategy row now names the existing prepareCollapsedStatusChips function; collapse is a branch of RenderStatusBar, not a separate renderCollapsedStatusBar function. No behavior or strategy change.
+
+### 2026-10-23 — TL resequences local close before stage
+
+Authenticated TL1e4df14f-c092-4148-8ad7-6921cd401d30 reserves the next stage after #811, and requests recorded check plus local close meanwhile. Run the binary-owned local close/review before real-console acceptance; retain acceptance as the final prerequisite before landing. The issue carries four short operator steps. Pending live/landing checkboxes remain honest; no code change.

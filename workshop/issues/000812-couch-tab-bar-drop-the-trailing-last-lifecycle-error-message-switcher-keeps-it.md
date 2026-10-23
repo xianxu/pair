@@ -53,6 +53,13 @@ needs the operator's attention goes through the notification (attention list / `
 - [ ] Update README/atlas, run targeted/race/inventory and recorded checks, obtain coordinated live acceptance, then close/review/land.
 
 
+## Operator check (after TL stage go)
+
+1. Open the staged disposable Couch in collapse, then multiline mode; confirm only controls and slot chips use the tab bar, with no trailing message.
+2. Trigger the prepared disposable exit/error; open the bell and confirm one readable warning. Normal progress and success should add none.
+3. Open the switcher and press Ctrl+Y; confirm the retained message is visible and its full text copies, while operation and copy feedback keep precedence.
+4. Select exact-thread, global and detached-target warning examples; confirm the attached thread opens exactly, the others open the switcher, and dismiss/clear works.
+
 ## Log
 
 ### 2026-10-22
@@ -102,7 +109,17 @@ Remaining Drive/ctrl-revoke teardown and later timer timeout happened with the p
 
 PR558 is open as an early candidate; close/review and real-console acceptance remain outstanding. Next push the oracle correction, then run the recorded affected check on that head. No live :0 stage yet.
 
+### 2026-10-23 — recorded check queued; close sequencing approved
+
+Recorded affected selection on afee7fb0eea8bb6c3156567d1ca744e596396859 escalated to full suite because the audited reader certificate changed. Owned run lease-3535874828, inflight11fd085bbff5b4739e288a00f96e6eb5, retained log under the common Git sdlc/test-stats/inflight directory. Natural FIFO position8 when admitted to the queue; keep this run, no cancellation/requeue or restart. PR558 updated. Final four-test stale-oracle/drive target PASS2.965s.
+
+Authenticated TL1e4df14f-c092-4148-8ad7-6921cd401d30 says pair:0 holds #811's morning check and #812 stages next only on TL go; meanwhile finish recorded check and local close. Four short operator steps added above. Local close/review can precede live acceptance under this explicit direction; passing recorded proof and real-console acceptance still precede landing. The remaining third Plan row therefore stays unchecked: it includes pending live acceptance and landing. If close requires it, acknowledge only that plan-check guard with this exact sequencing reason; never claim those actions passed.
+
 ## Revisions
+
+### 2026-10-23 — TL resequences close before live acceptance
+
+TL1e4df14f-c092-4148-8ad7-6921cd401d30 explicitly requests recorded check and close while #811 owns the stage, leaving #812's real-console acceptance as the final landing prerequisite. This supersedes the earlier close-after-live order, not the acceptance requirement. No code/scope change.
 
 ### 2026-10-23 — executable preservation and attention contract proposed
 
