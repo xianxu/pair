@@ -4132,7 +4132,12 @@ only after authoritative absence, the exact existing cleanup owner's rollback
 receipt and fresh vacancy/admission. Replacement or prelaunch authorization
 refusal stays terminal even if a later read reports absence. The receipt is
 request-local; interrupted operations retain ordinary start reconciliation,
-which never reconstructs permission for fallback. Fresh success visibly reports
+which never reconstructs permission for fallback. For an ID-only filename or
+requested-resume binding, editedrestart_presence.go asks the same scoped artifact
+owner for one exact-ID metadata observation (editedrestart_metadata.go). A unique
+root becomes a located binding; complete absence is Missing, while partial/error
+listings and duplicates refuse. Located bindings retain one stat and no listing;
+ordinary resume policy and binder cost are unchanged. Fresh success visibly reports
 `no previous conversation found; started fresh with the new parameters`.
 
 ## Couch metadata and resolution

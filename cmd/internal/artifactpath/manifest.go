@@ -1556,6 +1556,8 @@ var NonArtifactSources = []string{
 	"cmd/internal/couchcore/switch_force.go",
 	"cmd/internal/couchcore/editedrestart.go",
 	"cmd/internal/couchcore/editedrestart_evidence.go",
+	"cmd/internal/couchcore/editedrestart_presence.go",
+	"cmd/internal/couchcore/editedrestart_metadata.go",
 	"cmd/internal/couchcore/editedrestart_cleanup.go",
 	"cmd/internal/couchcore/editedrestart_launch.go",
 	"cmd/internal/couchcmd/switch_force.go",

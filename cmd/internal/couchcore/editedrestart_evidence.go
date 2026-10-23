@@ -26,7 +26,34 @@ func (c *Couch) resolveEditedRestartEvidence(ctx context.Context, thread ThreadR
 	if cancelled := ctx.Err(); cancelled != nil {
 		return editedRestartNativeObservation{}, cancelled
 	}
-	return classifyEditedRestartNative(thread, expected, bound, err)
+	observed, refusal := classifyEditedRestartNative(thread, expected, bound, err)
+	// Filename-confirmed and requested-resume ledgers may name only an ID.
+	// Complete that usable identity through its artifact owner; probation or
+	// an ID alone never proves presence or absence for an edited restart.
+	metadata, ok := c.Artifacts.(editedRestartMetadataObserver)
+	resolution := bound.Resolution
+	located := bound.Observed != nil || bound.Store != nil && bound.Store.Established()
+	if !ok || err != nil || located || resolution.ObservationIncomplete || resolution.FreshRequired || resolution.NativeID == "" || !coldResumeAuthorized(resolution) || observed.Kind == EditedRestartNativeChanged {
+		return observed, refusal
+	}
+	if resolution.RequestedNativeID != "" && resolution.RequestedNativeID != resolution.NativeID {
+		return editedRestartNativeObservation{}, ErrSwitchResolutionChanged
+	}
+	observed, err = metadata.ObserveEditedRestartNativeMetadata(ctx, thread, resolution.NativeID)
+	if cancelled := ctx.Err(); cancelled != nil {
+		return editedRestartNativeObservation{}, cancelled
+	}
+	if err != nil {
+		return editedRestartNativeObservation{}, err
+	}
+	if observed.NativeID != resolution.NativeID {
+		return editedRestartNativeObservation{Kind: EditedRestartNativeChanged, NativeID: observed.NativeID}, ErrSwitchResolutionChanged
+	}
+	if observed.Kind != EditedRestartNativeFound && observed.Kind != EditedRestartNativeMissing {
+		return editedRestartNativeObservation{}, refuseResume(ResumeUnknown, "edited restart native presence is unconfirmed")
+	}
+	observed.Transcript = threadrecord.CloneTranscriptBinding(observed.Transcript)
+	return observed, nil
 }
 
 func classifyEditedRestartNative(thread ThreadRecord, expected *string, bound TranscriptBind, probeErr error) (editedRestartNativeObservation, error) {
