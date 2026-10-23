@@ -474,6 +474,8 @@ couch . ../bench         open several hubs; first is main
 couch --move-slot pair:7,pair:8 --to-hub bench:0 [--persist]
 couch --layout2          opt into pair's two-pane workbench
 couch --layout3          threads also get pair's right-hand terminal (the default)
+couch --tab-style collapse   one-row tabs with quiet slots folded into counts (default)
+couch --tab-style multiline  the previous one/two-row tab bar
 couch --list             every durable work thread across all repositories
 couch --show <ref>       one current-repository thread by tag or path, or a slot (repo:N)
 couch --reconcile repo:N converge a slot's workspace now and show what it did
@@ -1201,9 +1203,10 @@ pair      /workspace/pair
 
 Tabs use the same group order: `pair :1 :2`. If the primary has no tab, the
 first slot shows the repo name: `pair:1 :2`. Parked slots stay in the switcher;
-tabs show attached threads and pending reattachments. Narrow terminals clip the
-right end of the bar, keeping each visible slot after its repo context. Custom
-names remain searchable and appear beside grouped workspace rows.
+tabs show attached threads and pending reattachments. By default, quiet slots
+fold into a count within their repository group. The active and attention chips
+have priority when space is scarce. Custom names remain searchable and appear
+beside grouped workspace rows.
 
 Each repository checkout, including standalone repositories without slots, shows
 quick-status glyphs after its name, in both
@@ -1305,15 +1308,30 @@ evicted sooner. Unknown writers and live open holders remain blocked.}
 evidence refuses further growth at the limit. Parked recovery
 captures use their separate age policy and exact reader protections.
 
-The tab bar starts with the hub, the checkout you started Couch from, and then
-lists every other slot grouped by repository:
-`ops  ariadne  :1  :2  blog  pair  :1  :2`. In the switcher the hub is the first line and the rest sit indented
-under it. The hub tab uses reversed colours as a bookmark; switcher hub rows
-are underlined, and only the selected row uses reverse video. Focus brackets
-still mark the active tab, and a selected hub keeps its underline and bold
-cursor arrow. When the tabs don't fit, a repository's numbered slots fold into a
-count (`pair  +2`), starting from the right. A red, belled or focused tab is
-never folded away, and the switcher always lists everything.
+Couch defaults to `--tab-style collapse`: the tab bar stays on one row.
+It groups tabs by hub and repository, showing the active tab and slots needing
+attention while groups with at least three collapsible quiet slots or inactive
+hubs fold into counts such as `pair +3`. One or two stay visible in full. Clicking a group count opens the switcher scoped to exactly that
+hub and repository group, including the slots folded into it. The scope survives
+refreshes and returning from an action. Escape clears a text filter first, then
+the group scope; opening the ordinary switcher starts with the full list.
+
+The active and attention chips win space before ordinary chips. At impossible
+widths, some labels must be hidden: the remaining overflow count says `+N !`
+when hidden slots need attention, if that complete marker fits. The bell still
+opens the full attention list. A clipped or omitted count has no click action.
+
+Use `couch --tab-style multiline` for the previous packer, which uses one row
+when everything fits and wraps onto a second row before hiding overflow. The
+choice applies only to the Couch session being launched and composes with the
+layout and hub-path options. Collapse avoids content-driven changes to child
+terminal height as slots, focus and attention change; resizing the host terminal
+still resizes its children.
+
+In the switcher the hub is the first line and the rest sit indented under it.
+The hub tab uses reversed colours as a bookmark; switcher hub rows are
+underlined, and only the selected row uses reverse video. Focus brackets mark
+the active tab, and a selected hub keeps its underline and bold cursor arrow.
 
 With `couch . ../bench`, each directory is a hub. The first owns unclaimed slots;
 each started hub’s `.hub` file can claim repositories or exact slots. Exact claims
@@ -2223,6 +2241,8 @@ From a non-agent Pair pane, detach with `Alt+d`. For Couch-managed work, use the
 
 ## Storage retention
 
+🤖{Use `pair vm run --checkout /absolute/repo -- COMMAND ARGS...` to run a literal command against a private tracked checkout in a disposable macOS Tart VM. A qualified machine image must already be installed; ordinary runs do not provision it. Use `pair vm provision --checkout /absolute/repo` to build a fresh image from the checksum-pinned guest tool lock, using the ad-hoc lane and a 60-minute budget plus cleanup up to 10 seconds. Activation follows guest qualification and confirmed cleanup; two retained image candidates block further refresh until inspected. Provisioning preserves `pair-test` and cached source images. The default ad-hoc lane is separate from the train/nightly lane (`--lane train`). `--timeout 20m` covers waiting through execution, followed by cleanup up to 10 seconds. Inspect the printed artifact path and managed VM when cleanup remains unconfirmed; the durable claim prevents another run from reusing that lane. `--artifacts /absolute/fresh-directory` retains caller-owned results. Use `make conformance-vm` for strict native terminal and lifecycle checks in the train lane. It retains raw Go JSON stdout separately from diagnostics and rejects missing, skipped or failed cases. Set host-only `PAIR_VM_ARTIFACTS_DIR` to a fresh absolute directory when retaining a caller-owned result bundle. GitHub PR conformance remains required during local burn-in. See [VM runner](atlas/vm.md) for isolation, budgets and qualification state. The deterministic [nightly command and scheduler handoff](scripts/vm/scheduled-task.md) retains failed and partial nights separately; production named-check acceptance waits for the supported SDLC declaration on main. Nightly retention holds a full possible bundle for every retained date until explicit archive. At 12 nights or 75% of its 4 GiB budget, and at the cap, the nightly command exits 10 to wake the hub before another check starts. Inspect the retained evidence and reconcile any surviving writers, then run the one shell-quoted `mv` archive command printed on stderr. It moves the entire evidence root to a unique sibling archive without deleting its contents; the next invocation creates a fresh root. Keep the archive for #745’s promotion decision and dispose of it explicitly afterward.}
+
 `pair gc` previews Pair-owned storage by retention bucket, with byte totals and
 reasons for keeping or collecting each group. Use `pair gc --json` for exact
 paths. Preview does not change your files or initialize retention clocks.
@@ -2532,6 +2552,16 @@ SDLC/Weave, Git, Zellij and nvim, and uses private state and queue roots without
 models or credentials. Portable helper tests run normally; the native consumer
 opts in only through this target or `PAIR_NATIVE_COUCH_FLEET=1`.
 See [fleet ownership and evidence](atlas/couch-testing.md).
+
+External editor conformance consumers can build `make couch-conformance-bridge`
+and launch the absolute `bin/couch-conformance-bridge --scratch-parent /private/tmp`
+(with optional `--couch ABS`). The existing parent is shared; the producer creates
+and removes only its own private children. Use pipe stdin/stdout/stderr, read its single bounded JSON
+readiness line, and replace the whole client environment with Environment. Its
+Documents are registered parent/side Markdown fixtures; no consumer-owned Couch
+launcher is needed. Close editors, then close stdin or send TERM; exit0 confirms
+joined cleanup. See the [bridge contract](atlas/couch-testing.md#external-conformance-bridge-801).
+
 
 `tests/terminal-performance.py --help` describes isolated baseline/candidate
 measurements using real Pair terminal processes and independent screen receipts.

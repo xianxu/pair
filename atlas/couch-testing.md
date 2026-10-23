@@ -150,3 +150,43 @@ distinct names independently of temporary-directory parents. The seed record is
 removed by the existing root owner. It is not a permanent identity scheme across
 PID reuse: crashed native residue still meets the unchanged fail-closed census.
 No production launch budget, retry or ownership rule changes.
+
+## External conformance bridge (#801)
+
+`make couch-conformance-bridge` atomically builds `bin/couch-conformance-bridge`.
+An external consumer launches its absolute path with `--scratch-parent ABS` and,
+optionally, `--couch ABS`. Use an existing short physical parent such as
+`/private/tmp` directly; do not add a private wrapper directory. The producer
+allocates fresh0700 `pc-*` and `couch-candidate-*` children and removes only
+those exact owned children. Neither caller nor producer removes the supplied
+parent. Overlong native socket placements refuse without relocation.
+The executable finds its checkout from its physical
+location, uses the shared `BuildOwned` and `NewOwned` implementations, and starts
+one genuine private steward. Its provisioned worker is not started. Native tools,
+including nvim, are selected once from invocation PATH; runtime PATH and all
+HOME/XDG/socket identities are private. Candidate preparation is offline, with
+explicit shared Go caches and no ambient Pair candidate or agent configuration.
+
+The protocol requires pipe stdin, stdout and stderr. It emits one Version1 JSON line
+(up to64KiB) after genuine registration and a public editor-endpoint lookup.
+Namespace and Socket identify that private service. Environment is a complete
+replacement client environment. Documents contains two real, distinct registry
+IDs, ordered as parent `artifacts/first.md` and side document
+`artifacts/first.side/second.md` (`type: side-doc`, `parent: ../first.md`).
+Consumers use these identities rather than creating another owner or launcher.
+
+Startup and lifetime have absolute300s and600s limits from entry. EOF, TERM and
+INT converge on one15s joined cleanup through the existing fleet owner; stdin
+accepts no commands. Close native editors before EOF. Exit0 certifies owner
+cleanup; failure retains its exact evidence root when cleanup is uncertain.
+Readiness or cleanup is never automatically retried. SIGKILL cannot promise
+cleanup; the consumer must retain the root and report uncertainty rather than
+invent a descendant teardown. Diagnostic content is capped at64KiB plus one
+bounded final truncation/root marker. An unconsumed readiness pipe is cancellable. Diagnostic writes are nonblocking;
+a full or closed stderr pipe fails the invocation after joined cleanup rather than
+stalling the owner. A full pipe cannot carry the final root marker.
+
+The portable stateful tests exercise stops during each boundary, failed/late
+readiness, malformed authority and pipe cancellation. The opt-in native bridge
+check uses this same owner and actual service. Portable tests and a socket stat
+alone do not qualify native producer readiness.

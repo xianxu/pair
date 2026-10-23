@@ -1,0 +1,9 @@
+{
+  "binary": "/Users/xianxu/workspace/ariadne/bin/sdlc",
+  "version": "sdlc version path=/Users/xianxu/workspace/ariadne/bin/sdlc revision=fa9761e6b45a3bce3dc32872fd42e50b2797f837 modified=false",
+  "sha256": "d56733bd6fcd22a1fbdf85d774a8f430887e598c8c710fe3aa1e425df700a098",
+  "provider_merge": "9ffe23d08adb36c2a0780cff22a3f6e1b979106d",
+  "capability": "version-2 manual landing checks with runner-owned resource",
+  "approval_receipt": "f725286f-7bfd-4a41-baec-e3b6ec13c006",
+  "named_check_acceptance": "pending post-landing main bootstrap"
+}

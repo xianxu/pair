@@ -24,17 +24,17 @@ func TestParseCLIAcceptsLayoutFlag(t *testing.T) {
 		want cliInvocation
 	}{
 		{"bare defaults to layout3", nil,
-			cliInvocation{kind: cliLaunch, path: ".", layout: couchcore.Layout3}},
+			cliInvocation{kind: cliLaunch, path: ".", layout: couchcore.Layout3, tabStyle: couchtty.DefaultTabStyle}},
 		{"flag alone", []string{"--layout3"},
-			cliInvocation{kind: cliLaunch, path: ".", layout: couchcore.Layout3}},
+			cliInvocation{kind: cliLaunch, path: ".", layout: couchcore.Layout3, tabStyle: couchtty.DefaultTabStyle}},
 		{"flag before path", []string{"--layout3", "../pair"},
-			cliInvocation{kind: cliLaunch, path: "../pair", hubPaths: []string{"../pair"}, layout: couchcore.Layout3}},
+			cliInvocation{kind: cliLaunch, path: "../pair", hubPaths: []string{"../pair"}, layout: couchcore.Layout3, tabStyle: couchtty.DefaultTabStyle}},
 		{"flag after path", []string{"../pair", "--layout3"},
-			cliInvocation{kind: cliLaunch, path: "../pair", hubPaths: []string{"../pair"}, layout: couchcore.Layout3}},
+			cliInvocation{kind: cliLaunch, path: "../pair", hubPaths: []string{"../pair"}, layout: couchcore.Layout3, tabStyle: couchtty.DefaultTabStyle}},
 		{"explicit layout2", []string{"--layout2"},
-			cliInvocation{kind: cliLaunch, path: ".", layout: couchcore.Layout2}},
+			cliInvocation{kind: cliLaunch, path: ".", layout: couchcore.Layout2, tabStyle: couchtty.DefaultTabStyle}},
 		{"flag with a dash path", []string{"--layout3", "--", "-repo"},
-			cliInvocation{kind: cliLaunch, path: "-repo", hubPaths: []string{"-repo"}, layout: couchcore.Layout3}},
+			cliInvocation{kind: cliLaunch, path: "-repo", hubPaths: []string{"-repo"}, layout: couchcore.Layout3, tabStyle: couchtty.DefaultTabStyle}},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			got, err := ParseCLI(tt.args, operations)

@@ -1,0 +1,16 @@
+{
+  "source_head": "eee3547fd06b624351dee871a4f0630a03d2f612",
+  "command": "PAIR_NATIVE_COUCH_BRIDGE=1 go test ./cmd/internal/testcouchbridge -run ^TestNativeCouchBridge$ -count=1 -v -timeout=12m",
+  "authorization": "97f22b2d-ba87-4d3e-a811-7b541570895a",
+  "exit": 0,
+  "elapsed_seconds": 36.648,
+  "sha256": "2280b09adb67db75226bbf254cda23900f187554557d14ef188f360aff960f7a",
+  "qualification": [
+    "claude/default-candidate/EOF",
+    "codex/explicit-candidate/TERM"
+  ],
+  "native_nvim": "0.11.7",
+  "limits": "300s startup,600s lifetime,15s joined stop; unchanged",
+  "proved": "genuine private fleets, actual endpoint lookups, parent and side document access, joined cleanup and owned-root absence",
+  "not_proved": "Parley consumer registration and nvim0.12.5; earlier startup stall root cause"
+}

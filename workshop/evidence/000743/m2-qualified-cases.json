@@ -1,0 +1,43 @@
+{
+  "events": 409,
+  "passed": {
+    "github.com/xianxu/pair/cmd/internal/couchtty": [
+      "TestLiveConsoleNvimPreservesContentAndChrome",
+      "TestLiveReservedRowSurvivesRealScrolling",
+      "TestNotificationPTYConformance",
+      "TestNativeConsoleWrapperZellij/direct-zellij-baseline",
+      "TestNativeConsoleWrapperZellij/wrapped-zellij",
+      "TestNativeConsoleWrapperZellij"
+    ],
+    "github.com/xianxu/pair/cmd/internal/layoutcmd": [
+      "TestTerminalRecoveryZellijConformance"
+    ],
+    "github.com/xianxu/pair/cmd/internal/launcher": [
+      "TestQuitLifecycleLive",
+      "TestTheAcceptorAgreesWithRealZellijLive",
+      "TestSessionQuiescenceLive",
+      "TestSessionDetachLive"
+    ],
+    "github.com/xianxu/pair/cmd/internal/couchcore": [
+      "TestParkLifecycleLiveIntentOnlyMutation",
+      "TestRecoveryRealHelperAndSessionConformanceLive/warm",
+      "TestRecoveryRealHelperAndSessionConformanceLive"
+    ],
+    "github.com/xianxu/pair/cmd/internal/couchcmd": [
+      "TestAgentShortcutInputConformanceLive/inherited-alt-f",
+      "TestAgentShortcutInputConformanceLive/inherited-alt-bracket",
+      "TestAgentShortcutInputConformanceLive/inherited-alt-plus",
+      "TestAgentShortcutInputConformanceLive/alt-up",
+      "TestAgentShortcutInputConformanceLive/alt-down",
+      "TestAgentShortcutInputConformanceLive/alt-left",
+      "TestAgentShortcutInputConformanceLive/alt-right",
+      "TestAgentShortcutInputConformanceLive/alt-h",
+      "TestAgentShortcutInputConformanceLive/alt-l",
+      "TestAgentShortcutInputConformanceLive/alt-x",
+      "TestAgentShortcutInputConformanceLive/reserved-shift-alt-t",
+      "TestAgentShortcutInputConformanceLive/reserved-shift-alt-left",
+      "TestAgentShortcutInputConformanceLive/reserved-shift-alt-right",
+      "TestAgentShortcutInputConformanceLive"
+    ]
+  }
+}
