@@ -7,7 +7,7 @@ created: 2026-10-22
 updated: 2026-10-23
 estimate_hours:
 collaboration-mode: collaboration
-card_mirror: '2b301f89cf92e6cae005ee3162f9d341e7faa64a' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '3b4d0353c33f53123fcf9f24ac379348cea4a3e6' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-23T04:07:36-07:00
 claimant:
     operator: Xian Xu
@@ -19,7 +19,7 @@ claimant:
 flow: {kind: quick, provenance: inferred, spec: "af96eb45", done: "7a3694a8"}
 ---
 
-# Couch: Ctrl+Return opens the attention list (like the bell) instead of jumping to a tab
+# Couch: Ctrl+Return toggles the attention list; Ctrl+Backspace stays previous
 
 ## Problem
 
@@ -167,6 +167,36 @@ PASS 3.440s. make test-affected-inventory PASS without any reader repair;
 git diff --check PASS. No live-terminal or recorded affected-check result yet.
 Next: push source, retain one recorded affected-check runner, stage the verified
 head on pair:0, then obtain the morning operator key acceptance before landing.
+
+### 2026-10-23 — staged for morning acceptance; recorded check retained
+
+Source committed/pushed at 2f634183e290332fd1029341d49b3a8c6b4dc05e.
+SDLC stage --build completed EXIT0 on pair:0: couch, pair, pair-launch-helper,
+pair-slug and couch-conformance-bridge all report that exact vcs.revision and
+vcs.modified=false. Stage belongs to #811 and remains held for the authorized
+morning operator check; do not clear before acceptance. Hub readiness receipt
+36d2ac7f-52fa-42ef-8e9a-f3f0c7b45a44 is submitted.
+
+Opened PR556 (https://github.com/xianxu/pair/pull/556), with corrected product
+wording and explicit pending acceptance. Corrected the card title through
+sdlc issue set-title to match the already-approved Ctrl+Return contract; the
+historical filename is unchanged.
+
+One recorded affected check is queued on source 2f634183, lease-1126897576,
+run 7bb4f6f8c2948f6ce4bc092d8b5764d3. Retain unified exec session13291;
+do not restart/requeue it. Its isolated snapshot is
+/Volumes/TestScratch/local-checks/sdlc-local-171488945 and log is
+/Users/xianxu/workspace/pair/.git/sdlc/test-stats/inflight/7bb4f6f8c2948f6ce4bc092d8b5764d3/run.log.
+The declared affected plan includes eight reverse-dependent Go packages plus
+the shell group; it acquired normal FIFO6 behind ariadne, no bypass.
+No recorded result, hosted-CI result, live acceptance or close verdict yet.
+
+Exact next step: read the retained affected runner's completion on its pinned
+source; classify any failure before rerun. Obtain the morning operator key
+check on the exact staged build using the checklist below. After acceptance,
+clear the owned stage, rerun the mandatory inventory before whole close,
+record actual evidence, and use SDLC close/review then merge. No continuation
+writer/restart while our recorded check is queued/running.
 
 ## Operator live check
 
