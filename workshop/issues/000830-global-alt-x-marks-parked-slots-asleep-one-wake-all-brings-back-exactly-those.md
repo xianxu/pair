@@ -58,9 +58,9 @@ Durable plan: `workshop/plans/000830-global-alt-x-marks-parked-slots-asleep-one-
 - [x] T2 pure `ThreadAsleep` predicate (nonce-bound)
 - [x] T3 BeginPark cause; Leave fresh drives mark asleep; resume/reattach clear
 - [x] T4 summary + switcher shows asleep
-- [ ] T5 wake operation (hubs only): switcher key Alt+Shift+x; `asleep_at` in `couch --recover-plan-from-sdlc` rows (done)
+- [x] T5 wake operation (hubs only): switcher key Alt+Shift+x; `asleep_at` in `couch --recover-plan-from-sdlc` rows (done)
 - [ ] T6 native fleet acceptance (Claude, Codex)
-- [ ] T7 atlas, lessons, ariadne#564 contract
+- [x] T7 atlas, lessons, ariadne#564 contract
 
 ## Revisions
 
@@ -71,6 +71,13 @@ Durable plan: `workshop/plans/000830-global-alt-x-marks-parked-slots-asleep-one-
 ## Log
 
 ### 2026-10-23
+
+- T5 and T7 are done; head aab4ad4f2.
+  - Wake is a switcher confirmation, `menu_wake.go`. It dispatches the row resume that Enter uses for each asleep hub, so no new core op was needed (ARCH-DRY). The main hub goes last so the operator lands on it.
+  - The Alt+Shift+x binding is Couch-only. `TestSwitcherChordsCarryPairsEncodings` now states the rule for such a key: its bytes decode to no Pair chord.
+  - `asleep_at` is in the recover-plan rows.
+  - Tests: the wake reducer (exactly the asleep hubs, main last; plain parked untouched; the set re-read at Enter), with a mutation check on the hub filter. Targeted packages are green after three guard fixes: the refusal-case enumeration, the README chord check and the artifact inventory.
+- T6 (native fleet) waits for #739 to land, for two reasons. On main a Couch started from the primary has no hub ownership, so wake finds no hub. And main's startup cold-resumes the hub, which would confound the test. After #739, the harness needs a cold start that doesn't wait for the hub agent, then a wake press.
 
 - T1–T4 done (9dcc4a36c, then the switcher commit). A mutation check that writes no mark at BeginPark fails both Leave mark tests. T4 adds no read: asleep comes from the record already in hand, so the planned counted test would have nothing to count.
 - **Design discovery, waiting on the TL:** Couch already starts every explicit hub at startup. `startExplicitHubs` queues `start-hub` for each, and `StartInteractive` cold-resumes a proven conversation. Restarting Couch with its hubs therefore already wakes them, asleep or not. A separate wake gesture for hubs would only repeat what startup does. Asked the TL whether wake stays (startup would then skip asleep hubs and wait for the gesture) or is dropped (startup is the gesture, and #830 ships the mark, the display and `--asleep --json`).
