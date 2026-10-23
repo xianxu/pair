@@ -14,7 +14,7 @@ collaboration-mode: discussion
 
 ## Decision and approval boundary
 
-The operator already chose removal from both layouts. This plan still needs TL approval before code, specifically the global-attention selection behavior below. The audit found that the general feed is currently available through Ctrl+Y but is not drawn by RenderMenuView: merely preserving MenuState.Notice would lose the displayed exit/error text entirely.
+The operator already chose removal from both layouts. TL approved this plan, including global-attention selection, in receipt db842971-53f5-4660-a836-870b0d14de1a. The audit found that the general feed is currently available through Ctrl+Y but is not drawn by RenderMenuView: merely preserving MenuState.Notice would lose the displayed exit/error text entirely.
 
 Alternatives considered:
 
@@ -61,7 +61,7 @@ Actions: open switcher, inspect/copy notice, select attention, dismiss attention
 | Global asynchronous failure without a canonical thread | Attention event labelled Couch, with no fabricated slot identity | Selecting opens switcher; inspect full text with Ctrl+Y | Same existing event cap/expiry |
 | Prompt/question/hub --notify already represented | Existing attention state | Existing select/dismiss/retry behavior | Existing lifecycle unchanged |
 
-Global selection must not silently jump to the currently focused actor. An exited/replaced exact target must open the switcher rather than produce another invisible notice. This is the explicit TL approval point. AttentionNotify selection/dismissal clears an event; the existing cap50, oldest-notify eviction and 12-hour expiry remain the owner. No live condition is invented for one-time errors (ARCH-FUNERAL).
+Global selection must not silently jump to the currently focused actor. An exited/replaced exact target must open the switcher rather than produce another invisible notice. TL approved this selection behavior. AttentionNotify selection/dismissal clears an event; the existing cap50, oldest-notify eviction and 12-hour expiry remain the owner. No live condition is invented for one-time errors (ARCH-FUNERAL).
 
 ## Producer audit and routing contract
 
@@ -119,3 +119,10 @@ make test-affected-inventory
 Tab rendering loses work; existing actor planning remains unchanged. Latest-feed projection scans at most the existing feed capacity. Each explicit warning performs one bounded existing attention application over at most50 entries; N and2N publication tests count one projection/application per event and assert the same list cap. Text input is processed once under a hard byte cap. No additional per-frame source traversal, IO, goroutine or file family. All added values die with the console (ARCH-CONSTRAINTS, ARCH-FUNERAL).
 
 No persisted format, core status enum, agent PTY admission or child-process lifetime changes (ARCH-EVOLVE). This is product behavior removal plus reuse of existing attention ownership, not a reason for a general notification redesign.
+
+
+## Revisions
+
+### 2026-10-23 — approved with explicit noise guard
+
+TL db842971-53f5-4660-a836-870b0d14de1a approves all surfaces and global/detached selection behavior. Only events requiring the operator belong in attention; a class that fires routinely during normal operation stays feed-only. Apply this producer-level distinction without parsing English text or duplicating already-routed events. Approval supersedes the earlier pending language; implementation still waits for change-code.
