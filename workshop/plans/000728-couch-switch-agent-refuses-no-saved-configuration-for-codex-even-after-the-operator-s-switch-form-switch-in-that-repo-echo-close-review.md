@@ -128,3 +128,103 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-22T22:19:33-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 728 — couch --switch-agent refuses 'no saved configuration for codex' even after the operator's switch-form switch in that repo (echo) |
+| repo | pair |
+| issue file | workshop/issues/000728-couch-switch-agent-refuses-no-saved-configuration-for-codex-even-after-the-operator-s-switch-form-switch-in-that-repo-echo.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 4a7ab2ca1a4c0b0d4aa34e8cada1d8c2917427bc..fba4fd7863e67c7f0df87005aa967fa5bc18040f |
+| command | sdlc close --issue 728 |
+| reviewer | codex (openai; author openai) |
+| isolation | fenced |
+| timestamp | 2026-10-22T22:19:33-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+The reviewed range matches the governing Couch-only preference and edited-restart revisions. Both open findings are addressed: their regressions pass at the pinned head and fail when the corrections are removed through temporary Go overlays. No new blocking findings were identified.
+
+```findings
+dispose:
+  - id: BR-7
+    disposition: addressed
+    note: |
+      switchagent.go:263 uses PreviewThreadContext across ordinary, known and forced preparation. Transitive storage reads remain observational. Both preparation regressions pass; restoring GetThread makes all nine journal cases and all three initialization/retention cases fail.
+  - id: BR-8
+    disposition: addressed
+    note: |
+      editedrestart_console_acceptance_test.go:66 completes source setup through the pre-Run hook. The deterministic independent observer and actual Console continuation observer pass. Moving setup after construction makes the regression fail for both agents; the remote-adoption matrix also passes under race.
+```
+
+**1. Strengths**
+
+- Repository preference policy, codec and storage are separated, with explicit empty arguments distinguished from absence.
+- Publication follows successful console adoption; storage failure preserves the running child and surfaces a warning.
+- Edited restart requires exact native identity or positive absence plus confirmed cleanup before fallback.
+- README and atlas changes document the new flags, preference authority, borrowing and restart behavior.
+
+**2. Critical findings**
+
+None.
+
+**3. Important findings**
+
+None.
+
+**4. Minor findings**
+
+None.
+
+**5. Test coverage notes**
+
+Passed independently:
+
+- Focused preference, edited-restart, switch and Console tests across couchcore, couchcmd and couchtty.
+- Race-enabled preparation and edited-restart Console regressions.
+- Complete couchmessage, couchtty, threadrecord and agentfixture packages.
+- `make test-affected-inventory` and range whitespace checks.
+- Both negative controls failed as expected; temporary overlays were removed and the checkout remains unchanged.
+
+I did not independently rerun the full suite or live native acceptance. The tracker’s pending corrected-source recorded suite remains a landing prerequisite.
+
+**6. Architectural notes**
+
+- **ARCH-DRY — pass:** common preparation and shared preference policy cover the enumerated consumers.
+- **ARCH-PURE — pass:** preference decisions and restart transitions remain separate from storage/process effects.
+- **ARCH-PURPOSE — pass:** cross-slot reuse, marked borrowing, editable arguments and guarded restart are implemented.
+- **ARCH-MOCK — pass:** stateful dependency seams and actual Console acceptance exercise production paths.
+- **ARCH-CONSTRAINTS — pass:** document, discovery and argv bounds are enforced; publication shares a bounded context.
+- **ARCH-SECURE — pass:** preview reads preserve storage; literal argv and exact source/native identities constrain effects.
+- **ARCH-ORDER — pass:** explicit restart transitions and deterministic observer sequencing cover the reviewed corrections.
+- **ARCH-FUNERAL — pass:** preferences use bounded replacement storage; request-local evidence adds no durable residue.
+- **ARCH-EVOLVE — pass:** raw-preserving codecs retain unknown members and legacy images while validating known fields strictly.
+
+**7. Plan revision recommendations**
+
+None. The governing revisions and delivered-file mappings match the implementation.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"eca3b47d-21b4-4a54-99a0-198688742aa7","repository":"github.com/xianxu/pair","issue_id":"000728","recipe":"milestone-review","round":8,"attempt":1,"agent":"codex","root":"/Volumes/TestScratch/review-checkouts/e9ca90b6c3fbc862","reviewed_head":"fba4fd7863e67c7f0df87005aa967fa5bc18040f","slot":"pair:3","requested_at":"2026-10-23T05:15:51.561317Z"},"phase":"finished","pid":27332,"started_at":"2026-10-23T05:15:51.726834Z","finished_at":"2026-10-23T05:19:32.843328Z","session_id":"01a1672f-dbcf-7520-8064-24ff80e44858","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 3.334058958s
+head: "fba4fd7863e67c7f0df87005aa967fa5bc18040f"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412
