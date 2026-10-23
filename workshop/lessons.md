@@ -7,6 +7,8 @@ representative evidence, not an exhaustive index.
 
 ## Proof and verification
 
+- #838 PQ-1: A shared authority projection must preserve independent facts for every consumer. A single winning Source label can hide legacy item grammar, and whole-document routing can hide still-owned tags. Enumerate routing, grammar, source protection and migration consumers; preserve their provenance in the shared owner and test mixed/overlapping authority against an independent oracle.
+
 - #833: A failed component's later refusal must wrap its retained cause, not replace it with a generic unavailable error or join a new synthetic leaf. Publish the failed state and first cause together under the same mutex; pin queued, later and owner-completion paths plus the real shutdown caller, including physical errors joined with cancellation.
 
 - #827 PQ-1: joining dispatch callers does not join their asynchronous producers. When cancellation can return from Await early, retain the exact admitted future and defer gate/capacity release and final reporting until producer completion; pin ordinary caller behavior when adding an opt-in joined path.

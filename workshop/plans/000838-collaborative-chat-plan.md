@@ -227,3 +227,46 @@ and migration proof. #576 must land before those core adapters can use the new
 API; the approved #575-only code-entry threshold cannot manufacture missing
 provenance. TL ccfe62c7-130f-4095-944f-e13cfa85b3d8 confirmed upstream
 ownership and rerunning the gate once the API is explicit.
+
+### 2026-10-23 14:36 — explicit shared item API and implementation wait
+
+ariadne:2 receipt4258f321-73da-41b0-9212-41fb9ba1dfee supplies the shared
+item seam in upstream candidate cbdced604d90234af1cbcc0fae5f104fa40e3b93:
+
+```go
+type ChatItem struct {
+    Pos, Start int
+    Lines []string
+    Answered bool
+}
+func ChatItems(section string, legacy bool) []ChatItem
+func IndentOf(line string) int
+```
+
+Start is a zero-based source-line index in the passed section; Pos is ordinal,
+not the operator's reused item number. Lines include the item content and
+exclude trailing blank separators. Answered also recognizes legacy done links.
+The Pair selectChatItems adapter consumes these source facts and maps them to
+original byte ranges; it no longer selects item grammar from Goldmark list
+syntax independently. Goldmark's existing render/code facts still protect
+marker identity and syntax in validation.
+
+Build disjoint governing source regions once from laminar sections. Feed
+source chunks to ChatItems without rescanning full overlapping parent/child
+sections; associate candidates with the original governing section and join
+its shallowest-indent decision using IndentOf. Count total bytes/lines fed to
+the shared parser and joins at N/2N; never call a linear Innermost search per
+item. The independent source oracle and complete-item guards must agree before
+retiring the old item-selection path.
+
+Source inspection found the candidate ChatItems fence mask toggles on either
+backtick or tilde prefixes without matching kind/length. Sent upstream
+be9a4d4d-7f6e-46cb-9e3a-28e2c5cf7e97 for qualification against its existing
+Goldmark/CodeLiteralMask seam. This is a suspected grammar defect, not yet a
+measured failure here. Pair will not copy or patch the upstream parser.
+
+Plan-quality resolved PQ-1/PQ-2; estimates passed with advisory INFO, and
+change-code recorded accepted design4ed7f036fac126928237ad92e9f4e89a17483710.
+The new core APIs exist only on #576's branch, so feature implementation must
+wait for its landed module version. Recheck the final shared API and run the
+gate on this clarified plan before core edits; do not install candidate source.

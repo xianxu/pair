@@ -184,6 +184,44 @@ gate against the explicit #576 API, then derive estimates only on acceptance.
 final fixture pin/performance/close continue to wait for it. No implementation
 or own long-running check is active.
 
+### 2026-10-23 14:36 — gate accepted; RED baseline; waiting for #576 API
+
+Plan round2 CLEAN disposed PQ-1/PQ-2, no new findings. Derived estimate3.73h
+from the named v3.1 source after acceptance; card setter and deterministic
+reconciliation passed. Estimate review INFO: explicitly account for fixture,
+old-round/public-seam verification and audit/stage preparation within the
+existing items; implementation allowances may be optimistic. Retain those
+risks for actual comparison, not a fabricated precision claim. Issue/spec
+includes completed authoring, cross-cutting work includes public-seam/old-codec
+tests and inventory preparation, atlas/skill includes source fixture guidance
+and real-doc read-only audit; provider discovery covers native qualification
+and its shared harness/stage preparation. Queue and operator idle waits are
+excluded from focused work.
+
+Session86711 exited0 and checkpointed accepted full-flow design at
+4ed7f036fac126928237ad92e9f4e89a17483710. I misread its return status and
+started a redundant confirmation86711->89599: plan passed through cached and
+only estimate review repeated INFO; session89599 also exited0. No bypass or
+code mutation. Do not repeat it merely to reconfirm success.
+
+Added collaborative_test.go against the real existing API. Focused run EXIT1
+with expected RED behavior: tag item resolves non-chat, malformed/unknown or
+duplicate retired values refuse, and deleting a real tag (including under
+whole-document legacy chat) incorrectly succeeds. This is deliberate TDD
+evidence, not a recorded passing suite. Existing catalog/source-pin tests
+on the #575 dependency passed0.155s.
+
+Upstream now exposes Legacy, Tags and shared ChatItems on #576's unlanded
+branch. These APIs are required for the core adapter; no copied candidate or
+local replace. New item API and a suspected mixed-fence defect are recorded
+in the plan Revisions; its owner was asked to qualify that class.
+
+Exact next step: on #576 landing notice verify its Git/main reachability,
+update the pinned Go module and substrate, reconcile final API/fixtures and
+rerun change-code for the clarified plan, then implement the RED regressions
+and remaining planned tasks. No feature implementation or long-running check
+is active. Expected-red tests are checkpointed with this dependency wait.
+
 ## Revisions
 
 ### 2026-10-23 — initial implementation design
