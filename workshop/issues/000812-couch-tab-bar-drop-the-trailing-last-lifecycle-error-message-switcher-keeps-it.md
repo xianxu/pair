@@ -94,6 +94,14 @@ README and atlas updated with executable anchors and removed contradictory trail
 
 Next: finish complete package checks, repair any failures, push this candidate and run recorded affected check on its exact head. Coordinated real-console stage/live acceptance still pending TL go; no :0 action, close or landing yet.
 
+### 2026-10-23 — complete-target failure classified; stale oracles repaired
+
+The manual complete couchtty/couchcmd target used a5m package timeout, shorter than the repository's declared20m. It is NOT a pass: obsolete TestCodesMenuRotatesAndDisconnects tab-row expectation consumed283.44s; TestGuessRotationAlertAndFlash and TestConsoleMenuResumeLandsOnExactReturnedHandle also assumed removed chrome text. Updated only those three oracles to retained feed/switcher and explicit attention, preserving private-flash/generation, viewer disconnection, code safety and exact-returned-handle assertions. Focused repair run PASS0.783s; inventory PASS with no additional certificates.
+
+Remaining Drive/ctrl-revoke teardown and later timer timeout happened with the package deadline nearly exhausted. Unchanged isolated TestDriveActionsDoNotBlockTerminal PASS0.575s; TestCouchRestartReplyAdmission (where couchcmd hit its5m ceiling mid query) PASS1.037s. testwait derives all windows from the package deadline; these are consequences of the consumed/undersized global budget, not an established same-head flake. No blind full passing retry or flake registration used. Final recorded affected check will run complete selected packages with the declared20m budget and retain its log. Core warning race after geometry correction PASS2.003s.
+
+PR558 is open as an early candidate; close/review and real-console acceptance remain outstanding. Next push the oracle correction, then run the recorded affected check on that head. No live :0 stage yet.
+
 ## Revisions
 
 ### 2026-10-23 — executable preservation and attention contract proposed

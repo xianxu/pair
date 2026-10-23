@@ -67,7 +67,13 @@ func TestCodesMenuRotatesAndDisconnects(t *testing.T) {
 	}
 	f.chooseCodes(t, codesAction{link: broadcast.LinkView})
 	waitFor(t, "a new view code", func() bool { return viewCode(t, s) != old })
-	waitFor(t, "the notice", func() bool { return strings.Contains(f.screenText(), "New LIVE view code") })
+	waitFor(t, "retained rotation feedback", func() bool { return strings.Contains(f.con.menuSnapshot().LatestFeed, "New LIVE view code") })
+	if f.con.attentionCount() != 0 {
+		t.Fatal("manual code rotation created actionable attention")
+	}
+	if strings.Contains(f.con.menuSnapshot().LatestFeed, viewCode(t, s)) {
+		t.Fatal("rotation feedback exposed the new code")
+	}
 	if strings.Contains(f.lastRow(), viewCode(t, s)) {
 		t.Fatal("the notice line (broadcast) shows the new code")
 	}
@@ -95,7 +101,18 @@ func TestGuessRotationAlertAndFlash(t *testing.T) {
 	f.startLive(t)
 	attempt := f.screenAttempt()
 	f.con.onCodeRotated(castScreen, attempt, broadcast.LinkView, castlock.Rotation{Code: "5193", Reason: castlock.ReasonGuessing, Gen: 2})
-	waitFor(t, "the alert", func() bool { return strings.Contains(f.screenText(), "Too many wrong codes on the LIVE view link") })
+	waitFor(t, "retained guessing alert", func() bool {
+		return strings.Contains(f.con.menuSnapshot().LatestFeed, "Too many wrong codes on the LIVE view link")
+	})
+	f.con.attn.mu.Lock()
+	items := f.con.attn.list.Items()
+	f.con.attn.mu.Unlock()
+	if len(items) != 1 || !strings.Contains(items[0].Body, "Too many wrong codes on the LIVE view link") {
+		t.Fatalf("guessing warning attention = %+v", items)
+	}
+	if strings.Contains(items[0].Body, "5193") || strings.Contains(f.con.menuSnapshot().LatestFeed, "5193") {
+		t.Fatal("guessing warning exposed the code outside the private flash")
+	}
 	waitFor(t, "the flash", func() bool { return strings.Contains(f.screenText(), "LIVE view 5193") })
 	if strings.Contains(f.lastRow(), "5193") {
 		t.Fatal("the alert names the code")

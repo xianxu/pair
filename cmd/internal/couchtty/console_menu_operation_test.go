@@ -142,8 +142,11 @@ func TestConsoleMenuResumeLandsOnExactReturnedHandle(t *testing.T) {
 	if got := f.con.menuSnapshot().Notice.Text; got != started.Warning() {
 		t.Fatalf("borrowed attachment notice lost after landing: %q", got)
 	}
-	if !strings.Contains(f.screenText(), "BORROWED ATTACH: lifecycle claim is open") {
-		t.Fatalf("borrowed attachment reason was not painted: %q", f.host.Written())
+	if got := f.con.menuSnapshot().LatestFeed; got != started.Warning() {
+		t.Fatalf("full borrowed attachment warning was not retained for switcher/copy: %q", got)
+	}
+	if strings.Contains(f.lastRow(), "BORROWED ATTACH") {
+		t.Fatal("borrowed attachment warning reached tab bar")
 	}
 	if strings.Contains(f.screenText(), "threads") {
 		t.Fatalf("successful resume repainted the switcher: %q", f.host.Written())
@@ -151,6 +154,11 @@ func TestConsoleMenuResumeLandsOnExactReturnedHandle(t *testing.T) {
 	if !f.con.menuSnapshot().ProjectionPending {
 		t.Fatal("successful resume silently presented the pre-resume inventory as current")
 	}
+	// Inspecting the retained warning is an explicit switcher action, after the
+	// exact returned handle has landed and owns the actor screen.
+	f.con.openSwitcher()
+	waitFor(t, "borrowed attachment reason in switcher", func() bool { return strings.Contains(f.screenText(), "BORROWED ATTACH: lifecycle claim is open") })
+
 }
 
 func TestConsoleSuccessfulOperationsApplyExhaustiveProjectionPolicy(t *testing.T) {
