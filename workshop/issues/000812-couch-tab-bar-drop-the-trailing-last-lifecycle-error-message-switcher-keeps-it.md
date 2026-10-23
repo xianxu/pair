@@ -238,6 +238,11 @@ Authenticated TL1e02655e-4279-45c4-8500-373e9b1f5223 clarifies the operator's09:
 
 Fresh recorded affected selection is full due reader certificates: lease-3861982285 on6582490d, session73738, inflight84ce076330fb79cbf21cc51798624189. Last status queued9 after284s, not a pass. Source unchanged after reviewed head; this is acceptance-evidence bookkeeping only. Preserve runner/FIFO; next inspect terminal result, classify any failure, otherwise sdlc merge --yes and verify tracker/archive/runner outcome, clear stage through the authorized landing path and report PR558. No main chase before branch proof. pair:0 remains staged at3dedd7b6 until landing/stage clear; no second restage/live check is needed under TL's updated instruction.
 
+
+### 2026-10-23 — corrected recorded full suite PASS; entering landing
+
+Retained session73738 completed exit0: suite on6582490dac8db921ce44f864b9875cd32eb0195c PASS14m49s, recorded sdlc-local/suite. Saved /Users/xianxu/workspace/pair/.git/sdlc/local-checks/6582490dac8db921ce44f864b9875cd32eb0195c/suite.log, sha256 prefix9f33b1d6155f. This is the corrected source including startup-noise and artifact classification repairs; no flake registration/retry needed. Later branch commits only record close/acceptance evidence. Full close SHIP and operator conditional acceptance including attached case are already retained above. Entry to sdlc merge now authorized; landing owns fresh main integration and its exact-head checks. Stage remains held until landing/authorized clear; running09:44 Couch still predates noise fix, as explicitly explained in producer-list report to TL.
+
 ## Revisions
 
 ### 2026-10-23 — BR-3/BR-4 exhaustive completion
