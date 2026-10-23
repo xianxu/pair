@@ -33,23 +33,10 @@ func TestEncodingsAreUnique(t *testing.T) {
 }
 
 // A switcher chord's bytes are Pair's outside the switcher, so they are exactly
-// Pair's encodings for the declared chord -- derived, not restated. A
-// Couch-only switcher chord (no Pair chord, pair#830's wake) must not take any
-// of Pair's bytes, or it would shadow a Pair key in the switcher.
+// Pair's encodings for the declared chord -- derived, not restated.
 func TestSwitcherChordsCarryPairsEncodings(t *testing.T) {
 	for _, b := range Bindings() {
-		if b.Scope != ScopeSwitcher {
-			continue
-		}
-		if b.Chord == 0 {
-			for _, e := range b.Encodings {
-				if chord, ok := workbenchshortcut.DecodeChord(e); ok {
-					t.Errorf("Couch-only %s takes Pair's %s", b.Key, workbenchshortcut.ChordName(chord))
-				}
-			}
-			continue
-		}
-		if !reflect.DeepEqual(b.Encodings, workbenchshortcut.ChordEncodings(b.Chord)) {
+		if b.Scope == ScopeSwitcher && (b.Chord == 0 || !reflect.DeepEqual(b.Encodings, workbenchshortcut.ChordEncodings(b.Chord))) {
 			t.Errorf("%s encodings are not Pair's %v", b.Key, b.Chord)
 		}
 	}

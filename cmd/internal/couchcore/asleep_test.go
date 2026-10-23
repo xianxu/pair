@@ -141,3 +141,53 @@ func TestLeaveParkRecoverKeepsWhatTheBeginWrote(t *testing.T) {
 		})
 	}
 }
+
+// Wake's targets are the slot rows a full quit put to sleep: a plain parked
+// slot and an asleep thread outside any slot are not among them.
+func TestAsleepSlotRowsAreTheSleepingSlots(t *testing.T) {
+	at := time.Date(2026, 10, 23, 1, 2, 3, 0, time.UTC)
+	record := func(tag ThreadTag, mark bool) ThreadRecord {
+		r := validThreadRecord(t)
+		r.Address.Tag = tag
+		r.VerifiedPark = &VerifiedPark{Identity: ParkIdentity{Nonce: string(tag)}}
+		if mark {
+			r.Asleep = &threadrecord.SleepMark{Nonce: string(tag), At: at, Cause: threadrecord.SleepFullQuit}
+		}
+		return r
+	}
+	asleep, plain, loose := record("asleep", true), record("plain", false), record("loose", true)
+	input := ThreadProjectionInput{
+		Records: []ThreadRecord{asleep, plain, loose},
+		Slots: []SlotInventoryObservation{
+			{Identity: allocationCandidate(1).Identity, Address: asleep.Address},
+			{Identity: allocationCandidate(2).Identity, Address: plain.Address},
+		},
+	}
+	rows := asleepSlotRows(input)
+	if len(rows) != 1 || rows[0].Address != asleep.Address || !rows[0].AsleepAt.Equal(at) || rows[0].Target.Slot.Number != 1 {
+		t.Fatalf("asleep slots = %+v", rows)
+	}
+}
+
+// Only the main hub wakes, and only another hub's own slot.
+func TestOnlyTheMainHubWakesTheOtherHubs(t *testing.T) {
+	state, err := NewHubOwnership(hubFixture(t, "", "pair\n", ""))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, tc := range []struct {
+		caller, target, refusal string
+	}{
+		{"/work/ops", "/work/bench", ""},
+		{"/work/ops", "/work/other", ""},
+		{"/work/bench", "/work/other", "only the main hub"},
+		{"", "/work/bench", "only the main hub"},
+		{"/work/ops", "/work/ops", "already awake"},
+		{"/work/ops", "/work/pair-slot1", "not a hub"},
+	} {
+		err := state.Wakes(tc.caller, tc.target)
+		if tc.refusal == "" && err != nil || tc.refusal != "" && (err == nil || !strings.Contains(err.Error(), tc.refusal)) {
+			t.Errorf("Wakes(%q, %q) = %v, want %q", tc.caller, tc.target, err, tc.refusal)
+		}
+	}
+}

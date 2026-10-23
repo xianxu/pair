@@ -539,6 +539,7 @@ couch --session-sync operator-release FILE --id ID --turn TOKEN --json
                          contract: atlas/couch-agentic-documents.md (agents still hold no lock)
 couch --recover-plan-from-sdlc   per-slot recovery report (JSON), see below
 couch --resume repo:N [--json]   from a live slot: Continue if listed live, otherwise resume an established native binding
+couch --wake [--json]            from the live main hub: resume every other hub a full quit put to sleep (asleep workers wait for their hub)
 couch --resume-candidates repo:N [--json]
                          preview explicit choices: screen-tail evidence or unconfirmed native ID, cwd and activity; no automatic selection
 couch --resume repo:N --candidate KEY [--json]
@@ -1850,9 +1851,9 @@ conversation resume still requires one. Open a thread's actions to **park**,
 **detach**, or **relaunch** it through Couch. In the switcher, `Alt+d` detaches
 all live threads and returns to the shell; `Alt+x` parks them after confirmation.
 The slots that full quit parks read **Asleep** in the switcher, unlike a slot you
-parked on its own. After the next start, `Alt+Shift+x` in the switcher wakes the
-asleep hubs after confirmation. Each hub then wakes its own asleep workers, so
-plain parked slots stay parked.
+parked on its own. After the next start, resume the main hub from the switcher;
+from it, `couch --wake` resumes every other asleep hub. Each hub then wakes its
+own asleep workers, so plain parked slots stay parked.
 Those two chords are not intercepted while a Pair pane is displayed. They
 reach the agent or invoke the draft/right pane's existing Pair actions. Use the
 switcher for Couch's durable retirement.

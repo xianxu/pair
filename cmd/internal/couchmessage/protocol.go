@@ -70,6 +70,8 @@ type Response struct {
 	Actors          []Candidate
 	// Operation is a resume/reboot request's receipt (pair#367 M2).
 	Operation *OperationReceipt `json:",omitempty"`
+	// Wake answers wake (pair#830): one entry per asleep hub it tried.
+	Wake *WakeReport `json:",omitempty"`
 	// Broadcast answers broadcast-status (pair#413); nil means no broadcast.
 	Broadcast *BroadcastStatus `json:",omitempty"`
 	// Shares are every link out, by kind (pair#467): the screen broadcast,
@@ -85,6 +87,17 @@ type Response struct {
 	// replay through the tunnel (pair#477), by id, never their links.
 	Replays []string `json:",omitempty"`
 }
+
+// WakeReport is what couch --wake admitted (pair#830): each admitted resume's
+// receipt, polled with operation-status like any slot operation, and each
+// asleep hub the queue refused. Empty means nothing was asleep.
+type WakeReport struct {
+	Admitted []OperationReceipt `json:",omitempty"`
+	Refused  []WakeRefusal      `json:",omitempty"`
+}
+
+// WakeRefusal is one asleep hub whose resume was not admitted.
+type WakeRefusal struct{ Target, Code, Error string }
 
 // ProvenOrphanSignalResult reports one exact guarded signal attempt. A sent
 // result records delivery, not process exit; an uncertain attempt is not retried.
@@ -430,6 +443,10 @@ func ValidateRequest(r Request) error {
 		// parseSlot refuses a family ("pair") as well as a malformed slot.
 		if _, _, err := parseSlot(r.Target); err != nil {
 			return err
+		}
+	case r.Op == "wake":
+		if !validMessageID(r.ID) || r.Target != "" || r.Body != "" || r.CandidateKey != "" || r.RecoveryConfirmation != "" || r.ToHub != "" || r.Persist {
+			return errors.New("wake requires only a request ID")
 		}
 	case r.Op == "operation-status":
 		if !validMessageID(r.ID) || r.Target != "" || r.Body != "" {

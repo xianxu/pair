@@ -1776,13 +1776,6 @@ func (c *Console) onRelaunchHotkey() {
 // onParkHotkey handles Pair's Alt+x chord at the Couch ownership boundary.
 // It renders confirmation immediately; durable park work starts only after
 // confirmation and runs off the terminal event loop.
-// onWakeHotkey is Alt+Shift+x in the switcher (pair#830): it asks first,
-// then resumes every asleep hub. Scope routing forwards it to a focused Pair
-// pane, so it only ever arrives here from the switcher.
-func (c *Console) onWakeHotkey() {
-	c.reduceMenu(MenuEvent{Kind: MenuEventParkHotkey, Operation: "wake"})
-}
-
 func (c *Console) onParkHotkey() {
 	c.mu.Lock()
 	// Alt+x parks what you are looking at: one actor from an actor, every live
@@ -2013,7 +2006,6 @@ func (c *Console) hitHandlers() map[InterceptorHit]func() {
 		HitBroadcast:  c.toggleBroadcast,
 		HitWebcast:    c.toggleWebcast,
 		HitAttention:  c.toggleAttention,
-		HitWake:       c.onWakeHotkey,
 		// HitMouse carries coordinates, which func() cannot, so it is dispatched
 		// from processInput with the payload rather than through this table. The
 		// entry is the CONSOLE's handler for it -- a real call, not a placeholder

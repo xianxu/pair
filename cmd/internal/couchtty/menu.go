@@ -760,7 +760,7 @@ func reduceRootKey(state MenuState, key PanelKey) (MenuState, []MenuEffect) {
 // resolve a frame's thread: the sites ask about frame SCOPE, which is a real
 // property, instead of each re-deriving what leave means.
 func menuFrameBindsThread(frame MenuFrame) bool {
-	if frame.Kind == MenuFrameConfirmation && (couchScopedAction(frame.Action) || frame.RecoveryConfirmation != nil) {
+	if frame.Kind == MenuFrameConfirmation && (frame.Action == "leave" || frame.RecoveryConfirmation != nil) {
 		return false
 	}
 	return frame.Kind == MenuFrameRecovery || frame.Kind == MenuFrameSwitchAgent || frame.Kind == MenuFrameActions || frame.Kind == MenuFrameConfirmation || frame.Kind == MenuFrameText
@@ -775,8 +775,6 @@ func menuFrameBindsThread(frame MenuFrame) bool {
 func reduceParkHotkey(state MenuState, event MenuEvent) (MenuState, []MenuEffect) {
 	switch event.Operation {
 	case "park", "detach", "leave", "relaunch":
-	case "wake":
-		return openWakeConfirmation(state)
 	default:
 		state.Notice = errorMenuNotice("action is unavailable")
 		return state, nil
@@ -1029,9 +1027,6 @@ func reduceConfirmationKey(state MenuState, key PanelKey) (MenuState, []MenuEffe
 		if frame.SelectedItem == "cancel" {
 			state.Frames = state.Frames[:len(state.Frames)-1]
 			return state, nil
-		}
-		if frame.Action == "wake" {
-			return dispatchWake(state)
 		}
 		confirms, _ := couchcore.OperationConfirms(frame.Action)
 		if frame.SelectedItem != frame.Action || !confirms ||
@@ -1457,9 +1452,6 @@ func confirmationMenuItems(state MenuState, frame MenuFrame) []string {
 		return []string{"cancel", "recovery-confirmation stop " + strings.Join(names, ", ")}
 	}
 
-	if frame.Action == "wake" {
-		return []string{"cancel", wakeItem(wakeTargets(state))}
-	}
 	if frame.Action == "leave" {
 		live := 0
 		for _, thread := range menuRows(state) {

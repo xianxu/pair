@@ -1534,6 +1534,7 @@ var NonArtifactSources = []string{
 	"cmd/internal/couchcore/leave_park.go",
 	// #830's asleep mark is a record member; it constructs no artifact filenames.
 	"cmd/internal/couchcore/asleep.go",
+	"cmd/internal/couchcmd/wake.go",
 	// #651 routes existing thread/lifecycle authorities; it constructs no
 	// artifact filenames or new artifact family.
 	"cmd/internal/couchcore/park_recovery.go",
@@ -1669,7 +1670,6 @@ var NonArtifactSources = []string{
 	"cmd/internal/couchtty/keyboard.go",
 	"cmd/internal/couchtty/keys.go",
 	"cmd/internal/couchtty/menu_reattach.go",
-	"cmd/internal/couchtty/menu_wake.go",
 	"cmd/internal/couchtty/mouse.go",
 	"cmd/internal/couchtty/mousetrace.go",
 	"cmd/internal/couchtty/menu.go",

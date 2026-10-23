@@ -3476,8 +3476,8 @@ park leave (`leave_park.go`):
   `ErrThreadStoreBusy`. Before #827 they refused at the first EWOULDBLOCK, which
   is what left fan-out parks behind. Retention maintenance still yields at once.
 
-**Asleep slots** (#830). A full quit marks what it parks; one switcher gesture
-brings back the hubs.
+**Asleep slots** (#830). A full quit marks what it parks; `couch --wake`, from
+the main hub, brings back the other hubs.
 - **Mark:** Leave's fresh drives begin their park with `BeginParkAsleep`, which
   writes `ThreadRecord.Asleep` (`threadrecord.SleepMark`: nonce, at, cause) in the
   same CAS as the park's begin. An individual park (`BeginPark`) clears it.
@@ -3492,11 +3492,16 @@ brings back the hubs.
   - `couch --recover-plan-from-sdlc` rows carry `asleep_at`. A woken hub's
     fleet resume (ariadne#564) reads the asleep set and each slot's pending
     work in one report.
-- **Wake:** switcher **Alt+Shift+x** (`couchkeys.ActionWake`, a Couch-only
-  switcher key) asks first, then runs the row resume Enter uses for each asleep
-  hub (`HubOwnership.IsHub`), main hub last (`menu_wake.go`). Workers wait for
-  their hub, and plain parked slots stay put. There is no CLI form: after a full
-  shutdown no live slot exists to call one.
+- **Wake:** the operator resumes the main hub from the switcher, then its TL
+  runs `couch --wake` (`couchcmd/wake.go`). The broker op `wake` admits only the
+  main hub's live binding (`HubOwnership.Wakes`). It reads the asleep set from
+  the store alone (`Couch.AsleepSlots`, no liveness probes) and admits one
+  ordinary `resume` per other asleep hub on the slot-operation queue. Each
+  resume's effect gate re-proves the caller and the target. The CLI polls every
+  receipt (`pollSlotOperation`, shared with the slot-operation CLI) and prints one
+  summary. A repeat is safe: a woken hub is no longer asleep, and one still
+  resuming is refused busy. Workers wait for their hub, and plain parked slots
+  stay put.
 
 The console drains its operation queue with `Limit+1` workers, so the pass
 alone can never occupy all of them. Remote and continuation jobs share the

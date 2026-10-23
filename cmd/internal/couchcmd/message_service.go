@@ -64,6 +64,9 @@ type messageAuthority struct {
 	// hub is the worktree root Couch started from: the TL slot, which gets
 	// the larger peer-message bucket (#433). "" when Couch started outside a
 	// checkout.
+	// asleep reads the store's asleep slot rows for couch --wake (pair#830);
+	// nil refuses the wake.
+	asleep                 func(context.Context) ([]couchcore.ActionableThreadSummary, error)
 	hub                    string
 	hubs                   *hubRuntime
 	hubTarget              func(context.Context, string) (couchcore.HubSlot, error)
@@ -417,6 +420,7 @@ func startMessageService(console *couchtty.Console, c *couchcore.Couch, configur
 			return messageFamilies(names), nil
 		},
 		thread: messageThreadResolver(c, listings), workspace: resolver.ResolveWorkspace,
+		asleep: c.AsleepSlots,
 		record: func(ctx context.Context, address couchcore.ThreadAddress) (couchcore.ThreadRecord, error) {
 			if c.Threads == nil {
 				return couchcore.ThreadRecord{}, errors.New("no thread store")
@@ -1008,6 +1012,8 @@ func (s *messageService) handle(ctx context.Context, request couchmessage.Reques
 		return s.handleResumeCandidates(ctx, request)
 	case request.Op == "move-slot":
 		return s.handleHubMove(ctx, request)
+	case request.Op == "wake":
+		return s.handleWake(ctx, request)
 	case request.Op == "session-write":
 		return s.handleSessionWrite(ctx, request)
 	case request.Op == "automatic-input-stall":

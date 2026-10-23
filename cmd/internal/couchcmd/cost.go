@@ -55,6 +55,7 @@ var verbCosts = map[string]verbCost{
 	replayFlag:                 costLight,
 	"--recover-plan-from-sdlc": costHeavy,
 	"--resume":                 costHeavy,
+	"--wake":                   costHeavy,
 	"--resume-candidates":      costSeconds,
 	"--recovery-confirmation":  costHeavy,
 	"--reboot":                 costHeavy,

@@ -1,6 +1,8 @@
 package couchcore
 
 import (
+	"context"
+	"errors"
 	"time"
 
 	"github.com/xianxu/pair/cmd/internal/threadrecord"
@@ -36,3 +38,29 @@ type ParkCause = threadrecord.SleepCause
 
 // ParkCausePlain is an individual park; it reads parked, never asleep.
 const ParkCausePlain ParkCause = ""
+
+// AsleepSlots is the store's asleep slot rows, read from the records alone
+// (pair#830): asleep is a fact of a record, so no liveness evidence is
+// gathered and the read stays cheap enough for a broker admission.
+func (c *Couch) AsleepSlots(ctx context.Context) ([]ActionableThreadSummary, error) {
+	if c.Threads == nil {
+		return nil, errors.New("no thread store")
+	}
+	snapshot, err := c.Threads.PreviewSnapshotContext(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return asleepSlotRows(FromSnapshot(snapshot, nil)), nil
+}
+
+// asleepSlotRows keeps the projected rows that are slots and asleep: wake
+// addresses a slot (repo:N), so an asleep thread outside one is not a target.
+func asleepSlotRows(input ThreadProjectionInput) []ActionableThreadSummary {
+	var asleep []ActionableThreadSummary
+	for _, row := range ProjectActionableThreads(input) {
+		if row.AsleepAt != nil && row.Target.Kind == ThreadTargetSlot {
+			asleep = append(asleep, row)
+		}
+	}
+	return asleep
+}
