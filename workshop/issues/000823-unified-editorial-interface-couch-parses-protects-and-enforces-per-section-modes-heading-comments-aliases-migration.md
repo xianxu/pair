@@ -284,6 +284,20 @@ limitation. No installed LLM semantic acceptance is claimed. The next step is co
 SDLC publication/recorded affected check and binary-owned close review. Post-close #419/TL operator acceptance
 and landing remain visibly unchecked; no stage or :0 mutation has occurred.
 
+### 2026-10-23 — Pinned native pass, PR and recorded verification
+
+PR https://github.com/xianxu/pair/pull/557 publishes code head dcef993baf17ff93db5b6b2410661cc45f87cb51.
+Exact committed-source TestNativeEditorial PASS25.910s, Claude9.57s and Codex8.56s, both owned roots fully joined
+and cleaned. The recorded affected check selected the full suite (native test/fixture paths) and queued as
+lease-1667798340 on that code head; no suite pass is claimed yet. All fresh ad-hoc compiler/guard/codec/migration
+reviews approved. The durable inventory now names delivered helper/type owners rather than predicted files.
+
+The local acceptance review can overlap that queue per tl-worker. The unchecked issue Plan contains the current
+close itself and post-close #419/TL smoke/landing obligations; they remain visibly pending, rather than being
+falsely ticked for local codecomplete. The precise no-plan-check acknowledgment, if needed at close, applies only
+to those workflow obligations. No implementation, test, atlas, actual or review gate is waived. Landing still waits
+for the recorded suite and TL/operator acceptance disposition.
+
 ## Revisions
 
 ### 2026-10-23 — Implementation boundaries from source inventory

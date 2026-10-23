@@ -50,7 +50,7 @@ Legacy maps remain readable with warnings. Normalize heading names exactly as #5
 | `EditPolicy` | `cmd/internal/editorial/edits.go` | new |
 | `Migration` | `cmd/internal/editorial/migrate.go` | new |
 | `Round` / `Span` | `cmd/internal/sessionsync/round.go` | modified |
-| Scoped hash input | `cmd/internal/sessionsync/file.go` | modified |
+| Scoped hash input | `cmd/internal/sessionsync/editorial.go` | new |
 
 - **Catalog:** immutable per binary; embeds pinned mode metadata and briefs once. Collaboration values come from `vocab.CollaborationModes`; the presentation resolver owns its enum/fallback. Catalog resolution is injected into the compiler, with a small in-memory catalog for unit tests. Future mode additions change the producer files, not a completion-only enum.
 - **DocumentPolicy:** one snapshot owns an ordered region table, parent heading relationships, effective axis values, processing flags/briefs/instruction and diagnostics. The compiler uses ATX headings outside code, not the existing H2-only section-address helper. Existing `--section` addressing stays unchanged. Unit tests cover inheritance, ordinary comments, fences, duplicate names and aliases without IO.
@@ -66,9 +66,9 @@ Legacy maps remain readable with warnings. Normalize heading names exactly as #5
 |---|---|---|---|
 | Policy-bearing read | `cmd/internal/sessionsync/sync.go` | modified | snapshot, Shadow acknowledgement, registry transaction |
 | Shared agent-write guard | `cmd/internal/sessionsync/round.go`, `sync.go`, `applyfile.go` | modified | BuildEdit/contentStep/prepareWrite, file publish and round publish |
-| Operator migration CLI | `cmd/internal/couchcmd/session_sync.go` | new | constrained transform under existing document lock/CAS |
+| Operator migration CLI | `cmd/internal/couchcmd/session_sync.go`, `sessionsync/editorial_migration.go` | modified/new | constrained transform under existing document lock/CAS |
 | CLI/help contract | `cmd/internal/couchcmd/run.go`, `cmd/internal/couchcmd/skills/couch/SKILL.md` | modified | agent-facing settings, refusal recovery and operator invocation |
-| Review consumers | `nvim/review/round_watch.lua`, `reconstruct.lua`, `record.lua` | modified | live and resume decorations/record serialization |
+| Review consumers | `nvim/review/round_watch.lua`, `reconstruct.lua`; existing `record.lua` pass-through | modified/reused | live and resume decorations/record serialization |
 | Parley round consumer | parley.nvim #419 | external dependency | additive span metadata and mixed-section rendering |
 
 No external service is added. Transaction tests use real temporary files/registry state and controlled barriers; existing disposable Couch harness supplies native agent qualification. No call-count mocks substitute for lock/CAS and publication tests.
@@ -121,12 +121,12 @@ The following entry points own the tests; implementation tasks reference these s
 | `Catalog.ResolveProcessing` / `editorial/catalog.go` | Generate exact names and all prefixes from pinned metadata plus malformed selectors; assert resolution is unique or a located refusal, and legacy brief ordering/first flags retain producer intent. |
 | `Compile` / `editorial/document.go` | Fuzz bounded Markdown and isolated owned YAML with producer fixtures as seeds; compare nested inheritance to a small independent heading-stack oracle, count source walks, and require deterministic diagnostics without mutation or panics. |
 | `parseOwnedSource` / `editorial/source.go` | Generate delimiter, duplicate-key and comment-association mutations around code/heading boundaries; assert only recognized authority participates and all retained raw source slices reconstruct byte exactly. |
-| `FillCanonical` / `editorial/source.go` | Replay pinned before/after fixtures then fuzz additions of opaque metadata; assert idempotence, unchanged existing values/aliases, preservation of effective policy and zero candidate bytes on nonrepresentable legacy selectors. |
+| `FillCanonical` / `editorial/migrate.go` | Replay pinned before/after fixtures then fuzz additions of opaque metadata; assert idempotence, unchanged existing values/aliases, preservation of effective policy and zero candidate bytes on nonrepresentable legacy selectors. |
 | `PlanMigration` / `editorial/migrate.go` | Generate heading trees, duplicate normalized names and maps; independently compare old/new routing over every original text region, assert untouched bytes/other axes survive, and any conflict produces no candidate. |
 | `ValidateEdits` / `editorial/edits.go` | Generate sorted base-coordinate edit batches across region/owned-source boundaries; independently project changed ranges and assert no authority change, chat-item rewrite or scope/frontier escape, with atomic refusal. |
-| `sectionPolicyHash` / `sessionsync/file.go` | Metamorphically mutate body, ancestor/document authority and irrelevant text; assert every relevant change invalidates the opaque scope token while unrelated changes preserve its intended concurrency scope. |
+| `sectionPolicyHash` / `sessionsync/editorial.go` | Metamorphically mutate body, ancestor/document authority and irrelevant text; assert every relevant change invalidates the opaque scope token while unrelated changes preserve its intended concurrency scope. |
 | `read`, `prepareWrite`, `contentStep`, `ApplyFile` / `sessionsync/` | Drive every registered/legacy/empty-edit seam with the same policy fixture; snapshot file/Shadow/round around refusals and use existing controlled lock barriers for publication/CAS order, requiring zero pre-admission effects. |
-| `Round.UnmarshalJSON`, `Span.UnmarshalJSON`, `roundRecord.UnmarshalJSON`, `decodeRound`, `encodeRound` / `sessionsync/round.go`, `applyfile.go` | Mutate known member types/presence, inject duplicates at arbitrary nesting depth and opaque extensions; strict decode refuses ambiguity, and valid decode/re-encode preserves raw nested extensions and legacy omissions. Reuse `strictjson.SplitObjectPreserveNumbers` and its matching encoder rather than another duplicate scanner. |
+| `Round.UnmarshalJSON`, `Span.UnmarshalJSON`, `roundRecord.UnmarshalJSON`, `decodeRound`, `encodeRound` / `sessionsync/editorial_codec.go`, `round.go`, `applyfile.go` | Mutate known member types/presence, inject duplicates at arbitrary nesting depth and opaque extensions; strict decode refuses ambiguity, and valid decode/re-encode preserves raw nested extensions and legacy omissions. Reuse `strictjson.SplitObjectPreserveNumbers` and its matching encoder rather than another duplicate scanner. |
 | `round_watch.decorations`, `reconstruct.decorate`, `record.encode/decode` / `nvim/review/` | Generate mixed presentation records and their legacy projection; compare live/resume visibility to one enum oracle and retain opaque fields through serialization. |
 | `parseSessionSyncCLI`, `runSessionSyncCLI` and new `runEditorialMigration` / `couchcmd/` | Parse malformed invocation streams and drive a stateful temporary registry/filesystem through preview/confirmed apply/stale/held phases; assert the only publishable bytes are the verified transform for the captured source hash. |
 
@@ -177,7 +177,7 @@ Files: modify `cmd/internal/couchcmd/session_sync.go`, `run.go`, existing `sessi
 - [x] Write failing parser/runEditorialMigration tests using the stateful registry/preview strategy above; no generic body payload is accepted by the migration verb.
 - [x] Add `migrate-editorial` preview and a narrowly confirmed apply form agreed with TL. Reuse registry/flock/guard/replaceShared rather than an unlock-write-relock sequence. No migration runs during ordinary read/review/fill, and no external live file is changed by this implementation task.
 - [x] Update agent guidance to read resolved policy on every round, use briefs/instruction and section routing, preserve owned comments, and create new side docs with three defaults under the month layout. Keep old flat/qa links valid; test both through existing side-doc authorization rules. No parent legacy brief is copied to a new side doc.
-- [ ] Qualify agent-facing guidance on the disposable Couch harness for Claude and Codex (Qoder when credits permit), with the same mixed-region contract fixture; never use the live fleet as a test fixture. Record deterministic contract checks separately from semantic live observations.
+- [x] Qualify agent-facing guidance on the disposable Couch harness for Claude and Codex (Qoder when credits permit), with the same mixed-region contract fixture; never use the live fleet as a test fixture. Record deterministic contract checks separately from semantic live observations.
 - [x] Run focused Couch CLI/session-sync/native tests and document results. Commit CLI, guidance and atlas updates.
 
 ### Task 6: Growth, close and operator acceptance
@@ -235,3 +235,30 @@ Zellij startup panic is registered separately as unclaimed pair#835; its evidenc
 qualification-test limitation. No retry behavior or timeout budget changed. Reader inventory was audited per
 file: provenance source reader is a fixed scanner, local non-Go fixture readers and the native helper use the
 existing full fallback. No gate configuration or review policy changed.
+
+### 2026-10-23 — Committed-source native verification and delivered inventory
+
+Committed source dcef993baf17ff93db5b6b2410661cc45f87cb51 passed TestNativeEditorial for both fixture personalities
+(25.910s). Claude and Codex verified emitted guidance, exact mixed output/spans, zero-effect protected refusal,
+migration preview/stale/confirm and joined cleanup. The recorded affected check selected the full suite and is
+queued as lease-1667798340 on that same code head; it must pass before landing. No owned runner is abandoned.
+
+Reconciled the active location/status cells above with actual delivered owners (no design scope change). Additional
+introduced concepts and functions are mapped below to make the original aggregate rows precise:
+
+| Entity / function owner | Location | Kind / status |
+|---|---|---|
+| Effective, Heading, CompileStats; code/block/list snapshot facts | editorial/document.go | PURE, new |
+| Range, Diagnostic, OwnedSource; isolated YAML source owner | editorial/source.go | PURE, new |
+| Change, EditPolicy, PolicyError; ValidateEdits and position mapping | editorial/edits.go | PURE, new |
+| Marker, ScanMarkers, ReadyMarkerSpan, MatchBracket and escape decoding | editorial/markers.go | PURE, new/extracted; sessionsync/marker.go reuses |
+| Round, Span, roundRecord and RoundArtifact preserving codecs | sessionsync/editorial_codec.go | PURE, new methods on existing/modified data types |
+| compileEditorial, sectionPolicyHash, targetPolicyHash | sessionsync/editorial.go | PURE, new policy adapter |
+| file.editorialPolicy | sessionsync/editorial.go | transaction-local memoization of pure compile; no IO or persistent cache |
+| EditorialMigrationRequest, EditorialMigrationResult | sessionsync/editorial_migration.go | PURE request/result data, new |
+| Sync.MigrateEditorial | sessionsync/editorial_migration.go | INTEGRATION, new, existing registry/flock/file publication |
+| runEditorialMigration | couchcmd/session_sync.go | INTEGRATION, new CLI adapter |
+
+Post-close coordination/acceptance/landing remains pending in the issue Plan; local codecomplete does not claim
+those external steps. The close review may overlap the queued suite under the TL worker rule; final landing still
+requires a passing final-code record and TL acceptance disposition.
