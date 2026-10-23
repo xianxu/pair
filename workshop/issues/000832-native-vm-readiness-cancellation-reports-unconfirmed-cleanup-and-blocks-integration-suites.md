@@ -48,6 +48,7 @@ Failed recorded suite attempt04cb95c189fa4fe5b8267c7641d54b14 on b3afa544d6645e9
 
 
 ### 2026-10-23 — Claimed priority triage; main reproduces without #789
+- 2026-10-23: closed — Pinned terminal barrier regression failed before the fix and passes for cancellation and writer failure; unknown terminal proof refuses. Native readiness cancellation 150/150 PASS7.500s, race owner/descendant/native count10 PASS3.836s, complete vmcmd PASS42.432s; audited reader inventory PASS immediately before close. Recorded affected check is queued/running and must pass on final source before landing; existing cleanup timeout, positive absence and no-post-reap signaling retained.; review verdict: SHIP
 
 Authenticated hub5c051ce1 dispatches classification ahead of#728; authenticated6b4dd173 confirms root-cause fix priority, no timeout increase, cause report before fixing, and at least100 repeats. Claimed#832 and started its own branch from main; #728 remains pushed at d64d87347e061c0cf107232303edd964c8e9e155, with its independently verified detached check069c4c72a8a630a0faff10606cc4367d21d02354 retained on runner74025/lease860972511. Switching this checkout cannot alter that queued snapshot. No production fix yet.
 
