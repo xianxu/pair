@@ -1,6 +1,6 @@
 ---
 id: 000791
-status: codecomplete
+status: done
 created: 2026-10-21
 updated: 2026-10-23
 estimate_hours: 1.597
@@ -21,6 +21,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: 1ae80540eb66b536d949e57b1fdb9a166c849c90
         evidence_commit: 12f2df9749c7898dfe5a4dd6a4979192d106711a
+        landed_commit: eea2af092e5bd397f391112719d5043b38a25779
 ---
 
 # Couch delivery: capture delayed refusal evidence
