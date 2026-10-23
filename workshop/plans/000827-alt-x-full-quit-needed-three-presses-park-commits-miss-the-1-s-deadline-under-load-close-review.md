@@ -127,3 +127,109 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-23T03:54:46-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 827 — Alt+x full quit needed three presses: park commits miss the 1 s deadline under load |
+| repo | pair |
+| issue file | workshop/issues/000827-alt-x-full-quit-needed-three-presses-park-commits-miss-the-1-s-deadline-under-load.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | ce5146c9cc9dfaea20e25b74888052fbbeecd862..289ef0c5d2dfc1da8ae9fb8751c4f52999787bcb |
+| command | sdlc close --issue 827 |
+| reviewer | claude (anthropic; author anthropic,openai) |
+| isolation | fenced |
+| timestamp | 2026-10-23T03:54:46-07:00 |
+| verdict | SHIP |
+
+## Review
+
+Running the targeted tests now. A couple of tests fail only because the sandbox blocks `git init` outside allowed dirs. I'm narrowing to the leave/park tests.
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+All four prior findings are fixed. BR-1, the one that mattered, is a real behaviour change, and its new test fails when the fix is reverted. `leave_park.go:198-200` now turns a skipped thread into an unresolved entry plus an error. I deleted that error line in the disposable checkout and `TestLeaveParkSkippedThreadKeepsCouchOpen` failed; restoring the line made it pass again. BR-2 is covered by a test assertion (`leave_park_test.go:344`). The leave-park, store-lock and AwaitJoined tests pass. Other couchcore tests in the broader run failed, but only because the review sandbox blocks `git init`; they don't exercise this change. The plan's state table, core-concepts rows and budget policy match the code. The only new finding is a Minor stale doc comment. Nothing blocks SHIP.
+
+1. **Strengths**
+   - `decideLeaveParkRetry` (`leave_park.go:69-86`) is a small pure function covering the whole retry policy. A fresh park needs both a proven rollback and the same incarnation; an open transaction goes back through Recover with its existing nonce. This is the ARCH-ORDER fence the plan promised.
+   - `parkFuture.AwaitJoined` (`parkworker.go:41`) waits on the exact admitted future. Public Park/Recover keep their old cancellable wait through `parkAwaiting`/`recoverAwaiting`, so the change in wait behaviour reaches only full-quit leave.
+   - The rollback proof is a typed error that adds no text (`park_recovery.go:268`). It means "proven unpublished" without changing any operator-facing message.
+   - `relaunchObservationTimeout` (`relaunch.go:256`) keeps relaunch's 1s observation unchanged, as the plan's evidence section required.
+   - Every unresolved kind (failed, not started, skipped, unreadable) now goes through one helper, `leaveParkUnresolved`, so the summary and the error can't drift apart.
+
+2. **Critical findings:** none.
+
+3. **Important findings:** none.
+
+4. **Minor findings**
+   - The `LeaveResult.Unresolved` doc comment at `park.go:175-177` lists "failed, not started, or unreadable" but leaves out skipped, which BR-1 just added. **This is the 2nd finding in family `stale-invariant-comment`.** The rule: when a change adds a member to an enumerated contract, update every doc comment that lists that contract's members in the same commit. Grep the type or field name (here `Unresolved`) instead of fixing only the site in front of you.
+   - The plan's Integration row names `couchtty/console.go` as modified, but the range doesn't touch it. The existing error/notice path carries the summary through `LeaveParkIncompleteError.Error()`. This is harmless drift in the plan's wording.
+
+5. **Test coverage notes**
+   - BR-1's test failed with the fix reverted and passed with it restored.
+   - BR-2 is pinned by `strings.Contains(u.Reason, u.Next)` and the `Count == 1` check.
+   - No test covers the parallel lookups for the BR-3 fix. That's acceptable: the change only affects latency, and its correctness is covered by the existing tests for exhausted targets and the budget ending.
+
+6. **Architectural notes**
+   - **ARCH-DRY: pass.** Unresolved accounting is consolidated into one helper.
+   - **ARCH-PURE: pass.** The retry decision is pure; the IO sits in `leaveParkOne`.
+   - **ARCH-PURPOSE: pass.** One gesture now covers retries and exact reporting, and skipped threads no longer let Couch exit as if the quit finished.
+   - **ARCH-MOCK: pass.** Tests use the stateful lifecycle fake and a real store.
+   - **ARCH-CONSTRAINTS: pass, with one caveat.** After the budget ends, the advice lookups are bounded by fan-out times the 5s recovery-observation timeout, and the plan says openly that the 60s budget is not a hard exit ceiling.
+   - **ARCH-SECURE: pass.** There are no new inputs or secrets, and unreadable records are reported instead of being treated as absent.
+   - **ARCH-ORDER: pass.** Identity and nonce checks guard every retry, and the joined wait prevents a retry or release while earlier work is still unsettled.
+   - **ARCH-FUNERAL: pass.** Nothing new is persisted, and the evidence text is bounded.
+   - **ARCH-EVOLVE: pass.** No persisted format changes.
+
+7. **Plan revision recommendations**
+   - Optionally add one line under `## Revisions`: "Console required no change; the incomplete summary reaches the existing notice through `LeaveParkIncompleteError.Error()`. Skipped threads are reported as unresolved (BR-1)."
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      leave_park.go:198-200 turns skipped into unresolved plus an error; TestLeaveParkSkippedThreadKeepsCouchOpen went red with the error line removed and green when restored.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      leaveParkOne no longer wraps with recovery advice (leave_park.go:174); pinned by the Reason/Next de-dup assertion at leave_park_test.go:344.
+  - id: BR-3
+    disposition: addressed
+    note: |
+      Advice lookups now run in parallel at the LifecycleParallelism bound (leave_park.go:203-223), each still capped by recoveryObservationTimeout, so the tail is bounded rather than serial.
+  - id: BR-4
+    disposition: addressed
+    note: |
+      park_recovery_store.go:56-57 now says it waits only within storeReadLockWait and then refuses typed, which matches withUpdateLockContext.
+findings:
+  - id: new
+    severity: Minor
+    kind: defect
+    family: stale-invariant-comment
+    title: |
+      LeaveResult.Unresolved doc comment omits skipped threads added by the BR-1 fix
+    detail: |
+      park.go:175-177 lists "failed, not started, or unreadable", but leaveParkUnresolved also reports skipped incarnations. This is the 2nd finding in this family. Rule: when a change adds a member to an enumerated contract, grep the field/type name and update every comment that lists its members in the same commit.
+```
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"10216be2-8dcb-4834-98ae-b83440de1781","repository":"github.com/xianxu/pair","issue_id":"000827","recipe":"milestone-review","round":2,"attempt":1,"agent":"claude","root":"/Volumes/TestScratch/review-checkouts/b6c8bb7f40849aa3","reviewed_head":"289ef0c5d2dfc1da8ae9fb8751c4f52999787bcb","slot":"pair:6","requested_at":"2026-10-23T10:53:13.376383Z"},"phase":"finished","pid":86802,"started_at":"2026-10-23T10:53:13.48695Z","finished_at":"2026-10-23T10:54:45.618456Z","session_id":"adc42a05-642a-4d53-abeb-408e7a3e0104","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 2.219197125s
+head: "289ef0c5d2dfc1da8ae9fb8751c4f52999787bcb"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412
