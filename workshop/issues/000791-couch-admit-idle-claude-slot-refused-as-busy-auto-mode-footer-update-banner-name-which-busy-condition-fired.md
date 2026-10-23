@@ -75,6 +75,8 @@ total: 1.597
 ```
 
 ## Log
+
+- 2026-10-23: closed — Preserved both independent atlas sections (#791 refusal capture and #801 bridge) and both source inventory additions (#791 capture and #743 VM) when integrating main54a02d7aa3971f50987bcef321de6534d8d566a9; source classification regression PASS2.346s, full integrated recorded suite PASS11m3s, fresh make test-affected-inventory PASS, no certificate edits or behavior changes. (fixed-then-ship; full suite: Full suite attempt68653db461f4c3c4ec590d436a548c94 on integrated7950b24983cabab9ff1e57ecfcf21ff0af2f3420 passed exit0 in11m3s with no failures or flakes; sdlc-local/suite success recorded. Log SHA256164de7ea01d7018972e8ef6e4c0e0a2d77a4727a32180691d151af820d48342c. Descendants contain documentation only.); review verdict: SHIP
 - 10-21 22:0x (ops:0): **a Codex case, possibly the same class.** parley.nvim:3 (Codex, tag 1-parley-nvim-83) idle at an
   empty `› Ask Codex to do anything` composer, but every delivery since the 21:33 Couch restart sits at "waiting for
   recognized composer" (ops:0's 9d16fde1 at position 2, behind the restart notice). Its screen differs from Codex

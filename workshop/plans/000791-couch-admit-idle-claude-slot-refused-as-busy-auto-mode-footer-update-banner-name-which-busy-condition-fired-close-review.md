@@ -373,3 +373,85 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-23T00:02:20-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 791 — Couch delivery: capture delayed refusal evidence |
+| repo | pair |
+| issue file | workshop/issues/000791-couch-admit-idle-claude-slot-refused-as-busy-auto-mode-footer-update-banner-name-which-busy-condition-fired.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 86cb7a6a4eb11adbc4c2d7992cfe66bf3f3a92e1..8ee61070dd9e94318569341eed579ef0ee63ce90 |
+| command | sdlc close --issue 791 |
+| reviewer | codex (openai; author openai) |
+| isolation | fenced |
+| timestamp | 2026-10-23T00:02:20-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+The narrow interdiff preserves both sides of the atlas and source-inventory conflicts. It introduces no admission behavior changes or scope expansion. Targeted verification passed; no new defects found.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      The encoder and regression are unchanged in this window; TestPeerWaitCaptureFittingStyledRow passes at the pinned head.
+  - id: BR-2
+    disposition: withdrawn
+    note: |
+      The prior withdrawal stands; this window changes neither the follow-up requirement nor its previously accepted tracker evidence.
+```
+
+1. **Strengths**
+
+   - `cmd/internal/artifactpath/manifest.go:678` preserves the capture source alongside main’s VM and startup-helper inventory entries.
+   - `atlas/couch-testing.md:143` preserves both diagnostic evidence documentation and the independent conformance-bridge section.
+   - The active plan, Spec and Done-when requirements remain unchanged.
+
+2. **Critical findings:** None.
+
+3. **Important findings:** None.
+
+4. **Minor findings:** None.
+
+5. **Test coverage notes**
+
+   - Complete artifactpath package: PASS, 10.623s.
+   - Fitting-screen regression: PASS, 0.351s.
+   - Pinned-range whitespace check: PASS.
+   - Full-suite results were not independently rerun during this narrow review.
+
+6. **Architectural notes**
+
+   - **ARCH-DRY — pass:** Existing authoritative inventory retained without duplication.
+   - **ARCH-PURE — pass:** No business-logic or IO-boundary changes.
+   - **ARCH-PURPOSE — pass:** Both conflict resolutions preserve both sides’ intent.
+   - **ARCH-EVOLVE — pass:** No persisted-format changes.
+   - No new user-facing surface requires additional README or atlas updates.
+
+7. **Plan revision recommendations:** None.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"0c8ab092-3f79-44c3-9dd3-99d926e1106e","repository":"github.com/xianxu/pair","issue_id":"000791","recipe":"fix-review","round":5,"attempt":1,"agent":"codex","root":"/Volumes/TestScratch/review-checkouts/42aa0baad6e94b3d","reviewed_head":"8ee61070dd9e94318569341eed579ef0ee63ce90","slot":"pair:1","requested_at":"2026-10-23T07:01:06.376973Z"},"phase":"finished","pid":3630,"started_at":"2026-10-23T07:01:06.552535Z","finished_at":"2026-10-23T07:02:19.243933Z","session_id":"01a16790-370b-7233-a570-48e8447bd63a","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 3.204857083s
+head: "8ee61070dd9e94318569341eed579ef0ee63ce90"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412
