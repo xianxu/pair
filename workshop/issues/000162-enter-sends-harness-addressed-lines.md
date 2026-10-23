@@ -212,7 +212,7 @@ Current implementation follows ../plans/000162-enter-sends-harness-addressed-lin
 - [x] Add red delayed-echo/reducer/writer regressions, then exact command expectation and final immutable-frame proof.
 - [x] Migrate the complete slash-producer/help family while preserving public submit, peer/prose sends and model cleanup limits.
 - [x] Run counted-cost tests, focused packages and audited affected-reader inventory, then disposable native conformance and retain captures (Qoder trust gap approved; follow-up #836).
-- [x] Update atlas and complete required recorded checks; prepare the mandatory close review and SDLC landing, whose outcomes remain tracked in the Log.
+- [x] Update atlas and prepare the required recorded check, mandatory close review and SDLC landing; gate outcomes remain tracked in the Log.
 
 ## Historical September plan — superseded where different
 
@@ -544,3 +544,12 @@ One command-only native invocation ran inside the approved window using installe
 Evidence: /Volumes/TestScratch/tmp/pair-slot2/pair162-qoder-native.9jq5vcma/native.log SHA256 b0e96d576e40990e9e29763d92980608c1dbe042f24ca620d129fb3205ee6b77; native.raw SHA256 e5b925a702044beb7b06d09e25e01baaf46c918332df003988da8ebb0b5ebcb5; probe_test.go SHA256 4d09f577632a3fb1fb3e016217540c5108dbb35cf092068926d8100839cb338c. The overlay selected the personality/read-only command and completion assertion only; it is not a tracked production candidate or a claimed passing native check.
 
 Authenticated ops:0 delivery2c96c0c9 authorizes close with this native Qoder gap explicitly documented. Six-profile fixture coverage, actual Claude/Codex native evidence, both disposable public checks and the required suite PASS11m36s remain the positive evidence. Filed unclaimed #836 on origin: qualify Qoder from an already-trusted checkout, never writing trust. Next: inventory preflight, mandatory full close review with --no-actual and the exact approved measurement reason, then normal PR/merge gates after review findings clear. No operator stage or real trust modification is authorized.
+
+
+### 2026-10-23 — Close round1 REWORK; BR-1 and BR-2 corrected
+
+The first full close review returned REWORK with two reproduced Critical findings, not a finalized close. BR-1: mixed authored/faint suggestion cells were included in command text. Added twenty-four regressions (command completion, argument completion/suffix and a faint separator alone across all six profiles); each went RED with native submission. The shared projector now retains the normal wholly faint empty-origin placeholder behavior, but returns unknown text if a painted faint cell contributes to any other input, including a separator. Activity and ordinary newline remain intact; fully authored styling is a positive control. Targeted wrapcmd peer/Return/projector regressions PASS3.029s.
+
+BR-2: authored trailing ASCII spaces survived prediction while the terminal projector strips them. Validate the original complete slash command first, then normalize only trailing ASCII spaces in the expected target; actual authored bytes, internal arguments, leading-space/multiline negatives and ownership proof stay unchanged. Target/reducer regressions went RED then GREEN; full agentdrive PASS0.258s and expectation fuzz140499 executions/3s. Added real terminal-projector-to-writer coverage for /model plus a trailing space and /model opus  5.5 plus trailing spaces. Overlay restoring only old command.go made both fail before Enter binding; corrected targeted agentdrive/wrapcmd PASS0.080s/3.420s. Retained mutation output /Volumes/TestScratch/tmp/pair-slot2/pair162-review-regressions.pykj07ci/trailing-red.log.
+
+ARCH-SECURE/PURPOSE: visible presentation is not authored-input authority; preserve suggestion provenance, and compare authored targets with the projector's exact representation without relaxing other vetoes. No deadline, retry, request format or lifecycle change. The prior11m36s branch suite is historical evidence; these code fixes require a fresh pushed-head recorded suite before landing. Next: push this checkpoint, queue the required suite, and rerun full close (first round did not finalize), with the same approved measurement exception and Qoder gap. No merge before a cleared review and fresh required checks.

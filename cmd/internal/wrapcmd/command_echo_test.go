@@ -120,3 +120,34 @@ func TestAgentDriveCommandWaitsExactEcho(t *testing.T) {
 		}
 	}
 }
+
+func TestAgentDriveCommandTrailingSpacesReachNativeReturn(t *testing.T) {
+	for _, command := range []string{"/model ", "/model opus  5.5   "} {
+		t.Run(command, func(t *testing.T) {
+			f, d, _ := driveFixture(t)
+			req := agentdrive.Request{Keys: agentdrive.KeySequence{{Kind: agentdrive.KeyClearLine}, {Kind: agentdrive.KeyText, Text: command}, {Kind: agentdrive.KeyEnter}}}
+			if result, err := driveStart(t, d, req); err != nil || result.Terminal() {
+				t.Fatalf("start %+v %v", result, err)
+			}
+			var out bytes.Buffer
+			f.proxy.dispatchAgentDrive(&out)
+			f.proxy.dispatchAgentDrive(&out)
+			prefix := "\x15" + command
+			if out.String() != prefix {
+				t.Fatalf("authored bytes changed: %q", out.String())
+			}
+			f.output("\x1b[?2026h\x1b[2J" + slashComposerPaint("claude", command) + "\x1b[?2026l")
+			f.proxy.dispatchAgentDrive(&out)
+			d.mu.Lock()
+			bound := len(d.drive.active.effects) == 1 && d.drive.active.effects[0].CommandEnter()
+			d.mu.Unlock()
+			if !bound {
+				t.Fatal("rendered trailing-space echo did not bind native Enter")
+			}
+			f.proxy.dispatchAgentDrive(&out)
+			if out.String() != prefix+"\r" {
+				t.Fatalf("native Return missing: %q", out.String())
+			}
+		})
+	}
+}

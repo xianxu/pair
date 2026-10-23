@@ -186,3 +186,55 @@ func TestReturnLocatesComposerOncePerDecision(t *testing.T) {
 		}
 	}
 }
+
+// Styled suggestions remain visible without becoming authored command proof.
+func TestSlashReturnDeclinesMixedFaintSuggestion(t *testing.T) {
+	for agent := range harnessTTYProfiles {
+		t.Run(agent, func(t *testing.T) {
+			profile, _ := profileForHarness(agent, true)
+			for _, tc := range []struct {
+				name, text string
+				authored   int
+			}{
+				{"command completion", "/model", 1},
+				{"argument completion", "/model opus", 7},
+				{"argument suffix", "/model opus", 9},
+				{"separator only", "/model opus", 6},
+			} {
+				t.Run(tc.name, func(t *testing.T) {
+					s := peerSnapshot(t, slashComposerPaint(agent, tc.text))
+					r := profile.recognize(s)
+					if !r.Active || !r.region.valid {
+						t.Fatal("fixture lacks active located composer")
+					}
+					for x := r.region.left + tc.authored; x < r.region.left+len(tc.text); x++ {
+						s.CellAt(x, r.region.top).Style.Attrs |= uv.AttrFaint
+						if tc.name == "separator only" {
+							break
+						}
+					}
+					s.Cursor.X = r.region.left + tc.authored
+					s.Cursor.Y = r.region.top
+					if !profile.recognize(s).Active {
+						t.Fatal("suggestion removed activity")
+					}
+					if text, known := projectComposerRegion(s, r.region); known {
+						t.Errorf("suggested text supplied authored proof: %q", text)
+					}
+					got := decidePlainReturn(profile, false, &s)
+					if got.submits || !bytes.Equal(got.bytes, profile.keymap.plainCR) {
+						t.Fatalf("unaccepted completion submitted: %+v", got)
+					}
+					// Accepting completion clears its faint provenance, not merely
+					// moving the cursor; normal full text remains command authority.
+					for x := r.region.left; x < r.region.left+len(tc.text); x++ {
+						s.CellAt(x, r.region.top).Style.Attrs &^= uv.AttrFaint
+					}
+					if !decidePlainReturn(profile, false, &s).submits {
+						t.Fatal("authored command refused")
+					}
+				})
+			}
+		})
+	}
+}

@@ -171,6 +171,7 @@ func projectComposerCells(s terminalSnapshot, region composerRegion, cellAt func
 		return "", false
 	}
 	top, bottom, agent := region.top, region.bottom, region.agent
+	hasSuggestion := false
 	lines := make([]string, 0, bottom-top)
 	for y := top; y < bottom; y++ {
 		var b strings.Builder
@@ -182,6 +183,9 @@ func projectComposerCells(s terminalSnapshot, region composerRegion, cellAt func
 			if c.Content == "" {
 				b.WriteByte(' ')
 				continue
+			}
+			if c.Style.Attrs&uv.AttrFaint != 0 {
+				hasSuggestion = true
 			}
 			b.WriteString(c.Content)
 			if c.Width > 1 {
@@ -196,6 +200,12 @@ func projectComposerCells(s terminalSnapshot, region composerRegion, cellAt func
 	text := strings.Join(lines, "\n")
 	if (agent == "qoder" && peerQoderPlaceholder(s, top, text)) || (agent != "qoder" && composerPlaceholder(s, top, region.left, text)) {
 		return "", true
+	}
+	// A wholly faint empty-origin placeholder remains empty above. Mixed
+	// authored/suggested input is unknown; never promote its visible suffix
+	// to authored command evidence merely because the cursor moved.
+	if hasSuggestion {
+		return "", false
 	}
 	return text, true
 }

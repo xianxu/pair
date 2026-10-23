@@ -135,7 +135,11 @@ func expectationOracle(steps KeySequence, end int) string {
 	}
 	text := strings.Join(parts, "")
 	if slashCommandOracle.MatchString(text) {
-		return text
+		end := len(text)
+		for end > 0 && text[end-1] == ' ' {
+			end--
+		}
+		return text[:end]
 	}
 	return ""
 }
@@ -144,7 +148,7 @@ func TestCommandExpectationGeneratedAgainstSpanOracle(t *testing.T) {
 	for seed := int64(0); seed < 256; seed++ {
 		rng := rand.New(rand.NewSource(seed))
 		var keys KeySequence
-		choices := []KeyStep{{Kind: KeyClearLine}, {Kind: KeyText, Text: "/usage"}, {Kind: KeyText, Text: "/mo"}, {Kind: KeyText, Text: "del"}, {Kind: KeyText, Text: " --help"}, {Kind: KeyText, Text: " /model"}, {Kind: KeyWait}, {Kind: KeyEnter}, {Kind: KeyLeft}, {Kind: KeySubmit}, {Kind: "ctrl-a"}, {Kind: "backspace"}}
+		choices := []KeyStep{{Kind: KeyClearLine}, {Kind: KeyText, Text: "/usage"}, {Kind: KeyText, Text: "/mo"}, {Kind: KeyText, Text: "del"}, {Kind: KeyText, Text: " --help"}, {Kind: KeyText, Text: " /model"}, {Kind: KeyWait}, {Kind: KeyEnter}, {Kind: KeyLeft}, {Kind: KeySubmit}, {Kind: "ctrl-a"}, {Kind: "backspace"}, {Kind: KeyText, Text: "   "}}
 		for i := 0; i < MaxKeySteps; i++ {
 			keys = append(keys, choices[rng.Intn(len(choices))])
 		}
@@ -285,7 +289,7 @@ func FuzzCommandExpectation(f *testing.F) {
 		if len(data) > MaxKeySteps {
 			data = data[:MaxKeySteps]
 		}
-		choices := []KeyStep{{Kind: KeyClearLine}, {Kind: KeyText, Text: "/usage"}, {Kind: KeyText, Text: "/mo"}, {Kind: KeyText, Text: "del"}, {Kind: KeyText, Text: " --help"}, {Kind: KeyText, Text: " /model"}, {Kind: KeyWait}, {Kind: KeyEnter}, {Kind: KeyLeft}, {Kind: KeySubmit}, {Kind: "ctrl-a"}, {Kind: "backspace"}}
+		choices := []KeyStep{{Kind: KeyClearLine}, {Kind: KeyText, Text: "/usage"}, {Kind: KeyText, Text: "/mo"}, {Kind: KeyText, Text: "del"}, {Kind: KeyText, Text: " --help"}, {Kind: KeyText, Text: " /model"}, {Kind: KeyWait}, {Kind: KeyEnter}, {Kind: KeyLeft}, {Kind: KeySubmit}, {Kind: "ctrl-a"}, {Kind: "backspace"}, {Kind: KeyText, Text: "   "}}
 		keys := make(KeySequence, len(data))
 		for i, b := range data {
 			keys[i] = choices[int(b)%len(choices)]

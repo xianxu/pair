@@ -137,3 +137,8 @@ Ops:0 deliveries fe295a65 and aa6237be supersede the measurement-repair dependen
 ### 2026-10-23 — Qoder native trust gap accepted for close
 
 The one in-window Qoder1.1.78 command-only probe stopped at workspace trust before any input, retaining native.log/native.raw under /Volumes/TestScratch/tmp/pair-slot2/pair162-qoder-native.9jq5vcma. No trust change or retry. Ops:0 delivery2c96c0c9 approves close with the gap documented, six-profile fixture coverage and Claude/Codex native passes preserved. Unclaimed #836 owns the native check from an already-trusted checkout without writing trust. This changes the conditional acceptance disposition only, not production behavior, bounds or grammar. Mandatory review and normal landing gates remain required; use the approved --no-actual reason verbatim.
+
+
+### 2026-10-23 — BR-1 and BR-2 input-proof regression refinement
+
+Close round1 reproduced two defects within the approved scope. Extend the authored-input proof tests to mixed normal/faint command and argument completions across all six profiles; preserve Active but decline command text if suggestion cells contribute. Validate authored grammar before matching the projector's trailing-ASCII-space representation; retain exact internal arguments, leading-space/multiline negatives and final ownership vetoes. Pin this through target generation, reducer and the real projector-to-writer seam, with mutation RED evidence. No new state, deadline or protocol. These corrections require a new recorded suite and full close review because the first round returned REWORK rather than finalizing. Qoder's approved native trust gap remains #836.

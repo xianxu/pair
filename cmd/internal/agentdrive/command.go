@@ -81,7 +81,9 @@ func (p *commandExpectation) advance(step KeyStep) string {
 	case KeyEnter:
 		var target string
 		if p.known && SlashCommand(p.text.String()) {
-			target = p.text.String()
+			// The projector drops terminal right-padding. Validate the full
+			// authored line first, then use that same ASCII-space representation.
+			target = strings.TrimRight(p.text.String(), " ")
 		}
 		p.known = false
 		p.invalid = p.invalid || target == ""
