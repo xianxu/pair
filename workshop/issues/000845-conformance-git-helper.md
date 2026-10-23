@@ -68,6 +68,7 @@ fetch remote main: git fetch --verbose --porcelain --no-tags --no-recurse-submod
 ## Log
 
 ### 2026-10-23
+- 2026-10-23: closed — BR-1 evidence: after TL3a988478 reconciled interrupted-review residue, native Claude EOF and Codex TERM cohorts PASS46.777s on clean pinned5144008b4efd00f697e018dc92bddf82bb08f64a with12m watchdog. Retained complete workshop/evidence/000845/native-qualification.log SHA256303ec918c108c844894851b3c9283c00ef03b8cc64ae5a6abdd4452c98ca247a proves readiness/read-only requests/replacement env/joined child and IO/fleet and candidate root absence for both cohorts. No code/deadline changes. Portable package set and artifactpath/repolint passed as logged. Required audited reader inventory completed EXIT0 immediately before re-close. Recorded suite12631235 lease-578785275 still queued FIFO2, not yet claimed passed; must pass before landing. (done-when: contract moved since change-code; judged by the close review); review verdict: SHIP
 
 Discovered while implementing ariadne#577's native service conformance test. The bridge build succeeded. The native attempt failed before readiness and returned exit status 1; this was recorded as unavailable conformance, never a pass. Diagnostics reported native fleet cleaned, all owned generations absent, direct child and IO joined. Independently checked /Volumes/TestScratch/pc-3987325977 and /Volumes/TestScratch/couch-candidate-59051363 absent after return. No Pair production source changes or ambient-tool workaround were made. Filed unclaimed for a separate Pair slot.
 

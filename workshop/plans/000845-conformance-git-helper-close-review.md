@@ -72,3 +72,88 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000411
+
+---
+
+## Re-review — 2026-10-23T14:38:12-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 845 — Native Couch conformance isolation omits Git upload-pack helper |
+| repo | pair |
+| issue file | workshop/issues/000845-conformance-git-helper.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | e6fc81eac82c5106f942c09dca4fac7139b17a0b..4651b220e5ddb2f2a88b166dc0734c0200ec0fa6 |
+| command | sdlc close --issue 845 |
+| reviewer | codex (openai; author openai) |
+| isolation | fenced |
+| timestamp | 2026-10-23T14:38:12-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+The implementation fulfills the selected-Git isolation contract without widening the runtime environment. Focused tests and reader inventory pass. BR-1 is resolved by complete native qualification evidence, verified against the test assertions and identical executable source at the pinned head.
+
+Done-when: current — the criteria cover isolated fetching, readiness, replacement-environment requests, and joined cleanup; the revisions do not introduce uncovered behavior.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      workshop/evidence/000845/native-qualification.log records both Claude/EOF and Codex/TERM passing with readiness, read-only requests, joined shutdown, and owned-root removal. Inspected native_live_test.go assertions establish those checks. Recorded revision 5144008b4 and pinned head differ only in issue/evidence files; all four interrupted-run paths and four qualification fleet/candidate paths are currently absent. This correction supplies missing measurements without changing executable behavior.
+```
+
+1. **Strengths**
+
+   - Helper selection queries the selected Git under the replacement environment and preserves actionable errors (`cmd/internal/testcouch/owner_build.go:268`).
+   - Runtime installation retains the `git-upload-pack` invocation name and validates all sources before effects (`cmd/internal/testcouch/runtime_files.go:82`).
+   - The real-fetch regression checks commit identity, private PATH, and rejection of ambient Git settings (`cmd/internal/testcouch/git_helper_test.go:13`).
+   - Atlas accurately documents the added capability. No new user-facing command, flag, or configuration requires a README update.
+
+2. **Critical findings:** None.
+
+3. **Important findings:** None.
+
+4. **Minor findings:** None.
+
+5. **Test coverage notes**
+
+   Independently passed:
+
+   - `testcouch`: 46.720s
+   - `testcouchbridge`: 0.484s
+   - `couch-conformance-bridge`: 0.198s
+   - `make test-affected-inventory`
+   - Pinned-range whitespace check
+
+   Coverage includes invalid helper selection, pre-effect installation refusal, builder wiring, and actual isolated fetching. Native qualification was assessed from retained complete output and its assertions; it was not rerun this round.
+
+6. **Architectural notes**
+
+   - **ARCH-DRY: pass** — reuses tool resolution, runtime inventory, and cleanup ownership.
+   - **ARCH-PURE: pass** — added IO remains in the injected candidate-build seam.
+   - **ARCH-PURPOSE: pass** — selection flows through `Binaries.GitUploadPack` into runtime installation and the actual fetch consumer.
+   - **ARCH-EVOLVE: pass** — no persisted format changes.
+
+7. **Plan revision recommendations:** None. The recorded full-suite and downstream qualification gates remain separate from this review verdict.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"4c4ee095-221e-4481-9747-40a048e4648a","repository":"github.com/xianxu/pair","issue_id":"000845","recipe":"small-diff-review","round":2,"attempt":1,"agent":"codex","root":"/Volumes/TestScratch/review-checkouts/3e0ad576f9ea0cc7","reviewed_head":"4651b220e5ddb2f2a88b166dc0734c0200ec0fa6","slot":"pair:4","requested_at":"2026-10-23T21:36:30.210492Z"},"phase":"finished","pid":16877,"started_at":"2026-10-23T21:36:30.372356Z","finished_at":"2026-10-23T21:38:10.981759Z","session_id":"01a16ab1-aa37-7402-8e28-e119c57eb2ae","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 6.524179166s
+head: "4651b220e5ddb2f2a88b166dc0734c0200ec0fa6"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412
