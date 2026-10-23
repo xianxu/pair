@@ -1,6 +1,6 @@
 ---
 id: 000728
-status: codecomplete
+status: done
 created: 2026-10-20
 updated: 2026-10-23
 estimate_hours: 14.58
@@ -21,6 +21,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: 03621d6f8d988983dd11f6aa91f4d45a918e610f
         evidence_commit: ba4d9cde32b1d4f325fbee78360dda4b695225ae
+        landed_commit: 27a71af04bbb4628fd32173c11aea1b6f5bee356
 ---
 
 # couch --switch-agent refuses 'no saved configuration for codex' even after the operator's switch-form switch in that repo (echo)
