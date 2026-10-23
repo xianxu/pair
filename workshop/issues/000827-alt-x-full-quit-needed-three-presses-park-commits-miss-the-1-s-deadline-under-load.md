@@ -96,3 +96,15 @@ TL3cbb3359 approved the measurement-first plan, conditional10s commit threshold,
 summary, unchanged fan-out and separate1s relaunch diagnostics. The60s is not a
 hard process-exit ceiling; synchronous durability stays owned/joined. Proceed to
 change-code, then measure before changing the threshold. No #759 changes.
+
+
+### 2026-10-22 — full plan-quality round1 findings
+
+Pinned full flow because the planned controller exceeds the quick shell. Gate
+round1 raised PQ-1 (cancellation ownership) and PQ-2 (function-level test strategy).
+Both are valid. Existing parkFuture.Await can return before its producer; the
+proposed Leave-only parkJoined/recoverJoined paths retain the exact submitted
+future and use AwaitJoined, keeping the thread hold/fan-out unit until done.
+Ordinary callers keep existing cancellation behavior. Updated the durable plan
+with named risky functions, adversarial class strategies and explicit unreadable
+snapshot reporting. No code/measurement started while the gate is blocked.

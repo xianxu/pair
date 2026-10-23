@@ -84,13 +84,25 @@ Files: couchcore/park.go, relaunch.go, park_rollback_test.go, park_wait_test.go.
 
 ### 3. One bounded full-quit operation
 
-Files: couchcore/leave_park.go, leave_park_test.go; park.go/leave_test.go.
+Files: couchcore/leave_park.go, leave_park_test.go; park.go/leave_test.go; parkworker.go/parkworker_test.go.
 
-- [ ] Add deterministic policy tests before implementation for30 targets, modeled2–3s commits, a safe first-attempt overrun, recoverable retained transaction, late completion, failed rollback, permanent refusal, source replacement, cancellation and budget exhausted before a queued target begins.
-- [ ] Represent retry disposition as explicit typed outcomes. No error-string matching. Use one absolute deadline and at most3 drives per target under existing fan-out/hold; do not create a second nonce for an unconfirmed transaction.
-- [ ] Preserve already parked targets, reconcile existing completion before re-trigger, and report exact failures/not-started/skipped targets once in snapshot order.
-- [ ] Controlled tests cancel held waits and prove ownership/worker joins. Test exact concurrent duplicate/coalescing order; no sleeps as ordering assertions.
-- [ ] At15/30 targets assert one fleet snapshot, bounded attempts/publications, unchanged concurrency and no retry of a verified success. Include Claude/Codex profiles; Qoder if available.
+**Exact ownership contract (PQ-1):** Add private `parkJoined` and `recoverJoined` controller entry points used only by park-leave. Factor the existing Park/Recover admission bodies through a private typed await mode; public Park/Recover/Retry/Relaunch retain their current cancellable wait. The joined path captures the exact `*parkFuture` returned by `submitFuture`, then `parkFuture.AwaitJoined(ctx)` waits for that future's done signal even after caller cancellation, returning its final result plus any cancellation/error. It never rediscovers an active worker by address. The existing worker removes its active address and signals freed before closing that future's done. The per-target leave helper keeps its thread hold and fan-out unit until this join completes, then classifies final proof/recovery and releases ownership. No admitted future means no join is owed. No new cancellation authority over another caller's worker.
+
+This preserves the approved scheduling-only budget: cancellation stops admission and reaches the work's existing context, but cannot release the gate, report final state or retry while admitted effects remain unsettled. A joined success remains positive parked evidence even if the outer budget expired; unstarted siblings are still named. This is an internal Leave-specific adapter, not a global future-wait semantic change.
+
+Named risky functions and test strategies (PQ-2):
+
+| Function | Adversarial class and mechanical guard |
+| --- | --- |
+| `decideLeaveParkRetry` | Generated outcome/event sequences; assert independent identity/no-publication/nonce invariants, same absolute budget and at most3 drives; verified success is absorbing. Pure direct unit tests. |
+| `parkFuture.AwaitJoined`, `parkJoined`, `recoverJoined` | Hold producer completion across cancellation/late publication; observe the exact future and thread hold until producer exit, then assert final proof and worker release. Pin ordinary Await's early-cancel behavior unchanged. |
+| `leaveParkOne` | Stateful lifecycle fake drives uncertain, refused and replaced-source outcomes; forbid fresh nonce without positive rollback and require existing Recover fences before another effect. |
+| `Couch.Leave` | Controlled scheduler/deadline and15/30 targets including modeled2–3s commits; count one snapshot, at most3N drives, bounded publications, no repeat of successes and unchanged peak fan-out. Include unreadable snapshot addresses and every not-started/skipped outcome in final reporting. |
+| `formatLeaveParkSummary` and console leave completion | Generate partitioned final outcomes, assert each unresolved address appears exactly once with recovery and success never claims partial completion; physical-key fixture pins one confirmation and the existing full-copy notice surface. |
+
+- [ ] Write these direct/controlled tests and observe RED before implementation.
+- [ ] Add the typed policy and joined adapter, then wire the bounded pass without changing generic Park/Recover semantics or persisted formats.
+- [ ] Run targeted unit/integration/race cohorts GREEN; no sleeps as ordering assertions. Claude/Codex profiles share the30-target contract; Qoder if available.
 
 ### 4. One confirmation and one honest final report
 
@@ -118,3 +130,18 @@ Files: couchtty/console.go, console_run_menu_test.go, console_test.go; testcouch
 - ARCH-SECURE: no new credentials or trusted inputs; preserve existing strict lifecycle decoding and exact process/session identity. Fixtures start from empty environment and own private roots.
 - ARCH-FUNERAL: retry state dies with the joined leave; no new worker/cache/file family in production. Measurement artifacts have bounded retained text; owned scratch/data/processes removed.
 - ARCH-EVOLVE: no persisted format/schema or existing park-state meaning changes; runtime result additions only.
+
+
+## Revisions
+
+### 2026-10-22 — plan-quality round1, PQ-1/PQ-2
+
+The gate correctly found that joining Leave dispatch goroutines does not join the
+underlying park future: existing Await returns early on cancellation. Made the
+approved ownership promise concrete with Leave-only joined controller adapters,
+exact-future AwaitJoined, gate/unit release after producer completion, and
+unchanged public wait behavior. Named the risky functions and replaced Task3's
+prose case inventory with adversarial strategies and mechanical invariants.
+Unreadable snapshot identities are explicitly part of unresolved reporting.
+Prior plan/approval remain in commits d4e48dd68 and bac6943cb; no runtime code has
+been changed. This first mechanism refinement goes to TL before implementation.
