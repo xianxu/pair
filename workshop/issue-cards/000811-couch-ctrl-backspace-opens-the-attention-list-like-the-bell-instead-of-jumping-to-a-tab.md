@@ -15,6 +15,6 @@ claimant:
     repository: github.com/xianxu/pair
 ---
 
-# Couch: Ctrl+Return opens the attention list (like the bell) instead of jumping to a tab
+# Couch: Ctrl+Return toggles the attention list; Ctrl+Backspace stays previous
 
 ## Problem
