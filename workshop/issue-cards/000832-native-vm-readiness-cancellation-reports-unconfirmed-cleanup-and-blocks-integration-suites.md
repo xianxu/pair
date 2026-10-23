@@ -1,6 +1,6 @@
 ---
 id: 000832
-status: codecomplete
+status: done
 created: 2026-10-23
 updated: 2026-10-23
 estimate_hours:
@@ -22,6 +22,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: 04d8ff3f22cbd21d66a4c35cc393cca76e0d706b
         evidence_commit: d590c690d2bdce645e569ecb2c0311a1cb58e3b4
+        landed_commit: 62b76b3e4aeb968bc97990c358c9d9db85a319c2
 ---
 
 # Native VM readiness cancellation reports unconfirmed cleanup and blocks integration suites
