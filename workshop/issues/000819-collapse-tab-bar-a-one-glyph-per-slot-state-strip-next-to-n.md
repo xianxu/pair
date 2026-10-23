@@ -46,8 +46,8 @@ The operator's sketch (using ⌥ for the branch glyph): `pair⌥  +9 ⌥⌥+-⌥
 
 ## Plan
 
-- [ ] Derive one compact existing checkout-state marker per exact hidden live member in slot order.
-- [ ] Admit complete strips only into spare width after the shared base packing; draw/hit-test count and strip together with existing owner styling.
+- [x] Derive one compact existing checkout-state marker per exact hidden live member in slot order.
+- [x] Admit complete strips only into spare width after the shared base packing; draw/hit-test count and strip together with existing owner styling.
 - [ ] Verify projection, width, physical clicks, privacy/geometry, pending/live and counted-work bounds; stage for the operator, close and land.
 
 Detailed design is on this issue branch at workshop/plans/000819-folded-slot-state-strip-plan.md; TL approved the plan (c4f6db71); change-code gates precede implementation.
@@ -90,3 +90,9 @@ item: milestone-review design=0.02 impl=0.20
 design-buffer: 0.15
 total: 1.25375
 ```
+
+### 2026-10-22 — implementation and targeted proof
+
+change-code passed plan-quality after PQ-1 compression and accepted the reconciled estimate (INFO: verification execution may exceed the allowance). Bounded core mapper work observed RED for missing CompactSlotGlyph, then PASS0.337s across generated states, malformed inputs and terminal-cell oracle. TTY regressions observed semantic RED: missing drawn strip and empty hidden membership. Implemented the pure closed mapper, exact hidden-member derivation and one shared counted width measurement; post-packing optional decoration never changes base actor/count choice. Existing count span extends through all physical digits, separator and markers. Existing owner/glyph styles remain the source.
+
+Focused collapse/detail/owner/click tests PASS0.517s. Full couchtty package including native geometry PASS51.541s. Artifactpath PASS13.452s and repolint PASS14.741s; affected reader inventory and diff whitespace checks pass. Documentation updated in README and atlas. No timeout, production timer, persisted state or multiline change. Full recorded suite, close review and staged operator look remain pending; #789 snapshot suite is preserved independently.

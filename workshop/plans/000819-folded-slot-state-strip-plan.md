@@ -84,20 +84,20 @@ ARCH-CONSTRAINTS: within existing actor/grid limits, A actors, G groups and B ex
 
 Files: core slotgit.go/slotgit_test.go; tty reserve.go, status_collapse.go and status_collapse_test.go.
 
-- [ ] CompactSlotGlyph: generate existing glyph combinations and arbitrary malformed strings; assert the closed marker alphabet, priority and one-terminal-cell output against an independent oracle, observing red before implementation.
-- [ ] prepareCollapsedStatusChips: generate inventories through PresentThreads; independently assert exact hidden live cardinality, numeric order, owner/repository identity and preserved-member exclusion under focus changes.
-- [ ] Implement the pure mapper and frame-local strip derivation, retaining existing grouping and threshold policy.
-- [ ] Run `go test ./cmd/internal/couchcore -run 'Test(CompactSlotGlyph|SlotGlyph)' -count=1` and focused collapse tests; expect PASS after observed red. Commit.
+- [x] CompactSlotGlyph: generate existing glyph combinations and arbitrary malformed strings; assert the closed marker alphabet, priority and one-terminal-cell output against an independent oracle, observing red before implementation.
+- [x] prepareCollapsedStatusChips: generate inventories through PresentThreads; independently assert exact hidden live cardinality, numeric order, owner/repository identity and preserved-member exclusion under focus changes.
+- [x] Implement the pure mapper and frame-local strip derivation, retaining existing grouping and threshold policy.
+- [x] Run `go test ./cmd/internal/couchcore -run 'Test(CompactSlotGlyph|SlotGlyph)' -count=1` and focused collapse tests; expect PASS after observed red. Commit.
 
 ### Task 2 — spare-width admission, rendering and whole-chip navigation
 
 Files: tty status_layout.go, reserve.go, status_owner_fade_test.go, status_collapse_test.go, collapse_mouse_test.go; focused folded_state_strip_test.go if needed.
 
-- [ ] measureChipCells and decorateFoldedCounts: generate widths and grouped base packings; assert unchanged base selection, reserved-control bounds and complete-or-absent strips with left-to-right admission. Observe red before implementation.
-- [ ] renderStatusCells: generate admitted detail, palette and ownership combinations; assert terminal-cell bounds, existing glyph/owner styling, complete hit spans and unchanged multiline output.
-- [ ] Decode real physical cells through existing confirmed-frame input: assert every admitted count/strip cell opens exactly its owner/group, stale frames admit nothing, and Escape restores ordinary navigation.
-- [ ] Implement counted shared measurement, optional admission and complete-strip drawing through existing helpers and group navigation.
-- [ ] Count actual production visits at N/2N for adversarial group distributions; enforce existing allocation/cost bounds. Run focused tests and the full couchtty package, including its native geometry and guard regressions. Commit.
+- [x] measureChipCells and decorateFoldedCounts: generate widths and grouped base packings; assert unchanged base selection, reserved-control bounds and complete-or-absent strips with left-to-right admission. Observe red before implementation.
+- [x] renderStatusCells: generate admitted detail, palette and ownership combinations; assert terminal-cell bounds, existing glyph/owner styling, complete hit spans and unchanged multiline output.
+- [x] Decode real physical cells through existing confirmed-frame input: assert every admitted count/strip cell opens exactly its owner/group, stale frames admit nothing, and Escape restores ordinary navigation.
+- [x] Implement counted shared measurement, optional admission and complete-strip drawing through existing helpers and group navigation.
+- [x] Count actual production visits at N/2N for adversarial group distributions; enforce existing allocation/cost bounds. Run focused tests and the full couchtty package, including its native geometry and guard regressions. Commit.
 
 ### Task 3 — document, stage and land
 

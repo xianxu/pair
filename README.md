@@ -1316,6 +1316,14 @@ hub and repository group, including the slots folded into it. The scope survives
 refreshes and returning from an action. Escape clears a text filter first, then
 the group scope; opening the ordinary switcher starts with the full list.
 
+When space remains, each group count adds one checkout-state marker per hidden
+live slot in slot order. Dirty `*` wins over diverged `±`, ahead `+` or behind `-`,
+then the existing issue-branch glyph; clean, resting or unknown evidence uses `·`.
+These markers describe checkouts, not whether an agent is working. A strip fits
+whole or the count stays plain `+N`; optional detail never displaces tabs or
+controls. The entire count, separator and strip open the same group, retaining
+its owner dimming.
+
 The active and attention chips win space before ordinary chips. At impossible
 widths, some labels must be hidden: the remaining overflow count says `+N !`
 when hidden slots need attention, if that complete marker fits. The bell still
