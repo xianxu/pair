@@ -1,6 +1,6 @@
 ---
 id: 000846
-status: working
+status: codecomplete
 created: 2026-10-23
 updated: 2026-10-23
 estimate_hours:
@@ -14,6 +14,14 @@ claimant:
     workspace: pair:8
     worktree: /Users/xianxu/workspace/worktree/pair-slot8/pair
     repository: github.com/xianxu/pair
+actual_hours: 0.10
+tracker:
+    version: 1
+    completion:
+        token: close-88557a4f9b51
+        repository: github.com/xianxu/pair
+        reviewed_head: 01c56b37d69c2ee1e46cd525efc38503dab790d2
+        evidence_commit: 3476752e77ef8de5aa3a47f991a4800ee9507e2a
 ---
 
 # Couch: count-agnostic lifecycle drain diagnostic
