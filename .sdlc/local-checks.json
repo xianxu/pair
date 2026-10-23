@@ -1,5 +1,5 @@
 {
-  "version": 1,
+  "version": 2,
   "checks": [
     {
       "name": "suite",
@@ -7,6 +7,15 @@
       "required": true,
       "timeout_minutes": 30,
       "weight": 1
+    },
+    {
+      "name": "conformance-vm",
+      "command": ["make", "conformance-vm"],
+      "scope": "landing",
+      "required": false,
+      "resource": "runner",
+      "paths_file": "tests/conformance-paths.json",
+      "timeout_minutes": 30
     }
   ]
 }

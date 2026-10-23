@@ -1,0 +1,16 @@
+{
+  "kind": "consumer qualification summary logs; not raw private producer transcript",
+  "consumer_receipt": "738380b8-dfbf-40bc-952b-7d55a3e5822d",
+  "consumer_source": "d660ec6f1a3fef56d6fb8a1f583dd1bbd08cc1ff",
+  "bridge_source": "eee3547fd06b624351dee871a4f0630a03d2f612",
+  "native_versions": [
+    "0.12.5",
+    "0.11.7"
+  ],
+  "hashes": {
+    "parley405-real-0117.log": "2d86297f0e5b910895840312755a4bbae5629fe353301a5362c45d86bc1dd078",
+    "parley405-real-012.log": "2d86297f0e5b910895840312755a4bbae5629fe353301a5362c45d86bc1dd078"
+  },
+  "outcome": "actual existing driver PASS; both producer sessions exit0 with joined EOF cleanup before consumer removal",
+  "not_claimed": "consumer final landed dependency pin; Pair has not landed yet"
+}

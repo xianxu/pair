@@ -1,0 +1,16 @@
+{
+  "run": "d0375c7f5af7794da92ea6269cbd3485",
+  "source": "4da8966400423f242a4a79c0ad5bfba82bde60c1",
+  "outcome": "cancelled after externally deleted active scratch root; no suite pass",
+  "scratch": "/Volumes/TestScratch/tmp/sdlc-run-suite-56219-17102339",
+  "owner_pid": 56219,
+  "cause": "ariadne#509 TestRunnerArtifactsRetainScratchAndLogUntilReconciled swept the real shared scratch parent with every PID reported dead",
+  "source_file": "cmd/sdlc/localcheck_artifacts_test.go",
+  "sweep_lines": [
+    68,
+    81
+  ],
+  "hub_attribution_receipt": "a68203a1-8d0b-4bf2-a07b-77e60b47ab0a",
+  "fixed_fixture_confirmation": "a4d2f16d-0ccf-47d2-9cdf-363b6646f391",
+  "recovery": "fixed owner fixture uses explicit private scratch/fallback roots and containment assertion; attributed recorded rerun authorized"
+}

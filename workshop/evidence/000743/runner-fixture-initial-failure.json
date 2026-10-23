@@ -1,0 +1,76 @@
+{
+  "version": 1,
+  "pair": "/Volumes/TestScratch/tmp/pair-slot3/pair743-native-qualification.6l6omrwy/pair",
+  "fixture": "/Volumes/TestScratch/tmp/pair-slot3/pair743-native-qualification.6l6omrwy/qualification/checkout",
+  "head": "f2ff3077b3f4abf4aff402ad511bc0c234f06977",
+  "pair_sha256": "c82504f7280dfa80896628125ea9fb260cf2e304d104a70a4390ce2f2d4188fc",
+  "cases": [
+    {
+      "name": "success",
+      "timeout": "4m",
+      "artifacts": "/Volumes/TestScratch/tmp/pair-slot3/pair743-native-qualification.6l6omrwy/qualification/success-artifacts",
+      "expected_exit": 0,
+      "elapsed_seconds": 56.38,
+      "exit_code": 1,
+      "source_unchanged": true,
+      "result": {
+        "version": 1,
+        "exit_code": 1,
+        "detail": "",
+        "timeout_envelope": "timeout 4m0s + cleanup up to 10 s",
+        "image": {
+          "version": 1,
+          "image": "pair-conformance-tahoe-20261021T044207.013507000",
+          "base": "ghcr.io/cirruslabs/macos-tahoe-base@sha256:4aaa751fa7538902d73c767f27a066fc87e83f183069da4e4b5022863abd4c77",
+          "created_at": "2026-10-21T04:45:09.141563Z",
+          "tools": {
+            "claude": {
+              "version": "2.1.306",
+              "sha256": "b5d795b7760032d79954b55a9cd1876dcf3a8dc9608fd6bb9f618593f69fd44b"
+            },
+            "codex": {
+              "version": "0.163.0",
+              "sha256": "8813367285524ac798dd96d1b071aea30d58708c7226fd236cd275cf1cfdee31"
+            },
+            "go": {
+              "version": "1.26.3",
+              "sha256": "0bdc5a1cfc9067e050f875767547064a2da19c33fec6662a520ab89fcf73ac88"
+            },
+            "node": {
+              "version": "22.23.3",
+              "sha256": "68f4d07ca49e0500cc135c7e0a445093e228e42e126ac22306d045f0a8c2636b"
+            },
+            "nvim": {
+              "version": "0.12.6",
+              "sha256": "8edbda120babd8c8963ecc28b69a76cc7e5cf0897bc688645133a2bf5588abe6"
+            },
+            "python3": {
+              "version": "3.12.10",
+              "sha256": "d4f152f2a753c94e0e7935c8ebbe6b2609979e1df7898422b577d0076383d08b"
+            },
+            "qodercli": {
+              "version": "1.1.75",
+              "sha256": "242dd0cb7910780e4a6b83a70de8f43bf9d8b70b9af9877492510814f26e0fa6"
+            },
+            "zellij": {
+              "version": "0.45.1",
+              "sha256": "ca5f9333735bdbc59a621f1d8ed8e24798845302a28ff175d253d4793d5a4a2c"
+            }
+          },
+          "qualified": true
+        },
+        "snapshot": {
+          "Head": "f2ff3077b3f4abf4aff402ad511bc0c234f06977",
+          "Files": 2,
+          "Enumerations": 1,
+          "ClonedBytes": 0,
+          "CopiedBytes": 23,
+          "MetadataBytes": 2580
+        },
+        "lane_claim_retained": false
+      }
+    }
+  ],
+  "state": "stopped",
+  "error": "(1, {'version': 1, 'exit_code': 1, 'detail': '', 'timeout_envelope': 'timeout 4m0s + cleanup up to 10 s', 'image': {'version': 1, 'image': 'pair-conformance-tahoe-20261021T044207.013507000', 'base': 'ghcr.io/cirruslabs/macos-tahoe-base@sha256:4aaa751fa7538902d73c767f27a066fc87e83f183069da4e4b5022863abd4c77', 'created_at': '2026-10-21T04:45:09.141563Z', 'tools': {'claude': {'version': '2.1.306', 'sha256': 'b5d795b7760032d79954b55a9cd1876dcf3a8dc9608fd6bb9f618593f69fd44b'}, 'codex': {'version': '0.163.0', 'sha256': '8813367285524ac798dd96d1b071aea30d58708c7226fd236cd275cf1cfdee31'}, 'go': {'version': '1.26.3', 'sha256': '0bdc5a1cfc9067e050f875767547064a2da19c33fec6662a520ab89fcf73ac88'}, 'node': {'version': '22.23.3', 'sha256': '68f4d07ca49e0500cc135c7e0a445093e228e42e126ac22306d045f0a8c2636b'}, 'nvim': {'version': '0.12.6', 'sha256': '8edbda120babd8c8963ecc28b69a76cc7e5cf0897bc688645133a2bf5588abe6'}, 'python3': {'version': '3.12.10', 'sha256': 'd4f152f2a753c94e0e7935c8ebbe6b2609979e1df7898422b577d0076383d08b'}, 'qodercli': {'version': '1.1.75', 'sha256': '242dd0cb7910780e4a6b83a70de8f43bf9d8b70b9af9877492510814f26e0fa6'}, 'zellij': {'version': '0.45.1', 'sha256': 'ca5f9333735bdbc59a621f1d8ed8e24798845302a28ff175d253d4793d5a4a2c'}}, 'qualified': True}, 'snapshot': {'Head': 'f2ff3077b3f4abf4aff402ad511bc0c234f06977', 'Files': 2, 'Enumerations': 1, 'ClonedBytes': 0, 'CopiedBytes': 23, 'MetadataBytes': 2580}, 'lane_claim_retained': False})"
+}

@@ -1,0 +1,36 @@
+=== RUN   TestNativeCouchBridge
+=== RUN   TestNativeCouchBridge/claude
+    native_live_test.go:69: native bridge: kind=claude explicit_candidate=false namespace=/Volumes/TestScratch/pc-543386671/store socket=/Volumes/TestScratch/pc-543386671/m/445825447d74a39d78706c4bf01562728c94e062.sock docs=0c46bcc40c255f305f0cf1bea95038a6,bef29bf4e5acdbcfddb6fc816efe847d joined=true root_absent=true
+    native_live_test.go:145: native bridge diagnostics:
+        eee3547fd06b624351dee871a4f0630a03d2f612
+        git version 2.54.0 (Apple Git-157)
+        sdlc version path=/Users/xianxu/workspace/ariadne/bin/sdlc revision=cb3952669997cf4835f5ce139a4e0b1b72840f6f modified=false
+        weave version dev
+        zellij 0.45.1
+        NVIM v0.11.7
+        Build type: Release
+        LuaJIT 2.1.1741730670
+        Run "nvim -V1 -v" for more info
+        native candidate owner: source=/Users/xianxu/workspace/worktree/pair-slot7/pair root=/Volumes/TestScratch/couch-candidate-3821162107
+        native fleet isolation: root=/Volumes/TestScratch/pc-543386671 run=0663c85989911d9b2fdb13e3f7634f2b agent=claude workers=1
+        native fleet cleaned: root=/Volumes/TestScratch/pc-543386671 all owned generations absent; direct child and IO joined
+=== RUN   TestNativeCouchBridge/codex
+    native_live_test.go:69: native bridge: kind=codex explicit_candidate=true namespace=/Volumes/TestScratch/pc-2772624341/store socket=/Volumes/TestScratch/pc-2772624341/m/d1c5d6f63f72afb705f98e8eda35755a453620ba.sock docs=e5cc67aa2e1134fd588736925b678560,7a5576658eac372751a5aa4ede7732bf joined=true root_absent=true
+    native_live_test.go:145: native bridge diagnostics:
+        eee3547fd06b624351dee871a4f0630a03d2f612
+        git version 2.54.0 (Apple Git-157)
+        sdlc version path=/Users/xianxu/workspace/ariadne/bin/sdlc revision=cb3952669997cf4835f5ce139a4e0b1b72840f6f modified=false
+        weave version dev
+        zellij 0.45.1
+        NVIM v0.11.7
+        Build type: Release
+        LuaJIT 2.1.1741730670
+        Run "nvim -V1 -v" for more info
+        native candidate owner: source=/Users/xianxu/workspace/worktree/pair-slot7/pair root=/Volumes/TestScratch/couch-candidate-2215298306
+        native fleet isolation: root=/Volumes/TestScratch/pc-2772624341 run=2c9789c08720cfe19546e0e109710fed agent=codex workers=1
+        native fleet cleaned: root=/Volumes/TestScratch/pc-2772624341 all owned generations absent; direct child and IO joined
+--- PASS: TestNativeCouchBridge (36.48s)
+    --- PASS: TestNativeCouchBridge/claude (16.09s)
+    --- PASS: TestNativeCouchBridge/codex (20.39s)
+PASS
+ok  	github.com/xianxu/pair/cmd/internal/testcouchbridge	36.648s

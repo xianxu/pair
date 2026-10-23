@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/xianxu/pair/cmd/internal/pathscope"
 	"github.com/xianxu/pair/cmd/internal/runtimebundle"
@@ -77,6 +78,9 @@ func allocateRoots(base string, denied []string) (RootsPlan, error) {
 }
 
 func runtimeEnvironment(p RootsPlan, bin, agent, runID, source, couch string) ([]string, error) {
+	if !filepath.IsAbs(source) || filepath.Clean(source) != source {
+		return nil, fmt.Errorf("runtime environment requires the selected absolute checkout")
+	}
 	if _, err := physicalRoots(p); err != nil {
 		return nil, err
 	}
@@ -101,5 +105,29 @@ func runtimeEnvironment(p RootsPlan, bin, agent, runID, source, couch string) ([
 		"LANG=en_US.UTF-8", "LC_ALL=en_US.UTF-8", "SHELL=/bin/sh", "EDITOR=/usr/bin/true", "VISUAL=/usr/bin/true",
 	}
 	env = append(env, terminal...)
-	return testpair.EnvironmentAt(p.Mutable["home"], env...)
+	helper := filepath.Join(source, "tests", "lib", "pair-test-env.sh")
+	entries, err := testpair.EnvironmentFrom(helper, p.Mutable["home"], env...)
+	if err != nil {
+		return nil, err
+	}
+	// The shared shell helper appends explicit assignments after its defaults.
+	// Exec uses the final value for each key; publish that same effective
+	// environment once per key so a replacement map has identical semantics.
+	seen := make(map[string]bool, len(entries))
+	unique := make([]string, 0, len(entries))
+	for i := len(entries) - 1; i >= 0; i-- {
+		entry := entries[i]
+		key, _, ok := strings.Cut(entry, "=")
+		if !ok || key == "" || strings.ContainsRune(entry, 0) {
+			return nil, fmt.Errorf("invalid selected runtime environment entry")
+		}
+		if !seen[key] {
+			seen[key] = true
+			unique = append(unique, entry)
+		}
+	}
+	for i, j := 0, len(unique)-1; i < j; i, j = i+1, j-1 {
+		unique[i], unique[j] = unique[j], unique[i]
+	}
+	return unique, nil
 }
