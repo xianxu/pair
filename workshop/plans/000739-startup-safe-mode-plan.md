@@ -159,7 +159,7 @@ Files: new worker_start_notice.go/test; session protocol/transport/registry and 
 ### 4. Documentation, gates and operator rollout
 
 - [x] Update README/atlas/index and shipped Couch skill/help for automation controls, initial state, status/report surface, suppression loss and the two worker notice lifetimes. tl-lead first-message rule is a separately owned ariadne issue, not Couch parsing.
-- [ ] Audit source readers; run make test-affected-inventory and git diff --check; push tested head, run recorded local-check affected (known #738 graph fallback may select full suite). Classify failures; no gate waiver or blind rerun.
+- [x] Audit source readers; run make test-affected-inventory and git diff --check; push tested head, run recorded local-check affected (known #738 graph fallback may select full suite). Classify failures; no gate waiver or blind rerun.
 Gate-owned workflow: close via SDLC fresh review after verification. Estimate only after plan-quality passes; no single-pass milestone tags.
 - [x] Record coordinated operator full-shutdown and explicit-enable acceptance; retain private socket/count/negotiation evidence for non-duplication and the explicit second-lander scheduler seam (see acceptance Revision below).
 Gate-owned workflow: on SHIP, sdlc merge --yes, verify Git/PR outcome, report hub and stop. Hub owns project updates.
