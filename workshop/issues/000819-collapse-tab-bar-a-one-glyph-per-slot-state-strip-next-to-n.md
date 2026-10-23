@@ -55,6 +55,7 @@ Detailed design is on this issue branch at workshop/plans/000819-folded-slot-sta
 ## Log
 
 ### 2026-10-22 — planning under authorized parallel queue
+- 2026-10-22: closed — Regression-first compact mapping and exact membership; focused collapse, physical count/separator/strip clicks and owner styles PASS0.517s; full couchtty including native geometry PASS51.541s; artifactpath13.452s, repolint14.741s, reader inventory and whitespace checks PASS. README/atlas updated. Exact-source recorded suite lease-2835455686 is queued; TL5f6b7266 authorizes close overlap while required staged operator look waits behind753. Both remain mandatory landing gates.; review verdict: SHIP
 
 Claim/start-plan from clean main09c8964de39cdb5e6bd9db20601c232446af6949, independent of789. TL62d7df8e authorizes819 planning while789 isolated suite waits, returning for789 fixed review/merge on its result. Current789 lease-2426150993/session41982 remains untouched; no merge runner active. start-plan refresh hit the known seeded merge-check workflow change (ariadne557); saved /Volumes/TestScratch/tmp/pair-slot4/pair819-seeded-wpn5rb4w/merge-check.diff, restored only that generated file per existing TL instruction and retried. No workflow change is included here.
 
