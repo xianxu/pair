@@ -53,6 +53,12 @@ question is a different one.
 
 ## Spec
 
+### Current contract — approved 2026-10-22
+
+The October scope Revision and approved durable plan at ../plans/000162-enter-sends-harness-addressed-lines-plan.md are authoritative. Plain Return uses native submission only for a positively proved single-line slash command in the agent composer. Prose, paths, leading user whitespace and multiline text keep the existing newline mapping. Preserve activity recognition when complete text is unavailable. Couch's concrete slash producers use plain Enter, with exact fresh authored echo proved within the existing drive deadline and the final proof and Return decision sharing one immutable frame. Public submit remains Alt+Return. Draft-pane behavior, configurable ! sigils and PAIR_WRAP_COMMAND_ENTER are deferred.
+
+### September design retained for history — superseded where different
+
 ### The rule
 
 **Enter sends when the line is addressed to the harness. Enter inserts a
@@ -164,6 +170,18 @@ predicate, different input.
 
 ## Done when
 
+The following current criteria supersede the retained September checklist below:
+
+- A positively recognized single-line slash command, including arguments, takes native Return in each supported agent composer.
+- Ordinary prose, path-like first tokens, leading user whitespace, multiline input, suggestions and incomplete text proof retain the existing mapping; activity recognition is not weakened.
+- Overlay priority, Alt+Return, remap-off and draft-pane Enter retain their current contracts. No configurable sigils or new command-enter switch are introduced.
+- Every concrete Couch slash producer and documented slash-send example uses enter; public submit retains its Alt+Return meaning.
+- Known automatic slash sends emit no Enter before exact fresh authored echo. The final write rechecks ownership and command text against the same immutable frame used by the Return decision, without new deadlines or blind retries.
+- Fixture, pure reducer, stateful delayed-echo and counted-growth tests from the approved durable plan pass; ordinary peer delivery and exact /model cleanup authority stay unchanged.
+- Disposable native conformance covers Claude and Codex, and Qoder when credits permit, with captures retained for replay; required recorded checks and close review pass before landing.
+
+### September checklist retained for history — superseded where different
+
 - `/login` typed in the **agent pane** submits on plain Enter, no Alt. Same for
   `/clear`, `/context`.
 - `/model opus` — sigil plus arguments — submits on Enter.
@@ -185,6 +203,17 @@ predicate, different input.
   screen-reading change on a live tty, which is what `probes/` is for.
 
 ## Plan
+
+Current implementation follows ../plans/000162-enter-sends-harness-addressed-lines-plan.md, approved by ops:0 delivery50ff4ba1. One atomic review boundary; no Mx tags.
+
+- [ ] Clear change-code's full-flow plan-quality and estimate gates.
+- [ ] Add red grammar/region/Return regressions, then shared recognition evidence and the native-command Return branch.
+- [ ] Add red delayed-echo/reducer/writer regressions, then exact command expectation and final immutable-frame proof.
+- [ ] Migrate the complete slash-producer/help family while preserving public submit, peer/prose sends and model cleanup limits.
+- [ ] Run counted-cost tests, focused packages and audited affected-reader inventory, then disposable native conformance and retain captures.
+- [ ] Update atlas and complete required recorded checks, mandatory close review and SDLC landing.
+
+### September plan retained for history — superseded where different
 
 TENTATIVE — written 2026-09-17, decisions settled by the operator the same day
 (see `## Log`). One boundary, no `Mx`: shipping the agent pane without the draft
@@ -357,3 +386,10 @@ A temporary plan-only worktree under /Volumes/TestScratch/tmp/pair-slot2/pair162
 Authenticated ops:0 delivery50ff4ba1-fd38-4c7b-89a6-a3bb0093a088 approves the durable plan and listed tests, including exact authored echo and one immutable frame for the final proof and Return decision. Approval is recorded; change-code has not run and no implementation or native check has begun. The coupled recognizer/reducer/writer change is beyond a short checkpoint-sized edit, so leave it intact for after the planned22:00–23:00 shutdown rather than start a partial implementation. The fleet notice6e79eb07 prohibits new merges/landings and requires pushed checkpoints by21:45.
 
 Exact next step after restart: verify #806's retained merge outcome through sdlc landing/queue status and PR549 before creating any runner; return this162 branch from its plan-only worktree to pair:2 once806 releases the numbered checkout, remove the clean temporary worktree, reconcile the active Done-when/Plan with the scope Revision while preserving the September history, then run sdlc change-code --issue162 for plan-quality and the measured estimate gate. Implement the approved red/green sequence only after that gate. No162 merge is authorized tonight. At this checkpoint806's original merge session77210 (pid80534) remains first ready behind801, with no duplicate runner started.
+
+
+### 2026-10-22 — Post-shutdown resumption and contract reconciliation
+
+Authenticated ops:0 delivery8065c647 lifts the shutdown freeze and directs rebuilding on Go1.27.3, re-entering806 merge, then162 change-code. Pair:2 make build completed and pair/couch report go1.27.3. The former806 runner was absent (PID80534 gone, terminal77210 unknown, no landing ticket, PR549 still open); one replacement runner36605 was started and vouched ready, awaiting the shared repository lock. Queue inspection still reports helper inspect exit2, reported to the hub without changing shared tools.
+
+Made the active Spec/Done-when/Plan reflect the already approved October contract. All September text/checklists remain verbatim under explicitly superseded historical subheadings; no new design delta. The temporary162 worktree remains documentation-only until806 releases the numbered checkout. Next: return162 to pair:2, remove the clean temporary worktree, run change-code full flow and follow its named gates before implementation.
