@@ -710,3 +710,77 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-23T09:35:49-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 789 — Couch chrome: cap status text at 40 cells and preserve full copying |
+| repo | pair |
+| issue file | workshop/issues/000789-couch-chrome-cap-slot-status-text-at-40-cells-ellipsis-and-shorten-built-in-status-messages-to-fit.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 67e5ab87ef1c6a0c0790aa76bfd795205c9ac836..1dd016d9e6740d0aba8d39ff3c23825407a42db8 |
+| command | sdlc close --issue 789 |
+| reviewer | codex (openai; author openai) |
+| isolation | fenced |
+| timestamp | 2026-10-23T09:35:49-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: medium
+```
+
+The interdiff correctly updates edited-restart screen assertions for the existing 40-cell cap and verifies complete clipboard recovery. The certificate conflict resolves to the merged source’s exact hash. Spec, Plan, and Done-when are unchanged; Revisions additions record fixes and verification. No open prior findings or new defects were identified. Whole-package verification remains incomplete because the diagnostic run timed out.
+
+```findings
+{}
+```
+
+1. **Strengths**
+
+   - `editedrestart_console_acceptance_test.go:300` uses independent expected display strings, while retaining receipt, result, adoption, and persisted-argument assertions.
+   - `editedrestart_console_acceptance_test.go:308` enters the switcher and exercises actual Ctrl+Y clipboard recovery through the existing fixture.
+   - The resolved `run_test.go.json` preserves `fixed_scanner`; its SHA-256 matches the merged source, and both README readers remain registered.
+
+2. **Critical findings:** None.
+
+3. **Important findings:** None.
+
+4. **Minor findings:** None.
+
+5. **Test coverage notes**
+
+   - Complete `TestEditedRestartConsoleRemoteAdoption` matrix passed: **6.488s**.
+   - `make test-affected-inventory` and `git diff --check` passed.
+   - Whole couchcmd run with `-timeout=3m` timed out at **180.405s**, during unchanged `TestForcedSwitchSupervisorRejectsChangedAuthority`. This is not a package pass; no defect attributable to this interdiff was established.
+   - No production behavior changes require regression inversion in this window.
+
+6. **Architectural notes**
+
+   - **ARCH-DRY — pass:** reuses the existing clipboard assertion helper.
+   - **ARCH-PURE — pass:** added IO stays within integration fixtures; no business logic moves into IO.
+   - **ARCH-PURPOSE — pass:** assertions respect bounded presentation and preserve full diagnostic recovery.
+   - **ARCH-EVOLVE — pass:** certificate schema and disposition remain unchanged; existing gate records are preserved.
+   - No new architectural or user-facing surface requires atlas or README updates.
+
+7. **Plan revision recommendations:** None.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"e8394e97-28df-45a8-b065-8c8ace3f6589","repository":"github.com/xianxu/pair","issue_id":"000789","recipe":"fix-review","round":9,"attempt":1,"agent":"codex","root":"/Volumes/TestScratch/review-checkouts/976a72d308347395","reviewed_head":"1dd016d9e6740d0aba8d39ff3c23825407a42db8","slot":"pair:4","requested_at":"2026-10-23T16:31:26.706069Z"},"phase":"finished","pid":95833,"started_at":"2026-10-23T16:31:26.886078Z","finished_at":"2026-10-23T16:35:45.243404Z","session_id":"01a1699a-609a-7373-a9f5-303c2533a213","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 3.476340916s
+head: "1dd016d9e6740d0aba8d39ff3c23825407a42db8"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412
