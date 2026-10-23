@@ -1,4 +1,24 @@
 ---
+reviewer_runs:
+    - version: 1
+      intent:
+        id: 4edfe791-1b4d-4456-88bc-6ddf0eaf79c8
+        repository: github.com/xianxu/pair
+        issue_id: "000812"
+        recipe: estimate-quality
+        round: 1
+        attempt: 1
+        agent: codex
+        root: /Users/xianxu/workspace/worktree/pair-slot1/pair
+        reviewed_head: 19c351491dcfb311bf36f39c000f48849f4c7837
+        slot: pair:1
+        requested_at: "2026-10-23T12:13:17.516816Z"
+      phase: finished
+      pid: 89648
+      started_at: "2026-10-23T12:13:17.683885Z"
+      finished_at: "2026-10-23T12:13:51.131863Z"
+      session_id: 01a168ae-07ac-7712-b1f5-80a3ecf73c25
+      outcome: returned
 gate: plan-quality
 issue: 812
 id_prefix: PQ
@@ -65,7 +85,32 @@ rounds:
           note: Named risky functions now have adversarial strategies and mechanical guards, including reproducible concurrent publication/selection ordering.
           round: 2
       blocked: false
-content_hash: 7bd78cac09d59a16305fcfa6bec2f9e17de6162a3a372579e705bd43029d412a
+    - reviewer_runs:
+        - version: 1
+          intent:
+            id: 55e11554-9ca2-4065-98f3-82bbd7be25ea
+            repository: github.com/xianxu/pair
+            issue_id: "000812"
+            recipe: plan-quality
+            round: 3
+            attempt: 1
+            agent: codex
+            root: /Users/xianxu/workspace/worktree/pair-slot1/pair
+            reviewed_head: 19c351491dcfb311bf36f39c000f48849f4c7837
+            slot: pair:1
+            requested_at: "2026-10-23T12:12:38.857923Z"
+          phase: finished
+          pid: 52254
+          started_at: "2026-10-23T12:12:39.046094Z"
+          finished_at: "2026-10-23T12:13:12.917849Z"
+          session_id: 01a168ad-70cc-7cd1-9eef-d36c47c664ea
+          outcome: returned
+      "n": 3
+      timestamp: "2026-10-23T05:13:13-07:00"
+      agent: codex
+      reviewer: codex (openai; author openai)
+      blocked: false
+content_hash: 3fc0813841e327e5283557363d11c5ff788a6401aed0d02bbe46ed172264c6d3
 ---
 
 # Gate ledger — pair#812 (plan-quality)
@@ -85,6 +130,8 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 ### Disposed
 
 - PQ-1 — addressed — Named risky functions now have adversarial strategies and mechanical guards, including reproducible concurrent publication/selection ordering.
+
+## Round 3 — 2026-10-23T05:13:13-07:00 (codex) — passed
 
 ## Open findings
 
