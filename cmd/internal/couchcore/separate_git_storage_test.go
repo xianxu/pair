@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 )
 
@@ -35,6 +34,23 @@ func TestSeparateGitDirectoryEnrollmentPreservesStorageAuthority(t *testing.T) {
 	if err := writePathLaunchPreferenceForTest(s, preference); err != nil {
 		t.Fatal(err)
 	}
+	legacyPath := s.pathLaunchPreferencePath(common, record.StartingPath)
+	legacyBefore, err := os.ReadFile(legacyPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	assertRepositoryArguments := func(store *ThreadStore) {
+		t.Helper()
+		c := &Couch{Threads: store, Git: ExecGit{}, Path: OSPathOps{}}
+		doc, _, err := c.previewRepositoryPreferences(context.Background())
+		if err != nil {
+			t.Fatal(err)
+		}
+		resolved, err := ResolveRepoArguments(repoRecordPointer(doc, common), "claude", nil)
+		if err != nil || !resolved.Found || len(resolved.Argv) != 1 || resolved.Argv[0] != "--saved" {
+			t.Fatalf("separate common-directory arguments lost: %+v %v", resolved, err)
+		}
+	}
 	if err := s.EnrollSlotRepository(context.Background(), repository); err != nil {
 		t.Fatalf("enrollment: %v", err)
 	}
@@ -47,9 +63,9 @@ func TestSeparateGitDirectoryEnrollmentPreservesStorageAuthority(t *testing.T) {
 		if err != nil || local == store || local.slot.RepoIdentity != common {
 			t.Fatalf("path routing invented common identity: %+v %v", local, err)
 		}
-		pref, found, err := store.GetPathLaunchPreference(common, record.StartingPath)
-		if err != nil || !found || pref.RepoIdentity != common {
-			t.Fatalf("preference lost: %+v %v %v", pref, found, err)
+		assertRepositoryArguments(store)
+		if _, err := os.Stat(local.pathLaunchPreferencePath(common, record.StartingPath)); !os.IsNotExist(err) {
+			t.Fatalf("enrollment copied legacy preferences into local authority: %v", err)
 		}
 		snapshot, err := store.Snapshot()
 		if err != nil || len(snapshot.Records) != 1 || len(snapshot.Slots) != 1 || snapshot.Slots[0].Identity.RepoIdentity != common {
@@ -94,20 +110,14 @@ func TestSeparateGitDirectoryEnrollmentPreservesStorageAuthority(t *testing.T) {
 	if err := (ThreadTarget{Kind: ThreadTargetSlot, Slot: unknown}).Validate(); err != nil {
 		t.Fatalf("legacy location vanished from UI: %v", err)
 	}
-	if _, _, err := reopened.GetPathLaunchPreference(common, record.StartingPath); err == nil || !strings.Contains(err.Error(), "verify its enrollment") {
-		t.Fatalf("unknown identity used for preference routing: %v", err)
-	}
+	// Global legacy arguments retain independently verifiable Git authority;
+	// an unknown slot location does not turn them into a local singleton.
+	assertRepositoryArguments(reopened)
 	env := newTestEnv(t, record.StartingPath)
 	env.Couch.Threads = reopened
 	env.Couch.Namespace = s.namespace
 	env.Couch.Slots = NewOSSlotCatalog(f)
 	env.Couch.Workspaces = NewWorkspaceProvisioner(f) // opening a slot reconciles it (pair#387)
-	env.Couch.RepoAgentDefault = func(root, agent string) (LaunchProfile, bool, error) {
-		if root != f.Primary {
-			t.Fatalf("default lookup lost primary: %s", root)
-		}
-		return LaunchProfile{}, false, nil
-	}
 	env.Git.replies[GitCall{Dir: record.StartingPath, Args: "rev-parse --git-common-dir"}] = common
 	env.Artifacts.SetPairSession(record.Address, "pair-separate-git", true)
 	env.Artifacts.SetDetachedSession(record.Address, "pair-separate-git")
@@ -125,15 +135,15 @@ func TestSeparateGitDirectoryEnrollmentPreservesStorageAuthority(t *testing.T) {
 	if _, err := env.Couch.OpenSlot(context.Background(), record.StartingPath, "claude"); err != nil {
 		t.Fatalf("legacy identity repair open deadlocked: %v", err)
 	}
-	if _, found, err := reopened.GetPathLaunchPreference(common, record.StartingPath); err != nil || !found {
-		t.Fatalf("verified backfill did not restore preferences: %v", err)
-	}
+	assertRepositoryArguments(reopened)
 	if _, err := reopened.ReserveRepositoryFamily(context.Background(), repository, RepositoryFamily{RepoIdentity: common, PrimaryRoot: f.Primary, RelativeStart: "."}); err != nil {
 		t.Fatal(err)
 	}
 	forgetIdentity()
-	if _, found, err := NewThreadStore(s.namespace).GetPathLaunchPreference(common, record.StartingPath); err != nil || !found {
-		t.Fatalf("saved family authority was ignored: %v", err)
+	assertRepositoryArguments(NewThreadStore(s.namespace))
+	legacyAfter, err := os.ReadFile(legacyPath)
+	if err != nil || !bytes.Equal(legacyBefore, legacyAfter) {
+		t.Fatalf("enrollment or preview rewrote legacy source: %v", err)
 	}
 
 }

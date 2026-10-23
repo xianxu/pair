@@ -271,7 +271,8 @@ requires machine-local filesystems; distributed/shared homes are unsupported.
 `couchcore.ThreadStore` is
 the shared lifecycle interface. Primary and arbitrary-path records use the global
 store; numbered slots use `<environment>/.couch/` with one current conversation
-record, separate preferences, and retained history. Each backend uses the existing
+record and retained history. Repository arguments live in the global Couch namespace,
+shared by every slot of that repository. Each backend uses the existing
 lock, revision checks and recoverable journal. The supervisor lease still belongs
 to the selected global namespace beneath the account lease.
 
@@ -2946,25 +2947,49 @@ capability returns the typed cross-actor routing refusal and never falls back
 to a second process. No caller produces that refusal today: cross-actor routing
 was punted with `pair#147`.
 
-Switch agent (`pair#184`, `pair#517`) has a human form and a hub-only remote API:
-`couch --switch-agent repo:N --agent NAME --confirm [--json]`. The API accepts one
-exact other slot and a different supported agent; `self`, family/range targets
-and the caller's own slot refuse. The current authenticated wrapper must be
-connected, known idle and on a clean worktree. Unknown state refuses too.
-`couchcmd/agent_switch_service.go` checks those facts at admission and again when
-the queued operation executes; the core guard rechecks immediately before park.
-The operation uses the existing slot queue and receipts, inspected through
-`couch --operation-status ID [--json]`.
+Switch agent (`pair#184`, `pair#517`, `pair#728`) has a human form and a hub-only
+remote API: `couch --switch-agent repo:N --agent NAME [--agent-args PARAMETERS]
+[--interrupt-first] --confirm [--json]`. It selects one exact other slot; `self`,
+family/range targets and the caller's own slot refuse. A connected source needs
+current authenticated ownership, idle proof and clean Git. A retained parked
+source is selected passively by `ResolveAgentSwitchTarget`, then admitted through
+`PrepareAgentSwitch`'s existing classifier. Disconnect alone never proves vacancy.
+Private `SwitchSourceEvidence` carries the admitted mode, revision, working path
+and canonical repository identity; serialized previews cannot mint that evidence.
+The service checks admission again at queued execution and immediately before park.
+Retained-source admission shares one verified workspace observation across its
+checks, with fresh alias/sibling/address selection, record, Git and hub checks.
+Queued preparation and the effect guard resolve current workspace authority
+again; the request-local observation never replaces those proofs.
 
-`PrepareKnownAgentSwitch` resolves the target agent's last successful argv for
-the starting path, then an explicit repository default if no saved target-agent
-argv exists. An explicitly configured empty argv is valid. Missing configuration
-refuses before park and directs the operator to configure the agent. The remote
-API accepts no argv, brief or defaults edits. The operator's Switch coding agent
-form still selects the agent and edits parameters; its accepted
-`prepare-switch-agent` fingerprint is revalidated before execution. Successful
-registration changes the path's default agent and its argv while preserving
-other agents' saved parameters.
+Presence-aware `couchmessage.SwitchArguments` preserves absent versus explicit
+empty argv. `PrepareKnownAgentSwitch` resolves Couch's canonical repository choice;
+explicit argv uses `PrepareAgentSwitch`. Strict array decoding and the shared
+literal/fresh-selector validators reject malformed input. Both early replay and
+queued receipt admission bind presence, exact arguments and interrupt intent.
+Accepted parameters publish only after final console adoption through the M1 owner.
+
+`--interrupt-first` reuses the authenticated drive owner while `SwitchAgent` holds
+its lifecycle lock: one total thirty-second phase, at most one interrupt, followed
+by fresh idle proof and the ordinary park guard. The first ordinary or
+cooperative live proof returns its verified wrapper connection token to the
+operation owner; later guards require that same token, including local forms
+whose initial source token is empty. Reconnection between phases refuses.
+Unknown working proof sends nothing. Normal and cooperative paths retain
+dirty-tree refusal. Force-confirmation cancellation copies the prepared preview
+before dropping its offer, preserving retained render snapshots.
+
+The form's **Force switch** requests a local proof offer, then one explicit risk
+confirmation defaulting to Cancel. `AgentSwitchForceOffer`/`AgentSwitchForceConsent`
+in `couchcore/switch_force.go` bind owner, exact accepted fingerprint and wrapper
+token with one-shot consumption. `MenuEffect.TypedPayload` forwards it through the
+existing console lifecycle queue and `OperationCall.TypedPayload`; operation args,
+CLI and message requests contain no force permission. `couchcmd/switch_force.go`
+waives only idle and cleanliness/status-display policy, rechecking record,
+process, wrapper and canonical workspace/repository identity. `SlotGitStatus`'s
+optional changed-file count comes from the same porcelain observation; malformed
+or directory-summary counts remain unknown. Force preserves worktree files and
+still uses the existing `ParkExpected` completion-plus-helper-death boundary.
 
 The switch parks the exact outgoing incarnation and starts a fresh conversation
 at the same thread address and working path. Its composer is empty: the switch
@@ -3422,6 +3447,34 @@ caps three things:
 - **The park worker.**
 - **The startup reattach pass's in-flight set** (`ReattachPass.Limit`, fixed
   when the pass is armed).
+
+**One-gesture full quit** (#827). One confirmed switcher Alt+x owns the whole
+park leave (`leave_park.go`):
+- **Budget:** `LeaveParkBudget` (60s) is a scheduling budget shared by gate
+  waits, queueing, drives and reconciliation. Synchronous durable writes still
+  settle and are joined, so it is not a hard exit ceiling.
+- **Drives:** each target gets at most `leaveParkMaxDrives` (3), under one thread
+  hold. Each drive joins its exact admitted future (`parkFuture.AwaitJoined`,
+  through the Leave-only `parkJoined`/`recoverJoined`); public Park/Recover keep
+  the cancellable `Await`.
+- **Retry policy:** `decideLeaveParkRetry` is pure. An open transaction retries
+  through Recover under its own nonce. A fresh park needs `parkRolledBackError`
+  (the controller's proof that nothing was published and the rollback committed)
+  plus the same captured incarnation. Anything else is the operator's.
+- **Report:** a failure returns `LeaveParkIncompleteError`, whose text is
+  `FormatLeaveParkSummary`: every failed, not-started, skipped (unvouched
+  incarnation) or unreadable thread once,
+  in snapshot order, with its next action. The switcher's error notice and its
+  copy key carry it whole, and Couch stays open.
+- **Thresholds:** `parkCommitDeadline` is 10s (a measured 709ms worst commit at
+  30 slots under load; `workshop/evidence/000827/`). The unpublished rollback
+  gets the same budget. Relaunch's post-failure read keeps its own 1s
+  `relaunchObservationTimeout`.
+- **Store lock:** preview and routing reads take `store.lock` outside the
+  retention coordinator. Coordinated foreground writes (`withUpdateLockContext`)
+  therefore poll it within `storeReadLockWait` and then return
+  `ErrThreadStoreBusy`. Before #827 they refused at the first EWOULDBLOCK, which
+  is what left fan-out parks behind. Retention maintenance still yields at once.
 
 The console drains its operation queue with `Limit+1` workers, so the pass
 alone can never occupy all of them. Remote and continuation jobs share the
@@ -4140,42 +4193,73 @@ pane is the layer couch replaces" -- an actor-cluster-era claim that `#170`'s
 rescope to couch-lite invalidated: couch-lite switches agent sessions and never
 took over handing the operator a shell at their cwd.
 
-`ResolveLaunchProfile` keeps two provenance axes independent. Agent precedence
-is explicit start selection → the path preference's `last_agent` → the root
-actor's `$PAIR_AGENT`; argv precedence is that selected agent's path entry →
-its Pair-owned repository default. Agent choices derive from
-`launcher.AgentInventory`, so Couch has no harness enum and can never apply one
-agent's argv to another.
+Couch selects an agent from the explicit request or the root actor's
+`$PAIR_AGENT`; native resume keeps its retained thread profile. Startup arguments
+come from explicit accepted argv (including empty), then that agent's record in
+Couch's repository configuration. The repository key is the verified physical
+Git common directory, so slots share per-agent arguments while independent
+repositories remain isolated. `launcher.AgentInventory` supplies supported agents.
 
-Primary and ordinary-path preferences are strict revisioned records below
-`threadstore/path-preferences/`, addressed by a digest of normalized repository
-identity plus canonical physical path while retaining both values in the
-record for validation. Numbered workspaces route that same API to their
-`<environment>/.couch/preferences.json`, keyed to the nested main checkout;
-sibling dependency clones are not enrolled as threads. `repoLaunchDefault`
-resolves numbered workspaces' missing per-agent values from the primary checkout
-across create, fresh and Switch agent. It retains the explicitly known primary
-root during first creation before enrollment. First-use agent selection remains
-the current Couch agent, not a copy of :0's preference; registered launches then
-establish independent per-workspace values. Resume consumes its incarnation's
-exact recorded profile, while fresh replacement preserves per-agent history and
-validates parameters before replacing the current record. The resolved profile travels to Pair as a strict
-tag-bound `PAIR_COUCH_LAUNCH_PROFILE`. `PAIR_USE_REPO_DEFAULT=1` accompanies it
-only for matching repo-default provenance; path provenance supplies one
-authoritative empty value. `ExecRunner` overlays supplied child keys after
-removing inherited duplicates, so stale launch policy cannot cross the process
-boundary. Pair consumes both keys before launch and does not persist
-Couch-resolved argv back as a new repository default (`AgentArgsFromCouch` guards
-ordinary launches as well as fresh/resume paths).
+`repopreferences.go` owns pure resolution, folding and marked borrowing;
+`repopreferences_codec.go` preserves unknown fields with strict known types.
+The global ThreadStore document `threadstore/repo-preferences.json` is bounded to
+4 MiB and 256 repositories, with 4096-byte formatted arguments per agent.
+`repopreferences_store.go` serializes accepted updates under the namespace lock,
+regardless of which backend holds the conversation. Missing own-repo settings may
+yield a marked, deterministic same-agent suggestion from another confirmed
+repository; CLI never implicitly accepts it. The active switch form renders the
+own/borrowed/absent/conflicting state and donor repository before acceptance;
+cancellation dispatches nothing. Explicit acceptance saves it locally after adoption.
 
-The pending start claim carries the exact profile across Couch failure, but it
-does not count as history. Established registration promotes that profile onto
-the incarnation and journals the thread record, per-path/per-agent history, and
-manifest generation as one recoverable transaction. Failed fork,
-acknowledgement, or registration paths write neither preference. A restarted
-Couch therefore selects the last successful agent and exact argv at that path
-without reopening Pair's saved-config picker (ARCH-DRY, ARCH-PURE,
-ARCH-PURPOSE).
+`repopreferences_migration.go` reads bounded legacy Couch path-preferences and
+enrolled slot `.couch/preferences.json` files, independently verifies Git identity
+and containment, and folds them in memory. Equal legacy values agree; differing
+values expose a conflict requiring explicit arguments. Confirmed values outrank
+late legacy sources. Source identities, exact bytes and digests survive in the
+canonical document; original files stay untouched and receive no new writes.
+Committed sources are not read again. Preview never creates locks/directories,
+replays journals, enrolls retention or reads Pair's per-folder defaults.
+
+The resolved selector-free argv travels explicitly in the existing strict,
+tag-bound `PAIR_COUCH_LAUNCH_PROFILE`. Its existing repo-default provenance marker
+is retained for protocol compatibility, not a fallback into Pair's preference
+store. Pair's standalone defaults and per-folder behavior remain independent.
+`preference_boundary_test.go` rejects a Couch dependency on Pair preference readers.
+
+The start claim records explicit `remember_configuration` intent independently
+of fresh/resume shape. Registration promotes exact execution history and journals
+thread + manifest; it writes no preferences. Only successful final console attach
+calls `PublishAdoptedConfiguration`. Its shared ephemeral completion publishes
+once and reaches StartResult, SwitchAgentResult and warning/receipt wrappers. A
+publication failure keeps the adopted child and visibly says startup parameters
+were not remembered. Failed attachment/registry adoption, automatic resume,
+warm attachment and recovery never learn merely because they ran. There is no
+durable retry/outbox after the disclosed adoption/publication crash gap.
+
+Migration and writer admission share one five-second context. Coordinator waits
+honor that context; busy nested-store attempts release the coordinator before
+waiting, preserving concurrent merges within the remaining budget. Publication
+runs on the existing lifecycle completion worker before operation/remote
+completion, while Console.Run continues input and rendering. Initial attachment
+runs before Run and queues any warning for first paint.
+
+Same-agent **Restart with new parameters** pins the preview's exact native ID
+through a private accepted intent, independently of edited selector-free argv.
+`editedrestart.go` decides at most one cold resume and one disclosed fresh
+fallback; `editedrestart_evidence.go` preserves exact missing versus changed or
+unknown evidence. `editedrestart_launch.go` consumes each request before the
+existing start-claim CAS and `launchTrackedThread`. A failed resume permits fresh
+only after authoritative absence, the exact existing cleanup owner's rollback
+receipt and fresh vacancy/admission. Replacement or prelaunch authorization
+refusal stays terminal even if a later read reports absence. The receipt is
+request-local; interrupted operations retain ordinary start reconciliation,
+which never reconstructs permission for fallback. For an ID-only filename or
+requested-resume binding, editedrestart_presence.go asks the same scoped artifact
+owner for one exact-ID metadata observation (editedrestart_metadata.go). A unique
+root becomes a located binding; complete absence is Missing, while partial/error
+listings and duplicates refuse. Located bindings retain one stat and no listing;
+ordinary resume policy and binder cost are unchanged. Fresh success visibly reports
+`no previous conversation found; started fresh with the new parameters`.
 
 ## Couch metadata and resolution
 
@@ -4218,8 +4302,9 @@ One field survived it. `advanceSuccessfulStart` keyed the path launch
 preference by the policy record's `repo_identity`, which is just the Git common
 directory -- so `ThreadIncarnation.RepoIdentity` now carries it, resolved
 locally through couch's own `GitRunner` seam. The value is byte-identical, so
-every existing `path-preferences/` file stays readable and the operator's
-per-path agent+argv memory survives the deletion. The old `policy` object
+every existing `path-preferences/` file stayed readable after that deletion.
+The later #728 repository-argument migration retains those files as bounded
+read-only inputs; they no longer own current defaults. The old `policy` object
 remains as a decode tombstone.
 
 `Worktree`, `ActorID`, and `registry.json` remain transitional live-console

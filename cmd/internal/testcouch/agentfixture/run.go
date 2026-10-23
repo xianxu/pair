@@ -31,14 +31,15 @@ type Config struct {
 	Width, Height                                                int
 }
 type Ready struct {
-	RunID      string `json:"run_id"`
-	Agent      string `json:"agent"`
-	Version    string `json:"version"`
-	PID        int    `json:"pid"`
-	Generation string `json:"generation"`
-	NativeID   string `json:"native_id"`
-	Transcript string `json:"transcript"`
-	CWD        string `json:"cwd"`
+	Argv       []string `json:"argv"`
+	RunID      string   `json:"run_id"`
+	Agent      string   `json:"agent"`
+	Version    string   `json:"version"`
+	PID        int      `json:"pid"`
+	Generation string   `json:"generation"`
+	NativeID   string   `json:"native_id"`
+	Transcript string   `json:"transcript"`
+	CWD        string   `json:"cwd"`
 }
 type AcceptedInput struct {
 	PID      int       `json:"pid"`
@@ -149,7 +150,7 @@ func Run(parent context.Context, c Config, stdin io.Reader, stdout io.Writer) (r
 	if _, err = stdout.Write(append(capture, []byte(Paint(state, c.Width, c.Height))...)); err != nil {
 		return err
 	}
-	ready := Ready{RunID: c.RunID, Agent: c.Agent, Version: Version(c.Agent), PID: os.Getpid(), Generation: procutil.Identity(strconv.Itoa(os.Getpid())), NativeID: cv.id, Transcript: cv.path, CWD: cv.cwd}
+	ready := Ready{Argv: append([]string{}, c.Args...), RunID: c.RunID, Agent: c.Agent, Version: Version(c.Agent), PID: os.Getpid(), Generation: procutil.Identity(strconv.Itoa(os.Getpid())), NativeID: cv.id, Transcript: cv.path, CWD: cv.cwd}
 	if err := atomicJSON(filepath.Join(c.ControlDir, "ready.json"), ready, false); err != nil {
 		return err
 	}
@@ -362,7 +363,7 @@ func Run(parent context.Context, c Config, stdin io.Reader, stdout io.Writer) (r
 				if e == nil && command.ID != id {
 					e = errors.New("fixture filename/request correlation mismatch")
 				}
-				if e == nil && (command.PID != os.Getpid() || command.RunID != c.RunID) {
+				if e == nil && (command.PID != os.Getpid() || command.RunID != c.RunID || command.Generation != "" && command.Generation != ready.Generation) {
 					e = errors.New("fixture actor incarnation mismatch")
 				}
 
@@ -378,6 +379,16 @@ func Run(parent context.Context, c Config, stdin io.Reader, stdout io.Writer) (r
 						if e == nil && !start {
 							continue
 						}
+					}
+				}
+				if e == nil && command.Kind == SetState {
+					var canceled bool
+					canceled, e = commandCanceled(c.ControlDir, command)
+					if e == nil && canceled {
+						e = context.Canceled
+					}
+					if e == nil && command.State == SyntheticClaudeLimit && c.Agent != "claude" {
+						e = errors.New("synthetic Claude limit screen requires a Claude fixture")
 					}
 				}
 

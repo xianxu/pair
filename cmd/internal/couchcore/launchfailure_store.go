@@ -7,7 +7,6 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"time"
 
 	"golang.org/x/sys/unix"
 )
@@ -87,7 +86,7 @@ func (s *LaunchFailureStore) update(ctx context.Context, change func(LaunchFailu
 	}
 	wait := s.waitForLock
 	if wait == nil {
-		wait = waitForLaunchFailureLock
+		wait = waitForStoreLockContext
 	}
 	var lock *threadStoreLock
 	for {
@@ -169,16 +168,4 @@ func acquireLaunchFailureLock(path string) (*threadStoreLock, error) {
 		return nil, err
 	}
 	return &threadStoreLock{file: file}, nil
-}
-
-// A cancellable wake avoids leaving a goroutine blocked in flock after return.
-func waitForLaunchFailureLock(ctx context.Context) error {
-	timer := time.NewTimer(10 * time.Millisecond)
-	defer timer.Stop()
-	select {
-	case <-ctx.Done():
-		return ctx.Err()
-	case <-timer.C:
-		return nil
-	}
 }

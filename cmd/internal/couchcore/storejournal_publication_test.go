@@ -264,7 +264,7 @@ func TestStoreJournalReplayChecksCancellationBetweenEntries(t *testing.T) {
 		}
 		return ctx.Err()
 	}
-	if err := s.withStoreLockChecked(func() error { return nil }, check); !errors.Is(err, context.Canceled) {
+	if err := s.withStoreLockChecked(func() error { return nil }, check, 0); !errors.Is(err, context.Canceled) {
 		t.Fatalf("replay ignored cancellation %v", err)
 	}
 	for _, path := range []string{s.journalPath(), s.archivePath(request.Address), s.archiveGracePath(request.Address)} {

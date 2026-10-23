@@ -8,6 +8,14 @@ The whole thing is deliberately small — a handful of shell scripts, one nvim i
 
 ## Pieces
 
+### Pair and Couch state ownership
+
+pair is a thin, standalone, per-folder launcher of a coding agent; Couch is the integrated environment that configures pair and owns Couch-level state (e.g. per-repo remembered agent arguments). pair reads nothing of Couch's.
+
+Couch resolves repository-wide startup arguments and passes the accepted argv explicitly to Pair. Pair's standalone folder configuration remains independent. A shared Pair/Couch preference store, or a Pair fallback into Couch's preferences, would reverse this ownership boundary. Couch's repository identity joins its slots; it does not change Pair's folder identity. Cross-repository borrowed arguments are a Couch suggestion that requires acceptance, not an implicit Pair default. This layering is the operator's governing direction for #728; its implementation plan is [Couch startup preferences](../workshop/plans/000728-shared-agent-startup-preferences-plan.md#2026-10-21-0004--governing-couch-only-repository-preference-design).
+
+Pair honors a validated Couch launch profile without consulting its folder defaults or offering its per-tag saved-config picker. Those files retain execution history and cannot override Couch's accepted arguments. Standalone Pair keeps both its own defaults and picker.
+
 ### Verified park/resume authority
 
 `pairlifecycle` owns versioned quit requests/completions and the one ordered
@@ -1346,6 +1354,20 @@ publication require separate designs (#769/#770). Other platforms retain
 upstream startup behavior. Native regressions in `pty_darwin_test.go` force all
 child slave descriptors closed before the first read and assert exact bytes,
 EOF, exit status and descendant-held-slave completion.
+
+XNU's ptmx allocator races under concurrent allocation and intermittently fails
+`open("/dev/ptmx")` with ENXIO (#809), so `openPTY` bounds it at three attempts.
+The errno arrives *negated* — `int` value -6, rendering "errno -6" — measured at
+the `syscall.Open` on `/dev/ptmx`, where every observed failure occurred; the
+ioctl path shares that convention and is normalised as a precaution, not because
+it was seen failing. So `isTransientPTYAlloc` normalises the sign, and
+`errors.Is(err, syscall.ENXIO)` does not match it and would never fire. Every
+fixture that allocates a pty goes
+through the same `openPTY`: a bare `pty.Open` is exposed to the same race, and
+its failure reads as a failure of `Run`. The one exception is an opener injected
+into `startPTYWithOpen`, which `openPTYRetry` already wraps — a second nested
+retry there is redundant, and in a test that counts opener invocations it
+corrupts the count.
 
 ## Design intent
 
