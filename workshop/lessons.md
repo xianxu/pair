@@ -2752,3 +2752,8 @@ and external temporary roots rather than relying on the host's TMPDIR.
 - #796: When adding a display mode, parameterize established pending/reattach regressions over both modes. A legacy fixture that explicitly selects the compatibility mode cannot prove the new default preserves pending states. Count branches also need owner/style invariants from ordinary chips, not only correct text and hit spans.
 
 - #823 PQ-2: Additive persisted JSON contracts require recursive duplicate-key rejection as well as strict owned-field presence/type checks and raw unknown-field preservation. Reuse strictjson split/encode helpers at each changed boundary; plain json.Unmarshal is not an authority validator.
+
+- #823 codec review: validate each positional tuple coordinate independently before ordering endpoints. A later end line does not make a negative end column valid; retain cross-line negative-column regression coverage.
+
+- #823 compiler review: preserve the isolated YAML key/value mapping context when decoding owned values. Removing key indentation changes explicit block-scalar indentation and instruction text. Test quoted/indented mappings, explicit indent/chomp modifiers and mixed header/body line endings independently of canonical flat fixtures.
+- #823 integration: apply base-coordinate transforms before automatic restamping. A restamp can grow with an extreme year; applying earlier offsets after that growth truncates output and bypasses prospective byte-limit tests.

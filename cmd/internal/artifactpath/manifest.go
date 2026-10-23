@@ -735,6 +735,11 @@ var NonArtifactSources = []string{
 	"cmd/internal/startupbudget/budget.go",
 	// #823 editorial settings and embedded mode briefs name no Pair artifacts.
 	"cmd/internal/editorial/catalog.go",
+	"cmd/internal/editorial/document.go",
+	"cmd/internal/editorial/source.go",
+	"cmd/internal/editorial/migrate.go",
+	"cmd/internal/editorial/edits.go",
+	"cmd/internal/editorial/markers.go",
 	// #758 endpoint model and native editor transport name no Pair artifact paths.
 	"cmd/internal/editorendpoint/model.go",
 	"cmd/internal/editorendpoint/state.go",
@@ -1338,6 +1343,9 @@ var NonArtifactSources = []string{
 	// #661 apply and rounds: pure resolution, diff and marker code, plus a
 	// round sidecar beside the shadow; no Pair artifact filenames.
 	"cmd/internal/sessionsync/edits.go",
+	"cmd/internal/sessionsync/editorial_codec.go",
+	"cmd/internal/sessionsync/editorial.go",
+	"cmd/internal/sessionsync/editorial_migration.go",
 	"cmd/internal/sessionsync/file.go",
 	"cmd/internal/sessionsync/gap.go",
 	"cmd/internal/sessionsync/ledger.go",

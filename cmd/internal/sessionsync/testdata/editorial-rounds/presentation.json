@@ -1,0 +1,204 @@
+[
+  {
+    "name": "mixed",
+    "before": "---\npresentation-mode: direct\n---\n# Highlight\n<!-- presentation-mode: highlight -->\nold highlight\n# Propose\n<!-- presentation-mode: propose -->\nold proposal\n# Direct\nold direct\n# Inherited\nold inherited\n",
+    "result": "---\npresentation-mode: direct\n---\n# Highlight\n<!-- presentation-mode: highlight -->\nnew highlight\n# Propose\n<!-- presentation-mode: propose -->\n🤖~old proposal~{new proposal}\n# Direct\nnew direct\n# Inherited\nnew inherited\n",
+    "round": {
+      "base_hash": "5bf2d530018855c3",
+      "result_hash": "7b176a6b9dba057f",
+      "at": "2026-10-23T00:00:00Z",
+      "presentation": "direct",
+      "spans": [
+        {
+          "start": [
+            5,
+            0
+          ],
+          "end": [
+            5,
+            13
+          ],
+          "old": "old highlight",
+          "new": "new highlight",
+          "future": {
+            "keep": [
+              1,
+              2
+            ]
+          },
+          "presentation": "highlight"
+        },
+        {
+          "start": [
+            8,
+            0
+          ],
+          "end": [
+            8,
+            32
+          ],
+          "old": "old proposal",
+          "new": "🤖~old proposal~{new proposal}",
+          "future": {
+            "keep": [
+              1,
+              2
+            ]
+          },
+          "presentation": "propose"
+        },
+        {
+          "start": [
+            10,
+            0
+          ],
+          "end": [
+            10,
+            10
+          ],
+          "old": "old direct",
+          "new": "new direct",
+          "future": {
+            "keep": [
+              1,
+              2
+            ]
+          },
+          "presentation": "direct"
+        },
+        {
+          "start": [
+            12,
+            0
+          ],
+          "end": [
+            12,
+            13
+          ],
+          "old": "old inherited",
+          "new": "new inherited",
+          "future": {
+            "keep": [
+              1,
+              2
+            ]
+          }
+        }
+      ],
+      "future": {
+        "keep": "round"
+      }
+    },
+    "records": [
+      {
+        "old": "old highlight",
+        "new": "new highlight",
+        "new_occurrence": 1,
+        "presentation": "highlight",
+        "future": {
+          "keep": [
+            1,
+            2
+          ]
+        }
+      },
+      {
+        "old": "old proposal",
+        "new": "🤖~old proposal~{new proposal}",
+        "new_occurrence": 1,
+        "presentation": "propose",
+        "future": {
+          "keep": [
+            1,
+            2
+          ]
+        }
+      },
+      {
+        "old": "old direct",
+        "new": "new direct",
+        "new_occurrence": 1,
+        "presentation": "direct",
+        "future": {
+          "keep": [
+            1,
+            2
+          ]
+        }
+      },
+      {
+        "old": "old inherited",
+        "new": "new inherited",
+        "new_occurrence": 1,
+        "presentation": "direct",
+        "future": {
+          "keep": [
+            1,
+            2
+          ]
+        }
+      }
+    ],
+    "expected_effective": [
+      "highlight",
+      "propose",
+      "direct",
+      "direct"
+    ]
+  },
+  {
+    "name": "legacy-round",
+    "before": "old\n",
+    "result": "new\n",
+    "round": {
+      "base_hash": "01d09d19c2139a46",
+      "result_hash": "7aa7a5359173d05b",
+      "at": "2026-10-23T00:00:00Z",
+      "spans": [
+        {
+          "start": [
+            0,
+            0
+          ],
+          "end": [
+            0,
+            3
+          ],
+          "old": "old",
+          "new": "new"
+        }
+      ],
+      "presentation": "direct"
+    },
+    "expected_effective": [
+      "direct"
+    ]
+  },
+  {
+    "name": "legacy-default",
+    "before": "old\n",
+    "result": "new\n",
+    "round": {
+      "base_hash": "01d09d19c2139a46",
+      "result_hash": "7aa7a5359173d05b",
+      "at": "2026-10-23T00:00:00Z",
+      "spans": [
+        {
+          "start": [
+            0,
+            0
+          ],
+          "end": [
+            0,
+            3
+          ],
+          "old": "old",
+          "new": "new"
+        }
+      ]
+    },
+    "expected_effective": [
+      "highlight"
+    ]
+  }
+]

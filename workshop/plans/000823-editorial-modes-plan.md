@@ -146,11 +146,11 @@ Files: create `cmd/internal/editorial/testdata/contract/` and `cmd/internal/edit
 
 Files: create `document.go`, `source.go`, `migrate.go` and matching `_test.go` files in `cmd/internal/editorial/`.
 
-- [ ] Write failing Compile and parseOwnedSource tests using the generated/fuzz strategies above, seeded with the pinned producer fixtures.
-- [ ] Use Markdown parsing/code masks rather than a competing fence regex. Parse isolated owned YAML values with YAML nodes while preserving raw source slices; legacy composite `process-instruction` syntax must remain readable even where it is not valid whole-document YAML. Reject ambiguous duplicate owned keys. Never serialize an entire frontmatter map to make a narrow change.
-- [ ] Implement the compiler and byte-preserving additive fill as pure transforms. Replay the eight fill fixtures; multi-mode refusal must return no candidate bytes. Normal fill preserves legacy maps.
-- [ ] Write failing PlanMigration property tests from the strategy table, then implement the constrained transform with independent before/after routing equivalence.
-- [ ] Run `go test ./cmd/internal/editorial`; expect PASS. Commit the compiler, fill and migration transform.
+- [x] Write failing Compile and parseOwnedSource tests using the generated/fuzz strategies above, seeded with the pinned producer fixtures.
+- [x] Use Markdown parsing/code masks rather than a competing fence regex. Parse isolated owned YAML values with YAML nodes while preserving raw source slices; legacy composite `process-instruction` syntax must remain readable even where it is not valid whole-document YAML. Reject ambiguous duplicate owned keys. Never serialize an entire frontmatter map to make a narrow change.
+- [x] Implement the compiler and byte-preserving additive fill as pure transforms. Replay the eight fill fixtures; multi-mode refusal must return no candidate bytes. Normal fill preserves legacy maps.
+- [x] Write failing PlanMigration property tests from the strategy table, then implement the constrained transform with independent before/after routing equivalence.
+- [x] Run `go test ./cmd/internal/editorial`; expect PASS. Commit the compiler, fill and migration transform.
 
 ### Task 3: Enforce base-snapshot policy across every write path
 
@@ -202,3 +202,19 @@ Replaced prose test-case inventories with named production-function/adversarial-
 ### 2026-10-23 — Task 1 execution checkpoint
 
 Full-flow admission passed with estimate 4.274; estimate-quality was INFO, flagging optimistic integration/verification allowances. Task 1 catalog and all pinned artifacts are implemented and pass focused tests; independent spec review verified all 39 Git objects and a subsequent quality review found no Important issues. Located the actual emitted Couch skill and atlas pages above. Parser dependencies are the exact Goldmark/YAML versions used by the producer; the old ariadne module already exports the required collaboration vocabulary, so no unrelated base-module upgrade was needed.
+
+### 2026-10-23 — Compiler and integration checkpoint
+
+Task 2 is implemented and passed independent spec and quality reviews. Those reviews corrected mixed-newline
+fill boundaries, declaration recognition, indented/quoted YAML, isolated block-scalar context and independent
+processing component fallback; generated heading/map oracles now derive expected values independently.
+
+Delivered symbol locations: FillCanonical lives beside PlanMigration in editorial/migrate.go (shared pure
+source replacement owner), and sectionPolicyHash lives in sessionsync/editorial.go (policy adapter), rather than
+the initially predicted source.go/file.go. The shared marker owner is editorial/markers.go with sessionsync
+wrappers. Compile exposes code/block/list facts from its existing Markdown walk so the guard adds no parser.
+Task 3 guard/integration is implemented and package tests pass; its independent review remains pending.
+Task 4 codec/consumer and Task 5 migration CLI slices passed independent ad-hoc reviews. Root has not closed
+those tasks or the issue: native qualification, exhaustive transaction/adversarial review and recorded checks
+remain. TL confirmed native fixture personalities are the qualification boundary; semantic live observations
+belong to operator acceptance with parley.nvim#419 (receipt b7dc3ed5-3860-4c56-b8c2-1b308ab1f249).

@@ -216,6 +216,53 @@ byte-preserving document policy/fill/migration. Do not start a suite or stage ye
 presentation consumer and actual Parley side-doc writers. All prior #752/#753 work is landed; old continuation is
 obsolete. Preserve this branch and the approved full-flow design.
 
+
+### 2026-10-23 — Resume, codec and consumer contract
+
+Recovered via sdlc state; retained approved full-flow admission and resumed Task 2 with failing Compile/source/fill
+tests. In parallel with that pure compiler, implemented the independent Task 4 codec/Pair consumer slice. RED tests
+showed dropped unknown metadata, accepted null/oversized position tuples, missing required span members and unchecked
+span presentation. Preserving codecs now use strictjson recursively at round/span/record/artifact boundaries;
+production encoding retains opaque nested values and large number tokens. Resume records materialize the effective
+presentation so a legacy span inheriting direct does not resume as highlight. Pair Lua honors the same fallback.
+
+TL receipt 51c11a3a-141f-4652-b618-15554632953b says #419 is unowned and must not block Pair implementation.
+Parley :3 confirmed the schema in receipt 5c69c73b-269e-4050-889c-1157e052da7a and requested the committed mixed/legacy
+fixture. Added testdata/editorial-rounds/presentation.json with source/result hashes, valid positions, expected
+values, opaque metadata and mixed review-record round-trip. No runtime dependency on the unlanded branch.
+
+Verification: full go test ./cmd/internal/sessionsync passes (2.249s); reconstruct, round_watch and record Lua tests
+pass; bash tests/review-applied-round-test.sh passes. Independent ad-hoc codec review approved with no Important
+findings; its observed existing negative end-column hole now has a failing regression and the corrected guard
+passes focused Editorial tests (0.147s). Artifact source inventory passes (2.119s). Task 4 is still pending base-policy
+span attribution from Task 3; these results do not claim full mixed-policy enforcement or #419 acceptance.
+
+
+### 2026-10-23 — Compiler complete, enforcement checkpoint
+
+Task 2 compiler/fill/migration passed independent spec and quality review after fixing concrete adversarial
+failures: mixed-newline closer corruption, malformed-versus-ordinary comments, quoted/indented authority,
+componentwise obsolete alias selection and explicit block-scalar indentation/chomping. Tests now include
+independent generated nested inheritance and migration-routing oracles and pinned fixture seeds.
+
+Implemented the Task 3 pure guard and shared marker owner, base-policy transaction adapter, resolved read payload,
+policy-bound section hashes, mixed proposal conversion and span attribution. Every registered/legacy agent path
+uses that base policy; standalone empty Apply validates before old-round removal. A full sessionsync run exposed
+restamp growth shifting reconstruction offsets at five-digit years; reconstruction now precedes automatic
+restamping and the existing prospective-size regression passes. Ad-hoc guard/integration review is pending.
+
+Task 5 constrained migration CLI is implemented and independently approved: exact candidate preview and full
+SHA256 confirmation, normal registry/flock/lock guard, no arbitrary body and no Shadow/state acknowledgement.
+Native actor qualification is being prepared using the existing shared disposable harness. TL explicitly
+confirmed Claude/Codex fixture personalities qualify transport/mechanics; semantic observations wait for combined
+operator acceptance with parley.nvim#419. No alternate harness, live fleet fixture, stage or merge started.
+
+Fresh verification: go test ./cmd/internal/editorial ./cmd/internal/sessionsync ./cmd/internal/reviewapply -count=1
+PASS (0.195s / 6.739s / 0.255s). Artifact production-source inventory PASS 2.293s. Migration CLI parser/run/registry
+regressions PASS 0.379s. Earlier Pair Lua/pane integration PASS remains applicable pending final rerun. No recorded
+full suite or close gate is claimed. Emitted skill baseline identified missing resolution/ownership/chat/path
+instructions; an independent updated reference probe now answers all those cases from the shipped skill alone.
+
 ## Revisions
 
 ### 2026-10-23 — Implementation boundaries from source inventory

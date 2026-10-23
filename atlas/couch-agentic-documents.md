@@ -40,6 +40,54 @@ New verb refusals exit 1 with `Code`/`Error`: `owner-conflict`, `target-conflict
 `registry-uncertain` where applicable. Ordinary IO errors also exit nonzero.
 Existing writes retain `operator-lock` (exit 3) and `stale` (exit 6).
 
+## Editorial snapshot (#823)
+
+`cmd/internal/editorial/` compiles a captured source into independent collaboration,
+presentation and processing settings. `read --all FILE --json` returns `Read.Editorial`:
+document defaults, ordered effective regions and processing briefs, heading ancestry,
+owned source ranges, source digest and warnings. `EditorialCoordinates` is
+`document-byte-offsets`; section reads use complete-document coordinates too.
+Run `diff` before the whole read, which acknowledges the snapshot. Malformed
+settings refuse before Shadow advances.
+
+Each axis inherits from the nearest applicable adjacent ATX mode comment, then
+document settings, then discussion / highlight / free-form. Canonical presence
+beats readable aliases. Legacy maps remain readable and warn. Ordinary comments,
+detached comments and code examples remain text. Agent writes protect every
+owned setting and directive association in all presentation modes; operator
+editor changes remain available between rounds. The shared guard classifies
+narrowed edits from the base snapshot before file, Shadow or round publication.
+It enforces scope/frontier and chat-item preservation; interpreting briefs and
+routing questions remains the reviewing agent's responsibility.
+
+Section hashes bind the body plus document and ancestor authority. They are
+opaque tokens returned by read/write; unrelated prose can change concurrently,
+while a policy change stales the token even when the section body is identical.
+Existing H2 section addressing remains unchanged.
+
+Explicit operator migration uses:
+
+```text
+couch --session-sync migrate-editorial FILE --json
+couch --session-sync migrate-editorial FILE --confirm --if-hash BEFORE_HASH --json
+```
+
+The preview returns an exact candidate and complete source SHA256. Confirmation
+recompiles the constrained map-to-comments transform under the existing document
+transaction and operator-lock guard; it accepts no supplied replacement body.
+Stale source requires a new preview. Conflicting assignments, unmatched map names
+and multiple legacy processing selectors refuse without a candidate. Migration
+fills missing canonical defaults additively, retaining aliases and unrelated
+metadata; normal review never fills or migrates. Shadow/state stay unread so the
+operator change appears on the next round. This local confirmation is a workflow
+boundary, not human authentication against other code running as the same user.
+
+Per-span presentation and the shared fixture are mapped in
+[review-workbench.md](review-workbench.md). Actual Parley section UI and side-doc
+writers belong to parley.nvim#419; its mixed-span upgrade is required before
+claiming combined editor acceptance. New side docs use the month layout with
+three explicit defaults; existing flat and `qa/` answer links remain valid.
+
 For an unregistered typed session-sync file, first register OLD successfully
 while it and its legacy companions still exist. Registration imports its
 horizon, shadow, folds and history. Rename never adopts vanished legacy state.

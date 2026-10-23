@@ -10,6 +10,8 @@ import (
 	"strings"
 	"time"
 	"unicode/utf8"
+
+	"github.com/xianxu/pair/cmd/internal/editorial"
 )
 
 // Round is the change an agent write made (pair#661): the spans that differ
@@ -21,28 +23,29 @@ type Round struct {
 	At           time.Time `json:"at"`
 	Presentation string    `json:"presentation"`
 	Spans        []Span    `json:"spans"`
+	unknown      map[string]json.RawMessage
 }
 
 // Span is one changed region. Start and End are 0-based [line, byte column]
 // positions in the result; a deletion has Start == End. Explain is set only
 // on spans an `apply` record produced.
 type Span struct {
-	Start   [2]int `json:"start"`
-	End     [2]int `json:"end"`
-	Old     string `json:"old"`
-	New     string `json:"new"`
-	Explain string `json:"explain,omitempty"`
+	Start        [2]int `json:"start"`
+	End          [2]int `json:"end"`
+	Old          string `json:"old"`
+	New          string `json:"new"`
+	Explain      string `json:"explain,omitempty"`
+	Presentation string `json:"presentation,omitempty"`
+	unknown      map[string]json.RawMessage
 }
 
-// Presentation names how parley shows a round, read from the document's
-// `presentation:`; missing or unknown means highlight.
+// Presentation names the resolved document default. Mutation callers compile
+// separately so malformed authority refuses instead of using this fallback.
 func Presentation(content string) string {
-	switch p := frontmatter(content, "presentation"); p {
-	case "direct", "propose":
-		return p
-	default:
-		return "highlight"
+	if p, err := compileEditorial(content); err == nil {
+		return p.Defaults.Presentation
 	}
+	return "highlight"
 }
 
 // changedRun is one diff hunk narrowed to the bytes that differ: [OldStart,
@@ -169,7 +172,7 @@ const roundMaxBytes = 16 << 20
 
 // encodeRound is the sidecar's bytes, or false when they would pass the cap.
 func encodeRound(r Round) ([]byte, bool) {
-	raw, err := json.Marshal(r)
+	raw, err := r.MarshalJSON()
 	if err != nil || len(raw) > roundMaxBytes {
 		return nil, false
 	}
@@ -208,7 +211,7 @@ func decodeRound(raw []byte) (*Round, error) {
 		return nil, roundInvalid("unknown presentation " + r.Presentation)
 	}
 	for _, s := range r.Spans {
-		if s.Start[0] < 0 || s.Start[1] < 0 || s.End[0] < s.Start[0] || (s.End[0] == s.Start[0] && s.End[1] < s.Start[1]) {
+		if s.Start[0] < 0 || s.Start[1] < 0 || s.End[1] < 0 || s.End[0] < s.Start[0] || (s.End[0] == s.Start[0] && s.End[1] < s.Start[1]) {
 			return nil, roundInvalid("a span's positions are out of order")
 		}
 	}
@@ -234,11 +237,19 @@ type Edit struct {
 // nothing, then contentStep. restamp says whether this document carries an
 // `Updated` stamp the write refreshes.
 func BuildEdit(base string, edits []EditRecord, now time.Time, restamp bool) (Edit, error) {
+	policy, err := compileEditorial(base)
+	if err != nil {
+		return Edit{}, err
+	}
+	return buildEditWithPolicy(base, edits, now, restamp, policy)
+}
+
+func buildEditWithPolicy(base string, edits []EditRecord, now time.Time, restamp bool, policy *editorial.DocumentPolicy) (Edit, error) {
 	next, resolved, err := resolveBatch(base, edits)
 	if err != nil {
 		return Edit{}, err
 	}
-	return contentStep(base, next, resolved, now, restamp, false)
+	return contentStepWithPolicy(base, next, resolved, now, restamp, false, policy)
 }
 
 // resolveBatch is ResolveEdits as a refusal: `edits-invalid` lists every bad
@@ -262,40 +273,91 @@ func resolveBatch(base string, edits []EditRecord) (string, []ResolvedEdit, erro
 // A record answering the operator's own request marker is the one exception:
 // it applies directly (answersOperator).
 func contentStep(base, next string, resolved []ResolvedEdit, now time.Time, restamp, frontmatter bool) (Edit, error) {
+	policy, err := compileEditorial(base)
+	if err != nil {
+		return Edit{}, err
+	}
+	return contentStepWithPolicy(base, next, resolved, now, restamp, frontmatter, policy)
+}
+
+// contentStepWithPolicy uses the transaction's base authority for every piece.
+func contentStepWithPolicy(base, next string, resolved []ResolvedEdit, now time.Time, restamp, frontmatter bool, policy *editorial.DocumentPolicy) (Edit, error) {
+	runs := changedRuns(base, next)
+	changes := make([]editorial.Change, len(runs))
+	for i, r := range runs {
+		changes[i] = editorial.Change{Start: r.OldStart, End: r.OldEnd, New: next[r.NewStart:r.NewEnd]}
+	}
+	classified, err := editorial.ValidateEdits([]byte(base), policy, changes, sharedEditorialCatalog)
+	if err != nil {
+		return Edit{}, editorialRefusal(err)
+	}
 	baseline := base
+	var direct []ResolvedEdit
+	for _, piece := range classified {
+		if piece.Presentation == "propose" && !frontmatter {
+			direct, err = directUnderPropose(base, resolved)
+			if err != nil {
+				return Edit{}, err
+			}
+			break
+		}
+	}
+	var out strings.Builder
+	at := 0
+	for i, r := range runs {
+		replacement := next[r.NewStart:r.NewEnd]
+		literal := frontmatter
+		for _, e := range direct {
+			if e.BaseStart <= r.OldStart && r.OldEnd <= e.BaseEnd {
+				literal = true
+				break
+			}
+		}
+		if classified[i].Presentation == "propose" && !literal {
+			if block, err := FrontmatterBody(base); err == nil && r.OldStart < len(block) {
+				return Edit{}, &Refusal{Exit: ExitRefused, Code: "propose-unencodable", Reason: "under propose, edit frontmatter through records or write --frontmatter"}
+			}
+			replacement, err = ProposeMarkers(baseline[r.OldStart:r.OldEnd], replacement)
+			if err != nil {
+				return Edit{}, err
+			}
+		}
+		out.WriteString(baseline[at:r.OldStart])
+		out.WriteString(replacement)
+		at = r.OldEnd
+	}
+	out.WriteString(baseline[at:])
+	next = out.String()
 	if restamp {
 		baseline, next = Restamp(base, now), Restamp(next, now)
 	}
-	presentation := Presentation(base)
-	if presentation == "propose" {
-		if err := operatorKeysKept(base, next); err != nil {
-			return Edit{}, err
-		}
-	}
-	if presentation == "propose" && !frontmatter {
-		// Direct records are applied on both sides, so the proposal diff holds
-		// only the rest.
-		direct, err := directUnderPropose(base, resolved)
-		if err != nil {
-			return Edit{}, err
-		}
-		proposeBase := baseline
-		if len(direct) != 0 {
-			proposeBase = applyResolved(base, direct)
-			if restamp {
-				proposeBase = Restamp(proposeBase, now)
-			}
-		}
-		if next, err = ProposeDocument(proposeBase, next); err != nil {
-			return Edit{}, err
-		}
+	// Proposal encoding is itself a structural transform; validate its result
+	// before publication, while retaining the original base classifications.
+	if _, err := compileEditorial(next); err != nil {
+		return Edit{}, err
 	}
 	e := Edit{Next: next, Resolved: resolved}
 	if spans, ok := DeriveRound(baseline, next, resolved); ok {
+		finalRuns := changedRuns(baseline, next)
+		region := 0
+		for i, r := range finalRuns {
+			for region+1 < len(policy.Regions) && policy.Regions[region].Range.End <= r.OldStart {
+				region++
+			}
+			spans[i].Presentation = policy.Regions[region].Effective.Presentation
+		}
 		e.Changed = true
-		e.Round = Round{BaseHash: Hash(base), ResultHash: Hash(next), At: now.UTC(), Presentation: presentation, Spans: spans}
+		e.Round = Round{BaseHash: Hash(base), ResultHash: Hash(next), At: now.UTC(), Presentation: policy.Defaults.Presentation, Spans: spans}
 	}
 	return e, nil
+}
+
+func editorialRefusal(err error) error {
+	var p *editorial.PolicyError
+	if errors.As(err, &p) {
+		return &Refusal{Exit: ExitRefused, Code: p.Code, Reason: p.Error()}
+	}
+	return &Refusal{Exit: ExitRefused, Code: "editorial-invalid", Reason: err.Error()}
 }
 
 // directUnderPropose picks, under propose, the records written directly:
@@ -323,23 +385,6 @@ func directUnderPropose(base string, resolved []ResolvedEdit) ([]ResolvedEdit, e
 		}
 	}
 	return direct, nil
-}
-
-// operatorOwnedKeys set how the operator reviews; under propose an agent
-// change to either would let it switch the document out of review.
-var operatorOwnedKeys = []string{"presentation", "collaboration-mode"}
-
-// operatorKeysKept refuses, under propose, any agent write that changes an
-// operator-owned key, whichever verb wrote it (apply, write, write
-// --frontmatter): the one engine guards every path.
-func operatorKeysKept(base, next string) error {
-	for _, key := range operatorOwnedKeys {
-		if frontmatter(base, key) != frontmatter(next, key) {
-			return &Refusal{Exit: ExitRefused, Code: "operator-owned", Reason: fmt.Sprintf(
-				"`%s:` is the operator's under presentation: propose; ask them to change it", key)}
-		}
-	}
-	return nil
 }
 
 // sideDocLink is the S2/S3 side-doc link: `→ [proposal](PATH)` or

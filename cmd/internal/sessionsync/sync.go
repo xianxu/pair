@@ -11,6 +11,8 @@ import (
 	"strings"
 	"syscall"
 	"time"
+
+	"github.com/xianxu/pair/cmd/internal/editorial"
 )
 
 // Refusal is a gate that stopped an operation before it changed anything.
@@ -154,6 +156,7 @@ type file struct {
 	holder    Holder
 	owner     string
 	state     State
+	policy    *editorial.DocumentPolicy
 }
 
 func readOptional(p string) (string, bool, error) {
@@ -270,9 +273,11 @@ func (f *file) target(section string, frontmatter bool) (string, error) {
 // ReadResult is one section (or the whole file) and the hash a write
 // must name.
 type ReadResult struct {
-	File, Section, Hash string
-	Holder              Holder
-	Body                string
+	File, Section, Hash  string
+	Holder               Holder
+	Body                 string
+	Editorial            *editorial.DocumentPolicy
+	EditorialCoordinates string
 }
 
 // Read returns a section (Section != "") or the whole file with its hash.
@@ -289,6 +294,10 @@ func (s *Sync) ReadFrontmatter(path string) (ReadResult, error) {
 
 func (s *Sync) read(path, section string, frontmatter bool) (ReadResult, error) {
 	return withDocument(s, path, func(f *file) (ReadResult, error) {
+		policy, err := f.editorialPolicy()
+		if err != nil {
+			return ReadResult{}, err
+		}
 		body, err := f.target(section, frontmatter)
 		if err != nil {
 			return ReadResult{}, err
@@ -308,7 +317,11 @@ func (s *Sync) read(path, section string, frontmatter bool) (ReadResult, error) 
 				return ReadResult{}, err
 			}
 		}
-		return ReadResult{File: f.paths.File, Section: section, Hash: Hash(body), Holder: f.holder, Body: body}, nil
+		hash, err := targetPolicyHash(f.content, section, frontmatter, policy)
+		if err != nil {
+			return ReadResult{}, err
+		}
+		return ReadResult{File: f.paths.File, Section: section, Hash: hash, Holder: f.holder, Body: body, Editorial: policy, EditorialCoordinates: "document-byte-offsets"}, nil
 	})
 }
 
@@ -548,14 +561,17 @@ func (f *file) prepareWrite(req WriteRequest, rows []Entry, now time.Time) (prep
 			return preparedWrite{}, refuse("%v", err)
 		}
 	}
-	presentation := Presentation(f.content)
-	content, err := contentStep(f.content, next, req.resolved, now, !req.Frontmatter, req.Frontmatter)
+	policy, err := f.editorialPolicy()
+	if err != nil {
+		return preparedWrite{}, err
+	}
+	content, err := contentStepWithPolicy(f.content, next, req.resolved, now, !req.Frontmatter, req.Frontmatter, policy)
 	if err != nil {
 		return preparedWrite{}, err
 	}
 	next = content.Next
 	body := req.Body
-	if presentation == "propose" && !req.Frontmatter && req.Section != "" {
+	if !req.Frontmatter && req.Section != "" {
 		// The written bytes (markers) are what the shadow and hash see.
 		if body, err = SectionBody(next, req.Section); err != nil {
 			return preparedWrite{}, refuse("%v", err)
@@ -589,16 +605,13 @@ func (f *file) prepareWrite(req WriteRequest, rows []Entry, now time.Time) (prep
 			return preparedWrite{}, err
 		}
 	}
-	target := next
-	if req.Frontmatter {
-		target, err = FrontmatterBody(next)
-		if err != nil {
-			return preparedWrite{}, refuse("%v", err)
-		}
-	} else if req.Section != "" {
-		if target, err = SectionBody(next, req.Section); err != nil {
-			return preparedWrite{}, refuse("%v", err)
-		}
+	nextPolicy, err := compileEditorial(next)
+	if err != nil {
+		return preparedWrite{}, err
+	}
+	nextHash, err := targetPolicyHash(next, req.Section, req.Frontmatter, nextPolicy)
+	if err != nil {
+		return preparedWrite{}, refuse("%v", err)
 	}
 	stateBytes, err := encodeState(state)
 	if err != nil {
@@ -608,7 +621,7 @@ func (f *file) prepareWrite(req WriteRequest, rows []Entry, now time.Time) (prep
 	if err != nil {
 		return preparedWrite{}, err
 	}
-	prepared := preparedWrite{document: next, shadow: shadow, hash: Hash(target), state: state, stateBytes: stateBytes, pinStateBytes: pinStateBytes}
+	prepared := preparedWrite{document: next, shadow: shadow, hash: nextHash, state: state, stateBytes: stateBytes, pinStateBytes: pinStateBytes}
 	if content.Changed {
 		prepared.roundChanged = true
 		prepared.round, _ = encodeRound(content.Round)
@@ -620,11 +633,15 @@ func (s *Sync) write(f *file, req WriteRequest) (Result, error) {
 	if err := f.guard(s.now()); err != nil {
 		return Result{}, err
 	}
-	current, err := f.target(req.Section, req.Frontmatter)
+	policy, err := f.editorialPolicy()
 	if err != nil {
 		return Result{}, err
 	}
-	if h := Hash(current); h != req.IfHash {
+	h, err := targetPolicyHash(f.content, req.Section, req.Frontmatter, policy)
+	if err != nil {
+		return Result{}, err
+	}
+	if h != req.IfHash {
 		return Result{}, &Refusal{Exit: ExitStale, Code: "stale", Hash: h, Reason: fmt.Sprintf(
 			"it changed since you read it (hash now %s, you passed %s); read it again, recompute, and retry", h, req.IfHash)}
 	}

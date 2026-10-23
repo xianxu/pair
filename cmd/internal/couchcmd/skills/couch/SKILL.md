@@ -510,7 +510,7 @@ need no registration and keep their legacy owner compatibility.
 | `operator-release FILE --id ID --turn TOKEN --json` | Editor-only: removes only that exact turn; absent protection is already-released |
 | `read --section HEADING FILE [--json]` | Prints `hash: H`, then that `## HEADING` section's body |
 | `read --frontmatter FILE [--json]` | The complete leading `---` block and its hash; acknowledges only this block |
-| `read --all FILE [--json]` | The whole file and its hash; you have now seen every edit, so `diff` goes empty |
+| `read --all FILE --json` | The whole snapshot/hash and resolved `Read.Editorial` policy/briefs; acknowledges every edit, so run `diff` first |
 | `write --section HEADING BODYFILE FILE --if-hash H` | Replaces that section if it still has hash H (whole heading lines only) and prints the new hash |
 | `write --frontmatter BODYFILE FILE --if-hash H` | Replaces only the leading block; preserves body bytes and unread body edits |
 | `write --all BODYFILE FILE --if-hash H` | Replaces the whole file (keep the frontmatter) if it still has hash H |
@@ -518,11 +518,36 @@ need no registration and keep their legacy owner compatibility.
 | `round FILE --json` | Your last round's spans and whether a submit has cleared it (what parley highlights) |
 | `diff FILE` | The operator's edits you haven't seen: anything outside what you last wrote, read with `--frontmatter`, or read with `--all` (information, not a gate) |
 | `status [--json] FILE` | The lock, your last write, and the events you still owe the file |
+| `migrate-editorial FILE [--json]` | Operator-run preview of the exact legacy-map conversion and source hash |
+| `migrate-editorial FILE --confirm --if-hash H [--json]` | Operator-run confirmation of that preview; source changes require a new preview |
+
+- **Editorial snapshot:** on every round, run `diff` before `read --all FILE --json`, then use
+  `Read.Editorial` from that snapshot. `EditorialCoordinates: document-byte-offsets` means all region and owned-source
+  ranges refer to the complete source, including on a section read. Read each region's effective collaboration,
+  presentation and processing settings, its processing briefs, scope/frontier and instruction. Semantic interpretation
+  of those briefs and asks remains your responsibility; the write guard enforces mechanical bounds.
+  - Defaults are `collaboration-mode: discussion`, `presentation-mode: highlight`, `processing-mode: free-form`.
+    Each axis inherits independently from its nearest applicable heading comment, then document settings, then defaults.
+    An override is a whole `<!-- key: value; key: value -->` line immediately under an ATX heading. Unknown or malformed
+    declarations refuse the round. Preserve ordinary comments and code examples.
+  - All mode keys, `processing-instruction`, readable legacy aliases/maps and heading mode comments are operator-owned
+    in **every presentation mode**. Do not add, delete, move or change them through any agent write. Canonical presence
+    wins over aliases; warnings never authorize a rewrite. The operator can edit settings normally between rounds.
+  - `discussion`: carry out imperatives; questions branch to linked discussion side docs. `collaboration`: edit or answer
+    in place. `chat`: each shallowest list item is an ask; preserve its original text and append only an answer link.
+    Extend an existing answer doc for a follow-up, leaving its link intact, including older `qa/` or flat side-doc paths.
+    Ready markers inside chat retain discussion routing. Chat asks remain reachable outside processing scope/frontier.
+  - Create each new side doc under `<name>.side/YYYY-MM/YYYY-MM-DD-NN-slug.md` beside `<name>.md`; an answer uses
+    `→ [answer](PATH)` and a discussion uses `→ [discussion](PATH)`. Give new frontmatter all three defaults above;
+    do not copy the parent's legacy processing brief. Existing linked docs keep their metadata and location.
+  - Normal reads and agent writes never fill settings or migrate maps. Only an explicitly requested operator migration
+    uses the preview/confirmation command above; it accepts no arbitrary body. Conflicts, unmatched map names, multiple
+    leading legacy modes and a held operator lock refuse without rewriting the document.
 
 - **Refusals:** exit 3 = the operator holds the lock: queue the update until
   their submit. Exit 6 = `stale`: the section changed since you read it; it
   prints the current hash. Read it again, recompute, and retry. Edits in
-  other sections never block a section write. A write without `--if-hash`
+  other sections' prose does not block a section write; document or ancestor policy changes stale its opaque hash. A write without `--if-hash`
   refuses.
 - **Edits with reasons (`apply`):** use `apply` for an edit to existing text, giving each record an `explain` written for the operator.
   - `old` must be non-empty, and `occurrence` is the 1-based plain match. To insert, repeat nearby text inside `new`.
@@ -533,14 +558,14 @@ need no registration and keep their legacy owner compatibility.
   - A `Warning` in the reply means the file was written but the round wasn't recorded: commit `Body` anyway.
   - `pair review round FILE --json` (`Round`, `Body`, `Current`) recovers a lost reply.
 - **Rounds:** every write of yours that changes the file, `write` or `apply`, becomes the round parley highlights. Only `apply` spans carry your reasons. The round clears on the operator's next submit.
-- **`presentation: propose`:** Couch writes your body change as per-line markers for the operator to accept or reject. Never write the markers yourself.
+- **`presentation-mode: propose`:** Couch writes changes in that base region as per-line markers for the operator to accept or reject. Never write the markers yourself. Direct regions have no change decoration; highlight regions show changes. Per-span presentation survives commits and resume; absent span values fall back to the round, then highlight.
   - A change over 3 lines refuses with `propose-too-large`. A line the marker grammar can't carry refuses with `propose-unencodable`. For either refusal, write the change as a side-doc proposal, linked in place by `→ [proposal](…)`.
   - These apply directly, not proposed:
     - records wholly inside the frontmatter;
     - the record that replaces the operator's ready marker with a new `→ [proposal](PATH)` or `→ [discussion](PATH)` link;
     - the fold a link's `🤖[fold in]` asks for, which keeps that link with ` (folded YYYY-MM-DD)` appended.
   - Pair the `discussions:` entry with its link yourself; the engine doesn't verify that.
-  - `presentation` and `collaboration-mode` are the operator's: changing either refuses with `operator-owned`.
+  - A protected-setting edit refuses with `operator-owned` in every mode. Malformed policy refuses with `editorial-invalid`; split a cross-policy edit into separate records. No subset of a refused batch lands.
 - **Forgotten lock:** a valid operator-lock time older than 30 minutes adds
   its age and advice to ping the operator (or add a Needs you item for the
   TL's session file). The lock never expires; malformed or future times still
