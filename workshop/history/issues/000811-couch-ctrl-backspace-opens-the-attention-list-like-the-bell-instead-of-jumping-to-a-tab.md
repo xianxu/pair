@@ -313,6 +313,31 @@ record/log, then re-enter sdlc merge --yes. Retain any resulting landing runner
 and complete integration checks/archive verification. Stage was already cleared;
 pair:0 belongs to #812 now. No pending product edits or operator decisions.
 
+### 2026-10-23 — final verification and landing
+
+Final-source recorded affected check on 43d5c5ed6a07c802252526c09ce1fa12b03b7d97
+passed in 3m2s (session94773 EXIT0), no failures or reruns. Saved affected.log
+SHA256: 5b1888a3aa417e0d45decb3f0617469c5f97a7a416fd254014aa091620c0f92c.
+The following Log-only head da492f1733477b37faf70e917d4e93f640aba70e reused
+that ancestor evidence under the declared documentation-only policy.
+
+Retained merge session36709 conducted train318 with #819, preserving its FIFO
+through the machine queue. The integration suite on
+934caf3f59365c145c471cde85d8d70ff3d22fb6 passed in 14m13s, no failures or
+reruns, zero split suites. Saved suite.log SHA256:
+889c02674f992983bf4d98c51cfd191b9f61d16768ab2d4333ffc88d695db59a.
+The optional affected-config upstream-source qualification and real-docflow
+smoke reported their normal unavailable-source skips; the rest completed.
+All four final-head GitHub checks passed on train PR564. Original PR556 is
+MERGED at 46270746147eb5d9048ab1107b1df19339f7b42e; train PR564 is MERGED
+at 7a2ecb11412af0ccae92ba94c78655dbfd156abb. Both were verified reachable
+from origin/main by Git ancestor checks. Tracker status is done with the
+train merge as its completion binding; issue and both review sidecars are
+archived. Session36709 exited0 and returned the clean checkout to main-slot3.
+The resting branch was then fast-forwarded; no stage or pending #811 work
+remains. Operator acceptance remains the actual 09:35 notification-present
+open/close result already recorded above, supported by the automated matrix.
+
 ## Operator live check
 
 On a fresh Couch process using the staged revision (running sessions retain the
