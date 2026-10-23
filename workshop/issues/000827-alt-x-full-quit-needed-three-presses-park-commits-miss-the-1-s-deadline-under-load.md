@@ -28,6 +28,12 @@ deadline from the measurement with a re-measure note (ARCH-CONSTRAINTS), and mak
 slots that miss the first deadline get retried within one bounded overall budget, and anything still unparked is
 named in a single summary (with its recovery) instead of silently needing another press.
 
+
+**Operator decision (10-22, night):** "there's no reason to set this this tight. I think 5 to 10 seconds is perfectly
+fine." Set the per-slot park commit deadline in that range (measurement still recorded to confirm it). Current
+parallelism, for context: parks fan out up to `LifecycleParallelism` = half the CPU cores (operator decision 10-07),
+so slots park in parallel batches, not all at once nor one by one.
+
 ## Done when
 
 - One Alt+x parks a fleet of 30 fake slots where some commits take 2–3 s (test), or names exactly the ones it
