@@ -233,3 +233,74 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-23T05:01:44-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 827 — Alt+x full quit needed three presses: park commits miss the 1 s deadline under load |
+| repo | pair |
+| issue file | workshop/issues/000827-alt-x-full-quit-needed-three-presses-park-commits-miss-the-1-s-deadline-under-load.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | c4cca5b2366e951bcd92f5e4ab7242ff42249037..54ee25977fe7c6710ccc08173c9f7f3907f23a02 |
+| command | sdlc close --issue 827 |
+| reviewer | claude (anthropic; author anthropic,openai) |
+| isolation | fenced |
+| timestamp | 2026-10-23T05:01:44-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+This window changes one comment line in Go code. The rest is tracker bookkeeping: the round-2 gate ledger, the re-review record, and one line added to `workshop/lessons.md`. BR-5 is fixed: `park.go:176` now reads "failed, not started, skipped, or unreadable", which matches the four kinds `leaveParkUnresolved` emits (`leave_park.go:191-227`). I also checked the whole family, as the finding's rule asks. I searched couchcore for the `Unresolved`, `LeaveUnresolved` and "not started" lists. Only two comments list the unresolved kinds: `park.go:175-177` and `leave_park.go:179-184`. Both now include skipped, and the `LeaveUnresolved` type comment (`leave_park.go:88-89`) lists no kinds. The rule is also written down at `workshop/lessons.md:2731`, so this is a fix for the class, not just the one line. The window does not change Spec, Revisions or Done-when, adds no behavior, and has no conflict resolutions. Nothing blocks SHIP.
+
+1. **Strengths**
+   - The fix is limited to the comment the finding named. No code behavior changes, so no regression test is needed.
+   - The family rule is recorded in `workshop/lessons.md:2731`, as BR-5 asked.
+   - Both comments that list the unresolved kinds now agree with each other and with the code.
+
+2. **Critical findings:** none.
+
+3. **Important findings:** none.
+
+4. **Minor findings:** none.
+
+5. **Test coverage notes**
+   - Only a comment changed, so no test is required. The behavior it describes (skipped threads end up in `Unresolved`) is still pinned by `TestLeaveParkSkippedThreadKeepsCouchOpen`, which the prior round confirmed.
+
+6. **Architectural notes**
+   - **ARCH-DRY: pass.** No logic was added.
+   - **ARCH-PURE: pass.** No code paths changed.
+   - **ARCH-PURPOSE: pass.** Both comments listing the unresolved kinds were updated, so the class is covered, not just the named instance.
+   - **ARCH-EVOLVE: pass.** No persisted format changed. The ledger and re-review files are generated tracker records that only gained appended entries.
+
+7. **Plan revision recommendations:** none.
+
+```findings
+dispose:
+  - id: BR-5
+    disposition: addressed
+    note: |
+      park.go:176 now lists "failed, not started, skipped, or unreadable", matching leaveParkUnresolved (leave_park.go:191-227). A grep of couchcore found only one other comment listing the kinds (leave_park.go:179-184), and it already includes skipped. The rule is recorded at workshop/lessons.md:2731.
+```
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"adbb3c19-0773-40e8-893a-f4fafe117645","repository":"github.com/xianxu/pair","issue_id":"000827","recipe":"fix-review","round":3,"attempt":1,"agent":"claude","root":"/Volumes/TestScratch/review-checkouts/be5b38dc0295aabf","reviewed_head":"54ee25977fe7c6710ccc08173c9f7f3907f23a02","slot":"pair:6","requested_at":"2026-10-23T12:00:28.596834Z"},"phase":"finished","pid":57701,"started_at":"2026-10-23T12:00:28.78903Z","finished_at":"2026-10-23T12:01:07.989724Z","session_id":"76431d3d-68db-4060-9315-50ace62ff924","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 3.393968917s
+head: "54ee25977fe7c6710ccc08173c9f7f3907f23a02"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412

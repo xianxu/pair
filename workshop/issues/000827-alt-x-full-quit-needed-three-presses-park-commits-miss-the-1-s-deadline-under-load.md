@@ -113,6 +113,7 @@ snapshot reporting. No code/measurement started while the gate is blocked.
 
 
 ### 2026-10-23 — capacity handoff checkpoint; stop for model switch
+- 2026-10-23: closed — Post-close change 54ee25977 is a doc-comment-only edit to LeaveResult.Unresolved in cmd/internal/couchcore/park.go (names skipped threads, per round-2 advisory); no behavior change. go vet/build clean; recorded suite passed on 289ef0c5d; make test-affected-inventory clean. (fixed-then-ship); review verdict: SHIP
 - 2026-10-23: closed — Recorded sdlc-local/suite (affected) exit 0 on 289ef0c5d (review-fix head). Baseline: real-store BeginPark 15/30 slots at load 65, max 709ms vs old 1s. RED->GREEN: 2s/3s commits refused under 1s, now proceed under 10s; fleet 15/30 Leave test RED on nonblocking store.lock vs preview reads, GREEN after TL-approved bounded wait; store_lock_wait tests; exhaustive retry-policy invariants; AwaitJoined test; BR-1 fixed (skipped thread keeps full quit open, test). Native make test-couch-fleet: one Alt+x + confirm parks Claude/Codex 4 and 8 slots, quit 0.48-1.40s, every record VerifiedPark, AssertCleaned. Inventory audited.; review verdict: SHIP
 
 TL eb69966d/d767565b directs commit/push and stop after the third model-capacity
