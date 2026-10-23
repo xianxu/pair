@@ -16,6 +16,7 @@ claimant:
     workspace: pair:3
     worktree: /Users/xianxu/workspace/worktree/pair-slot3/pair
     repository: github.com/xianxu/pair
+flow: {kind: quick, provenance: inferred, spec: "af96eb45", done: "7a3694a8"}
 ---
 
 # Couch: Ctrl+Return opens the attention list (like the bell) instead of jumping to a tab
