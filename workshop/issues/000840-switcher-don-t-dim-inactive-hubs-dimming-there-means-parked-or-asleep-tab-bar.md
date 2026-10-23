@@ -64,6 +64,7 @@ Remaining release gates: require passing recorded verification, use the binary-o
 ## Log
 
 ### 2026-10-23
+- 2026-10-23: closed — Rendered-cell regression RED before fix 0.662s, GREEN after: 8/16 live and parked rows retain cells and hit extents across both active owners, selection and palettes; parked age colors preserved and fresh live rows not owner-faint. Existing switcher/hub/idle/age/tab-bar controls PASS2.597s; targeted race PASS6.230s; emitted skill PASS0.520s; lint and reader inventory PASS. TL accepts render tests, no stage. Recorded affected check on implementation 9e51009dd5e302e716c76152ec3b14f9346e3615 is queued as lease-3944285118; close overlaps retained run per tl-worker, final pass required before landing. (done-when: contract moved since change-code; judged by the close review); review verdict: SHIP
 
 Claimed pair:9 and ran start-plan on a fresh issue branch from main after #833 landed. Source tracing identified the switcher-only `activeHub`/`rootLine.otherHub`/SGR faint pass and the separate unchanged tab-bar `OtherHub`/`inactiveOwnerStyle` owner. Existing switcher test currently requires foreign-owner dim and must be changed with a RED regression. The embedded Couch skill repeats that behavior and is included in scope. No production or test code changed; plan disposition pending.
 
