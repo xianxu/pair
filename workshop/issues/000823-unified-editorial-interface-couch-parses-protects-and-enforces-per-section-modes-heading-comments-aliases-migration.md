@@ -134,6 +134,7 @@ total: 4.274
 ### 2026-10-22
 
 ### 2026-10-23 — Claimed and planned
+- 2026-10-23: closed — BR-1 full source and Markdown structure preserved at d72901e10: full editorial/sessionsync/reviewapply PASS 0.254/12.465/0.595s, real-link/block rendering regressions and ready-referral controls pass, bounded N/2N tail/item joins pass, guard fuzz 11642exec/2s. README BR-2 accepted round2. Reader inventory PASS after per-file audits. Native exact-source e375 PASS22.386s after tracked Zellij startup flake835; d729 rerun underway. Recorded affected check queued on d729; landing requires final recorded pass. no-plan-check acknowledges only current close/recorded checks and post-close #419/TL smoke+landing rows remain pending; implementation complete, no other gate waived.; review verdict: SHIP
 
 Claim/start-plan completed in pair:9 on the issue branch. Read the landed #562 contract and pinned its producer
 commit and 39 source files in `workshop/evidence/000823/contract-provenance.json`, including the eight editorial-fill

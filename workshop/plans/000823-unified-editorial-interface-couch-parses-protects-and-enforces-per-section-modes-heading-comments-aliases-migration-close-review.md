@@ -215,3 +215,95 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000409
+
+---
+
+## Re-review — 2026-10-23T05:12:48-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 823 — unified-editorial-interface: Couch parses, protects and enforces per-section modes (heading comments, aliases, migration) |
+| repo | pair |
+| issue file | workshop/issues/000823-unified-editorial-interface-couch-parses-protects-and-enforces-per-section-modes-heading-comments-aliases-migration.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 4623c797574cd6aa12d765f6465454f74f02cc98..d72901e10c6f0d5de5aef2daf05c1aba13130ae3 |
+| command | sdlc close --issue 823 |
+| reviewer | codex (openai; author openai) |
+| isolation | fenced |
+| timestamp | 2026-10-23T05:12:48-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+The pinned range satisfies the local implementation boundary. BR-1 now protects complete chat-item source and refuses answer appends that alter Markdown structure or hide the hyperlink. Regression tests fail when those corrections are disabled. No new blocking findings emerged. Recorded final-suite verification and coordinated Parley/operator acceptance remain explicitly pending landing obligations.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      document_test.go:380 covers eight complete-source membership cases; sessionsync/editorial_policy_test.go:281 and :289 exercise production fence protection and structural answer placement. In a disposable pinned-head copy, disabling source extents failed the membership regressions; disabling safeAnswers failed pure and production regressions, reproducing hidden links and altered block structure. The copy was removed.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      The pinned README diff adds resolved reads, opaque section hashes, protected settings and migration preview/confirmation at README.md:521 onward, plus canonical defaults and adjacent heading directives at :600 onward. These descriptions match session_sync.go, editorial.go and document.go; this remains a verified prose-only correction.
+```
+
+1. **Strengths**
+
+   - One compiler and shared guard enforce base-snapshot policy across whole-document, section, frontmatter, registered, legacy and standalone apply paths.
+   - The list observer preserves Goldmark’s parsing decisions while retaining syntax omitted by child source ranges.
+   - Strict round/span codecs preserve opaque extensions and reject recursive duplicates, null owned fields and malformed positions.
+   - All 39 pinned contract files match the actual dependency commit’s bytes.
+
+2. **Critical findings:** None.
+
+3. **Important findings:** None.
+
+4. **Minor findings:** None.
+
+5. **Test coverage notes**
+
+   Passed:
+
+   - Go tests for `editorial`, `sessionsync`, `reviewapply` and `couchcmd`.
+   - Lua `reconstruct`, `round_watch` and `record` tests.
+   - `tests/review-applied-round-test.sh`.
+   - Compiler fuzzing: 58,974 executions without failure.
+   - Both BR-1 mutation checks produced the expected regression failures.
+
+   Native qualification and the recorded full suite were not rerun during this review. The repository remained clean.
+
+6. **Architectural notes**
+
+   - **ARCH-DRY — pass:** shared parsing, marker grammar, guard and strict JSON helpers.
+   - **ARCH-PURE — pass:** compiler, migration and classification logic remain separate from publication IO.
+   - **ARCH-PURPOSE — pass:** local consumers use resolved policy; external Parley ownership and acceptance limits remain explicit.
+   - **ARCH-MOCK — pass:** no new external dependency seam; transaction tests use isolated portable state.
+   - **ARCH-CONSTRAINTS — pass:** counted growth tests cover compiler/classifier joins; existing document and round caps remain.
+   - **ARCH-SECURE — pass:** malformed policy refuses before acknowledgment/publication; protected-source and candidate checks use base authority.
+   - **ARCH-ORDER — pass:** migration reuses the locked transaction and CAS boundary, preserving uncertainty on publication errors.
+   - **ARCH-FUNERAL — pass:** no new durable artifact family; compiled facts have transaction-local lifetimes.
+   - **ARCH-EVOLVE — pass:** additive presentation metadata preserves unknown nested members and legacy omissions.
+
+7. **Plan revision recommendations:** None. Existing revisions describe the delivered owners and remaining acceptance obligations accurately.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"61f32dc2-91ad-44f7-8682-d64b896965b5","repository":"github.com/xianxu/pair","issue_id":"000823","recipe":"milestone-review","round":3,"attempt":1,"agent":"codex","root":"/Volumes/TestScratch/review-checkouts/22e6adee8744eef3","reviewed_head":"d72901e10c6f0d5de5aef2daf05c1aba13130ae3","slot":"pair:9","requested_at":"2026-10-23T12:09:16.349431Z"},"phase":"finished","pid":97976,"started_at":"2026-10-23T12:09:16.597153Z","finished_at":"2026-10-23T12:12:47.256331Z","session_id":"01a168aa-5a02-7163-ab1b-2ea6684c661c","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 3.516599417s
+head: "d72901e10c6f0d5de5aef2daf05c1aba13130ae3"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412
