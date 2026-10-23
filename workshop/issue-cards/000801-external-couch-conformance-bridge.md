@@ -1,6 +1,6 @@
 ---
 id: 000801
-status: codecomplete
+status: done
 created: 2026-10-22
 updated: 2026-10-22
 estimate_hours: 3.75
@@ -21,6 +21,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: 510d18f8b3893c19c177016774019b57740b2222
         evidence_commit: bd3b72585ff673a975b203c853e3d366ba8055d9
+        landed_commit: b5c1cb99260fa8131b48092e4601c2ac86abf5d7
 ---
 
 # External hold-open Couch conformance bridge
