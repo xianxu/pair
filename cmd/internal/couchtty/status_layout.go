@@ -60,10 +60,9 @@ func renderStatusBar(width, maxRows int, m StatusModel, work *statusLayoutWork) 
 		maxRows = 1
 		m.Actors = prepareCollapsedStatusChips(m.Actors, work)
 	}
-	// Run the shared prefix pass without actors or a transient notice. Its budget
+	// Run the shared prefix pass without actors. Its budget
 	// already reserves the first-row attention badge, without duplicating policy.
 	prefixModel := m
-	prefixModel.Notice = ""
 	_, prefix, budget := renderStatusCells(width, prefixModel, []chipCell{}, true, -1)
 	chips, groups := prepareStatusChips(m.Actors, width, m.TabStyle, work)
 	p := packStatusChips(m.Actors, chips, groups, len(chips), width, budget, prefix, maxRows, 0, false, true, work)
@@ -177,9 +176,6 @@ func renderStatusBar(width, maxRows int, m StatusModel, work *statusLayoutWork) 
 		}
 		if i == 0 && maxRows == 1 {
 			limit = prefix
-		}
-		if i == len(bar.Rows)-1 {
-			model.Notice = m.Notice
 		}
 		row, _, _ := renderStatusCells(width, model, p.rows[i], true, limit)
 		for j := range row.Chips {

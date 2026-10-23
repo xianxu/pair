@@ -227,9 +227,15 @@ func testHubStartupLaterFailure(t *testing.T, warmFirst bool) {
 	if call := r.await(t, "start-hub"); call.err == nil || !strings.Contains(call.err.Error(), "isolated second hub launch refusal") {
 		t.Fatalf("second launch did not report its injected refusal: %v", call.err)
 	}
-	waitWarmAcceptance(t, "visible hub refusal and retry action", func() bool {
-		return strings.Contains(r.host.Written(), "hub failed; open it in the switcher to retry:")
+	// Startup failure is an attention item; ordinary tab rendering no longer
+	// carries the general notice feed.
+	testwait.Until(t, "startup failure attention", func() bool {
+		return strings.Contains(r.host.Written(), couchtty.AttentionGlyph+"1")
 	})
+	openWarningAttention(t, r.input, r.host, "hub failed")
+	if _, err := r.input.Write([]byte("\x1b[97;7u")); err != nil {
+		t.Fatal(err)
+	}
 	r.assertFirstUsable(t)
 	waitWarmAcceptance(t, "warm worker starts despite failed hub", func() bool { r.mu.Lock(); defer r.mu.Unlock(); return len(r.children) == 2 })
 	r.mu.Lock()

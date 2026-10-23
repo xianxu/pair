@@ -97,22 +97,22 @@ The new exported Console.Warn takes a Notice whose optional Thread and Label nam
 
 Files: reserve.go, status_layout.go, status_collapse.go, console_presentation.go, menu.go, menu_render.go and console_menu.go, with colocated render/console regression tests.
 
-- [ ] Write generated render/projection regressions for the named functions and run them red against the current behavior.
-- [ ] Remove StatusModel.Notice and common trailing append paths. Derive a latest-feed switcher snapshot without replacing menu-operation/copy feedback, preserving Ctrl+Y's full retained source.
-- [ ] Run the regressions green; reconcile obsolete tab-notice expectations while retaining independent Feed lifetime/copy tests. Commit this coherent presentation change.
+- [x] Write generated render/projection regressions for the named functions and run them red against the current behavior.
+- [x] Remove StatusModel.Notice and common trailing append paths. Derive a latest-feed switcher snapshot without replacing menu-operation/copy feedback, preserving Ctrl+Y's full retained source.
+- [x] Run the regressions green; reconcile obsolete tab-notice expectations while retaining independent Feed lifetime/copy tests. Commit this coherent presentation change.
 
 ### Task 2: Preserve actionable asynchronous signals
 
 Files: notice.go, console.go, console_attention.go and the audited console/composition callbacks, with colocated producer and attention tests.
 
-- [ ] Write the function-level pure, generated and controlled-order regression strategies above; retain behavioral red evidence before implementation.
-- [ ] Implement noticeAttention, Console.Warn and publishWarningLocked using existing Feed/AttentionList owners. Bound text before projection, assign one console-local event ID, and preserve source-safe cast wording.
-- [ ] Route only actionable asynchronous transitions at explicit source sites. Leave normal completion/progress and already-covered sources on their existing paths; no English-text classification, new desktop effects, retries or native input.
-- [ ] Implement exact/global selection via the existing switcher/notification navigation funnels. Verify sequential-model, cap/lifetime and controlled-order invariants, then targeted race/fuzz checks; commit the complete producer routing.
+- [x] Write the function-level pure, generated and controlled-order regression strategies above; retain behavioral red evidence before implementation.
+- [x] Implement noticeAttention, Console.Warn and publishWarningLocked using existing Feed/AttentionList owners. Bound text before projection, assign one console-local event ID, and preserve source-safe cast wording.
+- [x] Route only actionable asynchronous transitions at explicit source sites. Leave normal completion/progress and already-covered sources on their existing paths; no English-text classification, new desktop effects, retries or native input.
+- [x] Implement exact/global selection via the existing switcher/notification navigation funnels. Verify sequential-model, cap/lifetime and controlled-order invariants, then targeted race/fuzz checks; commit the complete producer routing.
 
 ### Task 3: Document and qualify
 
-- [ ] Update README.md tab-bar/switcher guidance and atlas/couch.md wrap/collapse descriptions: no trailing feed message, latest message in switcher, actionable events in attention. Keep atlas index link stable.
+- [x] Update README.md tab-bar/switcher guidance and atlas/couch.md wrap/collapse descriptions: no trailing feed message, latest message in switcher, actionable events in attention. Keep atlas index link stable.
 - [ ] Run complete couchtty and affected couchcmd tests, plus source inventory and make test-affected-inventory; audit each reader certificate individually if changed.
 - [ ] Push the candidate, submit the declared recorded affected check (or full suite when selection requires it), and retain its exact head/result. No broad manual suite outside SDLC admission.
 - [ ] Ask TL to coordinate a stage/live check in the operator's real console: collapse and wrap, synthetic/disposable exit and error, switcher copy, exact/global attention selection. Do not stage :0 or signal live slots without that go.

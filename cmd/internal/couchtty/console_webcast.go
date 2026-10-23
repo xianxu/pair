@@ -57,7 +57,7 @@ func (c *Console) SetWebcast(cfg webcast.CastConfig) {
 	// never wait on the console.
 	cfg.Logf = func(format string, args ...any) {
 		msg := "Chrome cast: " + fmt.Sprintf(format, args...)
-		c.GoTracked(func() { c.setNotice(msg) })
+		c.GoTracked(func() { c.setWarning(msg) })
 	}
 	c.webcastCfg = &cfg
 }
@@ -134,7 +134,7 @@ func (c *Console) webcastStarted(attempt uint64, cast *webcast.Cast, err error, 
 		c.wcast = webcastState{attempt: attempt}
 		c.mu.Unlock()
 		if err != nil {
-			c.setNotice("Chrome failed to start: " + err.Error())
+			c.setWarning("Chrome failed to start: " + err.Error())
 		}
 		return
 	}
@@ -221,7 +221,7 @@ func (c *Console) webcastUpdated(cast *webcast.Cast, u webcast.Update) {
 	c.wcast.update = u
 	c.mu.Unlock()
 	if u.State.Recovery != "" && u.State.Recovery != oldRecovery {
-		c.setNotice(u.State.Recovery)
+		c.setWarning(u.State.Recovery)
 	}
 	c.repaint()
 }
@@ -262,7 +262,7 @@ func (c *Console) webcastEnded(cast *webcast.Cast) {
 	case errors.Is(err, webcast.ErrClosedByOperator):
 		c.setNotice("Chrome closed — cast ended.")
 	default:
-		c.setNotice("Chrome cast ended: " + err.Error())
+		c.setWarning("Chrome cast ended: " + err.Error())
 	}
 }
 

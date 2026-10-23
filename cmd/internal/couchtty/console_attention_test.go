@@ -173,8 +173,8 @@ func (f *consoleFixture) statusModel() StatusModel {
 // takes the blocked color while a prompt item is open; and it is absent with
 // an empty list or a row too narrow to hold it.
 func TestAttentionBadgeRendersAtTheStatusRowRightEnd(t *testing.T) {
-	notice := strings.Repeat("n", 100)
-	row := RenderStatusRow(40, StatusModel{Notice: notice, Attention: 3})
+	label := strings.Repeat("n", 100)
+	row := RenderStatusRow(40, StatusModel{Actors: []StatusActor{{Label: label}}, Attention: 3})
 	plain := rowPlain(row)
 	if textwidth.Width(plain) != 40 || !strings.HasSuffix(plain, " "+AttentionGlyph+"3") {
 		t.Fatalf("badge not at the right end of a full row: %q", plain)
@@ -188,7 +188,7 @@ func TestAttentionBadgeRendersAtTheStatusRowRightEnd(t *testing.T) {
 	if blocked := RenderStatusRow(40, StatusModel{Attention: 3, AttentionPrompt: true}); !strings.Contains(blocked.Body, blockedSGR+AttentionGlyph+"3") {
 		t.Fatalf("badge with a prompt item is not the blocked color: %q", blocked.Body)
 	}
-	if empty := RenderStatusRow(40, StatusModel{Notice: "x"}); strings.Contains(empty.Body, AttentionGlyph) || empty.Attention != (ColumnSpan{}) {
+	if empty := RenderStatusRow(40, StatusModel{}); strings.Contains(empty.Body, AttentionGlyph) || empty.Attention != (ColumnSpan{}) {
 		t.Fatalf("an empty list drew a badge: %q", empty.Body)
 	}
 	if narrow := RenderStatusRow(3, StatusModel{Attention: 12}); strings.Contains(narrow.Body, AttentionGlyph) {

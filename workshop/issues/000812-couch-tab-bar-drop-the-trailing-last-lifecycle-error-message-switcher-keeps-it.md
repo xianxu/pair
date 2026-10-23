@@ -48,8 +48,8 @@ needs the operator's attention goes through the notification (attention list / `
 
 [Durable implementation plan](../plans/000812-tab-bar-notice-plan.md). TL-approved full-flow plan; enter change-code before implementation.
 
-- [ ] Remove general feed notice from both tab-bar styles; retain latest full notice for switcher display and Ctrl+Y with menu precedence/geometry tests.
-- [ ] Route the audited asynchronous actionable notice classes through existing attention; keep progress/success/key feedback feed-only, and qualify exact/global selection and bounded lifetime.
+- [x] Remove general feed notice from both tab-bar styles; retain latest full notice for switcher display and Ctrl+Y with menu precedence/geometry tests.
+- [x] Route the audited asynchronous actionable notice classes through existing attention; keep progress/success/key feedback feed-only, and qualify exact/global selection and bounded lifetime.
 - [ ] Update README/atlas, run targeted/race/inventory and recorded checks, obtain coordinated live acceptance, then close/review/land.
 
 
@@ -81,6 +81,18 @@ Authenticated TLdb842971-53f5-4660-a836-870b0d14de1a approves renderer/collapse/
 
 - Plan-quality round2 CLEAN; PQ-1 addressed, no further findings. Estimate derived only after this result, from v3.1/v2.1/v2 primitive tables and baseline-v3.1 (calibration marked stale/provisional). Existing Feed/AttentionList/renderers cover the work; no greenfield library or external API needed. Small module projection: design0.15×0.2=0.03/impl0.50×0.4=0.20; TUI attention and navigation: design1.0×0.2=0.20/impl1.0×0.4=0.40; cross-cutting producer routing: design0.8×0.2=0.16/impl0.5×0.4=0.20; docs: design0.1×0.2=0.02/impl0.15×0.4=0.06; review/verification: design0.1×0.2=0.02/impl0.5×0.4=0.20; coordinated UX iteration: design0.3×0.2=0.06/impl0.3×0.4=0.12. Design0.49×1.15 + implementation1.18×familiarity1.0 =1.7435h. Exact collapse function anchor corrected before gate rerun.
 
+
+### 2026-10-23 — implementation checkpoint
+
+change-code full-flow completed after round3 plan-quality CLEAN and estimate-quality INFO. Verification work is included in the projection/TUI/routing primitives plus boundary review; ux-rename-iteration is the coordinated acceptance-feedback round, not a proposed rename. No actual hours hand-entered.
+
+Implemented tab-model/common-render removal and derived latest retained Feed in both switcher snapshot/publication paths; operation/refresh and independent clipboard feedback keep precedence. Explicit Warn source routing reuses AttentionNotify with a bounded pure projection, exact optional source, console-local IDs, c.mu → attention mutex, repaint after unlocking. Global/detached selection opens the root switcher directly (a second Ctrl+Space would instead open Start). Routine lifecycle delivery diagnostics, scratch opt-out/fallback, normal cast stops, manual code rotations and key feedback remain feed-only. Archive pass/retention failures use a distinct actionable callback; existing archive notifications retain their single attention owner. Continuation scan failure retains one bounded latest-error episode, cleared only by a healthy scan. No new queue, worker, storage or native input.
+
+Behavioral RED evidence: render/feed/switcher regressions; unexpected exit (zero warnings), global navigation (actor left focused), continuation scan (zero warnings), cast start failures (zero warnings), composition-root crash/hub/supervision/cleanup producers. Initial waiting-fixture runs were interrupted and are not passes. Projection failure bounds and control safety subsequently fuzzed for 11,380 executions, PASS 6.425s. Counted40/80 warnings retain cap50 and expire via existing12h lifetime; channel-controlled publication/selection orders match a sequential AttentionList model; expected exit/shutdown negative controls pass. Added geometry test caught a new warning relayout using raw screen rows instead of existing attentionScreen geometry; corrected to the same existing formula (RED→GREEN). Focused final core tests PASS0.551s and race PASS2.294s. Source tests cover all three trace failures; secret-safe guessing lockouts plus stale/duplicate/manual controls; real screen/Chrome failure vs normal stop; recovery episode controls. Delegated targeted source race PASS1.943s; render broader PASS2.184s/race1.821s; couchcmd broader PASS6.011s/race3.109s. Complete couchtty/couchcmd run still pending; none of these targets is a recorded suite pass.
+
+README and atlas updated with executable anchors and removed contradictory trailing-row prose. Inventory initially named only console_notice_expiry_test.go: audited its inputs (all os.ReadFile/Stat operands are generated clipboard/call markers inside t.TempDir; PATH tools are literal test-created shell fixtures; no repository/external input). Recorded only that reader as local_or_literal_fixture; inventory recheck PASS. No bulk refresh.
+
+Next: finish complete package checks, repair any failures, push this candidate and run recorded affected check on its exact head. Coordinated real-console stage/live acceptance still pending TL go; no :0 action, close or landing yet.
 
 ## Revisions
 

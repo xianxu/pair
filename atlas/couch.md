@@ -49,8 +49,10 @@ or stalled-paint geometry cannot open a different group.
 Explicit multiline preserves #779's measured packing across at most two rows.
 Groups stay together unless one original group exceeds a full line; a continued
 row starts with the full repository label. Chrome/cast/capture controls remain
-at the start of row one, the attention badge at its right edge, and transient
-notices use free space on the final row. Beyond two rows, retained actors keep
+at the start of row one and the attention badge at its right edge. Neither
+style appends a general feed notice or separator after the chips (#812).
+Persistent capability warnings remain a separate chrome surface. Beyond two
+rows, retained actors keep
 their original order after priority selection; the final overflow counts hidden
 actors and flags hidden attention. Labels are sanitized/measured once, with
 O(B + A log A) bounded planning shared by both styles.
@@ -69,6 +71,32 @@ chrome rows.
 [Slot scratch](couch-scratch.md) maps optional TestScratch temp settings, the
 24-hour interior cleaner, stable socket namespaces and reboot-only metadata
 routing. Existing panes inherit changes only after relaunch.
+
+### General messages and actionable warnings (#812)
+
+`StatusModel` has no general notice field: `statusModelLocked`, the common
+`renderStatusCells` drawing pass and both packing styles reserve chrome for
+controls, capability warnings, capture/attention badges and actor chips.
+`console_menu.go` derives `MenuState.LatestFeed` from the newest retained
+`Feed.Messages()` entry under the console mutex. `menuSnapshotLocked` serves
+both the snapshot and actual panel publication paths. `RenderMenuView` clips
+that derived message to its banner budget only when no operation notice or
+refresh-pending notice takes precedence; copy feedback remains independent.
+The full retained source stays available to Ctrl+Y, including after transient
+expiry. This projection owns no additional history.
+
+Explicit actionable asynchronous sources use `Console.Warn` and
+`publishWarningLocked` to retain a feed message and apply one existing
+`AttentionNotify` event. Sources include unexpected exits, crash/trace and hub
+failures, cleanup/stale/supervision warnings, failed continuations and actionable
+cast or lockout failures. Routine progress, success and key feedback remain
+feed-only; already-routed prompts, questions and hub notifications keep their
+existing owner. No English-text severity matching or desktop side effect is
+introduced. `noticeAttention` bounds and sanitizes the event's text. Publication
+uses the existing console-to-attention lock order and repaints after unlocking.
+Selecting an attached exact target follows that thread; global or detached
+items open the root switcher rather than falling back to the focused actor.
+Existing notification capacity, dismissal and expiry still own the lifetime.
 
 ### Per-slot switcher jobs (#576)
 
@@ -2278,8 +2306,11 @@ budget and bounded pipe cleanup. Successful tool exit confirms local copying.
 Explicit SSH environments skip the host clipboard. Missing, failed or timed-out
 tools fall back to `Presenter.Copy` through the serialized parent writer; its
 OSC 52 request has no delivery acknowledgment, so feedback says **unconfirmed**.
-Status-row clipping and expiry do not remove the diagnostic. Copy feedback stays
-in `MenuNotice`, so repeating the action does not copy its own confirmation.
+Switcher clipping and feed transient expiry do not remove the diagnostic. Copy
+feedback stays in `MenuState.CopyFeedback`, separate from operation
+`MenuState.Notice` and derived `MenuState.LatestFeed`, so repeating the action
+does not copy its own confirmation. An operation error or selected row's retained
+failure keeps its existing copy precedence.
 
 A read-only investigation for #604 found Ghostty's installed default permits
 `clipboard-write` and no local permission override; Zellij documents OSC 52 write
@@ -3199,14 +3230,14 @@ attention state and compares the whole landing, `SwitchTracker` included.
 
 Three edge cases:
 
-- **Nothing paging.** It stays put and says so on the status row. There is no
+- **Nothing paging.** It stays put and records feedback in the switcher feed. There is no
   `ActiveAddress` fallback: a jump to where you already are reads as a dropped
   key.
 - **Paging thread's child done, exit not yet reduced.** It refuses the same way.
 - **The newest pager is the actor already in use.** Reachable only through the
   `focusedAtDelivery` race. `switchTo(..., force=false, ...)` acknowledges and
-  stays, with no takeover. It also shows a notice, because the row never draws
-  the active actor's bell, so the acknowledgement alone would be invisible.
+  stays, with no takeover. It also records switcher feedback, because the tab
+  bar never draws the active actor's bell.
 
 The chord uses Kitty keyboard disambiguation (`couchkeys.NewestPageSequence`,
 `\x1b[13;5u`); explicit press and repeat forms also jump, while release does
@@ -4055,8 +4086,8 @@ created 0600.
 the Interceptor splits anything, so the file holds everything typed or pasted
 into the hosted agent — prompts, pasted secrets, credentials. It is a debugging
 instrument for a session you own, not something to leave on. If it cannot open
-its file it says so on the status row at control priority rather than tracing
-nothing: an empty trace would otherwise read as "no bytes arrived", which is the
+its file it records a control-priority message in the switcher and an attention
+warning rather than tracing nothing: an empty trace would otherwise read as "no bytes arrived", which is the
 exact ambiguity the probe exists to remove.
 
 `COUCH_TRACE=<path>` (`pair#206`) is a timing trace of startup and the
@@ -4086,8 +4117,8 @@ event cannot ship undocumented (`pair#265` BR-8).
 
 Unlike the keystroke trace, it records addresses, counts and timings, never
 content. The traces write through one `traceFile` (`trace.go`): opened 0600,
-at a path the composition root passes in, and reported on the status row when
-it cannot open. `PAIR_PROBE_SAMPLE_SECS=N make test-reattach-cost` samples
+at a path the composition root passes in. Failure to open it produces a retained
+switcher message and an attention warning. `PAIR_PROBE_SAMPLE_SECS=N make test-reattach-cost` samples
 `zellij action` latency and prints its window in unix ms, so the sampler's
 output lines up with the trace.
 
@@ -4103,9 +4134,9 @@ never done from a defer: Go runs defers while a panic unwinds, before the runtim
 writes the panic, so a deferred close would delete the file empty (BR-1). On the
 next start, files whose pid is still alive are skipped (a dying owner drops its
 lease before its panic is written), and every previous ending is folded into one
-standing notice:
+retained switcher notice and one attention warning:
 - a non-empty `.log` is a crash: a control notice
-  `previous couch crashed — see <path>` stands on the status row, and the file is
+  `previous couch crashed — see <path>` names the evidence, and the file is
   renamed `.crash`, so it is reported once;
 - an empty `.log` means the process died without a panic (SIGKILL, power loss, the
   memory killer): notice `previous couch ended abruptly (no panic recorded)`, and
@@ -4812,33 +4843,21 @@ zombie and would report an exited-but-unreaped child as running.
 non-control entry over capacity, never drop control. `couchtty/notice.go` uses
 it for the exit/bell feed.
 
-**`Control` also decides how long a notice STANDS** (`pair#185`). Nothing used
-to retire one -- no timer, no clear on keystroke, no expiry -- so a momentary
-refusal like `previous: nowhere to return to` sat on the status row until an
-unrelated notice displaced it, reading as current state. The type already
-carried the distinction: an exit is an OBLIGATION (it says why a pane
-disappeared, and is still true later), a refusal is an EVENT about the keystroke
-just pressed. So a transient notice carries a lifetime and a control notice does
-not. `Feed.Row()` walks from the tail skipping what has expired, which is why an
-expired transient can uncover a control notice underneath but never an older
-transient -- an older transient is staler, so it is never a better answer.
+**Feed retention and presentation are separate** (`pair#185`, `pair#812`).
+`Control` retains its existing feed policy: transient entries have a lifetime,
+control entries do not. `Feed.Row()` skips expired transients, and `Run` still
+maintains the existing deadline timer, but neither tab-bar renderer consumes
+that row. Expiry does not remove retained history: `Feed.Messages()` supplies
+the latest switcher message and the full Ctrl+Y copy source. Enqueue's bounded
+collapse and control-priority capacity policy remain the single history owner.
 
-The row's expiry is also a REPAINT obligation: nothing else is guaranteed to
-happen when a notice stops being true, so `Run` arms one timer for the row's own
-deadline beside `syncSpinner`. That dedup is an OPTIMISATION and not a
-correctness rule: re-arming every iteration would still fire at the right
-moment, because the remaining duration shrinks with the deadline. Recorded that
-way deliberately -- the first version of this note claimed the notice would
-never retire without it, which was false, and a false rationale outlives the
-line it justifies. `Feed` takes both its clock and its lifetime, because the two
-are exercised at different levels: pure expiry tests hand-advance a fake clock,
-a console test must let a real timer fire.
-
-Pushing a notice and painting it are ONE operation (`publishNotice`). They were
-two until a lifetime existed, when "the sentence appears whenever something else
-next paints" stopped being merely late: on an idle console nothing else paints,
-so a notice could expire entirely unseen, which is worse than one that
-overstayed.
+`publishNotice` retains a message and repaints after unlocking; when the switcher
+is open, the latest-feed projection can be displayed immediately. An operation
+notice keeps precedence, and clipboard feedback keeps its own surface. Routine
+feedback does not create an attention item. Explicit actionable asynchronous
+sources call `Console.Warn` instead, applying the existing bounded notification
+lifecycle once alongside the retained message; see [general messages and
+warnings](#general-messages-and-actionable-warnings-812).
 
 The goroutine loop that used to wrap it (`Actor`) was groundwork for
 `pair#147`, where messages between actors would begin to exist. That scope is

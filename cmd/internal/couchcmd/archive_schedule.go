@@ -22,14 +22,15 @@ import (
 // the pass's own last-run marker, so a Couch restart neither skips nor repeats
 // a day.
 type archiveScheduler struct {
-	store    string // $PAIR_DATA_DIR/archive
-	now      func() time.Time
-	launch   func(ctx context.Context) (historyarchive.ContinuousCommandReport, error)
-	warn     func(context.Context, string) (string, error)
-	warnings archiveWarningGate
-	notify   func(string)
-	failed   bool
-	failedAt time.Time
+	store      string // $PAIR_DATA_DIR/archive
+	now        func() time.Time
+	launch     func(ctx context.Context) (historyarchive.ContinuousCommandReport, error)
+	warn       func(context.Context, string) (string, error)
+	warnings   archiveWarningGate
+	notify     func(string)
+	diagnostic func(string)
+	failed     bool
+	failedAt   time.Time
 }
 
 const (
@@ -38,9 +39,16 @@ const (
 	archiveRetryAfter = 6 * time.Hour // a failed pass is not retried hourly
 )
 
-func newArchiveScheduler(pairData string, notify func(string)) *archiveScheduler {
+func newArchiveScheduler(pairData string, notify func(string), diagnostic ...func(string)) *archiveScheduler {
 	store := filepath.Join(pairData, "archive")
 	s := &archiveScheduler{store: store, now: time.Now, notify: notify}
+	// The feed projection is also used by notifyArchiveWarning, whose existing
+	// attention event is already owned by the message service. Only scheduler
+	// failures use the separate actionable callback.
+	s.diagnostic = notify
+	if len(diagnostic) > 0 && diagnostic[0] != nil {
+		s.diagnostic = diagnostic[0]
+	}
 	s.launch = func(ctx context.Context) (historyarchive.ContinuousCommandReport, error) {
 		return runArchivePass(ctx, pairData, store)
 	}
@@ -151,7 +159,7 @@ func (s *archiveScheduler) tick(ctx context.Context) {
 	}
 	if err != nil && ctx.Err() == nil {
 		if !s.failed {
-			s.notify("history backup pass failed; see " + filepath.Join(s.store, "continuous.log"))
+			s.diagnostic("history backup pass failed; see " + filepath.Join(s.store, "continuous.log"))
 		}
 		s.failed, s.failedAt = true, s.now()
 	}
@@ -180,7 +188,7 @@ func (s *archiveScheduler) warnOnce(ctx context.Context, now time.Time, key arch
 		logErr = errors.Join(logErr, file.Close())
 	}
 	if logErr != nil {
-		s.notify("history backup warning could not be retained: " + logErr.Error())
+		s.diagnostic("history backup warning could not be retained: " + logErr.Error())
 	}
 }
 

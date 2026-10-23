@@ -113,7 +113,6 @@ type StatusModel struct {
 	Notes   int
 	Capture terminalcapture.Status
 	Actors  []StatusActor
-	Notice  string
 	// Webcast is the cast Chrome's cell (#454), drawn after the screen
 	// broadcast's cells so their fixed columns never move.
 	Webcast                       WebcastCell
@@ -366,7 +365,7 @@ func renderStatusCells(width int, m StatusModel, cells []chipCell, planned bool,
 			}
 		}
 	}
-	// Capture follows so actor chips and transient notices cannot hide a
+	// Capture follows so actor chips cannot hide a
 	// stopped recorder. It never receives an actor click target.
 	if badge := captureBadge(m.Capture); badge != "" {
 		if used > 0 {
@@ -391,15 +390,6 @@ func renderStatusCells(width int, m StatusModel, cells []chipCell, planned bool,
 	if !planned {
 		cells = fitChips(m.Actors, width-used-lead)
 	}
-	appendNotice := func() {
-		if n := rowtext.Sanitize(m.Notice); n != "" {
-			if used > 0 {
-				appendText("  · ", "")
-			}
-			appendText(n, "")
-		}
-	}
-	noticeDrawn := false
 	for _, cell := range cells {
 		gap := ""
 		if used > 0 {
@@ -409,19 +399,6 @@ func renderStatusCells(width int, m StatusModel, cells []chipCell, planned bool,
 			// A count is drawn whole or not at all: `+` alone reads as nothing.
 			if used+textwidth.Width(gap+cell.label) > width {
 				break
-			}
-			if planned && cell.actor < 0 && m.Notice != "" {
-				// A planned overflow marker belongs at the final row's end.
-				// Let a transient notice use only the space before that marker.
-				savedWidth := width
-				width -= textwidth.Width(cell.label) + 2
-				appendNotice()
-				width = savedWidth
-				noticeDrawn = true
-				gap = ""
-				if used > 0 {
-					gap = "  "
-				}
 			}
 			appendText(gap, "")
 			start := used
@@ -498,9 +475,6 @@ func renderStatusCells(width int, m StatusModel, cells []chipCell, planned bool,
 		if used > start && !a.Placeholder && a.Thread != (couchcore.ThreadAddress{}) {
 			chips = append(chips, ChipSpan{Thread: a.Thread, Start: start, End: used})
 		}
-	}
-	if !noticeDrawn {
-		appendNotice()
 	}
 	var attention ColumnSpan
 	if badge != "" {
