@@ -307,3 +307,73 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-23T06:29:31-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 823 — unified-editorial-interface: Couch parses, protects and enforces per-section modes (heading comments, aliases, migration) |
+| repo | pair |
+| issue file | workshop/issues/000823-unified-editorial-interface-couch-parses-protects-and-enforces-per-section-modes-heading-comments-aliases-migration.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 6ac8af17c6f9b72b24f3cf87175b7417a7f1e25f..ca701df8b3784688405b889409d5aa9d9c13ed4d |
+| command | sdlc close --issue 823 |
+| reviewer | codex (openai; author openai) |
+| isolation | fenced |
+| timestamp | 2026-10-23T06:29:31-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+The interdiff repairs contradictory `contentStep` documentation and records review history. No executable statements, Spec, implementation plan, or persisted formats changed. The revised comment matches the implementation; no new defects found.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      Previously accepted source-extent and structural-answer fixes and their regression tests are unchanged in this window.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      Previously accepted README settings and migration documentation is unchanged in this window.
+```
+
+1. **Strengths**
+   - `cmd/internal/sessionsync/round.go:269` now accurately describes base-policy validation, per-piece presentation, direct exceptions and restamping.
+   - The existing cross-package godoc guard covers this correction without changing its assertions.
+   - Tracker updates distinguish the failed recorded suite from the verification still required before landing.
+
+2. **Critical findings:** None.
+
+3. **Important findings:** None.
+
+4. **Minor findings:** None.
+
+5. **Test coverage:** Independently passed `go test ./cmd/internal/termcmd -run '^TestNoDeclarationCarriesTwoStackedGodocs$' -count=1` and pinned-range `git diff --check`. No runtime behavior changed; the full suite was not rerun.
+
+6. **Architecture:** ARCH-DRY pass: existing guard reused. ARCH-PURE pass: no logic or IO changes. ARCH-PURPOSE pass: correction matches the implemented contract without expanding scope. ARCH-EVOLVE pass: persisted formats unchanged. No new surface requires atlas or README updates.
+
+7. **Plan revisions:** None required.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"d756d324-4192-4602-8520-7e74cab78be0","repository":"github.com/xianxu/pair","issue_id":"000823","recipe":"fix-review","round":4,"attempt":1,"agent":"codex","root":"/Volumes/TestScratch/review-checkouts/c5396698a7fcc20f","reviewed_head":"ca701df8b3784688405b889409d5aa9d9c13ed4d","slot":"pair:9","requested_at":"2026-10-23T13:28:27.042104Z"},"phase":"finished","pid":84072,"started_at":"2026-10-23T13:28:27.206106Z","finished_at":"2026-10-23T13:29:30.62881Z","session_id":"01a168f2-d6e2-7d21-a321-7c54cb440689","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 3.11891825s
+head: "ca701df8b3784688405b889409d5aa9d9c13ed4d"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000411
