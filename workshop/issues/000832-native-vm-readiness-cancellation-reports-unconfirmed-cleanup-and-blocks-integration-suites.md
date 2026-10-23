@@ -39,7 +39,7 @@ Investigate the native fake readiness cancellation and owned subprocess cleanup 
 ## Plan
 
 - [x] Compare the named native test on fresh main and the exact #789 integrated head under Go1.27.3; retain raw fail/pass evidence.
-- [ ] Instrument the existing process owner to distinguish Wait blockage from residual group membership; report the demonstrated cause before fixing, preserving the existing timeout and ownership proof.
+- [x] Instrument the existing process owner to distinguish Wait blockage from residual group membership; report the demonstrated cause before fixing, preserving the existing timeout and ownership proof.
 - [ ] Fix the demonstrated cause, pin its ordering regression, pass at least100 repeated native cancellations and meaningful process/descendant tests, then recorded verification, close and priority landing.
 
 ## Log
@@ -60,3 +60,9 @@ Raw files live in /Users/xianxu/.local/share/pair/evidence/000832/triage.6UUKdV:
 Authenticated peer message b4e442f3-f8b0-43d0-847e-f8b4b31ba659 reports registration completed under TLc7fa55d6 using that suite/isolated failure plus our exact-head/main passes; evidence text was not stored on the card. Peer retained targeted resume parent04cb95c1, childb6b44350aa8e680033121f71d09ce86b, lease1117603018, FIFO6; no source/timeout changes, and it will stop if the failure repeats. This Log records the fail/pass provenance requested by that peer; no duplicate registration or quarantine performed here.
 
 Read-only cleanup trace: runOwned selects the existing detached cleanupScope when the boot context is cancelled, so the10s failure does not alone establish authority loss. Finish can fail either while joining cmd.Wait or while awaiting group absence. The fake removes its readiness barrier before spawning sleep30; group cancellation can therefore encounter different descendant states. Next use a disposable test overlay to observe which Finish phase expires and the exact group members, without changing production behavior (ARCH-ORDER, ARCH-SECURE).
+
+### 2026-10-23 — Demonstrated Wait-phase late-fork race
+
+Error-path-only overlay on unchanged main: 92PASS/8FAIL in100, all eight failures in cmd.Wait join and none in group-absence polling; raw main-phase-instrumented-100.log SHA256 e657734f15dd7c7ea9bbd9eb279988503a296beed747fdedc027d2102b6c8215 under the retained triage directory. A subsequent kernel capture at Wait expiry shows a live orphan, e.g parent19744 already reaped; PID19755 PPID1 PGID19744 state2. Cancellation signals twice rapidly then retires signaling and reaps without observing parent terminal; a concurrently published shell child survives and holds output pipes. This is not a zombie-only-group finding. Cause report submitted to hub, receipt3b022576-4473-416c-9ab1-fc847ba3e1b2.
+
+Correction: preserve the direct-child PID pin through a terminal observation under the existing cleanup context before final group signal/retirement/Wait. Output failure cannot short-circuit that cleanup barrier. Keep positive final group absence, unknown-proof refusal and existing timeouts. Pin order through the existing owner seams, then run100+ real native cancellations. ARCH-ORDER and ARCH-SECURE require the barrier before surrendering signal authority; no new state, authority or timeout policy.
