@@ -1475,6 +1475,354 @@ rounds:
       isolation: fenced
       reviewed: c6967052e028bd896a40daa9f7751a4066984556
       blocked: false
+    - reviewer_runs:
+        - version: 1
+          intent:
+            disposable_root: true
+            id: b6766e61-ff9e-4b18-8101-6212703f30cd
+            repository: github.com/xianxu/pair
+            issue_id: "000728"
+            recipe: milestone-review
+            round: 7
+            attempt: 1
+            agent: codex
+            root: /Volumes/TestScratch/review-checkouts/6fa35332b55fb2e9
+            reviewed_head: 6a854ad5a7a774534b7312d85872310e6d42d19c
+            slot: pair:3
+            requested_at: "2026-10-23T04:58:18.497677Z"
+          phase: finished
+          pid: 4617
+          started_at: "2026-10-23T04:58:18.694389Z"
+          finished_at: "2026-10-23T05:04:22.104385Z"
+          session_id: 01a1671f-cabd-7ba1-a3ef-ec58e4c94643
+          outcome: returned
+      actual_inputs:
+        version: 1
+        method: active-time-v3-engagement-queue-v1
+        repository: github.com/xianxu/pair
+        code_head: 6a854ad5a7a774534b7312d85872310e6d42d19c
+        tracker_head: bdf81dc5a3b5fc5c77ffbc68e65a8aff13b55439
+        branch_point: 4a7ab2ca1a4c0b0d4aa34e8cada1d8c2917427bc
+        since: "2026-10-20T23:31:35-07:00"
+        until: "2026-10-22T21:55:39-07:00"
+        brain_root: /Users/xianxu/workspace/brain
+        gap_minutes: 15
+        commit_weight: 1
+        include_assistant: true
+        engagements:
+            - start: "2026-10-20T23:31:35-07:00"
+              end: "2026-10-22T21:55:39-07:00"
+              began: "2026-10-20T23:31:35-07:00"
+              roots:
+                - /Users/xianxu/workspace/worktree/pair-slot3/pair
+        sources:
+            - harness: codex
+              id: 01a15d17-8eb2-79b2-82d4-848985b4d8a3
+              slot: pair:3
+              cwd: /Users/xianxu/workspace/worktree/pair-slot3/pair
+              digest: d450dc513b7acfdf5eba26e9524045df7b2a2851450e9d20f99abe9eb9fc44a9
+              started: "2026-10-21T06:13:07.817Z"
+              spawned: false
+              bytes: 16235780
+              windows:
+                - start: "2026-10-20T23:31:35-07:00"
+                  end: "2026-10-22T21:55:39-07:00"
+            - harness: codex
+              id: 01a15d29-153f-7452-97d3-7d2c1d094ad7
+              slot: pair:3
+              cwd: /Users/xianxu/workspace/worktree/pair-slot3/pair
+              parent_id: 01a15d17-8eb2-79b2-82d4-848985b4d8a3
+              digest: 799759a2ccd0bfe075a8730a654affc1c9c2887404b6a43c0a34678a426dbf24
+              started: "2026-10-21T06:32:16.07Z"
+              spawned: true
+              bytes: 1797356
+              windows:
+                - start: "2026-10-21T06:32:16.07Z"
+                  end: "2026-10-22T21:55:39-07:00"
+            - harness: codex
+              id: 01a16004-9432-7d31-86ac-fb5d8d41b0e6
+              slot: pair:3
+              cwd: /Users/xianxu/workspace/worktree/pair-slot3/pair
+              digest: 0ed6a6eebf2f276951f2f008b1c4826aa99885e4190fc8bdc830517dfc1159de
+              started: "2026-10-21T19:51:15.615Z"
+              spawned: false
+              bytes: 35285327
+              windows:
+                - start: "2026-10-21T19:51:15.615Z"
+                  end: "2026-10-22T21:55:39-07:00"
+            - harness: codex
+              id: 01a1654e-ca09-7bc1-9b4f-462d9ffb80be
+              slot: pair:3
+              cwd: /Users/xianxu/workspace/worktree/pair-slot3/pair
+              parent_id: 01a16004-9432-7d31-86ac-fb5d8d41b0e6
+              digest: 1809db34f6e0bccc8a29a317e807513ca094d410a39fa06a27ca456e63100870
+              started: "2026-10-22T20:30:24.984Z"
+              spawned: true
+              bytes: 7844340
+              windows:
+                - start: "2026-10-22T20:30:24.984Z"
+                  end: "2026-10-22T21:55:39-07:00"
+            - harness: codex
+              id: 01a165ec-bc82-7f53-a756-f1b85f5140d7
+              slot: pair:3
+              cwd: /Users/xianxu/workspace/worktree/pair-slot3/pair
+              parent_id: 01a16004-9432-7d31-86ac-fb5d8d41b0e6
+              digest: d1f1e83fa1a6a738f706ad165c45d9ebf3c5182bb8fa88d355deb81f6470bc19
+              started: "2026-10-22T23:22:56.094Z"
+              spawned: true
+              bytes: 3363440
+              windows:
+                - start: "2026-10-22T23:22:56.094Z"
+                  end: "2026-10-22T21:55:39-07:00"
+        queue_waits:
+            - attempt_id: d21fcedfda5b439e8007eef7615195fc
+              slot: pair:3
+              record_digest: a4f27f0124de149527f21bf57279c7755a778bf7484740693f934df8be8a58d8
+              start: "2026-10-22T20:46:00.409747Z"
+              end: "2026-10-22T23:14:19.613041Z"
+              queue_seconds: 8899.203294
+              raw_seconds: 8899.203294
+              exact: true
+            - attempt_id: 4b4a41391cbd3d540d4a3b3a382d3255
+              slot: pair:3
+              record_digest: 1e41c504b84c577a67a530e0d88f66aebc946d29a95713efe91d97407e99af6e
+              start: "2026-10-23T01:05:00.49232Z"
+              end: "2026-10-23T02:26:12.619906Z"
+              queue_seconds: 4872.127586
+              raw_seconds: 4872.127586
+              exact: true
+        protected:
+            - issue: "743"
+              slot: pair:3
+              start: "2026-10-20T23:31:35-07:00"
+              end: "2026-10-21T07:00:58.259899Z"
+            - issue: "743"
+              slot: pair:3
+              start: "2026-10-20T23:31:35-07:00"
+              end: "2026-10-21T06:31:47.587Z"
+            - issue: "743"
+              slot: pair:3
+              start: "2026-10-21T06:32:10.287Z"
+              end: "2026-10-21T06:37:10.662Z"
+            - issue: "743"
+              slot: pair:3
+              start: "2026-10-21T06:32:18.563Z"
+              end: "2026-10-21T07:00:58.259899Z"
+            - issue: "743"
+              slot: pair:3
+              start: "2026-10-21T06:40:45.831Z"
+              end: "2026-10-21T06:41:59.932Z"
+            - issue: "743"
+              slot: pair:3
+              start: "2026-10-21T06:45:37.509Z"
+              end: "2026-10-21T06:49:22.955Z"
+            - issue: "743"
+              slot: pair:3
+              start: "2026-10-21T09:44:41.27Z"
+              end: "2026-10-21T02:59:39-07:00"
+            - issue: "743"
+              slot: pair:3
+              start: "2026-10-21T02:59:39-07:00"
+              end: "2026-10-21T03:13:35-07:00"
+            - issue: "743"
+              slot: pair:3
+              start: "2026-10-21T03:17:33-07:00"
+              end: "2026-10-21T03:18:54-07:00"
+            - issue: "743"
+              slot: pair:3
+              start: "2026-10-21T03:18:54-07:00"
+              end: "2026-10-21T10:28:52.200322Z"
+            - issue: "743"
+              slot: pair:3
+              start: "2026-10-21T15:44:53.21Z"
+              end: "2026-10-21T16:43:59.107Z"
+            - issue: "743"
+              slot: pair:3
+              start: "2026-10-21T15:57:07.598Z"
+              end: "2026-10-21T16:16:35.787Z"
+            - issue: "743"
+              slot: pair:3
+              start: "2026-10-21T15:57:40.597Z"
+              end: "2026-10-21T15:59:23.781Z"
+            - issue: "743"
+              slot: pair:3
+              start: "2026-10-21T16:02:11.33Z"
+              end: "2026-10-21T16:02:45.641Z"
+            - issue: "743"
+              slot: pair:3
+              start: "2026-10-21T16:05:48.585Z"
+              end: "2026-10-21T16:06:19.403Z"
+            - issue: "743"
+              slot: pair:3
+              start: "2026-10-21T16:06:25.195Z"
+              end: "2026-10-21T16:07:05.27Z"
+            - issue: "743"
+              slot: pair:3
+              start: "2026-10-21T17:30:49.095Z"
+              end: "2026-10-21T19:51:08.104Z"
+            - issue: "743"
+              slot: pair:3
+              start: "2026-10-21T17:35:21.95Z"
+              end: "2026-10-21T17:53:57.829Z"
+            - issue: "743"
+              slot: pair:3
+              start: "2026-10-21T17:35:53.432Z"
+              end: "2026-10-21T18:01:27.06Z"
+            - issue: "743"
+              slot: pair:3
+              start: "2026-10-21T17:36:36.55Z"
+              end: "2026-10-21T17:48:56.775Z"
+            - issue: "743"
+              slot: pair:3
+              start: "2026-10-21T19:51:16.84Z"
+              end: "2026-10-21T20:03:08.016343Z"
+            - issue: "743"
+              slot: pair:3
+              start: "2026-10-21T20:03:08.376521Z"
+              end: "2026-10-21T20:16:56.720381Z"
+            - issue: "743"
+              slot: pair:3
+              start: "2026-10-21T23:30:07.401Z"
+              end: "2026-10-21T23:50:36.112Z"
+            - issue: "743"
+              slot: pair:3
+              start: "2026-10-21T23:53:15.351Z"
+              end: "2026-10-22T00:08:26.944Z"
+            - issue: "743"
+              slot: pair:3
+              start: "2026-10-22T01:58:45.649Z"
+              end: "2026-10-22T02:14:00.132Z"
+            - issue: "743"
+              slot: pair:3
+              start: "2026-10-22T02:56:58.521Z"
+              end: "2026-10-22T03:12:27.833Z"
+            - issue: "743"
+              slot: pair:3
+              start: "2026-10-22T04:33:50.839Z"
+              end: "2026-10-22T04:35:16.088562Z"
+            - issue: "743"
+              slot: pair:3
+              start: "2026-10-22T09:59:10.637Z"
+              end: "2026-10-22T10:17:54.82Z"
+            - issue: "743"
+              slot: pair:3
+              start: "2026-10-22T16:00:58.434Z"
+              end: "2026-10-22T16:19:20.991Z"
+            - issue: "743"
+              slot: pair:3
+              start: "2026-10-22T17:57:12.75Z"
+              end: "2026-10-22T18:12:47.687992Z"
+            - issue: "743"
+              slot: pair:3
+              start: "2026-10-22T19:43:59.38Z"
+              end: "2026-10-22T21:08:37.884151Z"
+            - issue: "743"
+              slot: pair:3
+              start: "2026-10-22T20:30:26.259Z"
+              end: "2026-10-22T20:49:13.472Z"
+            - issue: "743"
+              slot: pair:3
+              start: "2026-10-22T23:25:59.742942Z"
+              end: "2026-10-22T16:37:33-07:00"
+            - issue: "743"
+              slot: pair:3
+              start: "2026-10-22T16:40:05-07:00"
+              end: "2026-10-22T23:43:20.969895Z"
+            - issue: "743"
+              slot: pair:3
+              start: "2026-10-22T23:25:59.742942Z"
+              end: "2026-10-22T16:37:33-07:00"
+            - issue: "743"
+              slot: pair:3
+              start: "2026-10-22T16:40:05-07:00"
+              end: "2026-10-22T23:43:20.969895Z"
+            - issue: "743"
+              slot: pair:3
+              start: "2026-10-22T23:28:19.001Z"
+              end: "2026-10-22T16:37:33-07:00"
+            - issue: "743"
+              slot: pair:3
+              start: "2026-10-22T16:40:05-07:00"
+              end: "2026-10-22T23:43:20.969895Z"
+            - issue: "743"
+              slot: pair:3
+              start: "2026-10-23T01:11:17.546337Z"
+              end: "2026-10-23T01:22:44.827Z"
+        excluded_brain_sessions: 1
+        excluded_brain_minutes: 241.22538333333335
+        cuts:
+            - boundary: M1
+              dispatched: "2026-10-22T13:03:45-07:00"
+              finalized: "2026-10-22T13:10:03-07:00"
+              finalizing: false
+            - boundary: M1
+              dispatched: "2026-10-22T13:18:35-07:00"
+              finalized: "2026-10-22T13:28:07-07:00"
+              finalizing: false
+            - boundary: M1
+              dispatched: "2026-10-22T13:47:17-07:00"
+              finalized: "2026-10-22T13:58:52-07:00"
+              finalizing: true
+            - boundary: M2
+              dispatched: "2026-10-22T16:17:25-07:00"
+              finalized: "2026-10-22T16:22:28-07:00"
+              finalizing: false
+            - boundary: M2
+              dispatched: "2026-10-22T16:28:38-07:00"
+              finalized: "2026-10-22T16:33:22-07:00"
+              finalizing: true
+            - boundary: M3
+              dispatched: "2026-10-22T17:32:00-07:00"
+              finalized: "2026-10-22T17:34:31-07:00"
+              finalizing: true
+      "n": 7
+      timestamp: "2026-10-22T22:04:24-07:00"
+      dispatched: "2026-10-22T21:58:14-07:00"
+      agent: codex
+      reviewer: codex (openai; author openai)
+      dispose:
+        - id: BR-1
+          disposition: addressed
+          note: menu_switchagent.go renders borrowed donor, conflict, own and absent provenance; TestSwitchAgentConfigurationProvenanceRequiresExplicitAcceptance passed and asserts those distinctions.
+          round: 7
+        - id: BR-2
+          disposition: addressed
+          note: README.md:1359 describes the Couch repository document and independent Pair defaults; README.md:1380 describes final-attachment publication. These match repopreferences_store.go, launcher/createflow.go and couchcmd/run.go:1029.
+          round: 7
+        - id: BR-3
+          disposition: addressed
+          note: TestSpawnPreparedRefusesDriftByFingerprint and TestNestedRepositoryStorageRemainsIndependentOfOuterSlot now exercise repository preferences and independently passed together.
+          round: 7
+        - id: BR-4
+          disposition: addressed
+          note: repopreferences_adoption.go:56 shares the migration/publication deadline. Deadline and competing-writer regressions passed, as did TestRepositoryPublicationKeepsConsoleResponsiveAndRemotePending.
+          round: 7
+        - id: BR-5
+          disposition: addressed
+          note: SwitchAgent retains returned source tokens through the final guard. TestSwitchAgentPinsLiveSourceAcrossFinalGuard passed and requires refusal before effects for local/remote ordinary/cooperative reconnection.
+          round: 7
+        - id: BR-6
+          disposition: addressed
+          note: cancelSwitchForceConfirmation copies the prepared preview before clearing Force. Input/snapshot preservation and concurrent-render cancellation regressions passed under the race detector.
+          round: 7
+      findings:
+        - kind: defect
+          id: BR-7
+          severity: Critical
+          title: Switch-form preparation can replay a pending journal before confirmation
+          detail: cmd/internal/couchcore/switchagent.go:260 calls GetThread from the common preparation path used by PrepareAgentSwitch, PrepareKnownAgentSwitch and PrepareForcedAgentSwitch. On the production writable store, GetThread reaches withLock, which registers retention and invokes recoverStoreJournalLockedChecked; that applies journal images and removes journal.json before the form is confirmed. This contradicts the explicit no-initialization/no-retention/no-journal-recovery contract at workshop/plans/000728-shared-agent-startup-preferences-plan.md:230 (ARCH-PURPOSE, ARCH-SECURE, ARCH-ORDER). Use PreviewThreadContext for preparation and audit its transitive reads across all three entry points. Add full preparation/form regressions with pending journals in global and routed slot backends, asserting refusal and byte-identical storage through cancellation; the current migration-preview test exercises only previewRepositoryPreferences.
+          family: read-only-preview-boundary
+          round: 7
+        - kind: defect
+          id: BR-8
+          severity: Important
+          title: Edited-restart acceptance setup races the already-running console
+          detail: 'cmd/internal/couchcmd/editedrestart_console_acceptance_test.go:71 starts newColdResumeRig, which starts Console.Run, before editedRestartConsoleSource performs its claim/register/park mutations at lines 30–50. Only the actionable provider is gated. The focused multi-package review run failed TestEditedRestartConsoleRemoteAdoption/codex/resume/attach-refused at line 123 with “lock thread store: resource temporarily unavailable” during fixture construction. The isolated case passed once and across ten repetitions, and a subsequent service selection passed, demonstrating schedule-dependent coverage rather than a stable failure oracle (ARCH-ORDER, ARCH-MOCK). Finish source setup before starting console workers, or explicitly fence every competing store observer; exercise the competing ordering deterministically.'
+          family: test-fixture-initialization-ordering
+          round: 7
+      recipe: milestone-review
+      isolation: fenced
+      blocked: true
 ---
 
 # Gate ledger — pair#728 (boundary-review)
@@ -1530,6 +1878,25 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 
 ## Round 6 — 2026-10-22T17:34:31-07:00 (codex) — passed
 
+## Round 7 — 2026-10-22T22:04:24-07:00 (codex) — BLOCKED
+
+### Disposed
+
+- BR-1 — addressed — menu_switchagent.go renders borrowed donor, conflict, own and absent provenance; TestSwitchAgentConfigurationProvenanceRequiresExplicitAcceptance passed and asserts those distinctions.
+- BR-2 — addressed — README.md:1359 describes the Couch repository document and independent Pair defaults; README.md:1380 describes final-attachment publication. These match repopreferences_store.go, launcher/createflow.go and couchcmd/run.go:1029.
+- BR-3 — addressed — TestSpawnPreparedRefusesDriftByFingerprint and TestNestedRepositoryStorageRemainsIndependentOfOuterSlot now exercise repository preferences and independently passed together.
+- BR-4 — addressed — repopreferences_adoption.go:56 shares the migration/publication deadline. Deadline and competing-writer regressions passed, as did TestRepositoryPublicationKeepsConsoleResponsiveAndRemotePending.
+- BR-5 — addressed — SwitchAgent retains returned source tokens through the final guard. TestSwitchAgentPinsLiveSourceAcrossFinalGuard passed and requires refusal before effects for local/remote ordinary/cooperative reconnection.
+- BR-6 — addressed — cancelSwitchForceConfirmation copies the prepared preview before clearing Force. Input/snapshot preservation and concurrent-render cancellation regressions passed under the race detector.
+
+### Raised
+
+- **BR-7** [Critical] `read-only-preview-boundary` (kind: defect) Switch-form preparation can replay a pending journal before confirmation
+  cmd/internal/couchcore/switchagent.go:260 calls GetThread from the common preparation path used by PrepareAgentSwitch, PrepareKnownAgentSwitch and PrepareForcedAgentSwitch. On the production writable store, GetThread reaches withLock, which registers retention and invokes recoverStoreJournalLockedChecked; that applies journal images and removes journal.json before the form is confirmed. This contradicts the explicit no-initialization/no-retention/no-journal-recovery contract at workshop/plans/000728-shared-agent-startup-preferences-plan.md:230 (ARCH-PURPOSE, ARCH-SECURE, ARCH-ORDER). Use PreviewThreadContext for preparation and audit its transitive reads across all three entry points. Add full preparation/form regressions with pending journals in global and routed slot backends, asserting refusal and byte-identical storage through cancellation; the current migration-preview test exercises only previewRepositoryPreferences.
+- **BR-8** [Important] `test-fixture-initialization-ordering` (kind: defect) Edited-restart acceptance setup races the already-running console
+  cmd/internal/couchcmd/editedrestart_console_acceptance_test.go:71 starts newColdResumeRig, which starts Console.Run, before editedRestartConsoleSource performs its claim/register/park mutations at lines 30–50. Only the actionable provider is gated. The focused multi-package review run failed TestEditedRestartConsoleRemoteAdoption/codex/resume/attach-refused at line 123 with “lock thread store: resource temporarily unavailable” during fixture construction. The isolated case passed once and across ten repetitions, and a subsequent service selection passed, demonstrating schedule-dependent coverage rather than a stable failure oracle (ARCH-ORDER, ARCH-MOCK). Finish source setup before starting console workers, or explicitly fence every competing store observer; exercise the competing ordering deterministically.
+
 ## Open findings
 
-(none — every finding has been disposed)
+- **BR-7** [Critical] `read-only-preview-boundary` (kind: defect) Switch-form preparation can replay a pending journal before confirmation
+- **BR-8** [Important] `test-fixture-initialization-ordering` (kind: defect) Edited-restart acceptance setup races the already-running console

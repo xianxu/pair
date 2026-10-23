@@ -14,15 +14,14 @@ import (
 
 	"github.com/xianxu/pair/cmd/internal/couchcore"
 	"github.com/xianxu/pair/cmd/internal/couchmessage"
-	"github.com/xianxu/pair/cmd/internal/couchtty"
 	"github.com/xianxu/pair/cmd/internal/launcher"
 	"github.com/xianxu/pair/cmd/internal/ptychild"
 	"github.com/xianxu/pair/cmd/internal/sessioninventory"
 	"github.com/xianxu/pair/cmd/internal/testwait"
 )
 
-// Reuse the running Console fixture. The public claim/register/park transitions
-// seed its other supported source personality without a second console owner.
+// Seed the public claim/register/park transitions before Console.Run starts
+// any observers against the shared thread store.
 func editedRestartConsoleSource(t *testing.T, cold *coldResumeRig, agent string) {
 	t.Helper()
 	if agent != "claude" {
@@ -62,25 +61,14 @@ func editedRestartConsoleSource(t *testing.T, cold *coldResumeRig, agent string)
 	}
 }
 
-func newEditedRestartConsoleAcceptanceRig(t *testing.T, agent string) (*coldResumeRig, *serviceRig, couchmessage.Binding, *hubRuntime) {
+func newEditedRestartConsoleAcceptanceRig(t *testing.T, agent string, configure ...func(*coldResumeRig)) (*coldResumeRig, *serviceRig, couchmessage.Binding, *hubRuntime) {
 	t.Helper()
-	ready := make(chan struct{})
-	var once sync.Once
-	unblock := func() { once.Do(func() { close(ready) }) }
-	t.Cleanup(unblock)
-	cold := newColdResumeRig(t, func(console *couchtty.Console) {
-		provider := console.ActionableProvider()
-		console.SetActionableProvider(func(ctx context.Context, observations []couchcore.LiveTTYObservation) ([]couchcore.ActionableThreadSummary, error) {
-			select {
-			case <-ready:
-				return provider(ctx, observations)
-			case <-ctx.Done():
-				return nil, ctx.Err()
-			}
-		})
+	cold := newColdResumeRig(t, func(rig *coldResumeRig) {
+		editedRestartConsoleSource(t, rig, agent)
+		for _, setup := range configure {
+			setup(rig)
+		}
 	})
-	editedRestartConsoleSource(t, cold, agent)
-	unblock()
 	world := newMessageWorld()
 	world.hub = "/repo0"
 	service := &serviceRig{t: t, world: world, slotGit: map[string]couchcore.SlotGitStatus{}}
@@ -113,6 +101,63 @@ func newEditedRestartConsoleAcceptanceRig(t *testing.T, agent string) (*coldResu
 	cold.c.SwitchGuard = guard
 	service.s.installAgentSwitchService(cold.console, cold.c, guard)
 	return cold, service, hub, hubs
+}
+
+// An independent observer is admitted at the final pre-Run fixture seam. Join
+// its first store read there, making observation-before-source deterministic
+// even when Console's actionable inventory provider is held. Then verify the
+// real continuation worker observes that same complete source after Run starts.
+func TestEditedRestartConsoleSourcePrecedesObservers(t *testing.T) {
+	for _, agent := range []string{"claude", "codex"} {
+		t.Run(agent, func(t *testing.T) {
+			type observation struct {
+				record  couchcore.ThreadRecord
+				binding couchcore.NativeBindingResolution
+				err     error
+			}
+			observe := func(cold *coldResumeRig) observation {
+				record, err := cold.c.Threads.GetThread(cold.parked.Address)
+				if err != nil {
+					return observation{record: record, err: err}
+				}
+				binding, err := cold.rt.artifacts.ResolveEstablished(context.Background(), record.Address.RepoScope, string(record.Address.Tag), agent)
+				return observation{record: record, binding: binding, err: err}
+			}
+			assertComplete := func(observed observation) {
+				t.Helper()
+				if observed.err != nil || observed.record.LatestLaunchProfile == nil || observed.record.LatestLaunchProfile.Agent != agent || observed.record.Park != nil || observed.record.VerifiedPark == nil || observed.binding.NativeID != "11111111-1111-4111-8111-111111111111" {
+					t.Fatalf("observer admitted before %s source setup completed: profile=%+v binding=%+v park=%+v verified=%+v err=%v", agent, observed.record.LatestLaunchProfile, observed.binding, observed.record.Park, observed.record.VerifiedPark, observed.err)
+				}
+			}
+			worker := make(chan observation, 1)
+			newEditedRestartConsoleAcceptanceRig(t, agent, func(cold *coldResumeRig) {
+				first := make(chan observation, 1)
+				go func() {
+					first <- observe(cold)
+				}()
+				select {
+				case observed := <-first:
+					assertComplete(observed)
+				case <-testwait.After(t):
+					t.Fatal("independent source observer did not finish")
+				}
+				cold.console.SetContinuationProvider(func(context.Context, []couchcore.ThreadAddress) ([]couchcore.ContinuationStatus, error) {
+					observed := observe(cold)
+					select {
+					case worker <- observed:
+					default:
+					}
+					return nil, observed.err
+				})
+			})
+			select {
+			case observed := <-worker:
+				assertComplete(observed)
+			case <-testwait.After(t):
+				t.Fatal("Console continuation observer did not run")
+			}
+		})
+	}
 }
 
 func TestEditedRestartConsoleRemoteAdoption(t *testing.T) {

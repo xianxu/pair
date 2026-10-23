@@ -257,7 +257,9 @@ func (c *Couch) prepareAgentSwitchAccepted(ctx context.Context, address ThreadAd
 	if !launcher.IsSupportedAgent(agent) {
 		return PreparedAgentSwitch{}, fmt.Errorf("switch-agent: unsupported agent %q", agent)
 	}
-	record, err := c.Threads.GetThread(address)
+	// Preparing an offer is observation, including before local force consent.
+	// Recovery, initialization and retention enrollment belong to execution.
+	record, err := c.Threads.PreviewThreadContext(ctx, address)
 	if err != nil {
 		return PreparedAgentSwitch{}, err
 	}
