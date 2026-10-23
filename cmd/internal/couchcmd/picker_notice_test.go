@@ -59,7 +59,7 @@ func TestPickerNoticeAfterAMinuteNamesThePicker(t *testing.T) {
 	if len(got) != 1 {
 		t.Fatalf("want one notice at 70s, got %d: %+v", len(got), got)
 	}
-	want := "slot pair:2 waiting 1 min behind a picker: (permission prompt) Bash command: rm -rf $D/$n — Do you want to proceed? [1. Yes | 2. No] (couch --peek pair:2"
+	want := "slot pair:2 waiting 1m behind a picker: (permission prompt) Bash command: rm -rf $D/$n — Do you want to proceed? [1. Yes | 2. No] (couch --peek pair:2"
 	if m := got[0]; m.From != w.worker || m.To != w.hub || !strings.HasPrefix(m.Body, want) {
 		t.Fatalf("notice %+v\nwant prefix %q", got[0], want)
 	}
