@@ -110,6 +110,49 @@ with named risky functions, adversarial class strategies and explicit unreadable
 snapshot reporting. No code/measurement started while the gate is blocked.
 
 
+
+### 2026-10-23 — capacity handoff checkpoint; stop for model switch
+
+TL eb69966d/d767565b directs commit/push and stop after the third model-capacity
+failure; TL will move pair:6 to Claude. All work is on #827; #759 remains untouched
+at6019be87f98b434429c17d2787802abf6c98ad2e, waiting for the operator's tsnet decision.
+
+Approved plan: workshop/plans/000827-one-gesture-full-quit-plan.md. Plan-quality
+round3 CLEAN; prior PQ-1/PQ-2 addressed. Estimate-quality INFO and change-code
+completed exit0 on full flow. Card estimate2.691h is derived in the Estimate
+section; advisory concerns: integration includes controlled/race tests, and
+native setup cost assumes shared harness reuse. Do not repeat planning/gates
+unless design changes. TL f4a757ee approved Leave-only joined adapters retaining
+the exact submitted future and thread/fan-out ownership through producer done;
+ordinary Park/Recover/Retry waits remain unchanged.
+
+WIP: new cmd/internal/couchcore/park_commit_timing_test.go compiles. Exact targeted
+command GOTOOLCHAIN=local go test ./cmd/internal/couchcore -run '^TestTimingNearestRank$' -count=1
+PASS0.255s. The opt-in TestParkCommitTimingRealStore has NOT been run; no actual
+commit-time samples exist yet. It seeds15/30 records, times real BeginPark on a
+new private os.UserCacheDir SSD directory, uses current LifecycleParallelism,
+counts staged payload bytes and emits PARK_COMMIT_TIMING JSON. It creates no
+agents, requests or external side effects. Review the WIP fixture before its
+first run; its64MiB counter currently applies per subtest, so enforce the plan's
+whole-measurement bound if retaining that interpretation. No production budget,
+retry controller or UI behavior has changed.
+
+EXACT NEXT STEP: review the opt-in fixture, then run it once with an explicit
+empty-base child environment (HOME/PATH plus GOTOOLCHAIN=local/GOWORK=off, no
+COUCH/PAIR identity). Enable PAIR_PARK_COMMIT_TIMING=1 and run go test
+./cmd/internal/couchcore -run '^TestParkCommitTimingRealStore$' -count=1 -v -timeout 3m.
+Capture actual uptime/load, compiler, SSD filesystem and complete stdout into
+workshop/evidence/000827/; parse p50/p95/max and state whether incident load was
+present. Verify owned cache directory removed after the test. Do not change the
+1s commit threshold until measurement is recorded. Then execute approved plan:
+10s if supported, separate relaunch1s diagnostics,60s scheduling budget/max3 safe
+drives with exact-future joins, exact copyable partial summary, deterministic
+30-slot/N2N tests and shared native4/8-total-slot Claude/Codex qualification.
+
+No owned suite, merge, review or targeted-test runner is still active. No live
+Couch/slot or :0 action was taken. No continuation/restart/model change from this
+worker; stop after the committed/pushed receipt so TL can switch the agent.
+
 ## Estimate
 
 Produced via brain/data/life/42shots/velocity/estimate-logic-v3.1.md against
