@@ -3476,6 +3476,28 @@ park leave (`leave_park.go`):
   `ErrThreadStoreBusy`. Before #827 they refused at the first EWOULDBLOCK, which
   is what left fan-out parks behind. Retention maintenance still yields at once.
 
+**Asleep slots** (#830). A full quit marks what it parks; one switcher gesture
+brings back the hubs.
+- **Mark:** Leave's fresh drives begin their park with `BeginParkAsleep`, which
+  writes `ThreadRecord.Asleep` (`threadrecord.SleepMark`: nonce, at, cause) in the
+  same CAS as the park's begin. An individual park (`BeginPark`) clears it.
+- **Derived flag:** `ThreadAsleep` is the only reader. It says asleep only while
+  the verified park in force carries the mark's nonce. A rolled-back, replaced or
+  resumed park, or a mark an older build kept as an unknown member, is inert.
+  Resume registration and `ClearVerifiedPark` also drop the mark.
+- **Persistence:** the mark is a top-level, born-additive record member. Nested
+  park types are strict, so an older build would refuse a field added there.
+- **Surfaces:**
+  - The summary's `AsleepAt` makes a parked row read `Asleep · <age>`.
+  - `couch --recover-plan-from-sdlc` rows carry `asleep_at`. A woken hub's
+    fleet resume (ariadne#564) reads the asleep set and each slot's pending
+    work in one report.
+- **Wake:** switcher **Alt+Shift+x** (`couchkeys.ActionWake`, a Couch-only
+  switcher key) asks first, then runs the row resume Enter uses for each asleep
+  hub (`HubOwnership.IsHub`), main hub last (`menu_wake.go`). Workers wait for
+  their hub, and plain parked slots stay put. There is no CLI form: after a full
+  shutdown no live slot exists to call one.
+
 The console drains its operation queue with `Limit+1` workers, so the pass
 alone can never occupy all of them. Remote and continuation jobs share the
 spare worker. Results still reach the console goroutine through `q.results`. Every

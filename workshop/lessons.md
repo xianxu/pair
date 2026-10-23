@@ -2778,3 +2778,9 @@ and external temporary roots rather than relying on the host's TMPDIR.
 - #827: a recovery hint belongs to one field. If a summary carries a dedicated next-action field, strip the same advice from the reason text, or the operator reads it twice.
 - #827: before adding a context-aware path through a nested lock, check every acquirer of that lock, including readers outside the outer coordinator. A nonblocking inner acquire under a blocking outer lock fails at once against an uncoordinated reader.
 - #827 round 2: when a change adds a member to an enumerated contract, grep the field or type name and update every comment that lists its members in the same commit.
+
+## #830 asleep slots (2026-10-23)
+
+- **Design a startup-dependent gesture against the startup that will ship, not main's.** #830's wake key looked redundant because main cold-resumes explicit hubs at start. #739, which was landing at the same time, keeps them down. Read the in-flight sibling's branch before you drop or add a gesture.
+- **A flag about a durable transition is written in that transition's CAS and bound to its identity.** A follow-up write can fail after the effect has happened. A flag no reader derives from the transition's identity outlives the transition it described. Derive the reading (`ThreadAsleep`: mark nonce = receipt nonce) so that every ending path, and every older build, leaves the flag inert.
+- **Before adding a CLI verb for a post-shutdown action, ask who can call it.** Broker ops need a live calling slot, and after a full shutdown there is none.
