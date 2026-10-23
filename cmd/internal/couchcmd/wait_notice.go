@@ -33,7 +33,7 @@ type waitReason string
 const (
 	waitPrompt   waitReason = "on a prompt"
 	waitQuestion waitReason = "after asking"
-	waitIdle     waitReason = "idle off its resting branch"
+	waitIdle     waitReason = "idle off resting branch"
 	waitPicker   waitReason = "behind a picker"
 )
 
@@ -198,7 +198,7 @@ func waitNoticeBody(slot string, quiet time.Duration, reason waitReason, summary
 	if summary == "" {
 		summary = "(no text on screen)"
 	}
-	return fmt.Sprintf("slot %s waiting %d min %s: %s (couch --peek %s; mute: add %s to %s)",
+	return fmt.Sprintf("slot %s waiting %dm %s: %s (couch --peek %s; mute: add %s to %s)",
 		slot, int(quiet/time.Minute), reason, summary, slot, slot, optOutPath)
 }
 
