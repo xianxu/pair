@@ -2840,3 +2840,5 @@ and external temporary roots rather than relying on the host's TMPDIR.
 - #845: A command selected for an isolated PATH may depend on basename-dispatched helpers. Resolve only needed helpers from that executable’s own installation and pin the actual private-PATH operation; Apple’s /usr/bin/git launcher can hide the physical Git executable’s helper lookup failure. Preserve helper invocation names when symlinks resolve to a multicall binary.
 
 - #845 inventory: untracked Go tests are absent from the tracked reader inventory. Stage new tests before the final audit, inspect the command’s completed exit status, and only then start close or queue verification; never batch a gate mutation after a verification result that has not been checked.
+
+- #845 review execution: a native harness watchdog must cover the test’s own startup/scenario context plus cleanup. A shorter go-test deadline aborts defers and creates unverifiable residue; inspect/reconcile that exact owner before starting another fleet, and do not call the watchdog a product failure.
