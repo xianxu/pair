@@ -55,12 +55,12 @@ Not taken: the repeated "Viewers need its code: hover … to see it" suffix (fiv
 
 ## Plan
 
-- [ ] When #789 lands, merge origin/main into this branch and re-run the cap and full-copy tests before any wording edit; #789 also edits console_castcodes_test.go, so the merge comes first.
-- [ ] Apply the seven selected strings; no other producer is touched.
-- [ ] Update the focused pins: wait_notice_test.go (body prefix and suffix), lifecycle_notices_test.go (drain diagnostic; pin the capacity diagnostic if it has none), console_castcodes_test.go (three notices). No total-catalog assertion.
-- [ ] go vet and go test for cmd/internal/couchcmd and cmd/internal/couchtty.
-- [ ] make test-affected-inventory; three test readers changed, so record their dispositions.
-- [ ] sdlc close with the package runs as evidence; the cap and full-copy behavior is unchanged.
+- [x] When #789 lands, merge origin/main into this branch and re-run the cap and full-copy tests before any wording edit; #789 also edits console_castcodes_test.go, so the merge comes first.
+- [x] Apply the seven selected strings; no other producer is touched.
+- [x] Update the focused pins: wait_notice_test.go (body prefix and suffix), lifecycle_notices_test.go (drain diagnostic; pin the capacity diagnostic if it has none), console_castcodes_test.go (three notices). No total-catalog assertion.
+- [x] go vet and go test for cmd/internal/couchcmd and cmd/internal/couchtty.
+- [x] make test-affected-inventory; the changed test readers' dispositions are recorded.
+- [x] sdlc close with the package runs as evidence; the cap and full-copy behavior is unchanged.
 
 ## Log
 
@@ -71,6 +71,12 @@ Split from #789 at the TL's direction; low priority, unclaimed. #789 lands cap p
 ### 2026-10-23
 
 Claimed and planned as rung 3 at the hub's direction. #789 is still unlanded (PR 543 open), so this branch carries design only until it lands; code starts on the merged tree. The seven strings cover the issue's three starting points: wait notice, lifecycle labels, cast feedback. The repeated viewers-code suffix was rejected as the catalog scope #789 removed. No estimate: this is inside the quick-flow shell.
+
+### 2026-10-23 (implementation)
+
+#789 landed 10:56 (PR 543); merged origin/main into the branch (c013b0c36) and re-ran the cap and full-copy pins green before editing. Applied the seven strings verbatim, then found a fourth reader the plan missed: `picker_notice_test.go` pinned the wait notice's `1 min` prefix, caught by the full package run, not the focused pins. The inventory flags only `wait_notice_test.go` (the other changed tests read no repository paths); audited its sole input, the literal `../wrapcmd/testdata/drive/` fixture, unchanged, and recorded it as `fixed_scanner`.
+
+Evidence: `go test ./cmd/internal/couchcmd ./cmd/internal/couchtty -count=1` green (couchtty 48s, couchcmd 106s after the picker fix); `go vet` both packages clean; `make test-affected-inventory` green. Atlas `couch.md` wait-notice body shape updated to `Mm`. The drain diagnostic renders `1 slots'` at N=1 as approved; flagged to the TL.
 
 ## Revisions
 
