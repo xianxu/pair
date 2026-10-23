@@ -7,6 +7,8 @@ representative evidence, not an exhaustive index.
 
 ## Proof and verification
 
+- #833: A failed component's later refusal must wrap its retained cause, not replace it with a generic unavailable error or join a new synthetic leaf. Publish the failed state and first cause together under the same mutex; pin queued, later and owner-completion paths plus the real shutdown caller, including physical errors joined with cancellation.
+
 - #827 PQ-1: joining dispatch callers does not join their asynchronous producers. When cancellation can return from Await early, retain the exact admitted future and defer gate/capacity release and final reporting until producer completion; pin ordinary caller behavior when adding an opt-in joined path.
 - #832: A process-group kill can precede publication of an in-progress fork. Keep the direct parent unreaped until terminal observation, then send the final group signal before retiring authority and joining output. Execution cancellation or writer failure must not skip the cleanup barrier; pin ordering and unknown-proof refusal with stateful seams and repeat the native race.
 
