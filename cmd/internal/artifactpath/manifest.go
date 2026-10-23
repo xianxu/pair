@@ -1529,6 +1529,9 @@ var NonArtifactSources = []string{
 	"cmd/internal/couchcore/naming.go",
 	"cmd/internal/couchcore/parktransaction.go",
 	"cmd/internal/couchcore/parkworker.go",
+	// #827's bounded full quit drives existing park authorities; it constructs
+	// no artifact filenames.
+	"cmd/internal/couchcore/leave_park.go",
 	// #651 routes existing thread/lifecycle authorities; it constructs no
 	// artifact filenames or new artifact family.
 	"cmd/internal/couchcore/park_recovery.go",

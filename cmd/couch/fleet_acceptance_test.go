@@ -8,9 +8,11 @@ import (
 	"os"
 	"strings"
 	"sync"
+	"syscall"
 	"testing"
 	"time"
 
+	"github.com/xianxu/pair/cmd/internal/couchcore"
 	"github.com/xianxu/pair/cmd/internal/couchmessage"
 	"github.com/xianxu/pair/cmd/internal/testcouch"
 	"github.com/xianxu/pair/cmd/internal/testcouch/agentfixture"
@@ -187,5 +189,96 @@ func TestFleetWaitStopsOnPermanentRefusal(t *testing.T) {
 	})
 	if !errors.Is(err, agentfixture.ErrMailboxFull) || calls != 1 {
 		t.Fatalf("permanent refusal retried: calls=%d err=%v", calls, err)
+	}
+}
+
+// TestDisposableCouchFleetFullQuit is #827's physical full quit: one Alt+x and
+// one confirmation park every genuine actor in a 4- and an 8-slot cohort, for
+// each agent kind, and Couch exits with every slot parked.
+func TestDisposableCouchFleetFullQuit(t *testing.T) {
+	if os.Getenv("PAIR_NATIVE_COUCH_FLEET") != "1" {
+		t.Skip("set PAIR_NATIVE_COUCH_FLEET=1 or make test-couch-fleet")
+	}
+	binaries := testcouch.Build(t)
+	for _, agent := range []string{"claude", "codex"} {
+		for _, workers := range []int{3, 7} {
+			if !t.Run(fmt.Sprintf("%s/%d", agent, workers+1), func(t *testing.T) {
+				started := time.Now()
+				fleet := testcouch.New(t, binaries, testcouch.Options{Workers: workers, AgentKind: agent})
+				setup, cancelSetup := context.WithTimeout(t.Context(), 240*time.Second)
+				if err := fleet.Prepare(setup); err != nil {
+					cancelSetup()
+					t.Fatal(err)
+				}
+				cancelSetup()
+				ctx, cancel := context.WithTimeout(t.Context(), 180*time.Second)
+				defer cancel()
+				if err := fleet.Start(ctx); err != nil {
+					t.Fatal(err)
+				}
+				for n := 1; n <= workers; n++ {
+					if err := fleet.StartWorker(ctx, n); err != nil {
+						t.Fatal(err)
+					}
+				}
+				pids := map[int]int{}
+				for n := 0; n <= workers; n++ {
+					ready, err := fleet.Agent(n)
+					if err != nil || ready.Agent != agent {
+						t.Fatalf("actor %d personality: %+v %v", n, ready, err)
+					}
+					pids[n] = ready.PID
+				}
+				if err := fleet.Resize(36, 132); err != nil {
+					t.Fatal(err)
+				}
+				quit := time.Now()
+				if err := fleet.ParkAndQuit(ctx); err != nil {
+					t.Fatal(err)
+				}
+				t.Logf("native full quit: agent=%s slots=%d quit=%s elapsed=%s", agent, workers+1, time.Since(quit), time.Since(started))
+				for n, pid := range pids {
+					if err := syscall.Kill(pid, 0); !errors.Is(err, syscall.ESRCH) {
+						t.Errorf("fixture:%d agent pid %d still running after full quit: %v", n, pid, err)
+					}
+				}
+				// #827's contract is verified inactive history for every targeted
+				// incarnation, read from the private store the console wrote. The
+				// native resume binding is a separate concern: a fixture quit
+				// before Couch discovered its transcript parks verified yet lists
+				// "binding lost", so --list is evidence here, not the assertion.
+				namespace, err := couchcore.ResolveCouchNamespace(fleet.Roots.Mutable["store"], fleet.Workspaces.Primary)
+				if err != nil {
+					t.Fatal(err)
+				}
+				snapshot, err := couchcore.NewThreadStore(namespace).Snapshot()
+				if err != nil {
+					t.Fatal(err)
+				}
+				if len(snapshot.Records) != workers+1 || len(snapshot.Unreadable) != 0 {
+					t.Fatalf("store holds %d threads (%d unreadable), want %d", len(snapshot.Records), len(snapshot.Unreadable), workers+1)
+				}
+				for _, record := range snapshot.Records {
+					if record.VerifiedPark == nil || record.Park != nil || len(record.Incarnations) != 0 {
+						t.Errorf("%s not verified parked: park=%+v verified=%v incarnations=%+v", record.Address.Tag, record.Park, record.VerifiedPark != nil, record.Incarnations)
+					}
+				}
+				list, err := fleet.ListThreads(ctx)
+				if err != nil {
+					t.Fatal(err)
+				}
+				t.Logf("post-quit --list:\n%s", list)
+				cleanup, cancelCleanup := context.WithTimeout(context.Background(), 30*time.Second)
+				defer cancelCleanup()
+				if err := fleet.Close(cleanup); err != nil {
+					t.Fatal(err)
+				}
+				if err := fleet.AssertCleaned(); err != nil {
+					t.Fatal(err)
+				}
+			}) {
+				break
+			}
+		}
 	}
 }
