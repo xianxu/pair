@@ -7,6 +7,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/xianxu/pair/cmd/internal/threadrecord"
 )
 
 // LeaveParkBudget bounds one confirmed full quit (#827): gate waits, queueing,
@@ -136,7 +138,7 @@ func (c *Couch) leaveParkOne(ctx context.Context, address ThreadAddress) (leaveO
 		var result ParkResult
 		var driveErr error
 		if action == leaveParkFresh {
-			result, driveErr = c.PairLifecycle.parkJoined(ctx, address)
+			result, driveErr = c.PairLifecycle.parkJoined(ctx, address, threadrecord.SleepFullQuit)
 		} else {
 			result, driveErr = c.PairLifecycle.recoverJoined(ctx, address)
 		}

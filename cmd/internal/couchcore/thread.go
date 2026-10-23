@@ -102,6 +102,9 @@ type ThreadRecord struct {
 	// ProvenDownAt is when a teardown proved the tree gone, stamped as the
 	// record is retired (pair#695); LastLifecycleSuccessAt counts it.
 	ProvenDownAt *time.Time `json:"proven_down_at,omitempty"`
+	// Asleep marks a full shutdown's park (pair#830); read it through
+	// ThreadAsleep, never directly.
+	Asleep *threadrecord.SleepMark `json:"asleep,omitempty"`
 	// Unknown carries persisted members this build does not own through every
 	// rewrite (pair#695 §2a); see threadrecord.Record.Unknown.
 	Unknown map[string]json.RawMessage `json:"-"`
@@ -150,6 +153,7 @@ func toPersistedThreadRecord(record ThreadRecord) threadrecord.Record {
 	out.Unknown = strictjson.CloneRaw(record.Unknown)
 	out.Transcript = threadrecord.CloneTranscriptBinding(record.Transcript)
 	out.ProvenDownAt = cloneTimePointer(record.ProvenDownAt)
+	out.Asleep = threadrecord.CloneSleepMark(record.Asleep)
 	if record.Park != nil {
 		park := toPersistedParkTransaction(*record.Park)
 		out.Park = &park
@@ -228,6 +232,7 @@ func fromPersistedThreadRecord(record threadrecord.Record) ThreadRecord {
 	out.Unknown = strictjson.CloneRaw(record.Unknown)
 	out.Transcript = threadrecord.CloneTranscriptBinding(record.Transcript)
 	out.ProvenDownAt = cloneTimePointer(record.ProvenDownAt)
+	out.Asleep = threadrecord.CloneSleepMark(record.Asleep)
 	if record.Park != nil {
 		park := fromPersistedParkTransaction(*record.Park)
 		out.Park = &park
@@ -308,6 +313,7 @@ func cloneThreadRecord(record ThreadRecord) ThreadRecord {
 	copy.Unknown = strictjson.CloneRaw(record.Unknown)
 	copy.Transcript = threadrecord.CloneTranscriptBinding(record.Transcript)
 	copy.ProvenDownAt = cloneTimePointer(record.ProvenDownAt)
+	copy.Asleep = threadrecord.CloneSleepMark(record.Asleep)
 	copy.Incarnations = append([]ThreadIncarnation{}, record.Incarnations...)
 	for i := range copy.Incarnations {
 		if record.Incarnations[i].Start != nil {

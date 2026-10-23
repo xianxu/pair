@@ -480,7 +480,20 @@ func (s *ThreadStore) PreserveRecoveryBeforeRetirement(address ThreadAddress, ex
 	})
 }
 
+// BeginPark begins a plain park: the operator's choice for this one thread. It
+// clears any sleep mark in the same CAS, so the park reads parked, not asleep.
 func (s *ThreadStore) BeginPark(address ThreadAddress, expectedRevision uint64, identity ParkIdentity) (ThreadRecord, error) {
+	return s.beginPark(address, expectedRevision, identity, nil)
+}
+
+// BeginParkAsleep begins a full shutdown's park and marks it asleep in the
+// same CAS (pair#830), so the mark is durable before any teardown and an
+// interrupted park keeps it through Recover under the same nonce.
+func (s *ThreadStore) BeginParkAsleep(address ThreadAddress, expectedRevision uint64, identity ParkIdentity, at time.Time, cause threadrecord.SleepCause) (ThreadRecord, error) {
+	return s.beginPark(address, expectedRevision, identity, &threadrecord.SleepMark{Nonce: identity.Nonce, At: at.UTC(), Cause: cause})
+}
+
+func (s *ThreadStore) beginPark(address ThreadAddress, expectedRevision uint64, identity ParkIdentity, mark *threadrecord.SleepMark) (ThreadRecord, error) {
 	return s.updateExistingThread(address, expectedRevision, func(next *ThreadRecord) error {
 		if next.Park != nil {
 			return fmt.Errorf("thread %+v already has active park %q", address, next.Park.Identity.Nonce)
@@ -522,6 +535,7 @@ func (s *ThreadStore) BeginPark(address ThreadAddress, expectedRevision uint64, 
 			return err
 		}
 		next.Park = &transaction
+		next.Asleep = threadrecord.CloneSleepMark(mark)
 		return nil
 	})
 }
@@ -748,6 +762,7 @@ func (s *ThreadStore) ClearVerifiedPark(address ThreadAddress, expectedRevision 
 			return errors.New("thread carries no verified park to clear")
 		}
 		next.VerifiedPark = nil
+		next.Asleep = nil
 		return nil
 	})
 }
