@@ -111,10 +111,41 @@ func (t testRT) NewCouchWith(couchcore.Runner, couchcore.CouchNamespace) (*couch
 	}
 	c.Identities = couchidentity.IdentityStore{HostDir: filepath.Join(t.dir, "host-test"), StoreDir: t.dir}
 	c.RootAgent = t.env["PAIR_AGENT"]
-	c.RepoAgentDefault = func(repoRoot, agent string) (couchcore.LaunchProfile, bool, error) {
-		value, ok := t.agentDefaults[repoRoot+"\x00"+agent]
-		return couchcore.LaunchProfile{Agent: value.Agent, Argv: append([]string(nil), value.Args...)}, ok, nil
+	if len(t.agentDefaults) > 0 {
+		if err := c.Threads.RecoverStoreJournal(); err != nil {
+			return nil, err
+		}
+		doc := couchcore.RepoPreferences{SchemaVersion: couchcore.RepoPreferencesSchemaVersion, Repositories: map[string]couchcore.RepoLaunchPreference{}}
+		for key, value := range t.agentDefaults {
+			root, agent, ok := strings.Cut(key, "\x00")
+			if !ok {
+				return nil, errors.New("invalid repository argument fixture key")
+			}
+			id := filepath.Join(root, ".git")
+			var current *couchcore.RepoLaunchPreference
+			if existing, ok := doc.Repositories[id]; ok {
+				current = &existing
+			}
+			argv := append([]string{}, value.Args...)
+			next, err := couchcore.RememberRepoArguments(current, id, couchcore.LaunchProfile{Agent: agent, Argv: argv})
+			if err != nil {
+				return nil, err
+			}
+			doc.Repositories[id] = next
+		}
+		raw, err := couchcore.EncodeRepoPreferences(doc)
+		if err != nil {
+			return nil, err
+		}
+		path := filepath.Join(c.Namespace.Dir(), "threadstore", "repo-preferences.json")
+		if err := os.MkdirAll(filepath.Dir(path), 0700); err != nil {
+			return nil, err
+		}
+		if err := os.WriteFile(path, raw, 0600); err != nil {
+			return nil, err
+		}
 	}
+
 	if t.configureCouch != nil {
 		t.configureCouch(c)
 	}
@@ -605,7 +636,7 @@ func TestEveryOperationHasASummaryAndDescribedArgs(t *testing.T) {
 func TestOperationArityMatchesExpectation(t *testing.T) {
 	// Declared in the test rather than read from the operation itself, so
 	// this cannot degrade into asserting X == X.
-	want := map[string]int{"provision-workspace": 3, "request-continuation": 7, "continue-thread": 3, "retry-continuation": 4, "dismiss-continuation": 4, "continuation-status": 4, "prepare-switch-agent": 4, "switch-agent": 7, "prepare-start": 3, "start": 5, "start-hub": 1, "list": 0, "show": 2, "reconcile": 1, "peek": 7, "stop": 1, "alias": 3, "publish-description": 3, "switch": 2, "attach": 3, "park": 4, "detach": 3, "leave": 1, "resume": 6, "resume-candidates": 4, "recovery-confirmation": 1, "recover-park": 3, "reboot": 5, "reap": 3, "recover": 3, "archived": 0, "relaunch": 4, "reload-context": 4, "prepare": 5}
+	want := map[string]int{"provision-workspace": 3, "request-continuation": 7, "continue-thread": 3, "retry-continuation": 4, "dismiss-continuation": 4, "continuation-status": 4, "prepare-switch-agent": 4, "switch-agent": 8, "prepare-start": 3, "start": 5, "start-hub": 1, "list": 0, "show": 2, "reconcile": 1, "peek": 7, "stop": 1, "alias": 3, "publish-description": 3, "switch": 2, "attach": 3, "park": 4, "detach": 3, "leave": 1, "resume": 6, "resume-candidates": 4, "recovery-confirmation": 1, "recover-park": 3, "reboot": 5, "reap": 3, "recover": 3, "archived": 0, "relaunch": 4, "reload-context": 4, "prepare": 5}
 	for _, op := range couchcore.Operations() {
 		if got := len(op.Args); got != want[op.Name] {
 			t.Errorf("%s has %d args, want %d", op.Name, got, want[op.Name])

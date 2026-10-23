@@ -39,7 +39,9 @@ type dispatchedCall struct {
 	err  error
 }
 
-func newColdResumeRig(t *testing.T, configure ...func(*couchtty.Console)) *coldResumeRig {
+// configure completes fixture setup before Console.Run can start any store
+// observers; gating one provider does not fence the other Console workers.
+func newColdResumeRig(t *testing.T, configure ...func(*coldResumeRig)) *coldResumeRig {
 	t.Helper()
 	root, err := filepath.EvalSymlinks(t.TempDir())
 	if err != nil {
@@ -95,7 +97,7 @@ func newColdResumeRig(t *testing.T, configure ...func(*couchtty.Console)) *coldR
 		return value, err
 	})
 	for _, setup := range configure {
-		setup(console)
+		setup(r)
 	}
 	done := make(chan int, 1)
 	go func() { done <- console.Run() }()
@@ -172,7 +174,8 @@ func (r *coldResumeRig) assertRegisteredLive(t *testing.T) {
 func TestColdResumeOfAParkedPrimaryRegistersFromBothOrigins(t *testing.T) {
 	t.Run("switcher", func(t *testing.T) {
 		inventory := make(chan struct{})
-		r := newColdResumeRig(t, func(console *couchtty.Console) {
+		r := newColdResumeRig(t, func(rig *coldResumeRig) {
+			console := rig.console
 			provider := console.ActionableProvider()
 			console.SetActionableProvider(func(ctx context.Context, observations []couchcore.LiveTTYObservation) ([]couchcore.ActionableThreadSummary, error) {
 				select {

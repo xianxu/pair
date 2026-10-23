@@ -653,35 +653,34 @@ func (c ScopedThreadArtifactCollisionChecker) TriggerBoundQuit(ctx context.Conte
 }
 
 func (c ScopedThreadArtifactCollisionChecker) ResolveEstablished(ctx context.Context, repoScope, tag, agent string) (NativeBindingResolution, error) {
+	runtime, err := c.nativeTranscriptRuntime(repoScope, tag)
+	if err != nil {
+		return NativeBindingResolution{}, err
+	}
+	return (SessionInventoryNativeBindingResolver{Runtime: runtime}).ResolveEstablished(ctx, repoScope, tag, agent)
+}
+
+func (c ScopedThreadArtifactCollisionChecker) nativeTranscriptRuntime(repoScope, tag string) (sessioninventory.OSRuntime, error) {
 	paths, err := artifactpath.Resolve(artifactpath.Address{
 		DataDir: c.GlobalDataDir, RepoScope: repoScope, Tag: tag,
 	})
 	if err != nil {
-		return NativeBindingResolution{}, err
+		return sessioninventory.OSRuntime{}, err
 	}
 	home, err := os.UserHomeDir()
 	if err != nil {
-		return NativeBindingResolution{}, err
+		return sessioninventory.OSRuntime{}, err
 	}
-	return (SessionInventoryNativeBindingResolver{
-		Runtime: sessioninventory.NewOSRuntime(home, paths.ScopeDir()).WithOwnerLaunchCache(c.OwnerLaunches).WithWorkObserver(c.InventoryWork),
-	}).ResolveEstablished(ctx, repoScope, tag, agent)
+	return sessioninventory.NewOSRuntime(home, paths.ScopeDir()).WithOwnerLaunchCache(c.OwnerLaunches).WithWorkObserver(c.InventoryWork), nil
 }
 
 // BindTranscript binds over the same native runtime ResolveEstablished
 // builds, with ResolveEstablished as the fallback when no file is known.
 func (c ScopedThreadArtifactCollisionChecker) BindTranscript(ctx context.Context, thread ThreadRecord) (TranscriptBind, error) {
-	paths, err := artifactpath.Resolve(artifactpath.Address{
-		DataDir: c.GlobalDataDir, RepoScope: thread.Address.RepoScope, Tag: string(thread.Address.Tag),
-	})
+	runtime, err := c.nativeTranscriptRuntime(thread.Address.RepoScope, string(thread.Address.Tag))
 	if err != nil {
 		return TranscriptBind{}, err
 	}
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return TranscriptBind{}, err
-	}
-	runtime := sessioninventory.NewOSRuntime(home, paths.ScopeDir()).WithOwnerLaunchCache(c.OwnerLaunches).WithWorkObserver(c.InventoryWork)
 	return bindTranscriptWith(ctx, runtime, SessionInventoryNativeBindingResolver{Runtime: runtime}, thread)
 }
 

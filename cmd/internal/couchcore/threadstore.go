@@ -367,49 +367,6 @@ func (r recordStamp) current() bool {
 	return err == nil && os.SameFile(info, r.info) && info.Size() == r.info.Size() && info.ModTime().Equal(r.info.ModTime())
 }
 
-func (s *ThreadStore) GetPathLaunchPreference(repoIdentity, physicalPath string) (PathLaunchPreference, bool, error) {
-	return s.getPathLaunchPreference(repoIdentity, physicalPath, "")
-}
-
-// getPathLaunchPreference accepts checkout scope already proved by an operation's
-// catalog, so a read-only preview can inspect legacy enrollment before backfill.
-func (s *ThreadStore) getPathLaunchPreference(repoIdentity, physicalPath, scope string) (PathLaunchPreference, bool, error) {
-	if repoIdentity == "" {
-		return PathLaunchPreference{}, false, errors.New("path launch preference has no repository identity")
-	}
-	if !filepath.IsAbs(physicalPath) {
-		return PathLaunchPreference{}, false, errors.New("path launch preference path must be absolute")
-	}
-	backend, routeErr := s.storeForPath(physicalPath, scope, repoIdentity)
-	if routeErr != nil {
-		return PathLaunchPreference{}, false, routeErr
-	}
-	if backend != s {
-		return backend.getPathLaunchPreference(repoIdentity, physicalPath, scope)
-	}
-	var result PathLaunchPreference
-	var found bool
-	err := s.withLock(func() error {
-		raw, exists, err := s.readOptionalPayload(s.pathLaunchPreferencePath(repoIdentity, physicalPath))
-		if err != nil || !exists {
-			return err
-		}
-		if err := strictThreadStoreJSON(raw, &result); err != nil {
-			return err
-		}
-		if err := validatePathLaunchPreference(result); err != nil {
-			return err
-		}
-		if result.RepoIdentity != repoIdentity || result.PhysicalPath != physicalPath {
-			return errors.New("path launch preference path/address mismatch")
-		}
-		result = clonePathLaunchPreference(result)
-		found = true
-		return nil
-	})
-	return result, found, err
-}
-
 func (s *ThreadStore) updateExistingThread(address ThreadAddress, expectedRevision uint64, mutate func(*ThreadRecord) error) (ThreadRecord, error) {
 	return s.updateExistingThreadContext(nil, address, expectedRevision, mutate)
 }
@@ -960,37 +917,8 @@ func (s *ThreadStore) advanceSuccessfulStart(address ThreadAddress, expectedRevi
 		if incarnation.RepoIdentity == "" {
 			return errors.New("successful start has no repository identity")
 		}
-		repoIdentity := incarnation.RepoIdentity
-		physicalPath := current.StartingPath
-		preferencePath := s.pathLaunchPreferencePath(repoIdentity, physicalPath)
-		preferenceRaw, preferenceExists, err := s.readOptionalPayload(preferencePath)
-		if err != nil {
-			return err
-		}
-		var currentPreference *PathLaunchPreference
-		if preferenceExists {
-			var decoded PathLaunchPreference
-			if err := strictThreadStoreJSON(preferenceRaw, &decoded); err != nil {
-				return err
-			}
-			if err := validatePathLaunchPreference(decoded); err != nil {
-				return err
-			}
-			if decoded.RepoIdentity != repoIdentity || decoded.PhysicalPath != physicalPath {
-				return errors.New("path launch preference path/address mismatch")
-			}
-			currentPreference = &decoded
-		}
-		nextPreference, err := RecordSuccessfulLaunch(currentPreference, repoIdentity, physicalPath, *profile)
-		if err != nil {
-			return err
-		}
-		nextPreferenceRaw, err := json.MarshalIndent(nextPreference, "", "  ")
-		if err != nil {
-			return err
-		}
-		nextPreferenceRaw = append(nextPreferenceRaw, '\n')
-
+		// Registration records the execution that actually started. Accepted
+		// repository configuration is published only after final console adoption.
 		nextManifest := manifest
 		nextManifest.Generation++
 		nextManifestRaw, err := json.MarshalIndent(nextManifest, "", "  ")
@@ -1000,12 +928,6 @@ func (s *ThreadStore) advanceSuccessfulStart(address ThreadAddress, expectedRevi
 		nextManifestRaw = append(nextManifestRaw, '\n')
 		expectedThread := append([]byte(nil), threadRaw...)
 		afterThread := append([]byte(nil), nextThreadRaw...)
-		var expectedPreference *[]byte
-		if preferenceExists {
-			copy := append([]byte(nil), preferenceRaw...)
-			expectedPreference = &copy
-		}
-		afterPreference := append([]byte(nil), nextPreferenceRaw...)
 		var expectedManifest *[]byte
 		if manifestExists {
 			copy := append([]byte(nil), manifestRaw...)
@@ -1014,7 +936,6 @@ func (s *ThreadStore) advanceSuccessfulStart(address ThreadAddress, expectedRevi
 		afterManifest := append([]byte(nil), nextManifestRaw...)
 		journal := storeJournal{SchemaVersion: 1, Entries: []storeJournalEntry{
 			{Path: relativeStorePath(s.root, s.recordPath(address)), Expected: &expectedThread, After: &afterThread},
-			{Path: relativeStorePath(s.root, preferencePath), Expected: expectedPreference, After: &afterPreference},
 			{Path: relativeStorePath(s.root, s.manifestPath()), Expected: expectedManifest, After: &afterManifest},
 		}}
 		if err := s.commitJournalLocked(journal); err != nil {
@@ -1069,15 +990,22 @@ func (s *ThreadStore) MarkIncarnationUnknown(address ThreadAddress, expected Pro
 // proven its pre-exec helper absent. Any concurrent metadata or state change
 // leaves the transaction occupied.
 func (s *ThreadStore) DeleteStart(address ThreadAddress, expectedRevision uint64, nonce string) error {
+	_, err := s.deleteStartResult(address, expectedRevision, nonce)
+	return err
+}
+
+// deleteStartResult returns the exact retained-record CAS result. Pristine
+// deletion has no retained record and returns a zero value on success.
+func (s *ThreadStore) deleteStartResult(address ThreadAddress, expectedRevision uint64, nonce string) (ThreadRecord, error) {
 	current, err := s.GetThread(address)
 	if err != nil {
 		if errors.Is(err, ErrThreadNotFound) {
-			return nil
+			return ThreadRecord{}, nil
 		}
-		return err
+		return ThreadRecord{}, err
 	}
 	if current.VerifiedPark != nil {
-		_, err := s.updateExistingThread(address, expectedRevision, func(record *ThreadRecord) error {
+		updated, err := s.updateExistingThread(address, expectedRevision, func(record *ThreadRecord) error {
 			if record.Reservation || record.VerifiedPark == nil || len(record.Incarnations) != 1 {
 				return fmt.Errorf("thread %+v is no longer parked start %q at revision %d", address, nonce, expectedRevision)
 			}
@@ -1089,7 +1017,7 @@ func (s *ThreadStore) DeleteStart(address ThreadAddress, expectedRevision uint64
 			record.Incarnations = nil
 			return nil
 		})
-		return err
+		return updated, err
 	}
 	if current.LatestLaunchProfile != nil {
 		// A record that has ever started successfully is durable history and is
@@ -1105,7 +1033,7 @@ func (s *ThreadStore) DeleteStart(address ThreadAddress, expectedRevision uint64
 		//
 		// threadHasMetadata already protects a NAMED record; this protects the
 		// unnamed one, whose LatestLaunchProfile nothing else guards.
-		_, err := s.updateExistingThread(address, expectedRevision, func(record *ThreadRecord) error {
+		updated, err := s.updateExistingThread(address, expectedRevision, func(record *ThreadRecord) error {
 			if record.Reservation || len(record.Incarnations) != 1 {
 				return fmt.Errorf("thread %+v is no longer start %q at revision %d", address, nonce, expectedRevision)
 			}
@@ -1117,9 +1045,9 @@ func (s *ThreadStore) DeleteStart(address ThreadAddress, expectedRevision uint64
 			record.Incarnations = nil
 			return nil
 		})
-		return err
+		return updated, err
 	}
-	return s.deleteThreadIf(address, func(record ThreadRecord) error {
+	err = s.deleteThreadIf(address, func(record ThreadRecord) error {
 		if record.Revision != expectedRevision || record.Reservation || threadHasMetadata(record) || len(record.Incarnations) != 1 {
 			return fmt.Errorf("thread %+v is no longer start %q at revision %d", address, nonce, expectedRevision)
 		}
@@ -1129,6 +1057,7 @@ func (s *ThreadStore) DeleteStart(address ThreadAddress, expectedRevision uint64
 		}
 		return nil
 	})
+	return ThreadRecord{}, err
 }
 
 func (s *ThreadStore) deleteThreadIf(address ThreadAddress, accept func(ThreadRecord) error) error {

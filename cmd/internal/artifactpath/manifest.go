@@ -1517,6 +1517,13 @@ var NonArtifactSources = []string{
 	"cmd/internal/couchcore/recovery_launch_disposition.go",
 	"cmd/internal/couchcore/lifecyclefailure_address.go",
 	"cmd/internal/couchcore/launchprofile.go",
+	// #728 Couch-owned repository settings and pure codec; these are namespace
+	// control metadata, not Pair invocation/history artifacts or per-tag paths.
+	"cmd/internal/couchcore/repopreferences.go",
+	"cmd/internal/couchcore/repopreferences_adoption.go",
+	"cmd/internal/couchcore/repopreferences_codec.go",
+	"cmd/internal/couchcore/repopreferences_migration.go",
+	"cmd/internal/couchcore/repopreferences_store.go",
 	"cmd/internal/couchcore/layout.go",
 	"cmd/internal/couchcore/lifecycledebris.go",
 	"cmd/internal/couchcore/mailbox.go",
@@ -1609,6 +1616,19 @@ var NonArtifactSources = []string{
 	"cmd/internal/couchcmd/slot_operations.go",
 	// #517 authenticated switch admission and receipt CLI use owners, not artifact paths.
 	"cmd/internal/couchcmd/agent_switch_service.go",
+	// #728 switch intent codecs and adapters delegate all artifact access to owners.
+	"cmd/internal/couchcmd/switch_interrupt.go",
+	"cmd/internal/couchcore/switch_force.go",
+	"cmd/internal/couchcore/editedrestart.go",
+	"cmd/internal/couchcore/editedrestart_evidence.go",
+	"cmd/internal/couchcore/editedrestart_presence.go",
+	"cmd/internal/couchcore/editedrestart_metadata.go",
+	"cmd/internal/couchcore/editedrestart_cleanup.go",
+	"cmd/internal/couchcore/editedrestart_launch.go",
+	"cmd/internal/couchcmd/switch_force.go",
+	"cmd/internal/couchcore/argumentarray.go",
+	"cmd/internal/couchcore/switch_target.go",
+	"cmd/internal/couchmessage/switch_arguments.go",
 	"cmd/internal/couchcmd/switch_agent_cli.go",
 	"cmd/internal/couchcore/store.go",
 	"cmd/internal/couchcore/storejournal.go",
@@ -1697,6 +1717,7 @@ var NonArtifactSources = []string{
 	// Pair session-artifact filename constructors or consumers.
 	"cmd/internal/pathscope/pathscope.go",
 	"cmd/internal/testcouch/actor.go",
+	"cmd/internal/testcouch/controls.go",
 	"cmd/internal/testcouch/retained.go",
 	"cmd/internal/testcouch/agentfixture/cmd/main.go",
 	"cmd/internal/testcouch/agentfixture/conversation.go",

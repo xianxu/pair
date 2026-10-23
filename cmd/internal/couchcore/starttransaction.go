@@ -35,14 +35,15 @@ const (
 )
 
 type StartEvent struct {
-	RecoveryIntent *threadrecord.RecoveryIntent
-	Binding        *couchidentity.SessionBinding
-	Shape          StartShape
-	Kind           StartEventKind
-	Nonce          string
-	Owner          SupervisorOwner
-	Helper         ProcessIdentity
-	Profile        *LaunchProfile
+	RememberConfiguration bool
+	RecoveryIntent        *threadrecord.RecoveryIntent
+	Binding               *couchidentity.SessionBinding
+	Shape                 StartShape
+	Kind                  StartEventKind
+	Nonce                 string
+	Owner                 SupervisorOwner
+	Helper                ProcessIdentity
+	Profile               *LaunchProfile
 	// Transcript, on a claim, stores the conversation this start binds to on
 	// the record in the claim's own write (pair#695 P2): a resume that adopted
 	// a newer ledger root or bound a legacy record keeps it from here on.
@@ -86,10 +87,11 @@ func AdvanceStartTransaction(record ThreadRecord, event StartEvent) (ThreadRecor
 		next.RecoveryContext = nil
 		next.RecoveryIntent = nil
 		incarnation.Start = &ThreadStartClaim{
-			RecoveryIntent: threadrecord.CloneRecoveryIntent(event.RecoveryIntent),
-			Nonce:          event.Nonce,
-			OwnerPID:       event.Owner.PID,
-			OwnerIdentity:  event.Owner.Identity,
+			RememberConfiguration: event.RememberConfiguration,
+			RecoveryIntent:        threadrecord.CloneRecoveryIntent(event.RecoveryIntent),
+			Nonce:                 event.Nonce,
+			OwnerPID:              event.Owner.PID,
+			OwnerIdentity:         event.Owner.Identity,
 		}
 		if event.Profile != nil {
 			profile := cloneLaunchProfile(*event.Profile)

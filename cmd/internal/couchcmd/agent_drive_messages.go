@@ -2,6 +2,8 @@ package couchcmd
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -10,7 +12,15 @@ import (
 	"github.com/xianxu/pair/cmd/internal/couchmessage"
 )
 
-func driveIntentDigest(r couchmessage.Request) string {
+func operationIntentDigest(r couchmessage.Request) string {
+	if r.Op == "switch-agent" {
+		raw, _ := json.Marshal(struct {
+			Arguments      couchmessage.SwitchArguments `json:",omitzero"`
+			InterruptFirst bool
+		}{r.AgentArgs, r.InterruptFirst})
+		digest := sha256.Sum256(raw)
+		return hex.EncodeToString(digest[:])
+	}
 	if r.Drive == nil {
 		return ""
 	}

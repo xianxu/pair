@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"reflect"
 	"testing"
 
 	"github.com/xianxu/pair/cmd/internal/launcher"
@@ -51,11 +52,11 @@ func TestNestedRepositoryStorageRemainsIndependentOfOuterSlot(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	for _, pref := range []PathLaunchPreference{
-		{SchemaVersion: PathLaunchPreferenceSchemaVersion, RepoIdentity: repo.Identity.RepoIdentity, PhysicalPath: outer.StartingPath, LastAgent: "codex", ArgvByAgent: map[string][]string{"codex": {"--outer"}}, Revision: 1},
-		{SchemaVersion: PathLaunchPreferenceSchemaVersion, RepoIdentity: filepath.Join(nested, ".git"), PhysicalPath: inner.StartingPath, LastAgent: "claude", ArgvByAgent: map[string][]string{"claude": {"--inner"}}, Revision: 1},
+	for _, item := range []struct{ identity, agent, argument string }{
+		{repo.Identity.RepoIdentity, "codex", "--outer"},
+		{filepath.Join(nested, ".git"), "claude", "--inner"},
 	} {
-		if err := writePathLaunchPreferenceForTest(s, pref); err != nil {
+		if err := s.rememberRepoConfiguration(item.identity, LaunchProfile{Agent: item.agent, Argv: []string{item.argument}}, nil); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -91,9 +92,17 @@ func TestNestedRepositoryStorageRemainsIndependentOfOuterSlot(t *testing.T) {
 	if _, err := outerStore.CreateThread(inner); err == nil {
 		t.Fatal("local origin accepted nested repository scope")
 	}
-	for _, item := range []struct{ identity, path, agent string }{{repo.Identity.RepoIdentity, outer.StartingPath, "codex"}, {filepath.Join(nested, ".git"), inner.StartingPath, "claude"}} {
-		pref, found, err := s.GetPathLaunchPreference(item.identity, item.path)
-		if err != nil || !found || pref.LastAgent != item.agent {
+	doc, err := s.previewRepoPreferences()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, item := range []struct{ identity, agent, argument string }{
+		{repo.Identity.RepoIdentity, "codex", "--outer"},
+		{filepath.Join(nested, ".git"), "claude", "--inner"},
+	} {
+		pref, found := doc.Repositories[item.identity]
+		resolution, err := ResolveRepoArguments(&pref, item.agent, nil)
+		if err != nil || !found || !resolution.Found || !reflect.DeepEqual(resolution.Argv, []string{item.argument}) || len(pref.Agents) != 1 {
 			t.Fatalf("preference crossed repository boundary: %+v %v %v", pref, found, err)
 		}
 	}

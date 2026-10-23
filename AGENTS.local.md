@@ -2,6 +2,13 @@
 
 ## Repo-specific rules
 
+- Architecture: pair is a thin, standalone, per-folder launcher of a coding
+  agent; Couch is the integrated environment that configures pair and owns
+  Couch-level state (e.g. per-repo remembered agent arguments). pair reads
+  nothing of Couch's. Couch passes arguments explicitly; do not add a shared
+  Pair/Couch preference authority or make Pair's standalone configuration read
+  Couch state. See [the ownership boundary](atlas/architecture.md#pair-and-couch-state-ownership).
+
 - Before every `sdlc close` or narrow re-close, run `make test-affected-inventory`.
   Audit each named reader's inputs before using the printed per-file repair command;
   never refresh hashes in bulk to silence a stale inventory.

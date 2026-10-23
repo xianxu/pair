@@ -12,40 +12,45 @@ import (
 	"testing"
 )
 
-func TestSwitchAgentRejectsSameAgent(t *testing.T) {
-	env := newTestEnv(t, "/repo")
-	source := createParkedThreadInCouch(t, env, LaunchProfile{Agent: "claude", Argv: []string{}})
-	args := []string{}
-	_, err := env.Couch.PrepareAgentSwitch(context.Background(), source.Address, "claude", &args)
-	if err == nil || !strings.Contains(err.Error(), "different agent") {
-		t.Fatalf("same agent admitted: %v", err)
+func TestSwitchAgentModelsSameAgentRestartWithoutSilentFreshLaunch(t *testing.T) {
+	for _, agent := range []string{"claude", "codex"} {
+		t.Run(agent, func(t *testing.T) {
+			env := newTestEnv(t, "/repo")
+			env.Couch.FreshRegistration = func(context.Context, ThreadAddress, string, string) (bool, error) { return true, nil }
+			source := createParkedThreadInCouch(t, env, LaunchProfile{Agent: agent, Argv: []string{}})
+			args := []string{}
+			p, err := env.Couch.PrepareAgentSwitch(context.Background(), source.Address, agent, &args)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if p.Intent != SwitchIntentRestartPreferResume {
+				t.Fatalf("same agent intent=%s", p.Intent)
+			}
+			_, err = env.Couch.SwitchAgent(context.Background(), SwitchAgentRequest{Address: source.Address, Agent: agent, Argv: args, AcceptedFingerprint: p.Fingerprint})
+			if err == nil || !strings.Contains(err.Error(), "native restart") {
+				t.Fatalf("restart silently became fresh: %v", err)
+			}
+			if len(env.Runner.Ops) != 0 {
+				t.Fatal("pending native restart launched fresh")
+			}
+		})
 	}
 }
 
 func TestKnownSwitchConfiguration(t *testing.T) {
-	for _, mode := range []string{"absent", "empty", "resume", "path"} {
+	for _, mode := range []string{"absent", "empty", "resume", "repository"} {
 		t.Run(mode, func(t *testing.T) {
 			env := newTestEnv(t, "/repo")
 			source := createParkedThreadInCouch(t, env, LaunchProfile{Agent: "claude", Argv: []string{}})
 			if mode != "absent" {
-				env.Couch.RepoAgentDefault = func(_, agent string) (LaunchProfile, bool, error) {
-					argv := []string{}
-					if mode == "resume" {
-						argv = []string{"resume", "old"}
-					}
-					return LaunchProfile{Agent: agent, Argv: argv}, true, nil
+				args := []string{}
+				if mode == "resume" {
+					args = []string{"resume", "old"}
 				}
-			}
-			if mode == "path" {
-				identity, _ := env.Couch.resolveRepoIdentity(context.Background(), source.StartingPath)
-				p := PathLaunchPreference{SchemaVersion: 1, RepoIdentity: identity, PhysicalPath: source.StartingPath, LastAgent: "codex", ArgvByAgent: map[string][]string{"codex": {"--model", "saved"}}, Revision: 1}
-				if err := writePathLaunchPreferenceForTest(env.Couch.Threads, p); err != nil {
-					t.Fatal(err)
+				if mode == "repository" {
+					args = []string{"--model", "saved"}
 				}
-				env.Couch.RepoAgentDefault = func(_, _ string) (LaunchProfile, bool, error) {
-					t.Fatal("path configuration must win without default lookup")
-					return LaunchProfile{}, false, nil
-				}
+				seedSwitchRepoArguments(t, env.Couch, source.StartingPath, LaunchProfile{Agent: "codex", Argv: args})
 			}
 			prepared, err := env.Couch.PrepareKnownAgentSwitch(context.Background(), source.Address, "codex")
 			if mode == "absent" || mode == "resume" {
@@ -60,7 +65,7 @@ func TestKnownSwitchConfiguration(t *testing.T) {
 			if prepared.Profile.Argv == nil {
 				t.Fatal("configured empty became absent")
 			}
-			if mode == "path" && len(prepared.Profile.Argv) != 2 {
+			if mode == "repository" && len(prepared.Profile.Argv) != 2 {
 				t.Fatal(prepared)
 			}
 		})
@@ -73,9 +78,7 @@ func TestKnownSwitchDispatcherRevalidatesConfiguration(t *testing.T) {
 			env := newTestEnv(t, "/repo")
 			source := createParkedThreadInCouch(t, env, LaunchProfile{Agent: "claude", Argv: []string{}})
 			args := []string{}
-			env.Couch.RepoAgentDefault = func(_, agent string) (LaunchProfile, bool, error) {
-				return LaunchProfile{Agent: agent, Argv: args}, true, nil
-			}
+			seedSwitchRepoArguments(t, env.Couch, source.StartingPath, LaunchProfile{Agent: "codex", Argv: args})
 			env.Couch.FreshRegistration = func(context.Context, ThreadAddress, string, string) (bool, error) { return true, nil }
 			env.Runner.AfterAcknowledge = func(id string) error {
 				env.Artifacts.SetPairSession(source.Address, continuationChildSession(t, env.Runner, id), true)
@@ -87,6 +90,7 @@ func TestKnownSwitchDispatcherRevalidatesConfiguration(t *testing.T) {
 			}
 			if stale {
 				args = []string{"--model", "changed"}
+				seedSwitchRepoArguments(t, env.Couch, source.StartingPath, LaunchProfile{Agent: "codex", Argv: args})
 			}
 			value, err := DispatchOperation(OperationExecutors{LiveOwner: CouchLiveOwnerExecutor(env.Couch)}, OperationCall{Name: "switch-agent", Context: context.Background(), Implicit: true, Args: map[string]string{"repo-scope": source.Address.RepoScope, "tag": string(source.Address.Tag), "agent": "codex", "known-config": "true", "fingerprint": p.Fingerprint}})
 			if stale {
