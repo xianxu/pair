@@ -810,3 +810,71 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-23T11:02:29-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 739 — couch: start-up safe mode: no automatic injection into the hub, restart kind reported not acted on, one generic start notice per worker |
+| repo | pair |
+| issue file | workshop/issues/000739-couch-start-up-safe-mode-no-automatic-injection-into-the-hub-restart-kind-reported-not-acted-on-one-generic-start-notice-per-worker.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | d6b30a79ff786399b368cac3c6428d3cf3a7095f..9aa240f1d7480f572a4955002c7d3785c6650db5 |
+| command | sdlc close --issue 739 |
+| reviewer | codex (openai; author openai) |
+| isolation | fenced |
+| timestamp | 2026-10-23T11:02:29-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+The interdiff contains documentation and review-record changes only. The atlas conflict resolution preserves both sides’ intent, and the issue’s Spec, Done when, and implementation plan remain unchanged. No new defects found; previously disposed findings remain closed.
+
+```findings
+{}
+```
+
+1. **Strengths**
+   - `atlas/index.md:22` retains both #739 startup automation/cue coverage and #827 full-quit coverage, supported by the corresponding sections in `atlas/couch.md`.
+   - `workshop/lessons.md` relocates the two #739 lessons without changing their content.
+   - Tracker additions record review and integration history without changing the acceptance contract.
+
+2. **Critical findings:** None.
+
+3. **Important findings:** None.
+
+4. **Minor findings:** None.
+
+5. **Test coverage notes:** `make test-affected-inventory` and pinned-range `git diff --check` passed. No runtime tests or mutation checks were needed: this window changes no executable behavior.
+
+6. **Architectural notes**
+   - **ARCH-DRY — pass:** conflict resolution leaves one combined atlas entry.
+   - **ARCH-PURE — pass:** no business logic or IO changes.
+   - **ARCH-PURPOSE — pass:** both conflict sides’ documented capabilities survive; no scope expansion.
+   - **ARCH-EVOLVE — pass:** no persisted-format or codec changes.
+
+   No new user-facing surface requires a README update.
+
+7. **Plan revision recommendations:** None.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"c37994de-491b-40cd-9a69-1204a1eb59ea","repository":"github.com/xianxu/pair","issue_id":"000739","recipe":"fix-review","round":9,"attempt":1,"agent":"codex","root":"/Volumes/TestScratch/review-checkouts/5c650c93a33c642d","reviewed_head":"9aa240f1d7480f572a4955002c7d3785c6650db5","slot":"pair:7","requested_at":"2026-10-23T18:01:31.035754Z"},"phase":"finished","pid":97639,"started_at":"2026-10-23T18:01:31.209116Z","finished_at":"2026-10-23T18:02:27.720188Z","session_id":"01a169ec-d6d8-7003-94d4-96b5e3b6e61d","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 2.825127458s
+head: "9aa240f1d7480f572a4955002c7d3785c6650db5"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412
