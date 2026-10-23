@@ -6,16 +6,28 @@ import (
 
 	"github.com/xianxu/pair/cmd/internal/couchcore"
 	"github.com/xianxu/pair/cmd/internal/couchtty"
+	"github.com/xianxu/pair/cmd/internal/testwait"
 )
 
 func TestLifecycleMissingMetadataDiagnosticRaisesAttention(t *testing.T) {
 	console, host, input := warningConsole(t)
 	r := newServiceRig(t)
 	r.restart(nil)
-	p := startLifecyclePublisher(r.s, func(text string) { console.Notify(couchtty.Notice{Body: text}) }, func(text string) { console.Warn(couchtty.Notice{Body: text}) })
+	published := make(chan struct{}, 1)
+	p := startLifecyclePublisher(r.s, func(text string) { console.Notify(couchtty.Notice{Body: text}) }, func(text string) {
+		console.Warn(couchtty.Notice{Body: text})
+		published <- struct{}{}
+	})
 	p.observe(couchtty.LifecycleObservation{Kind: "restart-armed"})
 	p.observe(couchtty.LifecycleObservation{Kind: "recovered", Path: "/unverified-slot", Incarnation: "source", Observation: 1})
 	p.observe(couchtty.LifecycleObservation{Kind: "restart-drained"})
+	// observe queues a diagnostic; it does not join the publisher worker.
+	// Acknowledge this producer's actual Warn call before sending panel input.
+	select {
+	case <-published:
+	case <-testwait.After(t):
+		t.Fatal("missing-metadata warning was not published")
+	}
 	openWarningAttention(t, input, host, "lacked verified slot metadata")
 }
 

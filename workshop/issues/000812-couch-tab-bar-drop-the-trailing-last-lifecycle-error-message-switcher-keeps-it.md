@@ -164,6 +164,15 @@ Round3 reviewed cafbf526b5ca0ecfbd4b75518de7ac3758585ebf: BR-3 and BR-4 addresse
 
 Recorded suite lease-2349723115 on cafbf526 never started (FIFO position6 after697s); cancelled with sdlc local-check cancel and runner terminal context-canceled confirmed. No suite pass or retained queue position claimed. Fresh run must use the corrected pushed head. Close measured2.99h, window2026-10-23T05:01:56-07:00 to06:16:43-07:00,7 admitted sessions,1 ownership interval; code cafbf526b5ca0ecfbd4b75518de7ac3758585ebf, tracker51698e2f7f3866a4baad5443693d03b62a3d5c1e. Close did not finalize. Stage/live acceptance remain pending TL go after811.
 
+
+### 2026-10-23 — BR-5 controlled orderings and complete package pass
+
+The shared openWarningAttention helper now acknowledges the current VT-rendered badge before input; historical accumulated bytes cannot satisfy publication. The queued lifecycle diagnostic also joins its actual Warn completion via a channel. Controlled RED helper-first fails with “attention input preceded warning publication acknowledgment” (0.381s). Three GREEN cases force publication-first, helper-first and dismissed historical badge before fresh publication, without sleeps or production seams.
+
+Audited all ten original call sites (correcting the initial nine count): crash installation; explicit hub failure; supervision; captured lifecycle queue completion; archive tick; unhealthy renicer; normal-priority renicer's independent warning on a separate console; scratch metadata; common later-hub-failure helper under both warm-first orders; queued lifecycle diagnostic. Synchronous sources return after Warn; asynchronous hub sources retain existing badge joins plus shared current-screen acknowledgment; queued diagnostic now has its exact callback join.
+
+All callers and controlled orderings x10 PASS17.231s; all callers and three orderings race x10 PASS28.732s. Complete couchcmd JSON count1/timeout20m PASS88.520s,1784 test/subtest passes,14 skips,0 failures; agent-owned session70765 terminal0, retained /Volumes/TestScratch/tmp/pair-slot1/pair812-couchcmd-br5.SThf9P/run.jsonl. make test-affected-inventory PASS (no certificate change), git diff --check PASS. Two test files only; production unchanged from cafbf526. Next commit/push, fresh recorded affected/full on exact corrected head, then full close for BR-5 disposition. Recorded proof, TL stage go and coordinated real-console acceptance still precede landing.
+
 ## Revisions
 
 ### 2026-10-23 — BR-3/BR-4 exhaustive completion

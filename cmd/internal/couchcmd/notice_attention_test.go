@@ -10,7 +10,6 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/charmbracelet/x/ansi"
 	"github.com/xianxu/pair/cmd/internal/couchcore"
 	"github.com/xianxu/pair/cmd/internal/couchtty"
 	"github.com/xianxu/pair/cmd/internal/historyarchive"
@@ -42,15 +41,104 @@ func warningConsole(t *testing.T) (*couchtty.Console, *hostty.FakeHost, *io.Pipe
 	return console, host, input
 }
 
-func openWarningAttention(t *testing.T, input *io.PipeWriter, host *hostty.FakeHost, want string) {
+func openWarningAttention(t *testing.T, input io.Writer, host interface {
+	Written() string
+	Size() (ptychild.Size, error)
+}, want string) {
 	t.Helper()
+	size, err := host.Size()
+	if err != nil {
+		t.Fatal(err)
+	}
+	screen := startupWarmScreen(t, int(size.Cols), int(size.Rows), host.Written)
+	// An empty toggle stays closed, including when a warning arrives later.
+	// Read the CURRENT terminal cells, so a dismissed historical badge in the
+	// accumulated output cannot acknowledge a later asynchronous publication.
+	testwait.Until(t, "warning publication before attention input", func() bool {
+		return strings.Contains(screen(), couchtty.AttentionGlyph+"1")
+	})
 	if _, err := input.Write([]byte("\x1b[97;7u")); err != nil {
 		t.Fatal(err)
 	}
 	testwait.Until(t, "attention panel renders "+want, func() bool {
-		text := strings.Join(strings.Fields(ansi.Strip(host.Written())), " ")
+		text := strings.Join(strings.Fields(screen()), " ")
 		return strings.Contains(text, "Waiting on you") && strings.Contains(text, want)
 	})
+}
+
+// warningAttentionScreen and warningAttentionInput keep the integration's real
+// console and input path, while controlling which event happens first.
+type warningAttentionScreen struct {
+	*hostty.FakeHost
+	read func() string
+}
+
+func (screen warningAttentionScreen) Written() string { return screen.read() }
+
+type warningAttentionInput func([]byte) (int, error)
+
+func (write warningAttentionInput) Write(p []byte) (int, error) { return write(p) }
+
+func TestOpenWarningAttentionWaitsForPublication(t *testing.T) {
+	for _, tc := range []struct {
+		name                         string
+		publicationFirst, historical bool
+	}{
+		{name: "publication-before-helper", publicationFirst: true},
+		{name: "helper-before-publication"},
+		{name: "dismissed-historical-badge-before-publication", historical: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			console, host, input := warningConsole(t)
+			if tc.historical {
+				console.Warn(couchtty.Notice{Body: "old dismissed warning"})
+				openWarningAttention(t, input, host, "old dismissed warning")
+				if _, err := input.Write([]byte("c")); err != nil {
+					t.Fatal(err)
+				}
+				current := startupWarmScreen(t, 120, 30, host.Written)
+				testwait.Until(t, "historical warning dismissed", func() bool {
+					return !strings.Contains(current(), couchtty.AttentionGlyph)
+				})
+			}
+			const body = "controlled publication warning"
+			published := false
+			publish := func() {
+				console.Warn(couchtty.Notice{Body: body})
+				published = true
+			}
+			if tc.publicationFirst {
+				publish()
+			}
+			// In the helper-first ordering, publication is released only when
+			// the helper first observes the screen. An eager toggle therefore
+			// fails deterministically, without a sleep or scheduler assumption.
+			reads := 0
+			screen := warningAttentionScreen{FakeHost: host, read: func() string {
+				reads++
+				if tc.historical && reads == 1 {
+					// Historical bytes contain a badge, current cells do not.
+					return host.Written()
+				}
+				if !published {
+					publish()
+				}
+				return host.Written()
+			}}
+			toggles := 0
+			guardedInput := warningAttentionInput(func(p []byte) (int, error) {
+				if !published {
+					return 0, errors.New("attention input preceded warning publication acknowledgment")
+				}
+				toggles++
+				return input.Write(p)
+			})
+			openWarningAttention(t, guardedInput, screen, body)
+			if toggles != 1 {
+				t.Fatalf("attention toggled %d times, want one after publication", toggles)
+			}
+		})
+	}
 }
 
 func TestCrashCaptureFailureRaisesAttention(t *testing.T) {
