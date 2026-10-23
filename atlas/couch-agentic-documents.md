@@ -59,6 +59,9 @@ editor changes remain available between rounds. The shared guard classifies
 narrowed edits from the base snapshot before file, Shadow or round publication.
 It enforces scope/frontier and chat-item preservation; interpreting briefs and
 routing questions remains the reviewing agent's responsibility.
+Chat answer links may append to a renderable final text block. A syntax-only or
+code ending refuses: the append must preserve Markdown structure and produce a
+real answer hyperlink, including when the ask contains earlier fenced code.
 
 Section hashes bind the body plus document and ancestor authority. They are
 opaque tokens returned by read/write; unrelated prose can change concurrently,

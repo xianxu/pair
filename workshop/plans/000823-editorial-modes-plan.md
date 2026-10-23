@@ -273,3 +273,21 @@ nested/lazy/continued items and final answer-link placement. BR-2: README gives 
 adjacent heading comments, operator ownership, resolved read coordinates/tokens and preview/confirm migration.
 The first close was REWORK, so repeat full close after repairs. Cancelled obsolete queued suite lease-1667798340;
 its cancellation is not a pass, and the final fixed head requires its own recorded verification.
+
+### 2026-10-23 — BR-1 structural answer placement
+
+Round2 accepted delimiter preservation but exposed final-line appends that change a fence into code content or
+turn a thematic break into prose. An answer append is permitted only at a renderable ordinary-text block tail;
+code, fence delimiters, HTML blocks and other syntax-only tails refuse. The candidate must also contain a real
+Markdown answer link at exactly the inserted label. Collect both facts during the existing base/candidate compiler
+walks; no per-edit parse. Preserve the base block's meaning as well as bytes (ARCH-PURPOSE, ARCH-SECURE).
+Production regressions use independent Goldmark rendering to prove unchanged code blocks and visible hyperlink,
+covering nonempty/empty fence, indented code, thematic break and HTML tails. Final ordinary continuation remains
+supported. Cancelled obsolete queued lease-829031859; final code needs another recorded suite/full close.
+
+
+Additional delivered pure facts: RenderableBlock and AnswerLink in editorial/document.go retain source tails,
+block kind and actual rendered-link labels during the existing AST walk; safeAnswerAppends in editorial/edits.go
+joins those base/candidate facts in linear passes. Protected chat asks also retain their selected item identity and
+mapped extent, preventing arbitrary continuation at the old end or syntax outside the ask from hiding it. Actual
+ready-marker referrals retain their approved scope. No persistent owner or new IO is introduced.

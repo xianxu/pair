@@ -1,10 +1,13 @@
 package sessionsync
 
 import (
+	"bytes"
 	"os"
 	"reflect"
 	"strings"
 	"testing"
+
+	"github.com/yuin/goldmark"
 )
 
 func TestEditorialSectionHashBindsAuthority(t *testing.T) {
@@ -276,10 +279,72 @@ func TestEditorialPendingChatAnswerCountsAsLinked(t *testing.T) {
 }
 
 func TestEditorialChatProtectsCompleteFencedItem(t *testing.T) {
-	for _,content:=range []string{"  example\n", ""} {
-		base:="---\ncollaboration-mode: chat\n---\n- Why?\n\n  ```\n"+content+"  ```\n"
-		_,err:=BuildEdit(base,[]EditRecord{{Old:"  ```",New:"  ~~~",Occurrence:2}},t0Propose,false)
-		wantRefusal(t,err,ExitRefused,"editorial-chat")
+	for _, content := range []string{"  example\n", ""} {
+		base := "---\ncollaboration-mode: chat\n---\n- Why?\n\n  ```\n" + content + "  ```\n"
+		_, err := BuildEdit(base, []EditRecord{{Old: "  ```", New: "  ~~~", Occurrence: 2}}, t0Propose, false)
+		wantRefusal(t, err, ExitRefused, "editorial-chat")
+	}
+}
+
+func TestEditorialChatAnswerMustPreserveMarkdownStructure(t *testing.T) {
+	prefix := "---\ncollaboration-mode: chat\npresentation-mode: direct\n---\n"
+	for _, tc := range []struct{ name, body, tail string }{
+		{"fenced", "- Why?\n\n  ```\n  example\n  ```\n", "  ```"},
+		{"empty fence", "- Why?\n\n  ```\n  ```\n", "  ```"},
+		{"indented code", "- Why?\n\n      example\n", "      example"},
+		{"thematic break", "- Why?\n\n  ---\n", "  ---"},
+		{"HTML block", "- Why?\n\n  <!-- comment -->\n", "  <!-- comment -->"},
+		{"heading delimiter", "- # Ask #\n", "#"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			edit, err := BuildEdit(prefix+tc.body, []EditRecord{{Old: tc.body, New: strings.TrimSuffix(tc.body, "\n") + " → [answer](note.side/a.md)\n", Occurrence: 1}}, t0Propose, false)
+			if err == nil {
+				var rendered bytes.Buffer
+				body := strings.TrimPrefix(edit.Next, prefix)
+				if err := goldmark.Convert([]byte(body), &rendered); err != nil {
+					t.Fatal(err)
+				}
+				t.Fatalf("answer appended to syntax tail %q; rendered=%s", tc.tail, rendered.String())
+			}
+			wantRefusal(t, err, ExitRefused, "editorial-chat")
+		})
+	}
+	body := "- Why?\n\n  ```\n  example\n  ```\n\n  Last continuation.\n"
+	edit, err := BuildEdit(prefix+body, []EditRecord{{Old: "Last continuation.", New: "Last continuation. → [answer](note.side/a.md)", Occurrence: 1}}, t0Propose, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var rendered bytes.Buffer
+	if err := goldmark.Convert([]byte(strings.TrimPrefix(edit.Next, prefix)), &rendered); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(rendered.String(), "<pre><code>example\n</code></pre>") || !strings.Contains(rendered.String(), `<p>Last continuation. → <a href="note.side/a.md">answer</a></p>`) {
+		t.Fatalf("block structure or visible answer changed: %s", rendered.String())
+	}
+}
+
+func TestEditorialChatProtectsItemStructureAcrossOutsideEdits(t *testing.T) {
+	prefix := "---\ncollaboration-mode: chat\npresentation-mode: direct\n---\n"
+	for _, tc := range []struct{ name, body, old, next string }{
+		{"code rescope", "Preamble.\n\n- Why?\n", "Preamble.", "Preamble.\n\n```"},
+		{"continued after item", "- Why?\n\n", "\n\n", "\n  Changed ask continuation.\n\n"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			edit, err := BuildEdit(prefix+tc.body, []EditRecord{{Old: tc.old, New: tc.next, Occurrence: 1}}, t0Propose, false)
+			if err == nil {
+				var rendered bytes.Buffer
+				if err := goldmark.Convert([]byte(strings.TrimPrefix(edit.Next, prefix)), &rendered); err != nil {
+					t.Fatal(err)
+				}
+				t.Fatalf("changed protected item structure: %s", rendered.String())
+			}
+			wantRefusal(t, err, ExitRefused, "editorial-chat")
+		})
+	}
+	base := prefix + "- Original ask 🤖[revise this ask]\n"
+	edit, err := BuildEdit(base, []EditRecord{{Old: "Original ask", New: "Explicitly revised ask", Occurrence: 1}}, t0Propose, false)
+	if err != nil || !strings.Contains(edit.Next, "Explicitly revised ask") {
+		t.Fatalf("ready referral inside chat lost authority: %v, %+v", err, edit)
 	}
 }
 

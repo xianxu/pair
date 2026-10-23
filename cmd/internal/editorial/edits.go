@@ -33,7 +33,10 @@ func (e *PolicyError) Error() string {
 	return fmt.Sprintf("%s at bytes %d:%d: %s", e.Code, e.Range.Start, e.Range.End, e.Reason)
 }
 
-type validationStats struct{ EditVisits, RegionComparisons, SourceComparisons, MarkerVisits, ChatComparisons int }
+type validationStats struct {
+	TailJoinVisits, ItemJoinVisits                                                  int
+	EditVisits, RegionComparisons, SourceComparisons, MarkerVisits, ChatComparisons int
+}
 
 // ValidateEdits validates a complete sorted batch atomically, returning one
 // classification per input change in the same order. It never obtains authority
@@ -58,6 +61,7 @@ func validateEdits(base []byte, p *DocumentPolicy, changes []Change, c *Catalog)
 	var candidate bytes.Buffer
 	segments := []survivingSegment{}
 	offset := 0
+	candidateChanges := make([]Range, 0, len(changes))
 	for i, ch := range changes {
 		stats.EditVisits++
 		if ch.Start < previous || ch.End < ch.Start || ch.End > len(base) || (i > 0 && ch.Start == changes[i-1].Start) {
@@ -67,7 +71,9 @@ func validateEdits(base []byte, p *DocumentPolicy, changes []Change, c *Catalog)
 			segments = append(segments, survivingSegment{Range{previous, ch.Start}, previous + offset})
 		}
 		candidate.Write(base[previous:ch.Start])
+		newStart := candidate.Len()
 		candidate.WriteString(ch.New)
+		candidateChanges = append(candidateChanges, Range{newStart, candidate.Len()})
 		offset += len(ch.New) - (ch.End - ch.Start)
 		previous = ch.End
 	}
@@ -226,6 +232,8 @@ func validateEdits(base []byte, p *DocumentPolicy, changes []Change, c *Catalog)
 	}
 
 	blocks, chatItems := indexBlocks(base, p, markers)
+	safeAnswers, tailWork := safeAnswerAppends(base, p, after, changes, candidateChanges)
+	stats.TailJoinVisits = tailWork
 	refs := []Range{}
 	readyStarts := []int{}
 	pending := []Range{}
@@ -256,6 +264,14 @@ func validateEdits(base []byte, p *DocumentPolicy, changes []Change, c *Catalog)
 	}
 	// Ready referrals can overlap; merge once so all membership scans stay linear.
 	refs = mergeRanges(refs)
+	candidateItems := selectChatItems(candidate.Bytes(), after)
+	if reason, where, work := preserveChatItems(chatItems, candidateItems, changes, refs); reason != "" {
+		stats.ItemJoinVisits = work
+		return fail("editorial-chat", reason, where)
+	} else {
+		stats.ItemJoinVisits = work
+	}
+
 	domain := processingDomains(p)
 	frontiers := map[int]int{}
 	markerRegion := 0
@@ -296,7 +312,7 @@ func validateEdits(base []byte, p *DocumentPolicy, changes []Change, c *Catalog)
 			stats.ChatComparisons++
 			if overlapsChange(ch, item.Range) || ch.Start == item.AppendAt || ch.Start == item.Range.Start {
 				if !inReference {
-					if ch.Start != ch.End || ch.Start != item.AppendAt || item.Linked || !answerAppend.MatchString(ch.New) {
+					if ch.Start != ch.End || ch.Start != item.AppendAt || item.Linked || !answerAppend.MatchString(ch.New) || !safeAnswers[i] {
 						return fail("editorial-chat", "preserve each chat ask; only append its answer link", r)
 					}
 					chatAnswer = true
@@ -355,6 +371,25 @@ func (m *positionMapper) mapStart(pos int) (int, bool) {
 	}
 	return pos + m.delta, true
 }
+
+// mapEnd excludes an insertion exactly after the protected interval.
+func (m *positionMapper) mapEnd(pos int) (int, bool) {
+	for m.index < len(m.changes) {
+		ch := m.changes[m.index]
+		if ch.End > pos || (ch.End == pos && ch.Start == ch.End) {
+			break
+		}
+		m.delta += len(ch.New) - (ch.End - ch.Start)
+		m.index++
+	}
+	if m.index < len(m.changes) {
+		ch := m.changes[m.index]
+		if ch.Start < pos && pos < ch.End {
+			return 0, false
+		}
+	}
+	return pos + m.delta, true
+}
 func sameEffective(a, b Effective) bool {
 	return a.Collaboration == b.Collaboration && a.Presentation == b.Presentation && a.Processing == b.Processing && a.Instruction == b.Instruction && a.Scope == b.Scope && a.Frontier == b.Frontier
 }
@@ -407,7 +442,7 @@ type chatItem struct {
 	Linked   bool
 }
 
-func indexBlocks(base []byte, p *DocumentPolicy, markers []Marker) ([]Range, []chatItem) {
+func selectChatItems(base []byte, p *DocumentPolicy) []chatItem {
 	items := []chatItem{}
 	type listFact struct {
 		r              Range
@@ -453,6 +488,11 @@ func indexBlocks(base []byte, p *DocumentPolicy, markers []Marker) ([]Range, []c
 		}
 		items = append(items, chatItem{Range: r, AppendAt: end, Linked: false})
 	}
+	return items
+}
+
+func indexBlocks(base []byte, p *DocumentPolicy, markers []Marker) ([]Range, []chatItem) {
+	items := selectChatItems(base, p)
 	// Direct links must end a source line and lie outside Markdown code. Pending
 	// marker links are decoded through the same marker grammar/escape owner.
 	directItem, codeCursor := 0, 0
@@ -525,4 +565,121 @@ func visibleMarkers(source string, code []Range) []Marker {
 		out = append(out, m)
 	}
 	return out
+}
+
+// safeAnswerAppends joins precompiled facts in linear passes. Candidate facts
+// verify visibility and preserved block kind; authority remains in base facts.
+func safeAnswerAppends(source []byte, base, after *DocumentPolicy, changes []Change, insertions []Range) ([]bool, int) {
+	work := 0
+	type projectedTail struct {
+		block RenderableBlock
+		start int
+	}
+	tails := map[int]projectedTail{}
+	mapper := positionMapper{changes: changes}
+	for _, block := range base.Renderable {
+		work++
+		mapped, ok := mapper.mapStart(block.Range.Start)
+		end := block.Range.End
+		for end > block.Range.Start && (source[end-1] == '\r' || source[end-1] == '\n') {
+			work++
+			end--
+		}
+		suffixSafe := block.ContentEnd <= end
+		for pos := block.ContentEnd; pos < end; pos++ {
+			work++
+			if source[pos] != ' ' && source[pos] != '\t' {
+				suffixSafe = false
+				break
+			}
+		}
+		if ok && block.SafeTail && suffixSafe {
+			tails[end] = projectedTail{block, mapped}
+		}
+	}
+	afterBlocks := map[int]RenderableBlock{}
+	for _, block := range after.Renderable {
+		work++
+		afterBlocks[block.Range.Start] = block
+	}
+	links := map[int]AnswerLink{}
+	for _, link := range after.AnswerLinks {
+		work++
+		links[link.Label.Start] = link
+	}
+	safe := make([]bool, len(changes))
+	for i, ch := range changes {
+		work++
+		if ch.Start != ch.End || !answerAppend.MatchString(ch.New) {
+			continue
+		}
+		tail, ok := tails[ch.Start]
+		if !ok {
+			continue
+		}
+		candidateBlock, ok := afterBlocks[tail.start]
+		if !ok || candidateBlock.Kind != tail.block.Kind || candidateBlock.ContentEnd != insertions[i].End {
+			continue
+		}
+		label := insertions[i].Start + len(" → [")
+		link, ok := links[label]
+		if !ok || link.Label.End != label+len("answer") {
+			continue
+		}
+		destination := ch.New[len(" → [answer](") : len(ch.New)-1]
+		if link.Destination != destination {
+			continue
+		}
+		safe[i] = true
+	}
+	return safe, work
+}
+
+// preserveChatItems checks the selected ask identity/extent globally, so edits
+// just outside an item cannot hide it in code, add continuation, or demote it.
+// A batch made solely of actual ready-referral edits retains the existing
+// operator authority to reshape the item those referrals address.
+func preserveChatItems(base, after []chatItem, changes []Change, refs []Range) (string, Range, int) {
+	work := 0
+	onlyReferrals := len(changes) > 0
+	authorized := map[int]bool{}
+	ri, ii := 0, 0
+	for _, ch := range changes {
+		work++
+		for ri < len(refs) && refs[ri].End < ch.Start {
+			ri++
+			work++
+		}
+		inRef := ri < len(refs) && containsChange(refs[ri], ch)
+		if !inRef {
+			onlyReferrals = false
+		}
+		for ii < len(base) && base[ii].Range.End <= ch.Start {
+			ii++
+			work++
+		}
+		if inRef && ii < len(base) && overlapsChange(ch, base[ii].Range) {
+			authorized[ii] = true
+		}
+	}
+	candidate := map[int]chatItem{}
+	for _, item := range after {
+		work++
+		candidate[item.Range.Start] = item
+	}
+	starts, ends := positionMapper{changes: changes}, positionMapper{changes: changes}
+	for i, item := range base {
+		work++
+		start, startOK := starts.mapStart(item.Range.Start)
+		end, endOK := ends.mapEnd(item.Range.End)
+		got, found := candidate[start]
+		if startOK && endOK && found && got.Range.End == end {
+			continue
+		}
+		if onlyReferrals && authorized[i] {
+			continue
+		}
+		return "preserve the complete rendered chat item and its source membership", item.Range, work
+	}
+	return "", Range{}, work
 }

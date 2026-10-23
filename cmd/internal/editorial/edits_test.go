@@ -198,7 +198,7 @@ func TestValidateChatAnswerLinkRecognition(t *testing.T) {
 	cases := []struct {
 		name, item string
 		linked     bool
-	}{{"direct", "- Why? → [answer](note.side/old.md)\n", true}, {"pending escaped", "- Why? 🤖{ → \\[answer\\](note.side/old.md)}\n", true}, {"inline example", "- Why? `→ [answer](note.side/example.md)`\n", false}, {"fenced example", "- Why?\n\n  ```\n  → [answer](note.side/example.md)\n  ```\n", false}, {"malformed", "- Why? → [answer](broken path)\n", false}, {"mention", "- Why? → [answer](note.side/example.md) is an example\n", false}, {"pending example", "- Why? 🤖{literal \\[answer\\](example)}\n", false}}
+	}{{"direct", "- Why? → [answer](note.side/old.md)\n", true}, {"pending escaped", "- Why? 🤖{ → \\[answer\\](note.side/old.md)}\n", true}, {"inline example", "- Why? `→ [answer](note.side/example.md)`\n", false}, {"fenced example", "- Why?\n\n  ```\n  → [answer](note.side/example.md)\n  ```\n\n  Follow-up text.\n", false}, {"malformed", "- Why? → [answer](broken path)\n", false}, {"mention", "- Why? → [answer](note.side/example.md) is an example\n", false}, {"pending example", "- Why? 🤖{literal \\[answer\\](example)}\n", false}}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			src := "# Chat\n<!-- collaboration-mode: chat -->\n" + tc.item
@@ -344,4 +344,82 @@ func TestValidateChatIndentCodeControls(t *testing.T) {
 	}
 	at := strings.Index(src, "Actual")
 	validateCase(t, src, []Change{{Start: at, End: at + 6, New: "Changed"}}, "editorial-chat")
+}
+func TestValidateChatAnswerPreservesSyntaxTail(t *testing.T) {
+	for _, item := range []string{"- Ask?\n\n  ```\n  example\n  ```\n", "- Ask?\n\n  ```\n  ```\n", "- Ask?\n\n      code tail\n", "- Ask?\n\n  ---\n", "- Ask?\n\n  <div>\n  html tail\n  </div>\n", "- # Ask #\n"} {
+		src := "# Chat\n<!-- collaboration-mode: chat -->\n" + item
+		at := len(strings.TrimRight(src, "\r\n"))
+		validateCase(t, src, []Change{{Start: at, End: at, New: " → [answer](note.side/answer.md)"}}, "editorial-chat")
+	}
+}
+func TestValidateChatAnswerMustBeActualLink(t *testing.T) {
+	src := "# Chat\n<!-- collaboration-mode: chat -->\n- Ask with `unclosed\n"
+	at := len(src) - 1
+	validateCase(t, src, []Change{{Start: at, End: at, New: " → [answer](note.side/close`.md)"}}, "editorial-chat")
+	validateCase(t, src, []Change{{Start: at, End: at, New: " → [answer](note.side/normal.md)"}}, "")
+}
+func TestValidateChatRenderableTailPositive(t *testing.T) {
+	for _, tail := range []string{"Ask?", "Ask `code`", "Ask [reference](note.md)", "Ask ![image](image.png)", "Ask  ", "Ask\\", "# Ask"} {
+		t.Run(tail, func(t *testing.T) {
+			src := "# Chat\n<!-- collaboration-mode: chat -->\n- " + tail + "\n"
+			at := len(src) - 1
+			validateCase(t, src, []Change{{Start: at, End: at, New: " → [answer](note.side/answer.md)"}}, "")
+		})
+	}
+}
+func TestValidateChatGlobalItemStructure(t *testing.T) {
+	src := "---\ncollaboration-mode: chat\n---\n# Chat\n\n- Ask?\n\nOutside.\n"
+	at := strings.Index(src, "- Ask?\n") + len("- Ask?\n")
+	validateCase(t, src, []Change{{Start: at, End: at, New: "  Additional continuation.\n"}}, "editorial-chat")
+	at = strings.Index(src, "\n\n- Ask?") + 1
+	validateCase(t, src, []Change{{Start: at, End: at, New: "```\n"}}, "editorial-chat")
+	src = "---\ncollaboration-mode: chat\n---\n# Chat\n\n  - Ask?\n"
+	at = strings.Index(src, "\n\n  - Ask?") + 1
+	validateCase(t, src, []Change{{Start: at, End: at, New: "- Shallower new ask\n\n"}}, "editorial-chat")
+}
+func TestValidateChatReadyReferralCanReshapeItem(t *testing.T) {
+	src := "# Chat\n<!-- collaboration-mode: chat -->\n- Ask? 🤖[remove this item]\n"
+	start := strings.Index(src, "- Ask?")
+	validateCase(t, src, []Change{{Start: start, End: len(src) - 1, New: ""}}, "")
+}
+func TestCompileAnswerLinksExcludeImageAlt(t *testing.T) {
+	c, _ := DefaultCatalog()
+	p, e := Compile([]byte("# A\n![alt [answer](note.side/a.md)](image.png)\n\n[answer](note.side/real.md)\n"), c)
+	if e != nil {
+		t.Fatal(e)
+	}
+	if len(p.AnswerLinks) != 1 || p.AnswerLinks[0].Destination != "note.side/real.md" {
+		t.Fatalf("not visible links %+v", p.AnswerLinks)
+	}
+}
+func TestValidateChatFactJoinGrowth(t *testing.T) {
+	c, _ := DefaultCatalog()
+	previousTail, previousItem := 0, 0
+	for _, n := range []int{64, 128} {
+		var source strings.Builder
+		source.WriteString("---\ncollaboration-mode: chat\n---\n# Chat\n")
+		changes := []Change{}
+		for i := 0; i < n; i++ {
+			fmt.Fprintf(&source, "- Ask%d\n\n  ```\n  → [answer](note.side/example.md)\n  ```\n\n  Last continuation%d.", i, i)
+			at := source.Len()
+			source.WriteString("\n\n")
+			changes = append(changes, Change{Start: at, End: at, New: fmt.Sprintf(" → [answer](note.side/answer%d.md)", i)})
+		}
+		raw := []byte(source.String())
+		p, e := Compile(raw, c)
+		if e != nil {
+			t.Fatal(e)
+		}
+		got, stats, e := validateEdits(raw, p, changes, c)
+		if e != nil {
+			t.Fatal(e)
+		}
+		if len(got) != n || stats.TailJoinVisits < n || stats.TailJoinVisits > 20*n || stats.ItemJoinVisits < n || stats.ItemJoinVisits > 6*n {
+			t.Fatalf("n=%d got=%d stats=%+v", n, len(got), stats)
+		}
+		if previousTail > 0 && (stats.TailJoinVisits > 2*previousTail+10 || stats.ItemJoinVisits > 2*previousItem+10) {
+			t.Fatalf("nonlinear fact joins: tail %d->%d item %d->%d", previousTail, stats.TailJoinVisits, previousItem, stats.ItemJoinVisits)
+		}
+		previousTail, previousItem = stats.TailJoinVisits, stats.ItemJoinVisits
+	}
 }

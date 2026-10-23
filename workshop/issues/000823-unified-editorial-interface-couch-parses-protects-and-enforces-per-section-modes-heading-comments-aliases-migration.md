@@ -317,6 +317,32 @@ only local non-Go contract fixtures, retained full-suite fallback; individually 
 PASS. The final repaired head needs a new recorded check, native rerun and full close review. No finalized close
 generation exists.
 
+### 2026-10-23 — Round2 structural answer repair
+
+Full close on e3754d59 returned REWORK on BR-1 only; README BR-2 addressed. Complete extents passed mutation checks,
+but a final closing-fence answer append retained bytes while changing Markdown meaning and hiding the link.
+TestEditorialChatAnswerMustPreserveMarkdownStructure reproduced all five syntax-tail cases RED, with independent
+rendering showing hidden links or a changed thematic break. Require a renderable base tail plus real candidate
+answer-link AST at the exact inserted label, using existing compiler walks. Final ordinary continuation remains
+supported. Cancelled own queued suite lease-829031859 before this code repair; cancellation is not a pass.
+
+Native e3754d59 first run FAIL212.758s: Claude PASS, Codex steward startup timed out; Zellij0.45.1 log at04:51:29
+recorded lib.rs:1462:26 Option::unwrap None, before wrapper/agent startup. Root pc-3066221672 was fully cleaned.
+Unchanged-source rerun PASS22.386s (Claude8.74s/Codex7.96s), exact guidance/mixed output/protected refusal/migration
+and cleanup both pass. Added Codex subtest to unclaimed #835 using the exact fail/pass tool-transcript evidence;
+it is not a saved suite attempt or suite-pass substitution. No budget/product/helper/test change between runs.
+
+The same class audit reproduced arbitrary continuation inserted at the old item end: source-intersection alone
+missed added ask text. Candidate-selected item identity/extent validation closes this boundary too; syntax outside
+an ask may not hide or demote it. Ready-marker referral authorization remains covered by positive controls.
+
+Repair verification: complete editorial/sessionsync/reviewapply PASS (0.254s /12.465s /0.595s); guard fuzz
+PASS11,642 executions/2s. Renderable-tail tests retain inline code/link/image/whitespace/backslash/plain-heading
+controls. Exact candidate answer links exclude image alt text. 64/128-item real-link batches prove bounded linear
+tail/item joins. Ready-referral-only reshape and inline approved edits remain supported; unrelated outside edits
+cannot piggyback on a referral reshape. Re-audited edits_test.go's unchanged local non-Go fixture inputs and
+individually refreshed its existing full-fallback certificate.
+
 ## Revisions
 
 ### 2026-10-23 — Implementation boundaries from source inventory
@@ -330,3 +356,9 @@ legacy-map migration, external operator-document rewrite or new Couch side-doc s
 BR-1 tightens the planned chat-item preservation implementation to include all parsed source syntax, including
 empty/fenced blocks, through a transparent list-parser observer. BR-2 restores README user guidance. These are
 repairs to the existing preservation/documentation contract; no authority or acceptance boundary changes.
+
+### 2026-10-23 — Safe chat-answer source boundary
+
+BR-1 preservation includes Markdown meaning: answer appends require a renderable final block tail and a real
+candidate link, excluding syntax-only/code endings. This tightens the existing answer-link contract and retains
+ordinary final continuation support; semantic acceptance and #419 boundaries remain unchanged.

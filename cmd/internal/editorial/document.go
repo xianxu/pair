@@ -47,18 +47,35 @@ type CompileStats struct {
 	ListSourceEvents  int
 }
 
+// RenderableBlock retains source placement and the actual content tail of a
+// paragraph, text block or heading. Syntax outside that tail is not appendable.
+type RenderableBlock struct {
+	Range      Range
+	ContentEnd int
+	Kind       string
+	SafeTail   bool
+}
+
+// AnswerLink records a real parsed hyperlink label outside code and image alt text.
+type AnswerLink struct {
+	Label       Range
+	Destination string
+}
+
 // DocumentPolicy is an immutable compilation of one document snapshot.
 type DocumentPolicy struct {
-	Stats       CompileStats  `json:"-"`
-	Defaults    Effective     `json:"defaults"`
-	Regions     []Region      `json:"regions"`
-	Headings    []Heading     `json:"headings"`
-	Owned       []OwnedSource `json:"owned"`
-	Diagnostics []Diagnostic  `json:"diagnostics,omitempty"`
-	Blocks      []Range       `json:"-"`
-	ListItems   []Range       `json:"-"`
-	CodeRanges  []Range       `json:"-"`
-	SourceHash  string        `json:"sourceHash"`
+	Stats       CompileStats      `json:"-"`
+	Defaults    Effective         `json:"defaults"`
+	Regions     []Region          `json:"regions"`
+	Headings    []Heading         `json:"headings"`
+	Owned       []OwnedSource     `json:"owned"`
+	Diagnostics []Diagnostic      `json:"diagnostics,omitempty"`
+	Renderable  []RenderableBlock `json:"-"`
+	AnswerLinks []AnswerLink      `json:"-"`
+	Blocks      []Range           `json:"-"`
+	ListItems   []Range           `json:"-"`
+	CodeRanges  []Range           `json:"-"`
+	SourceHash  string            `json:"sourceHash"`
 	legacy      map[string]string
 	legacyField *sourceField
 	parsed      parsedSource
@@ -207,10 +224,15 @@ func Compile(src []byte, c *Catalog) (*DocumentPolicy, error) {
 	d.Stats.ListSourceEvents = listEvents
 	lineCursor := 0
 	var rawBlocks, rawItems []Range
+	var rawRenderable []RenderableBlock
+	imageDepth := 0
 	var activeItem ast.Node
 	itemRange := Range{-1, -1}
 	ast.Walk(tree, func(n ast.Node, enter bool) (ast.WalkStatus, error) {
 		if !enter {
+			if _, ok := n.(*ast.Image); ok {
+				imageDepth--
+			}
 			if n == activeItem {
 				if itemRange.Start >= 0 {
 					rawItems = append(rawItems, itemRange)
@@ -218,6 +240,14 @@ func Compile(src []byte, c *Catalog) (*DocumentPolicy, error) {
 				activeItem = nil
 			}
 			return ast.WalkContinue, nil
+		}
+		if _, ok := n.(*ast.Image); ok {
+			imageDepth++
+		}
+		if link, ok := n.(*ast.Link); ok && imageDepth == 0 {
+			if label, ok := link.FirstChild().(*ast.Text); ok && label.NextSibling() == nil && string(label.Segment.Value(body)) == "answer" {
+				d.AnswerLinks = append(d.AnswerLinks, AnswerLink{Label: Range{p.body + label.Segment.Start, p.body + label.Segment.Stop}, Destination: string(link.Destination)})
+			}
 		}
 		if _, ok := n.(*ast.ListItem); ok && activeItem == nil {
 			activeItem = n
@@ -238,6 +268,19 @@ func Compile(src []byte, c *Catalog) (*DocumentPolicy, error) {
 			switch n.(type) {
 			case *ast.Paragraph, *ast.Heading, *ast.TextBlock:
 				rawBlocks = append(rawBlocks, r)
+				contentEnd := r.End
+				for contentEnd > r.Start && (src[contentEnd-1] == '\n' || src[contentEnd-1] == '\r') {
+					contentEnd--
+				}
+				kind := n.Kind().String()
+				if heading, ok := n.(*ast.Heading); ok {
+					kind = fmt.Sprintf("Heading%d", heading.Level)
+				}
+				safe := true
+				if tail, ok := n.LastChild().(*ast.Text); ok && tail.HardLineBreak() && !tail.IsRaw() {
+					safe = false
+				}
+				rawRenderable = append(rawRenderable, RenderableBlock{Range: r, ContentEnd: contentEnd, Kind: kind, SafeTail: safe})
 			}
 		}
 
@@ -295,6 +338,10 @@ func Compile(src []byte, c *Catalog) (*DocumentPolicy, error) {
 		return ast.WalkContinue, nil
 	})
 	d.Blocks = expandToLines(rawBlocks, lines)
+	for i, fact := range rawRenderable {
+		fact.Range = d.Blocks[i]
+		d.Renderable = append(d.Renderable, fact)
+	}
 	d.ListItems = expandToLines(rawItems, lines)
 	// Parent stack and directive association follow source order.
 	stack := []int{}
