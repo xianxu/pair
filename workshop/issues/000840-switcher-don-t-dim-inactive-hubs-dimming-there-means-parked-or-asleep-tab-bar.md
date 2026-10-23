@@ -16,6 +16,7 @@ claimant:
     workspace: pair:9
     worktree: /Users/xianxu/workspace/worktree/pair-slot9/pair
     repository: github.com/xianxu/pair
+flow: {kind: quick, provenance: inferred, spec: "121c034b", done: "3487d723"}
 ---
 
 # Switcher: don't dim inactive hubs (dimming there means parked or asleep); tab bar keeps it
