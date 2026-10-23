@@ -1,8 +1,8 @@
 ---
 id: 000753
-status: codecomplete
+status: done
 created: 2026-10-20
-updated: 2026-10-22
+updated: 2026-10-23
 estimate_hours: 26.63
 github_issue:
 started: 2026-10-21T18:40:37-07:00
@@ -21,6 +21,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: 5981401a7e1aeb2931f2d73f4ef1846cfb3b8bd9
         evidence_commit: 72dfa8d1ea6fce7b6bb0360a1a5c7e2bc1ff2299
+        landed_commit: 064e8849bda6ba8405caa1029ce8b3b85e169a88
 ---
 
 # cast-sketch: operator CLI queries and historical image export
