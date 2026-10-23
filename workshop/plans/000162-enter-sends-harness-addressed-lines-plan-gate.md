@@ -1,4 +1,24 @@
 ---
+reviewer_runs:
+    - version: 1
+      intent:
+        id: b4a4c4bf-ee14-427b-b4e5-13e6682f59f0
+        repository: github.com/xianxu/pair
+        issue_id: "000162"
+        recipe: estimate-quality
+        round: 1
+        attempt: 1
+        agent: codex
+        root: /Users/xianxu/workspace/worktree/pair-slot2/pair
+        reviewed_head: f80dee949bb43c0d0f8e346b9d6f3c6063862f25
+        slot: pair:2
+        requested_at: "2026-10-23T05:03:56.075857Z"
+      phase: finished
+      pid: 96144
+      started_at: "2026-10-23T05:03:56.241651Z"
+      finished_at: "2026-10-23T05:04:25.905417Z"
+      session_id: 01a16724-f0d9-70d3-8290-70f3bd2e7890
+      outcome: returned
 gate: plan-quality
 issue: 162
 id_prefix: PQ
@@ -65,7 +85,37 @@ rounds:
           note: Plan lines 96–101 name all requested functions with adversarial strategies and mechanical guards, including independent sequence invariants, counted-cost checks and withheld-echo mutation testing.
           round: 2
       blocked: false
-content_hash: ad8aeadaeaad6d4aad7f385d28e4b38642f7ce34e859b639cfded3e121f1966d
+    - reviewer_runs:
+        - version: 1
+          intent:
+            id: 709422a9-17f3-42ed-aa96-5bbd75f610ca
+            repository: github.com/xianxu/pair
+            issue_id: "000162"
+            recipe: plan-quality
+            round: 3
+            attempt: 1
+            agent: codex
+            root: /Users/xianxu/workspace/worktree/pair-slot2/pair
+            reviewed_head: f80dee949bb43c0d0f8e346b9d6f3c6063862f25
+            slot: pair:2
+            requested_at: "2026-10-23T05:03:24.533002Z"
+          phase: finished
+          pid: 71942
+          started_at: "2026-10-23T05:03:24.701461Z"
+          finished_at: "2026-10-23T05:03:52.51417Z"
+          session_id: 01a16724-75c7-7161-9994-d65afe5209ae
+          outcome: returned
+      "n": 3
+      timestamp: "2026-10-22T22:03:52-07:00"
+      agent: codex
+      reviewer: codex (openai; author openai)
+      dispose:
+        - id: PQ-1
+          disposition: addressed
+          note: Named risky functions now have adversarial strategies and mechanical guards, including independent oracles, generated event sequences and counted-work checks.
+          round: 3
+      blocked: false
+content_hash: 3c51cf2eff72faf6f7d54a6117155b7e4905d105a60b79aafc863f58b2cd63f3
 ---
 
 # Gate ledger — pair#162 (plan-quality)
@@ -85,6 +135,12 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 ### Disposed
 
 - PQ-1 — addressed — Plan lines 96–101 name all requested functions with adversarial strategies and mechanical guards, including independent sequence invariants, counted-cost checks and withheld-echo mutation testing.
+
+## Round 3 — 2026-10-22T22:03:52-07:00 (codex) — passed
+
+### Disposed
+
+- PQ-1 — addressed — Named risky functions now have adversarial strategies and mechanical guards, including independent oracles, generated event sequences and counted-work checks.
 
 ## Open findings
 
