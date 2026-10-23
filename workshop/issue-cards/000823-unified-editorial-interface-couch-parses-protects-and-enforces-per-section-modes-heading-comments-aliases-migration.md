@@ -1,6 +1,6 @@
 ---
 id: 000823
-status: codecomplete
+status: done
 created: 2026-10-22
 updated: 2026-10-23
 estimate_hours: 4.274
@@ -21,6 +21,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: ca701df8b3784688405b889409d5aa9d9c13ed4d
         evidence_commit: c4a6f4de6d4a33f6d93f923bd03c9a3c4e19cfc2
+        landed_commit: aba41239d6473e2da5d3f0ce00e82129a47a2ba3
 ---
 
 # unified-editorial-interface: Couch parses, protects and enforces per-section modes (heading comments, aliases, migration)
