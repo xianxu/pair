@@ -217,6 +217,11 @@ func buildOwned(parent context.Context, cfg BuildConfig, deps buildDependencies)
 		}
 		return out, e
 	}
+	b.GitUploadPack, err = selectGitUploadPack(ctx, b.Git, source, env, deps)
+	if err != nil {
+		return fail(err)
+	}
+	owner.Binaries = b
 	for _, target := range []struct{ path, pkg string }{{b.Couch, "./cmd/couch"}, {b.Helper, "./cmd/pair-launch-helper"}, {b.Fixture, "./cmd/internal/testcouch/agentfixture/cmd"}} {
 		if target.path == b.Couch && override != "" {
 			b.Couch = override
@@ -256,4 +261,22 @@ func buildOwned(parent context.Context, cfg BuildConfig, deps buildDependencies)
 	}
 	owner.Binaries = b
 	return owner, nil
+}
+
+// Select the local transport helper from the same Git installation. Never use
+// ambient helper search: the caller supplies the complete replacement environment.
+func selectGitUploadPack(ctx context.Context, git, source string, env []string, deps buildDependencies) (string, error) {
+	raw, err := deps.run(ctx, git, []string{"--exec-path"}, source, env)
+	if err != nil {
+		return "", fmt.Errorf("select Git exec path: %w: %s", err, raw)
+	}
+	dir := strings.TrimSpace(raw)
+	if !filepath.IsAbs(dir) || filepath.Clean(dir) != dir || strings.ContainsAny(dir, "\r\n\x00") {
+		return "", fmt.Errorf("select Git exec path: clean absolute directory required: %q", dir)
+	}
+	helper, err := deps.resolve(filepath.Join(dir, "git-upload-pack"))
+	if err != nil {
+		return "", fmt.Errorf("select Git upload-pack helper: %w", err)
+	}
+	return helper, nil
 }

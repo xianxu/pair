@@ -50,7 +50,10 @@ qualify our transport and lifecycle adapter, not a real installed agent's reacti
 One fresh root lease owns HOME, all XDG roots, Pair/Couch/identity state, native
 Zellij sockets/config/data, fixture control and all three private SDLC queue
 controls. The environment starts empty. PATH contains only owned candidate files
-and explicit tool links, with no installed-agent fallback. Canonical physical
+and explicit tool links, with no installed-agent fallback. The selected Git's
+`--exec-path` supplies only its validated `git-upload-pack` helper, installed
+under that name in the private bin for local upstream transport. No Git helper
+directory or ambient `GIT_EXEC_PATH` enters the replacement environment. Canonical physical
 paths are checked against the ambient live-root deny-set before launch. Short
 owned roots keep AF_UNIX addresses within the native limit; TestScratch is
 preferred when available. Messaging uses the same explicit isolation selection
