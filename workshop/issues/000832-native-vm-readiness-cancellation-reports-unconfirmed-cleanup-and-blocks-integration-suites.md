@@ -17,6 +17,7 @@ claimant:
     worktree: /Users/xianxu/workspace/worktree/pair-slot3/pair
     repository: github.com/xianxu/pair
 flake_tests: [github.com/xianxu/pair/cmd/internal/vmcmd.TestNativeReadinessRunCancellationRetainsCleanupAuthority]
+flow: {kind: quick, provenance: inferred, spec: "4d5cfaeb", done: "b9daf772"}
 ---
 
 # Native VM readiness cancellation reports unconfirmed cleanup and blocks integration suites
