@@ -19,6 +19,25 @@ reviewer_runs:
       finished_at: "2026-10-23T21:33:47.12388Z"
       session_id: 01a16aae-bfab-7322-8865-c87050ffa718
       outcome: returned
+    - version: 1
+      intent:
+        id: db809d66-47a0-4218-a9be-d07de48db924
+        repository: github.com/xianxu/pair
+        issue_id: "000838"
+        recipe: estimate-quality
+        round: 1
+        attempt: 1
+        agent: codex
+        root: /Users/xianxu/workspace/worktree/pair-slot3/pair
+        reviewed_head: 4ed7f036fac126928237ad92e9f4e89a17483710
+        slot: pair:3
+        requested_at: "2026-10-23T21:34:47.344471Z"
+      phase: finished
+      pid: 47490
+      started_at: "2026-10-23T21:34:47.628323Z"
+      finished_at: "2026-10-23T21:35:16.766242Z"
+      session_id: 01a16ab0-1990-7aa0-a88a-9520cf75182d
+      outcome: returned
 gate: plan-quality
 issue: 838
 id_prefix: PQ
