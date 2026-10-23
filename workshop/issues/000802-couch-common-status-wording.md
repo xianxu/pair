@@ -37,9 +37,9 @@ Seven strings in three production files, picked for frequency and for static fra
 
 | Site | Now | New |
 |---|---|---|
-| wait_notice.go:201 | `slot %s waiting %d min %s: %s (couch --peek %s; mute: add %s to %s)` | `slot %s waiting %dm %s: %s (couch --peek %s; mute: %s in %s)` |
+| wait_notice.go:201 | `slot %s waiting %d min %s: %s (couch --peek %s; mute: add %s to %s)` | `slot %s waiting %dm %s: %s (couch --peek %s; mute: add %s to %s)` |
 | wait_notice.go:36 `waitIdle` | `idle off its resting branch` | `idle off resting branch` |
-| lifecycle_notices.go:179 | `Couch lifecycle: %d observations lacked verified slot metadata at restart drain` | `Lifecycle: %d slot metadata unverified at restart drain` |
+| lifecycle_notices.go:179 | `Couch lifecycle: %d observations lacked verified slot metadata at restart drain` | `Lifecycle: %d slots' metadata unverified at restart drain` |
 | lifecycle_notices.go:232 | `Couch lifecycle: hub projection capacity reached; inspect Slots` | `Lifecycle: hub projection full; inspect Slots` |
 | console_castcodes.go:397 | `New %s %s; its viewers were disconnected. Hover %s to see it.` | `New %s %s; viewers disconnected. Hover %s for code.` |
 | console_castcodes.go:485 (capped) | `Too many wrong codes on the %s %s link: its code changed; the link is locked until you rotate its code.` | `%s %s link: too many wrong codes; code changed, link locked until you rotate its code.` |
@@ -71,3 +71,7 @@ Split from #789 at the TL's direction; low priority, unclaimed. #789 lands cap p
 ### 2026-10-23
 
 Claimed and planned as rung 3 at the hub's direction. #789 is still unlanded (PR 543 open), so this branch carries design only until it lands; code starts on the merged tree. The seven strings cover the issue's three starting points: wait notice, lifecycle labels, cast feedback. The repeated viewers-code suffix was rejected as the catalog scope #789 removed. No estimate: this is inside the quick-flow shell.
+
+## Revisions
+
+- **2026-10-23 08:20 — plan review steers.** Reason: the TL approved the set with two corrections. Delta: the wait-notice body keeps `mute: add %s to %s`, because "mute: X in PATH" reads as a state rather than an action, and shortens only `min` to `m`; the drain diagnostic becomes `Lifecycle: %d slots' metadata unverified at restart drain`, because "N slot metadata" does not parse. The other five strings stand as written, and the rejected scope stays out.
