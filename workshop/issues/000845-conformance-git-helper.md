@@ -16,6 +16,7 @@ claimant:
     workspace: pair:4
     worktree: /Users/xianxu/workspace/worktree/pair-slot4/pair
     repository: github.com/xianxu/pair
+flow: {kind: quick, provenance: inferred, spec: "95191eac", done: "f7ff37f9"}
 ---
 
 # Native Couch conformance isolation omits Git upload-pack helper
