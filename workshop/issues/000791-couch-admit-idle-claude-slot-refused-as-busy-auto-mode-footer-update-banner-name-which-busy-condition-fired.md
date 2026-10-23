@@ -148,6 +148,12 @@ Landing session45547 then ended on conflicts with newer main54a02d7aa3971f50987b
 - Second integration pushed as7950b24983cabab9ff1e57ecfcf21ff0af2f3420. Source classification regression PASS2.346s; make test-affected-inventory PASS; conflict paths whitespace clean. New recorded suite session57388/lease-4128968349 is queued on that exact head, initial FIFO9; checkout /Volumes/TestScratch/local-checks/sdlc-local-876042336; log .git/sdlc/test-stats/inflight/68653db461f4c3c4ec590d436a548c94/run.log. No active merge runner. Preserve this check and do not restart/duplicate it. Exact next action: poll57388; after successful full-suite receipt, rerun make test-affected-inventory, narrow re-close --fixed-then-ship --full-suite with that receipt, then sdlc merge --yes. Any new failure requires classification, not blind rerun. No new #807/#810/#737 work in the meantime.
 
 
+
+### 2026-10-22 — second integration suite passed; narrow re-close next
+
+TL sweep7835b9b9-08ff-45ff-a9c2-2627cb734982 authenticated. Retained session57388 completed exit0: full suite attempt68653db461f4c3c4ec590d436a548c94 on7950b24983cabab9ff1e57ecfcf21ff0af2f3420 passed11m3s, finished23:02:48 PDT, no failures/flake rerun. Log SHA256164de7ea01d7018972e8ef6e4c0e0a2d77a4727a32180691d151af820d48342c at .git/sdlc/local-checks/7950b24983cabab9ff1e57ecfcf21ff0af2f3420/suite.log; sdlc-local/suite success recorded on that source. The later docs-only checkpoint8b5cc6ad7d8133a8423d083540ae6c01cf71e9ef has unchanged code. Required make test-affected-inventory rerun now passes, no certificate repair. Proceed immediately with narrow re-close for the additive atlas/inventory conflict resolution, then merge; no external blocker. Prior #825 fail/resume history remains retained but was not needed by this new full-suite pass.
+
+
 ## Revisions
 
 ### 2026-10-22 — operator/TL expanded reproduction and capture scope
