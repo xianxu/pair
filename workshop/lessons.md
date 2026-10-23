@@ -2838,3 +2838,5 @@ and external temporary roots rather than relying on the host's TMPDIR.
 - #819 PQ-1: express planned tests as named production functions, adversarial input classes and mechanical invariants. Keep executable case inventories in test code; preserve cost bounds and verification commands in the plan.
 
 - #845: A command selected for an isolated PATH may depend on basename-dispatched helpers. Resolve only needed helpers from that executable’s own installation and pin the actual private-PATH operation; Apple’s /usr/bin/git launcher can hide the physical Git executable’s helper lookup failure. Preserve helper invocation names when symlinks resolve to a multicall binary.
+
+- #845 inventory: untracked Go tests are absent from the tracked reader inventory. Stage new tests before the final audit, inspect the command’s completed exit status, and only then start close or queue verification; never batch a gate mutation after a verification result that has not been checked.
