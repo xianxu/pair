@@ -291,3 +291,85 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000409
+
+---
+
+## Re-review — 2026-10-22T21:58:42-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 791 — Couch delivery: capture delayed refusal evidence |
+| repo | pair |
+| issue file | workshop/issues/000791-couch-admit-idle-claude-slot-refused-as-busy-auto-mode-footer-update-banner-name-which-busy-condition-fired.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | dc4a8da53984539cea6ebfcb919fa1ea767e9ba3..e85b2bc821523d81f5fab7e4361356954989739a |
+| command | sdlc close --issue 791 |
+| reviewer | codex (openai; author openai) |
+| isolation | fenced |
+| timestamp | 2026-10-22T21:58:42-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+The interdiff preserves both sides of the source-inventory conflict and introduces no new behavior. Plan and issue revisions record verification progress without changing scope. No new defects found; this verdict covers the narrow fix window.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      The previously reviewed encoder and regression are unchanged in this window; TestPeerWaitCaptureFittingStyledRow passes at the pinned head.
+  - id: BR-2
+    disposition: withdrawn
+    note: |
+      The prior withdrawal stands; this interdiff introduces no change to the follow-up requirement or previously accepted tracker evidence.
+```
+
+1. **Strengths**
+
+   - `cmd/internal/artifactpath/manifest.go:678` retains `peer_wait_capture.go` and all four startup-budget/progress entries, preserving both sides’ intent.
+   - Existing exhaustive inventory tests check missing, duplicate, absent and incorrectly classified sources.
+   - `workshop/plans/000791-couch-admission-plan.md:225` distinguishes completed verification/submission work from pending landing gates.
+
+2. **Critical findings:** None.
+
+3. **Important findings:** None.
+
+4. **Minor findings:** None.
+
+5. **Test coverage notes**
+
+   - Complete artifactpath package: PASS, 17.039s.
+   - `TestPeerWaitCaptureFittingStyledRow`: PASS, 0.418s.
+   - Pinned-range `git diff --check`: PASS.
+   - No full-suite result was independently established during this narrow review.
+
+6. **Architectural notes**
+
+   - **ARCH-DRY — pass:** Resolution retains the existing authoritative inventory.
+   - **ARCH-PURE — pass:** No business logic or IO boundary changes.
+   - **ARCH-PURPOSE — pass:** Both inventories survive; no scope expansion.
+   - **ARCH-EVOLVE — pass:** No persisted-format or reader/writer changes.
+   - No new architectural or user-facing surface requires atlas or README updates.
+
+7. **Plan revision recommendations:** None.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"13d6714d-936a-4cce-a81b-38ec1255e63b","repository":"github.com/xianxu/pair","issue_id":"000791","recipe":"fix-review","round":4,"attempt":1,"agent":"codex","root":"/Volumes/TestScratch/review-checkouts/e435f89bb189ab19","reviewed_head":"e85b2bc821523d81f5fab7e4361356954989739a","slot":"pair:1","requested_at":"2026-10-23T04:57:00.17397Z"},"phase":"finished","pid":54257,"started_at":"2026-10-23T04:57:00.464512Z","finished_at":"2026-10-23T04:57:58.509643Z","session_id":"01a1671e-99c0-73f2-8f64-61f54698b689","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 5.818025959s
+head: "e85b2bc821523d81f5fab7e4361356954989739a"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412
