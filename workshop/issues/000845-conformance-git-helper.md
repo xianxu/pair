@@ -1,13 +1,13 @@
 ---
 id: 000845
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-10-23
 updated: 2026-10-23
 estimate_hours:
 collaboration-mode: collaboration
-card_mirror: '133bf0c3f17519c01515307c7b92c4d6387232f5' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: 'ef02b4b6a5b8963188e78790bdd0dd244a9d7d23' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-23T14:16:27-07:00
 claimant:
     operator: Xian Xu
@@ -17,6 +17,7 @@ claimant:
     worktree: /Users/xianxu/workspace/worktree/pair-slot4/pair
     repository: github.com/xianxu/pair
 flow: {kind: quick, provenance: inferred, spec: "95191eac", done: "f7ff37f9"}
+actual_hours: 0.31
 ---
 
 # Native Couch conformance isolation omits Git upload-pack helper
