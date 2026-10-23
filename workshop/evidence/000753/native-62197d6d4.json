@@ -1,0 +1,21 @@
+{
+  "source_revision": "62197d6d42f2383798b401479d1f4a34b9ae47c6",
+  "command": [
+    "env",
+    "WEBCAST_LIVE_CHROME=1",
+    "go",
+    "test",
+    "./cmd/internal/webcast",
+    "-run",
+    "TestLiveSketchPage|TestLiveSketchImage|TestOperatorSketchLiveDrawing|TestLiveFidelity",
+    "-count=1",
+    "-v"
+  ],
+  "outcome": "pass",
+  "duration_seconds": 82.04,
+  "log_sha256": "96cfdb78f722f32bc56d81cf3cd99d18d2cb095cfd41ca6b5672a2c76a161230",
+  "qualification": "Native macOS headless Chrome: console annotation-off drawing/private preview/focus, shared viewport pressure/indices and refusal, legacy export/cancellation, fidelity baseline. Operator shared-feedback recheck remains separate.",
+  "limitations": [
+    "Existing rec-stress fidelity baseline has 1 of 3 frames above 3 percent; qualified fixture test passes."
+  ]
+}

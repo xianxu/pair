@@ -1,0 +1,62 @@
+=== RUN   TestLiveFidelityFixtures
+    fidelity_live_test.go:42: rec-app: median 0.00% max 0.41%, 0 of 11 frames over 3%
+    fidelity_live_test.go:44:   t=56 frames/0.png 0.13%
+    fidelity_live_test.go:44:   t=2243 frames/1.png 0.00%
+    fidelity_live_test.go:44:   t=4492 frames/2.png 0.39%
+    fidelity_live_test.go:44:   t=6492 frames/3.png 0.41%
+    fidelity_live_test.go:44:   t=8498 frames/4.png 0.37%
+    fidelity_live_test.go:44:   t=10750 frames/5.png 0.00%
+    fidelity_live_test.go:44:   t=12743 frames/6.png 0.00%
+    fidelity_live_test.go:44:   t=14236 frames/7.png 0.00%
+    fidelity_live_test.go:44:   t=16487 frames/8.png 0.00%
+    fidelity_live_test.go:44:   t=18742 frames/9.png 0.00%
+    fidelity_live_test.go:44:   t=20987 frames/10.png 0.00%
+    fidelity_live_test.go:42: rec-blog: median 0.06% max 0.17%, 0 of 6 frames over 3%
+    fidelity_live_test.go:44:   t=147 frames/0.png 0.10%
+    fidelity_live_test.go:44:   t=2041 frames/1.png 0.17%
+    fidelity_live_test.go:44:   t=4045 frames/2.png 0.00%
+    fidelity_live_test.go:44:   t=6287 frames/3.png 0.06%
+    fidelity_live_test.go:44:   t=8284 frames/4.png 0.00%
+    fidelity_live_test.go:44:   t=10534 frames/5.png 0.00%
+    fidelity_live_test.go:42: rec-driven: median 0.20% max 0.34%, 0 of 8 frames over 3%
+    fidelity_live_test.go:44:   t=33 frames/0.png 0.00%
+    fidelity_live_test.go:44:   t=2038 frames/1.png 0.34%
+    fidelity_live_test.go:44:   t=4288 frames/2.png 0.20%
+    fidelity_live_test.go:44:   t=6355 frames/3.png 0.20%
+    fidelity_live_test.go:44:   t=8529 frames/4.png 0.14%
+    fidelity_live_test.go:44:   t=10778 frames/5.png 0.20%
+    fidelity_live_test.go:44:   t=12781 frames/6.png 0.00%
+    fidelity_live_test.go:44:   t=15029 frames/7.png 0.00%
+    fidelity_live_test.go:42: rec-segments: median 0.00% max 0.00%, 0 of 5 frames over 3%
+    fidelity_live_test.go:44:   t=101 frames/0.png 0.00%
+    fidelity_live_test.go:44:   t=2741 frames/1.png 0.00%
+    fidelity_live_test.go:44:   t=3789 frames/2.png 0.00%
+    fidelity_live_test.go:44:   t=5478 frames/3.png 0.00%
+    fidelity_live_test.go:44:   t=7480 frames/4.png 0.00%
+    fidelity_live_test.go:42: rec-stress: median 0.04% max 29.18%, 1 of 3 frames over 3%
+    fidelity_live_test.go:44:   t=84 frames/0.png 29.18%
+    fidelity_live_test.go:44:   t=2064 frames/1.png 0.04%
+    fidelity_live_test.go:44:   t=4065 frames/2.png 0.04%
+--- PASS: TestLiveFidelityFixtures (49.89s)
+=== RUN   TestLiveFidelityCatchesBrokenRender
+    fidelity_live_test.go:93: unstyled blog: median 81.33% max 99.13%, 6 of 6 frames over 3%
+--- PASS: TestLiveFidelityCatchesBrokenRender (16.70s)
+=== RUN   TestOperatorSketchLiveDrawing
+    operator_sketch_live_test.go:447: mask restore original={Count:82 MinX:99 MinY:138 MaxX:131 MaxY:141} restored={Count:88 MinX:99 MinY:138 MaxX:131 MaxY:141} (outer geometry tolerance 2px)
+--- PASS: TestOperatorSketchLiveDrawing (4.16s)
+=== RUN   TestLiveSketchImageHistoricalPressureAndBatch
+    sketch_image_test.go:141: eight historical sketches rendered and cleaned up in 2.564973916s
+--- PASS: TestLiveSketchImageHistoricalPressureAndBatch (6.87s)
+=== RUN   TestLiveSketchImageCancellationJoinsChrome
+--- PASS: TestLiveSketchImageCancellationJoinsChrome (0.87s)
+=== RUN   TestSketchLiveTwoViewers
+    sketch_live_test.go:224: open pressure points=3; one echo; undo/redo/label and replay projections agree
+--- PASS: TestSketchLiveTwoViewers (3.86s)
+=== RUN   TestLiveSketchPageImageHistoricalPressure
+--- PASS: TestLiveSketchPageImageHistoricalPressure (5.32s)
+=== RUN   TestLiveSketchPageEightShapesAndHiddenPathRefusal
+--- PASS: TestLiveSketchPageEightShapesAndHiddenPathRefusal (3.09s)
+=== RUN   TestLiveSketchPageRefusesMatchingReplacementOfRecordedAnchor
+--- PASS: TestLiveSketchPageRefusesMatchingReplacementOfRecordedAnchor (1.42s)
+PASS
+ok  	github.com/xianxu/pair/cmd/internal/webcast	92.338s

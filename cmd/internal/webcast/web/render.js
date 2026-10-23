@@ -743,7 +743,7 @@ export class Renderer {
   }
 
   // Annotation boxes use live evidence; replay's boxOf remains historical.
-  placementOf(note) {
+  placementOf(note, options) {
     if (!this.placeAnnotation) this.placeAnnotation = createPlacement({
       document: () => this.topDoc, route: () => this.model.url,
       original: (id, note) => hasSketchSource(note, this.model) ||
@@ -751,7 +751,7 @@ export class Renderer {
         ? this.dom.get(id) : null, shadow: n => this.shadows.get(this.ids.get(n)) || n.shadowRoot,
       onChange: () => this.placementChanged?.(),
     });
-    return this.placeAnnotation(note);
+    return this.placeAnnotation(note, options);
   }
 
   // boxOf is a node's box in top-page CSS px from this frame's own layout:

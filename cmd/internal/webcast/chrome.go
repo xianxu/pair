@@ -89,15 +89,16 @@ var ErrProfileInUse = errors.New("webcast: the cast Chrome profile is already in
 // requests from SetLive and Close, and timers are all inputs to its select,
 // so their order is the order they're handled in.
 type Chrome struct {
-	operatorSketch  *operatorSketchRuntime
-	controlRevision atomic.Uint64
-	operatorRefresh chan struct{}
-	operatorReplies chan operatorDelivery
-	opts            LaunchOptions
-	proc            process
-	conn            *cdp.Conn
-	output          *tail
-	pub             *publisher[State]
+	submissionPreview chromeSubmissionPreview
+	operatorSketch    *operatorSketchRuntime
+	controlRevision   atomic.Uint64
+	operatorRefresh   chan struct{}
+	operatorReplies   chan operatorDelivery
+	opts              LaunchOptions
+	proc              process
+	conn              *cdp.Conn
+	output            *tail
+	pub               *publisher[State]
 
 	requests  chan func(*loopState)
 	ready     chan struct{} // closed when the first page's control is set up
@@ -442,6 +443,9 @@ func (c *Chrome) handle(s *loopState, ev cdp.Event) {
 	if s.tap != nil {
 		s.tap(ev)
 	}
+	if c.handleFeedbackVisibilityBinding(s, ev) {
+		return
+	}
 	if c.handleSketchBinding(s, ev) {
 		return
 	}
@@ -649,6 +653,7 @@ func (c *Chrome) call(session, method string, params, result any) error {
 }
 
 func (c *Chrome) publish(s *loopState) {
+	c.refreshSubmissionPreviewHost(s)
 	if s.ending != notEnding {
 		return
 	}
@@ -712,6 +717,7 @@ func sessionOf(s *loopState, target string) string {
 // finish runs once the pipe is gone or Chrome exited: it makes sure the
 // process is reaped, every call has returned, and says why it ended.
 func (c *Chrome) finish(s *loopState) {
+	c.closeSubmissionPreview()
 	c.retireOperatorSketchScopes(s, "")
 	c.cancel() // unblock bounded bridge/guard callbacks before joining the recorder
 	// Read before our own Close, which would mask it.

@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -21,13 +22,24 @@ type fakeChrome struct {
 
 func newPair(t *testing.T) (*Conn, *fakeChrome) {
 	t.Helper()
-	cmdR, cmdW := io.Pipe()
+	// Match Chrome's deadline-capable owned command transport. A Close-only
+	// io.Pipe fake cannot distinguish peer consumption from Write returning:
+	// cancellation in that window must conservatively retire that transport.
+	cmdR, cmdW, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
 	outR, outW := io.Pipe()
 	c := New(outR, cmdW)
 	t.Cleanup(func() {
 		c.Close()
 		cmdR.Close()
 		outW.Close()
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+		defer cancel()
+		if err := c.Wait(ctx); err != nil {
+			t.Errorf("CDP fixture join: %v", err)
+		}
 	})
 	return c, &fakeChrome{t: t, cmds: newFrameReader(cmdR, MaxFrame), out: outW}
 }

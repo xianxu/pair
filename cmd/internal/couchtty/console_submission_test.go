@@ -17,6 +17,7 @@ import (
 )
 
 type submissionCastFake struct {
+	feedback           *submissionPreviewFake // initialized only by explicit transaction preview setup
 	gate               chan struct{}
 	fail               error
 	resolveFail        error
@@ -61,7 +62,8 @@ func (f *submissionCastFake) ResolveSubmission(ctx context.Context, s core.Submi
 }
 
 func TestSubmissionInlineSchedulerDoesNotHoldManagerLock(t *testing.T) {
-	m, _, target := newSubmissionManagerTest(t)
+	m, feedbackCast, target := newSubmissionManagerTest(t)
+	acknowledgeSubmissionFeedback(t, m, feedbackCast)
 	m.spawn = func(fn func()) {
 		if !m.mu.TryLock() {
 			t.Error("worker scheduled while manager lock held: inline scheduler deadlocks")
@@ -134,6 +136,7 @@ func submissionWait(t *testing.T, m *submissionManager, id string, target core.T
 }
 func TestSubmissionSinglePreparationAndAckOnly(t *testing.T) {
 	m, f, target := newSubmissionManagerTest(t)
+	acknowledgeSubmissionFeedback(t, m, f)
 	f.gate = make(chan struct{})
 	r, e := m.request(context.Background(), "prepare", "one", target)
 	if e != nil || r.State != "preparing" {
@@ -167,7 +170,8 @@ func TestSubmissionSinglePreparationAndAckOnly(t *testing.T) {
 	}
 }
 func TestSubmissionDurableUncertaintyAndTargetGuard(t *testing.T) {
-	m, _, target := newSubmissionManagerTest(t)
+	m, feedbackCast, target := newSubmissionManagerTest(t)
+	acknowledgeSubmissionFeedback(t, m, feedbackCast)
 	m.request(context.Background(), "prepare", "one", target)
 	submissionWait(t, m, "one", target, "prepared")
 	m.guard = func(core.Target) error { return errors.New("active agent changed") }
@@ -231,6 +235,7 @@ func TestSubmissionPreparationFailureRetainedAndNewAttemptRetries(t *testing.T) 
 	for _, failure := range []string{"replay", "capture", "target"} {
 		t.Run(failure, func(t *testing.T) {
 			m, f, target := newSubmissionManagerTest(t)
+			acknowledgeSubmissionFeedback(t, m, f)
 			run := submissionWorkQueue(t, m)
 			if failure == "capture" {
 				f.fail = errors.New("capture failed")
@@ -268,6 +273,7 @@ func TestSubmissionPreparationFailureRetainedAndNewAttemptRetries(t *testing.T) 
 
 func TestSubmissionResolveFailureRetriesAckWithoutRecapture(t *testing.T) {
 	m, f, target := newSubmissionManagerTest(t)
+	acknowledgeSubmissionFeedback(t, m, f)
 	run := submissionWorkQueue(t, m)
 	if _, err := m.request(context.Background(), "prepare", "one", target); err != nil {
 		t.Fatal(err)
@@ -300,6 +306,7 @@ func TestSubmissionCancellationBeforeWorkerStarts(t *testing.T) {
 	for _, phase := range []string{"prepare", "ack"} {
 		t.Run(phase, func(t *testing.T) {
 			m, f, target := newSubmissionManagerTest(t)
+			acknowledgeSubmissionFeedback(t, m, f)
 			run := submissionWorkQueue(t, m)
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
@@ -357,6 +364,7 @@ func TestSubmissionCancellationBeforeWorkerStarts(t *testing.T) {
 
 func TestSubmissionAckDoesNotResolveReplacementCast(t *testing.T) {
 	m, f, target := newSubmissionManagerTest(t)
+	acknowledgeSubmissionFeedback(t, m, f)
 	run := submissionWorkQueue(t, m)
 	if _, err := m.request(context.Background(), "prepare", "one", target); err != nil {
 		t.Fatal(err)
@@ -378,7 +386,8 @@ func TestSubmissionAckDoesNotResolveReplacementCast(t *testing.T) {
 }
 
 func TestSubmissionEveryOperationKeepsExactTargetAcrossRestart(t *testing.T) {
-	m, _, target := newSubmissionManagerTest(t)
+	m, feedbackCast, target := newSubmissionManagerTest(t)
+	acknowledgeSubmissionFeedback(t, m, feedbackCast)
 	run := submissionWorkQueue(t, m)
 	if _, err := m.request(context.Background(), "prepare", "one", target); err != nil {
 		t.Fatal(err)
@@ -415,7 +424,8 @@ func TestSubmissionEveryOperationKeepsExactTargetAcrossRestart(t *testing.T) {
 }
 
 func TestSubmissionClientCancellationDoesNotAbandonAdmittedWork(t *testing.T) {
-	m, _, target := newSubmissionManagerTest(t)
+	m, feedbackCast, target := newSubmissionManagerTest(t)
+	acknowledgeSubmissionFeedback(t, m, feedbackCast)
 	run := submissionWorkQueue(t, m)
 	requestCtx, cancel := context.WithCancel(context.Background())
 	if _, err := m.request(requestCtx, "prepare", "one", target); err != nil {
@@ -444,6 +454,7 @@ func TestSubmissionStatusForwardsStoredReadingGuide(t *testing.T) {
 
 func TestSubmissionPreparedAndStatusPreserveActualReadingGuide(t *testing.T) {
 	m, cast, target := newSubmissionManagerTest(t)
+	acknowledgeSubmissionFeedback(t, m, cast)
 	cast.path = filepath.Join(t.TempDir(), "recordings with spaces", "rec")
 	originalPath := cast.path
 	want := core.ReadingGuide(originalPath)
@@ -502,6 +513,7 @@ func TestSubmissionPreparedAndStatusPreserveActualReadingGuide(t *testing.T) {
 
 func TestSubmissionStatusRecoversAckDuringBusySuccessor(t *testing.T) {
 	m, f, target := newSubmissionManagerTest(t)
+	acknowledgeSubmissionFeedback(t, m, f)
 	run := submissionWorkQueue(t, m)
 	if _, err := m.request(context.Background(), "prepare", "one", target); err != nil {
 		t.Fatal(err)
@@ -510,6 +522,7 @@ func TestSubmissionStatusRecoversAckDuringBusySuccessor(t *testing.T) {
 	if _, err := m.request(context.Background(), "begin", "one", target); err != nil {
 		t.Fatal(err)
 	}
+	acknowledgeSubmissionFeedback(t, m, f)
 	if _, err := m.request(context.Background(), "prepare", "two", target); err != nil {
 		t.Fatal(err)
 	}
@@ -537,7 +550,8 @@ func TestSubmissionStatusRecoversAckDuringBusySuccessor(t *testing.T) {
 }
 
 func TestSubmissionPreparationPublishesInitialProgress(t *testing.T) {
-	m, _, target := newSubmissionManagerTest(t)
+	m, feedbackCast, target := newSubmissionManagerTest(t)
+	acknowledgeSubmissionFeedback(t, m, feedbackCast)
 	run := submissionWorkQueue(t, m)
 	status, err := m.request(context.Background(), "prepare", "progress", target)
 	if err != nil {
@@ -564,6 +578,7 @@ func TestSubmissionPreparationPublishesInitialProgress(t *testing.T) {
 
 func TestSubmissionProgressHeldAndFenced(t *testing.T) {
 	m, f, target := newSubmissionManagerTest(t)
+	acknowledgeSubmissionFeedback(t, m, f)
 	replayEntered, replayRelease := make(chan struct{}), make(chan struct{})
 	m.replay = func(ctx context.Context, _ string) (string, error) {
 		close(replayEntered)
@@ -607,6 +622,7 @@ func TestSubmissionProgressHeldAndFenced(t *testing.T) {
 
 	successor := &submissionCastFake{path: f.path, gate: make(chan struct{})}
 	m.current = func() (submissionCast, error) { return successor, nil }
+	acknowledgeSubmissionFeedback(t, m, successor)
 	m.replay = func(context.Context, string) (string, error) { return "https://replay", nil }
 	if _, err := m.request(context.Background(), "prepare", "next", target); err != nil {
 		t.Fatal(err)

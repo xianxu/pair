@@ -16,7 +16,7 @@ function operatorPage(text='Save', {bind=true,sketch=false}={}) {
  const note={id:'viewer-note',author:{id:'viewer'},at:{node:7,tag:'button',text,path:['main','button'],route:win.location.href,box:[10,20,100,50]},region:[20,30,40,20]};
  let view;
  mountOperator({host,root,report(){}},{annotate:{mountAnnotation(_doc,_win,surface){view=surface;return{strokes:{clear(){}},setAnnotationAllowed(){},setMode(){}};}},palette:[],css:'',sketch:sketch?{mount(){return {tool:{},receiver:{hasAnchor:(document,id)=>document===1&&id===7}};}}:undefined},doc,win);
- const snapshot=(revision=1,document=1)=>win.__couchcastOperatorView({revision,doc:document,seg:document,t:revision,notes:sketch?[]:[note],strokes:[]});
+ const snapshot=(revision=1,document=1)=>win.__couchcastOperatorView({feedback_mask:{scope:"cast",revision:"0",sketches:[],notes:[]},revision,doc:document,seg:document,t:revision,notes:sketch?[]:[note],strokes:[]});
  snapshot();
  if(bind) win.__couchcastOperatorOriginal?.(1,7,anchor);
  return{win,doc,el,main,anchor,note,snapshot,place:()=>view.placementOf(note)};
@@ -66,14 +66,14 @@ test('operator never rebinds an original recording ID to a different same-shape 
 test('operator retains trusted identity on same-document snapshots but prunes retired notes',()=>{
  const f=operatorPage();assert.equal(typeof f.win.__couchcastOperatorOriginal,'function');
  f.snapshot(2,1);assert.deepEqual(f.place(),f.note.region);
- f.win.__couchcastOperatorView({revision:3,doc:1,seg:1,t:3,notes:[],strokes:[]});
+ f.win.__couchcastOperatorView({feedback_mask:{scope:"cast",revision:"0",sketches:[],notes:[]},revision:3,doc:1,seg:1,t:3,notes:[],strokes:[]});
  assert.equal(f.place(),null);
 });
 
 
 test('operator retains paused pins and ignores stale snapshots or unknown-node bindings',()=>{
  const f=operatorPage();assert.equal(f.win.__couchcastOperatorOriginal(1,999,f.anchor),false);
- f.win.__couchcastOperatorView({revision:2,doc:1,seg:2,t:2,paused:true,notes:[f.note],strokes:[]});
+ f.win.__couchcastOperatorView({feedback_mask:{scope:"cast",revision:"0",sketches:[],notes:[]},revision:2,doc:1,seg:2,t:2,paused:true,notes:[f.note],strokes:[]});
  assert.deepEqual(f.place(),f.note.region);
  f.snapshot(1,2);assert.deepEqual(f.place(),f.note.region);
  f.anchor.style.visibility='hidden';assert.equal(f.place(),null);

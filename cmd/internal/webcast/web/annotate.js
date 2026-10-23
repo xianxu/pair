@@ -136,8 +136,8 @@ export function liveNotes(model) {
 }
 
 // Open notes remain reachable even when their document or anchor is absent.
-export function openNotes(model) {
-  return (model?.notes || []).filter(n => n.state === 'open').map(n => n.note);
+export function openNotes(model, feedbackMask) {
+  return (model?.notes || []).filter(n => n.state === 'open' && (!feedbackMask || feedbackMask.noteVisible(n.note.id,n.revision??0))).map(n => n.note);
 }
 
 export function noteList(doc, container, open) {
@@ -409,7 +409,7 @@ export function mountAnnotation(doc, win, v, { root, box, stage, palette, who, c
     onDiscard: () => captures?.cancel(),
     onRetry: () => captures?.retry(),
     color,
-    onClose: () => drawDrag(),
+    onClose: () => {v.feedbackVisibility?.invalidate();drawDrag();},
     editRequest: (id, text) => ['note-edit', { seg: v.model.seg, id, text }],
     resolveRequest: (id) => ['note-state', { viewer: who.viewer(), id, state: 'resolved' }],
     beforeSave: () => {
@@ -626,6 +626,7 @@ export function mountAnnotation(doc, win, v, { root, box, stage, palette, who, c
   };
 
   const openNote = (n, by) => {
+    v.feedbackVisibility?.invalidate();
     if (operator && !!policy.driver) return;
     dlg.hidden = false;
     const opened = annotate && !unavailable() && n.owner && n.owner === (operator ? 'operator' : owner)
@@ -638,12 +639,15 @@ export function mountAnnotation(doc, win, v, { root, box, stage, palette, who, c
   const pinned = pinLayer(doc, pins, openNote);
   const listed = noteList(doc, noteRows, openNote);
   function drawPins() {
-    const notes = openNotes(v.model);
-    const placements = new Map(notes.map(n => [n.id, v.placementOf?.(n) || null]));
+    const visibilityToken=v.feedbackVisibility?.token();
+    const notes = openNotes(v.model,operator?undefined:v.feedbackMask);
+    const witnesses = new Map(notes.map(n => [n.id, v.placementOf?.(n,v.feedbackVisibility?{withWitness:true}:undefined) || null]));
+    const placements = new Map(notes.map(n=>{const placed=witnesses.get(n.id);return [n.id,placed?.box||placed];}));
     const placementOf = n => placements.get(n.id);
     pinned.draw(notes, (id) => v.boxOf(id), place, { placementOf });
     listed.draw(notes, placementOf);
     dialog.update({ notes });
+    v.feedbackVisibility?.notesPaint(visibilityToken,(operator&&policy?.driver?[]:notes).map(n=>({id:n.id,revision:v.model.note_revisions?.[n.id],box:placements.get(n.id)})));
   }
 
   function drawStrokes(now) {
@@ -686,6 +690,8 @@ export function mountAnnotation(doc, win, v, { root, box, stage, palette, who, c
     sync();
     schedule();
   });
+  v.onFeedback?.(schedule);
+  v.onVisibility?.(schedule);
   win.addEventListener('resize', schedule);
   v.onPlacementChange?.(schedule);
   // Menu mode changes deliberately leave focus on the page. Its keyboard
@@ -699,5 +705,5 @@ export function mountAnnotation(doc, win, v, { root, box, stage, palette, who, c
   }, operator);
   sync();
   schedule();
-  return { setMode, setAnnotationAllowed(allowed, reset = false, availability = 'off') { availabilityState = availability; if (reset) { gestureVersion++; endGesture(true); setMode('watch'); } annotationAllowed = allowed === true; sync(); }, dialog, strokes, who, annotate, get mode() { return state.mode; } };
+  return { setMode, setAnnotationAllowed(allowed, reset = false, availability = 'off') { availabilityState = availability; if (reset) { gestureVersion++; endGesture(true); setMode('watch'); } annotationAllowed = allowed === true; sync(); }, captureBusy:()=>dialog.open||!!state.drag||!!state.stroke,dialog, strokes, who, annotate, get mode() { return state.mode; } };
 }

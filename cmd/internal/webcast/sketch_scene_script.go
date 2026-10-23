@@ -63,8 +63,10 @@ globalThis.__couchcastSketchScene={
  async render(){
   need(state&&records,'source not prepared');const frame=document.getElementById('page');need(frame,'missing opaque scene frame');
   frame.style.width=state.vp.w+'px';frame.style.height=state.vp.h+'px';frame.style.border='0';
-  renderer=new render.Renderer(frame,state,url=>{const binding=state.assets.get(url);return binding&&assets.get(binding.hash)?.url||'';});
-  for(const record of records)renderer.apply(record);renderer.flush();await renderer.ready();renderer.flush();
+  // Final state owns descriptor/assets; rendering consumes each historical state in order.
+  const renderState=new model.Model({allowSketchSnapshot:true});
+  renderer=new render.Renderer(frame,renderState,url=>{const binding=state.assets.get(url);return binding&&assets.get(binding.hash)?.url||'';});
+  for(const record of records){renderState.apply(record);renderer.apply(record);}renderer.flush();await renderer.ready();renderer.flush();
   const roots=new Set([renderer.topDoc,...Array.from(renderer.dom.values()).filter(n=>n.nodeType===9||n.nodeType===11)]);for(const root of roots)for(const animation of root?.getAnimations?.()||[]){try{animation.finish();}catch{}animation.pause();}
   ready=true;return {ready:true,doc:state.docSeg,tab:state.tab.id,time:state.t,vp:structuredClone(state.vp),scroll:[...(state.scrolls.get(state.top.id)||[0,0])]};
  },
