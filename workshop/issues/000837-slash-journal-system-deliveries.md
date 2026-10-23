@@ -67,8 +67,8 @@ Bounds: retain setup180s, scenario120s, cleanup15s, current100ms wait cadence, e
 
 - [x] Add the retained delayed restart envelope and pure RED regressions for arrival before/after the baseline and command, pending-to-submitted receipt order, duplicate commands/system IDs, authored prose, forged/unknown envelopes, wrong full identities, and journal mutation/truncation.
 - [x] Implement the test-only pure oracle and thin public receipt adapter; preserve current proof, namespace, timeout, byte and cleanup bounds; prove stable-receipt lookup counts at8/16.
-- [ ] Run focused oracle/cmd-couch and audited reader inventory checks, then one disposable public qualification per Claude/Codex personality with exact cleanup; record each result without blind retries.
-- [ ] Push the tested source, run the required recorded affected check/full fallback, inventory immediately before close, the binary-owned close review and normal SDLC landing gates.
+- [x] Run focused oracle/cmd-couch and audited reader inventory checks, then one disposable public qualification per Claude/Codex personality with exact cleanup; record each result without blind retries.
+- [ ] Prepare the pushed-source recorded affected check/full fallback and mandatory close handoff; record check, review and normal landing outcomes in the Log.
 
 ## Log
 
@@ -96,3 +96,16 @@ The thin receipt adapter initially ran as a no-op; its RED tests failed with zer
 Focused TestSlashJournal PASS0.204s; complete cmd/couch PASS19.408s. Supporting preflight: repolint14.108s, artifactpath13.668s, termcmd6.700s. Reader inventory first named the changed native acceptance reader and then the new oracle reader after staging. Audited the existing fleet/public native tools and accepted journal inputs, and the oracle's sole os.ReadFile input testdata/slash-journal/delayed-restart-envelope.txt. Recorded only those two per-reader certificates as non_go_full_fallback; final inventory PASS. No bulk hash refresh and no local-gates configuration change.
 
 Next: push this checkpoint, run one disposable native public qualification per Claude/Codex personality on this head, retain exact outcomes/cleanup, then required recorded affected/full fallback and close. No native invocation has been run yet for837; no queued suite or merge runner exists for this item. No operator stage or trust mutation is authorized.
+
+
+### 2026-10-23 — Both public qualifications pass; actual late delivery proved
+
+One invocation per personality on111be6e29dac54fc0778cbd868c1ecffcc03ac14, no retry. Claude PASS55.970s (subtest32.32s), receipt2195a905-a4fd-4b6c-92be-b2f6629f6517, /model accepted once, ordinary prose retained, recovery and exact owned generation/root cleanup with direct IO joined. The restart notice arrived before the baseline in this run; no late-receipt lookup claim. Log /Volumes/TestScratch/tmp/pair-slot2/pair837-native.2z48hu_p/claude.log SHA256167f23e4c7430fc7876d6c292a3afcb9e64078cb0858d471506c0b6f6ae85e87.
+
+Codex PASS36.869s (subtest28.56s), command receipt217e9283-81ba-4cc8-84cf-141f37b1a6d2, exact cleanup. Crucially, system deliveryb7628390-d192-41ba-9390-bebd737b3f97 arrived after /model acceptance; the real public message-status returned Submitted, and the shared pure proof validated its system origin, exact envelope and full captured bindings before the later journal checks passed. This qualifies the formerly failing ordering through the real adapter, not just the fake. Log /Volumes/TestScratch/tmp/pair-slot2/pair837-native.2z48hu_p/codex.log SHA256ce7ec27438f0b374cc1a5357f523d3d97f80fe9f4a5ab2564f87a59b68ef08aa.
+
+PR566 is open for CI overlap; its local-gates guard passed. Atlas/couch-testing.md maps the test-only oracle and opt-in command. No production change, live fleet contact, actual model UI invocation, trust write, deadline change or operator stage. Lookup-growth tests bound RPCs by distinct receipts; per-poll validation remains linear in journal records and envelope bytes within existing128-entry/frame/body bounds. Next: required recorded affected/full fallback on the pushed documentation descendant, inventory immediately before mandatory close, then normal landing gates. The actual-hours exception for legacy162 does not apply to modern837; use normal measured close without typed hours.
+
+### 2026-10-23 — Gate checklist bookkeeping
+
+The last Plan row originally read: "Push the tested source, run the required recorded affected check/full fallback, inventory immediately before close, the binary-owned close review and normal SDLC landing gates." Clarify it as preparation for these binary-owned gates, recording their real outcomes in the Log, so close does not require falsely checking review/landing before their verbs execute. Product Done-when, scope and verification requirements are unchanged.
