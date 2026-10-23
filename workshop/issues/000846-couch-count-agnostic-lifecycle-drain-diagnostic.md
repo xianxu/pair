@@ -44,5 +44,6 @@ Change the one string in `cmd/internal/couchcmd/lifecycle_notices.go` to `Lifecy
 ## Log
 
 ### 2026-10-23
+- 2026-10-23: closed — Focused drain pin green; full couchcmd package green (302.9s); go vet clean; recorded suite queued on 175209eef and running. One format string and its exact pin changed. No atlas: wording only, no new surface — the #802 drain passage already describes it semantically.; review verdict: SHIP
 
 Filed and claimed at the TL's direction after #802 landed, to fit before the day's window closes. Kept the requested structure but used `slot(s)`: `for N slots` still renders `for 1 slots`, so the count-agnostic property needs the parenthesized plural. One producer line and its exact pin; no other message touched. Quick flow (inferred, no estimate).
