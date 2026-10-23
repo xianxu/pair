@@ -198,7 +198,7 @@ func (c *Couch) Relaunch(ctx context.Context, address ThreadAddress) (RelaunchRe
 		var observeErr error
 		outcome := ParkInProgress
 		if !active {
-			observationCtx, done := context.WithTimeout(context.WithoutCancel(ctx), parkCommitDeadline)
+			observationCtx, done := context.WithTimeout(context.WithoutCancel(ctx), relaunchObservationTimeout)
 			current, observeErr = c.Threads.recoveryReadThread(observationCtx, address)
 			done()
 			active = c.PairLifecycle.parkActive(address)
@@ -249,6 +249,11 @@ func (c *Couch) Relaunch(ctx context.Context, address ThreadAddress) (RelaunchRe
 // park's default 15 s stranded the first call under load; past this bound the
 // explicit recovery choice still stands.
 const RelaunchParkWait = 60 * time.Second
+
+// relaunchObservationTimeout bounds relaunch's post-failure read of the park
+// state. It was once the park commit threshold; #827 raised that threshold
+// without extending this diagnostic read.
+const relaunchObservationTimeout = time.Second
 
 // withRebootHint names reboot on the refusals only a fresh session gets past
 // (pair#456): a conversation never bound, or one a pre-hello-v2 wrapper left

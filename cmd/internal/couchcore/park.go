@@ -18,8 +18,23 @@ import (
 
 const (
 	parkCommitSoftTarget = 100 * time.Millisecond
-	parkCommitDeadline   = time.Second
+	// #827: a loaded 30-slot run measured a 709ms worst commit against the old
+	// 1s threshold (workshop/evidence/000827); 10s keeps an order of magnitude
+	// of headroom inside the operator's 5-10s choice.
+	parkCommitDeadline = 10 * time.Second
 )
+
+// ParkCommitOverrunError is the typed evidence that a requested commit took
+// longer than the park commit threshold and was rolled back (or left for
+// recovery) before any quit was published.
+type ParkCommitOverrunError struct {
+	Observed  time.Duration
+	Threshold time.Duration
+}
+
+func (e *ParkCommitOverrunError) Error() string {
+	return fmt.Sprintf("park requested commit took %s, exceeding the %s deadline", e.Observed, e.Threshold)
+}
 
 type LifecycleIO interface {
 	PublishRequest(context.Context, artifactpath.LifecyclePaths, pairlifecycle.QuitRequest) error
@@ -540,12 +555,12 @@ func (c *PairLifecycleController) parkExpected(ctx context.Context, address Thre
 	if duration >= parkCommitDeadline {
 		failed, advanceErr := c.Threads.AdvancePark(ctx, address, begun.Revision, ParkEvent{
 			Kind: ParkFailureObserved, Identity: identity, Attempt: 1,
-			Failure: &ParkFailure{Code: pairlifecycle.FailureRequestPublishFailed, Diagnostic: "requested commit exceeded 1s deadline"},
+			Failure: &ParkFailure{Code: pairlifecycle.FailureRequestPublishFailed, Diagnostic: fmt.Sprintf("requested commit exceeded %s deadline", parkCommitDeadline)},
 		})
 		if advanceErr == nil {
 			result.Thread = failed
 		}
-		cause := errors.Join(errors.New("park requested commit exceeded 1s deadline"), advanceErr)
+		cause := errors.Join(&ParkCommitOverrunError{Observed: duration, Threshold: parkCommitDeadline}, advanceErr)
 		if advanceErr == nil {
 			return c.rollbackUnpublishedPark(result, failed, cause)
 		}

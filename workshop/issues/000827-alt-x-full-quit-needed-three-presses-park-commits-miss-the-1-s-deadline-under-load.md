@@ -159,6 +159,14 @@ slots, fan-out 6, load avg 64.8: p50 106/122ms, p95 342/367ms, max 342/709ms, 0 
 but not incident load; incident cause unproven. Max at 30 slots used 71% of 1s ->
 confirm 10s per plan. Next: Task 2 RED tests for threshold + relaunch 1s separation.
 
+2026-10-23 — Task 2 GREEN. parkCommitDeadline 1s -> 10s; typed ParkCommitOverrunError
+{Observed, Threshold} replaces the text cause; relaunch's post-failure read keeps its own
+relaunchObservationTimeout=1s. RED seen: 2s/3s commits refused under the old 1s. Failed
+rollback retains Park (no fresh nonce). AtOneSecond boundary test made threshold-relative.
+Park|Relaunch|Leave|Recover cohort ok (unsandboxed: several fixtures mkdir /tmp, which the
+sandbox denies). Overlap: open #580 (slow park commit) is the same 1s defect; this
+change fixes its stated symptom — flagged to TL. Next: Task 3 bounded leave pass.
+
 ## Estimate
 
 Produced via brain/data/life/42shots/velocity/estimate-logic-v3.1.md against
