@@ -18,8 +18,23 @@ import (
 
 const (
 	parkCommitSoftTarget = 100 * time.Millisecond
-	parkCommitDeadline   = time.Second
+	// #827: a loaded 30-slot run measured a 709ms worst commit against the old
+	// 1s threshold (workshop/evidence/000827); 10s keeps an order of magnitude
+	// of headroom inside the operator's 5-10s choice.
+	parkCommitDeadline = 10 * time.Second
 )
+
+// ParkCommitOverrunError is the typed evidence that a requested commit took
+// longer than the park commit threshold and was rolled back (or left for
+// recovery) before any quit was published.
+type ParkCommitOverrunError struct {
+	Observed  time.Duration
+	Threshold time.Duration
+}
+
+func (e *ParkCommitOverrunError) Error() string {
+	return fmt.Sprintf("park requested commit took %s, exceeding the %s deadline", e.Observed, e.Threshold)
+}
 
 type LifecycleIO interface {
 	PublishRequest(context.Context, artifactpath.LifecyclePaths, pairlifecycle.QuitRequest) error
@@ -157,6 +172,10 @@ type LeaveResult struct {
 	// silently dropped, so the operator learns about them here instead of
 	// discovering an occupied thread later.
 	Skipped []ThreadAddress
+	// Unresolved, under LeavePark only, names in snapshot order every thread the
+	// full quit could not prove parked -- failed, not started, skipped, or unreadable --
+	// each with its next action (#827). Non-empty only alongside an error.
+	Unresolved []LeaveUnresolved
 }
 
 // Leave applies one disposition to every live thread, then releases the
@@ -204,6 +223,15 @@ func (c *Couch) Leave(ctx context.Context, disposition LeaveDisposition) (LeaveR
 		ctx, cancel = c.WithSessionOwnerPass(ctx)
 		defer cancel()
 	}
+	if disposition == LeavePark {
+		deadline := c.leaveParkDeadline
+		if deadline == nil {
+			deadline = context.WithTimeout
+		}
+		var cancel context.CancelFunc
+		ctx, cancel = deadline(ctx, LeaveParkBudget)
+		defer cancel()
+	}
 	view := *c.Threads
 	view.readOnly = disposition == LeaveDetach
 	snapshot, err := view.Snapshot()
@@ -221,6 +249,7 @@ func (c *Couch) Leave(ctx context.Context, disposition LeaveDisposition) (LeaveR
 	records := snapshot.Records
 	outcomes := make([]leaveOutcome, len(records))
 	errs := make([]error, len(records))
+	started := make([]bool, len(records))
 	units := make(chan struct{}, LifecycleParallelism)
 	var wg sync.WaitGroup
 dispatch:
@@ -247,13 +276,23 @@ dispatch:
 			break dispatch
 		}
 		wg.Add(1)
+		started[i] = true
 		go func(i int, address ThreadAddress) {
 			defer wg.Done()
 			defer func() { <-units }()
+			if disposition == LeavePark {
+				outcomes[i], errs[i] = c.leaveParkOne(ctx, address)
+				return
+			}
 			outcomes[i], errs[i] = c.leaveOne(ctx, address, disposition)
 		}(i, record.Address)
 	}
 	wg.Wait()
+	if disposition == LeavePark {
+		unresolved, failures := c.leaveParkUnresolved(ctx, records, outcomes, errs, started, snapshot.Unreadable)
+		result.Unresolved = unresolved
+		errs = append(errs, failures...)
+	}
 	for i, record := range records {
 		switch outcomes[i] {
 		case leaveParked:
@@ -265,6 +304,9 @@ dispatch:
 		}
 	}
 	if err := errors.Join(errs...); err != nil {
+		if disposition == LeavePark {
+			return result, &LeaveParkIncompleteError{Result: result, Err: err}
+		}
 		return result, err
 	}
 	return result, nil
@@ -354,7 +396,8 @@ const (
 	leaveSkipped
 )
 
-// leaveOne applies the disposition to one thread. It is a drain on the thread
+// leaveOne applies LeaveDetach to one thread; LeavePark has its own bounded
+// form, leaveParkOne (#827). It is a drain on the thread
 // gate (pair#205): it waits for any operation holding the thread, then decides
 // from the record as it is NOW. The snapshot Leave iterates is only a list of
 // addresses; deciding from a row read before the wait would skip a thread a
@@ -399,31 +442,11 @@ func (c *Couch) leaveOne(ctx context.Context, address ThreadAddress, disposition
 		}
 		return leaveParked, nil
 	}
-	if disposition == LeavePark {
-		var err error
-		record, err = c.adoptOwnedAttachment(ctx, record)
-		if err != nil {
-			return leaveNone, err
-		}
-	}
 	if !hasActiveIncarnation(record) {
 		return leaveNone, nil
 	}
 	if len(record.Incarnations) != 1 || record.Incarnations[0].State != IncarnationLive {
 		return leaveSkipped, nil
-	}
-	if disposition == LeavePark {
-		if c.PairLifecycle == nil {
-			return leaveNone, errors.New("Pair lifecycle controller is unavailable")
-		}
-		parkResult, parkErr := c.PairLifecycle.Park(ctx, record.Address)
-		if parkErr != nil {
-			return leaveNone, c.withParkRecoveryAdvice(ctx, parkResult.Thread, fmt.Errorf("leave couch: park %s: %w", record.Address.Tag, parkErr))
-		}
-		if parkResult.Thread.VerifiedPark == nil || parkResult.Thread.Park != nil {
-			return leaveNone, c.withParkRecoveryAdvice(ctx, parkResult.Thread, fmt.Errorf("leave couch: park %s did not produce verified inactive history", record.Address.Tag))
-		}
-		return leaveParked, nil
 	}
 	// A recorded live incarnation is history, not current liveness. The
 	// switcher may already show this thread as parked from its ledger.
@@ -464,6 +487,16 @@ func hasActiveIncarnation(record ThreadRecord) bool {
 }
 
 func (c *PairLifecycleController) Park(ctx context.Context, address ThreadAddress) (ParkResult, error) {
+	return c.parkAwaiting(ctx, address, (*parkFuture).Await)
+}
+
+// parkJoined is Park for full-quit leave only: it waits for the exact admitted
+// future to settle even past ctx (#827, AwaitJoined).
+func (c *PairLifecycleController) parkJoined(ctx context.Context, address ThreadAddress) (ParkResult, error) {
+	return c.parkAwaiting(ctx, address, (*parkFuture).AwaitJoined)
+}
+
+func (c *PairLifecycleController) parkAwaiting(ctx context.Context, address ThreadAddress, await parkAwait) (ParkResult, error) {
 	if err := c.validate(); err != nil {
 		return ParkResult{}, err
 	}
@@ -475,17 +508,17 @@ func (c *PairLifecycleController) Park(ctx context.Context, address ThreadAddres
 		return ParkResult{}, err
 	}
 	if current.Park != nil {
-		return c.submit(ctx, address, current.Park.Identity.Nonce, func(workCtx context.Context) (ParkResult, error) {
+		return c.submitAwaiting(ctx, address, current.Park.Identity.Nonce, func(workCtx context.Context) (ParkResult, error) {
 			return c.retry(workCtx, address)
-		})
+		}, await)
 	}
 	nonce, err := c.Nonce()
 	if err != nil {
 		return ParkResult{}, err
 	}
-	return c.submit(ctx, address, nonce, func(workCtx context.Context) (ParkResult, error) {
+	return c.submitAwaiting(ctx, address, nonce, func(workCtx context.Context) (ParkResult, error) {
 		return c.park(workCtx, address, nonce)
-	})
+	}, await)
 }
 
 // ParkExpected refuses if the source changed after a switch preview. The
@@ -540,12 +573,12 @@ func (c *PairLifecycleController) parkExpected(ctx context.Context, address Thre
 	if duration >= parkCommitDeadline {
 		failed, advanceErr := c.Threads.AdvancePark(ctx, address, begun.Revision, ParkEvent{
 			Kind: ParkFailureObserved, Identity: identity, Attempt: 1,
-			Failure: &ParkFailure{Code: pairlifecycle.FailureRequestPublishFailed, Diagnostic: "requested commit exceeded 1s deadline"},
+			Failure: &ParkFailure{Code: pairlifecycle.FailureRequestPublishFailed, Diagnostic: fmt.Sprintf("requested commit exceeded %s deadline", parkCommitDeadline)},
 		})
 		if advanceErr == nil {
 			result.Thread = failed
 		}
-		cause := errors.Join(errors.New("park requested commit exceeded 1s deadline"), advanceErr)
+		cause := errors.Join(&ParkCommitOverrunError{Observed: duration, Threshold: parkCommitDeadline}, advanceErr)
 		if advanceErr == nil {
 			return c.rollbackUnpublishedPark(result, failed, cause)
 		}
@@ -604,6 +637,15 @@ func (c *PairLifecycleController) retry(ctx context.Context, address ThreadAddre
 }
 
 func (c *PairLifecycleController) Recover(ctx context.Context, address ThreadAddress) (ParkResult, error) {
+	return c.recoverAwaiting(ctx, address, (*parkFuture).Await)
+}
+
+// recoverJoined is Recover for full-quit leave only (#827, AwaitJoined).
+func (c *PairLifecycleController) recoverJoined(ctx context.Context, address ThreadAddress) (ParkResult, error) {
+	return c.recoverAwaiting(ctx, address, (*parkFuture).AwaitJoined)
+}
+
+func (c *PairLifecycleController) recoverAwaiting(ctx context.Context, address ThreadAddress, await parkAwait) (ParkResult, error) {
 	if err := c.validate(); err != nil {
 		return ParkResult{}, err
 	}
@@ -614,9 +656,9 @@ func (c *PairLifecycleController) Recover(ctx context.Context, address ThreadAdd
 	if current.Park == nil {
 		return ParkResult{}, errors.New("thread has no active park transaction")
 	}
-	return c.submit(ctx, address, current.Park.Identity.Nonce, func(workCtx context.Context) (ParkResult, error) {
+	return c.submitAwaiting(ctx, address, current.Park.Identity.Nonce, func(workCtx context.Context) (ParkResult, error) {
 		return c.recover(workCtx, address)
-	})
+	}, await)
 }
 
 func (c *PairLifecycleController) recover(ctx context.Context, address ThreadAddress) (ParkResult, error) {
@@ -734,11 +776,15 @@ func (c *PairLifecycleController) reconcileActive(ctx context.Context, address T
 }
 
 func (c *PairLifecycleController) submit(ctx context.Context, address ThreadAddress, nonce string, work parkWork) (ParkResult, error) {
+	return c.submitAwaiting(ctx, address, nonce, work, (*parkFuture).Await)
+}
+
+func (c *PairLifecycleController) submitAwaiting(ctx context.Context, address ThreadAddress, nonce string, work parkWork, await parkAwait) (ParkResult, error) {
 	future, err := c.submitFuture(ctx, address, nonce, work)
 	if err != nil {
 		return ParkResult{}, err
 	}
-	return future.Await(ctx)
+	return await(future, ctx)
 }
 
 func (c *PairLifecycleController) submitFuture(ctx context.Context, address ThreadAddress, nonce string, work parkWork) (*parkFuture, error) {

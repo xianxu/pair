@@ -2,6 +2,7 @@ package couchcmd
 
 import (
 	"context"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -21,6 +22,7 @@ type sessionSyncArgs struct {
 	owner, oldFile                        string
 	id, turn                              string
 	all, frontmatter, json                bool
+	confirm                               bool
 	accepts                               sessionsync.Accepts
 	fold                                  []string
 }
@@ -60,6 +62,8 @@ couch --session-sync write --all BODYFILE FILE --if-hash H [--accept-gap] [--fol
 couch --session-sync write --frontmatter BODYFILE FILE --if-hash H [--accept-gap] [--fold ID[,ID]]
 couch --session-sync apply EDITS.json FILE --if-hash H [--accept-gap] [--fold ID[,ID]] [--json]
 couch --session-sync round FILE --json
+couch --session-sync migrate-editorial FILE [--json]
+couch --session-sync migrate-editorial FILE --confirm --if-hash H [--json]
 couch --session-sync operator-acquire FILE --id ID --turn TOKEN --json
 couch --session-sync operator-release FILE --id ID --turn TOKEN --json`
 
@@ -74,19 +78,20 @@ func parseSessionSyncCLI(args []string) (cliInvocation, error) {
 	}
 	a := &sessionSyncArgs{verb: args[1]}
 	allowed := map[string][]string{
-		"register":         {"--owner", "--json"},
-		"lookup":           {"--json"},
-		"list":             {"--json"},
-		"forget":           {"--json"},
-		"rename":           {"--json"},
-		"diff":             {},
-		"status":           {"--json"},
-		"read":             {"--section", "--all", "--frontmatter", "--json"},
-		"write":            {"--section", "--all", "--frontmatter", "--if-hash", "--accept-gap", "--fold"},
-		"apply":            {"--if-hash", "--accept-gap", "--fold", "--json"},
-		"round":            {"--json"},
-		"operator-acquire": {"--id", "--turn", "--json"},
-		"operator-release": {"--id", "--turn", "--json"},
+		"register":          {"--owner", "--json"},
+		"lookup":            {"--json"},
+		"list":              {"--json"},
+		"forget":            {"--json"},
+		"rename":            {"--json"},
+		"diff":              {},
+		"status":            {"--json"},
+		"read":              {"--section", "--all", "--frontmatter", "--json"},
+		"write":             {"--section", "--all", "--frontmatter", "--if-hash", "--accept-gap", "--fold"},
+		"apply":             {"--if-hash", "--accept-gap", "--fold", "--json"},
+		"round":             {"--json"},
+		"migrate-editorial": {"--confirm", "--if-hash", "--json"},
+		"operator-acquire":  {"--id", "--turn", "--json"},
+		"operator-release":  {"--id", "--turn", "--json"},
 		// Retired by pair#439 (no agent-held lock); accepted as a no-op
 		// with its old flags for one release so older skills don't break.
 		"release": {"--accept-edits", "--accept-gap", "--fold"},
@@ -137,6 +142,8 @@ func parseSessionSyncCLI(args []string) (cliInvocation, error) {
 			}
 		case "--all":
 			a.all = true
+		case "--confirm":
+			a.confirm = true
 		case "--frontmatter":
 			a.frontmatter = true
 		case "--accept-gap":
@@ -174,6 +181,16 @@ func parseSessionSyncCLI(args []string) (cliInvocation, error) {
 	}
 	if a.verb == "round" && !a.json {
 		return usage("round answers only as JSON: pass --json")
+	}
+	if a.verb == "migrate-editorial" {
+		if a.confirm {
+			raw, err := hex.DecodeString(a.ifHash)
+			if err != nil || len(raw) != 32 || hex.EncodeToString(raw) != a.ifHash {
+				return usage("migrate-editorial --confirm requires the full lowercase SHA256 --if-hash from preview")
+			}
+		} else if seen["--if-hash"] {
+			return usage("migrate-editorial --if-hash requires --confirm")
+		}
 	}
 	if a.operatorLockCommand() {
 		if a.id == "" || a.turn == "" || !a.json {
@@ -256,6 +273,10 @@ func runSessionSyncCLI(a *sessionSyncArgs, rt Runtime, stdout, stderr io.Writer)
 	}
 	s := sessionsync.New(namespace.Dir())
 	switch a.verb {
+	case "migrate-editorial":
+		if err := runEditorialMigration(s, file, a, stdout, stderr); err != nil {
+			return fail(err)
+		}
 	case "operator-acquire", "operator-release":
 		request := sessionsync.OperatorLockRequest{File: file, ID: a.id, Turn: a.turn}
 		var result sessionsync.OperatorLock
@@ -427,7 +448,8 @@ type sessionSyncResponse struct {
 	Registration  *sessionsync.Registration
 	Registrations []sessionsync.Registration
 	Changed       bool
-	OperatorLock  *sessionsync.OperatorLock `json:",omitempty"`
+	OperatorLock  *sessionsync.OperatorLock             `json:",omitempty"`
+	Migration     *sessionsync.EditorialMigrationResult `json:",omitempty"`
 	// Invalid lists the bad records of an `edits-invalid` apply.
 	Invalid []sessionsync.BadEdit `json:",omitempty"`
 }
@@ -502,4 +524,36 @@ func reportSessionWrite(rt Runtime, namespace, owner string) {
 	defer cancel()
 	var response couchmessage.Response
 	_ = couchmessage.Call(ctx, socket, req, &response)
+}
+
+// runEditorialMigration exposes only the verified transform: preview prints the
+// captured source hash and exact candidate, confirmation accepts no body input.
+func runEditorialMigration(s *sessionsync.Sync, file string, a *sessionSyncArgs, stdout, stderr io.Writer) error {
+	result, err := s.MigrateEditorial(sessionsync.EditorialMigrationRequest{File: file, Confirm: a.confirm, IfHash: a.ifHash})
+	if err != nil {
+		return err
+	}
+	if a.json {
+		return json.NewEncoder(stdout).Encode(sessionSyncResponse{Code: "ok", Migration: &result})
+	}
+	if a.confirm {
+		if _, err := fmt.Fprintf(stdout, "applied: %t\nhash: %s\n", result.Applied, result.Hash); err != nil {
+			return err
+		}
+	} else {
+		candidate, err := json.Marshal(result.Candidate)
+		if err != nil {
+			return err
+		}
+		if _, err := fmt.Fprintf(stdout, "beforeHash: %s\ncandidate: %s\n", result.BeforeHash, candidate); err != nil {
+			return err
+		}
+	}
+	for _, d := range result.Diagnostics {
+		fmt.Fprintf(stderr, "couch: editorial: %v\n", d)
+	}
+	if result.Warning != "" {
+		fmt.Fprintln(stderr, "couch: warning:", result.Warning)
+	}
+	return nil
 }

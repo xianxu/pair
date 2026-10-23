@@ -102,15 +102,23 @@ func Paint(s AgentState, cols, rows int) string {
 		} else {
 			b.WriteString("  ")
 		}
-		b.WriteString(text)
+		if s.Agent == "codex" && s.Draft == "" && i == 0 {
+			// Native Codex paints a faint suggestion at an empty origin.
+			b.WriteString("\x1b[2mAsk Codex\x1b[22m")
+		} else {
+			b.WriteString(text)
+		}
 	}
 	bottom := line + len(rendered)
 	if s.Agent == "claude" {
 		fmt.Fprintf(&b, "\x1b[%d;1H\x1b[38;2;136;136;136m%s\x1b[39m\x1b[%d;1H⏵⏵ bypass permissions on (shift+tab to cycle)", bottom, rule, bottom+1)
 	}
-	// Codex's optional native footer is omitted. A synthetic footer at the
-	// left edge looks like another input surface to the real wrapper; its
-	// minimal qualified composer is the bold prompt with blank rows below.
+	if s.Agent == "codex" {
+		// A native footer at input column2 proves the input's end after one
+		// separator row. Footerless padding cannot prove a single-line slash.
+		// Keep the model/path signature within the minimum20-column viewport.
+		fmt.Fprintf(&b, "\x1b[%d;3Hgpt-fixture · /", bottom+1)
+	}
 	cursorRow := promptRow + len(rendered) - 1
 	cursorCol := 2 + textwidth.Width(rendered[len(rendered)-1])
 	fmt.Fprintf(&b, "\x1b[%d;%dH\x1b[?25h\x1b[?2026l", cursorRow, cursorCol+1)

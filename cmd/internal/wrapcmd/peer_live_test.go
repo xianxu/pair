@@ -405,7 +405,7 @@ func TestPeerLiveConformance(t *testing.T) {
 		},
 	})
 	if captureErr != nil {
-		if *peerLiveCaptureFlag != "" && state != harnessTTYUnauthenticated && p.ttyProfile.recognize(p.terminal.Snapshot()) {
+		if *peerLiveCaptureFlag != "" && state != harnessTTYUnauthenticated && p.ttyProfile.recognize(p.terminal.Snapshot()).Active {
 			if !filepath.IsAbs(*peerLiveCaptureFlag) {
 				t.Fatal("capture directory must be absolute")
 			}

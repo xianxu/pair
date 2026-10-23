@@ -257,7 +257,8 @@ func testHubStartupLaterFailure(t *testing.T, warmFirst bool) {
 	}
 	startExplicitHubs(r.console, r.hubs)
 	r.run(t)
-	if call := r.await(t, "start-hub"); call.err == nil || !strings.Contains(call.err.Error(), "isolated second hub launch refusal") {
+	call := r.await(t, "start-hub")
+	if call.err == nil || !strings.Contains(call.err.Error(), "isolated second hub launch refusal") || !strings.Contains(call.err.Error(), r.paths[1]) || !strings.Contains(call.err.Error(), "diagnostics ") {
 		t.Fatalf("second launch did not report its injected refusal: %v", call.err)
 	}
 	// Startup failure is an attention item; ordinary tab rendering no longer

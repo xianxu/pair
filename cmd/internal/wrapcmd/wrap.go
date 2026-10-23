@@ -2168,6 +2168,12 @@ func snippetLine(s string, idx int) string {
 // restoring the textarea-aware plainCR remap for the next Enter.
 // See the pickerActive field doc for the open/close protocol.
 func (p *proxy) emitPlainCR(out []byte) []byte {
+	return p.emitPlainCRFromSnapshot(out, nil)
+}
+
+// emitPlainCRFromSnapshot applies the single Return decision. A command drive
+// supplies its final proof frame; ordinary input captures current cells here.
+func (p *proxy) emitPlainCRFromSnapshot(out []byte, snapshot *terminalSnapshot) []byte {
 	// A nil profile means no remap at all. It still goes through
 	// decidePlainReturn — as the zero profile, which fails closed to the bare
 	// CR it used to hardcode — so the `submits` rule has exactly one home and
@@ -2182,8 +2188,7 @@ func (p *proxy) emitPlainCR(out []byte) []byte {
 		p.overlayConsumeHook()
 	}
 	p.overlayMu.Unlock()
-	var snapshot *terminalSnapshot
-	if p.terminal != nil {
+	if snapshot == nil && p.terminal != nil {
 		current := p.terminal.Snapshot()
 		snapshot = &current
 	}
@@ -2241,7 +2246,7 @@ func (p *proxy) observePickerScreen() {
 	if !p.pickerActive.Load() {
 		return
 	}
-	if !profile.recognize(p.terminal.Snapshot()) {
+	if !profile.recognize(p.terminal.Snapshot()).Active {
 		p.overlayComposerHidden = true
 		return
 	}

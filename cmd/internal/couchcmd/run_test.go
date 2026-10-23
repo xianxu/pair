@@ -1923,6 +1923,7 @@ func TestInitialHubBorrowedAttachmentNoticeAppearsOnFirstPaint(t *testing.T) {
 		host := hostty.NewFakeHost(ptychild.Size{Rows: 24, Cols: 160})
 		input, writer := io.Pipe()
 		console := couchtty.New(host, input)
+		assertCopied := noticeCopyAssertion(t, console)
 		runner := couchcore.NewFakeRunner()
 		handle, err := runner.Start("/repo", []string{"pair"}, nil)
 		if err != nil {
@@ -1961,6 +1962,10 @@ func TestInitialHubBorrowedAttachmentNoticeAppearsOnFirstPaint(t *testing.T) {
 				t.Fatal("no initial console paint")
 			}
 		}
+		visible := strings.Contains(host.Written(), "BORROWED ATTACH: old client is alive;")
+		if attachErr == nil {
+			assertCopied(writer, start.Warning())
+		}
 		console.Stop()
 		writer.Close()
 		select {
@@ -1968,7 +1973,6 @@ func TestInitialHubBorrowedAttachmentNoticeAppearsOnFirstPaint(t *testing.T) {
 		case <-testwait.After(t):
 			t.Fatal("console did not stop")
 		}
-		visible := strings.Contains(host.Written(), start.Record.AttachmentNotice)
 		if visible != (attachErr == nil) {
 			t.Fatalf("initial borrowed warning visible=%v after adoption error=%v; paint=%q", visible, attachErr, host.Written())
 		}

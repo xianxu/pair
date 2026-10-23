@@ -34,6 +34,8 @@ type GroupCountSpan struct {
 type StatusActor struct {
 	// Folded is nonzero only for a per-frame synthetic group count.
 	Folded int
+	// FoldedStateStrip is one checkout marker per hidden live member.
+	FoldedStateStrip string
 	// CollapseAnchor is derived from the launching hub, independently of focus.
 	CollapseAnchor bool
 	// GroupKey identifies the primary checkout; SlotNumber is zero for ordinary
@@ -377,7 +379,7 @@ func renderStatusCells(width int, m StatusModel, cells []chipCell, planned bool,
 		if used > 0 {
 			appendText(" ", "")
 		}
-		appendText(rowtext.Sanitize(m.CapabilityNotice), "")
+		appendText(ChromeStatusText(m.CapabilityNotice), "")
 	}
 	prefixUsed := used
 	width = actorBudget
@@ -397,7 +399,7 @@ func renderStatusCells(width int, m StatusModel, cells []chipCell, planned bool,
 		}
 		if cell.actor < 0 || m.Actors[cell.actor].Folded > 0 {
 			// A count is drawn whole or not at all: `+` alone reads as nothing.
-			if used+textwidth.Width(gap+cell.label) > width {
+			if used+textwidth.Width(gap+cell.label)+stripWidth(cell.strip) > width {
 				break
 			}
 			appendText(gap, "")
@@ -407,6 +409,19 @@ func renderStatusCells(width int, m StatusModel, cells []chipCell, planned bool,
 				countStyle = inactiveOwnerStyle(m.Palette, IdleFresh, baseDefault)
 			}
 			appendText(cell.label, countStyle)
+			if cell.strip != "" {
+				appendText(" ", countStyle)
+				for _, marker := range cell.strip {
+					style := countStyle
+					if base, own := slotGlyphBase(marker); own {
+						style = FadeStyle(m.Palette, IdleFresh, base)
+						if cell.actor >= 0 && m.Actors[cell.actor].OtherHub {
+							style += inactiveOwnerStyle(m.Palette, IdleFresh, base)
+						}
+					}
+					appendText(string(marker), style)
+				}
+			}
 			if used > start && m.TabStyle == TabStyleCollapse {
 				group := StatusGroupID{}
 				if cell.actor >= 0 {
@@ -578,6 +593,7 @@ func cellGap(cell chipCell) string {
 type chipCell struct {
 	actor   int
 	label   string
+	strip   string // admitted whole after base packing; never affects selection
 	section bool
 }
 
@@ -680,14 +696,33 @@ func layoutChips(actors []StatusActor, groups [][2]int, collapsed, folded []bool
 
 // chipsWidth is the columns the first n cells take, gaps included, as drawn.
 func chipsWidth(actors []StatusActor, cells []chipCell, n int) int {
+	return measureChipCells(actors, cells[:n], nil)
+}
+
+func stripWidth(strip string) int {
+	if strip == "" {
+		return 0
+	}
+	return 1 + textwidth.Width(strip)
+}
+
+// measureChipCells is the shared width pass, optionally counted by the planner.
+func measureChipCells(actors []StatusActor, cells []chipCell, work *statusLayoutWork) int {
 	total := 0
-	for i, cell := range cells[:n] {
+	for i, cell := range cells {
+		if work != nil {
+			work.Visits++
+			work.Bytes += len(cell.label) + len(cell.strip)
+		}
 		if i > 0 {
 			total += textwidth.Width(cellGap(cell))
 		}
-		total += textwidth.Width(cell.label)
+		total += textwidth.Width(cell.label) + stripWidth(cell.strip)
 		if cell.actor >= 0 {
 			a := actors[cell.actor]
+			if work != nil {
+				work.Bytes += len(a.Glyph)
+			}
 			if a.Active {
 				total++
 			}

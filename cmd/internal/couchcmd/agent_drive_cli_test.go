@@ -13,7 +13,7 @@ import (
 )
 
 func TestDriveCLIShapes(t *testing.T) {
-	for _, args := range [][]string{{"--keys", "pair:2", "text:/model", "submit", "wait:200", "esc"}, {"--set-model", "pair:2", "--model", "gpt-6.1-sol", "--confirm"}, {"--set-model", "pair:2", "--model", "opus", "--scope", "default", "--effort", "high", "--confirm", "--json"}} {
+	for _, args := range [][]string{{"--keys", "pair:2", "text:/model", "enter", "wait:200", "esc"}, {"--set-model", "pair:2", "--model", "gpt-6.1-sol", "--confirm"}, {"--set-model", "pair:2", "--model", "opus", "--scope", "default", "--effort", "high", "--confirm", "--json"}} {
 		inv, err := ParseCLI(args, couchcore.Operations())
 		if err != nil || inv.kind != cliMessage {
 			t.Fatalf("%v: %#v %v", args, inv, err)

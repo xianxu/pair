@@ -124,7 +124,7 @@ func keysUsage(w io.Writer) {
 	fmt.Fprintln(w, "  refuses while one shows. The panel's own footer (Esc to cancel) is the proof.")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Slash-command panel round trip (/usage, /status):")
-	fmt.Fprintln(w, "  couch --keys pair:7 clear-line text:/usage submit   open it")
+	fmt.Fprintln(w, "  couch --keys pair:7 clear-line text:/usage enter   open it")
 	fmt.Fprintln(w, "  couch --peek pair:7 --lines 40                      read it")
 	fmt.Fprintln(w, "  couch --keys pair:7 esc                             close it; done when the empty composer returns")
 	fmt.Fprintln(w)

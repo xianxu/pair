@@ -292,3 +292,10 @@ TL be810f58-06be-43c0-ad23-910fa12dd692 replaces the setup-heavy original live c
 4. Select the TL's attached-target notification; ops:0 opens exactly.
 
 Unexpected exit and detached-target navigation remain covered by deterministic controlled-order/race/native console fixtures, explicitly not operator-tested. No new disposable slot is created. Recorded-suite proof and these four live observations remain required before landing; acceptance results are pending.
+
+
+### 2026-10-23 — train321 conflict repair
+
+The retained merge runner exited1: train321 held #812 for conflicts with current main/preceding cars. Integrated main e6fc81eac82c5106f942c09dca4fac7139b17a0b into the reviewed branch. Resolutions preserve main's Ctrl-Return bell toggle, folded slot-state strip, and forty-cell capability projection while keeping #812's general feed out of all tab layouts. Migrated startup/restart tests to current switcher frames and full native clipboard assertions; preserved real publication-failure attention and borrowed-attach/freshness feed-only classification. Newly landed Chrome tests now defend capability width and unchanged general-feed layout plus retained full copy, instead of the deleted StatusModel.Notice field. No scope change.
+
+Focused couchcmd integration PASS3.279s; same startup/restart/noise/README selection race x3 PASS26.272s. Focused couchtty conflict/chrome/copy/strip/chord PASS1.277s and expanded race x10 PASS36.252s. Audited run_test reader inputs (two fixed README reads and a self-generated TempDir trace), refreshed only its fixed_scanner certificate; make test-affected-inventory PASS. Resolved-file diff check PASS; inherited native raw fixtures retain main's CR/whitespace bytes. Next: push this merge, obtain recorded full integration pass, narrow re-close with that proof, then re-enter sdlc merge. Prior conditional operator acceptance remains as recorded; no second live check required.

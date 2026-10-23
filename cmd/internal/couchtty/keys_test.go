@@ -168,8 +168,8 @@ func FuzzInterceptorFeed(f *testing.F) {
 		"", "\x00", "x\x00y", "\x1b[200~\x00\x1b[201~", "\x1b[2~", "\x1b[20",
 		"\x1b", "\x1b[201~", "\x00\x00", "\x1b[200~",
 		// ctrl+return and the Return neighbours it must not claim.
-		couchkeys.NewestPageSequence, "\x1b[13;5", "\x1b[13;5:3u", "\x1b[13u", "\x1b[13;1u", "\x1b[13;3u",
-		"\x1b[200~" + couchkeys.NewestPageSequence + "\x1b[201~",
+		couchkeys.CtrlReturnSequence, "\x1b[13;5", "\x1b[13;5:3u", "\x1b[13u", "\x1b[13;1u", "\x1b[13;3u",
+		"\x1b[200~" + couchkeys.CtrlReturnSequence + "\x1b[201~",
 	} {
 		f.Add([]byte(s))
 	}
@@ -460,7 +460,7 @@ func TestInterceptorIgnoresCtrlBackspaceInsideAPaste(t *testing.T) {
 	}
 }
 
-// ctrl+return is claimed in exactly ONE encoding, and every neighbour it could
+// ctrl+return is claimed in its enhanced press/repeat encodings; every neighbour it could
 // be confused with reaches the child byte for byte. Return is the most common
 // key there is; taking any other form of it would be far worse than never adding
 // the chord. The neighbour class is every codepoint-13 encoding Pair consumes --
@@ -471,9 +471,9 @@ func TestInterceptorIgnoresCtrlBackspaceInsideAPaste(t *testing.T) {
 // over knownSequences; this is the part a table walk cannot see.
 func TestInterceptorClaimsCtrlReturnAndNoOtherReturn(t *testing.T) {
 	var it Interceptor
-	before, hit, rest := it.FeedHit([]byte("x" + couchkeys.NewestPageSequence + "y"))
-	if hit != HitNewestPage || string(before) != "x" || string(rest) != "y" {
-		t.Fatalf("FeedHit(ctrl+return) = (%q, %v, %q), want (\"x\", HitNewestPage, \"y\")", before, hit, rest)
+	before, hit, rest := it.FeedHit([]byte("x" + couchkeys.CtrlReturnSequence + "y"))
+	if hit != HitAttention || string(before) != "x" || string(rest) != "y" {
+		t.Fatalf("FeedHit(ctrl+return) = (%q, %v, %q), want (\"x\", HitAttention, \"y\")", before, hit, rest)
 	}
 
 	for _, neighbour := range []string{
@@ -494,7 +494,7 @@ func TestInterceptorClaimsCtrlReturnAndNoOtherReturn(t *testing.T) {
 	}
 
 	// Inside a bracketed paste it is content, like every other chord.
-	paste := "\x1b[200~a" + couchkeys.NewestPageSequence + "b\x1b[201~"
+	paste := "\x1b[200~a" + couchkeys.CtrlReturnSequence + "b\x1b[201~"
 	var pasted Interceptor
 	before, hit, rest = pasted.FeedHit([]byte(paste))
 	if hit != HitNone || len(rest) != 0 || string(before) != paste {

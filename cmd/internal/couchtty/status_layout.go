@@ -167,6 +167,9 @@ func renderStatusBar(width, maxRows int, m StatusModel, work *statusLayoutWork) 
 	if p.height == 0 {
 		p.height = 1
 	}
+	if m.TabStyle == TabStyleCollapse {
+		decorateFoldedCounts(m.Actors, p.rows[0], budget, prefix, work)
+	}
 	bar := RenderedStatusBar{Rows: make([]RenderedStatusRow, p.height)}
 	for i := range bar.Rows {
 		model := prefixModel
@@ -352,4 +355,34 @@ func packStatusChips(actors []StatusActor, chips []statusChip, groups []statusGr
 		}
 	}
 	return p
+}
+
+// decorateFoldedCounts spends only spare columns after mandatory base packing.
+// A rejected large strip does not prevent a later smaller group from fitting.
+func decorateFoldedCounts(actors []StatusActor, cells []chipCell, budget, prefix int, work *statusLayoutWork) {
+	spare := budget - prefix - measureChipCells(actors, cells, work)
+	if prefix > 0 && len(cells) > 0 {
+		spare -= textwidth.Width(cellGap(cells[0]))
+	}
+	for i := range cells {
+		if work != nil {
+			work.Visits++
+		}
+		cell := &cells[i]
+		if cell.actor < 0 {
+			continue
+		}
+		a := actors[cell.actor]
+		if a.Folded <= 0 || a.FoldedStateStrip == "" {
+			continue
+		}
+		if work != nil {
+			work.Bytes += len(a.FoldedStateStrip)
+		}
+		cost := stripWidth(a.FoldedStateStrip)
+		if cost <= spare {
+			cell.strip = a.FoldedStateStrip
+			spare -= cost
+		}
+	}
 }

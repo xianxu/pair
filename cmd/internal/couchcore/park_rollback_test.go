@@ -74,14 +74,69 @@ func TestParkCanceledAfterBeginRollsBackBeforePublication(t *testing.T) {
 }
 
 func TestParkBeginDeadlineRollsBackBeforePublication(t *testing.T) {
+	for _, tc := range []struct {
+		name     string
+		duration time.Duration
+		overrun  bool
+	}{
+		{"2s commit proceeds", 2 * time.Second, false},
+		{"3s commit proceeds", 3 * time.Second, false},
+		{"just under threshold proceeds", parkCommitDeadline - time.Nanosecond, false},
+		{"threshold rolls back", parkCommitDeadline, true},
+		{"over threshold rolls back", parkCommitDeadline + 5*time.Second, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			env, live := envWithLiveThread(t)
+			env.Couch.PairLifecycle.Clock = &sequenceClock{times: []time.Time{env.Now, env.Now.Add(tc.duration)}}
+			result, err := env.Couch.PairLifecycle.Park(context.Background(), live.Address)
+			var overrun *ParkCommitOverrunError
+			if !tc.overrun {
+				if errors.As(err, &overrun) {
+					t.Fatalf("%s commit refused: %v", tc.duration, err)
+				}
+				if result.RequestedCommitDuration != tc.duration || len(env.Lifecycle.trace) == 0 {
+					t.Fatalf("commit did not proceed to publication: duration=%s trace=%v err=%v", result.RequestedCommitDuration, env.Lifecycle.trace, err)
+				}
+				return
+			}
+			if !errors.As(err, &overrun) || overrun.Observed != tc.duration || overrun.Threshold != parkCommitDeadline {
+				t.Fatalf("overrun lacks typed duration evidence: %#v %v", overrun, err)
+			}
+			after, _ := env.Couch.Threads.GetThread(live.Address)
+			if after.Park != nil || len(after.Incarnations) != 1 || len(env.Lifecycle.trace) != 0 {
+				t.Fatalf("deadline retained unpublished transaction: %+v", after)
+			}
+		})
+	}
+}
+
+// A rollback that cannot be written leaves the transaction open: the overrun
+// keeps its evidence, and the retained Park routes the next drive through the
+// existing transaction rather than a fresh nonce.
+func TestParkBeginDeadlineFailedRollbackRetainsTransaction(t *testing.T) {
 	env, live := envWithLiveThread(t)
-	env.Couch.PairLifecycle.Clock = &sequenceClock{times: []time.Time{env.Now, env.Now.Add(time.Second)}}
+	env.Couch.PairLifecycle.Clock = &sequenceClock{times: []time.Time{env.Now, env.Now.Add(parkCommitDeadline)}}
+	stop := errors.New("rollback write refused")
+	env.Couch.Threads.hooks.BeforeUpdate = func(old, next ThreadRecord) error {
+		if old.Park != nil && next.Park == nil {
+			return stop
+		}
+		return nil
+	}
 	_, err := env.Couch.PairLifecycle.Park(context.Background(), live.Address)
-	if err == nil {
-		t.Fatal("deadline not reported")
+	var overrun *ParkCommitOverrunError
+	if !errors.As(err, &overrun) || !errors.Is(err, stop) {
+		t.Fatalf("failed rollback lost evidence: %v", err)
 	}
 	after, _ := env.Couch.Threads.GetThread(live.Address)
-	if after.Park != nil || len(after.Incarnations) != 1 || len(env.Lifecycle.trace) != 0 {
-		t.Fatalf("deadline retained unpublished transaction: %+v", after)
+	if after.Park == nil || len(env.Lifecycle.trace) != 0 {
+		t.Fatalf("failed rollback dropped the uncertain transaction or published: %+v trace=%v", after.Park, env.Lifecycle.trace)
+	}
+}
+
+// #827 raised the commit threshold; relaunch's diagnostic read must not ride along.
+func TestRelaunchObservationTimeoutIndependentOfCommitThreshold(t *testing.T) {
+	if relaunchObservationTimeout != time.Second || parkCommitDeadline == relaunchObservationTimeout {
+		t.Fatalf("relaunch observation %s coupled to commit threshold %s", relaunchObservationTimeout, parkCommitDeadline)
 	}
 }

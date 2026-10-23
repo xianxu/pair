@@ -733,6 +733,14 @@ var NonArtifactSources = []string{
 	"cmd/internal/couchcore/startup_progress.go",
 	"cmd/internal/launcher/startup_budget.go",
 	"cmd/internal/startupbudget/budget.go",
+	// #823 editorial settings and embedded mode briefs name no Pair artifacts.
+	"cmd/internal/editorial/catalog.go",
+	"cmd/internal/editorial/document.go",
+	"cmd/internal/editorial/markdown.go",
+	"cmd/internal/editorial/source.go",
+	"cmd/internal/editorial/migrate.go",
+	"cmd/internal/editorial/edits.go",
+	"cmd/internal/editorial/markers.go",
 	// #758 endpoint model and native editor transport name no Pair artifact paths.
 	"cmd/internal/editorendpoint/model.go",
 	"cmd/internal/editorendpoint/state.go",
@@ -788,6 +796,7 @@ var NonArtifactSources = []string{
 	"cmd/internal/agentdrive/screen.go",
 	"cmd/internal/agentdrive/panel.go",
 	"cmd/internal/agentdrive/model.go",
+	"cmd/internal/agentdrive/command.go",
 	"cmd/internal/tailmarkup/markup.go",
 	"cmd/internal/couchmessage/drive_endpoint.go",
 	"cmd/internal/couchmessage/refusal.go",
@@ -1317,6 +1326,8 @@ var NonArtifactSources = []string{
 	"cmd/internal/couchcore/operationdispatch.go",
 	"cmd/internal/couchcore/ops.go",
 	"cmd/internal/couchtty/console.go",
+	// #789: pure chrome text projection; no artifact paths.
+	"cmd/internal/couchtty/chrome_status.go",
 	"cmd/internal/couchtty/console_continuation.go",
 	// #488/#647 note anchors: deterministic Couch frame/layout; no artifact paths.
 	"cmd/internal/couchtty/console_noteanchor.go",
@@ -1336,6 +1347,9 @@ var NonArtifactSources = []string{
 	// #661 apply and rounds: pure resolution, diff and marker code, plus a
 	// round sidecar beside the shadow; no Pair artifact filenames.
 	"cmd/internal/sessionsync/edits.go",
+	"cmd/internal/sessionsync/editorial_codec.go",
+	"cmd/internal/sessionsync/editorial.go",
+	"cmd/internal/sessionsync/editorial_migration.go",
 	"cmd/internal/sessionsync/file.go",
 	"cmd/internal/sessionsync/gap.go",
 	"cmd/internal/sessionsync/ledger.go",
@@ -1529,6 +1543,9 @@ var NonArtifactSources = []string{
 	"cmd/internal/couchcore/naming.go",
 	"cmd/internal/couchcore/parktransaction.go",
 	"cmd/internal/couchcore/parkworker.go",
+	// #827's bounded full quit drives existing park authorities; it constructs
+	// no artifact filenames.
+	"cmd/internal/couchcore/leave_park.go",
 	// #651 routes existing thread/lifecycle authorities; it constructs no
 	// artifact filenames or new artifact family.
 	"cmd/internal/couchcore/park_recovery.go",
@@ -1934,6 +1951,7 @@ var NonArtifactSources = []string{
 	"cmd/internal/workbenchshortcut/terminal_command.go",
 	"cmd/internal/workbenchshortcut/render_lua.go",
 	"cmd/internal/wrapcmd/composer_recognizers.go",
+	"cmd/internal/wrapcmd/composer_input.go",
 	"cmd/internal/wrapcmd/codex_working.go",
 	"cmd/internal/wrapcmd/harness_tty.go",
 	"cmd/internal/wrapcmd/composer_rows.go",

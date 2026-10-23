@@ -97,6 +97,8 @@ func TestCodesMenuRotatesAndDisconnects(t *testing.T) {
 // new code flashes in the operator-only layer; a late, older rotation never
 // replaces a newer one.
 func TestGuessRotationAlertAndFlash(t *testing.T) {
+	copied := noticeClipboard(t)
+	const full = "Too many wrong codes on the LIVE view link: its code changed. Hover LIVE to see it."
 	f := broadcastFixture(t, &broadcast.FakeTunnel{}, nil)
 	f.startLive(t)
 	attempt := f.screenAttempt()
@@ -113,6 +115,16 @@ func TestGuessRotationAlertAndFlash(t *testing.T) {
 	if strings.Contains(items[0].Body, "5193") || strings.Contains(f.con.menuSnapshot().LatestFeed, "5193") {
 		t.Fatal("guessing warning exposed the code outside the private flash")
 	}
+	if got := f.con.menuSnapshot().LatestFeed; got != full {
+		t.Fatalf("rotation notice lost source text: %q", got)
+	}
+	if strings.Contains(f.lastRow(), full) {
+		t.Fatal("general rotation notice reached tab bar")
+	}
+	f.con.copyLastNotice()
+	if got := copied(); got != full {
+		t.Fatalf("copied rotation notice %q; want %q", got, full)
+	}
 	waitFor(t, "the flash", func() bool { return strings.Contains(f.screenText(), "LIVE view 5193") })
 	if strings.Contains(f.lastRow(), "5193") {
 		t.Fatal("the alert names the code")
@@ -128,7 +140,7 @@ func TestGuessRotationAlertAndFlash(t *testing.T) {
 	waitFor(t, "the second immediate alert", func() bool {
 		f.con.mu.Lock()
 		defer f.con.mu.Unlock()
-		return strings.Contains(f.con.feed.Row().Body, "Too many wrong codes on the LIVE view link")
+		return f.con.feed.Row().Body == full
 	})
 	waitFor(t, "the newest flash", func() bool { return strings.Contains(f.screenText(), "LIVE view 2222") })
 	waitFor(t, "the flash over", func() bool { return !strings.Contains(f.screenText(), "LIVE view 2222") })

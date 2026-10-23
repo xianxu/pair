@@ -2,7 +2,6 @@ package couchcmd
 
 import (
 	"context"
-	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"os"
@@ -167,8 +166,9 @@ func TestEditedRestartConsoleRemoteAdoption(t *testing.T) {
 			for _, adoption := range []string{"adopted", "attach-refused", "publication-refused"} {
 				t.Run(agent+"/"+mode+"/"+adoption, func(t *testing.T) {
 					cold, service, hub, hubs := newEditedRestartConsoleAcceptanceRig(t, agent)
-					// Keep the complete combined notice visible in this fake host,
-					// including the storage diagnostic's private temporary path.
+					assertCopied := noticeCopyAssertion(t, cold.console)
+					// A wide host retains controls; notice text still has the
+					// same 40-cell display cap, independently of host width.
 					cold.host.SetSize(ptychild.Size{Rows: 24, Cols: 512})
 					screen := startupWarmScreen(t, 512, 24, cold.host.Written)
 					// Admission creates the private accepted anchor while found; the
@@ -296,33 +296,19 @@ func TestEditedRestartConsoleRemoteAdoption(t *testing.T) {
 						t.Fatalf("remote receipt lost combined notices: %+v", receipt)
 					}
 					if receipt.Warning != "" {
-						t.Cleanup(func() {
-							if t.Failed() {
-								t.Logf("warning projection screen: %s", screen())
-							}
-						})
-						// The switcher banner is bounded. Verify its stable prefix,
-						// then the full retained notice through the real copy action.
+						// Inspect the current switcher frame, independently of the
+						// deleted tab notice, then copy the full combined receipt.
 						if _, err := cold.input.Write([]byte("\x1b[32;5u")); err != nil {
 							t.Fatal(err)
 						}
-						testwait.Until(t, "visible edited restart notices", func() bool {
-							written := strings.Join(strings.Fields(screen()), " ")
-							return strings.Contains(written, receipt.Warning[:min(60, len(receipt.Warning))])
-						})
-						// All lifecycle and publication work has completed. Only now
-						// hide native clipboard tools; restore PATH before fixture
-						// teardown rather than changing restart/cleanup behavior.
-						originalPath := os.Getenv("PATH")
-						t.Setenv("PATH", t.TempDir())
-						defer func() { t.Setenv("PATH", originalPath) }()
-						if _, err := cold.input.Write([]byte("\x19")); err != nil {
-							t.Fatal(err)
+						visible := "started, but startup parameters"
+						if mode == "fresh" {
+							visible = "no previous conversation found;"
 						}
-						encoded := base64.StdEncoding.EncodeToString([]byte(receipt.Warning))
-						testwait.Until(t, "full edited restart notice copied", func() bool {
-							return strings.Contains(cold.host.Written(), "\x1b]52;c;"+encoded)
+						testwait.Until(t, "visible edited restart switcher notice", func() bool {
+							return strings.Contains(strings.Join(strings.Fields(screen()), " "), visible)
 						})
+						assertCopied(cold.input, receipt.Warning)
 					}
 					result := <-completed
 					if result.Warning() != receipt.Warning {

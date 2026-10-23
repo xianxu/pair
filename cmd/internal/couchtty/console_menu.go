@@ -490,6 +490,10 @@ func (c *Console) copyLastNotice() {
 	if !found && c.menu.Notice.Level == MenuNoticeError && c.menu.Notice.Text != "" {
 		text, found = c.menu.Notice.Text, true
 	}
+	if !found && c.wcast.cast != nil {
+		text = capabilityNotice(c.wcast.cast.Capabilities())
+		found = text != ""
+	}
 	if !found {
 		messages := c.feed.Messages()
 		if len(messages) > 0 {

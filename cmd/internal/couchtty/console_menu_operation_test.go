@@ -110,6 +110,7 @@ func TestConsoleMenuStartAttachesBeforeSuccessfulRestoration(t *testing.T) {
 }
 
 func TestConsoleMenuResumeLandsOnExactReturnedHandle(t *testing.T) {
+	copied := noticeClipboard(t)
 	f := newFixture(t, 24, 80)
 	target := menuAddress("couch-two")
 	state := NewMenuState(menuThreads(), menuAddress("couch-one"))
@@ -163,6 +164,10 @@ func TestConsoleMenuResumeLandsOnExactReturnedHandle(t *testing.T) {
 	})
 	if count := f.con.attentionCount(); count != 0 {
 		t.Fatalf("routine borrowed attachment raised %d attention items", count)
+	}
+	f.con.copyLastNotice()
+	if got := copied(); got != started.Warning() {
+		t.Fatalf("borrowed warning copied %q; want full %q", got, started.Warning())
 	}
 	// The complete routine notice remains available through the real copy key.
 	t.Setenv("PATH", t.TempDir())

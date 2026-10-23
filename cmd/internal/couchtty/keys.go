@@ -29,7 +29,6 @@ const (
 	seqPrevious
 	seqDetach
 	seqRelaunch
-	seqNewestPage
 	seqBroadcast
 	seqWebcast
 	seqAttention
@@ -73,10 +72,6 @@ const (
 	// SwitchTracker. The key labelled `delete` on an Apple keyboard, not
 	// forward-delete -- no fn in the chord.
 	HitPrevious
-	// HitNewestPage is ctrl+return: jump straight to the thread ctrl-space would
-	// have opened the switcher on, with no switcher in between. HitPrevious's
-	// mirror image -- that one goes home, this one goes to the page.
-	HitNewestPage
 	// HitDetach is alt+d: stop this thread's pair client without tearing down
 	// its zellij session.
 	HitDetach
@@ -89,7 +84,7 @@ const (
 	// HitWebcast is shift+ctrl+alt+b: start the cast Chrome, or go live,
 	// pause or resume its cast (#454).
 	HitWebcast
-	// HitAttention is ctrl+alt+a: open or close the attention list (pair#673).
+	// HitAttention is ctrl+return or ctrl+alt+a: open or close the attention list (pair#673).
 	HitAttention
 	// HitMouse is an SGR mouse report. It has NO seqKind: a report's shape is
 	// `\x1b[<button;col;rowM|m` with variable digits, so knownSequences -- which
@@ -133,8 +128,6 @@ func dispatchFor(action couchkeys.Action) (InterceptorHit, seqKind) {
 		return HitSwitch, seqSwitch
 	case couchkeys.ActionPrevious:
 		return HitPrevious, seqPrevious
-	case couchkeys.ActionNewestPage:
-		return HitNewestPage, seqNewestPage
 	case couchkeys.ActionDetach:
 		return HitDetach, seqDetach
 	case couchkeys.ActionPark:
@@ -184,7 +177,7 @@ type MouseHit struct {
 // HitNone is deliberately absent: it is the ABSENCE of a hit, and giving it a
 // handler would be inventing an action for "nothing happened".
 func AllInterceptorHits() []InterceptorHit {
-	return []InterceptorHit{HitSwitch, HitPark, HitPrevious, HitNewestPage, HitDetach, HitRelaunch, HitBroadcast, HitWebcast, HitAttention, HitMouse}
+	return []InterceptorHit{HitSwitch, HitPark, HitPrevious, HitDetach, HitRelaunch, HitBroadcast, HitWebcast, HitAttention, HitMouse}
 }
 
 // knownSequences is every multi-byte sequence the console must recognise in the

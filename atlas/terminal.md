@@ -150,6 +150,11 @@ remaining accepted children after release. Final Console exit classification wai
 for Presenter release/join: shutdown-only cancellation is expected, while
 previously latched live failures, mixed host errors and cleanup failures remain
 errors regardless of which stop/failure notification was selected first.
+Presenter publishes its failed view and first causal error under one mutex
+(#833). Queued, later and released-completion refusals wrap that same cause,
+preserving every leaf for Console's cancellation-only classification. Existing
+argument and caller-cancellation precedence remain; release errors still report
+cleanup separately from the retained presentation failure.
 
 Normal history carries monotonic row IDs, clear epochs, blank provenance and soft
 wrap metadata. `RenderWithHistory` serializes owned cells in bounded chunks; the
