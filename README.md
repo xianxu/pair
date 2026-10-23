@@ -642,7 +642,7 @@ composer came back. `couch --keys --help` lists the steps, the limits, these
 rules and that round trip.
 
 ```sh
-couch --keys pair:7 clear-line text:/model submit wait:200 down enter
+couch --keys pair:7 clear-line text:/model enter wait:200 down enter
 couch --set-model pair:7 --model gpt-6.1-sol --effort medium --confirm
 ```
 
@@ -653,8 +653,9 @@ Named raw steps are `text:…`, `enter`, `submit`, the arrows, `tab`,
 step: `couch --interrupt pair:7 --confirm` sends one into a working turn, refuses
 with no working turn, and is never retried. Codex work is proved by its current
 Working or Waiting for… status with its interrupt hint above the composer; confirmation
-requires a fresh idle composer. `enter` follows Pair's Return behavior: newline in
-the composer, selection in a picker; `submit` follows Alt+Return. Each `esc`
+requires a fresh idle composer. `enter` follows Pair's Return behavior: native submission for a proved single-line
+slash command, newline for ordinary composer text, and selection in a picker;
+`submit` follows Alt+Return. Each `esc`
 is a separate input step. Raw success confirms the writes and final observation.
 Use `--set-model` when you need a confirmed model, effort and scope: it follows
 observed labels, uses the picker's current effort if omitted, and verifies a

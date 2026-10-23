@@ -144,10 +144,8 @@ func TestNativePrefixSelectionRetainsDriveFreshnessGuard(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	s, _ = ReduceDrive(s, DriveEvent{Kind: EventStart, At: now, Screen: Screen{Epoch: 1, Complete: true, Idle: true}})
-	for i := 0; i < 3; i++ {
-		s, _ = ReduceDrive(s, DriveEvent{Kind: EventWritten, At: now})
-	}
+	s, _ = ReduceDrive(s, DriveEvent{Kind: EventStart, At: now, Screen: Screen{Epoch: 0, Complete: true, Idle: true}})
+	s = acknowledgeModelCommand(t, s, now)
 	screen := Screen{Epoch: 2, Complete: true, Lines: capture(t, "native-model-picker")}
 	s, fx := ReduceDrive(s, DriveEvent{Kind: EventScreen, At: now, Screen: screen})
 	if len(fx) != 1 || fx[0].Key.Kind != KeyDown {
