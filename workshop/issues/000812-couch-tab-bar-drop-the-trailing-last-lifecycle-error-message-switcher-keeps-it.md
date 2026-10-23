@@ -229,6 +229,15 @@ Complete couchtty PASS69.401s,4363 test/subtest passes,0failures, agent session6
 
 Next commit/push corrected head, fresh recorded affected/full check, full re-close to review noise-class correction and updated approved evidence allocation, then land once gates pass and attached-target result confirmed with TL. Operator accepted the other live behavior conditional on this correction and explicitly requires no second live check; first noisy restart remains FAILED. No live repeat or new slot authorized/needed.
 
+
+### 2026-10-23 — corrected close SHIP; operator acceptance clarification
+
+Full close round7 reviewed6582490dac8db921ce44f864b9875cd32eb0195c and returned SHIP with0 new findings, all6 prior findings addressed; codecomplete evidence852487b7d935c4d184a75f6f7c798ed7529262f1 published/pushed. Reviewer independently exercised restart-noise controls and typed failure positives; no additional review or live acceptance is invented. Measured4.42h, window05:01:56 to10:01:46 local,9 admitted sessions; automatic adoption, no hand actuals.
+
+Authenticated TL1e02655e-4279-45c4-8500-373e9b1f5223 clarifies the operator's09:46 verdict: “other parts work as you described; ship it once the startup bell storm is fixed.” This statement came after the attached --notify item was in the operator's bell, and includes that case by their statement, not a separately witnessed observation. Record this as acceptance of the remaining live behavior conditional on fixing the startup storm; the first noisy restart remains a failure. Noise correction now passes the named real multi-slot, freshness, configuration and source/copy regressions and independent SHIP review. No second live check required; land only after the corrected recorded check passes.
+
+Fresh recorded affected selection is full due reader certificates: lease-3861982285 on6582490d, session73738, inflight84ce076330fb79cbf21cc51798624189. Last status queued9 after284s, not a pass. Source unchanged after reviewed head; this is acceptance-evidence bookkeeping only. Preserve runner/FIFO; next inspect terminal result, classify any failure, otherwise sdlc merge --yes and verify tracker/archive/runner outcome, clear stage through the authorized landing path and report PR558. No main chase before branch proof. pair:0 remains staged at3dedd7b6 until landing/stage clear; no second restage/live check is needed under TL's updated instruction.
+
 ## Revisions
 
 ### 2026-10-23 — BR-3/BR-4 exhaustive completion
