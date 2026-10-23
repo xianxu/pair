@@ -566,3 +566,10 @@ Cancelled only obsolete#728 lease-135620886 through sdlc local-check cancel (con
 
 
 All action-row checks joined: focused race PASS1.575s, whole couchtty PASS48.207s, affected-reader inventory and whitespace PASS. Cancelled runner68477 joined exit1 with context-cancelled suite lock, as expected for the obsolete queued snapshot; it never ran a suite and is not a test failure. Proceeding to commit/push and authorized restage, followed by one final recorded affected check on the new source.
+
+
+### 2026-10-22 — Rendering fix restaged; final source requeued
+
+Committed/pushed2635a5d73e7f2abfe36df5ae43a8435ebbc1e314. Authorized sdlc stage --build runner61450 joined EXIT0 and replaced our prior stage; all four binaries (couch, pair, pair-launch-helper, pair-slug) report this exact revision, modified=false. Target HEAD was rechecked unchanged after build. Hub report receipt f48d814e-b4ab-42b5-9483-df385a3f9cd1 carries the revision and fresh-runtime requirement; live operator functional outcome remains pending.
+
+New final recorded affected selected the full suite on exact2635a5d73e7f2abfe36df5ae43a8435ebbc1e314. Runner83176, lease-2748664947, attempt4b4a41391cbd3d540d4a3b3a382d3255, detached snapshot /Volumes/TestScratch/local-checks/sdlc-local-1277872355, log /Users/xianxu/workspace/pair/.git/sdlc/test-stats/inflight/4b4a41391cbd3d540d4a3b3a382d3255/run.log; FIFO15 at admission. Existing#743 runner2840/lease-137818653 explicitly retained (FIFO3). No duplicate or restart; wait for both recorded results and operator acceptance. New UI delta is subject to the final issue-close review.
