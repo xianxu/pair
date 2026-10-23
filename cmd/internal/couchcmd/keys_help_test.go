@@ -42,7 +42,7 @@ func TestKeysHelpIsTheVerbsOwnHelp(t *testing.T) {
 	if strings.Count(got, "\n") > 60 {
 		t.Errorf("keys help prints families member by member: %d lines", strings.Count(got, "\n"))
 	}
-	for _, want := range []string{"couch --keys pair:7 clear-line text:/usage submit", "couch --peek pair:7", "couch --keys pair:7 esc", "64 steps", "8192 bytes"} {
+	for _, want := range []string{"couch --keys pair:7 clear-line text:/usage enter", "couch --peek pair:7", "couch --keys pair:7 esc", "64 steps", "8192 bytes"} {
 		if !strings.Contains(got, want) {
 			t.Errorf("keys help omits %q:\n%s", want, got)
 		}

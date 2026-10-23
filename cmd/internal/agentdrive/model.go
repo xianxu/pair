@@ -40,22 +40,31 @@ type DriveEffect struct {
 	// NotBefore keeps Enter out of a receiver's rapid-text paste window.
 	// The existing writer polls this bound inside the absolute drive deadline.
 	NotBefore time.Time
-	// ScreenEpoch pins writes derived from picker evidence. Zero denotes a raw
-	// caller step or initial command entry, which has no picker observation.
+	// ScreenEpoch pins writes derived from picker or exact command evidence.
+	// Zero denotes a caller step or initial text entry with no observed proof.
 	ScreenEpoch uint64
 	proof       ScreenEvidence
+	commandText string
+}
+
+// CommandEnter marks native Return bound to an exact authored command echo.
+func (e DriveEffect) CommandEnter() bool {
+	return e.Kind == EffectWrite && e.Key.Kind == KeyEnter && e.commandText != ""
 }
 
 // TextSubmitDelay also paces ordinary peer submissions. Codex 0.162.1 retains
 // a 120ms Enter-suppression window after a rapid text burst has rendered.
 const TextSubmitDelay = 150 * time.Millisecond
 
-// MatchesScreen permits a repaint only when the complete parsed picker evidence
-// is identical to the evidence supporting this action. Ordered labels, selection
-// and footer remain part of the proof; an epoch change alone is not authority.
+// MatchesScreen permits a repaint only when the command or parsed picker
+// evidence remains identical to the evidence supporting this action. An epoch
+// change alone grants no authority; ownership and completeness remain required.
 func (e DriveEffect) MatchesScreen(agent string, screen Screen) bool {
 	if !screen.Complete || screen.TurnActive {
 		return false
+	}
+	if e.CommandEnter() {
+		return screen.Epoch >= e.ScreenEpoch && screen.Recoverable && screen.CommandKnown && screen.CommandText == e.commandText
 	}
 	if e.ScreenEpoch == 0 {
 		return true
@@ -82,6 +91,7 @@ const (
 	phaseNew drivePhase = iota
 	phaseWriting
 	phaseRaw
+	phaseCommand
 	phaseWaiting
 	phaseFinal
 	phaseModel
@@ -111,7 +121,9 @@ type DriveState struct {
 	priorConfirmations                   map[string]int
 	// dismissal marks a drive admitted only by a recognized panel; its
 	// outcome is the composer returning, not just a fresh frame (pair#691).
-	dismissal bool
+	dismissal      bool
+	commandTargets []string
+	pendingCommand string
 }
 
 func NewDrive(r Request, agent string, deadline time.Time) (DriveState, error) {
@@ -127,7 +139,7 @@ func NewDrive(r Request, agent string, deadline time.Time) (DriveState, error) {
 	if r.Model != nil && agent == "claude" && r.Model.EffectiveScope() == ScopeDefault {
 		return DriveState{}, fmt.Errorf("Claude default scope is not supported by a verified recipe; use session scope")
 	}
-	return cloneDrive(DriveState{request: r, agent: agent, deadline: deadline}), nil
+	return cloneDrive(DriveState{request: r, agent: agent, deadline: deadline, commandTargets: commandExpectations(r.rawSteps())}), nil
 }
 func cloneDrive(s DriveState) DriveState {
 	s.request.Keys = append(KeySequence(nil), s.request.Keys...)
@@ -270,12 +282,22 @@ func rawNext(s DriveState, at time.Time) (DriveState, []DriveEffect) {
 		s.waitUntil = at.Add(time.Duration(key.WaitMS) * time.Millisecond)
 		return s, []DriveEffect{{Kind: EffectWait, Delay: time.Duration(key.WaitMS) * time.Millisecond}}
 	}
+	if key.Kind == KeyEnter && s.commandTargets[s.index] != "" {
+		s.pendingCommand = s.commandTargets[s.index]
+		s.phase = phaseCommand
+		return observe(s)
+	}
 	return write(s, key, phaseRaw)
 }
 func commandNext(s DriveState) (DriveState, []DriveEffect) {
-	keys := []KeyStep{{Kind: KeyClearLine}, {Kind: KeyText, Text: "/model"}, {Kind: KeySubmit}}
+	keys := []KeyStep{{Kind: KeyClearLine}, {Kind: KeyText, Text: "/model"}, {Kind: KeyEnter}}
 	if s.command == len(keys) {
 		s.phase = phaseModel
+		return observe(s)
+	}
+	if s.command == 2 {
+		s.pendingCommand = "/model"
+		s.phase = phaseCommand
 		return observe(s)
 	}
 	return write(s, keys[s.command], phaseModel)
@@ -399,7 +421,10 @@ func ReduceDrive(input DriveState, event DriveEvent) (DriveState, []DriveEffect)
 			s.result.Tail = boundedTail(screenHistory(event.Screen))
 			return finish(s, OutcomeConfirmed, "recovery key bytes accepted and current empty composer observed")
 		}
-		if event.Screen.Epoch <= s.epoch || event.Screen.Epoch <= s.writeEpoch || !event.Screen.Complete {
+		// A command echo painted during an explicit wait can remain the current
+		// frame when that wait ends. It must still be newer than the text write.
+		staleObservation := event.Screen.Epoch < s.epoch || event.Screen.Epoch == s.epoch && s.phase != phaseCommand
+		if staleObservation || event.Screen.Epoch <= s.writeEpoch || !event.Screen.Complete {
 			return observe(s)
 		}
 		s.epoch = event.Screen.Epoch
@@ -411,6 +436,22 @@ func ReduceDrive(input DriveState, event DriveEvent) (DriveState, []DriveEffect)
 		}
 		if s.phase == phaseWriting || s.phase == phaseNew || s.phase == phaseWaiting {
 			return s, nil
+		}
+		if s.phase == phaseCommand {
+			if !event.Screen.Recoverable || !event.Screen.CommandKnown || event.Screen.CommandText != s.pendingCommand {
+				return observe(s)
+			}
+			target := s.pendingCommand
+			s.pendingCommand = ""
+			next := phaseRaw
+			if s.request.Model != nil {
+				next = phaseModel
+			}
+			s, fx := write(s, KeyStep{Kind: KeyEnter}, next)
+			fx[0].ScreenEpoch = event.Screen.Epoch
+			fx[0].commandText = target
+			fx[0].Control = true
+			return s, fx
 		}
 		if s.request.InterruptOnly() {
 			// Only the turn ending confirms an interrupt; a frame drawn while

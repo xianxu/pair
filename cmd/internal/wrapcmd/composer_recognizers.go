@@ -270,7 +270,11 @@ func ruledBoxBottomRule(snapshot terminalSnapshot, spec ruledBoxComposerSpec, pr
 // discriminator; faint agreement is checked via rulesMatch rather than
 // requiring every rule to be faint.
 func museComposerActive(snapshot terminalSnapshot) bool {
-	return ruledBoxComposerActive(snapshot, ruledBoxComposerSpec{
+	return ruledBoxComposerActive(snapshot, museComposerSpec())
+}
+
+func museComposerSpec() ruledBoxComposerSpec {
+	return ruledBoxComposerSpec{
 		promptOK: func(c uv.Cell) bool {
 			if c.Style.Attrs&uv.AttrFaint != 0 {
 				return false
@@ -287,7 +291,7 @@ func museComposerActive(snapshot terminalSnapshot) bool {
 		maxRows: museComposerMaxRows,
 		// Column 0 is the prompt and column 1 its trailing space.
 		minCursorX: 2,
-	})
+	}
 }
 
 // claudeComposerRule is the glyph Claude draws its composer rules with.
@@ -413,8 +417,13 @@ var grokPromptGlyphs = map[string]bool{"❯": true}
 // is followed by the reply, never by the status line, and a picker paints `┃`
 // rather than the glyph. Heights are unbounded like Claude's.
 func grokComposerActive(snapshot terminalSnapshot) bool {
+	_, _, ok := grokComposerBounds(snapshot)
+	return ok
+}
+
+func grokComposerBounds(snapshot terminalSnapshot) (int, int, bool) {
 	if !snapshotCoordinatesValid(snapshot) || !snapshot.CursorVisible || snapshot.Cursor.X < grokPromptCol+2 {
-		return false
+		return 0, 0, false
 	}
 	painted := func(x, y int) bool {
 		cell := snapshot.CellAt(x, y)
@@ -424,22 +433,22 @@ func grokComposerActive(snapshot terminalSnapshot) bool {
 		prompt := snapshot.CellAt(grokPromptCol, promptY)
 		if prompt == nil || !grokPromptGlyphs[prompt.Content] {
 			if painted(grokPromptCol, promptY) || painted(grokPromptCol+1, promptY) {
-				return false // a non-continuation row between prompt and cursor
+				return 0, 0, false // a non-continuation row between prompt and cursor
 			}
 			continue
 		}
 		if painted(grokPromptCol+1, promptY) {
-			return false
+			return 0, 0, false
 		}
 		for y := promptY + 1; y < snapshot.Height; y++ {
 			if !painted(0, y) {
 				continue
 			}
-			return y > snapshot.Cursor.Y && grokStatusRow(snapshot, y)
+			return promptY, y, y > snapshot.Cursor.Y && grokStatusRow(snapshot, y)
 		}
-		return false
+		return 0, 0, false
 	}
-	return false
+	return 0, 0, false
 }
 
 // grokStatusRow reports whether row y reads as Grok's minimal-mode status
@@ -457,9 +466,16 @@ func grokStatusRow(snapshot terminalSnapshot, y int) bool {
 	return strings.Count(row.String(), " · ") >= 2
 }
 
+const agyPromptColor = xansi.BrightBlue
+
 func agyComposerActive(snapshot terminalSnapshot) bool {
+	_, _, _, ok := agyComposerBounds(snapshot)
+	return ok
+}
+
+func agyComposerBounds(snapshot terminalSnapshot) (int, int, int, bool) {
 	if !snapshot.CursorVisible || !snapshotCoordinatesValid(snapshot) {
-		return false
+		return 0, 0, 0, false
 	}
 
 	const (
@@ -470,7 +486,6 @@ func agyComposerActive(snapshot terminalSnapshot) bool {
 		// Tolerable IF Agy inserts a newline on LF there rather than
 		// selecting — see ttyFixtureReactionGaps, which records that as
 		// undriven; a real permission-picker capture is still outstanding.
-		agyPromptColor  = xansi.BrightBlue
 		minBorderLength = 5
 		maxBoxHeight    = 25
 		promptColumns   = 6
@@ -514,12 +529,12 @@ func agyComposerActive(snapshot terminalSnapshot) bool {
 			}
 			for bottom := snapshot.Cursor.Y + 1; bottom < snapshot.Height && bottom-top <= maxBoxHeight; bottom++ {
 				if borderCovers[bottom][promptX] && promptPrefix[bottom]-promptPrefix[top+1] > 0 {
-					return true
+					return promptX, top, bottom, true
 				}
 			}
 		}
 	}
-	return false
+	return 0, 0, 0, false
 }
 
 func snapshotCoordinatesValid(snapshot terminalSnapshot) bool {

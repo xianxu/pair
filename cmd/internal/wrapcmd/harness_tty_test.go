@@ -17,13 +17,13 @@ func TestHarnessTTYProfileRegistry(t *testing.T) {
 	}
 
 	ctrlU := []byte{0x15}
-	wantRecognizers := map[string]composerRecognizer{
-		"claude": claudeComposerActive,
-		"codex":  codexComposerActive,
-		"agy":    agyComposerActive,
-		"muse":   museComposerActive,
-		"qoder":  qoderComposerActive,
-		"grok":   grokComposerActive,
+	wantRecognizers := map[string]composerInputRecognizer{
+		"claude": claudeComposerInput,
+		"codex":  codexComposerInput,
+		"agy":    agyComposerInput,
+		"muse":   museComposerInput,
+		"qoder":  qoderComposerInput,
+		"grok":   grokComposerInput,
 	}
 	tests := map[string]wantProfile{
 		"claude": {[]byte{'\\', '\r'}, []byte{'\r'}, ctrlU, detectClaudeOverlayOpen, composerGatePositive, false},
@@ -88,8 +88,8 @@ func TestDecidePlainReturn(t *testing.T) {
 	positive := harnessTTYProfile{
 		keymap:       sendKeymap{plainCR: []byte{'\n'}},
 		composerGate: composerGatePositive,
-		recognize: func(snapshot terminalSnapshot) bool {
-			return snapshot.CursorVisible
+		recognize: func(snapshot terminalSnapshot) composerRecognition {
+			return composerRecognition{Active: snapshot.CursorVisible}
 		},
 	}
 	legacy := harnessTTYProfile{

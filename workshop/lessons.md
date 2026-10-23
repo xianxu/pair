@@ -7,6 +7,8 @@ representative evidence, not an exhaustive index.
 
 ## Proof and verification
 
+- #833: A failed component's later refusal must wrap its retained cause, not replace it with a generic unavailable error or join a new synthetic leaf. Publish the failed state and first cause together under the same mutex; pin queued, later and owner-completion paths plus the real shutdown caller, including physical errors joined with cancellation.
+
 - #827 PQ-1: joining dispatch callers does not join their asynchronous producers. When cancellation can return from Await early, retain the exact admitted future and defer gate/capacity release and final reporting until producer completion; pin ordinary caller behavior when adding an opt-in joined path.
 - #832: A process-group kill can precede publication of an in-progress fork. Keep the direct parent unreaped until terminal observation, then send the final group signal before retiring authority and joining output. Execution cancellation or writer failure must not skip the cleanup barrier; pin ordering and unknown-proof refusal with stateful seams and repeat the native race.
 
@@ -2827,3 +2829,6 @@ and external temporary roots rather than relying on the host's TMPDIR.
 - #827: a recovery hint belongs to one field. If a summary carries a dedicated next-action field, strip the same advice from the reason text, or the operator reads it twice.
 - #827: before adding a context-aware path through a nested lock, check every acquirer of that lock, including readers outside the outer coordinator. A nonblocking inner acquire under a blocking outer lock fails at once against an uncoordinated reader.
 - #827 round 2: when a change adds a member to an enumerated contract, grep the field or type name and update every comment that lists its members in the same commit.
+- #162 BR-1/BR-2: Composer text used as input authority must retain styling provenance for mixed authored/suggested cells, not merely recognize wholly faint placeholders. Test completion suffixes across every profile. Compare authored command targets with the terminal projector's whitespace representation only after validating the full original grammar, and pin the real projector-to-writer path; reducer-only fabricated text can conceal representation mismatches.
+
+- #162 BR-3: Never erase blank composer rows to prove a single-line command. Preserve the positively bounded input structure independently of cursor position; right-padding normalization is per row. Where terminal padding and authored blank rows are indistinguishable, decline command authority instead of inferring from the cursor. Preserve established peer-envelope comparison separately through the shared geometry/projector, and make synthetic agents render the native boundary their command proof needs.
