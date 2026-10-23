@@ -65,8 +65,8 @@ Bounds: retain setup180s, scenario120s, cleanup15s, current100ms wait cadence, e
 
 ## Plan
 
-- [ ] Add the retained delayed restart envelope and pure RED regressions for arrival before/after the baseline and command, pending-to-submitted receipt order, duplicate commands/system IDs, authored prose, forged/unknown envelopes, wrong full identities, and journal mutation/truncation.
-- [ ] Implement the test-only pure oracle and thin public receipt adapter; preserve current proof, namespace, timeout, byte and cleanup bounds; prove stable-receipt lookup counts at8/16.
+- [x] Add the retained delayed restart envelope and pure RED regressions for arrival before/after the baseline and command, pending-to-submitted receipt order, duplicate commands/system IDs, authored prose, forged/unknown envelopes, wrong full identities, and journal mutation/truncation.
+- [x] Implement the test-only pure oracle and thin public receipt adapter; preserve current proof, namespace, timeout, byte and cleanup bounds; prove stable-receipt lookup counts at8/16.
 - [ ] Run focused oracle/cmd-couch and audited reader inventory checks, then one disposable public qualification per Claude/Codex personality with exact cleanup; record each result without blind retries.
 - [ ] Push the tested source, run the required recorded affected check/full fallback, inventory immediately before close, the binary-owned close review and normal SDLC landing gates.
 
@@ -83,3 +83,16 @@ The measured producer can deliver after wrapper Idle, so a timing-only baseline 
 ### Planning checkpoint
 
 2026-10-23: claimed837 and started its own main-based branch000837-slash-journal-system-deliveries at a14c4a341a051b3819bef3ecfb95ec8ab5123007. Catch-up rebuilt local substrate tools; seeded workflow regeneration was explicitly deferred, with no workflow edit. Existing measured log rehashed to a6269662c6e86f6ff9a18fb3fa27cd966a131391572cd48074556f6cab7b6b9d. Source census found the sole frozen-baseline oracle in slash_keys_acceptance_test.go; broker Status already exposes immutable server origin and full binding to the authenticated sender/recipient. No implementation or native run has started. Quick flow fits: test-only source changes, no Mx, design below500 lines. Next: send this plan to the hub and wait for approval, then change-code and RED/GREEN.
+
+
+### 2026-10-23 — Approved quick flow; oracle and adapter RED/GREEN
+
+Authenticated ops:0 delivery92e81965 approves the receipt-proved design exactly: immutable full prefix, OriginSystem/Submitted/exact envelope/full captured bindings, unknown/spoofed/duplicate/authored additions fail, known in-flight stays pending within120s. sdlc change-code passed inferred quick flow; no estimate or production changes.
+
+Pure oracle helper/regressions live in slash_journal_oracle_test.go. Behavioral RED using the old length-only rule reproduced a late proved system notice and same-length prefix mutation; current stateful regressions pass across missing command, receipts Queued/Held/Delivering→Submitted, before/after command and baseline, repeated IDs, duplicate /model, unknown/prose input, every prefix field, truncation and input-alias mutation. The literal205-byte delayed restart envelope was extracted from the original measured Go diagnostic (source log hash above), without changing its delivery ID or paragraph; SHA256ee27b17dcf2ca813951d11af96a740c95753090019e0b09ee2f8d70d7931206d. Fixture provenance explicitly distinguishes extracted tool-output bytes from the removed original accepted.jsonl and typed fake broker proofs.
+
+The thin receipt adapter initially ran as a no-op; its RED tests failed with zero lookups at8/16, missing pending receipt proof and accepted unproved terminal replies. Current adapter tests pass: N first lookups at8/16, zero repeated lookups for Submitted evidence, pending requery after transition, no cache admission for wrong origin/body/ID/identities or terminal failure, and propagated lookup errors. Native assertion wiring uses the same pure oracle and adapter for command, prose and recovery; in-flight evidence polls only the existing waitFleet/context, with no replayed keys. Previously captured hub/worker full Actors bindings are validated and pinned.
+
+Focused TestSlashJournal PASS0.204s; complete cmd/couch PASS19.408s. Supporting preflight: repolint14.108s, artifactpath13.668s, termcmd6.700s. Reader inventory first named the changed native acceptance reader and then the new oracle reader after staging. Audited the existing fleet/public native tools and accepted journal inputs, and the oracle's sole os.ReadFile input testdata/slash-journal/delayed-restart-envelope.txt. Recorded only those two per-reader certificates as non_go_full_fallback; final inventory PASS. No bulk hash refresh and no local-gates configuration change.
+
+Next: push this checkpoint, run one disposable native public qualification per Claude/Codex personality on this head, retain exact outcomes/cleanup, then required recorded affected/full fallback and close. No native invocation has been run yet for837; no queued suite or merge runner exists for this item. No operator stage or trust mutation is authorized.
