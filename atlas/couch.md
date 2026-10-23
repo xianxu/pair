@@ -3403,7 +3403,8 @@ park leave (`leave_park.go`):
   (the controller's proof that nothing was published and the rollback committed)
   plus the same captured incarnation. Anything else is the operator's.
 - **Report:** a failure returns `LeaveParkIncompleteError`, whose text is
-  `FormatLeaveParkSummary`: every failed, not-started or unreadable thread once,
+  `FormatLeaveParkSummary`: every failed, not-started, skipped (unvouched
+  incarnation) or unreadable thread once,
   in snapshot order, with its next action. The switcher's error notice and its
   copy key carry it whole, and Couch stays open.
 - **Thresholds:** `parkCommitDeadline` is 10s (a measured 709ms worst commit at

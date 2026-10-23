@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -166,30 +167,67 @@ func (c *Couch) leaveParkOne(ctx context.Context, address ThreadAddress) (leaveO
 			action = leaveParkRecover
 			continue
 		}
-		proof := result.Thread
-		if readErr == nil {
-			proof = after
-		}
 		cause := errors.Join(append(failures, readErr)...)
 		if cause == nil {
 			cause = errors.New("did not produce verified inactive history")
 		}
-		return leaveNone, c.withParkRecoveryAdvice(context.WithoutCancel(ctx), proof,
-			fmt.Errorf("leave couch: park %s (%d drive(s)): %w", address.Tag, drives, cause))
+		// No recovery advice here: Leave names it once, as the target's Next.
+		return leaveNone, fmt.Errorf("leave couch: park %s (%d drive(s)): %w", address.Tag, drives, cause)
 	}
 }
 
-// leaveParkUnresolved names the operator's next action for one unresolved
-// thread from its record as it is now: an open transaction has its exact
-// recovery; anything else is retried by another full quit once resolved.
-func (c *Couch) leaveParkUnresolved(ctx context.Context, address ThreadAddress, reason string) LeaveUnresolved {
-	next := "resolve the error, then quit again (Alt+x)"
-	if record, err := c.Threads.GetThread(address); err == nil && record.Park != nil {
-		adviceCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), recoveryObservationTimeout)
-		next = c.ParkRecoveryAdvice(adviceCtx, address)
-		cancel()
+// leaveParkUnresolved accounts for every target a full quit did not prove
+// parked, in snapshot order (#827): failed, not started, skipped (an incarnation
+// Couch cannot vouch for, so it never parks it) and unreadable. Anything but a
+// verified park keeps Couch open. Each next action is read from the record as
+// it is now -- an open transaction has its exact recovery -- with lookups run
+// at the same fan-out bound so many unresolved threads do not queue serially.
+func (c *Couch) leaveParkUnresolved(ctx context.Context, records []ThreadRecord, outcomes []leaveOutcome, errs []error, started []bool, unreadable []ThreadAddress) ([]LeaveUnresolved, []error) {
+	var unresolved []LeaveUnresolved
+	var failures []error
+	for i, record := range records {
+		switch {
+		case !started[i]:
+			reason := "not started before the full quit ended"
+			if errs[i] != nil {
+				reason = errs[i].Error()
+			}
+			unresolved = append(unresolved, LeaveUnresolved{Address: record.Address, Reason: reason})
+		case errs[i] != nil:
+			unresolved = append(unresolved, LeaveUnresolved{Address: record.Address, Reason: errs[i].Error()})
+		case outcomes[i] == leaveSkipped:
+			unresolved = append(unresolved, LeaveUnresolved{Address: record.Address, Reason: "not parked: its process state is unknown", Next: "inspect it, then quit again (Alt+x)"})
+			failures = append(failures, fmt.Errorf("leave couch: %s: skipped, process state unknown", record.Address.Tag))
+		}
 	}
-	return LeaveUnresolved{Address: address, Reason: reason, Next: next}
+	adviceCtx := context.WithoutCancel(ctx)
+	units := make(chan struct{}, LifecycleParallelism)
+	var wg sync.WaitGroup
+	for i := range unresolved {
+		if unresolved[i].Next != "" {
+			continue
+		}
+		wg.Add(1)
+		units <- struct{}{}
+		go func(u *LeaveUnresolved) {
+			defer wg.Done()
+			defer func() { <-units }()
+			u.Next = "resolve the error, then quit again (Alt+x)"
+			if record, err := c.Threads.GetThread(u.Address); err == nil && record.Park != nil {
+				lookup, cancel := context.WithTimeout(adviceCtx, recoveryObservationTimeout)
+				u.Next = c.ParkRecoveryAdvice(lookup, u.Address)
+				cancel()
+			}
+		}(&unresolved[i])
+	}
+	wg.Wait()
+	// An unreadable record may still hold a live agent: Couch cannot park what
+	// it cannot read, so the full quit is not complete.
+	for _, address := range unreadable {
+		unresolved = append(unresolved, LeaveUnresolved{Address: address, Reason: "thread record is unreadable", Next: "inspect the slot's thread record, then quit again (Alt+x)"})
+		failures = append(failures, fmt.Errorf("leave couch: %s: thread record is unreadable", address.Tag))
+	}
+	return unresolved, failures
 }
 
 // FormatLeaveParkSummary is the one complete, copyable report of a full quit
@@ -197,16 +235,9 @@ func (c *Couch) leaveParkUnresolved(ctx context.Context, address ThreadAddress, 
 // its next action. It never reads as a completed shutdown.
 func FormatLeaveParkSummary(result LeaveResult) string {
 	var b strings.Builder
-	fmt.Fprintf(&b, "Full quit incomplete: %d parked, %d unresolved", len(result.Parked), len(result.Unresolved))
-	if len(result.Skipped) > 0 {
-		fmt.Fprintf(&b, ", %d skipped", len(result.Skipped))
-	}
-	b.WriteString("; Couch stays open.")
+	fmt.Fprintf(&b, "Full quit incomplete: %d parked, %d unresolved; Couch stays open.", len(result.Parked), len(result.Unresolved))
 	for _, u := range result.Unresolved {
 		fmt.Fprintf(&b, "\n- %s: %s; next: %s", u.Address.Tag, strings.ReplaceAll(u.Reason, "\n", "; "), u.Next)
-	}
-	for _, address := range result.Skipped {
-		fmt.Fprintf(&b, "\n- %s: skipped, its process state is unknown; next: inspect it before quitting", address.Tag)
 	}
 	return b.String()
 }

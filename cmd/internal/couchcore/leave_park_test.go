@@ -341,6 +341,9 @@ func TestLeaveParkExhaustedTargetIsNamedOnce(t *testing.T) {
 		t.Fatalf("leave error is not the complete summary: %v", err)
 	}
 	summary := FormatLeaveParkSummary(result)
+	if u := result.Unresolved[0]; strings.Contains(u.Reason, u.Next) || strings.Count(summary, u.Next) != 1 {
+		t.Fatalf("next action repeated in the reason:\n%s", summary)
+	}
 	if strings.Count(summary, "\n- "+string(stuck.Address.Tag)+":") != 1 || !strings.Contains(summary, "next:") || !strings.Contains(summary, "incomplete") {
 		t.Fatalf("summary does not name the stuck thread once with its next action:\n%s", summary)
 	}
@@ -440,5 +443,27 @@ func TestLeaveParkNamesUnreadableRecords(t *testing.T) {
 	}
 	if len(result.Parked) != 1 || len(result.Unresolved) != 1 || result.Unresolved[0].Address != bad.Address {
 		t.Fatalf("result=%+v", result)
+	}
+}
+
+// A thread whose incarnation Couch cannot vouch for is never parked, so the
+// full quit cannot claim to be complete: it is named and Couch stays open
+// (#827 BR-1; the plan's state table).
+func TestLeaveParkSkippedThreadKeepsCouchOpen(t *testing.T) {
+	f := newLeaveParkFleet(t, 2)
+	unknown := f.threads[1]
+	if _, err := f.couch.Threads.MarkIncarnationUnknown(unknown.Address, ProcessIdentity{PID: unknown.Incarnations[0].PID, Identity: unknown.Incarnations[0].Identity}); err != nil {
+		t.Fatal(err)
+	}
+	result, err := f.couch.Leave(context.Background(), LeavePark)
+	var incomplete *LeaveParkIncompleteError
+	if !errors.As(err, &incomplete) {
+		t.Fatalf("skipped thread let the full quit succeed: %+v %v", result, err)
+	}
+	if len(result.Parked) != 1 || len(result.Unresolved) != 1 || result.Unresolved[0].Address != unknown.Address || result.Unresolved[0].Next == "" {
+		t.Fatalf("result=%+v", result)
+	}
+	if got := len(f.drivesOf(unknown.Address)); got != 0 {
+		t.Fatalf("drove a park on an unvouched incarnation: %d drives", got)
 	}
 }

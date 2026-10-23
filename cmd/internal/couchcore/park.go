@@ -289,24 +289,9 @@ dispatch:
 	}
 	wg.Wait()
 	if disposition == LeavePark {
-		for i, record := range records {
-			switch {
-			case !started[i]:
-				reason := "not started before the full quit ended"
-				if errs[i] != nil {
-					reason = errs[i].Error()
-				}
-				result.Unresolved = append(result.Unresolved, c.leaveParkUnresolved(ctx, record.Address, reason))
-			case errs[i] != nil:
-				result.Unresolved = append(result.Unresolved, c.leaveParkUnresolved(ctx, record.Address, errs[i].Error()))
-			}
-		}
-		// An unreadable record may still hold a live agent: Couch cannot
-		// park what it cannot read, so the full quit is not complete.
-		for _, address := range snapshot.Unreadable {
-			result.Unresolved = append(result.Unresolved, LeaveUnresolved{Address: address, Reason: "thread record is unreadable", Next: "inspect the slot's thread record, then quit again (Alt+x)"})
-			errs = append(errs, fmt.Errorf("leave couch: %s: thread record is unreadable", address.Tag))
-		}
+		unresolved, failures := c.leaveParkUnresolved(ctx, records, outcomes, errs, started, snapshot.Unreadable)
+		result.Unresolved = unresolved
+		errs = append(errs, failures...)
 	}
 	for i, record := range records {
 		switch outcomes[i] {

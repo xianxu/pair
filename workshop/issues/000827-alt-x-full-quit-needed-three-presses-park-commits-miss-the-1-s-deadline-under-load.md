@@ -224,6 +224,14 @@ green; requeued. couchtty TestNativeAgentExitDiagnostics/hup failed once in my
 unrecorded targeted run and passed 3x on the same head; register refused for lack of
 recorded evidence, it did not recur in the recorded suite.
 
+2026-10-23 — Close review round 1 (FIX-THEN-SHIP, window ce5146c9..81b47b37): BR-1
+Important fixed as a class: under LeavePark every outcome short of verified park is
+unresolved (skipped/unvouched incarnation now names the thread and keeps Couch open);
+TestLeaveParkSkippedThreadKeepsCouchOpen. Minors fixed: advice no longer duplicated in
+Reason (leaveParkOne stops appending it; test asserts once); unresolved advice lookups
+run at LifecycleParallelism instead of serially; recoveryBackend comment updated.
+Lessons added. Re-running recorded suite on the fix head.
+
 ## Estimate
 
 Produced via brain/data/life/42shots/velocity/estimate-logic-v3.1.md against
