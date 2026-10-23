@@ -1,14 +1,22 @@
 ---
 id: 000802
-status: open
+status: working
 deps: [789]
 github_issue:
 created: 2026-10-22
-updated: 2026-10-22
+updated: 2026-10-23
 estimate_hours:
 severity: low
 collaboration-mode: collaboration
-card_mirror: 'da2a5c84b8afc227e30cf71a4e526aebd738c3c9' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: 'a91cda09f3c281861e9ef987c69d64dab4cd54fa' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-23T08:16:49-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: Xian’s MacBook Pro
+    workspace: pair:8
+    worktree: /Users/xianxu/workspace/worktree/pair-slot8/pair
+    repository: github.com/xianxu/pair
 ---
 
 # Couch: shorten common statuses
@@ -23,6 +31,22 @@ Low-priority follow-up authorized by TL receipt58326574-1d4c-4767-b222-cfb4d5add
 
 Useful starting points: couchtty common wait/broadcast/cast feedback; couchcmd supervision and lifecycle notices. Earlier exploratory wording changes and runtime variant experiments are visible in #789's branch history (797d86d9108817b9a8d5374460a96a53f96133be), but are deliberately removed from its final display-path diff. Do not carry that broad catalog scope into this issue.
 
+### Selected set (2026-10-23)
+
+Seven strings in three production files, picked for frequency and for static frame the surrounding UI already implies. Every dynamic part stays — slot, minutes, screen summary, mute path, unverified count, cast kind and link — and so does every action: peek, mute, hover, rotate.
+
+| Site | Now | New |
+|---|---|---|
+| wait_notice.go:201 | `slot %s waiting %d min %s: %s (couch --peek %s; mute: add %s to %s)` | `slot %s waiting %dm %s: %s (couch --peek %s; mute: %s in %s)` |
+| wait_notice.go:36 `waitIdle` | `idle off its resting branch` | `idle off resting branch` |
+| lifecycle_notices.go:179 | `Couch lifecycle: %d observations lacked verified slot metadata at restart drain` | `Lifecycle: %d slot metadata unverified at restart drain` |
+| lifecycle_notices.go:232 | `Couch lifecycle: hub projection capacity reached; inspect Slots` | `Lifecycle: hub projection full; inspect Slots` |
+| console_castcodes.go:397 | `New %s %s; its viewers were disconnected. Hover %s to see it.` | `New %s %s; viewers disconnected. Hover %s for code.` |
+| console_castcodes.go:485 (capped) | `Too many wrong codes on the %s %s link: its code changed; the link is locked until you rotate its code.` | `%s %s link: too many wrong codes; code changed, link locked until you rotate its code.` |
+| console_castcodes.go:487 (uncapped) | `Too many wrong codes on the %s %s link: its code changed. Hover %s to see it.` | `%s %s link: too many wrong codes; code changed. Hover %s for code.` |
+
+Not taken: the repeated "Viewers need its code: hover … to see it" suffix (five sites in three more files) and the webcast link `grants` sentences. That is the catalog scope #789 deliberately removed; this issue stays with the seven above.
+
 ## Done when
 
 - A small, explicitly named set of frequent statuses has concise, actionable wording.
@@ -31,8 +55,19 @@ Useful starting points: couchtty common wait/broadcast/cast feedback; couchcmd s
 
 ## Plan
 
+- [ ] When #789 lands, merge origin/main into this branch and re-run the cap and full-copy tests before any wording edit; #789 also edits console_castcodes_test.go, so the merge comes first.
+- [ ] Apply the seven selected strings; no other producer is touched.
+- [ ] Update the focused pins: wait_notice_test.go (body prefix and suffix), lifecycle_notices_test.go (drain diagnostic; pin the capacity diagnostic if it has none), console_castcodes_test.go (three notices). No total-catalog assertion.
+- [ ] go vet and go test for cmd/internal/couchcmd and cmd/internal/couchtty.
+- [ ] make test-affected-inventory; three test readers changed, so record their dispositions.
+- [ ] sdlc close with the package runs as evidence; the cap and full-copy behavior is unchanged.
+
 ## Log
 
 ### 2026-10-22
 
 Split from #789 at the TL's direction; low priority, unclaimed. #789 lands cap plus full-copy only. Pair:4 takes #796 after #789, not this cleanup.
+
+### 2026-10-23
+
+Claimed and planned as rung 3 at the hub's direction. #789 is still unlanded (PR 543 open), so this branch carries design only until it lands; code starts on the merged tree. The seven strings cover the issue's three starting points: wait notice, lifecycle labels, cast feedback. The repeated viewers-code suffix was rejected as the catalog scope #789 removed. No estimate: this is inside the quick-flow shell.
