@@ -1,6 +1,6 @@
 ---
 id: 000832
-status: working
+status: codecomplete
 created: 2026-10-23
 updated: 2026-10-23
 estimate_hours:
@@ -14,6 +14,14 @@ claimant:
     worktree: /Users/xianxu/workspace/worktree/pair-slot3/pair
     repository: github.com/xianxu/pair
 flake_tests: [github.com/xianxu/pair/cmd/internal/vmcmd.TestNativeReadinessRunCancellationRetainsCleanupAuthority]
+actual_hours: 0.48
+tracker:
+    version: 1
+    completion:
+        token: close-c545dffe52f2
+        repository: github.com/xianxu/pair
+        reviewed_head: 04d8ff3f22cbd21d66a4c35cc393cca76e0d706b
+        evidence_commit: d590c690d2bdce645e569ecb2c0311a1cb58e3b4
 ---
 
 # Native VM readiness cancellation reports unconfirmed cleanup and blocks integration suites
