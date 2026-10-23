@@ -1,18 +1,31 @@
 ---
 id: 000823
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-10-22
-updated: 2026-10-22
+updated: 2026-10-23
 estimate_hours:
 collaboration-mode: collaboration
-card_mirror: '99292d6c1143f2978a41ac2d63b9f1cbf27d1f29' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '09bb6bc4e55322b99d40bc8b49d3ccc99135e50b' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-23T03:16:56-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: Xian’s MacBook Pro
+    workspace: pair:9
+    worktree: /Users/xianxu/workspace/worktree/pair-slot9/pair
+    repository: github.com/xianxu/pair
 ---
 
 # unified-editorial-interface: Couch parses, protects and enforces per-section modes (heading comments, aliases, migration)
 
 ## Problem
+
+Couch currently reads only the legacy document-level `presentation` setting. Section directives, canonical aliases,
+collaboration routing and processing policy have no shared Go resolver. Its section write hash covers the section
+body but not the document settings that govern that body. Adding independent readers would let the read, apply and
+workbench paths disagree about authority and presentation.
 
 ## Spec
 
@@ -57,8 +70,48 @@ Project `unified-editorial-interface`; implements the spec in ariadne (dependenc
 
 ## Plan
 
-- [ ]
+- [ ] Approve the durable [implementation plan](../plans/000823-editorial-modes-plan.md), including the mechanical/semantic boundary, constrained operator migration, and #419 consumer dependency.
+- [ ] Run `sdlc change-code` for the full-flow plan-quality gate and derived estimate after TL approval.
+- [ ] Pin contract fixtures/catalog; implement and test the pure snapshot compiler, additive fill and map migration.
+- [ ] Integrate policy-bearing reads, scoped CAS and one guard across all agent-write paths; propagate per-span presentation through live/resumed consumers.
+- [ ] Expose the constrained migration command, update agent guidance/atlas, qualify agents, run recorded checks and close review.
+- [ ] Coordinate the #419 mixed-rendering check and TL-authorized operator smoke, then land and report.
 
 ## Log
 
 ### 2026-10-22
+
+### 2026-10-23 — Claimed and planned
+
+Claim/start-plan completed in pair:9 on the issue branch. Read the landed #562 contract and pinned its producer
+commit and 39 source files in `workshop/evidence/000823/contract-provenance.json`, including the eight editorial-fill
+cases' 24 files. No production code or executable fixtures changed; no tests are claimed to have run.
+
+Read-only code inventory found: all agent mutation paths converge on sessionsync contentStep/BuildEdit except an
+empty ApplyFile path that also needs validation; section hashes omit document policy; the existing operator lock
+is not human authentication; no production Couch side-doc creator exists. Tracked Pair documents contain no real
+legacy per-section maps, so migration needs synthetic conformance fixtures and an explicitly selected operator
+document rather than a blind repository rewrite. ARCH-DRY shaped the single compiler/guard; ARCH-PURE keeps the
+compiler and migration independent of IO.
+
+Coordinated with parley.nvim:3: #418 owns whole-document canonical/legacy fallback and fill; TL assigned per-span
+presentation consumption to #419. Proposed optional span `presentation` with direct/highlight/propose, explicit on
+new spans and falling back to the existing document field on old artifacts. Need exact consumer agreement with
+#419's assigned owner before end-to-end acceptance. Preserve unknown JSON fields while validating known ones.
+
+The durable plan exposes three approval points: semantic prose/routing remains an agent obligation while Couch
+enforces mechanical scope/ownership/presentation; map migration is a constrained operator-confirmed transform,
+not an authenticated same-UID security boundary; side-doc guidance/readers are Couch's actual surface while real
+Parley writers remain #419. No `change-code`, implementation, suite or stage has started.
+
+**NEXT ACTION:** send the committed plan to the hub for approval. Once approved, run `sdlc change-code --issue 823`,
+resolve its plan-quality findings and supply the derived estimate before changing code. Coordinate the optional
+span field/fallback with #419's owner when assigned. Do not resume obsolete #752 runners from the old continuation.
+
+## Revisions
+
+### 2026-10-23 — Implementation boundaries from source inventory
+
+Added the durable plan and approval points without changing the operator's settled three-axis contract. The plan
+accounts for the missing section-policy CAS binding and for #419's explicit consumer ownership. No automatic
+legacy-map migration, external operator-document rewrite or new Couch side-doc service is proposed.
