@@ -282,6 +282,37 @@ passing retry is being used to hide a failure. Next: re-review the correction
 and let the existing recorded check complete before the publish gate determines
 any additional verification required by its source-provenance contract.
 
+### 2026-10-23 — SHIP; final-head boarding check retained
+
+Whole close round 2 returned SHIP, high confidence; BR-1 addressed, no new or
+open findings. SDLC finalized codecomplete bound to evidence commit
+1f8d0774c698f103e7af66e0d5c09de3c9fb8cb1, reviewed source
+44fe1f589b0d2ced3bd9c07c9b5f20f9aea99616. Measured actual adopted: 0.65h.
+The codecomplete mirror head is 43d5c5ed6a07c802252526c09ce1fa12b03b7d97.
+
+Entered sdlc merge --yes promptly. Runner69324 TERMINAL EXIT1 before admission:
+train readiness requires a recorded affected check on the current PR source and
+named sdlc local-check run --name affected --boarding. No merge/integration ran.
+Followed that exact command, creating the final-source affected runner:
+lease-1030680867, attempt fdcdff9e13317fe1b298b1a9d15aab49, source43d5c5ed,
+unified exec session94773, snapshot
+/Volumes/TestScratch/local-checks/sdlc-local-2387043870, log
+/Users/xianxu/workspace/pair/.git/sdlc/test-stats/inflight/fdcdff9e13317fe1b298b1a9d15aab49/run.log.
+It selects the same eight Go packages plus shell group, normal FIFO, no bypass.
+
+The new runner explicitly named the superseded source18da lease and its exact
+cancel command. After reading local-check's cancel/record contract, used only
+sdlc local-check cancel --run lease-358276917: EXIT0. Old session49913 joined
+TERMINAL EXIT1 while still queued, context canceled; it ran no suite, produced
+no test evidence/status, and must not be reported as failure or pass. This
+replaces an obsolete source after the review correction; no failing result was
+retried. Latest session94773 is retained; do not cancel/requeue/restart it.
+
+Exact next step: join session94773 to completion, verify its pinned source
+record/log, then re-enter sdlc merge --yes. Retain any resulting landing runner
+and complete integration checks/archive verification. Stage was already cleared;
+pair:0 belongs to #812 now. No pending product edits or operator decisions.
+
 ## Operator live check
 
 On a fresh Couch process using the staged revision (running sessions retain the
