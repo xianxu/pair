@@ -1860,7 +1860,7 @@ func (c *Console) runMenuOperation(effect MenuEffect) {
 			c.mu.Unlock()
 			c.repaint()
 		})
-		return fn(couchcore.OperationCall{Name: effect.Operation, Args: requestArgs, Implicit: true, Context: operationContext})
+		return fn(couchcore.OperationCall{Name: effect.Operation, Args: requestArgs, TypedPayload: effect.TypedPayload, Implicit: true, Context: operationContext})
 	}}
 	if effect.Operation == "switch" {
 		c.mu.Lock()
@@ -2150,11 +2150,6 @@ func (c *Console) finishOperation(completed operationCompletion) bool {
 		c.requestMenuRefresh()
 		c.forceSwitch(startedHandleID)
 		return false
-	}
-	if result, ok := completed.value.(couchcore.SwitchAgentResult); ok && err == nil {
-		if result.Warning != "" {
-			c.reduceMenu(MenuEvent{Kind: MenuEventNotice, Error: result.Warning})
-		}
 	}
 	c.requestMenuRefresh()
 	if panelFocused {

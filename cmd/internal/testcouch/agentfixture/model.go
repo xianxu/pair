@@ -18,6 +18,9 @@ const (
 	Idle    Phase = "idle"
 	Working Phase = "working"
 	Picker  Phase = "picker"
+	// SyntheticClaudeLimit is sourced text assembled for testing, not a capture
+	// of a real Claude terminal, layout or version.
+	SyntheticClaudeLimit Phase = "synthetic-claude-limit"
 )
 
 type AgentState struct {
@@ -35,6 +38,9 @@ func ReduceAgent(before AgentState, input []byte) (AgentState, []string, error) 
 	s := before
 	if s.Agent != "claude" && s.Agent != "codex" {
 		return before, nil, errors.New("unsupported fixture agent")
+	}
+	if s.Phase == SyntheticClaudeLimit {
+		return before, nil, nil
 	}
 	var accepted []string
 	for _, b := range input {

@@ -6,6 +6,63 @@ import (
 	"testing"
 )
 
+func TestSlotGitChangedFileCountEvidence(t *testing.T) {
+	if (SlotGitStatus{}).ChangedFiles != nil {
+		t.Fatal("zero-value status invented a known file count")
+	}
+	head := "# branch.head main\n"
+	ordinary := "1 .M N... 100644 100644 100644 a b dir/file with spaces.go\n"
+	rename := "2 R. N... 100644 100644 100644 a b R100 new.go\told.go\n"
+	unmerged := "u UU N... 100644 100644 100644 100644 a b c conflict.go\n"
+	untracked := "? new.txt\n"
+	for _, test := range []struct {
+		name string
+		out  string
+		want int
+	}{
+		{"clean", head, 0},
+		{"ignored", head + "! ignored/\n", 0},
+		{"ordinary", head + ordinary, 1},
+		{"rename counts destination once", head + rename, 1},
+		{"unmerged", head + unmerged, 1},
+		{"untracked", head + untracked, 1},
+		{"mixed", head + ordinary + rename + unmerged + untracked + "! ignored\n", 4},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			status, err := ParseSlotGitStatus(test.out)
+			if err != nil || status.ChangedFiles == nil || *status.ChangedFiles != test.want || status.Dirty != (test.want > 0) {
+				t.Fatalf("status=%+v count=%v err=%v; want %d changed files", status, status.ChangedFiles, err, test.want)
+			}
+		})
+	}
+}
+
+func TestSlotGitUncountableDirtyEntriesKeepCountUnknown(t *testing.T) {
+	for _, entry := range []string{
+		"1 .M",
+		"2 R.",
+		"u UU",
+		"1 .M N... 100644 100644 100644 a b ",
+		"2 R. N... 100644 100644 100644 a b R100 \told.go",
+		"u UU N... 100644 100644 100644 100644 a b c ",
+		"? untracked-directory/",
+		"? \"untracked directory/\"",
+	} {
+		for _, prefix := range []string{"", "? counted.txt\n"} {
+			status, err := ParseSlotGitStatus("# branch.head main\n" + prefix + entry)
+			if err != nil || !status.Dirty || status.ChangedFiles != nil {
+				t.Fatalf("uncountable dirty entry %q became known count: %+v %v", entry, status, err)
+			}
+		}
+	}
+	for _, out := range []string{"", "? x", "# branch.head main\nZ unknown", "# branch.head main\n# branch.ab +x -0"} {
+		status, err := ParseSlotGitStatus(out)
+		if err == nil || status.ChangedFiles != nil {
+			t.Fatalf("parse failure invented count: %+v %v", status, err)
+		}
+	}
+}
+
 // TestSlotGlyphParts is a truth table over the two independent parts: branch
 // position/divergence, then `*` for a dirty tree on any branch (pair#319).
 func TestSlotGlyphParts(t *testing.T) {
@@ -77,6 +134,9 @@ func TestParseSlotGitStatus(t *testing.T) {
 			t.Errorf("%s: %v", tc.name, err)
 			continue
 		}
+		// Count evidence has its own table above; retain the original complete
+		// truth table for branch, divergence and cleanliness independently.
+		got.ChangedFiles = nil
 		if got != tc.want {
 			t.Errorf("%s: got %+v, want %+v", tc.name, got, tc.want)
 		}
@@ -112,16 +172,20 @@ func TestProbeSlotGitRunsInDirWithNoOptionalLocks(t *testing.T) {
 		{Dir: "/w/pair-slot2/pair", Args: "--no-optional-locks status --porcelain=v2 --branch"}: "# branch.head main-slot2\n? x\n",
 	})
 	got, err := ProbeSlotGit(context.Background(), git, "/w/pair-slot2/pair")
+	if err != nil || got.ChangedFiles == nil || *got.ChangedFiles != 1 || len(git.Ops) != 1 {
+		t.Fatalf("probe did not derive count from its single status observation: %+v %v calls=%v", got, err, git.Ops)
+	}
+	got.ChangedFiles = nil
 	if err != nil || got != (SlotGitStatus{Branch: "main-slot2", Dirty: true}) {
 		t.Fatalf("probe = %+v, %v", got, err)
 	}
-	if _, err := ProbeSlotGit(context.Background(), git, "/w/pair-slot1/pair"); err == nil {
-		t.Fatal("probe in another dir answered from the wrong checkout")
+	if failed, err := ProbeSlotGit(context.Background(), git, "/w/pair-slot1/pair"); err == nil || failed.ChangedFiles != nil {
+		t.Fatal("failed probe invented status/count for another checkout")
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	if _, err := ProbeSlotGit(ctx, git, "/w/pair-slot2/pair"); err == nil {
-		t.Fatal("cancelled probe succeeded")
+	if failed, err := ProbeSlotGit(ctx, git, "/w/pair-slot2/pair"); err == nil || failed.ChangedFiles != nil {
+		t.Fatal("cancelled probe invented status/count")
 	}
 }
 

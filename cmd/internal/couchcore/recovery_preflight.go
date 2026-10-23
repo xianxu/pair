@@ -86,7 +86,7 @@ func (c *Couch) freshRecoveryLaunchProfile(ctx context.Context, record ThreadRec
 		return LaunchProfile{}, err
 	}
 	if backend.slot != nil {
-		selected, err := c.slotLaunchProfile(backend, *backend.slot, record.WorkingPath, agent)
+		selected, err := c.slotLaunchProfile(ctx, backend, *backend.slot, record.WorkingPath, agent)
 		if err != nil {
 			return LaunchProfile{}, err
 		}

@@ -158,25 +158,19 @@ func TestRecoveryLaunchProfileNativeRequiresSavedConfiguration(t *testing.T) {
 	}
 }
 
-func TestRecoveryFreshProfileUsesNormalPathAndRootDefaultsReadOnly(t *testing.T) {
+func TestRecoveryFreshProfileUsesRepositoryArgumentsAndRootAgentReadOnly(t *testing.T) {
 	for _, saved := range []bool{false, true} {
-		t.Run(map[bool]string{false: "root", true: "path"}[saved], func(t *testing.T) {
+		t.Run(map[bool]string{false: "root-empty", true: "repository-configured"}[saved], func(t *testing.T) {
 			env := newTestEnv(t, "/repo")
 			record := validThreadRecord(t)
 			env.Couch.RootAgent = "claude"
-			env.Couch.RepoAgentDefault = func(root, agent string) (LaunchProfile, bool, error) {
-				if root != "/repo" {
-					t.Fatalf("wrong default root %q", root)
-				}
-				return LaunchProfile{Agent: agent, Argv: []string{"--verbose"}}, true, nil
-			}
+			expected := LaunchProfile{Agent: "claude", Argv: []string{}}
 			if saved {
-				if _, err := env.Couch.Threads.CreateThread(record); err != nil {
-					t.Fatal(err)
-				}
-				preference := PathLaunchPreference{SchemaVersion: 1, RepoIdentity: "/repo/.git", PhysicalPath: "/repo", LastAgent: "codex", ArgvByAgent: map[string][]string{"codex": {"--no-alt-screen"}}, Revision: 1}
-				if err := writePathLaunchPreferenceForTest(env.Couch.Threads, preference); err != nil {
-					t.Fatal(err)
+				expected.Argv = []string{"--verbose"}
+				for _, profile := range []LaunchProfile{expected, {Agent: "codex", Argv: []string{"--no-alt-screen"}}} {
+					if err := env.Couch.Threads.rememberRepoConfiguration("/repo/.git", profile, nil); err != nil {
+						t.Fatal(err)
+					}
 				}
 			}
 			before, err := readRecoveryProfileFiles(env.Couch.Threads)
@@ -186,10 +180,6 @@ func TestRecoveryFreshProfileUsesNormalPathAndRootDefaultsReadOnly(t *testing.T)
 			profile, err := env.Couch.recoveryLaunchProfile(context.Background(), record, RecoveryFresh)
 			if err != nil {
 				t.Fatal(err)
-			}
-			expected := LaunchProfile{Agent: "claude", Argv: []string{"--verbose"}}
-			if saved {
-				expected = LaunchProfile{Agent: "codex", Argv: []string{"--no-alt-screen"}}
 			}
 			if !reflect.DeepEqual(profile, expected) {
 				t.Fatalf("fresh profile %+v want %+v", profile, expected)
@@ -227,10 +217,19 @@ func readRecoveryProfileFiles(store *ThreadStore) (map[string]string, error) {
 	return files, err
 }
 
-func TestRecoveryFreshSlotProfileUsesLocalPreferenceReadOnly(t *testing.T) {
+func TestRecoveryFreshSlotProfileUsesRepositoryArgumentsReadOnly(t *testing.T) {
 	local := testLocalThreadStore(t)
 	env := newTestEnv(t, "/repo")
 	env.Couch.Threads = local
+	env.Couch.RootAgent = "codex"
+	want := LaunchProfile{Agent: "codex", Argv: []string{"--model", "root-configuration"}}
+	if err := local.rememberRepoConfiguration(local.slot.RepoIdentity, want, nil); err != nil {
+		t.Fatal(err)
+	}
+	globalBefore, err := os.ReadFile(local.repoPreferencesPath())
+	if err != nil {
+		t.Fatal(err)
+	}
 	record := recordAtCheckout(t, local.slot.WorktreeRoot, local.slot.WorktreeRoot, "couch-0123456789abcdef")
 	if _, err := local.CreateThread(record); err != nil {
 		t.Fatal(err)
@@ -247,8 +246,8 @@ func TestRecoveryFreshSlotProfileUsesLocalPreferenceReadOnly(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if profile.Agent != "muse" || len(profile.Argv) != 0 {
-		t.Fatalf("lost local preference: %+v", profile)
+	if !reflect.DeepEqual(profile, want) {
+		t.Fatalf("repository/root profile = %+v, want %+v", profile, want)
 	}
 	after, err := readRecoveryProfileFiles(local)
 	if err != nil {
@@ -256,6 +255,10 @@ func TestRecoveryFreshSlotProfileUsesLocalPreferenceReadOnly(t *testing.T) {
 	}
 	if !reflect.DeepEqual(before, after) {
 		t.Fatal("local profile preview mutated store")
+	}
+	globalAfter, err := os.ReadFile(local.repoPreferencesPath())
+	if err != nil || string(globalBefore) != string(globalAfter) {
+		t.Fatalf("repository profile preview mutated store: %v", err)
 	}
 }
 

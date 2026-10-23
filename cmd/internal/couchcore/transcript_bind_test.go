@@ -3,6 +3,7 @@ package couchcore
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io/fs"
 	"testing"
@@ -134,6 +135,69 @@ func TestResumeBindsByOneStat(t *testing.T) {
 	}
 }
 
+func TestTranscriptBindPreservesExactObservedArtifact(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name      string
+		refreshed bool
+		statError error
+	}{
+		{name: "stored success"},
+		{name: "refreshed success", refreshed: true},
+		{name: "stored missing", statError: fs.ErrNotExist},
+		{name: "refreshed missing", refreshed: true, statError: fs.ErrNotExist},
+		{name: "stored permission", statError: fs.ErrPermission},
+		{name: "refreshed permission", refreshed: true, statError: fs.ErrPermission},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			selected := 3
+			if tc.refreshed {
+				selected = 5
+			}
+			rt := bindFixture(t, 8, selected)
+			if tc.statError != nil {
+				rt.SetError(sessioninventorytest.OperationStatFile, bindRoot+":"+bindRel(selected), tc.statError)
+			}
+			stored := storedBinding(3)
+			got, err := bindTranscriptWith(context.Background(), rt, listingResolver{t}, bindThread(stored))
+			if tc.statError == nil {
+				if err != nil || got.Resolution.Status != sessioninventory.BindingEstablished || got.Resolution.NativeID != bindID(selected) {
+					t.Fatalf("successful binding: %+v err=%v", got, err)
+				}
+				if (got.Store != nil) != tc.refreshed {
+					t.Fatalf("changed persistence decision: %+v", got.Store)
+				}
+			} else {
+				if err == nil || got.Resolution != (NativeBindingResolution{}) || got.Store != nil {
+					t.Fatalf("failed stat granted resolution or persistence: %+v err=%v", got, err)
+				}
+				if errors.Is(tc.statError, fs.ErrNotExist) {
+					if ResumeDiagnosticOf(err) != ResumeTranscriptMissing {
+						t.Fatalf("missing diagnostic changed: %v", err)
+					}
+				} else if !errors.Is(err, tc.statError) || ResumeDiagnosticOf(err) != "" {
+					t.Fatalf("generic stat failure became missing: %v", err)
+				}
+			}
+			if got.Observed == nil || got.Observed.Agent != "claude" || got.Observed.NativeID != bindID(selected) || got.Observed.StorageRoot != bindRoot || got.Observed.RelativePath != bindRel(selected) {
+				t.Fatalf("lost exact selected artifact: observed=%+v err=%v", got.Observed, err)
+			}
+			if got.Observed == stored || got.Store != nil && got.Observed == got.Store {
+				t.Fatal("observed binding aliases source or persistence binding")
+			}
+			stored.NativeID, stored.RelativePath = "changed source", "changed source path"
+			if got.Observed.NativeID != bindID(selected) || got.Observed.RelativePath != bindRel(selected) {
+				t.Fatal("source mutation changed the observed artifact")
+			}
+			got.Observed.NativeID, got.Observed.RelativePath = "changed observation", "changed observed path"
+			if got.Store != nil && (got.Store.NativeID != bindID(selected) || got.Store.RelativePath != bindRel(selected)) {
+				t.Fatal("observation mutation changed the persistence binding")
+			}
+			assertBindCost(t, rt, bindRel(selected))
+		})
+	}
+}
+
 // After pair's own context reset the agent is in a newer conversation the
 // record never saw; the ledger names it, and Bind adopts it.
 func TestBindAdoptsNewerLedgerRootAfterReset(t *testing.T) {
@@ -227,7 +291,7 @@ func TestBindFallsBackOnceWhenNoFileIsKnown(t *testing.T) {
 		t.Fatalf("unanswered: calls=%d err=%v", calls, err)
 	}
 	got, err := bindTranscriptWith(context.Background(), rt, fixedResolver{NativeBindingResolution{Status: sessioninventory.BindingEstablished, NativeID: bindID(6)}, &calls}, bindThread(idOnly))
-	if err != nil || got.Resolution.NativeID != bindID(6) || got.Store != nil {
+	if err != nil || got.Resolution.NativeID != bindID(6) || got.Store != nil || got.Observed != nil {
 		t.Fatalf("established by the resolver: %+v, %v", got, err)
 	}
 }

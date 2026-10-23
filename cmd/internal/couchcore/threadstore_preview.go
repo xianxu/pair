@@ -20,14 +20,6 @@ func (s *ThreadStore) PreviewSnapshotContext(ctx context.Context) (ThreadSnapsho
 	view.readOnly = true
 	return view.snapshotContext(ctx)
 }
-func (s *ThreadStore) PreviewPathLaunchPreference(repoIdentity, path, scope string) (PathLaunchPreference, bool, error) {
-	if s == nil {
-		return PathLaunchPreference{}, false, errors.New("thread store unavailable")
-	}
-	view := *s
-	view.readOnly = true
-	return view.getPathLaunchPreference(repoIdentity, path, scope)
-}
 
 // PreviewThreadContext reads through the regular decoder and backend router,
 // without initializing stores, enrolling retention or replaying pending journals.
