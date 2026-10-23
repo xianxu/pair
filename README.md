@@ -1849,6 +1849,10 @@ another agent. Warm attachment does not establish a native binding: cold
 conversation resume still requires one. Open a thread's actions to **park**,
 **detach**, or **relaunch** it through Couch. In the switcher, `Alt+d` detaches
 all live threads and returns to the shell; `Alt+x` parks them after confirmation.
+The slots that full quit parks read **Asleep** in the switcher, unlike a slot you
+parked on its own. After the next start, `Alt+Shift+x` in the switcher wakes the
+asleep hubs after confirmation. Each hub then wakes its own asleep workers, so
+plain parked slots stay parked.
 Those two chords are not intercepted while a Pair pane is displayed. They
 reach the agent or invoke the draft/right pane's existing Pair actions. Use the
 switcher for Couch's durable retirement.
