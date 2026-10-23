@@ -1,6 +1,6 @@
 ---
 id: 000162
-status: codecomplete
+status: done
 created: 2026-09-01
 updated: 2026-10-23
 estimate_hours: 1.97
@@ -21,6 +21,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: 51f0a6e0cdaf9847904dff59821237bb8bb3e926
         evidence_commit: e8ea9c785b62743e4dc4d6d4df6b59fd26813f1d
+        landed_commit: 0bc7b9660af656a87770e2d4ab1e0121a0b8e9c6
 ---
 
 # Enter sends when the composer line is addressed to the harness
