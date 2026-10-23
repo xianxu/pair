@@ -54,9 +54,12 @@ func TestSwitchGuardRefusesChangedDirtyUnknownAndBusy(t *testing.T) {
 					return couchcore.SlotGitStatus{}, nil
 				}
 			}
-			err := guard.ConfirmAgentSwitch(context.Background(), couchcore.ThreadAddress{RepoScope: b.Scope, Tag: couchcore.ThreadTag(b.Tag)}, token)
+			pinned, err := guard.ConfirmAgentSwitch(context.Background(), couchcore.ThreadAddress{RepoScope: b.Scope, Tag: couchcore.ThreadTag(b.Tag)}, token, couchcore.SwitchSourceEvidence{})
 			if (err == nil) != (fault == "none" || fault == "form") {
 				t.Fatalf("guard %s: %v", fault, err)
+			}
+			if err == nil && pinned != switchSourceToken(live) {
+				t.Fatalf("lost verified source token: %q", pinned)
 			}
 			if fault == "busy" && world.counts()[2] != 0 {
 				t.Fatal("busy source caused git probe")
@@ -118,7 +121,7 @@ func leanSwitchRig(t *testing.T) (*serviceRig, *leanSwitchQueue, couchmessage.Bi
 	queue := &leanSwitchQueue{}
 	guard := &switchServiceGuard{}
 	guard.service.Store(r.s)
-	r.s.switches.Store(&agentSwitchService{guard: guard, prepare: func(_ context.Context, a couchcore.ThreadAddress, agent string) (couchcore.PreparedAgentSwitch, error) {
+	r.s.switches.Store(&agentSwitchService{guard: guard, prepare: func(_ context.Context, a couchcore.ThreadAddress, agent string, _ *[]string) (couchcore.PreparedAgentSwitch, error) {
 		return couchcore.PreparedAgentSwitch{Address: a, Profile: couchcore.LaunchProfile{Agent: agent, Argv: []string{"--model", "known"}}, Fingerprint: "accepted-config"}, nil
 	}, enqueue: queue.enqueue})
 	return r, queue, hub, worker, client
@@ -186,7 +189,7 @@ func TestLeanSwitchBusyMissingConfigAndQueuedSourceChange(t *testing.T) {
 			if fault == "config" {
 				old := r.s.switches.Load()
 				next := *old
-				next.prepare = func(context.Context, couchcore.ThreadAddress, string) (couchcore.PreparedAgentSwitch, error) {
+				next.prepare = func(context.Context, couchcore.ThreadAddress, string, *[]string) (couchcore.PreparedAgentSwitch, error) {
 					return couchcore.PreparedAgentSwitch{}, fmt.Errorf("operator must set known-good config")
 				}
 				r.s.switches.Store(&next)

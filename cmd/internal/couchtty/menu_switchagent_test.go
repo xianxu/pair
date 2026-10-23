@@ -81,16 +81,15 @@ func TestSwitchAgentParametersContainFinalButtonsAndDispatchAcceptedPreview(t *t
 	}
 }
 
-func TestSwitchAgentFrameSurvivesOwnParkButRejectsUnrelatedLoss(t *testing.T) {
+func TestSwitchAgentFrameKeepsParkedDraftButRejectsUnknownLoss(t *testing.T) {
 	state := NewMenuState(menuThreads(), menuAddress("couch-one"))
 	state, _ = reduceKey(state, PanelKey{Kind: KeyTab})
 	state.Frames[len(state.Frames)-1].SelectedItem = "switch-agent"
 	state, _ = reduceKey(state, PanelKey{Kind: KeyEnter})
 	parked := menuThreads()
 	parked[0].State = couchcore.ThreadParked
-	// The switch's OWN park keeps the form (the switch is in flight); a park
-	// from elsewhere does not, because parked rows no longer offer
-	// switch-agent (#363).
+	// Both an in-flight park and a newly parked source keep the editable form;
+	// a fresh preview still fences any changed source before dispatch.
 	inFlight := state
 	setTestMenuOperation(&inFlight, MenuOperationOrigin{Operation: "switch-agent", Attempt: 1, Address: menuAddress("couch-one"), FrameInstance: state.CurrentFrame().Instance})
 	next, _ := ReduceMenu(inFlight, MenuEvent{Kind: MenuEventInventory, Inventory: parked, Generation: 1})
@@ -98,8 +97,8 @@ func TestSwitchAgentFrameSurvivesOwnParkButRejectsUnrelatedLoss(t *testing.T) {
 		t.Fatal("the switch's own park lost its form")
 	}
 	next, _ = ReduceMenu(state, MenuEvent{Kind: MenuEventInventory, Inventory: parked, Generation: 1})
-	if next.CurrentFrame().Kind == MenuFrameSwitchAgent {
-		t.Fatal("a source parked elsewhere retained the switch form")
+	if next.CurrentFrame().Kind != MenuFrameSwitchAgent {
+		t.Fatal("parking discarded the editable source form")
 	}
 	lost := menuThreads()
 	lost[0].State = couchcore.ThreadUnusable
@@ -134,7 +133,7 @@ func TestSwitchAgentParameterFocusCyclesAndCancelDropsPendingSubmit(t *testing.T
 	state := NewMenuState(menuThreads(), menuAddress("couch-one"))
 	p := couchcore.PreparedAgentSwitch{Address: menuAddress("couch-one"), SourceAgent: "claude", Profile: couchcore.LaunchProfile{Agent: "codex", Argv: []string{}}, Fingerprint: "accepted"}
 	appendMenuFrame(&state, MenuFrame{Kind: MenuFrameSwitchAgent, Action: "switch-agent", Thread: p.Address, Agent: "codex", SwitchStage: 1, SwitchPrepared: &p, SelectedItem: "parameters"})
-	for _, want := range []string{"switch", "cancel", "parameters"} {
+	for _, want := range []string{"switch", "interrupt-switch", "force-switch", "cancel", "parameters"} {
 		state, _ = reduceKey(state, PanelKey{Kind: KeyTab})
 		if state.CurrentFrame().SelectedItem != want {
 			t.Fatalf("focus %q want %q", state.CurrentFrame().SelectedItem, want)
@@ -147,6 +146,8 @@ func TestSwitchAgentParameterFocusCyclesAndCancelDropsPendingSubmit(t *testing.T
 	state, _ = reduceKey(state, PanelKey{Kind: KeyTab})
 	state, effects := reduceKey(state, PanelKey{Kind: KeyEnter})
 	generation := effects[0].Preview.Generation
+	state, _ = reduceKey(state, PanelKey{Kind: KeyTab})
+	state, _ = reduceKey(state, PanelKey{Kind: KeyTab})
 	state, _ = reduceKey(state, PanelKey{Kind: KeyTab})
 	state, effects = reduceKey(state, PanelKey{Kind: KeyEnter})
 	if len(effects) != 0 || state.CurrentFrame().Kind != MenuFrameRoot {
@@ -246,7 +247,7 @@ func TestSwitchAgentParameterCursorUsesRunesAndRenderedCells(t *testing.T) {
 }
 
 func TestSlotSwitchAgentTargetsSelectedWorkspace(t *testing.T) {
-	for _, lifecycle := range []couchcore.ActionableThreadState{couchcore.ThreadLive} {
+	for _, lifecycle := range []couchcore.ActionableThreadState{couchcore.ThreadLive, couchcore.ThreadParked} {
 		t.Run(string(lifecycle), func(t *testing.T) {
 			row := groupedRow("/workspace/pair", 2, "slot-two")
 			row.State = lifecycle
@@ -273,5 +274,170 @@ func TestSlotSwitchAgentTargetsSelectedWorkspace(t *testing.T) {
 				t.Fatalf("wrong slot dispatch %+v", effects)
 			}
 		})
+	}
+}
+
+func TestSwitchAgentConfigurationProvenanceRequiresExplicitAcceptance(t *testing.T) {
+	for _, agent := range []string{"claude", "codex"} {
+		for _, mode := range []string{"own", "borrowed", "absent", "conflict"} {
+			t.Run(agent+"/"+mode, func(t *testing.T) {
+				p := couchcore.PreparedAgentSwitch{Address: menuAddress("couch-one"), SourceAgent: "claude", Profile: couchcore.LaunchProfile{Agent: agent, Argv: []string{}}, Fingerprint: "initial"}
+				want := "No saved configuration for this repository"
+				switch mode {
+				case "own":
+					p.Configured = true
+					p.Profile.Argv = []string{"--model", "own"}
+					want = "Saved for this repository"
+				case "borrowed":
+					p.Borrowed = &couchcore.BorrowedArguments{RepoIdentity: "/donor/.git", Agent: agent, Argv: []string{"--model", "borrowed"}}
+					p.Profile.Argv = p.Borrowed.Argv
+					want = "Borrowed — not saved for this repository"
+				case "conflict":
+					p.Conflict = true
+					want = "Configuration conflict"
+				}
+				state := NewMenuState(menuThreads(), p.Address)
+				appendMenuFrame(&state, MenuFrame{Kind: MenuFrameSwitchAgent, Action: "switch-agent", Thread: p.Address, Agent: agent, SwitchStage: 1, SelectedItem: "parameters", Generation: 1, PreviewPending: 1})
+				state, effects := ReduceMenu(state, MenuEvent{Kind: MenuEventPreviewResult, Generation: 1, SwitchPrepared: &p})
+				body := RenderMenuView(state, 100, 20, time.Now(), false).Body
+				if len(effects) != 0 || !strings.Contains(body, want) || (mode == "borrowed" && !strings.Contains(body, "/donor/.git")) {
+					t.Fatalf("unmarked configuration or implicit acceptance: %s; effects=%+v", body, effects)
+				}
+				narrow := state
+				narrow.Notice = errorMenuNotice("ordinary failure")
+				narrow.CopyFeedback = CopyFeedback{Kind: CopyFeedbackFailed, Text: "clipboard failed"}
+				view := RenderMenuView(narrow, 40, 10, time.Now(), false)
+				if view.Cursor == nil || !strings.Contains(view.Body, "Cancel") || !strings.Contains(view.Body, "parameters") || (mode == "borrowed" && (!strings.Contains(view.Body, "Borrowed — not saved for this repository") || !strings.Contains(view.Body, "/donor/.git"))) {
+					t.Fatalf("banners hid configuration or controls: %s", view.Body)
+				}
+				canceled, effects := reduceKey(state, PanelKey{Kind: KeyEscape})
+				if len(effects) != 0 || canceled.operationForTest().Operation != "" {
+					t.Fatal("cancel accepted configuration")
+				}
+				state, effects = reduceKey(state, PanelKey{Kind: KeyEnter})
+				if len(effects) != 0 {
+					t.Fatal("input Enter accepted configuration")
+				}
+				state, effects = reduceKey(state, PanelKey{Kind: KeyEnter})
+				if len(effects) != 1 || effects[0].Preview == nil || effects[0].Preview.SwitchArgv == "" {
+					t.Fatalf("acceptance omitted explicit argv: %+v", effects)
+				}
+				requested := effects[0].Preview.SwitchArgv
+				p.Fingerprint = "accepted"
+				p.Borrowed = nil
+				state, effects = ReduceMenu(state, MenuEvent{Kind: MenuEventPreviewResult, Generation: effects[0].Preview.Generation, SwitchPrepared: &p})
+				if len(effects) != 1 || effects[0].Args["argv"] != requested || effects[0].Args["fingerprint"] != "accepted" {
+					t.Fatalf("acceptance changed parameters: %+v", effects)
+				}
+			})
+		}
+	}
+}
+
+func TestSwitchAgentCooperativeActionBindsSubmittedIntent(t *testing.T) {
+	for _, agent := range []string{"claude", "codex"} {
+		for _, scenario := range []string{"accept", "ordinary", "edit", "cancel"} {
+			t.Run(agent+"/"+scenario, func(t *testing.T) {
+				state := NewMenuState(menuThreads(), menuAddress("couch-one"))
+				p := couchcore.PreparedAgentSwitch{Address: menuAddress("couch-one"), SourceAgent: agent, Profile: couchcore.LaunchProfile{Agent: agent, Argv: []string{"--model", "a b"}}, Fingerprint: "accepted"}
+				selected := "interrupt-switch"
+				if scenario == "ordinary" {
+					selected = "switch"
+				}
+				appendMenuFrame(&state, MenuFrame{Kind: MenuFrameSwitchAgent, Action: "switch-agent", Thread: p.Address, Agent: agent, SwitchStage: 1, SwitchPrepared: &p, SelectedItem: selected, Input: "--model 'a b'"})
+				body := RenderMenuView(state, 80, 10, time.Now(), false).Body
+				if !strings.Contains(body, "Interrupt then switch") || !strings.Contains(body, "Cancel") {
+					t.Fatalf("missing cooperative action: %s", body)
+				}
+				state, effects := reduceKey(state, PanelKey{Kind: KeyEnter})
+				if len(effects) != 1 || effects[0].Preview == nil || effects[0].Preview.SwitchArgv != `["--model","a b"]` {
+					t.Fatalf("no exact preview: %+v", effects)
+				}
+				generation := effects[0].Preview.Generation
+				if scenario == "cancel" {
+					state, _ = reduceKey(state, PanelKey{Kind: KeyEscape})
+				} else if scenario == "edit" {
+					state.Frames[len(state.Frames)-1].SelectedItem = "parameters"
+					state, _ = reduceKey(state, PanelKey{Kind: KeyRune, Rune: 'x'})
+				} else {
+					// Focus is presentation; it cannot change the submitted consent.
+					state.Frames[len(state.Frames)-1].SelectedItem = "cancel"
+				}
+				state, effects = ReduceMenu(state, MenuEvent{Kind: MenuEventPreviewResult, Generation: generation, SwitchPrepared: &p})
+				if scenario == "cancel" || scenario == "edit" {
+					if len(effects) != 0 {
+						t.Fatal("cancelled or edited consent dispatched")
+					}
+					return
+				}
+				if len(effects) != 1 || effects[0].Operation != "switch-agent" || effects[0].Args["argv"] != `["--model","a b"]` {
+					t.Fatalf("lost exact intent: %+v", effects)
+				}
+				if got := effects[0].Args["interrupt-first"] == "true"; got != (scenario == "accept") {
+					t.Fatalf("cooperative consent=%v scenario=%s", got, scenario)
+				}
+			})
+		}
+	}
+}
+
+func TestSwitchAgentSameAgentIntentShowsRestart(t *testing.T) {
+	for _, agent := range []string{"claude", "codex"} {
+		t.Run(agent, func(t *testing.T) {
+			p := couchcore.PreparedAgentSwitch{Address: menuAddress("couch-one"), SourceAgent: agent, Intent: couchcore.SwitchIntentRestartPreferResume, Profile: couchcore.LaunchProfile{Agent: agent, Argv: []string{}}, Fingerprint: "restart"}
+			state := NewMenuState(menuThreads(), p.Address)
+			appendMenuFrame(&state, MenuFrame{Kind: MenuFrameSwitchAgent, Thread: p.Address, Agent: agent, SwitchStage: 1, SwitchPrepared: &p, SelectedItem: "switch"})
+			body := RenderMenuView(state, 80, 10, time.Now(), false).Body
+			if !strings.Contains(body, "Restart with new parameters") || strings.Contains(body, "fresh conversation") {
+				t.Fatalf("same-agent intent presented as fresh: %s", body)
+			}
+		})
+	}
+}
+
+func TestSwitchAgentFormActionsHaveSeparateFocusedRows(t *testing.T) {
+	for _, agent := range []string{"claude", "codex"} {
+		for _, restart := range []bool{false, true} {
+			action := "Switch"
+			p := couchcore.PreparedAgentSwitch{Address: menuAddress("couch-one"), SourceAgent: agent, Profile: couchcore.LaunchProfile{Agent: agent}}
+			if restart {
+				p.Intent = couchcore.SwitchIntentRestartPreferResume
+				action = "Restart"
+			}
+			items := []string{"parameters", "switch", "interrupt-switch", "force-switch", "cancel"}
+			labels := []string{"parameters", action, "Interrupt then switch", "Force switch", "Cancel"}
+			for _, selected := range items {
+				t.Run(agent+"/"+action+"/"+selected, func(t *testing.T) {
+					state := NewMenuState(menuThreads(), p.Address)
+					appendMenuFrame(&state, MenuFrame{Kind: MenuFrameSwitchAgent, Thread: p.Address, Agent: agent, SwitchStage: 1, SwitchPrepared: &p, SelectedItem: selected})
+					body := RenderMenuView(state, 40, 10, time.Now(), false).Body
+					rows := strings.Split(body, "\r\n")
+					previous := -1
+					for i, label := range labels {
+						want := "  " + label
+						if items[i] == selected {
+							want = "▸ " + label
+						}
+						found := -1
+						for row, text := range rows {
+							if strings.TrimRight(text, " ") == want {
+								found = row
+							}
+						}
+						if found <= previous {
+							t.Fatalf("missing, shared or misordered action row %q: %s", want, body)
+						}
+						previous = found
+					}
+					state.Notice = errorMenuNotice("ordinary failure")
+					state.CopyFeedback = CopyFeedback{Kind: CopyFeedbackFailed, Text: "clipboard failed"}
+					body = RenderMenuView(state, 40, 10, time.Now(), false).Body
+					focused := "▸ " + labels[slices.Index(items, selected)]
+					if !strings.Contains(body, focused) || !strings.Contains(body, "Cancel") || !strings.Contains(body, "parameters") {
+						t.Fatalf("banners hid focus, parameters or cancel: %s", body)
+					}
+				})
+			}
+		}
 	}
 }

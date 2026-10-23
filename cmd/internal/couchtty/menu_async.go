@@ -9,6 +9,7 @@ type PreviewRequest struct {
 	Action         couchcore.StartAction
 	SwitchAddress  couchcore.ThreadAddress
 	SwitchArgv     string
+	SwitchForce    bool
 
 	Generation uint64
 	Path       string

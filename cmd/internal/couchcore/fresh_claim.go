@@ -16,6 +16,7 @@ import (
 // ReplaceThreadExpected -- and Store is the store that write lands in, which
 // decides whether a refused commit may release the address claim.
 type freshClaimInput struct {
+	RememberConfiguration                  bool
 	ScopeKey, Cwd, RepoIdentity, TagPrefix string
 	Profile                                LaunchProfileResolution
 	Used                                   map[ThreadAddress]bool
@@ -54,7 +55,7 @@ func (c *Couch) claimFreshRecord(ctx context.Context, in freshClaimInput) (Threa
 			continue
 		}
 		record.Incarnations = []ThreadIncarnation{{State: IncarnationCreating, StartedAt: c.Clock.Now(), RepoIdentity: in.RepoIdentity}}
-		record, err = AdvanceStartTransaction(record, StartEvent{Kind: StartClaimed, Nonce: nonce, Owner: SupervisorOwner{PID: owner.PID, Identity: owner.Identity}, Profile: &in.Profile.Profile})
+		record, err = AdvanceStartTransaction(record, StartEvent{Kind: StartClaimed, Nonce: nonce, Owner: SupervisorOwner{PID: owner.PID, Identity: owner.Identity}, Profile: &in.Profile.Profile, RememberConfiguration: in.RememberConfiguration})
 		if err != nil {
 			return ThreadRecord{}, "", err
 		}

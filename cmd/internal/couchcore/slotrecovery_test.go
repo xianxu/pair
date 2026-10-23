@@ -3,7 +3,6 @@ package couchcore
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -182,9 +181,13 @@ func TestStartFreshSlotReplacesStoppedCurrentAndKeepsPreferences(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	saved := PathLaunchPreference{SchemaVersion: 1, RepoIdentity: local.slot.RepoIdentity, PhysicalPath: old.StartingPath, LastAgent: "claude", ArgvByAgent: map[string][]string{"claude": {"--verbose"}, "codex": {"--no-alt-screen"}}, Revision: 1}
-	preferenceRaw, _ := json.Marshal(saved)
-	if err := os.WriteFile(filepath.Join(local.root, "preferences.json"), preferenceRaw, 0600); err != nil {
+	for _, profile := range []LaunchProfile{{Agent: "claude", Argv: []string{"--verbose"}}, {Agent: "codex", Argv: []string{"--no-alt-screen"}}} {
+		if err := local.rememberRepoConfiguration(local.slot.RepoIdentity, profile, nil); err != nil {
+			t.Fatal(err)
+		}
+	}
+	preferenceBefore, err := os.ReadFile(local.repoPreferencesPath())
+	if err != nil {
 		t.Fatal(err)
 	}
 	result, err := env.Couch.StartFreshSlot(context.Background(), old.StartingPath, "claude")
@@ -195,9 +198,15 @@ func TestStartFreshSlotReplacesStoppedCurrentAndKeepsPreferences(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	preference, found, err := local.GetPathLaunchPreference(local.slot.RepoIdentity, local.slot.WorktreeRoot)
-	if err != nil || !found || len(preference.ArgvByAgent["codex"]) != 1 || preference.ArgvByAgent["codex"][0] != "--no-alt-screen" || len(result.Record.Args.ExtraArgs) != 1 || result.Record.Args.ExtraArgs[0] != "--verbose" {
-		t.Fatalf("preferences lost %+v %v", preference, err)
+	if len(result.Record.Args.ExtraArgs) != 1 || result.Record.Args.ExtraArgs[0] != "--verbose" {
+		t.Fatalf("repository arguments lost: %+v", result.Record.Args)
+	}
+	preferenceAfter, err := os.ReadFile(local.repoPreferencesPath())
+	if err != nil || !bytes.Equal(preferenceBefore, preferenceAfter) {
+		t.Fatalf("registration changed preferences before console adoption: %v", err)
+	}
+	if _, err := os.Lstat(filepath.Join(local.root, "preferences.json")); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("registration wrote a local preference: %v", err)
 	}
 	// A fresh agent is a fresh conversation: it starts unnamed (#363). The
 	// stored name and description stay with the conversation they described,

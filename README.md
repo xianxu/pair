@@ -547,7 +547,7 @@ couch --reboot repo:N --confirm [--json]
                          request Start fresh on the current binary; attributed running processes require an exact stop-set offer
 couch --recovery-confirmation TOKEN [--json]
                          approve that offer from the authenticated owning hub; no repeated target or TUI is needed
-couch --switch-agent repo:N --agent NAME --confirm [--json]
+couch --switch-agent repo:N --agent NAME [--agent-args PARAMETERS] [--interrupt-first] --confirm [--json]
                          from the hub: switch another idle, clean slot using saved target-agent settings
 couch --keys repo:N STEP... [--json]
                          owning hub: drive named keys in an idle, empty agent composer and return its styled tail
@@ -675,16 +675,38 @@ session remains Continue; claim age never authorizes killing its supervisor.
 An older live wrapper with a broken message endpoint remains usable through its
 terminal and reports “messaging unavailable until next relaunch.”
 
-`couch --switch-agent` accepts one exact slot and a different agent. It refuses
-`self`, the caller's own slot, busy or dirty targets, and targets whose state
-cannot be verified. It uses the target agent's last successful starting-path
-settings, falling back to its explicit repository default. Missing settings
-require the operator's Switch coding agent form; agents cannot supply argv or
-edit defaults through this API. The form remains the operator's parameter editor.
-A switch parks the source and starts a fresh conversation. Pair delivers no
-handoff or orientation; the saved startup parameters are used unchanged.
-The hub captures any context it needs before switching and decides what to send
-later. Compaction and continuation remain separate operations.
+`couch --switch-agent` accepts one exact other slot and a supported agent.
+It refuses `self`, the caller's own slot and unverified source ownership.
+Without `--agent-args`, it uses that agent's saved Couch repository arguments;
+missing or conflicting settings require explicit arguments or the operator's
+Switch coding agent form. It never silently borrows another repository's flags.
+`--agent-args PARAMETERS` accepts literal parameter text with quotes and empty
+arguments, using the same parser as the form. An explicitly empty value selects
+no parameters. Native resume selectors are refused. Accepted arguments become
+that repository's saved choice only after successful console adoption.
+
+Ordinary switching requires a clean worktree and a source proved idle or vacant
+by Couch's lifecycle evidence. `--interrupt-first --confirm` permits one existing
+authenticated interrupt when a working turn is proved, then requires fresh idle
+within one thirty-second phase. Unknown working state sends no input; uncertain
+interruption, changed ownership or timeout refuses replacement. It never retries
+an interrupt automatically. Operator **Force switch** is available only in the
+console form, with one warning about unsaved turn progress. It keeps on-disk
+uncommitted files, displays their count (or unknown), and starts the target only
+after the existing park owner confirms exact-source cleanup. CLI and hub requests
+cannot force a switch.
+
+A different-agent switch parks the source and starts a fresh conversation at the
+same thread and working path. Pair delivers no handoff or orientation. The hub
+captures any context it needs before switching and decides what to send later.
+Compaction and continuation remain separate operations.
+
+Selecting the same agent restarts its exact previous conversation with the new
+parameters. If Couch positively confirms that conversation is missing, it may
+start fresh once, after confirming cleanup of any failed resume, and reports
+“no previous conversation found; started fresh with the new parameters”. Unknown
+or replaced conversation evidence refuses the restart. The accepted parameters
+are saved only after successful console adoption in either outcome.
 
 An accepted receipt means the operation was queued; inspect it with
 `couch --operation-status ID`. On failure, use the existing park/recover/resume
@@ -1353,36 +1375,43 @@ Launching Couch allocates a pty for the session and **reserves the bottom row of
 your screen** for a status line. The path argument is optional and defaults to
 `.`, so `cd <repo> && couch` is the usual form.
 
-For a new thread, the TUI's agent field resolves explicitly selected agents,
-then the last agent
-successfully used at that exact physical path, then couch's own `$PAIR_AGENT`
-(or Claude when Couch was started outside Pair). Arguments resolve
-independently: Couch reuses the selected agent's last successful arguments at
-that path, never another agent's; otherwise it uses that agent's repository
-default. Thus switching Claude → Codex → Claude restores each harness's own
-arguments.
+For a new thread, an explicit agent selection wins; otherwise Couch uses its own
+`$PAIR_AGENT` (or Claude when started outside Pair). Arguments resolve separately
+for each agent from Couch's
+repository configuration. Every slot of the same verified Git repository shares
+these settings; switching Claude → Codex → Claude restores each agent's own
+arguments. Explicitly empty arguments remain empty.
 
-For numbered slots, repository defaults come from the primary checkout. A new
-slot starts with the current Couch agent and that agent's repository defaults;
-it does not copy `:0`'s personal settings. Use **Switch agent** in a thread's
-menu to select an agent and edit its parameters (selecting the current agent
-starts a fresh context too). Successful launch saves those settings only for
-that workspace. Explicitly empty parameters remain empty. Resume uses the
-conversation's recorded profile; Start fresh retains the slot's saved per-agent
-preferences. These settings survive Couch restart and conversation replacement.
-Numbered settings live in `<environment>/.couch/preferences.json`; primary
-settings retain their existing global storage. Couch launches never update
-repository defaults. There is no separate preferred-model setting.
+Use **Switch agent** in a thread's menu to edit and accept startup parameters.
+When the repository has no saved configuration for that agent, the form may
+offer arguments marked **Borrowed — not saved for this repository**, with their
+donor repository. Accepting that offer saves it for the current repository only
+after successful launch and console attachment; cancellation saves nothing.
+Conflicting legacy settings are shown as a configuration conflict requiring
+explicit acceptance of parameters. A command-line start or switch never silently
+uses a borrowed offer.
 
-Couch sends the exact resolved vector to Pair in a tag-bound one-shot profile,
-so Pair does not reopen its tag-specific saved-config picker. It sets
-`PAIR_USE_REPO_DEFAULT=1` only when repository-default provenance won and sends
-an authoritative empty value otherwise; Pair consumes both keys at entry so
-neither reaches sidecars, Zellij, or panes.
-Only successful Pair registration updates the thread profile and path history;
-selection, cancellation, fork failure, and registration failure do not. For
-now, change a repository default by launching Pair directly in that repo with
-`pair -- <agent-arguments>` before returning to Couch.
+Couch owns one global `threadstore/repo-preferences.json` document in its
+namespace, keyed by verified repository identity and agent. Older Couch
+per-path and numbered `.couch/preferences.json` records are migration inputs,
+not current settings; their original bytes remain intact. Pair's standalone
+folder defaults are independent. Launching `pair -- <agent-arguments>` changes
+Pair's defaults, not Couch's repository settings. There is no separate
+preferred-model setting.
+
+Couch sends the accepted vector to Pair in a validated tag-bound launch profile.
+Pair skips its folder-default lookup and saved-config picker for that profile;
+standalone Pair keeps both. Resume uses the conversation's historical profile
+without replacing a later repository edit. Start fresh uses the repository's
+current per-agent settings, and automatic recovery or warm attachment does not
+learn configuration merely because it ran.
+
+Successful registration records execution history. Only explicitly accepted
+configuration is published after the final console attachment; selection,
+cancellation and failed adoption do not change repository settings. If settings
+cannot be saved after attachment, the agent stays running and Couch reports that
+the parameters were not remembered. Repair Couch storage, then explicitly accept
+the configuration again.
 
 **`Ctrl-Space`, `Ctrl-Backspace` and `Ctrl-Return` belong to couch while a
 session is hosted.** They are intercepted before the child sees them, so they
@@ -1823,14 +1852,21 @@ all live threads and returns to the shell; `Alt+x` parks them after confirmation
 Those two chords are not intercepted while a Pair pane is displayed. They
 reach the agent or invoke the draft/right pane's existing Pair actions. Use the
 switcher for Couch's durable retirement.
-In a live thread's actions, **switch coding agent** opens the coding
+In an eligible live or proven-vacant thread's actions, **switch coding agent** opens the coding
 agent switch form. Choose an agent, then edit its prefilled startup parameters (an
 empty value is allowed). This second screen names the source and target and
-contains **Switch** and **Cancel**. Tab or Up/Down move between the
+contains **Switch**, **Interrupt then switch**, **Force switch** and **Cancel**.
+Tab or Up/Down move between the
 parameter field and buttons; Left/Right move the text cursor while editing.
 Enter on **Switch** submits the change after checking that the source is idle
-and clean. Choose a different agent; switching keeps the thread and working
-path and launches a fresh conversation with an empty composer. The switcher
+and clean. **Interrupt then switch** uses the bounded cooperative path above.
+**Force switch** opens one confirmation: “Force switch? The current turn's
+unsaved progress may be lost.” It preserves on-disk edits and reports the file
+count; Cancel sends no input and starts nothing. Choosing the same agent changes
+the form to **Restart with new parameters** and **Restart**: it resumes the
+previous conversation, with the disclosed missing-conversation fallback above.
+Choosing a different agent keeps the thread and working path and launches a
+fresh conversation with an empty composer. The switcher
 stays open. Capture any needed native transcript coordinates before switching;
 the previous tty recording remains available through `couch --peek repo:N
 --previous`.

@@ -55,6 +55,15 @@ func TestResourceQueryRejectsEveryNonOperationField(t *testing.T) {
 				v.SetBool(true)
 			case reflect.Int:
 				v.SetInt(1)
+			case reflect.Struct:
+				if v.Type() != reflect.TypeFor[couchmessage.SwitchArguments]() {
+					t.Fatalf("unhandled request field %s", field.Name)
+				}
+				arguments, err := couchmessage.NewSwitchArguments([]string{})
+				if err != nil {
+					t.Fatal(err)
+				}
+				v.Set(reflect.ValueOf(arguments))
 			case reflect.Pointer:
 				v.Set(reflect.New(v.Type().Elem()))
 			default:

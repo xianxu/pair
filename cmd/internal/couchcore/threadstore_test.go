@@ -1,10 +1,12 @@
 package couchcore
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"os"
+	"path/filepath"
 	"reflect"
 	"strings"
 	"sync"
@@ -339,54 +341,93 @@ func TestThreadStorePersistsAndDefensivelyCopiesIncarnationLaunchProfile(t *test
 	}
 }
 
-func TestThreadStoreRegistrationAtomicallyCommitsThreadAndPathLaunchPreference(t *testing.T) {
+func TestThreadStoreRegistrationCommitsHistoryWithoutLearningPreferences(t *testing.T) {
 	t.Parallel()
-
-	store, ns := newTestThreadStore(t)
-	record := validThreadRecord(t)
-	record.StartingPath, record.WorkingPath = ns.Dir(), ns.Dir()
-	record.Reservation = false
-	record.Incarnations = []ThreadIncarnation{{
-		State: IncarnationCreating, RepoIdentity: "repo-identity",
-	}}
-	created, err := store.CreateThread(record)
-	if err != nil {
-		t.Fatal(err)
-	}
-	profile := LaunchProfile{Agent: "codex", Argv: []string{"--sandbox", "workspace-write"}}
-	claimed, err := store.AdvanceStart(created.Address, created.Revision, StartEvent{
-		Kind: StartClaimed, Nonce: "start-0123456789abcdef",
-		Owner: SupervisorOwner{PID: 41, Identity: "owner"}, Profile: &profile,
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	helper, err := store.AdvanceStart(claimed.Address, claimed.Revision, StartEvent{
-		Kind: StartHelperRecorded, Nonce: "start-0123456789abcdef",
-		Helper: ProcessIdentity{PID: 42, Identity: "helper"},
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, found, err := store.GetPathLaunchPreference("repo-identity", ns.Dir()); err != nil || found {
-		t.Fatalf("unsuccessful start wrote path preference: found=%v err=%v", found, err)
-	}
-	registered, err := store.AdvanceStart(helper.Address, helper.Revision, StartEvent{
-		Kind: StartRegistered, Nonce: "start-0123456789abcdef",
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if registered.Incarnations[0].LaunchProfile == nil || !reflect.DeepEqual(*registered.Incarnations[0].LaunchProfile, profile) {
-		t.Fatalf("registered profile = %+v", registered.Incarnations[0].LaunchProfile)
-	}
-	preference, found, err := store.GetPathLaunchPreference("repo-identity", ns.Dir())
-	if err != nil || !found || preference.LastAgent != "codex" || !reflect.DeepEqual(preference.ArgvByAgent["codex"], profile.Argv) {
-		t.Fatalf("path preference = %+v found=%v err=%v", preference, found, err)
+	for _, legacy := range []string{"absent", "valid", "malformed"} {
+		t.Run(legacy, func(t *testing.T) {
+			store, ns := newTestThreadStore(t)
+			record := validThreadRecord(t)
+			record.StartingPath, record.WorkingPath = ns.Dir(), ns.Dir()
+			record.Reservation = false
+			record.Incarnations = []ThreadIncarnation{{State: IncarnationCreating, RepoIdentity: "repo-identity"}}
+			created, err := store.CreateThread(record)
+			if err != nil {
+				t.Fatal(err)
+			}
+			preferencePath := store.pathLaunchPreferencePath("repo-identity", ns.Dir())
+			var legacyRaw []byte
+			if legacy != "absent" {
+				legacyRaw = []byte("{malformed legacy preference\n")
+				if legacy == "valid" {
+					legacyRaw, err = json.Marshal(PathLaunchPreference{
+						SchemaVersion: PathLaunchPreferenceSchemaVersion, RepoIdentity: "repo-identity", PhysicalPath: ns.Dir(),
+						LastAgent: "claude", ArgvByAgent: map[string][]string{"claude": {"--model", "opus"}}, Revision: 7,
+					})
+					if err != nil {
+						t.Fatal(err)
+					}
+				}
+				if err := os.MkdirAll(filepath.Dir(preferencePath), 0700); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.WriteFile(preferencePath, legacyRaw, 0600); err != nil {
+					t.Fatal(err)
+				}
+			}
+			profile := LaunchProfile{Agent: "codex", Argv: []string{"--sandbox", "workspace-write"}}
+			claimed, err := store.AdvanceStart(created.Address, created.Revision, StartEvent{
+				Kind: StartClaimed, Nonce: "start-0123456789abcdef", Owner: SupervisorOwner{PID: 41, Identity: "owner"}, Profile: &profile,
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			helper, err := store.AdvanceStart(claimed.Address, claimed.Revision, StartEvent{
+				Kind: StartHelperRecorded, Nonce: "start-0123456789abcdef", Helper: ProcessIdentity{PID: 42, Identity: "helper"},
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			before, err := store.Snapshot()
+			if err != nil {
+				t.Fatal(err)
+			}
+			registered, err := store.AdvanceStart(helper.Address, helper.Revision, StartEvent{
+				Kind: StartRegistered, Nonce: "start-0123456789abcdef",
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if registered.Incarnations[0].LaunchProfile == nil || !reflect.DeepEqual(*registered.Incarnations[0].LaunchProfile, profile) {
+				t.Fatalf("registered execution profile = %+v", registered.Incarnations[0].LaunchProfile)
+			}
+			if registered.LatestLaunchProfile == nil || !reflect.DeepEqual(*registered.LatestLaunchProfile, profile) {
+				t.Fatalf("registered historical profile = %+v", registered.LatestLaunchProfile)
+			}
+			after, err := store.Snapshot()
+			if err != nil {
+				t.Fatal(err)
+			}
+			if after.Generation != before.Generation+1 {
+				t.Fatalf("manifest generation = %d, want %d", after.Generation, before.Generation+1)
+			}
+			if legacy == "absent" {
+				if _, err := os.Lstat(preferencePath); !errors.Is(err, os.ErrNotExist) {
+					t.Fatalf("registration created legacy preference: %v", err)
+				}
+			} else {
+				got, err := os.ReadFile(preferencePath)
+				if err != nil || !bytes.Equal(got, legacyRaw) {
+					t.Fatalf("registration changed legacy bytes: %q, %v", got, err)
+				}
+			}
+			if _, err := os.Lstat(store.repoPreferencesPath()); !errors.Is(err, os.ErrNotExist) {
+				t.Fatalf("registration published repository preferences: %v", err)
+			}
+		})
 	}
 }
 
-func TestThreadStoreRecoversInterruptedThreadAndPathPreferenceCommit(t *testing.T) {
+func TestThreadStoreRecoversInterruptedThreadAndManifestCommit(t *testing.T) {
 	t.Parallel()
 
 	store, ns := newTestThreadStore(t)
@@ -415,6 +456,10 @@ func TestThreadStoreRecoversInterruptedThreadAndPathPreferenceCommit(t *testing.
 	if err != nil {
 		t.Fatal(err)
 	}
+	before, err := store.Snapshot()
+	if err != nil {
+		t.Fatal(err)
+	}
 	crashing := newThreadStoreWithHooks(ns, threadStoreHooks{AfterTarget: func(index int) error {
 		if index == 0 {
 			return errors.New("injected crash after thread image")
@@ -427,6 +472,23 @@ func TestThreadStoreRecoversInterruptedThreadAndPathPreferenceCommit(t *testing.
 		t.Fatal("interrupted commit returned success")
 	}
 
+	rawJournal, err := os.ReadFile(store.journalPath())
+	if err != nil {
+		t.Fatal(err)
+	}
+	var journal storeJournal
+	if err := json.Unmarshal(rawJournal, &journal); err != nil {
+		t.Fatal(err)
+	}
+	wantPaths := []string{relativeStorePath(store.root, store.recordPath(helper.Address)), relativeStorePath(store.root, store.manifestPath())}
+	var paths []string
+	for _, entry := range journal.Entries {
+		paths = append(paths, entry.Path)
+	}
+	if !reflect.DeepEqual(paths, wantPaths) {
+		t.Fatalf("journal targets = %v, want thread+manifest %v", paths, wantPaths)
+	}
+
 	recovered := NewThreadStore(ns)
 	if err := recovered.RecoverStoreJournal(); err != nil {
 		t.Fatal(err)
@@ -435,10 +497,23 @@ func TestThreadStoreRecoversInterruptedThreadAndPathPreferenceCommit(t *testing.
 	if err != nil || thread.Incarnations[0].LaunchProfile == nil || !reflect.DeepEqual(*thread.Incarnations[0].LaunchProfile, profile) {
 		t.Fatalf("recovered thread = %+v, %v", thread, err)
 	}
-	preference, found, err := recovered.GetPathLaunchPreference("repo-identity", ns.Dir())
-	if err != nil || !found || preference.LastAgent != "muse" || !reflect.DeepEqual(preference.ArgvByAgent["muse"], profile.Argv) {
-		t.Fatalf("recovered preference = %+v, %v, %v", preference, found, err)
+	if _, err := os.Lstat(recovered.pathLaunchPreferencePath("repo-identity", ns.Dir())); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("recovery created path preference: %v", err)
 	}
+	if _, err := os.Lstat(recovered.repoPreferencesPath()); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("recovery published repository preferences: %v", err)
+	}
+	after, err := recovered.Snapshot()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if after.Generation != before.Generation+1 {
+		t.Fatalf("recovered manifest generation = %d, want %d", after.Generation, before.Generation+1)
+	}
+	if _, err := os.Lstat(recovered.journalPath()); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("recovery left journal: %v", err)
+	}
+
 }
 
 func TestThreadStoreIndependentInstancesSerializeRevisionUpdates(t *testing.T) {

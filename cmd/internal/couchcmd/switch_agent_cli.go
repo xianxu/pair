@@ -44,6 +44,21 @@ func parseSwitchAgentCLI(args []string) (cliInvocation, error) {
 		}
 		seen[flag] = true
 		switch flag {
+		case "--agent-args":
+			if i+1 == len(args) {
+				return bad()
+			}
+			i++
+			argv, err := launcher.ParseLaunchParameters(args[i])
+			if err != nil {
+				return cliInvocation{}, err
+			}
+			inv.switchArgs, err = couchmessage.NewSwitchArguments(argv)
+			if err != nil {
+				return cliInvocation{}, err
+			}
+		case "--interrupt-first":
+			inv.interruptFirst = true
 		case "--confirm":
 			inv.confirmed = true
 		case "--json":
@@ -63,6 +78,11 @@ func parseSwitchAgentCLI(args []string) (cliInvocation, error) {
 		return bad()
 	}
 
+	if argv, present := inv.switchArgs.Argv(); present {
+		if err := launcher.ValidateFreshAgentArgs(inv.messageAgent, argv); err != nil {
+			return cliInvocation{}, err
+		}
+	}
 	return inv, nil
 }
 
@@ -85,6 +105,7 @@ func runSwitchAgentCLI(inv cliInvocation, rt Runtime, stdout, stderr io.Writer, 
 			return fail(err)
 		}
 		r.Target, r.Agent, r.Confirmed = inv.ref, inv.messageAgent, inv.confirmed
+		r.AgentArgs, r.InterruptFirst = inv.switchArgs, inv.interruptFirst
 	}
 	if err = couchmessage.ValidateRequest(r); err != nil {
 		return fail(err)

@@ -37,7 +37,7 @@ func (f *Fleet) Agent(n int) (agentfixture.Ready, error) {
 	if err != nil {
 		return agentfixture.Ready{}, err
 	}
-	if len(raw) > 16<<10 {
+	if len(raw) > agentfixture.MaxReadyBytes {
 		return agentfixture.Ready{}, fmt.Errorf("oversized fixture readiness")
 	}
 	var ready agentfixture.Ready

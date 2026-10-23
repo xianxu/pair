@@ -1255,8 +1255,8 @@ func TestEveryReasonExplainsItselfOnEnter(t *testing.T) {
 // no route for, and metadata actions left the switcher (#363).
 func TestUnusableRowOffersReboot(t *testing.T) {
 	items := menuActionItems(unusableMenuRow(couchcore.ReasonSessionGone))
-	if !slices.Equal(items, []string{"recover", "reboot"}) {
-		t.Fatalf("action items = %v, want recover, reboot", items)
+	if !slices.Equal(items, []string{"recover", "reboot", "switch-agent"}) {
+		t.Fatalf("action items = %v, want recover, reboot, switch-agent for proved session loss", items)
 	}
 }
 

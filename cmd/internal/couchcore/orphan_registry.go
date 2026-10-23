@@ -268,7 +268,7 @@ func (r *LeftRunningRegistry) update(ctx context.Context, change func([]LeftRunn
 		if !errors.Is(err, unix.EWOULDBLOCK) && !errors.Is(err, unix.EAGAIN) {
 			return err
 		}
-		if err := waitForLaunchFailureLock(ctx); err != nil {
+		if err := waitForStoreLockContext(ctx); err != nil {
 			return fmt.Errorf("orphan registry lock wait: %w", err)
 		}
 	}
