@@ -270,3 +270,21 @@ change-code recorded accepted design4ed7f036fac126928237ad92e9f4e89a17483710.
 The new core APIs exist only on #576's branch, so feature implementation must
 wait for its landed module version. Recheck the final shared API and run the
 gate on this clarified plan before core edits; do not install candidate source.
+
+### 2026-10-23 14:39 — shared fence defect confirmed and corrected
+
+Authenticated ariadne:2 receipt1fbe8bfc-2363-4734-a721-86910b5b597c reports
+measured pre-fix item exposure across mixed-kind and short closing fences.
+Upstream candidate f8b819032777535397f4eb4be6af4c020def126a replaces the
+toggle with Goldmark-backed `sidedoc.CodeLines(text string) []bool`; ChatItems
+consumes that shared code mask. Source inspection here verified the call and
+TestChatItemsCodeFollowsCommonMark. The owner reports counted N/2N coverage;
+this is upstream evidence, not a local candidate-module test or landing proof.
+
+CodeLines includes fence delimiters and indented code. Qualification must
+follow actual CommonMark structure: an unindented line can terminate a list
+item's fence and become a real new bullet. The Pair independent complete-item
+oracle must preserve actual source membership rather than the old toggle's
+incorrect expectation. Add CodeLines to the shared API provenance pin when
+#576 lands; no Pair fence scanner. The dependency wait and exact next step
+remain unchanged.

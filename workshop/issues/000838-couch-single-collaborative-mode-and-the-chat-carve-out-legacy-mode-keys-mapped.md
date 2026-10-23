@@ -222,6 +222,22 @@ rerun change-code for the clarified plan, then implement the RED regressions
 and remaining planned tasks. No feature implementation or long-running check
 is active. Expected-red tests are checkpointed with this dependency wait.
 
+### 2026-10-23 14:39 — upstream fence qualification corrected
+
+Authenticated ariadne:2 receipt1fbe8bfc-2363-4734-a721-86910b5b597c confirms
+the suspected shared ChatItems fence defect with measured pre-fix failures.
+Fix f8b819032777535397f4eb4be6af4c020def126a on #576's branch uses the
+Goldmark-backed sidedoc.CodeLines mask. Verified the committed shared call and
+test definition by Git inspection; no candidate installed and no local test
+pass claimed. Owner reports mixed/long-fence, indented-code and item-boundary
+coverage plus linear counted CodeLines tests.
+
+Plan Revisions records the CommonMark item-boundary detail and shared CodeLines
+API for final provenance. #838's existing RED baseline remains the current
+local feature evidence. Exact next step is still #576 landing verification,
+normal module/substrate update, final API/fixture reconciliation and required
+change-code refresh before core implementation. No active runner or stage.
+
 ## Revisions
 
 ### 2026-10-23 — initial implementation design
