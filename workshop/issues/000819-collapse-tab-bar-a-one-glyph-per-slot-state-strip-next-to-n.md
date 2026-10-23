@@ -112,3 +112,7 @@ Next: on TL stage go after753 releases pair:0, verify main ancestry and stage/bu
 ### 2026-10-22 — staged operator look ready
 
 After TL0cc50edd authorization and pair9 verified clear9a538277, fetched origin and confirmed no missing main commits. sdlc stage --build EXIT0 put75a6db9fedfda6572c154a2c38fd40ddb26a0a60 on pair:0; all four binaries (couch, pair, pair-launch-helper, pair-slug) report that exact revision and modified=false. Main baseline09c8964de39cdb5e6bd9db20601c232446af6949 is included. Sent hub the two-minute restart/marker, width fallback and whole-chip navigation check. Operator acceptance remains pending. Recorded819 and789 suites remain preserved in their immutable snapshots; no merge runner is active.
+
+### 2026-10-22 — operator accepted; stage released
+
+TL21cc4008 relays operator acceptance: “works”. At TL direction sdlc stage --clear EXIT0 restored pair:0 to main09c8964de39cdb5e6bd9db20601c232446af6949 (0 behind/0 ahead origin/main), rebuilt all four binaries at that exact revision with modified=false and released the owned lease. Notified pair:3 so728 can stage. No further stage is required. Remaining landing gate:819 exact-source suite session46229/lease-2835455686, currently FIFO9;789 session41982/lease-2426150993 remains FIFO6. Both survived the restart and remain untouched. After819 pass, use sdlc merge; return789 for its fixed review/merge on its earlier suite result, preserving checkout ownership.

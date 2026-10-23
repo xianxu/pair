@@ -103,10 +103,10 @@ Files: tty status_layout.go, reserve.go, status_owner_fade_test.go, status_colla
 
 Files: README.md; atlas/couch.md; this plan and issue.
 
-- [ ] Document marker priority, neutral uncertainty, slot ordering, whole-count click, all-or-none per-group width fallback and no agent-runtime meaning.
-- [ ] Run reader/source inventory checks and diff whitespace checks; classify new files only if their actual source reads require it.
+- [x] Document marker priority, neutral uncertainty, slot ordering, whole-count click, all-or-none per-group width fallback and no agent-runtime meaning.
+- [x] Run reader/source inventory checks and diff whitespace checks; classify new files only if their actual source reads require it.
 - [ ] Commit/push; submit recorded exact-head suite. Close through SDLC's mandatory review; fix any executable finding with red/green evidence.
-- [ ] Obtain TL's stage window, stage/build through SDLC, verify all binaries' exact revision/modified=false, and request the operator's real look before landing. Never replace pair:0 without a go.
+- [x] Obtain TL's stage window, stage/build through SDLC, verify all binaries' exact revision/modified=false, and request the operator's real look before landing. Never replace pair:0 without a go.
 - [ ] After suite/review/operator gates pass, enter sdlc merge promptly; its admitted turn owns main integration. Clear own stage after landing, verify main tip, report PR to hub.
 
 ## Parallel #789 recovery
@@ -122,3 +122,7 @@ Approved optional strip allocation after base packing, left-to-right using spare
 ### 2026-10-22 — PQ-1 function-test-strategy
 
 Compressed all task-level test inventories into named risky functions, adversarial input classes and mechanical invariants. The approved behavior, production seams, cost bounds, verification commands and staged operator requirement are unchanged.
+
+### 2026-10-22 — accepted operator stage
+
+TL21cc4008 records operator “works”. Owned stage cleared and verified at current main; only the recorded-suite pass and landing remain pending.
