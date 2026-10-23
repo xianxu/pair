@@ -771,6 +771,7 @@ var NonArtifactSources = []string{
 	"cmd/internal/couchmessage/broker_batch.go",
 	"cmd/internal/couchmessage/endpoint_batch.go",
 	"cmd/internal/wrapcmd/peer_batch.go",
+	"cmd/internal/wrapcmd/peer_wait_capture.go",
 	"cmd/internal/nativelock/state.go",
 	"cmd/internal/wrapcmd/native_lock.go",
 	"cmd/internal/wrapcmd/owned_group.go",

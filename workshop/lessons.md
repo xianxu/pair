@@ -2723,6 +2723,9 @@ and external temporary roots rather than relying on the host's TMPDIR.
   keep semantic mismatches non-retriable. Audit structural call-site manifests
   when a collector method changes, even when the effect remains read-only.
 
+- #791 PQ-1: Active plan concept tables must name the production transition/encoder functions as well as their data types. State one adversarial test strategy per risky function (generated event sequences for timing/once/reset invariants, fuzzed styled data for valid bounded encoding); put case inventories in executable tests.
+
+- #791 BR-1: A diagnostic byte cap must preserve evidence that actually fits. Do not divide the raw-screen allowance by worst-case escaping expansion and discard fitting screens; count actual escaped bytes incrementally under a hard construction bound. Pair cap/truncation oracles with a fitting styled-screen preservation regression.
 - #806 BR-1: Diagnostic reader tests do not prove lifecycle retention. Test the real cleanup caller across failure/success and option combinations, with controlled cancellation/join boundaries, root removal and repeated close; remove each capture call in a mutation check so missing wiring cannot remain green.
 
 - #806 BR-1 round2: Distinguish every teardown join in the regression: admitted requests joining does not prove native child/IO completion. Emit a final marker from the later producer and reject a mutation moving diagnostics across that specific join.

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"sync"
+	"time"
 
 	uv "github.com/charmbracelet/ultraviolet"
 	xansi "github.com/charmbracelet/x/ansi"
@@ -23,6 +24,7 @@ type terminalModel struct {
 	mu         sync.Mutex
 	generation uint64
 	resizeMu   sync.Mutex
+	lastResize terminalResizeObservation
 
 	emulator     *vt.Emulator
 	observer     terminalControlObserver
@@ -41,6 +43,23 @@ type terminalResize struct {
 	mu        sync.Mutex
 	resolved  bool
 	unchanged bool
+}
+
+// terminalResizeObservation is diagnostic evidence, never admission authority.
+// The model retains only the latest transaction, including duplicate geometry.
+type terminalResizeObservation struct {
+	AttemptedAt time.Time `json:"attempted_at"`
+	CompletedAt time.Time `json:"completed_at"`
+	Cols        int       `json:"cols"`
+	Rows        int       `json:"rows"`
+	Changed     bool      `json:"changed"`
+	Outcome     string    `json:"outcome"`
+}
+
+type terminalDiagnosticSnapshot struct {
+	Snapshot   terminalSnapshot
+	Generation uint64
+	LastResize terminalResizeObservation
 }
 
 type terminalControlObserver struct {
@@ -142,9 +161,12 @@ func (m *terminalModel) PrepareResize(cols, rows int) (*terminalResize, error) {
 		m.resizeMu.Unlock()
 		return nil, err
 	}
+	geometryChanged := m.emulator.Width() != cols || m.emulator.Height() != rows
+	unchanged := m.synchronized && !geometryChanged
+	m.lastResize = terminalResizeObservation{AttemptedAt: time.Now(), Cols: cols, Rows: rows, Changed: geometryChanged, Outcome: "prepared"}
 	// A repeated SIGWINCH need not repaint the child. Keep its existing
 	// evidence, including uncertainty, when no terminal geometry changed.
-	if m.synchronized && m.emulator.Width() == cols && m.emulator.Height() == rows {
+	if unchanged {
 		return &terminalResize{model: m, unchanged: true}, nil
 	}
 	m.synchronized = false
@@ -176,13 +198,18 @@ func (r *terminalResize) resolve(commit bool) error {
 	m := r.model
 	m.mu.Lock()
 	var err error
+	m.lastResize.CompletedAt = time.Now()
+	m.lastResize.Outcome = "aborted"
 	if commit {
 		if m.closed {
 			err = io.ErrClosedPipe
-		} else if !r.unchanged {
-			m.observer.visible = false
-			m.synchronized = true
-			m.generation++
+		} else {
+			m.lastResize.Outcome = "committed"
+			if !r.unchanged {
+				m.observer.visible = false
+				m.synchronized = true
+				m.generation++
+			}
 		}
 	}
 	m.mu.Unlock()
@@ -298,13 +325,25 @@ func (m *terminalModel) FrameComplete() bool {
 }
 
 func (m *terminalModel) Snapshot() terminalSnapshot {
+	snapshot, _ := m.SnapshotGeneration()
+	return snapshot
+}
+
+// SnapshotGeneration pairs copied cells with the generation that produced them.
+func (m *terminalModel) SnapshotGeneration() (terminalSnapshot, uint64) {
+	e := m.SnapshotDiagnostic()
+	return e.Snapshot, e.Generation
+}
+
+// SnapshotDiagnostic copies screen and resize evidence in one terminal turn.
+func (m *terminalModel) SnapshotDiagnostic() terminalDiagnosticSnapshot {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
 	if m.closed {
-		return cloneTerminalSnapshot(m.final)
+		return terminalDiagnosticSnapshot{cloneTerminalSnapshot(m.final), m.generation, m.lastResize}
 	}
-	return m.snapshotLocked()
+	return terminalDiagnosticSnapshot{m.snapshotLocked(), m.generation, m.lastResize}
 }
 
 func (m *terminalModel) snapshotLocked() terminalSnapshot {
