@@ -68,7 +68,7 @@ Bounds: retain setup180s, scenario120s, cleanup15s, current100ms wait cadence, e
 - [x] Add the retained delayed restart envelope and pure RED regressions for arrival before/after the baseline and command, pending-to-submitted receipt order, duplicate commands/system IDs, authored prose, forged/unknown envelopes, wrong full identities, and journal mutation/truncation.
 - [x] Implement the test-only pure oracle and thin public receipt adapter; preserve current proof, namespace, timeout, byte and cleanup bounds; prove stable-receipt lookup counts at8/16.
 - [x] Run focused oracle/cmd-couch and audited reader inventory checks, then one disposable public qualification per Claude/Codex personality with exact cleanup; record each result without blind retries.
-- [ ] Prepare the pushed-source recorded affected check/full fallback and mandatory close handoff; record check, review and normal landing outcomes in the Log.
+- [x] Prepare the pushed-source recorded affected check/full fallback and mandatory close handoff; record check, review and normal landing outcomes in the Log.
 
 ## Log
 
@@ -109,3 +109,10 @@ PR566 is open for CI overlap; its local-gates guard passed. Atlas/couch-testing.
 ### 2026-10-23 — Gate checklist bookkeeping
 
 The last Plan row originally read: "Push the tested source, run the required recorded affected check/full fallback, inventory immediately before close, the binary-owned close review and normal SDLC landing gates." Clarify it as preparation for these binary-owned gates, recording their real outcomes in the Log, so close does not require falsely checking review/landing before their verbs execute. Product Done-when, scope and verification requirements are unchanged.
+
+
+### 2026-10-23 — Required recorded fallback queued; close handoff
+
+sdlc local-check run --name affected on pushed7cf0dcf13 selected full coverage because of the audited captured-input reader cmd/couch/slash_journal_oracle_test.go, then started the declared full-suite fallback. Retain terminal64772, lease-2535690368, checkout /Volumes/TestScratch/local-checks/sdlc-local-1489521246, inflight log /Users/xianxu/workspace/pair/.git/sdlc/test-stats/inflight/61b1ee187cbb8a3e5ac919be0bc4f3ff/run.log. Initial FIFO8 behind legitimate ariadne:4; no test result or pass claimed. Later commits are documentation only; code and native qualification source remain111be6e29dac54fc0778cbd868c1ecffcc03ac14. Preserve this runner and FIFO, with no duplicate check or continuation/restart while it owns the run.
+
+Inventory preflight PASS again after both per-reader audits. All active Plan deliverables and close preparation are checked; actual recorded check/review/landing outcomes remain pending here. Next: mandatory binary-owned close review may overlap the queued recorded check per tl-worker; use normal measured actuals, and wait for this fallback pass before landing. If review changes test code, checkpoint the correction and replace only its stale owned check through supported SDLC controls. No manual main integration, configuration label or gate waiver is authorized.
