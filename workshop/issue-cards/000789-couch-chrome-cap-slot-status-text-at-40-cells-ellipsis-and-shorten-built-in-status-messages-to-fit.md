@@ -1,6 +1,6 @@
 ---
 id: 000789
-status: codecomplete
+status: done
 created: 2026-10-21
 updated: 2026-10-23
 estimate_hours:
@@ -21,6 +21,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: 1dd016d9e6740d0aba8d39ff3c23825407a42db8
         evidence_commit: a44052a1d4b3080af2fdf95d7ee6c1f20f4642a5
+        landed_commit: 25864d9b8279dcc056a2de266f3ddb8dc6aa1874
 ---
 
 # Couch chrome: cap status text at 40 cells and preserve full copying
