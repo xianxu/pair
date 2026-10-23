@@ -519,3 +519,12 @@ Integrated suite lease-1347324803 on61abe493 remains retained, latest FIFO7, uni
 ### 2026-10-22 — accepted stage released before suite/landing
 
 TL932b76bf explicitly supersedes the earlier land-then-clear sequence: accepted stage is no longer needed, release now for #819/#728 while the suite waits. Supported sdlc stage --clear EXIT0 restores pair:0 main09c8964de39cdb5e6bd9db20601c232446af6949; couch/pair/pair-launch-helper/pair-slug all verify that exact revision, modified=false. Lease released. Hub and pair:4 notified (receipts f6a2cb82-ff94-4dbb-a57a-187459a4866b and9a538277-723e-4e00-9446-8dfa545868c8). #753 operator acceptance, branch and retained suite lease-1347324803 are unchanged; land normally when the recorded pass arrives, with no stage dependency or restage.
+
+
+### 2026-10-22 18:31 PDT — final integrated suite PASS; shutdown landing hold
+
+Retained suite lease-1347324803 finished EXIT0 in10m42s on integrated61abe493a05a4bf163dbb6ec7b0e3349ed715fe6. Recorded sdlc-local/suite PASS; saved log /Users/xianxu/workspace/pair/.git/sdlc/local-checks/61abe493a05a4bf163dbb6ec7b0e3349ed715fe6/suite.log, SHA256 prefix ae97a9512998. Subsequent branch changes are issue Log only. Full close round9 SHIP and real-operator acceptance are complete; pair:0 stage was already cleared and pair:4 notified. No suite or merge runner remains admitted/held for #753.
+
+TL5763259e fleet notice now forbids NEW merges/landings for the planned22:00–23:00 shutdown and Go1.27.3 upgrade. This supersedes the earlier land-on-pass instruction: DO NOT enter a new merge tonight, do not take another item, preserve this reviewed/passed branch. Work is committed/pushed before21:45; no blocker to report.
+
+EXACT NEXT STEP after an authenticated TL release following the restart: run sdlc state; verify the branch/PR537 head, codecomplete binding, retained61abe493 suite PASS and installed Go/build environment survived. Then sdlc merge --yes, retaining its sole landing runner; obey any supported integration/check precondition it names, without duplicate runners or CI bypass. On actual landing report PR537 to hub. Stage is already clear, so do not clear/take over a later #819/#728 stage. #783 remains the assigned dependent follow-up only after #753 lands and the TL confirms order.
