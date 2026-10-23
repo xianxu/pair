@@ -54,10 +54,10 @@ So "wake all" at the Couch level means "wake the asleep hubs"; the per-hub order
 
 Durable plan: `workshop/plans/000830-global-alt-x-marks-parked-slots-asleep-one-wake-all-brings-back-exactly-those-plan.md` (awaiting TL approval).
 
-- [ ] T1 record field `asleep` (SleepMark, born additive)
-- [ ] T2 pure `ThreadAsleep` predicate (nonce-bound)
-- [ ] T3 BeginPark cause; Leave fresh drives mark asleep; resume/reattach clear
-- [ ] T4 summary + switcher shows asleep
+- [x] T1 record field `asleep` (SleepMark, born additive)
+- [x] T2 pure `ThreadAsleep` predicate (nonce-bound)
+- [x] T3 BeginPark cause; Leave fresh drives mark asleep; resume/reattach clear
+- [x] T4 summary + switcher shows asleep
 - [ ] T5 wake operation (hubs only): switcher key, `couch --wake`, `couch --asleep --json`
 - [ ] T6 native fleet acceptance (Claude, Codex)
 - [ ] T7 atlas, lessons, ariadne#564 contract
@@ -65,6 +65,9 @@ Durable plan: `workshop/plans/000830-global-alt-x-marks-parked-slots-asleep-one-
 ## Log
 
 ### 2026-10-23
+
+- T1–T4 done (9dcc4a36c, then the switcher commit). A mutation check that writes no mark at BeginPark fails both Leave mark tests. T4 adds no read: asleep comes from the record already in hand, so the planned counted test would have nothing to count.
+- **Design discovery, waiting on the TL:** Couch already starts every explicit hub at startup. `startExplicitHubs` queues `start-hub` for each, and `StartInteractive` cold-resumes a proven conversation. Restarting Couch with its hubs therefore already wakes them, asleep or not. A separate wake gesture for hubs would only repeat what startup does. Asked the TL whether wake stays (startup would then skip asleep hubs and wait for the gesture) or is dropped (startup is the gesture, and #830 ships the mark, the display and `--asleep --json`).
 
 - pair:6 claimed and planned. The mark is written in BeginPark's CAS and bound to the park nonce; asleep is derived (receipt nonce = mark nonce), so every park-ending path and older builds leave it inert (ARCH-ORDER, ARCH-EVOLVE). It is a top-level member because nested park types are strict. tl-lead reads `couch --asleep --json`. `couch --drain` (#722) is not implemented yet; the cause is a Leave parameter so it can choose.
 
