@@ -2728,3 +2728,4 @@ and external temporary roots rather than relying on the host's TMPDIR.
 - #827 BR-1: when a plan's state table maps outcomes to visible states, enumerate every outcome the code can produce (here leaveSkipped) against it, not only the error paths. A full operation reports complete only on positive proof for every target; any outcome short of that proof is unresolved.
 - #827: a recovery hint belongs to one field. If a summary carries a dedicated next-action field, strip the same advice from the reason text, or the operator reads it twice.
 - #827: before adding a context-aware path through a nested lock, check every acquirer of that lock, including readers outside the outer coordinator. A nonblocking inner acquire under a blocking outer lock fails at once against an uncoordinated reader.
+- #827 round 2: when a change adds a member to an enumerated contract, grep the field or type name and update every comment that lists its members in the same commit.

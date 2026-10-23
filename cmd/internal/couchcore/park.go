@@ -173,7 +173,7 @@ type LeaveResult struct {
 	// discovering an occupied thread later.
 	Skipped []ThreadAddress
 	// Unresolved, under LeavePark only, names in snapshot order every thread the
-	// full quit could not prove parked -- failed, not started, or unreadable --
+	// full quit could not prove parked -- failed, not started, skipped, or unreadable --
 	// each with its next action (#827). Non-empty only alongside an error.
 	Unresolved []LeaveUnresolved
 }
