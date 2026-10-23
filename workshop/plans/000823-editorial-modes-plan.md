@@ -262,3 +262,14 @@ introduced concepts and functions are mapped below to make the original aggregat
 Post-close coordination/acceptance/landing remains pending in the issue Plan; local codecomplete does not claim
 those external steps. The close review may overlap the queued suite under the TL worker rule; final landing still
 requires a passing final-code record and TL acceptance disposition.
+
+### 2026-10-23 — Boundary findings BR-1 and BR-2
+
+BR-1: Goldmark child Lines omit fence delimiters and empty block syntax. Preserve complete list source membership
+through a transparent list-item parser observer in editorial/markdown.go (PURE, new), within the existing single
+parse; union with descendant extents for lazy continuation. This satisfies the existing chat-source preservation
+contract without a second Markdown parser (ARCH-DRY). Tests cover empty/nonempty fences, other empty block kinds,
+nested/lazy/continued items and final answer-link placement. BR-2: README gives canonical defaults, immediately
+adjacent heading comments, operator ownership, resolved read coordinates/tokens and preview/confirm migration.
+The first close was REWORK, so repeat full close after repairs. Cancelled obsolete queued suite lease-1667798340;
+its cancellation is not a pass, and the final fixed head requires its own recorded verification.

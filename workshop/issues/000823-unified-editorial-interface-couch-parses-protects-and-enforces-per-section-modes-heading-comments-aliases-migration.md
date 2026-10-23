@@ -298,6 +298,25 @@ falsely ticked for local codecomplete. The precise no-plan-check acknowledgment,
 to those workflow obligations. No implementation, test, atlas, actual or review gate is waived. Landing still waits
 for the recorded suite and TL/operator acceptance disposition.
 
+
+### 2026-10-23 — Close review repair
+
+The first full close returned REWORK: BR-1 protected-source-extent found that Goldmark child Lines omit list
+block delimiters, so a chat item closing fence could change; BR-2 requested README settings/migration guidance.
+The production-seam regression TestEditorialChatProtectsCompleteFencedItem reproduced the fence mutation
+(RED: expected editorial-chat, received success). The repair tracks complete list-container source membership
+inside the same Goldmark parse, retaining lazy child extents; empty blocks and delimiters remain operator-owned.
+README now names canonical defaults, adjacent heading syntax, protected ownership, migration preview/confirmation,
+resolved reads and opaque section tokens. ARCH-DRY: observe the existing parser rather than add a fence parser.
+
+Cancelled obsolete queued lease-1667798340 before code changed; its interrupted suite is not a verification pass.
+Repair verification: full editorial/sessionsync/reviewapply PASS (0.232s / 11.517s / 0.216s), repolint PASS13.221s,
+artifactpath PASS17.991s. Complete source membership, default-renderer equivalence and counted N/2N observer tests
+pass, including the production-seam regression. Audited changed document_test.go and new markdown_test.go readers:
+only local non-Go contract fixtures, retained full-suite fallback; individually recorded certificates. Reader inventory
+PASS. The final repaired head needs a new recorded check, native rerun and full close review. No finalized close
+generation exists.
+
 ## Revisions
 
 ### 2026-10-23 — Implementation boundaries from source inventory
@@ -305,3 +324,9 @@ for the recorded suite and TL/operator acceptance disposition.
 Added the durable plan and approval points without changing the operator's settled three-axis contract. The plan
 accounts for the missing section-policy CAS binding and for #419's explicit consumer ownership. No automatic
 legacy-map migration, external operator-document rewrite or new Couch side-doc service is proposed.
+
+### 2026-10-23 — Complete source extents and user documentation
+
+BR-1 tightens the planned chat-item preservation implementation to include all parsed source syntax, including
+empty/fenced blocks, through a transparent list-parser observer. BR-2 restores README user guidance. These are
+repairs to the existing preservation/documentation contract; no authority or acceptance boundary changes.

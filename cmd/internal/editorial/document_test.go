@@ -2,6 +2,7 @@ package editorial
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"math/rand"
 	"os"
@@ -374,4 +375,37 @@ func TestOwnedBlockScalarKeepChomp(t *testing.T) {
 	if p.Defaults.Instruction != "line\n\n\n" {
 		t.Fatalf("instruction %q", p.Defaults.Instruction)
 	}
+}
+
+func TestCompileListItemCompleteSourceMembership(t *testing.T) {
+	c, _ := DefaultCatalog()
+	prefix := "---\ncollaboration-mode: chat\n---\n# Chat\n"
+	cases := []struct{ name, item, protected string }{{"nonempty fence", "- Why?\n\n  ```\n  example\n  ```\n", "```"}, {"empty fence", "- Why?\n\n  ```\n  ```\n", "```"}, {"fence only", "- ```\n  ```\n", "```"}, {"thematic break", "- Why?\n\n  ---\n", "---"}, {"empty heading", "- Why?\n\n  #\n", "#"}, {"empty item", "-\n", "-"}, {"nested empty fence", "- Why?\n  - Nested\n\n    ```\n    ```\n", "```"}, {"lazy continuation", "- Why?\nlazy continuation\n\n  ```\n  ```\n", "```"}}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			source := prefix + tc.item + "\n# Next\nordinary\n"
+			p, e := Compile([]byte(source), c)
+			if e != nil {
+				t.Fatal(e)
+			}
+			if len(p.ListItems) != 1 {
+				t.Fatalf("items %+v", p.ListItems)
+			}
+			want := Range{len(prefix), len(prefix) + len(tc.item)}
+			if p.ListItems[0] != want {
+				t.Fatalf("item range %+v want %+v source=%q", p.ListItems[0], want, source[p.ListItems[0].Start:p.ListItems[0].End])
+			}
+			at := len(prefix) + strings.LastIndex(tc.item, tc.protected)
+			_, e = ValidateEdits([]byte(source), p, []Change{{Start: at, End: at + len(tc.protected), New: "~~~"}}, c)
+			var pe *PolicyError
+			if e == nil || !errors.As(e, &pe) || pe.Code != "editorial-chat" {
+				t.Fatalf("list syntax modification admitted: %v", e)
+			}
+		})
+	}
+}
+func TestCompileCompleteListSourceFinalAnswer(t *testing.T) {
+	source := "# Chat\n<!-- collaboration-mode: chat -->\n- Why?\n\n  ```\n  example\n  ```\n\n  Last continuation.\n\n# Next\nordinary\n"
+	at := strings.Index(source, "Last continuation.") + len("Last continuation.")
+	validateCase(t, source, []Change{{Start: at, End: at, New: " → [answer](note.side/answer.md)"}}, "")
 }

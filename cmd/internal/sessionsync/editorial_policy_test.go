@@ -275,6 +275,14 @@ func TestEditorialPendingChatAnswerCountsAsLinked(t *testing.T) {
 	wantRefusal(t, err, ExitRefused, "editorial-chat")
 }
 
+func TestEditorialChatProtectsCompleteFencedItem(t *testing.T) {
+	for _,content:=range []string{"  example\n", ""} {
+		base:="---\ncollaboration-mode: chat\n---\n- Why?\n\n  ```\n"+content+"  ```\n"
+		_,err:=BuildEdit(base,[]EditRecord{{Old:"  ```",New:"  ~~~",Occurrence:2}},t0Propose,false)
+		wantRefusal(t,err,ExitRefused,"editorial-chat")
+	}
+}
+
 func TestEditorialCodeMarkerCannotApproveDirectSideDoc(t *testing.T) {
 	for _, body := range []string{"```md\n🤖[question]\n```\n", "`🤖[question]`\n", "    🤖[question]\n"} {
 		base := "---\npresentation-mode: propose\n---\n" + body

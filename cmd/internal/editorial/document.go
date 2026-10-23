@@ -7,9 +7,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/yuin/goldmark"
 	"github.com/yuin/goldmark/ast"
-	"github.com/yuin/goldmark/text"
 	"go.yaml.in/yaml/v3"
 )
 
@@ -46,6 +44,7 @@ type CompileStats struct {
 	LineAdvances      int
 	HeadingVisits     int
 	LegacyAssignments int
+	ListSourceEvents  int
 }
 
 // DocumentPolicy is an immutable compilation of one document snapshot.
@@ -199,8 +198,13 @@ func Compile(src []byte, c *Catalog) (*DocumentPolicy, error) {
 	}
 	// Goldmark owns Markdown structure, including code masking and heading recognition.
 	body := src[p.body:]
-	tree := goldmark.DefaultParser().Parse(text.NewReader(body))
 	lines := sourceLines(src)
+	bodyLine := 0
+	for bodyLine < len(lines) && lines[bodyLine].Start < p.body {
+		bodyLine++
+	}
+	tree, listExtents, listEvents := parseSourceMarkdown(body, src, lines[bodyLine:])
+	d.Stats.ListSourceEvents = listEvents
 	lineCursor := 0
 	var rawBlocks, rawItems []Range
 	var activeItem ast.Node
@@ -218,6 +222,9 @@ func Compile(src []byte, c *Catalog) (*DocumentPolicy, error) {
 		if _, ok := n.(*ast.ListItem); ok && activeItem == nil {
 			activeItem = n
 			itemRange = Range{-1, -1}
+			if extent, ok := listExtents[n]; ok {
+				itemRange = extent
+			}
 		}
 		if n.Type() == ast.TypeBlock && n.Lines().Len() > 0 {
 			first, last := n.Lines().At(0), n.Lines().At(n.Lines().Len()-1)

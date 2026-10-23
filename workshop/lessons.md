@@ -2761,3 +2761,6 @@ and external temporary roots rather than relying on the host's TMPDIR.
 - #823 guard review: preserve parsed marker identity and extent, not only old bytes. Endpoint appends or deleting separators can forge a new human turn; code examples never grant approval. Source-coordinate code masks must reach proposal exceptions as well as scope classification.
 - #823 guard review: choose chat asks by the section's shallowest source indentation, not each Markdown list root. Preserve pending escaped answer links as linked; distinguish line-ending real links from code and prose mentions.
 - #823 integration: attribute final spans from validated base pieces. Re-resolving at a heading boundary can lend the next section's policy to content inserted before it.
+
+- #823 BR-1: Markdown AST content Lines are not full source ownership: fences and empty blocks may omit delimiters or all lines. Observe source membership at existing parser container transitions, preserve lazy continuations, and test exact protected bytes plus final append location through the production seam.
+- #823 BR-2: New operator settings and migration commands need README examples at close, even when CLI help and atlas already document them. Name defaults, heading adjacency, ownership and exact preview/confirm steps.
