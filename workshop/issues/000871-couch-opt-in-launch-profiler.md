@@ -1,12 +1,12 @@
 ---
 id: 000871
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-10-24
 updated: 2026-10-24
 estimate_hours: 0.804
-card_mirror: 'c5060faa71f5f8e26a8a66f9cc60a37dbfdb782d' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: 'ad8ca1cda5cfc93215d8791e75f2ea00cb0ce864' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-24T08:26:21-07:00
 claimant:
     operator: Xian Xu
@@ -16,6 +16,7 @@ claimant:
     worktree: /Users/xianxu/workspace/worktree/pair-slot7/pair
     repository: github.com/xianxu/pair
 flow: {kind: full, provenance: operator}
+actual_hours: N/A
 ---
 
 # Land the opt-in launch-only Couch profiler independently
