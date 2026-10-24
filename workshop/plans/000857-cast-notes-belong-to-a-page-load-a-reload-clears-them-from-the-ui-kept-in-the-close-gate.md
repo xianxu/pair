@@ -94,6 +94,13 @@ rounds:
       recipe: milestone-review
       isolation: fenced
       blocked: true
+disputes:
+    - id: BR-2
+      rationale: The reviewer-local GPU startup failure occurs before page creation and is not a failure of the page-load lifecycle. TL94ff9a00 explicitly requested independent source-bound host qualification by pair:5; that independent run now passes. Runtime source has not changed since the qualified head. The reviewed requirement is qualified without disabling Chrome checks or altering production.
+      evidence: 'Independent pair:5 delivery1e2d6747: clean disposable worktree, remote and HEAD eadf97328b414bc627c434b9a561f3b181f21408 verified; exactly one WEBCAST_LIVE_CHROME=1 go test ./cmd/internal/webcast -run ^TestPageLoadLiveFeedbackLifecycle$ -count=1 -v -timeout=150s, exit0, scenario4.37s/package4.656s, zero skips. Canonical plan.side/evidence/independent-host-test.log SHA256 fd63b1446d35513c95bfc31edc608061d6e5edf5101ccbdc96d7e0fac8b13c27, independent-host-metadata.json pins argv and Git/remote source; independent-host-cleanup.json proves zero owned Chrome and removed clean scratch worktree. Parent independently read and hashed the retained evidence. Only documentation/evidence followed that source; no retry, source edit, operator profile or pair:0 touch.'
+      after: 2
+      timestamp: "2026-10-24T11:53:16Z"
+      by: Xian Xu on Xian’s MacBook Pro at pair:4 (/Users/xianxu/workspace/worktree/pair-slot4/pair)
 ---
 
 # Gate ledger — pair#857 (boundary-review)
@@ -120,6 +127,15 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - BR-2 — not-addressed — At pinned head eadf97328b414bc627c434b9a561f3b181f21408, WEBCAST_LIVE_CHROME=1 go test ./cmd/internal/webcast -run '^TestPageLoadLiveFeedbackLifecycle$' -count=1 -v -timeout=150s failed at page_load_live_test.go:53 before page creation: GPU process exit_code=6, “GPU process isn't usable.” Inspected the committed successful rerun log and confirmed subsequent changes are documentation/evidence only, but the implementor log alone does not resolve the required independent qualification. BR-2 remains kind: unverifiable; provide independently verifiable source-bound host evidence or rerun review with working native Chrome (ARCH-MOCK).
 - BR-3 — addressed — atlas/webcast-format.md:227–231 now describes creation-segment load membership, same-load restoration and the standalone adapter fallback, matching web/annotate.js:138 and web/page-load.js. This is a prose-only correction supported by the code and passing browser tests (ARCH-DRY).
 
+## Disputes
+
+Findings the implementer declined (`sdlc finding dispute`), each answered by the
+next review round.
+
+- **BR-2** — after round 2 (2026-10-24T11:53:16Z, Xian Xu on Xian’s MacBook Pro at pair:4 (/Users/xianxu/workspace/worktree/pair-slot4/pair))
+  rationale: The reviewer-local GPU startup failure occurs before page creation and is not a failure of the page-load lifecycle. TL94ff9a00 explicitly requested independent source-bound host qualification by pair:5; that independent run now passes. Runtime source has not changed since the qualified head. The reviewed requirement is qualified without disabling Chrome checks or altering production.
+  evidence: Independent pair:5 delivery1e2d6747: clean disposable worktree, remote and HEAD eadf97328b414bc627c434b9a561f3b181f21408 verified; exactly one WEBCAST_LIVE_CHROME=1 go test ./cmd/internal/webcast -run ^TestPageLoadLiveFeedbackLifecycle$ -count=1 -v -timeout=150s, exit0, scenario4.37s/package4.656s, zero skips. Canonical plan.side/evidence/independent-host-test.log SHA256 fd63b1446d35513c95bfc31edc608061d6e5edf5101ccbdc96d7e0fac8b13c27, independent-host-metadata.json pins argv and Git/remote source; independent-host-cleanup.json proves zero owned Chrome and removed clean scratch worktree. Parent independently read and hashed the retained evidence. Only documentation/evidence followed that source; no retry, source edit, operator profile or pair:0 touch.
+
 ## Open findings
 
-- **BR-2** [Important] `native-conformance-evidence` (kind: unverifiable) Native page-load lifecycle could not be independently qualified
+(none — every finding has been disposed)
