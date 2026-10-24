@@ -76,6 +76,86 @@ rounds:
       recipe: small-diff-review
       isolation: fenced
       blocked: true
+    - reviewer_runs:
+        - version: 1
+          intent:
+            disposable_root: true
+            id: 5a1ca516-4168-4699-b5c0-7b9931065abc
+            repository: github.com/xianxu/pair
+            issue_id: "000841"
+            recipe: small-diff-review
+            round: 2
+            attempt: 1
+            agent: codex
+            root: /Volumes/TestScratch/review-checkouts/23a39a5bba2b3856
+            reviewed_head: 4719c824927fb0285bb4432fd380d632c7ea7621
+            slot: pair:9
+            requested_at: "2026-10-24T00:12:28.411525Z"
+          phase: finished
+          pid: 30966
+          started_at: "2026-10-24T00:12:28.719874Z"
+          finished_at: "2026-10-24T00:15:02.613226Z"
+          session_id: 01a16b40-76e6-7d83-8d04-04b39930be71
+          outcome: returned
+      actual_inputs:
+        version: 1
+        method: active-time-v3-engagement-v1
+        repository: github.com/xianxu/pair
+        code_head: 4719c824927fb0285bb4432fd380d632c7ea7621
+        tracker_head: 7374522f096bfc8fd1bcc2d141bd4c7d2259628a
+        branch_point: 1ee96e9872ef195450d5c53f096f530ca7e95ee3
+        since: "2026-10-23T16:55:31-07:00"
+        until: "2026-10-23T17:11:24-07:00"
+        brain_root: /Users/xianxu/workspace/brain
+        gap_minutes: 15
+        commit_weight: 1
+        include_assistant: true
+        engagements:
+            - start: "2026-10-23T16:55:31-07:00"
+              end: "2026-10-23T17:11:24-07:00"
+              began: "2026-10-23T16:55:31-07:00"
+              roots:
+                - /Users/xianxu/workspace/worktree/pair-slot9/pair
+        sources:
+            - harness: codex
+              id: 01a16862-faa4-76e2-bce3-5bc33019d381
+              slot: pair:9
+              cwd: /Users/xianxu/workspace/worktree/pair-slot9/pair
+              digest: 0ae26600d0e05864d34c67f7bcf7f3f3d04ee5473080c4de458b91f371ca5949
+              started: "2026-10-23T10:51:20.121Z"
+              spawned: false
+              bytes: 18725159
+              windows:
+                - start: "2026-10-23T16:55:31-07:00"
+                  end: "2026-10-23T17:11:24-07:00"
+        cuts:
+            - dispatched: "2026-10-23T17:04:32-07:00"
+              finalized: "2026-10-23T17:07:12-07:00"
+              finalizing: false
+      "n": 2
+      timestamp: "2026-10-23T17:15:06-07:00"
+      dispatched: "2026-10-23T17:12:24-07:00"
+      agent: codex
+      reviewer: codex (openai; author openai)
+      dispose:
+        - id: BR-1
+          disposition: addressed
+          note: console_attention.go:129 excludes generated timestamp bytes. Fixed-minute tests cover 09, 10 and 59, numeric repositories, all three notification kinds and both hover states. The timezone suite passes; shortening the exclusion in a disposable copy makes prose and numeric-repository regressions fail.
+          round: 2
+        - id: BR-2
+          disposition: not-addressed
+          note: 'attention_references.go:12 still consumes closing Markdown delimiters and subsequent references as part of a URL. Render regressions fail for [x](https://x)(pair:3), [x](https://x)[ariadne#575], [x](https://x)[#841], and [pair:3](https://x)[#841](https://y): the references following the URL remain plain. All four cases fail across notify, prompt and question rows, with and without hover. This remains family reference-exclusion-respects-token-boundaries (ARCH-PURPOSE). Define and enforce where an enclosing Markdown URL ends while preserving brackets internal to paths/URLs; sweep all three reference forms and adjacent links rather than patching individual examples.'
+          round: 2
+      findings:
+        - id: BR-3
+          severity: Critical
+          title: Clipping can remove every reference accent from the final visible row
+          detail: 'attention_references.go:59-62 requires each rendered line to be a contiguous source substring, but notes_menu.go:188 clips through rowtext.Fit, which can remove zero-width characters. With source "10:09  pair:0  first\nsecond\npair:3 \u200b plain\nend", the visible third row becomes "pair:3  plain…" and projection returns nil, leaving pair:3 plain. Supplemental render tests fail independently for pair:3, ariadne#575 and #841. The family has one projector and one layout caller in this window; it affects all bell kinds and hover states whenever clipping removes an interior zero-width character. Preserve source-to-display positions through fitting instead of relying on substring identity, and assert exact accents on the clipped row (ARCH-PURPOSE).'
+          family: reference-projection-preserves-visible-spans
+          round: 2
+      recipe: small-diff-review
+      isolation: fenced
+      blocked: true
 ---
 
 # Gate ledger — pair#841 (boundary-review)
@@ -92,7 +172,19 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-2** [Critical] `reference-exclusion-respects-token-boundaries` Path and URL exclusion suppresses separate punctuation-delimited references
   cmd/internal/couchtty/attention_references.go:32-36 rejects an entire whitespace chunk before separating punctuation-delimited tokens. Consequently [pair:3](https://example.test), [ariadne#575](https://example.test), and [#841](https://example.test) receive no reference accent even though their labels are outside the URL. The same guard suppresses separate references beside slash paths, backslash paths, or @-containing text; these are all instances of this single exclusion site. Apply exclusion to the actual path/URL token while retaining adjacent references, and add render regressions for all three reference forms alongside positive path/URL exclusions. Update the plan's whitespace-chunk rejection design accordingly (ARCH-PURPOSE).
 
+## Round 2 — 2026-10-23T17:15:06-07:00 (codex) — BLOCKED
+
+### Disposed
+
+- BR-1 — addressed — console_attention.go:129 excludes generated timestamp bytes. Fixed-minute tests cover 09, 10 and 59, numeric repositories, all three notification kinds and both hover states. The timezone suite passes; shortening the exclusion in a disposable copy makes prose and numeric-repository regressions fail.
+- BR-2 — not-addressed — attention_references.go:12 still consumes closing Markdown delimiters and subsequent references as part of a URL. Render regressions fail for [x](https://x)(pair:3), [x](https://x)[ariadne#575], [x](https://x)[#841], and [pair:3](https://x)[#841](https://y): the references following the URL remain plain. All four cases fail across notify, prompt and question rows, with and without hover. This remains family reference-exclusion-respects-token-boundaries (ARCH-PURPOSE). Define and enforce where an enclosing Markdown URL ends while preserving brackets internal to paths/URLs; sweep all three reference forms and adjacent links rather than patching individual examples.
+
+### Raised
+
+- **BR-3** [Critical] `reference-projection-preserves-visible-spans` Clipping can remove every reference accent from the final visible row
+  attention_references.go:59-62 requires each rendered line to be a contiguous source substring, but notes_menu.go:188 clips through rowtext.Fit, which can remove zero-width characters. With source "10:09  pair:0  first\nsecond\npair:3 \u200b plain\nend", the visible third row becomes "pair:3  plain…" and projection returns nil, leaving pair:3 plain. Supplemental render tests fail independently for pair:3, ariadne#575 and #841. The family has one projector and one layout caller in this window; it affects all bell kinds and hover states whenever clipping removes an interior zero-width character. Preserve source-to-display positions through fitting instead of relying on substring identity, and assert exact accents on the clipped row (ARCH-PURPOSE).
+
 ## Open findings
 
-- **BR-1** [Critical] `reference-highlighting-respects-source-role` Generated notification timestamps are highlighted as slot references
 - **BR-2** [Critical] `reference-exclusion-respects-token-boundaries` Path and URL exclusion suppresses separate punctuation-delimited references
+- **BR-3** [Critical] `reference-projection-preserves-visible-spans` Clipping can remove every reference accent from the final visible row
