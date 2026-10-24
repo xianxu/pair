@@ -166,6 +166,169 @@ rounds:
       recipe: milestone-review
       isolation: fenced
       blocked: true
+    - reviewer_runs:
+        - version: 1
+          intent:
+            disposable_root: true
+            id: fc48439d-c742-4388-b104-660ec830f580
+            repository: github.com/xianxu/pair
+            issue_id: "000861"
+            recipe: milestone-review
+            round: 2
+            attempt: 1
+            agent: codex
+            root: /Volumes/TestScratch/review-checkouts/a35e5ed9767a9097
+            reviewed_head: bddf4ed8812aeaa9f35ba6863f8d0035411f0400
+            slot: pair:3
+            requested_at: "2026-10-24T08:14:28.556984Z"
+          phase: finished
+          pid: 88678
+          started_at: "2026-10-24T08:14:28.782269Z"
+          finished_at: "2026-10-24T08:18:42.585629Z"
+          session_id: 01a16cf9-bf29-7ab0-bde7-0d26fed57e4a
+          outcome: returned
+      actual_inputs:
+        version: 1
+        method: active-time-v3-engagement-queue-v1
+        repository: github.com/xianxu/pair
+        code_head: bddf4ed8812aeaa9f35ba6863f8d0035411f0400
+        tracker_head: 0db0a27138dab38f49cff73eaf3addf3f4e4b0ed
+        branch_point: 54c4a59cae9001306faf90f10c6f7a5e95756fe4
+        since: "2026-10-24T00:02:47-07:00"
+        until: "2026-10-24T01:13:17-07:00"
+        brain_root: /Users/xianxu/workspace/brain
+        gap_minutes: 15
+        commit_weight: 1
+        include_assistant: true
+        engagements:
+            - start: "2026-10-24T00:02:47-07:00"
+              end: "2026-10-24T01:13:17-07:00"
+              began: "2026-10-24T00:02:47-07:00"
+              roots:
+                - /Users/xianxu/workspace/worktree/pair-slot3/pair
+        sources:
+            - harness: codex
+              id: 01a16004-9432-7d31-86ac-fb5d8d41b0e6
+              slot: pair:3
+              cwd: /Users/xianxu/workspace/worktree/pair-slot3/pair
+              digest: e70026d722f4a86638397bcb9296b8faf515edb65eef12232f6ee8317e82e63b
+              started: "2026-10-21T19:51:15.615Z"
+              spawned: false
+              bytes: 64274122
+              windows:
+                - start: "2026-10-24T00:02:47-07:00"
+                  end: "2026-10-24T01:13:17-07:00"
+            - harness: codex
+              id: 01a16cb8-7c69-7e31-b490-2fdddcb0b8c5
+              slot: pair:3
+              cwd: /Users/xianxu/workspace/worktree/pair-slot3/pair
+              parent_id: 01a16004-9432-7d31-86ac-fb5d8d41b0e6
+              digest: aa6b62a632035bd0e63f19f5d9484558efb1b47c14e812a5ba7def0b3a9c3acd
+              started: "2026-10-24T07:03:12.391Z"
+              spawned: true
+              bytes: 1386956
+              windows:
+                - start: "2026-10-24T07:03:12.391Z"
+                  end: "2026-10-24T01:13:17-07:00"
+            - harness: codex
+              id: 01a16cb8-a073-7980-bdc9-bc7c60b383ce
+              slot: pair:3
+              cwd: /Users/xianxu/workspace/worktree/pair-slot3/pair
+              parent_id: 01a16004-9432-7d31-86ac-fb5d8d41b0e6
+              digest: 6c5119d2f02c4e7f0cb477114e60a4fedc328645d82f0ad12933b2175e1e4cad
+              started: "2026-10-24T07:03:21.604Z"
+              spawned: true
+              bytes: 868165
+              windows:
+                - start: "2026-10-24T07:03:21.604Z"
+                  end: "2026-10-24T01:13:17-07:00"
+            - harness: codex
+              id: 01a16cb8-c0ae-7fa2-8b95-c7ce5a6195a7
+              slot: pair:3
+              cwd: /Users/xianxu/workspace/worktree/pair-slot3/pair
+              parent_id: 01a16004-9432-7d31-86ac-fb5d8d41b0e6
+              digest: 7208ae234497ab3aaa1f80873261ce0ca2a2b46d14ed2039f0bac1d6bec4db8e
+              started: "2026-10-24T07:03:29.857Z"
+              spawned: true
+              bytes: 1086349
+              windows:
+                - start: "2026-10-24T07:03:29.857Z"
+                  end: "2026-10-24T01:13:17-07:00"
+            - harness: codex
+              id: 01a16cbc-367c-7f61-80a3-63abbd4be952
+              slot: pair:3
+              cwd: /Users/xianxu/workspace/worktree/pair-slot3/pair
+              digest: 959b3328f1c600cd8bba3253ffc0ee1af618bfe15846584c9a39347ffb9c171f
+              started: "2026-10-24T07:07:17.092Z"
+              spawned: false
+              bytes: 742268
+              windows:
+                - start: "2026-10-24T07:07:17.092Z"
+                  end: "2026-10-24T01:13:17-07:00"
+            - harness: codex
+              id: 01a16cbe-a27d-7240-9404-6dee49cf109e
+              slot: pair:3
+              cwd: /Users/xianxu/workspace/worktree/pair-slot3/pair
+              digest: dfe99452119b2d1073ca2fc3db192d06ffebea1f6cf5565344660c28ec91ce5e
+              started: "2026-10-24T07:09:55.796Z"
+              spawned: false
+              bytes: 500055
+              windows:
+                - start: "2026-10-24T07:09:55.796Z"
+                  end: "2026-10-24T01:13:17-07:00"
+            - harness: codex
+              id: 01a16cc0-6afc-7373-9fc4-ed4df9f3b074
+              slot: pair:3
+              cwd: /Users/xianxu/workspace/worktree/pair-slot3/pair
+              digest: a545f5629b63161e47c1d119f4c87e24584fa3c85af0456edf3aa34059d8010e
+              started: "2026-10-24T07:11:52.998Z"
+              spawned: false
+              bytes: 466193
+              windows:
+                - start: "2026-10-24T07:11:52.998Z"
+                  end: "2026-10-24T01:13:17-07:00"
+            - harness: codex
+              id: 01a16cc0-fff6-7a81-97fa-6948a18398de
+              slot: pair:3
+              cwd: /Users/xianxu/workspace/worktree/pair-slot3/pair
+              digest: 4d683f7056042cdfd0d6d6eb660a3c8eee7aa367209d78660e45050ba702f920
+              started: "2026-10-24T07:12:30.9Z"
+              spawned: false
+              bytes: 407717
+              windows:
+                - start: "2026-10-24T07:12:30.9Z"
+                  end: "2026-10-24T01:13:17-07:00"
+        queue_waits:
+            - attempt_id: 412e0007e3f221a2893dcc6195396815
+              slot: pair:3
+              record_digest: 22e49e4b4aa48a0fc84b5a6f6f4d6e3a5845553abab1f4eca445190f2bf74bb3
+              start: "2026-10-24T07:26:27.075686Z"
+              end: "2026-10-24T07:41:18.910266Z"
+              queue_seconds: 891.83458
+              raw_seconds: 891.83458
+              exact: true
+        cuts:
+            - dispatched: "2026-10-24T00:59:14-07:00"
+              finalized: "2026-10-24T01:09:17-07:00"
+              finalizing: false
+      "n": 2
+      timestamp: "2026-10-24T01:19:00-07:00"
+      dispatched: "2026-10-24T01:14:25-07:00"
+      agent: codex
+      reviewer: codex (openai; author openai)
+      dispose:
+        - id: BR-2
+          disposition: addressed
+          note: The plan's Core concepts table at lines 21–26 now supplies accurate PURE/INTEGRATION classifications, and lines 147–149 record the clarification under Revisions. The before/after diff and the scanner, adapter, deadline and watcher implementations support those classifications.
+          round: 2
+        - id: BR-1
+          disposition: withdrawn
+          note: 'The supplied log matches its recorded SHA256, and no executable source changed after its measured c7723fb head. Independently rerunning GOPROXY=off GOSUMDB=off python3 -B tests/affected-config-test.py on pinned bddf4ed passed: cold graph 48.81s, Go fixture 56.376s, Python total 57.270s, within unchanged budgets using the normal 581 provider.'
+          round: 2
+      recipe: milestone-review
+      isolation: fenced
+      reviewed: bddf4ed8812aeaa9f35ba6863f8d0035411f0400
+      blocked: false
 disputes:
     - id: BR-1
       rationale: The requested exact reviewed-head host qualification now passes with unchanged budgets; the sandbox timeout remains recorded, without an established production defect.
@@ -189,6 +352,13 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-2** [Minor] `core-concept-classification` Core concepts table omits PURE/INTEGRATION kinds
   workshop/plans/000861-ariadne-pin-lint-adoption-plan.md:21 lists names, locations, and status without the requested kind column. ARCH-PURE: add explicit classifications based on actual dependencies and record the clarification under Revisions.
 
+## Round 2 — 2026-10-24T01:19:00-07:00 (codex) — passed
+
+### Disposed
+
+- BR-2 — addressed — The plan's Core concepts table at lines 21–26 now supplies accurate PURE/INTEGRATION classifications, and lines 147–149 record the clarification under Revisions. The before/after diff and the scanner, adapter, deadline and watcher implementations support those classifications.
+- BR-1 — withdrawn — The supplied log matches its recorded SHA256, and no executable source changed after its measured c7723fb head. Independently rerunning GOPROXY=off GOSUMDB=off python3 -B tests/affected-config-test.py on pinned bddf4ed passed: cold graph 48.81s, Go fixture 56.376s, Python total 57.270s, within unchanged budgets using the normal 581 provider.
+
 ## Disputes
 
 Findings the implementer declined (`sdlc finding dispute`), each answered by the
@@ -200,4 +370,4 @@ next review round.
 
 ## Open findings
 
-- **BR-2** [Minor] `core-concept-classification` Core concepts table omits PURE/INTEGRATION kinds
+(none — every finding has been disposed)

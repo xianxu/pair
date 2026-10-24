@@ -80,6 +80,8 @@ total: 4.11
 
 ## Log
 
+
+- 2026-10-24: closed — Recorded pre-close full suite PASS15m51s on b578e7ab6b98bd3c783372a9d6df1c8cd1d2ea2f (attempt412e0007e3f221a2893dcc6195396815); later changes are documentation and review evidence only. Exact reviewed c7723fbda1471ee2ddb1f13bdc8c30e627dbf88d offline installed581 planner PASS22.766s, cold graph14.73s,778inputs, unchanged budgets; proof and raw hash committed under workshop/evidence/000861. Fresh make test-affected-inventory exit0. Full catalog and targeted/race/native readiness-owned expiry tests PASS as logged. Exactly2 authorized ariadne590 false-positive allows; no other waivers. Atlas updated; no live fleet changes.; review verdict: SHIP
 Discovered by #838 retained pre-close attempt 5966ebc327601a4b5febe2c1bdf4ed3f on pushed head 8448a507ba579038d83eadf15ab70810bc8a030f. Full suite reached all Go packages and failed in repolint compile plus a separate #838 stale deleted-file artifact manifest entry. Raw suite log SHA256 69149fe9335d1b664e172bc0a7bcd1482b04a33bb54c68f828ab00d279f0d9c0. The artifact manifest error belongs to #838, not this adoption.
 
 After the minimal contextual callback adapter, targeted TestTrackedGoFilesPassCatalog reports exactly 51 findings: test-shrunk-deadline 40; test-socket-fixture-root 5; json-recursive-scanner 5; tmp-literal 1. Raw capture currently /tmp/pair838-catalog-pin-findings.log; #838 will retain it in workshop/evidence/000838/catalog-pin-findings.log. Findings follow verbatim for owner qualification.
