@@ -6,6 +6,7 @@
 // transitions share their own pure core, outside legacy DOM hashes.
 
 import { SKETCH_KINDS, createSketchState, nextSketch, sketchProjection, sketchMetadata, sketchContextEffect, nextSketchControl, restoreSketchState, snapshotControl } from './sketch-model.js';
+import { copyPageLoad, samePageLoad } from './page-load.js';
 
 export const VERSION = 1;
 
@@ -68,6 +69,7 @@ export class Model {
   #sketches;
   #control;
   #ctlSeen;
+  #pageLoads = new Map();
 
   // Control and sketch projections are owned read views. Only apply() can
   // change the accepted history, receipts and driving generation.
@@ -105,6 +107,9 @@ export class Model {
   }
 
   node(id) { return this.nodes.get(id); }
+  pageLoadAt(segment) { return copyPageLoad(this.#pageLoads.get(segment)); }
+  currentPageLoad() { return this.pageLoadAt(this.seg); }
+  onPageLoad(segment,load) { return samePageLoad(this.#pageLoads.get(segment),load); }
 
   sketchProjection() { return sketchProjection(this.#sketches); }
   sketchMetadata(sketch, stroke) { return sketchMetadata(this.#sketches, sketch, stroke); }
@@ -152,6 +157,8 @@ export class Model {
         this.head = r; return;
       case 'seg':
         if (r.seg <= this.seg) fail(`segment ${r.seg} after segment ${this.seg}`);
+        if ('page_load' in r && (!copyPageLoad(r.page_load)||r.page_load.target!==r.tab?.id)) fail('invalid page load identity');
+        this.#pageLoads.set(r.seg,copyPageLoad(r.page_load));
         if (r.why !== 'resume' || (r.tab?.id || '') !== this.tab.id) sketchContextEffect(this.#sketches,'interrupt','navigation');
         this.resetDOM();
         this.seg = r.seg; this.why = r.why; this.live = true; this.tab = r.tab || { id: '', url: '' }; this.vp = vpOf(r.vp);
