@@ -54,6 +54,7 @@ Durable full-flow design: [Cast notes panel plan](../plans/000850-cast-notes-pan
 ## Log
 
 ### 2026-10-23
+- 2026-10-23: closed — BR5 TL-approved grouped Sketch notes(N) selector replaces all colliding controls; native test independently selects all24 overlapping/edge-clamped rows, exact labels and zero final-view commands. All webcast Node tests, focused Go checks and affected inventory PASS. Refreshed source-blob native panel/full operator log PASS7.392s. Operator panel acceptance TL a7dcd3bb and selector approval TL36312a99 recorded. --no-plan-check acknowledges only final recorded-check/close/landing orchestration; existing old-source suite is finishing normally, and this corrected source must obtain its own pre-close pass before merge. Full review required, no judge bypass.; review verdict: SHIP
 
 ### 2026-10-23 — claimed; evidence and coordinated design
 

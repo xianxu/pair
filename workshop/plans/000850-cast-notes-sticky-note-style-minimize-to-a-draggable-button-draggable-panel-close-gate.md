@@ -316,6 +316,149 @@ rounds:
       recipe: milestone-review
       isolation: fenced
       blocked: true
+    - reviewer_runs:
+        - version: 1
+          intent:
+            disposable_root: true
+            id: 40aeb2a5-4594-4125-892b-df6588c0418d
+            repository: github.com/xianxu/pair
+            issue_id: "000850"
+            recipe: milestone-review
+            round: 3
+            attempt: 1
+            agent: codex
+            root: /Volumes/TestScratch/review-checkouts/57f823e6fcb773e5
+            reviewed_head: 33b974d890c0e0a54cbf7bdc327c7a62b72ecc1c
+            slot: pair:4
+            requested_at: "2026-10-24T03:53:58.80258Z"
+          phase: finished
+          pid: 43128
+          started_at: "2026-10-24T03:53:58.97476Z"
+          finished_at: "2026-10-24T03:55:33.01131Z"
+          session_id: 01a16c0b-4205-75a0-88f9-d79d7cf7bfb2
+          outcome: returned
+      actual_inputs:
+        version: 1
+        method: active-time-v3-engagement-v1
+        repository: github.com/xianxu/pair
+        code_head: 33b974d890c0e0a54cbf7bdc327c7a62b72ecc1c
+        tracker_head: 054712a1ca0bdad747ec1a2c1b61e785eaa6d3dd
+        branch_point: 221a833b2dc8504a9498d2f5b4b944b99ea7907d
+        since: "2026-10-23T19:27:12-07:00"
+        until: "2026-10-23T20:53:18-07:00"
+        brain_root: /Users/xianxu/workspace/brain
+        gap_minutes: 15
+        commit_weight: 1
+        include_assistant: true
+        engagements:
+            - start: "2026-10-23T19:27:12-07:00"
+              end: "2026-10-23T20:53:18-07:00"
+              began: "2026-10-23T19:27:12-07:00"
+              roots:
+                - /Users/xianxu/workspace/worktree/pair-slot4/pair
+        sources:
+            - harness: codex
+              id: 01a15a49-099a-71f3-872b-0c2ad747d4bc
+              slot: pair:4
+              cwd: /Users/xianxu/workspace/worktree/pair-slot4/pair
+              digest: 405d1f123ae494870b2999448d0066287be4352b0dac6ab86913cba8d5bd57f5
+              started: "2026-10-20T17:08:30.923Z"
+              spawned: false
+              bytes: 73220819
+              windows:
+                - start: "2026-10-23T19:27:12-07:00"
+                  end: "2026-10-23T20:53:18-07:00"
+            - harness: codex
+              id: 01a16bc4-3047-7c21-b815-b4015e6a22a6
+              slot: pair:4
+              cwd: /Users/xianxu/workspace/worktree/pair-slot4/pair
+              digest: 553061ea07be0a00fe4488b83ef72e95142fdac5cd359c4bdcdf8bfa1632c06f
+              started: "2026-10-24T02:36:22.651Z"
+              spawned: false
+              bytes: 468087
+              windows:
+                - start: "2026-10-24T02:36:22.651Z"
+                  end: "2026-10-23T20:53:18-07:00"
+            - harness: codex
+              id: 01a16bc6-10ec-7ff1-a5fc-f87626ddbce3
+              slot: pair:4
+              cwd: /Users/xianxu/workspace/worktree/pair-slot4/pair
+              digest: 4519288b8feb9467db258f866edc2cb893f14503a055c8526b7bfa7f4a38470b
+              started: "2026-10-24T02:38:25.484Z"
+              spawned: false
+              bytes: 407441
+              windows:
+                - start: "2026-10-24T02:38:25.484Z"
+                  end: "2026-10-23T20:53:18-07:00"
+            - harness: codex
+              id: 01a16bc7-ca93-7801-bb78-7f02c258a5da
+              slot: pair:4
+              cwd: /Users/xianxu/workspace/worktree/pair-slot4/pair
+              digest: b31e24f5efca06e75145aa1911e9d52cd5573fef1c9579ad46c9dc183b73208b
+              started: "2026-10-24T02:40:18.938Z"
+              spawned: false
+              bytes: 434431
+              windows:
+                - start: "2026-10-24T02:40:18.938Z"
+                  end: "2026-10-23T20:53:18-07:00"
+            - harness: codex
+              id: 01a16bc8-65c5-7803-81dd-735857bada64
+              slot: pair:4
+              cwd: /Users/xianxu/workspace/worktree/pair-slot4/pair
+              digest: 3642c7f20db4787b7323631c927f95ed1d1ba47c4dbc756ceabcb458cfbc8160
+              started: "2026-10-24T02:40:58.955Z"
+              spawned: false
+              bytes: 386042
+              windows:
+                - start: "2026-10-24T02:40:58.955Z"
+                  end: "2026-10-23T20:53:18-07:00"
+            - harness: codex
+              id: 01a16bc9-8056-7df2-bd92-70de1ca26cc5
+              slot: pair:4
+              cwd: /Users/xianxu/workspace/worktree/pair-slot4/pair
+              parent_id: 01a15a49-099a-71f3-872b-0c2ad747d4bc
+              digest: e1bc2cbfd65abcaf9ec6dc40c8239a338fb7272230d4f207ddf61a4e533ffbe1
+              started: "2026-10-24T02:42:10.338Z"
+              spawned: true
+              bytes: 976633
+              windows:
+                - start: "2026-10-24T02:42:10.338Z"
+                  end: "2026-10-23T20:53:18-07:00"
+            - harness: codex
+              id: 01a16bcd-4c16-76c0-b49c-d1938d780928
+              slot: pair:4
+              cwd: /Users/xianxu/workspace/worktree/pair-slot4/pair
+              parent_id: 01a15a49-099a-71f3-872b-0c2ad747d4bc
+              digest: dbd312203b1a6638792d59d25f46c7d74948c9d9dcba50376b0c48e18419671f
+              started: "2026-10-24T02:46:18.996Z"
+              spawned: true
+              bytes: 1260498
+              windows:
+                - start: "2026-10-24T02:46:18.996Z"
+                  end: "2026-10-23T20:53:18-07:00"
+        excluded_brain_sessions: 1
+        excluded_brain_minutes: 0.07971666666666667
+        cuts:
+            - dispatched: "2026-10-23T19:56:06-07:00"
+              finalized: "2026-10-23T19:59:08-07:00"
+              finalizing: false
+            - dispatched: "2026-10-23T20:45:53-07:00"
+              finalized: "2026-10-23T20:48:34-07:00"
+              finalizing: false
+      "n": 3
+      timestamp: "2026-10-23T20:55:35-07:00"
+      dispatched: "2026-10-23T20:53:55-07:00"
+      agent: codex
+      reviewer: codex (openai; author openai)
+      dispose:
+        - id: BR-5
+          disposition: addressed
+          note: sketch-notes.js replaces geometric per-sketch buttons with one clamped selector and keyed scrolling rows. Current tests pass; substituting the pre-fix module from 1b7764629 in memory makes four regressions fail, including overlap selection and the one-measurement cost assertion. Native coverage independently hit-tests and clicks all 24 overlapping rows; the retained passing log checksum and all 11 tested source blobs match the pinned head.
+          round: 3
+      recipe: milestone-review
+      isolation: fenced
+      reviewed: 33b974d890c0e0a54cbf7bdc327c7a62b72ecc1c
+      blocked: false
 ---
 
 # Gate ledger — pair#850 (boundary-review)
@@ -350,6 +493,12 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-5** [Critical] `viewport-reachability` (kind: defect) Overlapping sketch controls conceal individual notes.
   cmd/internal/webcast/web/sketch-notes.js:38–63 positions each button independently without accounting for other controls. A production-function reproduction with two completed sketches sharing bounds {left:100,top:100,right:200,bottom:150} in a 320×480 viewport places both 80×44 View note buttons at left:100px, top:48px. The later sibling covers the earlier button, preventing pointer access to its note. This is the 3rd finding in family viewport-reachability. Earlier rounds fixed instances; state and enforce the rule that every eligible sketch remains individually selectable after all controls are composed. Sweep identical bounds, partially overlapping targets, and edge-clamped collisions using collision-aware placement or an explicit grouped selector, while retaining bounded update costs. Add multi-sketch regression and native hit-target coverage. ARCH-PURPOSE, ARCH-CONSTRAINTS.
 
+## Round 3 — 2026-10-23T20:55:35-07:00 (codex) — passed
+
+### Disposed
+
+- BR-5 — addressed — sketch-notes.js replaces geometric per-sketch buttons with one clamped selector and keyed scrolling rows. Current tests pass; substituting the pre-fix module from 1b7764629 in memory makes four regressions fail, including overlap selection and the one-measurement cost assertion. Native coverage independently hit-tests and clicks all 24 overlapping rows; the retained passing log checksum and all 11 tested source blobs match the pinned head.
+
 ## Open findings
 
-- **BR-5** [Critical] `viewport-reachability` (kind: defect) Overlapping sketch controls conceal individual notes.
+(none — every finding has been disposed)

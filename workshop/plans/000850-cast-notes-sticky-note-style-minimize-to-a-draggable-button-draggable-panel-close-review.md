@@ -226,3 +226,89 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-23T20:55:34-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 850 — Cast notes: sticky-note style, minimize to a draggable button, draggable panel, visible add-note on sketches |
+| repo | pair |
+| issue file | workshop/issues/000850-cast-notes-sticky-note-style-minimize-to-a-draggable-button-draggable-panel.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 221a833b2dc8504a9498d2f5b4b944b99ea7907d..33b974d890c0e0a54cbf7bdc327c7a62b72ecc1c |
+| command | sdlc close --issue 850 |
+| reviewer | codex (openai; author openai) |
+| isolation | fenced |
+| timestamp | 2026-10-23T20:55:34-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: medium
+```
+
+The pinned range delivers the sticky notes panel and revised sketch-note selector. BR-5 is addressed at the underlying rule: overlapping sketches now share one entry button and remain individually selectable through scrolling rows. No new defects found. Confidence is medium because native Chrome execution failed during GPU startup on this host; retained native evidence matches the pinned source.
+
+```findings
+dispose:
+  - id: BR-5
+    disposition: addressed
+    note: |
+      sketch-notes.js replaces geometric per-sketch buttons with one clamped selector and keyed scrolling rows. Current tests pass; substituting the pre-fix module from 1b7764629 in memory makes four regressions fail, including overlap selection and the one-measurement cost assertion. Native coverage independently hit-tests and clicks all 24 overlapping rows; the retained passing log checksum and all 11 tested source blobs match the pinned head.
+```
+
+1. **Strengths**
+
+   - The selector fixes the collision class without spatial packing: each eligible sketch retains a distinct row and latest-identity handler (`cmd/internal/webcast/web/sketch-notes.js:45–68`).
+   - Panel mode changes pass through the pure reducer before rendering and measurement (`cmd/internal/webcast/web/floating-panel.js:101–105`).
+   - Sketch discovery reuses cached painter bounds, avoiding another point-history projection (`cmd/internal/webcast/web/sketch.js:810`).
+   - README and atlas updates describe the actual selector, keyboard controls, and unchanged submission authority.
+
+2. **Critical findings:** None.
+
+3. **Important findings:** None.
+
+4. **Minor findings:** None.
+
+5. **Test coverage notes**
+
+   - All **552 webcast Node tests passed**.
+   - Focused Go server, module-assembly, and panel checks passed.
+   - Regression sensitivity confirmed: the pre-fix sketch-controls module produces **four failures** against current tests.
+   - Native panel/operator tests were attempted but Chrome exited before page execution with “GPU process isn't usable.” The retained non-skipped native run reports success; its SHA256 and all 11 source-blob references were independently verified against the pinned head. BR-4 remains disposed.
+   - The full pre-close suite was not rerun during this review.
+
+6. **Architectural notes**
+
+   - **ARCH-DRY — pass:** Existing painter/cache, keyed rows, and label actions are reused.
+   - **ARCH-PURE — pass:** Transition and entry derivation functions are directly tested without IO; browser effects remain in adapters.
+   - **ARCH-PURPOSE — pass:** The revised selector addresses individual selection across overlapping drawings, with bounded scrolling.
+   - **ARCH-MOCK — pass:** Stateful browser fixtures exercise capture and event ordering; retained native tests check actual layout and hit targets.
+   - **ARCH-CONSTRAINTS — pass:** Tests pin constant drag costs, linear grouping/row updates, and one summary measurement.
+   - **ARCH-SECURE — pass:** Labels use `textContent`; Add note rechecks policy ownership; final inspection sends no mutation.
+   - **ARCH-ORDER — pass:** Panel transitions govern gesture identity, cancellation, mode changes, and disposal; stale sketch handlers reread current membership.
+   - **ARCH-FUNERAL — pass:** New UI resources have disposal paths; no growing runtime artifact family is introduced.
+   - **ARCH-EVOLVE — pass:** No persisted format changes.
+
+   The Core concepts entries match their implementations and classifications. No contradictory entity or missing documentation surface was found.
+
+7. **Plan revision recommendations:** None. The BR-5 revision explicitly supersedes individual geometric controls. Remaining pre-close and landing steps are recorded as orchestration work.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"40aeb2a5-4594-4125-892b-df6588c0418d","repository":"github.com/xianxu/pair","issue_id":"000850","recipe":"milestone-review","round":3,"attempt":1,"agent":"codex","root":"/Volumes/TestScratch/review-checkouts/57f823e6fcb773e5","reviewed_head":"33b974d890c0e0a54cbf7bdc327c7a62b72ecc1c","slot":"pair:4","requested_at":"2026-10-24T03:53:58.80258Z"},"phase":"finished","pid":43128,"started_at":"2026-10-24T03:53:58.97476Z","finished_at":"2026-10-24T03:55:33.01131Z","session_id":"01a16c0b-4205-75a0-88f9-d79d7cf7bfb2","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 3.094307458s
+head: "33b974d890c0e0a54cbf7bdc327c7a62b72ecc1c"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412
