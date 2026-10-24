@@ -338,3 +338,13 @@ recorded-check entry is `sdlc local-check run --pre-close` per the authenticated
 ### 2026-10-24 — native qualification follows explicit startup
 
 Hub2da96548 approves a test-only explicit operator start bootstrap while shared863 is open. The main-based native rerun failed before any editorial step because Fleet.Start waits for an auto-started hub after739. Qualification may opt into PAIR_NATIVE_EDITORIAL_BOOTSTRAP=1, using the existing Screen/Press form path and joining Fleet.Start. Editorial assertions, shared runtime, production behavior and existing300s context stay unchanged. Ordinary startup qualification remains863's responsibility; no runtime fork or timeout increase.
+
+### 2026-10-24 — BR-1 declaration ownership remains attached
+
+Close review reproduced routing-neutral transfer of a tag or heading directive
+to an inserted heading under redundant legacy chat. Preserve declaration-to-
+heading identity through the existing base-to-candidate map, independently of
+byte preservation, heading survival and effective policy. Regress scalar and
+map defaults, chat and retired directives, public write refusal/artifact
+preservation and legitimate unrelated heading shifts. No scope or mechanism
+change: this completes the approved operator-owned attachment guard.

@@ -533,6 +533,38 @@ hub in receipt 772d2c5f-4cf3-4405-a5fb-bac736872ffe. Operator acceptance and
 recorded verification remain intact. Next: follow the hub's measurement recovery
 decision, rerun inventory immediately before whole close, then land after SHIP.
 
+### 2026-10-24 — BR-1 declaration attachment identity
+
+Whole close round1 returned REWORK with one Critical BR-1
+(operator-authority-association). Independently reproduced before the fix:
+ValidateEdits and BuildEdit accepted an inserted heading that stole an existing
+tag; all seven public registered/legacy whole/section/apply/ApplyFile paths
+accepted tag and heading-directive transfers under redundant legacy chat.
+Those regressions failed for the expected missing operator-owned refusal.
+
+The class is declaration-to-owner identity independent of effective routing:
+frontmatter remains document-owned; tags and legacy heading directives remain
+attached to their mapped original heading. Reuse the existing heading mapping
+and compare each candidate OwnedSource.Heading against that original owner;
+no parser, state, retry or timeout is added (ARCH-SECURE, ARCH-PURPOSE).
+Tests cover scalar/default-map redundancy, chat/retired directives, public
+artifact preservation, and permitted unrelated heading insertions that shift
+indexes. Re-audited edits_test.go's only non-Go input: unchanged contract
+editorial example glob used as fuzz seeds; retained non_go_full_fallback.
+Fresh executable verification and pre-close are required before another review.
+
+### 2026-10-24 — BR-1 targeted verification complete
+
+New regressions failed before the fix and passed afterward: focused editorial
+0.158s and session-sync 34.127s. Whole-package race checks passed editorial
+5.127s and session-sync 146.408s. Inventory and git diff --check passed.
+The new owner comparison adds constant work per declaration to existing
+monotone source/heading joins; counted traversal tests remain green.
+Authenticated hub f0056229 grants the precise --no-actual exception for the
+128-source refusal; retain its exact refusal and affected window in the next
+close's --verified. Next: push this fix, run --pre-close, and submit the whole
+close again (round1 was REWORK and did not finalize a close generation).
+
 ## Revisions
 
 ### 2026-10-23 — initial implementation design
@@ -552,3 +584,11 @@ sequencing and project operator acceptance are approved as recorded above.
 ### 2026-10-24 — checkpoint placement correction
 
 Moved the dated adoption, native-check, pre-close and stage checkpoints from below Revisions into the existing Log, preserving their text and evidence. They record execution outcomes, not design revisions. The original design revision entries remain unchanged; partial operator acceptance is appended to Log. No source or approved contract change.
+
+### 2026-10-24 — BR-1 attachment protection clarification
+
+The existing operator-owned declaration contract explicitly includes its
+original heading association even when redundant legacy chat leaves routing
+unchanged. Enumerate tags and legacy chat/retired heading directives under
+scalar/default-map authority; reject attachment transfer across pure and
+public write paths, while permitting unrelated heading/index shifts.

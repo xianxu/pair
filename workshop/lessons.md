@@ -7,6 +7,8 @@ representative evidence, not an exhaustive index.
 
 ## Proof and verification
 
+- #838 BR-1: Preserving declaration bytes and their original heading separately does not preserve their association. Compare the candidate owner with the mapped original owner even under redundant authority that leaves effective routing unchanged; test both attachment transfer and legitimate heading-index shifts through public write seams.
+
 - #838 PQ-1: A shared authority projection must preserve independent facts for every consumer. A single winning Source label can hide legacy item grammar, and whole-document routing can hide still-owned tags. Enumerate routing, grammar, source protection and migration consumers; preserve their provenance in the shared owner and test mixed/overlapping authority against an independent oracle.
 - #841 BR-1/BR-2/BR-3: For a conservative visual aid, match final fitted display words and permit false negatives. Exclude generated metadata and ambiguous path/link/bracket chunks; skip wrapped row edges that may be fragments. Source-substring projection fails when fitting removes zero-width characters. Use fixed-clock grammar boundaries and exact clipped-row accents, not a test satisfied by any earlier colored label.
 - #825: A final file made visible by a hard link can be consumed before its publisher removes the temporary name. Retirement/capacity assertions must count mailbox records with the shared counter, not raw directory entries. Hold publication scratch in regression tests and retain negative controls for genuine records; never remove another producer's scratch to satisfy the oracle.

@@ -31,12 +31,14 @@ func TestEditorialSectionHashBindsAuthority(t *testing.T) {
 }
 
 func TestEditorialAllAgentWriteSeamsProtectSettings(t *testing.T) {
-	base := "---\ntype: session-sync\nowner: ops:0\npresentation-mode: direct\n---\n## Group\n@@chat@@\n### A\n<!-- presentation-mode: direct -->\ntext\n"
+	base := "---\ntype: session-sync\nowner: ops:0\ncollaboration-mode: chat\npresentation-mode: direct\n---\n## Group\n@@chat@@\n### A\n<!-- presentation-mode: direct -->\ntext\n"
 	mutations := []struct{ name, old, next string }{
 		{"frontmatter setting", "presentation-mode: direct", "presentation-mode: highlight"},
 		{"heading setting", "<!-- presentation-mode: direct -->", "<!-- presentation-mode: highlight -->"},
 		{"chat tag", "@@chat@@", "ordinary"},
 		{"tag heading association", "### A", "### B"},
+		{"tag attachment transfer", "### A", "### Injected\n### A"},
+		{"directive attachment transfer", "<!-- presentation-mode: direct -->", "### Injected\n<!-- presentation-mode: direct -->"},
 	}
 	for _, mutation := range mutations {
 		for _, registered := range []bool{false, true} {
@@ -430,5 +432,18 @@ func TestEditorialSectionHashBindsTagOutsideBody(t *testing.T) {
 			_, err := r.sync.Write(WriteRequest{File: r.p.File, Section: "A", IfHash: token, Body: "replacement\n"})
 			wantRefusal(t, err, ExitStale, "stale")
 		})
+	}
+}
+
+func TestBuildEditRejectsDeclarationAttachmentTransfer(t *testing.T) {
+	for _, body := range []string{"@@chat@@\n# Questions\n", "# Questions\n<!-- collaboration-mode: chat -->\n", "# Questions\n<!-- presentation-mode: direct -->\n"} {
+		base := "---\ncollaboration-mode: chat\n---\n" + body + "1. Why?\n"
+		old, next := "# Questions", "# Injected\n# Questions"
+		if !strings.HasPrefix(body, "@@") {
+			old = strings.Split(body, "\n")[1]
+			next = "# Injected\n" + old
+		}
+		_, err := BuildEdit(base, []EditRecord{{Old: old, New: next, Occurrence: 1}}, t0Propose, false)
+		wantRefusal(t, err, ExitRefused, "operator-owned")
 	}
 }

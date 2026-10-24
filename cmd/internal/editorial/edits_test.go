@@ -378,3 +378,20 @@ func TestValidateChatFactJoinGrowth(t *testing.T) {
 		previousTail, previousItem = stats.TailJoinVisits, stats.ItemJoinVisits
 	}
 }
+
+func TestValidateDeclarationAttachmentWithRedundantAuthority(t *testing.T) {
+	for _, authority := range []string{"collaboration-mode: chat", "collaboration-mode:\n  default: chat"} {
+		for _, declaration := range []string{"@@chat@@\n# Questions\n", "# Questions\n<!-- collaboration-mode: chat -->\n", "# Questions\n<!-- presentation-mode: direct -->\n"} {
+			src := "---\n" + authority + "\n---\n" + declaration + "1. Why?\n"
+			at := strings.Index(src, "# Questions")
+			if !strings.HasPrefix(declaration, "@@") {
+				at = strings.Index(src, "<!--")
+			}
+			validateCase(t, src, []Change{{Start: at, End: at, New: "# Injected\n"}}, "operator-owned")
+			// An unrelated heading before the entire attachment shifts indexes but
+			// preserves the declaration's original owner and remains allowed.
+			at = strings.Index(src, declaration)
+			validateCase(t, src, []Change{{Start: at, End: at, New: "# Unrelated\n"}}, "")
+		}
+	}
+}

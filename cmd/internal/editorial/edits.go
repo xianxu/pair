@@ -122,18 +122,6 @@ func validateEdits(base []byte, p *DocumentPolicy, changes []Change) ([]EditPoli
 	for _, o := range after.Owned {
 		afterOwned[o.Range.Start] = o
 	}
-	ownedMapper := positionMapper{changes: changes}
-	for _, o := range p.Owned {
-		stats.SourceComparisons++
-		start, ok := ownedMapper.mapStart(o.Range.Start)
-		if !ok {
-			return fail("operator-owned", "editorial declaration was removed", o.Range)
-		}
-		got, exists := afterOwned[start]
-		if !exists || got.Key != o.Key || !bytes.Equal(got.Raw, o.Raw) {
-			return fail("operator-owned", "editorial declaration or its attachment changed", o.Range)
-		}
-	}
 	// Heading identity and direct-parent identity protect declaration associations,
 	// even when the candidate happens to retain the same scalar values.
 	headingByStart := map[int]int{}
@@ -148,6 +136,27 @@ func validateEdits(base []byte, p *DocumentPolicy, changes []Change) ([]EditPoli
 			if index, exists := headingByStart[start]; exists {
 				mappedHeadings[i] = index
 			}
+		}
+	}
+	// Bind preserved declaration bytes to the mapped original owner, even when
+	// redundant legacy authority makes an attachment transfer routing-neutral.
+	ownedMapper := positionMapper{changes: changes}
+	for _, o := range p.Owned {
+		stats.SourceComparisons++
+		start, ok := ownedMapper.mapStart(o.Range.Start)
+		if !ok {
+			return fail("operator-owned", "editorial declaration was removed", o.Range)
+		}
+		got, exists := afterOwned[start]
+		wantHeading := -1
+		if o.Heading >= 0 {
+			wantHeading = mappedHeadings[o.Heading]
+			if wantHeading < 0 {
+				return fail("operator-owned", "a declaration's owning heading was removed", o.Range)
+			}
+		}
+		if !exists || got.Key != o.Key || got.Heading != wantHeading || !bytes.Equal(got.Raw, o.Raw) {
+			return fail("operator-owned", "editorial declaration or its attachment changed", o.Range)
 		}
 	}
 	for i, h := range p.Headings {
