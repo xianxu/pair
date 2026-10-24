@@ -623,7 +623,9 @@ func TestBareCwdHubResolverFailureStaysUnknownAndUsable(t *testing.T) {
 		t.Fatalf("unverified hub was guessed: %v %v %v", hubs, roots, err)
 	}
 	want := startupSummary(couchcore.StartupObservation{
-		Kind: couchcore.StartupUnknown, Diagnostic: err,
+		// Both read-only history observation and hub ownership resolution fail.
+		// Keep the full joined diagnostic in the Ctrl+Y oracle.
+		Kind: couchcore.StartupUnknown, Diagnostic: errors.Join(catalog.Errors[path], err),
 		MissingHubs: []string{path}, ParkedUnknown: true,
 		Hubs: map[string]couchcore.StartupHubObservation{path: {Unknown: true}},
 	}, path)
