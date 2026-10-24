@@ -1,0 +1,44 @@
+Source commit (source identical to tested worktree, committed immediately after completion): 791e8742c1459ba95e1f84ce4ac83cec7265bf03
+Command: WEBCAST_LIVE_CHROME=1 go test ./cmd/internal/webcast -run '^(TestCastNotesPanelLive|TestOperatorSketchLiveDrawing|TestOperatorLiveAnnotation|TestOperatorFeedbackLivePrepareAndStalePanel|TestOperatorSketchLiveOpenContactHandoffLabel|TestOperatorModuleAssembly|TestOperatorSharedModulesExecute|TestOperatorSketchSharedBundleExecutes)$' -count=1 -v -timeout 240s
+
+=== RUN   TestCastNotesPanelLive
+    cast_notes_panel_live_test.go:145: native viewport width=1280
+    cast_notes_panel_live_test.go:145: native viewport width=320
+--- PASS: TestCastNotesPanelLive (3.70s)
+=== RUN   TestOperatorFeedbackLivePrepareAndStalePanel
+--- PASS: TestOperatorFeedbackLivePrepareAndStalePanel (7.19s)
+=== RUN   TestOperatorLiveAnnotation
+--- PASS: TestOperatorLiveAnnotation (5.27s)
+=== RUN   TestOperatorModuleAssembly
+--- PASS: TestOperatorModuleAssembly (0.08s)
+=== RUN   TestOperatorSharedModulesExecute
+--- PASS: TestOperatorSharedModulesExecute (0.13s)
+=== RUN   TestOperatorSketchSharedBundleExecutes
+--- PASS: TestOperatorSketchSharedBundleExecutes (0.12s)
+=== RUN   TestOperatorSketchLiveDrawing
+    operator_sketch_live_test.go:263: preview waiting: visibility: feedback paint is not ready
+    operator_sketch_live_test.go:263: preview waiting: publish: board: the page changed
+    operator_sketch_live_test.go:263: preview waiting: visibility: feedback paint is not ready
+    operator_sketch_live_test.go:263: preview waiting: visibility: feedback paint is not ready
+    operator_sketch_live_test.go:263: preview waiting: visibility: board: the page changed
+    operator_sketch_live_test.go:542: intervening real box note saved; "{\"state\":{\"phase\":\"off\",\"active\":null,\"allowed\":true,\"live\":true,\"ended\":false,\"epoch\":1,\"slots\":[],\"pendingLabels\":[]},\"status\":\"\",\"visibility\":\"visible\",\"focused\":true,\"host\":{\"connected\":true,\"hidden\":false},\"frame\":null,\"hit\":\"annotate note\",\"layer\":{\"hidden\":false,\"pointerEvents\":\"none\",\"zIndex\":\"30\",\"rect\":{\"x\":0,\"y\":0,\"width\":800,\"height\":600,\"top\":0,\"right\":800,\"bottom\":600,\"left\":0}},\"canvases\":[{\"class\":\"strokes\",\"hidden\":false,\"width\":800,\"height\":600,\"pointerEvents\":\"none\",\"display\":\"block\"},{\"class\":\"feedback-glow\",\"hidden\":false,\"width\":800,\"height\":600,\"pointerEvents\":\"none\",\"display\":\"block\"},{\"class\":\"feedback-glow\",\"hidden\":false,\"width\":800,\"height\":600,\"pointerEvents\":\"none\",\"display\":\"block\"},{\"class\":\"sketch-layer\",\"hidden\":false,\"width\":800,\"height\":600,\"pointerEvents\":\"none\",\"display\":\"block\"},{\"class\":\"sketch-observer\",\"hidden\":false,\"width\":800,\"height\":600,\"pointerEvents\":\"none\",\"display\":\"block\"}]}"
+    operator_sketch_live_test.go:263: preview waiting: visibility: feedback paint is not ready
+    operator_sketch_live_test.go:608: before unsent tab return: sourceDoc=1 at.node=10 originalHook=true
+    operator_sketch_live_test.go:263: preview waiting: visibility: board: the page changed
+    operator_sketch_live_test.go:263: preview waiting: visibility: feedback paint is not ready
+    operator_sketch_live_test.go:263: preview waiting: selection: count 0 want 3: board: the cast hasn't shown a page yet
+    operator_sketch_live_test.go:263: preview waiting: visibility: board: the page changed
+    operator_sketch_live_test.go:263: preview waiting: visibility: feedback paint is not ready
+    operator_sketch_live_test.go:640: after unsent tab return: boardDoc=3 sourceDoc=1 at.node=10 sameConnectedDOM=true sourceOriginalHook=false
+    operator_sketch_live_test.go:662: unsent third sketch live pixels survived real A-to-B-to-A: {Count:34 MinX:109 MinY:138 MaxX:121 MaxY:141}
+    operator_sketch_live_test.go:682: mask-only post-submit real pointer/Note/save/Notes row passed; "{\"state\":{\"phase\":\"off\",\"active\":null,\"allowed\":true,\"live\":true,\"ended\":false,\"epoch\":1,\"slots\":[],\"pendingLabels\":[]},\"status\":\"Pending feedback: 1 sketches, 1 annotation\",\"visibility\":\"visible\",\"focused\":true,\"host\":{\"connected\":true,\"hidden\":false},\"frame\":null,\"hit\":\"\",\"layer\":{\"hidden\":false,\"pointerEvents\":\"none\",\"zIndex\":\"30\",\"rect\":{\"x\":0,\"y\":0,\"width\":800,\"height\":600,\"top\":0,\"right\":800,\"bottom\":600,\"left\":0}},\"canvases\":[{\"class\":\"strokes\",\"hidden\":false,\"width\":800,\"height\":600,\"pointerEvents\":\"none\",\"display\":\"block\"},{\"class\":\"feedback-glow\",\"hidden\":false,\"width\":800,\"height\":600,\"pointerEvents\":\"none\",\"display\":\"block\"},{\"class\":\"feedback-glow\",\"hidden\":false,\"width\":800,\"height\":600,\"pointerEvents\":\"none\",\"display\":\"block\"},{\"class\":\"sketch-layer\",\"hidden\":false,\"width\":800,\"height\":600,\"pointerEvents\":\"none\",\"display\":\"block\"},{\"class\":\"sketch-observer\",\"hidden\":false,\"width\":800,\"height\":600,\"pointerEvents\":\"none\",\"display\":\"block\"}]}"
+    operator_sketch_live_test.go:698: mask restore original={Count:82 MinX:99 MinY:138 MaxX:131 MaxY:141} restored={Count:96 MinX:99 MinY:138 MaxX:131 MaxY:141} (outer geometry tolerance 2px)
+    operator_sketch_live_test.go:756: sanitized same-context head/body/root SPA before Sketch: "{\"state\":{\"phase\":\"off\",\"active\":null,\"allowed\":true,\"live\":true,\"ended\":false,\"epoch\":1,\"slots\":[],\"pendingLabels\":[]},\"status\":\"Pending feedback: 0 sketches, 1 annotation\",\"visibility\":\"visible\",\"focused\":true,\"host\":{\"connected\":true,\"hidden\":false},\"frame\":null,\"hit\":\"\",\"layer\":{\"hidden\":false,\"pointerEvents\":\"none\",\"zIndex\":\"30\",\"rect\":{\"x\":0,\"y\":0,\"width\":800,\"height\":600,\"top\":0,\"right\":800,\"bottom\":600,\"left\":0}},\"canvases\":[{\"class\":\"strokes\",\"hidden\":false,\"width\":800,\"height\":600,\"pointerEvents\":\"none\",\"display\":\"block\"},{\"class\":\"feedback-glow\",\"hidden\":false,\"width\":800,\"height\":600,\"pointerEvents\":\"none\",\"display\":\"block\"},{\"class\":\"feedback-glow\",\"hidden\":false,\"width\":800,\"height\":600,\"pointerEvents\":\"none\",\"display\":\"block\"},{\"class\":\"sketch-layer\",\"hidden\":false,\"width\":800,\"height\":600,\"pointerEvents\":\"none\",\"display\":\"block\"},{\"class\":\"sketch-observer\",\"hidden\":false,\"width\":800,\"height\":600,\"pointerEvents\":\"none\",\"display\":\"block\"}]}"
+    operator_sketch_live_test.go:780: SPA real pen interception before input: "{\"state\":{\"phase\":\"drawing\",\"active\":\"9ebcd9f2369256d3\",\"allowed\":true,\"live\":true,\"ended\":false,\"epoch\":1,\"slots\":[{\"sketch\":\"9ebcd9f2369256d3\",\"epoch\":1,\"phase\":\"drawing\",\"queued\":0,\"queuedPoints\":0,\"inflight\":null,\"nextSequence\":1,\"retired\":false,\"finishing\":false}],\"pendingLabels\":[]},\"status\":\"Pending feedback: 0 sketches, 1 annotation\",\"visibility\":\"visible\",\"focused\":true,\"host\":{\"connected\":true,\"hidden\":false},\"frame\":{\"hidden\":false,\"rect\":{\"x\":0,\"y\":0,\"width\":800,\"height\":600,\"top\":0,\"right\":800,\"bottom\":600,\"left\":0},\"ready\":true},\"hit\":\"sketch-layer\",\"layer\":{\"hidden\":false,\"pointerEvents\":\"auto\",\"zIndex\":\"30\",\"rect\":{\"x\":0,\"y\":0,\"width\":800,\"height\":600,\"top\":0,\"right\":800,\"bottom\":600,\"left\":0}},\"canvases\":[{\"class\":\"strokes\",\"hidden\":false,\"width\":800,\"height\":600,\"pointerEvents\":\"none\",\"display\":\"block\"},{\"class\":\"feedback-glow\",\"hidden\":false,\"width\":800,\"height\":600,\"pointerEvents\":\"none\",\"display\":\"block\"},{\"class\":\"feedback-glow\",\"hidden\":false,\"width\":800,\"height\":600,\"pointerEvents\":\"none\",\"display\":\"block\"},{\"class\":\"sketch-layer\",\"hidden\":false,\"width\":800,\"height\":600,\"pointerEvents\":\"auto\",\"display\":\"block\"},{\"class\":\"sketch-observer\",\"hidden\":false,\"width\":800,\"height\":600,\"pointerEvents\":\"none\",\"display\":\"block\"}]}"
+    operator_sketch_live_test.go:263: preview waiting: visibility: feedback paint is not ready
+    operator_sketch_live_test.go:813: same-context SPA head/body/root replacement then real pen/Note/save/pending passed
+--- PASS: TestOperatorSketchLiveDrawing (9.54s)
+=== RUN   TestOperatorSketchLiveOpenContactHandoffLabel
+--- PASS: TestOperatorSketchLiveOpenContactHandoffLabel (1.58s)
+PASS
+ok  	github.com/xianxu/pair/cmd/internal/webcast	27.857s

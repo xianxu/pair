@@ -7,10 +7,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"strings"
 	"time"
 	"unicode"
+
+	"github.com/xianxu/pair/internal/jsonstrict"
 )
 
 const MaxUploadReceiptBytes = 8 << 10
@@ -162,67 +163,8 @@ func matchUploadObject(got, want UploadObject) bool {
 // decodeJSONNoDuplicateKeys rejects case-fold-equivalent keys in every object, including
 // nested arrays. Callers own byte bounds; nesting is bounded here.
 func decodeJSONNoDuplicateKeys(raw []byte, v any, strict bool) error {
-	d := json.NewDecoder(bytes.NewReader(raw))
-	d.UseNumber()
-	var walk func(int) error
-	walk = func(depth int) error {
-		if depth > 64 {
-			return errors.New("JSON nesting exceeds limit")
-		}
-		tok, err := d.Token()
-		if err != nil {
-			return err
-		}
-		delim, ok := tok.(json.Delim)
-		if !ok {
-			return nil
-		}
-		switch delim {
-		case '{':
-			seen := map[string]bool{}
-			for d.More() {
-				key, err := d.Token()
-				if err != nil {
-					return err
-				}
-				s, ok := key.(string)
-				if !ok {
-					return errors.New("invalid JSON key")
-				}
-				folded := strings.Map(func(r rune) rune {
-					min := r
-					for next := unicode.SimpleFold(r); next != r; next = unicode.SimpleFold(next) {
-						if next < min {
-							min = next
-						}
-					}
-					return min
-				}, s)
-				if seen[folded] {
-					return errors.New("duplicate or invalid JSON key")
-				}
-				seen[folded] = true
-				if err := walk(depth + 1); err != nil {
-					return err
-				}
-			}
-		case '[':
-			for d.More() {
-				if err := walk(depth + 1); err != nil {
-					return err
-				}
-			}
-		default:
-			return errors.New("unexpected JSON delimiter")
-		}
-		_, err = d.Token()
+	if err := jsonstrict.Scan(raw, jsonstrict.Options{FoldKeys: true, PreserveNumbers: true, MaxDepth: 64}); err != nil {
 		return err
-	}
-	if err := walk(0); err != nil {
-		return err
-	}
-	if _, err := d.Token(); err != io.EOF {
-		return errors.New("trailing JSON data")
 	}
 	dec := json.NewDecoder(bytes.NewReader(raw))
 	if strict {

@@ -35,8 +35,13 @@ func TestRunResumeObservesDifferentRootAfterSilence(t *testing.T) {
 	rt.modTimes[paths.AgentPID()] = rt.now
 	rt.identities["1234"] = "owned"
 	start := rt.now
+	var defaults Options
+	applyWatcherDefaults(&defaults)
 	rt.onSleep = func() {
-		if rt.now.Sub(start) > time.Second {
+		if rt.now.Sub(start) <= defaults.Timeout {
+			rt.now = start.Add(defaults.Timeout + defaults.Poll)
+		}
+		if rt.now.Sub(start) > defaults.Timeout {
 			rtNative.PutFile(sessioninventory.FileEntry{Artifact: artifact, StableFileID: "file", GenerationToken: "gen", MutationToken: "now"}, codexRound(sid, "hello"))
 			rt.files[paths.Log()] = []byte("## 2026-08-28 01:00:01\n\nhello\n\n---\n\n")
 		}
@@ -44,7 +49,7 @@ func TestRunResumeObservesDifferentRootAfterSilence(t *testing.T) {
 			rt.identities["1234"] = "gone"
 		}
 	}
-	err := Run(Options{Agent: "codex", Tag: "work", ScopeKey: "scope", LaunchOrdinal: 1, DataDir: dataDir, Timeout: time.Millisecond, Poll: time.Millisecond, SlowPoll: time.Second}, rt)
+	err := Run(Options{Agent: "codex", Tag: "work", ScopeKey: "scope", LaunchOrdinal: 1, DataDir: dataDir}, rt)
 	if err != nil || len(rt.store.records) != 1 || rt.store.records[0].RootNativeID != sid {
 		t.Fatalf("err=%v records=%+v", err, rt.store.records)
 	}
@@ -70,7 +75,8 @@ func TestChosenFilenameConfirmsWithoutParsingNativeBody(t *testing.T) {
 	paths := mustScopedPaths(t, dataDir, "work")
 	rt := newWatcherRuntime(native)
 	rt.files[paths.Ledger()] = mustLaunchRecord(t, sessionledger.Record{Version: 3, Kind: sessionledger.RecordLaunch, ScopeKey: "scope", Tag: "work", Agent: "claude", RequestedNativeID: sid, RequestOrigin: sessionledger.RequestOriginChosen, BaselineComplete: true})
-	err := Run(Options{Agent: "claude", Tag: "work", ScopeKey: "scope", LaunchOrdinal: 1, DataDir: dataDir, PIDWait: time.Nanosecond, Timeout: time.Nanosecond, Poll: time.Nanosecond}, rt)
+	skipWatcherPIDWait(rt)
+	err := Run(Options{Agent: "claude", Tag: "work", ScopeKey: "scope", LaunchOrdinal: 1, DataDir: dataDir}, rt)
 	if err != nil || len(rt.store.records) != 1 || rt.store.records[0].ConfirmationReason != "chosen-id" {
 		t.Fatalf("err=%v records=%+v", err, rt.store.records)
 	}
@@ -93,21 +99,28 @@ func TestIncompleteBaselineAcquiresLaterEpochBeforeConfirming(t *testing.T) {
 	rt.files[paths.AgentPID()] = []byte("1234")
 	rt.modTimes[paths.AgentPID()] = rt.now
 	rt.identities["1234"] = "owned"
+	var defaults Options
+	applyWatcherDefaults(&defaults)
 	sleeps := 0
 	rt.onSleep = func() {
 		sleeps++
+		if sleeps == 1 {
+			rt.now = rt.now.Add(defaults.Timeout)
+		}
 		if sleeps == 2 {
 			if len(rt.store.records) != 0 {
 				t.Fatal("historical round confirmed incomplete epoch")
 			}
 			native.AppendFile(artifact, []byte(`{"type":"response_item","payload":{"type":"message","role":"user","content":[{"type":"input_text","text":"new epoch input"}]}}`+"\n"+`{"type":"response_item","payload":{"type":"function_call"}}`+"\n"), "after")
 			rt.files[paths.Log()] = append(rt.files[paths.Log()], []byte("## 2026-08-28 01:00:02\n\nnew epoch input\n\n---\n\n")...)
+			// A real send changes mtime too, waking the default slow scan.
+			rt.modTimes[paths.Log()] = rt.now
 		}
 		if sleeps > 10 {
 			rt.identities["1234"] = "gone"
 		}
 	}
-	err := Run(Options{Agent: "codex", Tag: "work", ScopeKey: "scope", LaunchOrdinal: 1, DataDir: dataDir, Timeout: time.Millisecond, Poll: time.Millisecond, SlowPoll: time.Millisecond}, rt)
+	err := Run(Options{Agent: "codex", Tag: "work", ScopeKey: "scope", LaunchOrdinal: 1, DataDir: dataDir}, rt)
 	if err != nil || len(rt.store.records) != 1 || rt.store.records[0].RootNativeID != sid {
 		t.Fatalf("err=%v records=%+v", err, rt.store.records)
 	}
@@ -128,9 +141,14 @@ func TestResumeExistingRootConfirmsOnlyAppendedExchange(t *testing.T) {
 	rt.files[paths.AgentPID()] = []byte("1234")
 	rt.modTimes[paths.AgentPID()] = rt.now
 	rt.identities["1234"] = "owned"
+	var defaults Options
+	applyWatcherDefaults(&defaults)
 	sleeps := 0
 	rt.onSleep = func() {
 		sleeps++
+		if sleeps == 1 {
+			rt.now = rt.now.Add(defaults.Timeout)
+		}
 		if sleeps == 1 {
 			if len(rt.store.records) != 0 {
 				t.Fatal("old exchange confirmed")
@@ -141,7 +159,7 @@ func TestResumeExistingRootConfirmsOnlyAppendedExchange(t *testing.T) {
 			rt.identities["1234"] = "gone"
 		}
 	}
-	err := Run(Options{Agent: "codex", Tag: "work", ScopeKey: "scope", LaunchOrdinal: 1, DataDir: dataDir, Timeout: time.Millisecond, Poll: time.Millisecond, SlowPoll: time.Millisecond}, rt)
+	err := Run(Options{Agent: "codex", Tag: "work", ScopeKey: "scope", LaunchOrdinal: 1, DataDir: dataDir}, rt)
 	if err != nil || len(rt.store.records) != 1 || rt.store.records[0].RootNativeID != sid {
 		t.Fatalf("err=%v records=%+v", err, rt.store.records)
 	}

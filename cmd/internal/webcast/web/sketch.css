@@ -72,3 +72,6 @@
 body.driving.sketching .annotate-rail .mode {
   display: block;
 }
+
+/* Private note affordances reuse the accepted paint placement, never the
+   recorded page. Only the buttons intercept input; the drawing stays reachable. */

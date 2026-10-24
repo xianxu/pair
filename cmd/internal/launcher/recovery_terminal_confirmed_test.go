@@ -7,10 +7,10 @@ import (
 	"reflect"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/xianxu/pair/cmd/internal/procutil"
 	"github.com/xianxu/pair/cmd/internal/readiness"
+	"github.com/xianxu/pair/cmd/internal/testwait"
 )
 
 func confirmedRecoveryFixture(t *testing.T, n int) (*recoveryTerminalWorld, recoveryTerminalDriver, *readiness.ReadyRecord) {
@@ -301,11 +301,26 @@ func TestConfirmedRetirementWaitsForIndependentAbsence(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	d.timeout = 10 * time.Millisecond
-	d.poll = time.Millisecond
 	w.keepProcesses = true
-	if err = d.retire(context.Background(), p); err == nil {
-		t.Fatal("successful signal mistaken for owner absence")
+	ctx, expire, cancel := testwait.DeadlineOnCue(context.Background(), d.timeout)
+	defer cancel()
+	observedSurvivor := false
+	w.onObserve = func(snapshot recoveryTerminalSnapshot) {
+		if len(w.signals) != 1 || w.signals[0] != "13" {
+			return
+		}
+		for _, process := range snapshot.Processes {
+			if process.PID == 13 {
+				observedSurvivor = true
+				expire()
+			}
+		}
+	}
+	if err = d.retire(ctx, p); !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("retirement with surviving signaled owner: %v", err)
+	}
+	if !observedSurvivor {
+		t.Fatal("deadline preceded independent surviving-owner observation")
 	}
 	if got := strings.Join(w.signals, ","); got != "13" {
 		t.Fatalf("signalled parent while child survived: %s", got)

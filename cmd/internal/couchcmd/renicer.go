@@ -11,6 +11,7 @@ import (
 
 	"github.com/xianxu/pair/cmd/internal/couchcore"
 	"github.com/xianxu/pair/cmd/internal/couchmessage"
+	"github.com/xianxu/pair/cmd/internal/couchtty"
 	"github.com/xianxu/pair/cmd/internal/procutil"
 	"golang.org/x/sys/unix"
 )
@@ -72,7 +73,7 @@ type renicer struct {
 	agentPID func(couchmessage.Binding) (int, error)
 	level    int
 	self     int
-	notify   func(string)
+	notify   func(couchmessage.Binding, string)
 
 	mu      sync.Mutex
 	facts   map[couchmessage.Binding]couchmessage.NiceFacts
@@ -80,7 +81,7 @@ type renicer struct {
 	refused map[couchmessage.Binding]map[string]bool // "pid@identity"
 }
 
-func newRenicer(procs procSource, slots func() []couchmessage.Binding, agentPID func(couchmessage.Binding) (int, error), level, self int, notify func(string)) *renicer {
+func newRenicer(procs procSource, slots func() []couchmessage.Binding, agentPID func(couchmessage.Binding) (int, error), level, self int, notify func(couchmessage.Binding, string)) *renicer {
 	return &renicer{procs: procs, slots: slots, agentPID: agentPID, level: level, self: self, notify: notify,
 		facts: map[couchmessage.Binding]couchmessage.NiceFacts{}, noticed: map[couchmessage.Binding]bool{},
 		refused: map[couchmessage.Binding]map[string]bool{}}
@@ -173,18 +174,30 @@ func (r *renicer) pass() {
 	for _, b := range bindings {
 		noticed[b] = r.noticed[b]
 	}
-	var say []string
+	type warning struct {
+		binding couchmessage.Binding
+		body    string
+	}
+	var say []warning
 	for _, b := range low {
 		if !noticed[b] {
 			noticed[b] = true
-			say = append(say, fmt.Sprintf("%s's agent runs at nice %d (lowered at launch); relaunch the slot to restore its priority.", b.Slot, facts[b].AgentNice))
+			say = append(say, warning{b, fmt.Sprintf("%s's agent runs at nice %d (lowered at launch); relaunch the slot to restore its priority.", b.Slot, facts[b].AgentNice)})
 		}
 	}
 	r.facts, r.refused, r.noticed = facts, refused, noticed
 	r.mu.Unlock()
 	if r.notify != nil {
 		for _, s := range say {
-			r.notify(s)
+			r.notify(s.binding, s.body)
 		}
 	}
+}
+
+// newConsoleRenicer binds the producer's exact retained slot identity to the
+// console warning. No current focus or slot-name re-resolution participates.
+func newConsoleRenicer(console *couchtty.Console, procs procSource, slots func() []couchmessage.Binding, agentPID func(couchmessage.Binding) (int, error), level, self int) *renicer {
+	return newRenicer(procs, slots, agentPID, level, self, func(binding couchmessage.Binding, text string) {
+		console.Warn(couchtty.Notice{Kind: "status", Thread: bindingThread(binding), Label: binding.Slot, Body: text})
+	})
 }

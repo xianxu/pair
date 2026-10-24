@@ -12,6 +12,7 @@ import (
 
 	"github.com/xianxu/pair/cmd/internal/couchcore"
 	"github.com/xianxu/pair/cmd/internal/couchscratch"
+	"github.com/xianxu/pair/cmd/internal/couchtty"
 	"github.com/xianxu/pair/cmd/internal/launcher"
 )
 
@@ -156,7 +157,11 @@ func (r OSRuntime) configureScratch(c *couchcore.Couch) {
 				cancel()
 			}
 			if err != nil {
-				note("Zellij metadata unchanged: " + err.Error())
+				if warning, ok := ctx.Value(scratchWarningContextKey{}).(func(string)); ok {
+					warning("Zellij metadata unchanged: " + err.Error())
+				} else {
+					note("Zellij metadata unchanged: " + err.Error())
+				}
 			}
 		}
 		_, _ = manager.Sweep(ctx) // Manager reports one bounded aggregate itself.
@@ -191,4 +196,15 @@ func (r OSRuntime) scratchAdmission(_ couchcore.ThreadRecord) (bool, string) {
 func nativeScratchServers(ctx context.Context) (bool, error) {
 	states, err := (launcher.OSServerStates{}).ServerStates(ctx)
 	return len(states) > 0, err
+}
+
+// Metadata setup has a typed error boundary separate from routine scratch
+// fallback/sweep feedback. This startup-only context does not outlive setup.
+type scratchWarningContextKey struct{}
+
+func withScratchWarnings(ctx context.Context, console *couchtty.Console) context.Context {
+	if console == nil {
+		return ctx
+	}
+	return context.WithValue(ctx, scratchWarningContextKey{}, func(text string) { console.Warn(couchtty.Notice{Kind: "status", Body: text}) })
 }

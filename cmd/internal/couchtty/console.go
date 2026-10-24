@@ -126,12 +126,13 @@ type Console struct {
 	// Ops dispatches an operator action. Injected so the console never learns
 	// what an operation IS -- it names one and couchcore runs it, which is
 	// what keeps the panel from growing a private verb (#148's design test).
-	ops          func(couchcore.OperationCall) (any, error)
-	beginAttempt func(couchcore.OperationCall) (*couchcore.OperationAttempt, error)
-	forget       func(couchcore.Worktree, couchcore.ActorID) error
-	feed         *Feed
-	attention    AttentionLedger
-	size         ptychild.Size
+	ops            func(couchcore.OperationCall) (any, error)
+	beginAttempt   func(couchcore.OperationCall) (*couchcore.OperationAttempt, error)
+	forget         func(couchcore.Worktree, couchcore.ActorID) error
+	feed           *Feed
+	noticeSequence uint64
+	attention      AttentionLedger
+	size           ptychild.Size
 	// expectedExits are exact child handles whose successful Park already
 	// authorized shutdown. They bridge the race between the child-exit channel
 	// and the asynchronous operation-completion channel. Marks are counted per
@@ -262,28 +263,29 @@ type Console struct {
 	paletteFG, paletteBG bool
 	// now is the console's clock for idle fading, so tests can cross the day
 	// and three-day bands without waiting.
-	now                  func() time.Time
-	continuationProvider ContinuationProvider
-	continuationResults  chan continuationScanResult
-	continuations        map[couchcore.ThreadAddress]continuationWatch
-	previewResults       chan menuPreviewResult
-	previewSchedule      PreviewSchedule
-	previewCancel        context.CancelFunc
-	previewRunning       uint64
-	directoryReader      DirectoryBatchReader
-	completionResults    chan menuCompletionResult
-	completionSchedule   latestSchedule[CompletionRequest]
-	completionCancel     context.CancelFunc
-	completionRunning    CompletionIdentity
-	lifetime             context.Context
-	cancelLifetime       context.CancelFunc
-	sessionOwnerPass     func(context.Context) (context.Context, context.CancelFunc)
-	reattachArmOnce      sync.Once
-	reattachContext      context.Context
-	reattachCancel       context.CancelFunc
-	stop                 chan struct{}
-	once                 sync.Once
-	workers              sync.WaitGroup
+	now                   func() time.Time
+	continuationProvider  ContinuationProvider
+	continuationResults   chan continuationScanResult
+	continuationScanError string
+	continuations         map[couchcore.ThreadAddress]continuationWatch
+	previewResults        chan menuPreviewResult
+	previewSchedule       PreviewSchedule
+	previewCancel         context.CancelFunc
+	previewRunning        uint64
+	directoryReader       DirectoryBatchReader
+	completionResults     chan menuCompletionResult
+	completionSchedule    latestSchedule[CompletionRequest]
+	completionCancel      context.CancelFunc
+	completionRunning     CompletionIdentity
+	lifetime              context.Context
+	cancelLifetime        context.CancelFunc
+	sessionOwnerPass      func(context.Context) (context.Context, context.CancelFunc)
+	reattachArmOnce       sync.Once
+	reattachContext       context.Context
+	reattachCancel        context.CancelFunc
+	stop                  chan struct{}
+	once                  sync.Once
+	workers               sync.WaitGroup
 	// queueWorkers retains the existing total. All but the final worker own
 	// lifecycle/adoption; the final worker owns hosted navigation only (#576).
 	queueWorkers         int
@@ -364,7 +366,7 @@ func (c *Console) SetInputTrace(path string, options ...diagnosticlog.Options) e
 	c.mu.Unlock()
 	_ = previous.Close()
 	if err != nil {
-		c.publishNotice(Notice{Kind: "trace", Control: true, Body: err.Error()})
+		c.Warn(Notice{Kind: "trace", Control: true, Body: err.Error()})
 	}
 	return err
 }
@@ -381,7 +383,7 @@ func (c *Console) SetMouseTrace(path string, options ...diagnosticlog.Options) e
 	c.mu.Unlock()
 	_ = previous.Close()
 	if err != nil {
-		c.publishNotice(Notice{Kind: "trace", Control: true, Body: err.Error()})
+		c.Warn(Notice{Kind: "trace", Control: true, Body: err.Error()})
 	}
 	return err
 }
@@ -1259,12 +1261,14 @@ func (c *Console) onExit(event childExit) bool {
 		// Through publishNotice like every other notice, rather than a bare
 		// push: one path decides that a notice is shown, and this one is the
 		// operator's only explanation for a pane that just vanished.
-		c.publishNotice(ExitNotice(p.actorID, p.label, event.code))
+		n := ExitNotice(p.actorID, p.label, event.code)
+		n.Thread, n.Label = p.thread, p.label
+		c.Warn(n)
 	}
 
 	if forget != nil {
 		if err := forget(p.tree, p.actorID); err != nil {
-			c.setNotice(fmt.Sprintf("forget %s: %v", p.label, err))
+			c.Warn(Notice{Kind: "forget", Thread: p.thread, Label: p.label, Body: fmt.Sprintf("forget %s: %v", p.label, err)})
 		}
 	}
 	c.requestMenuRefresh()
@@ -1546,7 +1550,11 @@ func (c *Console) onHotkey() {
 		c.onMenuKey(PanelKey{Kind: KeyCtrlSpace})
 		return
 	}
+	c.openSwitcher()
+}
 
+// openSwitcher opens the root without interpreting a second Ctrl+Space as Start.
+func (c *Console) openSwitcher() {
 	c.mu.Lock()
 	c.menu.LandingAttempt = 0
 	c.navigationGeneration++
@@ -2080,9 +2088,15 @@ func (c *Console) finishOperation(completed operationCompletion) bool {
 	// Never for a background completion: the pass reattaches behind the
 	// operator, and there is no adoption, so no background completion is ever
 	// the operator's own landing (pair#206).
-	if warned, ok := completed.value.(interface{ Warning() string }); ok && err == nil && warned.Warning() != "" {
-		c.reduceMenu(MenuEvent{Kind: MenuEventNotice, Error: warned.Warning()})
-		c.setNotice(warned.Warning())
+	if warned, ok := completed.value.(interface{ Warning() string }); ok && err == nil {
+		if message := warned.Warning(); message != "" {
+			c.reduceMenu(MenuEvent{Kind: MenuEventNotice, Error: message})
+			if source, actionable := lifecycleCompletionWarningSource(completed.value, completed.origin.Address); actionable {
+				c.Warn(Notice{Kind: "status", Thread: source, Body: message})
+			} else {
+				c.setNotice(message)
+			}
+		}
 	}
 	if err == nil && startedHandleID != "" && !completed.origin.Background && !completed.origin.PreserveFocus && (land || continuationLand) {
 		c.requestMenuRefresh()
@@ -2262,20 +2276,41 @@ func (c *Console) setNotice(text string) {
 	c.publishNotice(Notice{Kind: "status", Body: text})
 }
 
-// publishNotice is the one way a notice is PUBLISHED: it pushes to the feed and
-// repaints the row that shows it.
-//
-// Pushing without repainting used to be merely late -- the sentence appeared
-// whenever something else next painted, and stayed forever once it did. Giving
-// transients a lifetime (pair#185) turned that into a correctness bug: on an
-// idle console with no child producing output, nothing repaints, so a refusal
-// could expire entirely UNSEEN. A message the operator never saw is worse than
-// one that overstayed. Push and paint are therefore one operation rather than
-// two things to remember in the right order.
+// Warn publishes an actionable asynchronous event to the existing attention list
+// and feed. Routine progress, success and key feedback use Notify/setNotice.
+func (c *Console) Warn(n Notice) {
+	c.mu.Lock()
+	started := c.publishWarningLocked(n)
+	c.mu.Unlock()
+	if started {
+		c.repaint()
+	}
+}
+
+func (c *Console) setWarning(text string) { c.Warn(Notice{Kind: "warning", Body: text}) }
+
+// publishWarningLocked uses the existing console-to-attention lock order. No IO
+// or repaint occurs while either owner is held.
+func (c *Console) publishWarningLocked(n Notice) bool {
+	if c.lifetime.Err() != nil {
+		return false
+	}
+	started := c.publishNoticeLocked(n)
+	c.noticeSequence++
+	if item, ok := noticeAttention(n, c.noticeSequence); ok {
+		c.attn.mu.Lock()
+		c.attn.list = c.attn.list.Apply(couchcore.AttentionFact{Kind: couchcore.AttentionNotify, Notify: item}, c.now())
+		c.layoutAttentionLocked(int(c.size.Cols), int(c.size.Rows)-c.statusRows+2)
+		c.attn.mu.Unlock()
+	}
+	return started
+}
+
+// publishNotice retains feedback and repaints the current surface. The switcher
+// derives its latest message from this feed; general messages do not use chrome.
 //
 // The repaint waits for Run: before it, the terminal is not in raw mode or the
-// alt screen, and painting a status row into the operator's shell is not a
-// message, it is damage. Whatever is queued by then is shown by the first paint.
+// alt screen. Pre-run messages remain retained for the first switcher paint.
 func (c *Console) publishNotice(n Notice) {
 	c.mu.Lock()
 	started := c.publishNoticeLocked(n)

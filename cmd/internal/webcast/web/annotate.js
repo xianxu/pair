@@ -13,6 +13,8 @@
 // terminal viewer's (served from broadcast.CollabJS; the file here is a
 // symlink, for the node tests).
 
+import { mountFeedbackPanel } from './feedback-panel.js';
+import { mountFeedbackGlow } from './feedback-glow.js';
 import { captureDraftController } from './capture-draft.js';
 import { annotationPolicy } from './annotation-policy.js';
 import { HEX_COLOR, pointerColor, colorStore, safeStorage, poster, sayer, railAt, renderSwatches, noteDialog, sessionNoteOwner, gestureBox, noteGesture, dragMin, boxCentre, validName, VIEWER_NAME_KEY, MAX_VIEWER_NAME } from './collab.js';
@@ -345,7 +347,7 @@ export async function mountAnnotate(doc, win, v) {
 }
 
 // Both the viewer and the isolated operator world mount the same UI.
-export function mountAnnotation(doc, win, v, { root, box, stage, palette, who, colors, post, operator = false, prepareDraft, captureCall, annotate = true, annotationAllowed = true, owner = '' }) {
+export function mountAnnotation(doc, win, v, { root, box, stage, palette, who, colors, post, operator = false, prepareDraft, captureCall, annotate = true, annotationAllowed = true, owner = '', notesLayout }) {
   let availabilityState = 'off';
   let picked = colors.get();
   const color = () => pointerColor(picked, 0, palette.length);
@@ -354,14 +356,16 @@ export function mountAnnotation(doc, win, v, { root, box, stage, palette, who, c
   const layer = el('div', 'annotate', box);
   const canvas = el('canvas', 'strokes', layer);
   const pins = el('div', 'pins', layer);
-  const noteRows = el('div', 'annotation-notes', root);
+  const notesPanel = mountFeedbackPanel(doc, win, {parent: root, layout: notesLayout});
+  const glow = mountFeedbackGlow(doc, win, {parent: box, box});
+  const noteRows = notesPanel.root;
   noteRows.setAttribute('aria-label', 'Open notes');
   noteRows.setAttribute('role', 'group');
   const rail = el('div', 'annotate-rail', root);
   const swatches = el('div', 'swatches', rail);
   // A refusal of a request no dialog is open for (a stroke) shows here for
   // a moment: every refused post is seen.
-  const say = sayer(doc, win, root);
+  const say = message => notesPanel.setStatus('editor', message);
   const answered = (req) => req.then((r) => { if (r.status !== 204) say((r.text || '').trim() || "That didn't work."); })
     .catch(() => say("Couldn't reach the cast."));
   swatches.setAttribute('role', 'group');
@@ -370,12 +374,13 @@ export function mountAnnotation(doc, win, v, { root, box, stage, palette, who, c
   for (const [mode, glyph] of [['point', '✏️'], ['note', '💭']]) {
     const b = el('button', 'mode', rail);
     b.type = 'button';
-    b.textContent = glyph;
+    b.textContent = v.tools ? (mode === 'point' ? '↖ Pointer' : '▤ Note') : glyph;
     b.title = MODE_TIPS[mode];
     b.setAttribute('aria-label', MODE_TIPS[mode]);
     b.addEventListener('click', () => setMode(mode === state.mode ? 'watch' : mode));
     modeButtons[mode] = b;
   }
+  v.tools?.annotation({pointer: modeButtons.point, note: modeButtons.note, swatches});
 
   const hint = el('span', 'annotation-hint', rail);
   hint.setAttribute('role','status');
@@ -385,6 +390,7 @@ export function mountAnnotation(doc, win, v, { root, box, stage, palette, who, c
   dlg.setAttribute('role', 'dialog');
   dlg.setAttribute('aria-modal', 'true');
   dlg.setAttribute('aria-label', 'Note');
+  notesPanel.adoptEditor(dlg);
   const author = el('div', 'note-author', dlg);
   const text = el('div', 'note-text', dlg);
   const name = el('input', 'note-name', dlg);
@@ -451,6 +457,8 @@ export function mountAnnotation(doc, win, v, { root, box, stage, palette, who, c
     // chips can take input in watch mode, including read-only OFF notes.
     layer.classList.toggle('operator-off', operator && !!policy.driver);
     noteRows.classList.toggle('operator-off', operator && !!policy.driver);
+    notesPanel.setEnabled(!!v.model?.seg && !v.model.ended && !(operator && policy.driver));
+    if (next.effects.includes('cancel') || next.effects.includes('discard')) notesPanel.clearHighlight();
     layer.classList.toggle('operator-driving', operator && !!policy.driver);
     dlg.hidden = operator && (!!policy.driver || (policy.phase === 'disabled' && dialog.editable && !dialog.replacementBlocked));
     if (dlg.hidden) input.blur?.();
@@ -479,9 +487,11 @@ export function mountAnnotation(doc, win, v, { root, box, stage, palette, who, c
     const off = unavailable();
     const reason = policy?.phase === 'disabled' ? (availabilityState === 'broken' ? 'Cast broken. Wait for the operator to end the cast.' : availabilityState === 'retry' ? 'Annotation is off. Waiting for the operator to retry.' : 'Annotation is off.') : policy?.driver ? `${policy.driver} is driving.` : 'The cast is paused.';
     rail.classList.toggle('paused', off);
-    for (const b of rail.querySelectorAll('button')) b.disabled = off;
+    for (const b of [...Object.values(modeButtons), ...swatches.querySelectorAll('button')]) b.disabled = off;
+    if (v.tools) v.tools.groups.pointerColors.hidden = state.mode === 'watch' || off;
     for (const [m, b] of Object.entries(modeButtons)) b.title = off ? reason : MODE_TIPS[m];
-    hint.textContent = off ? reason : '';
+    hint.textContent = '';
+    notesPanel.setStatus('control', off ? reason : '');
     dialog.hold(off ? reason : ''); // an open note, or a pin opened while paused
   };
   const placeRail = () => {
@@ -489,7 +499,8 @@ export function mountAnnotation(doc, win, v, { root, box, stage, palette, who, c
     const at = railAt(r.width ? r : stage.getBoundingClientRect(), win.innerWidth);
     rail.style.top = `${at.top}px`;
     rail.style.right = `${at.right}px`;
-    rail.hidden = !annotate || !(v.model && v.model.seg > 0 && !v.model.ended);
+    rail.hidden = !!v.tools || !annotate || !(v.model && v.model.seg > 0 && !v.model.ended);
+    for (const button of Object.values(modeButtons)) button.hidden = !annotate || !(v.model && v.model.seg > 0 && !v.model.ended);
   };
   function setMode(m) { if (v.beforeAnnotationMode?.(m) === false) return; transition({ type: 'mode', mode: m }); }
 
@@ -596,6 +607,7 @@ export function mountAnnotation(doc, win, v, { root, box, stage, palette, who, c
     name.value = who.name();
     name.hidden = !!who.name();
     author.textContent = '';
+    notesPanel.showEditor(dlg);
     dialog.draft(payload);
     drawDrag();
   }
@@ -619,15 +631,20 @@ export function mountAnnotation(doc, win, v, { root, box, stage, palette, who, c
 
   // place puts an element over a page-px box, in the box element's client
   // px (fromPage gives the window's).
-  const place = (e, b) => {
-    const r = box.getBoundingClientRect();
+  const clientBox = (b, r) => {
     const [x0, y0] = v.fromPage(b[0], b[1]), [x1, y1] = v.fromPage(b[0] + b[2], b[1] + b[3]);
-    Object.assign(e.style, { left: `${x0 - r.left}px`, top: `${y0 - r.top}px`, width: `${x1 - x0}px`, height: `${y1 - y0}px` });
+    return [x0 - r.left, y0 - r.top, x1 - x0, y1 - y0];
+  };
+  const place = (e, b) => {
+    const [x, y, width, height] = clientBox(b, box.getBoundingClientRect());
+    Object.assign(e.style, { left: `${x}px`, top: `${y}px`, width: `${width}px`, height: `${height}px` });
   };
 
   const openNote = (n, by) => {
     v.feedbackVisibility?.invalidate();
+    notesPanel.clearHighlight();
     if (operator && !!policy.driver) return;
+    notesPanel.showEditor(dlg);
     dlg.hidden = false;
     const opened = annotate && !unavailable() && n.owner && n.owner === (operator ? 'operator' : owner)
       ? dialog.edit(n) : dialog.view(n, { resolvable: annotate });
@@ -637,7 +654,21 @@ export function mountAnnotation(doc, win, v, { root, box, stage, palette, who, c
     }
   };
   const pinned = pinLayer(doc, pins, openNote);
-  const listed = noteList(doc, noteRows, openNote);
+  const highlightNote = note => {
+    if (!note) { glow.clear(); return; }
+    const placed = v.placementOf?.(note, {originalOnly:true, withClip:true});
+    if (!placed?.box) { glow.clear(); return; }
+    glow.draw((g, rect) => {
+      g.beginPath();g.rect(...clientBox(placed.clip,rect));g.clip();
+      g.strokeStyle='#eab34b';g.shadowColor='#eab34b';g.shadowBlur=14;g.lineWidth=3;
+      g.strokeRect(...clientBox(placed.box,rect));
+    });
+  };
+  const revealNote = note => {
+    const shown = v.reveal?.(note) === true;
+    notesPanel.setStatus('editor', shown ? '' : 'Cannot show on this page: anchor unavailable.');
+    if (shown) highlightNote(note);
+  };
   function drawPins() {
     const visibilityToken=v.feedbackVisibility?.token();
     const notes = openNotes(v.model,operator?undefined:v.feedbackMask);
@@ -645,7 +676,7 @@ export function mountAnnotation(doc, win, v, { root, box, stage, palette, who, c
     const placements = new Map(notes.map(n=>{const placed=witnesses.get(n.id);return [n.id,placed?.box||placed];}));
     const placementOf = n => placements.get(n.id);
     pinned.draw(notes, (id) => v.boxOf(id), place, { placementOf });
-    listed.draw(notes, placementOf);
+    notesPanel.setNotes(notes, {open: note => openNote(note, note.author?.name || ''), hover: highlightNote, reveal: revealNote, available: note => !!placements.get(note.id)});
     dialog.update({ notes });
     v.feedbackVisibility?.notesPaint(visibilityToken,(operator&&policy?.driver?[]:notes).map(n=>({id:n.id,revision:v.model.note_revisions?.[n.id],box:placements.get(n.id)})));
   }
@@ -665,6 +696,7 @@ export function mountAnnotation(doc, win, v, { root, box, stage, palette, who, c
       queued = false;
       const now = win.performance.now();
       placeRail();
+      glow.resize();
       drawPins();
       drawDrag();
       drawStrokes(now);
@@ -705,5 +737,7 @@ export function mountAnnotation(doc, win, v, { root, box, stage, palette, who, c
   }, operator);
   sync();
   schedule();
-  return { setMode, setAnnotationAllowed(allowed, reset = false, availability = 'off') { availabilityState = availability; if (reset) { gestureVersion++; endGesture(true); setMode('watch'); } annotationAllowed = allowed === true; sync(); }, captureBusy:()=>dialog.open||!!state.drag||!!state.stroke,dialog, strokes, who, annotate, get mode() { return state.mode; } };
+  const dispose = () => { glow.dispose(); notesPanel.dispose(); };
+  win.addEventListener('pagehide', dispose, {once:true});
+  return { notes: notesPanel, controls: {pointer:modeButtons.point, note:modeButtons.note, swatches}, dispose, setMode, setAnnotationAllowed(allowed, reset = false, availability = 'off') { availabilityState = availability; if (reset) { gestureVersion++; endGesture(true); setMode('watch'); } annotationAllowed = allowed === true; sync(); }, captureBusy:()=>dialog.open||!!state.drag||!!state.stroke,dialog, strokes, who, annotate, get mode() { return state.mode; } };
 }

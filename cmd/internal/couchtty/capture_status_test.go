@@ -63,8 +63,8 @@ func TestCaptureStatusBadgePriorityAndClickSpans(t *testing.T) {
 		{"io", terminalcapture.Status{Phase: terminalcapture.Failed, Err: errors.New("private\x1b[2Jpath")}, "REC STOP:IO"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			model := StatusModel{Capture: tc.status, Actors: []StatusActor{{Label: "actor", Thread: menuAddress("actor")}}, Notice: "notice"}
-			full := "actor  · notice"
+			model := StatusModel{Capture: tc.status, Actors: []StatusActor{{Label: "actor", Thread: menuAddress("actor")}}}
+			full := "actor"
 			if tc.badge != "" {
 				full = tc.badge + "  " + full
 			}

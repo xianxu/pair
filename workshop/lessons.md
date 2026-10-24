@@ -7,7 +7,12 @@ representative evidence, not an exhaustive index.
 
 ## Proof and verification
 
+- #860 BR-1/BR-2: A passing package race run can miss another live-fixture authority write. Enumerate the complete field family mechanically, allow only exact no-wrapper controls, and update Done-when whenever scope grows; extend the pre-start child-proof composition to native-exit fixtures too.
+- #860: Configure immutable service authority through the fixture's pre-start decorator. A connected snapshot may be published before admission effects finish reading authority, so waitConnected is not a mutation barrier. Keep actual ownership moves under hubRuntime's mutex, and pair race qualification with a deterministic check of constructor-derived policy for every configured hub, including after restart.
+
 - #841 BR-1/BR-2/BR-3: For a conservative visual aid, match final fitted display words and permit false negatives. Exclude generated metadata and ambiguous path/link/bracket chunks; skip wrapped row edges that may be fragments. Source-substring projection fails when fitting removes zero-width characters. Use fixed-clock grammar boundaries and exact clipped-row accents, not a test satisfied by any earlier colored label.
+- #825: A final file made visible by a hard link can be consumed before its publisher removes the temporary name. Retirement/capacity assertions must count mailbox records with the shared counter, not raw directory entries. Hold publication scratch in regression tests and retain negative controls for genuine records; never remove another producer's scratch to satisfy the oracle.
+
 - #852: Retry-count fixtures with synchronous fake completion must drive injected completion and whole-operation deadlines explicitly. A real deadline can expire during coordinated store finalization after proof is already present, adding spurious recovery drives. Pair a tiny-budget positive with withheld-proof, cancellation and whole-budget controls; keep production budgets unchanged.
 - #679 BR-1: A source census must classify each relevant IPC contract from its actual producer/consumer behavior. A list of Mkfifo paths does not justify calling every remaining use metadata validation; payload barriers and held lifetimes are distinct, valid patterns.
 
@@ -2830,6 +2835,17 @@ and external temporary roots rather than relying on the host's TMPDIR.
 
 - #796: When adding a display mode, parameterize established pending/reattach regressions over both modes. A legacy fixture that explicitly selects the compatibility mode cannot prove the new default preserves pending states. Count branches also need owner/style invariants from ordinary chips, not only correct text and hit spans.
 
+- #812 BR-1: audit each terminal completion owner (local queue, remote queue, direct dispatch) separately. A dispatcher diagnostic callback cannot cover attempts already owned by queues; test the actual local completion path and its once owner.
+- #812 BR-2: a generic Logf or Warning string is not a severity boundary. Trace all producers, including successful fidelity summaries, recovered overflow, aggregate close reports and transient busy replies; carry an explicit warning fact/callback at actionable sources and keep one owner for uncertainty alerts.
+
+- #812 BR-3: an operator-required relaunch instruction is actionable even when its component is named a priority helper. Enumerate every remaining publication callback by producer branches; normal mixed-family messages are not a reason to discard the failure branches.
+- #812 BR-4: when removing a presentation surface, migrate all tests that consume it while preserving their original ordering/parser/resize invariants. Run complete affected packages with JSON progress before the next review; an absence assertion must use confirmed ownership and joined background completion.
+
+- #812 BR-5: an async source being queued does not mean its UI event exists. Shared attention-opening test helpers must acknowledge publication before toggling; cover both input-before-publication and publication-before-input with controlled barriers, preserving the production empty-list behavior.
+
+- #812 BR-6: apply publication-order rules to every assertion, not only shared helper callers. Pane removal and cast phase changes can precede their warning/feedback; positive assertions await publication, and negative controls join the terminal callback or final feedback before checking absence.
+
+- #812 live restart: normal startup proof must include borrowed attachment ownership, not only fully attributed helper repair. A successful-result Warning string mixes routine retained ownership feedback with actual configuration-publication failure; classify typed components. Diagnostic-only skipped reminder checks remain feed-only, independent of actual generated stale reminders.
 - #739 live acceptance: label immutable startup observations as history in persistent status output. A recovered actor must not appear currently missing because its startup absence was retained. Startup safety notices must name the explicit recovery action as well as explain what automation was suppressed.
 
 - #739: host bytes are not a presentation-complete barrier. A startup-ordering test must finish through the console event loop, with a held-write control; asynchronous Stop exercises cancellation instead. Qualify the current exit semantics (Escape need not quit an empty switcher), and track shared cancellation-cause loss separately rather than ignoring generic presenter errors.
@@ -2874,3 +2890,16 @@ and external temporary roots rather than relying on the host's TMPDIR.
 - #802 BR-1: operator-facing notice wording is restated in the embedded `skills/couch/SKILL.md` and the atlas. When a producer string changes, grep the literal shape and reason labels repo-wide and update every live restatement; archived issues and comments that describe the condition are not copies. Updating the atlas alone is not the sweep.
 - #849 BR-1/BR-2: a submission contract is restated for agents in `submission.ReadingGuide` (stored in every bundle), the embedded couch `SKILL.md` and README, besides the atlas. When the contract changes (what is selected, what refuses, a provenance value), grep its key phrases across `cmd/` and README before close and move the tests that pin them; the atlas alone is not the sweep (same class as #802 BR-1).
 - #830 pre-close: the repolint catalog (`test-fixed-sleep`) also covers native fleet tests that the ordinary suite skips, so a `time.Sleep` in a gated helper still fails the suite. After editing any `_test.go`, run `go test ./internal/repolint -run TestTrackedGoFilesPassCatalog` before queueing a pre-close check, and wait for a screen condition, bounded, instead of sleeping.
+
+- #861: A dependency pin must qualify every imported API and the activated policy catalog before a long recorded suite. Compile the catalog, inspect all new findings, and run each source-qualification mode; imported fixture dependencies and retired vocabulary exports can fail outside the feature's packages. Preserve independent differential oracles and standalone module boundaries when a syntactic lint rule overmatches their role.
+- #850: a discovery control placed at an ink sample intercepts later drawing at that same point. Keep affordances beside painted content and pin actual native hit targets before testing later labels or preview acknowledgments; a missing second sketch can look like a preview timeout.
+
+- #850 BR1–3: viewport reachability is a postcondition after every size/geometry source: scroll, transform, count text, mode and resize. Derive discovery from the existing painter's full cached bounds, clamp complete hit areas, and keep authoritative mode writes inside the transition owner; first samples and fixed-width fakes conceal these failures.
+
+- #850 BR5: independent viewport clamping is insufficient after composition. State the invariant for all eligible entities together: each must remain individually selectable with identical bounds, overlapping bounds and dense edge cases. A single bounded scrolling selector removes an impossible geometric packing problem; do not add a third positional heuristic.
+
+- #856 BR-1–3: when consolidating discovery into one surface, derive membership from accepted entities, independent of viewport placement; unavailable geometry is a row state. Project both corners of boxes and clips into client space, including nonuniform scale and container offset. Minimized controls retain status and remeasure on label growth; adopted editors must expand their presentation owner before focus. Pin these through production handlers as well as pure helpers.
+
+- #856 native composition: fixed-position width:auto is shrink-to-fit and depends on the current left anchor. Measuring at an offscreen old anchor can understate the width before clamping. Preserve intrinsic max-content sizing under a maximum, and pin real browser rectangles across resize; standalone/fixed-width geometry fixtures cannot expose this feedback.
+
+- #856 native gestures: preserve held-button identity in CDP mouseMoved events, matching the established native drag fixture. A none move can lose pending capture and leave the owner gesture poisoned; compare on a fresh gesture, and inspect admission/capture/cancel/host events before changing production lifetime behavior. Measure composed UI only after its intentional private-capture suppression has released.

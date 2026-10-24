@@ -2,6 +2,7 @@ package couchtty
 
 import (
 	"context"
+	"encoding/base64"
 	"errors"
 	"reflect"
 	"strings"
@@ -119,7 +120,7 @@ func TestConsoleMenuResumeLandsOnExactReturnedHandle(t *testing.T) {
 		t.Fatalf("resume effects = %+v", effects)
 	}
 	started, _ := attachStartResult(t, "resumed-actor", target)
-	started.Record.AttachmentNotice = "BORROWED ATTACH: lifecycle claim is open; retained client state was left unchanged."
+	started.Record.AttachmentNotice = "BORROWED ATTACH: an open lifecycle claim remains; retained lifecycle state was preserved."
 	started.Handle.(couchcore.TerminalHandle).Terminal().Feed([]byte("RESUMED-EXACT-SCREEN"))
 	setTestOps(f.con, func(name string, _ map[string]string) (any, error) {
 		if name != "resume" {
@@ -143,11 +144,11 @@ func TestConsoleMenuResumeLandsOnExactReturnedHandle(t *testing.T) {
 	if got := f.con.menuSnapshot().Notice.Text; got != started.Warning() {
 		t.Fatalf("borrowed attachment notice lost after landing: %q", got)
 	}
-	if got := f.notice(); got != started.Warning() {
-		t.Fatalf("borrowed warning lost from feed: %q", got)
+	if got := f.con.menuSnapshot().LatestFeed; got != started.Warning() {
+		t.Fatalf("full borrowed attachment warning was not retained for switcher/copy: %q", got)
 	}
-	if !strings.Contains(f.lastRow(), "BORROWED ATTACH: lifecycle claim is ope…") {
-		t.Fatalf("borrowed attachment reason was not painted: %q", f.host.Written())
+	if strings.Contains(f.lastRow(), "BORROWED ATTACH") {
+		t.Fatal("borrowed attachment warning reached tab bar")
 	}
 	if strings.Contains(f.screenText(), "threads") {
 		t.Fatalf("successful resume repainted the switcher: %q", f.host.Written())
@@ -155,10 +156,29 @@ func TestConsoleMenuResumeLandsOnExactReturnedHandle(t *testing.T) {
 	if !f.con.menuSnapshot().ProjectionPending {
 		t.Fatal("successful resume silently presented the pre-resume inventory as current")
 	}
+	// Inspecting the retained warning is an explicit switcher action, after the
+	// exact returned handle has landed and owns the actor screen.
+	f.con.openSwitcher()
+	waitFor(t, "borrowed attachment reason in switcher", func() bool {
+		return strings.Contains(f.screenText(), "BORROWED ATTACH: an open lifecycle claim remains")
+	})
+	if count := f.con.attentionCount(); count != 0 {
+		t.Fatalf("routine borrowed attachment raised %d attention items", count)
+	}
 	f.con.copyLastNotice()
 	if got := copied(); got != started.Warning() {
 		t.Fatalf("borrowed warning copied %q; want full %q", got, started.Warning())
 	}
+	// The complete routine notice remains available through the real copy key.
+	t.Setenv("PATH", t.TempDir())
+	if _, err := f.stdin.Write([]byte{0x19}); err != nil {
+		t.Fatal(err)
+	}
+	encoded := base64.StdEncoding.EncodeToString([]byte(started.Warning()))
+	waitFor(t, "full borrowed attachment notice copied", func() bool {
+		return strings.Contains(f.host.Written(), "\x1b]52;c;"+encoded+"\x1b\\")
+	})
+
 }
 
 func TestConsoleSuccessfulOperationsApplyExhaustiveProjectionPolicy(t *testing.T) {

@@ -46,6 +46,36 @@ The cast Chrome uses the viewer's `mountAnnotation` (`web/annotate.js`) and
 shadow host. `operator_script.go` assembles these trusted embedded modules into
 isolated-world script scopes; `operator.js` supplies local page coordinates and
 the CDP binding transport. No page-origin HTTP or localStorage is involved.
+One yellow 300×320 Notes panel holds ordinary annotations and accepted sketches,
+including those whose ink or anchor is offscreen/unavailable.
+`web/feedback-panel.js` reconciles typed keys from `feedback-entries.js`;
+rows show small type icons and text, never thumbnails. Existing note/sketch editor
+nodes are adopted into its scrolling body, with status in the fixed header.
+Finished sketch labels are read-only; Add note uses the existing unfinished-label
+flow. The separate Sketch notes selector and Pending feedback box are gone.
+`web/floating-panel.js` still owns the shared drag/minimize position, cancellation,
+keyboard movement and viewport clamping. New feedback changes the count without
+restoring the panel. Opening either existing editor restores it before focus.
+The minimized control marks status and exposes its full text through the tooltip
+and accessible name. Empty current views keep the Notes surface available.
+
+In the cast Chrome, `web/cast-tools.js` adopts the actual Live/Pause, Pointer,
+Pen, colour, Note and useful Undo/Redo/Done controls into one protected column.
+Each existing adapter owns its buttons' admission; the column owns placement.
+`feedback-layout.js` gives the column and panel compatible extents so editors and
+minimized controls cannot cover the tools. Pen colours remain visible before
+starting because a sketch fixes its colour at begin; history controls appear
+only when useful.
+
+Hover or keyboard focus glows only the corresponding confirmed note box or
+accepted sketch ink. `feedback-glow.js` changes canvas pixels rather than DOM
+attributes, avoiding feedback-visibility revision churn. Reconciliation refreshes
+the same keyed hover; removal, minimize, scope retirement and disposal clear it.
+Show on page scrolls only a validated connected original, then rechecks strict
+placement. Unavailable, conflicting or hidden anchors report unavailability;
+there is no URL navigation, reload or historical-coordinate fallback. These
+presentation actions do not change saved feedback, selection or delivery.
+
 Off/Pen/Note start Off. The shared note gesture previews nothing on pointer-down;
 crossing the movement threshold draws a drag box, while a click places its default
 box only on release. The completed box stays visible while its draft is edited.

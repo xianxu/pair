@@ -337,7 +337,8 @@ export function mount(doc, win) {
     canonical: () => v.renderer.canonical(),
     ready: async () => { await started; await v.loaded; return v.renderer.ready(); }, // a replay first loads its records
     boxOf: (id) => v.renderer.boxOf(id),
-    placementOf: (note) => v.renderer.placementOf(note),
+    placementOf: (note, options) => v.renderer.placementOf(note, options),
+    reveal: (note) => v.renderer.reveal(note),
     onPlacementChange: (fn) => { started.then(() => { v.renderer.placementChanged = fn; }); },
     // uncaptured: the drawn elements whose content the recording can't
     // hold (pair#513), as [{id, kind}].
@@ -445,6 +446,7 @@ export function mount(doc, win) {
           root: doc.body,
           box,
           toolbar: doc.querySelector('.bar'),
+          notesPanel: win.couchViewer.annotate?.notes,
           scene: heldScene,
           palette,
           id: identifier,

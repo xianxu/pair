@@ -580,14 +580,17 @@ func startMessageServiceWithStartup(console *couchtty.Console, c *couchcore.Couc
 	service.SetReplay(console.ReplayShare, console.SharedReplays)
 	service.SetSubmission(console.Submission)
 	service.recordDeliveries(namespace)
-	service.supervision.Store(newSupervisionCoordinator(service, func(text string) { console.Notify(couchtty.Notice{Kind: "status", Body: text}) }))
+	service.supervision.Store(newSupervisionCoordinator(service, func(text string) { console.Warn(couchtty.Notice{Kind: "status", Body: text}) }))
 	if lifecycleOn {
-		publisher := startLifecyclePublisher(service, func(text string) { console.Notify(couchtty.Notice{Kind: "status", Body: text}) })
+		// Recipient churn during ordinary restart can leave a lifecycle
+		// announcement unavailable. Routine churn stays in the feed; typed
+		// terminal losses, metadata loss and capacity failure need attention.
+		publisher := startLifecyclePublisher(service, func(text string) { console.Notify(couchtty.Notice{Kind: "status", Body: text}) }, func(text string) { console.Warn(couchtty.Notice{Kind: "status", Body: text}) })
 		console.SetLifecycleObserver(publisher.observe)
 		wireNativeExitNotices(service, console)
 	}
 	watcher := newWaitWatcher(service, threshold, namespace)
-	stale := newSessionStaleWatcher(service, namespace, func(text string) { console.Notify(couchtty.Notice{Kind: "status", Body: text}) })
+	stale := newConsoleSessionStaleWatcher(service, namespace, console)
 	watcher.staleTick = stale.offer
 	service.workers.Add(2)
 	go func() { defer service.workers.Done(); stale.run(service.lifetime) }()
@@ -601,13 +604,13 @@ func startMessageServiceWithStartup(console *couchtty.Console, c *couchcore.Couc
 	// The slot renicer (#502): what each slot's agent spawns runs at
 	// COUCH_SLOT_NICE; Couch, the wrapper, zellij and the agent stay at
 	// normal priority.
-	rn := newRenicer(osProcs{}, service.broker.Connected, func(b couchmessage.Binding) (int, error) {
+	rn := newConsoleRenicer(console, osProcs{}, service.broker.Connected, func(b couchmessage.Binding) (int, error) {
 		paths, err := artifactpath.Resolve(artifactpath.Address{DataDir: artifacts.PairLifecycleDataDir(), RepoScope: b.Scope, Tag: b.Tag})
 		if err != nil {
 			return 0, err
 		}
 		return readMessageWrapperPID(paths.AgentPID()) // the same bare-decimal pid file
-	}, reniceLevel, os.Getpid(), func(text string) { console.Notify(couchtty.Notice{Kind: "status", Body: text}) })
+	}, reniceLevel, os.Getpid())
 	service.broker.SetNiceView(rn.view)
 	service.workers.Add(1)
 	go func() { defer service.workers.Done(); rn.run(service.lifetime, reniceEvery) }()
@@ -622,7 +625,8 @@ func startMessageServiceWithStartup(console *couchtty.Console, c *couchcore.Couc
 	go func() { defer service.workers.Done(); inventory.run(service.lifetime) }()
 	go func() { defer service.workers.Done(); inventory.runSampler(service.lifetime, sampler) }()
 	// History backup (#592): a daily continuous archive pass when configured.
-	archive := newArchiveScheduler(artifacts.PairLifecycleDataDir(), func(text string) { console.Notify(couchtty.Notice{Kind: "status", Body: text}) })
+	archive := newArchiveScheduler(artifacts.PairLifecycleDataDir(), func(text string) { console.Notify(couchtty.Notice{Kind: "status", Body: text}) },
+		func(text string) { console.Warn(couchtty.Notice{Kind: "status", Body: text}) })
 	archive.warn = func(ctx context.Context, body string) (string, error) {
 		return service.notifyArchiveWarning(ctx, body, archive.notify)
 	}

@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"encoding/base64"
 	"encoding/json"
-	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -12,7 +11,6 @@ import (
 	"time"
 
 	"github.com/xianxu/pair/cmd/internal/couchkeys"
-	"github.com/xianxu/pair/cmd/internal/ptychild"
 	"github.com/xianxu/pair/cmd/internal/terminal"
 )
 
@@ -21,79 +19,58 @@ import (
 // waiting the full lifetime and prove nothing about the arming.
 const testLifetime = 60 * time.Millisecond
 
-// The half a pure Feed test cannot see: an idle console must REPAINT when the
-// row expires. Nothing else is guaranteed to happen at that moment, and the
-// operator's report was precisely that the sentence stayed on screen.
-func TestAnIdleConsoleRepaintsWhenItsNoticeExpires(t *testing.T) {
-	host := newVTHost(24, 80)
-	reader, writer := io.Pipe()
-	con := New(host, reader)
-	t.Cleanup(func() {
-		con.Stop()
-		_ = writer.Close()
-	})
-	con.feed = NewFeed(8, time.Now, testLifetime)
-	child := ptychild.NewFakeChild(nil)
-	con.attachThreadActor("c1", "brain", menuAddress("brain"), "/w/brain", "brain", child)
-	go con.Run()
-	waitFor(t, "the console to start", func() bool { return len(child.Resizes()) > 0 })
-
-	// The operator's own gesture: ctrl+backspace with nothing to return to. Sent
-	// as BYTES so the notice is pushed from the Run goroutine, which is where
-	// the expiry timer is armed -- a test that called setNotice directly would
-	// arm nothing and prove nothing.
-	if _, err := writer.Write([]byte{couchkeys.PreviousLegacy}); err != nil {
-		t.Fatalf("write ctrl+backspace: %v", err)
+// A real input-loop publication stays out of chrome both before and after
+// transient expiry, but remains retained and inspectable in the switcher.
+func TestConsoleRetainsExpiredGestureNoticeForSwitcher(t *testing.T) {
+	f := newFixtureBeforeRun(t, 24, 80, func(c *Console) { c.feed = NewFeed(8, time.Now, testLifetime) })
+	if _, err := f.stdin.Write([]byte{couchkeys.PreviousLegacy}); err != nil {
+		t.Fatal(err)
 	}
-	// It must reach the SCREEN on its own. The first version of this test forced
-	// a repaint here, which hid the regression giving notices a lifetime
-	// introduced: on an idle console nothing else repaints, so a refusal that is
-	// never painted now expires UNSEEN -- worse than one that overstayed.
-	waitFor(t, "the refusal to reach the row with no other event", func() bool {
-		return strings.Contains(host.Written(), "nowhere to return to")
+	waitFor(t, "gesture retained", func() bool {
+		f.con.mu.Lock()
+		defer f.con.mu.Unlock()
+		messages := f.con.feed.Messages()
+		return len(messages) > 0 && strings.Contains(messages[len(messages)-1].Body, "nowhere to return to")
 	})
-
-	// Now NOTHING happens except time passing. The console must repaint anyway;
-	// no other event is coming, which is exactly why the message used to stay on
-	// screen indefinitely.
-	//
-	// Asserting on the LAST painted row rather than resetting the buffer first.
-	// A Reset here races the very paint it is waiting for: on a loaded box the
-	// poll above can outlast the 60ms lifetime, the expiry paint lands before
-	// the Reset, and the test then waits three seconds for a repaint that
-	// already happened. A test must not discard the evidence it is waiting for.
-	waitFor(t, "the row to repaint without the expired notice", func() bool {
-		return !strings.Contains(host.row(24), "nowhere to return to")
+	if strings.Contains(f.screen.row(24), "nowhere to return to") {
+		t.Fatal("gesture reached tab bar")
+	}
+	waitFor(t, "feed transient expiry", func() bool {
+		f.con.mu.Lock()
+		defer f.con.mu.Unlock()
+		return f.con.feed.Row().Body == ""
 	})
+	if strings.Contains(f.screen.row(24), "nowhere to return to") {
+		t.Fatal("expired gesture reached tab bar")
+	}
+	f.con.mu.Lock()
+	f.con.menu.Notice = MenuNotice{} // No provider is installed in this fixture.
+	f.con.mu.Unlock()
+	_, _ = f.stdin.Write([]byte{0})
+	waitFor(t, "expired gesture in switcher", func() bool { return strings.Contains(f.screenText(), "nowhere to return to") })
 }
 
-// And an exit stands: it says why a pane disappeared, which does not stop being
-// true just because time passed.
-func TestAnExitNoticeSurvivesAnIdleConsole(t *testing.T) {
-	host := newVTHost(24, 80)
-	reader, writer := io.Pipe()
-	con := New(host, reader)
-	t.Cleanup(func() {
-		con.Stop()
-		_ = writer.Close()
-	})
-	con.feed = NewFeed(8, time.Now, testLifetime)
-	child := ptychild.NewFakeChild(nil)
-	con.attachThreadActor("c1", "brain", menuAddress("brain"), "/w/brain", "brain", child)
-	go con.Run()
-	waitFor(t, "the console to start", func() bool { return len(child.Resizes()) > 0 })
-
-	con.publishNotice(ExitNotice("couch-b1", "tools", 1))
-	waitFor(t, "the exit notice to reach the row", func() bool {
-		return strings.Contains(host.Written(), "exited (1)")
-	})
-
-	// Several lifetimes of real time, since the point is that nothing retires it.
-	time.Sleep(5 * testLifetime)
-	con.repaint()
-	waitFor(t, "the row to be repainted after the wait", func() bool {
-		return strings.Contains(host.row(24), "exited (1)")
-	})
+// Control notices keep their existing feed lifetime while their presentation
+// moves from chrome to the switcher.
+func TestAnExitNoticeSurvivesInSwitcher(t *testing.T) {
+	now := time.Now()
+	f := newFixtureBeforeRun(t, 24, 80, func(c *Console) { c.feed = NewFeed(8, func() time.Time { return now }, testLifetime) })
+	f.con.publishNotice(ExitNotice("couch-b1", "tools", 1))
+	f.con.mu.Lock()
+	now = now.Add(5 * testLifetime)
+	got := f.con.feed.Row().Body
+	f.con.mu.Unlock()
+	if !strings.Contains(got, "exited (1)") {
+		t.Fatalf("control notice expired: %q", got)
+	}
+	if strings.Contains(f.screen.row(24), "exited (1)") {
+		t.Fatal("exit notice reached tab bar")
+	}
+	f.con.mu.Lock()
+	f.con.menu.Notice = MenuNotice{} // No provider is installed in this fixture.
+	f.con.mu.Unlock()
+	_, _ = f.stdin.Write([]byte{0})
+	waitFor(t, "exit notice in switcher", func() bool { return strings.Contains(f.screenText(), "exited (1)") })
 }
 
 func TestSwitcherCopiesFullExpiredNoticeRepeatedly(t *testing.T) {

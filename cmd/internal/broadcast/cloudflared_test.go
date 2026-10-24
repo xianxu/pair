@@ -183,12 +183,39 @@ func TestCloudflaredOpenFailures(t *testing.T) {
 		}
 	})
 	t.Run("opens nothing in time", func(t *testing.T) {
-		bin, _ := fakeCloudflared(t, `exec sleep 300`)
-		c := Cloudflared{Binary: bin, Guard: guardArgv(t), RunDir: shortDir(t), OpenTimeout: 300 * time.Millisecond}
+		bin, _ := fakeCloudflared(t, `echo ready > "$0.ready"; exec sleep 300`)
+		expired := make(chan time.Time, 1)
+		stopped := false
+		c := Cloudflared{Binary: bin, Guard: guardArgv(t), RunDir: shortDir(t), after: func(budget time.Duration) (<-chan time.Time, func() bool) {
+			if budget != defaultOpenTimeout {
+				t.Errorf("startup budget=%v, want %v", budget, defaultOpenTimeout)
+			}
+			return expired, func() bool { stopped = true; return true }
+		}}
 		l, _ := c.Listen()
 		defer l.Close()
-		if _, err := c.Open(context.Background(), l); err == nil || !strings.Contains(err.Error(), "no tunnel within") {
-			t.Fatalf("err %v", err)
+		ctx, cancel := context.WithCancel(t.Context())
+		defer cancel()
+		done := make(chan error, 1)
+		go func() { _, err := c.Open(ctx, l); done <- err; close(done) }()
+		t.Cleanup(func() { cancel(); <-done })
+		waitFile(t, bin+".ready")
+		select {
+		case err := <-done:
+			t.Fatalf("startup ended before timer expiry: %v", err)
+		default:
+		}
+		expired <- time.Now()
+		select {
+		case err := <-done:
+			if err == nil || !strings.Contains(err.Error(), "no tunnel within") {
+				t.Fatalf("err %v", err)
+			}
+			if !stopped {
+				t.Fatal("startup timer was not stopped")
+			}
+		case <-testwait.After(t):
+			t.Fatal("startup expiry did not join tunnel")
 		}
 	})
 	t.Run("cancelled", func(t *testing.T) {

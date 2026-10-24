@@ -67,9 +67,15 @@ func TestCodesMenuRotatesAndDisconnects(t *testing.T) {
 	}
 	f.chooseCodes(t, codesAction{link: broadcast.LinkView})
 	waitFor(t, "a new view code", func() bool { return viewCode(t, s) != old })
-	waitFor(t, "the notice", func() bool {
-		return f.notice() == "New LIVE view code; viewers disconnected. Hover LIVE for code."
+	waitFor(t, "retained rotation feedback", func() bool {
+		return f.con.menuSnapshot().LatestFeed == "New LIVE view code; viewers disconnected. Hover LIVE for code."
 	})
+	if f.con.attentionCount() != 0 {
+		t.Fatal("manual code rotation created actionable attention")
+	}
+	if strings.Contains(f.con.menuSnapshot().LatestFeed, viewCode(t, s)) {
+		t.Fatal("rotation feedback exposed the new code")
+	}
 	if strings.Contains(f.lastRow(), viewCode(t, s)) {
 		t.Fatal("the notice line (broadcast) shows the new code")
 	}
@@ -95,17 +101,27 @@ func TestCodesMenuRotatesAndDisconnects(t *testing.T) {
 func TestGuessRotationAlertAndFlash(t *testing.T) {
 	copied := noticeClipboard(t)
 	const full = "LIVE view link: too many wrong codes; code changed. Hover LIVE for code."
-	const shown = "LIVE view link: too many wrong codes; c…"
 	f := broadcastFixture(t, &broadcast.FakeTunnel{}, nil)
 	f.startLive(t)
 	attempt := f.screenAttempt()
 	f.con.onCodeRotated(castScreen, attempt, broadcast.LinkView, castlock.Rotation{Code: "5193", Reason: castlock.ReasonGuessing, Gen: 2})
-	waitFor(t, "the bounded alert", func() bool { return strings.Contains(f.lastRow(), shown) })
-	if got := f.notice(); got != full {
+	waitFor(t, "retained guessing alert", func() bool {
+		return strings.Contains(f.con.menuSnapshot().LatestFeed, "LIVE view link: too many wrong codes")
+	})
+	f.con.attn.mu.Lock()
+	items := f.con.attn.list.Items()
+	f.con.attn.mu.Unlock()
+	if len(items) != 1 || !strings.Contains(items[0].Body, "LIVE view link: too many wrong codes") {
+		t.Fatalf("guessing warning attention = %+v", items)
+	}
+	if strings.Contains(items[0].Body, "5193") || strings.Contains(f.con.menuSnapshot().LatestFeed, "5193") {
+		t.Fatal("guessing warning exposed the code outside the private flash")
+	}
+	if got := f.con.menuSnapshot().LatestFeed; got != full {
 		t.Fatalf("rotation notice lost source text: %q", got)
 	}
 	if strings.Contains(f.lastRow(), full) {
-		t.Fatal("chrome displayed the unbounded rotation notice")
+		t.Fatal("general rotation notice reached tab bar")
 	}
 	f.con.copyLastNotice()
 	if got := copied(); got != full {

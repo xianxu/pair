@@ -263,10 +263,20 @@ func TestInactiveChildExitKeepsFocusAndRecordsNotice(t *testing.T) {
 	})
 	f.host.Reset()
 
+	f.con.mu.Lock()
+	exitedThread := f.con.panes["c1"].thread
+	f.con.mu.Unlock()
 	f.child.Exit(19)
-	waitFor(t, "the inactive exit notice", func() bool {
-		return strings.Contains(f.host.Written(), "brain") && strings.Contains(f.host.Written(), "19")
+	waitFor(t, "retained inactive exit notice", func() bool {
+		got := f.con.menuSnapshot().LatestFeed
+		return strings.Contains(got, "brain") && strings.Contains(got, "exited (19)")
 	})
+	f.con.attn.mu.Lock()
+	items := f.con.attn.list.Items()
+	f.con.attn.mu.Unlock()
+	if len(items) != 1 || items[0].Thread != exitedThread || !strings.Contains(items[0].Body, "exited (19)") {
+		t.Fatalf("inactive exit attention lost exact source/reason: %+v", items)
+	}
 	f.con.mu.Lock()
 	focus := f.con.focus
 	_, deadPanePresent := f.con.panes["c1"]

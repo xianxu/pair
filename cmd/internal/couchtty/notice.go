@@ -2,9 +2,12 @@ package couchtty
 
 import (
 	"fmt"
+	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/xianxu/pair/cmd/internal/couchcore"
+	"github.com/xianxu/pair/cmd/internal/rowtext"
 )
 
 // Notice is one status-row event before mailbox policy is applied. Actor is
@@ -15,6 +18,38 @@ type Notice struct {
 	Kind    string
 	Body    string
 	Control bool
+	// Thread and Label identify an explicit warning source. An empty thread
+	// means a console-wide warning, never whichever actor happens to be focused.
+	Thread couchcore.ThreadAddress
+	Label  string
+}
+
+// noticeAttention projects an explicitly raised warning, not arbitrary feedback.
+// Retained feed text stays intact for copying; attention has its own byte bound.
+func noticeAttention(n Notice, sequence uint64) (couchcore.AttentionItem, bool) {
+	body := boundedNoticeText(n.Body, 4096)
+	if strings.TrimSpace(body) == "" {
+		return couchcore.AttentionItem{}, false
+	}
+	label := boundedNoticeText(n.Label, 128)
+	if label == "" {
+		label = "Couch"
+	}
+	return couchcore.AttentionItem{ID: fmt.Sprintf("console-notice-%d", sequence), Thread: n.Thread, Label: label, Title: "Attention required", Body: body}, true
+}
+
+func boundedNoticeText(text string, limit int) string {
+	if len(text) > limit {
+		text = text[:limit]
+	}
+	text = rowtext.Sanitize(strings.ToValidUTF8(text, "�"))
+	if len(text) > limit {
+		for limit > 0 && !utf8.RuneStart(text[limit]) {
+			limit--
+		}
+		text = text[:limit]
+	}
+	return text
 }
 
 // Message gives couchcore.Enqueue the per-actor collapse key and priority.
