@@ -552,7 +552,7 @@ func renderRootMenuFrame(state MenuState, frame MenuFrame, width, height int, no
 		}
 		title = clipMenuLine("threads · "+label+" (Esc: all)", width)
 	}
-	lines := []string{title, clipMenuLine("Ctrl+Y copy last notice / selected error", width)}
+	lines := []string{title, clipMenuLine("Ctrl+Y copy last notice / selected error · Ctrl+G hub automation on/off", width)}
 	rowBudget := height - len(lines)
 	if frame.Filter != "" {
 		rowBudget--
@@ -560,6 +560,7 @@ func renderRootMenuFrame(state MenuState, frame MenuFrame, width, height int, no
 	if rowBudget < 1 {
 		rowBudget = 1
 	}
+	emptyText := ""
 	if len(visible) == 0 {
 		empty := "  (no match)"
 		if frame.View == MenuViewFocus {
@@ -569,7 +570,7 @@ func renderRootMenuFrame(state MenuState, frame MenuFrame, width, height int, no
 				empty = "  no tagged live threads — tag one with ! … in a pair draft"
 			}
 		}
-		lines = append(lines, empty)
+		emptyText = empty
 	}
 	type rootLine struct {
 		text       string
@@ -581,6 +582,26 @@ func renderRootMenuFrame(state MenuState, frame MenuFrame, width, height int, no
 	}
 	jobs := menuOperationRows(state)
 	var rows []rootLine
+	// Configured hubs without a verified inventory path remain visible, but
+	// these lines have no target: starting still requires the existing form.
+	observedHubs := map[string]bool{}
+	for _, entry := range presentations {
+		root := entry.root
+		if entry.Row.Target.Kind == couchcore.ThreadTargetSlot && entry.Row.Target.Validate() == nil {
+			root = entry.Row.Target.Slot.WorktreeRoot
+		}
+		if root != "" {
+			observedHubs[root] = true
+		}
+	}
+	for _, hub := range state.HubOwnership.Hubs() {
+		if !observedHubs[hub.Root] {
+			rows = append(rows, rootLine{text: clipMenuLine("  hub · Ctrl+Space: start "+rowtext.Sanitize(hub.Root), width)})
+		}
+	}
+	if emptyText != "" {
+		rows = append(rows, rootLine{text: emptyText})
+	}
 	selectedStart, selectedEnd := 0, 0
 	for _, thread := range visible {
 		selectedRow := (frame.SelectedKey.Kind == couchcore.ThreadTargetSlot && menuRowKey(thread) == frame.SelectedKey) || (frame.SelectedKey.Kind != couchcore.ThreadTargetSlot && thread.Address == frame.SelectedAddress)
@@ -689,6 +710,11 @@ func renderRootMenuFrame(state MenuState, frame MenuFrame, width, height int, no
 		start = 0
 	}
 	for start < selectedStart && start < len(rows) && !rows[start].actorStart {
+		// Leading display-only hub headers stay visible; only a preceding
+		// actor's continuation lines are skipped by the selection window.
+		if rows[start].thread == (couchcore.ThreadAddress{}) && rows[start].key == (couchcore.ThreadRowKey{}) {
+			break
+		}
 		start++
 	}
 	end := min(start+rowBudget, len(rows))

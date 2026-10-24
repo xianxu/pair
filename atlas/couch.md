@@ -12,6 +12,50 @@ the pty console, actor panel, notices, and complete local lifecycle shipped in
 
 ## What exists today
 
+### Startup and hub automation (#739)
+
+`couchcore/startup_policy.go` classifies one read-only bulk session observation.
+Implicit startup only warm-attaches surviving hubs; missing or unknown hubs stay
+in the switcher. After a cold start, no hub is launched automatically by design:
+choose Resume from disk on its retained row, or Ctrl+Space → Start with its hub
+directory if no row exists. Normal warm reattachment is unchanged. The retained
+startup notice names this recovery path. The `missing at startup:` field in
+automation status is the initial observation, not a live inventory; manually
+attaching a hub does not erase that startup history. Explicit lifecycle operations
+keep their existing authority.
+`couchcmd/automation.go` owns per-hub memory policy, initialized on only for a
+positively surviving hub. Its authenticated CLI controls the caller's own hub;
+the switcher's Ctrl+G can control any configured hub. Turning automation off
+suppresses machine-generated hub input and scheduled due runs, while human and
+worker communication, status and desktop output remain independent. Suppressed
+occurrences are retired rather than replayed on enable.
+
+Generated occurrences retain their original canonical hub and automation epoch
+through routing and endpoint IO. `sendAutomaticSystem` pins the exact recipient
+and supplies the internal broker `AdmissionGuard`. Direct admission and both
+busy enqueue paths check it under the broker mutex; the guard holds the
+automation mutex only across the in-memory mailbox commit. Off before that
+commit retires the occurrence, even after off/on. Admission before off keeps its
+canonical receipt and ordinary delivery rules. Neither mutex covers endpoint IO,
+and no admitted message is retracted or retried by changing automation.
+
+The shared lock order with #737 is **hub-effect gate → scheduler authority →
+broker → automation**. Scheduler notice admission may consult the automation
+getter while holding the earlier scheduler locks, but releases that read before
+entering the broker. Broker commit guards acquire only automation, never an
+earlier lock, and contain no IO or broker reentry. Automation controls acquire
+only automation. The second lander wires #737's due/script/notice consumers and
+verifies this order; its unlanded behavior is not claimed by #739's provider.
+Broker tests assert both mutexes remain held through receipt publication; policy
+tests prove the automation mutex is free during routing and released after the
+commit. The source guard rejects a generated send with a missing/nil policy.
+
+`couchmessage/worker_start_notice.go` models one wrapper launch's cue witness.
+Negotiated hello-v5 carries its bounded report; `wrapcmd` retains the exact
+system cue receipt independently of normal receipt eviction. Launch ordinals
+distinguish a same-PID re-exec. This is separate from the existing per-Couch
+restart resend prompt.
+
 ### Tab styles (#796, #779)
 
 `couch --tab-style collapse` is the launch default; `--tab-style multiline`
@@ -3886,31 +3930,21 @@ and established #155 native root, and read-only validates Pair's existing
 established address marker. It rechecks that root immediately before child
 effects. Verified park is cleared only after the exact Pair session registers;
 ambiguous execution remains occupied/unknown. TUI Resume, alongside new-thread
-`start`, is a singleton-owner operation: after a later Couch launch the
+`start`, is a singleton-owner operation: an explicit request in a later Couch
 switcher resumes that exact thread and makes it the root console. It never
 creates an intervening actor that would occupy the parked thread's address
 (`ARCH-PURPOSE`, `ARCH-PURE`).
 
-Interactive `couch [<repo>]` startup resolves the requested repository scope,
-then applies `SelectResumableRoot` to the same proof-bearing actionable
-inventory used by the switcher, over that scope's primary (ordinary-target) rows
-at any working path -- one primary per repository (`pair#363`). It RANKS: detached
-before parked, most recently active within each class, and starts a new thread
-only when nothing matches. Inventory failure or a Resume refusal stops startup
-without creating a fallback actor, and `startupResumeRefusal` wraps that refusal
-with the thread it names and the ways forward -- no-fallback was right, refusing
-mutely was not. The selector is bounded O(n) with no fleet scan or remembered
-root identity (`ARCH-DRY`, `ARCH-CONSTRAINTS`).
-
-**The ranking reverses `SelectUniqueResumableRoot`'s documented refusal to have
-one** ("Preferring warm over cold would be a policy, and this selector
-deliberately has none", `pair#170` M3). Exactness turned out to be a ratchet:
-two resumable rows at one path were two matches, so startup created a third,
-which guaranteed the next startup created a fourth. One repository reached six
-threads that way. Warm beats cold because a detached agent is already running,
-so reattaching preserves what it was doing; recency because that is the thread
-the operator was last in, and a wrong guess costs one `ctrl-space`
-(`pair#181`).
+Interactive `couch [<repo>]` startup uses `ObserveStartupContext` and
+`ClassifyStartup` to report surviving sessions and seed hub automation.
+`StartInteractive` selects only a positively surviving session for the exact
+primary or numbered hub. It ranks surviving candidates by recency and
+revalidates the selected session before attachment. Parked, missing
+or unknown sessions never authorize implicit cold resume or Fresh. Without a
+surviving launch hub, the switcher stays focused; extra surviving hubs attach in
+the background. Configured empty hubs have display-only entries naming the
+existing Ctrl+Space Start form. Explicit Resume/Start retain their own guards.
+This replaces the earlier warm-before-cold startup ranking (#739).
 
 **A record couch cannot READ is a third answer, not a verdict.** `Snapshot`
 carries such addresses as `ThreadSnapshot.Unreadable` rather than raising, so one
@@ -4583,7 +4617,7 @@ Four rules outlive the sweep:
   fixture through the real store. That test exists here because the claim was
   made twice and was wrong twice.
 - **Guidance belongs at the consumer that needs it**, not as a marker every
-  producer must carry: `startupResumeRefusal` decorates any failure. An earlier
+  producer must carry: the explicit Resume consumer decorates its structured refusal. An earlier
   attempt at the latter changed what `ResumeDiagnosticCode` *meant* — from "is a
   structured refusal" to "came out of resume" — and broke every reader that used
   the distinction.

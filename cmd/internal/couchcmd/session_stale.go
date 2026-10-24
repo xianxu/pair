@@ -2,6 +2,7 @@ package couchcmd
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -109,6 +110,13 @@ func (w *sessionStaleWatcher) tick(parent context.Context) {
 		if !advanceStaleReminder(&w.state, staleReminderEvent{kind: staleTick, at: w.now(), observation: before}).check {
 			continue
 		}
+		permit := w.svc.captureHubInputPermit(before.live.Binding)
+		if !permit.enabled {
+			// Retire this due occurrence through the same scheduling transition as
+			// a completed fresh check, without launching a command while off.
+			advanceStaleReminder(&w.state, staleReminderEvent{kind: staleChecked, at: w.now(), observation: before})
+			continue
+		}
 		commandCtx, stop := context.WithTimeout(ctx, 5*time.Second)
 		output, checkErr := w.check(commandCtx, before.document.File)
 		stop()
@@ -135,6 +143,10 @@ func (w *sessionStaleWatcher) tick(parent context.Context) {
 		if !fx.send {
 			continue
 		}
+		if !permit.current(w.svc) {
+			advanceStaleReminder(&w.state, staleReminderEvent{kind: staleSent, err: errHubAutomationOff})
+			continue
+		}
 		id, sendErr := newRequestID()
 		if sendErr == nil {
 			coordinator := w.svc.supervision.Load()
@@ -142,12 +154,12 @@ func (w *sessionStaleWatcher) tick(parent context.Context) {
 				sendErr = fmt.Errorf("supervision unavailable")
 			} else {
 				sendCtx, stop := context.WithTimeout(ctx, 5*time.Second)
-				_, sendErr = coordinator.sendGenerated(sendCtx, before.live.Binding, before.live.Binding, id, body, false)
+				_, sendErr = coordinator.sendGenerated(sendCtx, before.live.Binding, before.live.Binding, id, body, false, permit)
 				stop()
 			}
 		}
 		advanceStaleReminder(&w.state, staleReminderEvent{kind: staleSent, err: sendErr})
-		if sendErr != nil {
+		if sendErr != nil && !errors.Is(sendErr, errHubAutomationOff) {
 			w.fault(sendErr)
 		}
 	}

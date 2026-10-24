@@ -85,3 +85,60 @@ func TestResourceEpisodeDeliveryDoesNotActAsUnknownMetric(t *testing.T) {
 		t.Fatal("receipt reset metric accumulation")
 	}
 }
+
+func TestResourceEpisodeSuppressedIsTerminalWithoutClaimingDelivery(t *testing.T) {
+	at := time.Unix(1, 0)
+	initial, effect := AdvanceResourceEpisode(ResourceEpisode{Key: "cpu/worker", Metric: "idle-cpu"}, ResourceEpisodeEvent{At: at, Known: true, High: true, RequiredSamples: 1})
+	if effect == nil {
+		t.Fatal("no initial incident")
+	}
+	suppressed := ResourceDeliveryOutcome("suppressed")
+	episode, _ := AdvanceResourceEpisode(initial, ResourceEpisodeEvent{Delivery: suppressed, EffectID: effect.ID})
+	if episode.Phase != "suppressed" || episode.Delivery != suppressed || episode.Effect.ID != effect.ID {
+		t.Fatalf("suppression did not retire occurrence: %+v", episode)
+	}
+	// No uncertain metrics, ongoing high observation, stale receipt, or later
+	// admission can turn this consumed occurrence back into pending work.
+	for _, event := range []ResourceEpisodeEvent{
+		{At: at.Add(time.Minute)},
+		{At: at.Add(2 * time.Minute), Known: true, High: true, RequiredSamples: 1},
+		{Delivery: ResourceDeliveryAdmitted, EffectID: effect.ID},
+		{Delivery: ResourceDeliveryRefused, EffectID: effect.ID},
+		{Delivery: suppressed, EffectID: "stale"},
+	} {
+		var next *ResourceEffect
+		episode, next = AdvanceResourceEpisode(episode, event)
+		if next != nil || episode.Phase != "suppressed" || episode.Delivery != suppressed {
+			t.Fatalf("consumed incident replayed: %+v", episode)
+		}
+	}
+	episode, _ = AdvanceResourceEpisode(episode, ResourceEpisodeEvent{At: at.Add(3 * time.Minute), Known: true})
+	episode, next := AdvanceResourceEpisode(episode, ResourceEpisodeEvent{At: at.Add(4 * time.Minute), Known: true, High: true, RequiredSamples: 1})
+	if next == nil || next.ID == effect.ID || episode.Phase != "pending" || episode.Delivery != "" {
+		t.Fatalf("fresh incident after recovery lost: %+v", episode)
+	}
+}
+
+func TestResourceEpisodeStaleSuppressionCannotRetireReplacement(t *testing.T) {
+	initial := ResourceEpisode{Phase: "pending", Effect: &ResourceEffect{ID: "current"}}
+	next, effect := AdvanceResourceEpisode(initial, ResourceEpisodeEvent{Delivery: ResourceDeliveryOutcome("suppressed"), EffectID: "older"})
+	if next.Phase != "pending" || next.Delivery != "" || effect != nil {
+		t.Fatalf("stale suppression changed replacement: %+v", next)
+	}
+}
+
+func TestResourceEpisodeRecoveryClearsOriginalAutomationPermit(t *testing.T) {
+	epoch := uint64(7)
+	original := ResourceEpisode{Phase: "suppressed", Delivery: ResourceDeliverySuppressed, Key: "cpu/worker", Metric: "idle-cpu", AutomationHub: "/old-hub", AutomationEpoch: &epoch, Effect: &ResourceEffect{ID: "old"}}
+	recovered, _ := AdvanceResourceEpisode(original, ResourceEpisodeEvent{At: time.Unix(1, 0), Known: true})
+	if recovered.AutomationHub != "" || recovered.AutomationEpoch != nil {
+		t.Fatal("metric recovery retained old publisher authority")
+	}
+	if original.AutomationHub != "/old-hub" || original.AutomationEpoch == nil || *original.AutomationEpoch != 7 {
+		t.Fatal("recovery mutated original occurrence")
+	}
+	fresh, effect := AdvanceResourceEpisode(recovered, ResourceEpisodeEvent{At: time.Unix(2, 0), Known: true, High: true, RequiredSamples: 1})
+	if effect == nil || fresh.AutomationHub != "" || fresh.AutomationEpoch != nil {
+		t.Fatal("fresh incident inherited old occurrence permit")
+	}
+}

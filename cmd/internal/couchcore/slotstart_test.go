@@ -364,7 +364,7 @@ func TestExplicitOpenRepairsPartialSlotWithoutCreatingConversation(t *testing.T)
 	}
 }
 
-func TestPrimaryStartupLaunchesHubWithoutOpeningExistingSlots(t *testing.T) {
+func TestPrimaryStartupLeavesMissingHubAndExistingSlotsUntouched(t *testing.T) {
 	t.Parallel()
 
 	f := newProvisionFixture(t)
@@ -382,8 +382,9 @@ func TestPrimaryStartupLaunchesHubWithoutOpeningExistingSlots(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(env.Runner.Ops) != 2 {
-		t.Fatalf("hub startup did not launch exactly one helper: slots=%+v ops=%v", snapshot.Slots, env.Runner.Ops)
+	// Implicit startup cannot create a conversation; Open/Fresh owns that choice.
+	if len(env.Runner.Ops) != 0 {
+		t.Fatalf("missing hub startup launched a helper: slots=%+v ops=%v", snapshot.Slots, env.Runner.Ops)
 	}
 }
 

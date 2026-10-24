@@ -550,16 +550,42 @@ func (b *Broker) Actors(parent context.Context, caller Binding) ([]Candidate, er
 
 // Send acknowledges mailbox admission, never model or task completion.
 func (b *Broker) Send(parent context.Context, from Binding, id string, route Route, body string) (Receipt, error) {
-	return b.send(parent, from, id, route, body, OriginPeer)
+	return b.send(parent, from, id, route, body, OriginPeer, nil)
+}
+
+// AdmissionGuard runs under the broker mutex immediately before the first
+// in-memory mailbox commit. It may acquire a policy mutex and return its unlock
+// function; the broker holds that policy lock through the commit. The lock order
+// is broker then policy. Guards and release functions must do no IO, call no
+// broker methods, and invoke no callbacks that do IO or reenter the broker.
+// A nil guard permits admission. On refusal, a guard must release its own locks.
+// Guards are neither retained nor rerun when already-admitted work is promoted.
+type AdmissionGuard func(to Binding) (release func(), err error)
+
+// admissionPolicyError prevents family routing from trying another recipient
+// after the occurrence's policy has refused it; Unwrap preserves its sentinel.
+type admissionPolicyError struct{ error }
+
+func (e *admissionPolicyError) Unwrap() error { return e.error }
+
+func checkAdmissionPolicy(guard AdmissionGuard, to Binding) (func(), error) {
+	if guard == nil {
+		return nil, nil
+	}
+	release, err := guard(to)
+	if err != nil {
+		return nil, &admissionPolicyError{err}
+	}
+	return release, nil
 }
 
 // SendSystem admits a supervisor-generated notice through the ordinary mailbox.
 // It is deliberately absent from the external request protocol.
-func (b *Broker) SendSystem(parent context.Context, from Binding, id string, route Route, body string) (Receipt, error) {
-	return b.send(parent, from, id, route, body, OriginSystem)
+func (b *Broker) SendSystem(parent context.Context, from Binding, id string, route Route, body string, guard AdmissionGuard) (Receipt, error) {
+	return b.send(parent, from, id, route, body, OriginSystem, guard)
 }
 
-func (b *Broker) send(parent context.Context, from Binding, id string, route Route, body string, origin Origin) (Receipt, error) {
+func (b *Broker) send(parent context.Context, from Binding, id string, route Route, body string, origin Origin, guard AdmissionGuard) (Receipt, error) {
 	if !origin.Valid() {
 		return Receipt{}, errors.New("unknown message origin")
 	}
@@ -609,7 +635,7 @@ func (b *Broker) send(parent context.Context, from Binding, id string, route Rou
 	pending := &admission{origin: origin, from: from, route: route, body: body, done: make(chan struct{})}
 	b.admissions[id] = pending
 	b.mu.Unlock()
-	receipt, families, err := b.admit(ctx, sender, from, id, route, body, origin)
+	receipt, families, err := b.admit(ctx, sender, from, id, route, body, origin, guard)
 	b.mu.Lock()
 	if _, stored := b.receipts[id]; err != nil && !stored {
 		err = b.refuseLocked(from, id, route, body, err, families, origin)
@@ -622,7 +648,7 @@ func (b *Broker) send(parent context.Context, from Binding, id string, route Rou
 	b.mu.Unlock()
 	return receipt, err
 }
-func (b *Broker) admit(ctx context.Context, sender *SlotActor, from Binding, id string, route Route, body string, origin Origin) (Receipt, map[string]string, error) {
+func (b *Broker) admit(ctx context.Context, sender *SlotActor, from Binding, id string, route Route, body string, origin Origin, guard AdmissionGuard) (Receipt, map[string]string, error) {
 	family := !strings.Contains(route.Target, ":")
 	families, err := b.readFamilies(ctx)
 	if err != nil {
@@ -663,14 +689,14 @@ func (b *Broker) admit(ctx context.Context, sender *SlotActor, from Binding, id 
 		}
 		a := b.actors[to]
 		if !family && (a.reservation != "" || len(a.inbox) != 0 || actorCandidate(a, b.now()).Pending) {
-			receipt, err := b.enqueueLocked(a, from, id, route, body, origin)
+			receipt, err := b.enqueueLocked(a, from, id, route, body, origin, guard)
 			b.mu.Unlock()
 			return receipt, families, err
 		}
 		a.reservation = id
 		seq := a.sequence
 		b.mu.Unlock()
-		receipt, err := b.tryAdmission(ctx, a, seq, sender, from, id, route, body, family, origin)
+		receipt, err := b.tryAdmission(ctx, a, seq, sender, from, id, route, body, family, origin, guard)
 		if err == nil {
 			return receipt, families, nil
 		}
@@ -693,16 +719,17 @@ func (b *Broker) admit(ctx context.Context, sender *SlotActor, from Binding, id 
 			if b.actors[to] != a || !b.caller(to) {
 				return Receipt{}, families, fmt.Errorf("recipient %s admission: %w", to.Slot, ErrUnavailable)
 			}
-			receipt, err := b.enqueueLocked(a, from, id, route, body, origin)
+			receipt, err := b.enqueueLocked(a, from, id, route, body, origin, guard)
 			return receipt, families, err
 		}
-		if !family {
+		var policyErr *admissionPolicyError
+		if !family || errors.As(err, &policyErr) {
 			return Receipt{}, families, err
 		}
 		tried[to] = true
 	}
 }
-func (b *Broker) tryAdmission(ctx context.Context, a *SlotActor, seq uint64, sender *SlotActor, from Binding, id string, route Route, body string, family bool, origin Origin) (Receipt, error) {
+func (b *Broker) tryAdmission(ctx context.Context, a *SlotActor, seq uint64, sender *SlotActor, from Binding, id string, route Route, body string, family bool, origin Origin, guard AdmissionGuard) (Receipt, error) {
 	// The binding itself never changes on a SlotActor; reconnect installs a new
 	// actor retaining the old actor's model state.
 	to := a.binding
@@ -752,6 +779,13 @@ func (b *Broker) tryAdmission(ctx context.Context, a *SlotActor, seq uint64, sen
 	if len(a.inbox) != 0 || a.state.Queued() > 0 {
 		return Receipt{}, ErrRecipientBusy
 	}
+	release, err := checkAdmissionPolicy(guard, to)
+	if err != nil {
+		return Receipt{}, err
+	}
+	if release != nil {
+		defer release()
+	}
 	now := b.now()
 	m := Message{Origin: origin, ID: id, From: from, To: to, Body: body, Deadline: now.Add(PasteTimeout), AcceptedAt: now}
 	if err = b.apply(a, Event{Kind: Admit, Binding: to, Message: m, At: now}); err != nil {
@@ -766,7 +800,14 @@ func (b *Broker) tryAdmission(ctx context.Context, a *SlotActor, seq uint64, sen
 
 // enqueueLocked lines an exact message up behind the recipient's delivery
 // (pair#492) and wakes the worker that promotes it.
-func (b *Broker) enqueueLocked(a *SlotActor, from Binding, id string, route Route, body string, origin Origin) (Receipt, error) {
+func (b *Broker) enqueueLocked(a *SlotActor, from Binding, id string, route Route, body string, origin Origin, guard AdmissionGuard) (Receipt, error) {
+	release, err := checkAdmissionPolicy(guard, a.binding)
+	if err != nil {
+		return Receipt{}, err
+	}
+	if release != nil {
+		defer release()
+	}
 	now := b.now()
 	m := Message{Origin: origin, ID: id, From: from, To: a.binding, Body: body, Deadline: now.Add(PasteTimeout), AcceptedAt: now}
 	if err := b.apply(a, Event{Kind: Enqueue, Binding: a.binding, Message: m, At: now}); err != nil {

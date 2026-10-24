@@ -21,6 +21,7 @@ type MenuControl struct {
 
 var menuControls = []MenuControl{
 	{Keys: "typeahead", Action: "filter"},
+	{Keys: "Ctrl+G", Action: "toggle the selected hub automation on/off"},
 	{Keys: "Ctrl+Y", Action: "copy the full last notice from the switcher"},
 	{Keys: "Space", Action: "toggle normal/focus view when filter is empty"},
 	{Keys: "↑↓", Action: "select"},
@@ -524,6 +525,9 @@ func ReduceMenu(state MenuState, event MenuEvent) (MenuState, []MenuEffect) {
 	}
 	if event.Kind == MenuEventNotice {
 		next.Notice = errorMenuNotice(event.Error)
+		if event.Success {
+			next.Notice.Level = MenuNoticeInfo
+		}
 		return next, nil
 	}
 	if event.Kind == MenuEventParkHotkey {

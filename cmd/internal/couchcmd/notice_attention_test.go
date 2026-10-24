@@ -153,7 +153,7 @@ func TestCrashCaptureFailureRaisesAttention(t *testing.T) {
 
 func TestHubStartupFailureRaisesAttention(t *testing.T) {
 	r := newHubStartupRig(t, false)
-	r.rt.runner.FailNextStartIn(r.paths[1], errors.New("second hub unavailable"))
+	r.c.Runner = hubRefusingRunner{Runner: r.rt.runner, path: r.paths[1]}
 	startExplicitHubs(r.console, r.hubs)
 	r.run(t)
 	if call := r.await(t, "start-hub"); call.err == nil {

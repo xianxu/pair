@@ -13,6 +13,9 @@ import (
 func pairCatalogFor(filename string) []golint.Rule {
 	catalog := append([]golint.Rule(nil), pairCatalog...)
 	for i := range catalog {
+		if catalog[i].Name == "test-fifo-empty-handoff" && strings.HasSuffix(filename, "_test.go") {
+			catalog[i].Match = emptyFIFOHandoffs
+		}
 		if catalog[i].Name == "slash-command-submit" {
 			catalog[i].Match = func(file *ast.File) []ast.Node { return slashCommandSubmits(filename, file) }
 		}

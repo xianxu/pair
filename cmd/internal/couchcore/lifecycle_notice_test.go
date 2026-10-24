@@ -421,3 +421,62 @@ func TestLifecycleNoticeExitedPublishesAndCoalesces(t *testing.T) {
 		t.Fatal("an unknown kind validated")
 	}
 }
+
+func TestLifecycleNoticeSuppressionRetiresObservationWithoutPublication(t *testing.T) {
+	var state LifecycleNoticeState
+	fact := noticeFact("slot", 1)
+	fact.Outcome = "suppressed"
+	if len(noticePublications(noticeStep(&state, fact))) != 0 {
+		t.Fatal("suppressed observation published")
+	}
+	if effects := noticeReady(&state); len(effects) != 0 {
+		t.Fatalf("readiness replayed consumed fact: %+v", effects)
+	}
+	if current := state.facts["slot"]; current.retired != 1 || current.changes != 0 {
+		t.Fatalf("suppression not retired: %+v", current)
+	}
+	if effects := noticeStep(&state, noticeFact("slot", 1)); len(effects) != 0 {
+		t.Fatal("same observation replayed")
+	}
+	if effects := noticePublications(noticeStep(&state, noticeFact("slot", 2))); len(effects) != 1 || strings.Contains(effects[0].Body, "changes") {
+		t.Fatalf("fresh fact lost or old changes replayed: %+v", effects)
+	}
+}
+
+func TestLifecycleNoticeSuppressedAdmissionRetiresFrozenOnlySilently(t *testing.T) {
+	var state LifecycleNoticeState
+	noticeStep(&state, noticeFact("slot", 1))
+	first := noticePublications(noticeReady(&state))[0]
+	noticeStep(&state, noticeFact("slot", 2))
+	effects := noticeStep(&state, LifecycleNoticeEvent{Kind: LifecycleNoticeAdmission, Hub: first.Hub, Token: first.Token, Outcome: "suppressed"})
+	for _, effect := range effects {
+		if effect.Kind == LifecycleNoticeDiagnostic {
+			t.Fatal("intentional suppression reported a failure")
+		}
+	}
+	next := noticePublications(effects)
+	if len(next) != 1 || state.facts["slot"].retired != 1 || strings.Contains(next[0].Body, "changes") {
+		t.Fatalf("suppression did not preserve newer fact: %+v", effects)
+	}
+	// The late canonical receipt belongs to the retired token and cannot consume
+	// the newer revision or make a second publication.
+	if effects := noticeStep(&state, LifecycleNoticeEvent{Kind: LifecycleNoticeReceipt, Hub: first.Hub, Token: first.Token, Outcome: "submitted"}); len(effects) != 0 {
+		t.Fatal("late suppressed receipt changed newer attempt")
+	}
+}
+
+func TestLifecycleNoticeSuppressHubRetiresPendingPartsAndCancelsToken(t *testing.T) {
+	var state LifecycleNoticeState
+	noticeStep(&state, noticeFact("slot", 1))
+	first := noticePublications(noticeReady(&state))[0]
+	effects := noticeStep(&state, LifecycleNoticeEvent{Kind: LifecycleNoticeSuppressHub, Hub: "/hub"})
+	if len(effects) != 1 || effects[0].Kind != LifecycleNoticeCancel || effects[0].Token != first.Token {
+		t.Fatalf("old attempt not cancelled: %+v", effects)
+	}
+	if len(noticeReady(&state)) != 0 || state.facts["slot"].retired != 1 || len(state.hubs["/hub"].parts) != 0 {
+		t.Fatal("suppression retained backlog")
+	}
+	if effects := noticePublications(noticeStep(&state, noticeFact("slot", 2))); len(effects) != 1 {
+		t.Fatal("future fact could not publish")
+	}
+}

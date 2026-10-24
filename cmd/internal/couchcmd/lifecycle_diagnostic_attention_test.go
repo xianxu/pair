@@ -19,7 +19,7 @@ func TestLifecycleMissingMetadataDiagnosticRaisesAttention(t *testing.T) {
 		published <- struct{}{}
 	})
 	p.observe(couchtty.LifecycleObservation{Kind: "restart-armed"})
-	p.observe(couchtty.LifecycleObservation{Kind: "recovered", Path: "/unverified-slot", Incarnation: "source", Observation: 1})
+	p.observe(couchtty.LifecycleObservation{Kind: "recovered", Path: "/unverified-slot", Initiation: "operator", Incarnation: "source", Observation: 1})
 	p.observe(couchtty.LifecycleObservation{Kind: "restart-drained"})
 	// observe queues a diagnostic; it does not join the publisher worker.
 	// Acknowledge this producer's actual Warn call before sending panel input.
@@ -42,7 +42,7 @@ func TestLifecycleCapacityWarningIsOncePerPublisherLifetime(t *testing.T) {
 	warnings := 0
 	for i := range 100 {
 		p.mu.Lock()
-		p.observeFactLocked(lifecycleSlotObservation(2, uint64(i+1)))
+		p.observeFactLocked(lifecycleSlotObservation(2, uint64(i+1)), p.automationSnapshot())
 		for _, diagnostic := range p.diagnostics {
 			if diagnostic.actionable {
 				warnings++
