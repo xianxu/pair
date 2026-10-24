@@ -2,6 +2,27 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createOperatorSketchTransport, createOperatorSketchReceiver } from '../../cmd/internal/webcast/operator-sketch.js';
 
+test('live receiver gates old and delayed bootstraps by confirmed scope and delivery epoch',()=>{
+ const a={target:'A',loader:'L',root:'9007199254740993'},b={...a,target:'B'};
+ const model={page_load_ready:true,page_load:a,sketch_cursor:{epoch:'A1',seq:0}};
+ const receiver=createOperatorSketchReceiver(()=>{},()=>model);let serial=0;
+ const install=(epoch,id,doc)=>{
+  const value={bootstrap:{epoch,seq:0,display:{sketches:[{begin:{id,author:{id:'operator',color:'#ff0000'},doc,tab:'tab'},phase:'complete',label:id,reason:'',strokes:[{begin:{id:'p',at:{node:7,box:[0,0,100,100]},width:3},pts:[[10,10,.5]],visible:true,sealed:true,truncated:false}]}]}}};
+  const bytes=new TextEncoder().encode(JSON.stringify(value)),handle='scope-'+(++serial);
+  receiver.receive({phase:'begin',handle,epoch,total:bytes.length});
+  receiver.receive({phase:'chunk',handle,epoch,total:bytes.length,offset:0,base64:Buffer.from(bytes).toString('base64')});
+ };
+ install('A1','saved-A',1);assert.equal(receiver.paths()[0].sketch,'saved-A');assert.equal(receiver.hasCurrentAnchor(7),true);
+ model.page_load_ready=false;model.page_load=null;model.sketch_cursor.epoch='pending';
+ assert.deepEqual(receiver.paths(),[]);assert.equal(receiver.hasAnchor(1,7),false);assert.equal(receiver.hasCurrentAnchor(7),false);
+ model.page_load_ready=true;model.page_load=b;model.sketch_cursor.epoch='B1';
+ assert.deepEqual(receiver.paths(),[]);assert.equal(receiver.hasCurrentAnchor(7),false);install('A1','delayed-A',1);assert.deepEqual(receiver.paths(),[]);
+ install('B1','saved-B',3);assert.equal(receiver.paths()[0].sketch,'saved-B');
+ model.page_load=a;model.sketch_cursor.epoch='A2';assert.deepEqual(receiver.paths(),[]);
+ install('A2','saved-A',1);assert.equal(receiver.paths()[0].source.doc,1);
+ model.paused=true;assert.equal(receiver.paths()[0].sketch,'saved-A');assert.equal(receiver.hasCurrentAnchor(7),true);receiver.retire();
+});
+
 test('console sketch transport retains original permission on unknown retry and joins close',async()=>{
  const sent=[],timers=new Map();let serial=0,generation='1';
  const win={setTimeout(fn,ms){timers.set(++serial,{fn,ms});return serial;},clearTimeout(id){timers.delete(id);}};

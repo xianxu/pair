@@ -3,6 +3,7 @@ import { createPlacement } from './web/annotation-placement.js';
 import { createFeedbackVisibility } from './web/feedback-visibility.js';
 import { feedbackLayout } from './web/feedback-layout.js';
 import { mountCastTools } from './web/cast-tools.js';
+import { copyPageLoad, feedbackReady } from './web/page-load.js';
 
 // Trusted adapter inside couchcast, never the page's JavaScript world.
 export function operatorTransport(report, win) {
@@ -98,20 +99,20 @@ export function mountOperator({ host, root, report, liveButton, banner }, { anno
   // matching text remain replacement evidence, never an original-node map.
   // Recorder IDs increase across documents; backend IDs are never used here.
   const originals = new Map();
-  let originalDocument = 0, visibleNodeIDs = new Set(), sketchMount = null;
-  const wantsOriginal = (id) => visibleNodeIDs.has(id) || sketchMount?.receiver?.hasAnchor(originalDocument,id) === true;
+  let originalDocument = 0, visibleNodeIDs = new Set(), sketchMount = null, originalLoadReady = false;
+  const wantsOriginal = (id) => originalLoadReady&&(visibleNodeIDs.has(id) || (sketchMount?.receiver?.hasCurrentAnchor?.(id) === true || sketchMount?.receiver?.hasAnchor(originalDocument,id) === true));
   // A tab can retain its isolated world and DOM while the recorder gives its
   // next visit a new document number. Keep only already-proven bindings whose
   // historical sketch anchor remains in the receiver's bounded anchor index.
   const retainsOriginal = (id, binding) =>
-    (binding.document === originalDocument && visibleNodeIDs.has(id)) ||
-    sketchMount?.receiver?.hasAnchor(binding.document,id) === true;
+    originalLoadReady&&((binding.document === originalDocument && wantsOriginal(id)) ||
+    sketchMount?.receiver?.hasAnchor(binding.document,id) === true);
   const view = {
     tools,
     feedbackMask,
     onVisibility(fn){return visibility.onInvalidate(fn);},
     onFeedback(fn){feedbackHooks.add(fn);return()=>feedbackHooks.delete(fn);},
-    model: { seg: 0, docSeg: 0, notes: [] },
+    model: { seg: 0, docSeg: 0, notes: [], page_load_ready:false, page_load:null },
     onRecord(fn) { callbacks.add(fn); return () => callbacks.delete(fn); },
     toPage: (x, y) => [x + win.scrollX, y + win.scrollY],
     fromPage: (x, y) => [x - win.scrollX, y - win.scrollY],
@@ -126,7 +127,7 @@ export function mountOperator({ host, root, report, liveButton, banner }, { anno
   visibility=createFeedbackVisibility({
     context:()=>{
       const context=view.model.feedback_context;
-      if(!context||!view.model.docSeg||context.doc!==view.model.docSeg||view.model.ended||context.url!==win.location?.href)throw Error('Feedback source context is not ready.');
+      if(!feedbackReady(view.model)||!context||!view.model.docSeg||context.doc!==view.model.docSeg||view.model.ended||context.url!==win.location?.href)throw Error('Feedback source context is not ready.');
       return {...context,url:win.location.href,title:typeof doc.title==='string'?doc.title:context.title,
         vp:{w:win.innerWidth,h:win.innerHeight,dpr:win.devicePixelRatio||1},scroll:[win.scrollX||0,win.scrollY||0]};
     },
@@ -214,14 +215,18 @@ export function mountOperator({ host, root, report, liveButton, banner }, { anno
     // missing/stale evidence before consuming this outer revision or its notes.
     feedbackMask.install(snapshot.feedback_mask,{rejectStale:true});
     revision = snapshot.revision;
+    const load = snapshot.page_load_ready===true ? copyPageLoad(snapshot.page_load) : null;
+    originalLoadReady = !!load;
+    const notes = originalLoadReady ? snapshot.notes : [];
     originalDocument = snapshot.doc;
-    visibleNodeIDs = new Set(snapshot.notes.map(note => note.at?.node));
+    visibleNodeIDs = new Set(notes.map(note => note.at?.node));
+    view.model = { seg: snapshot.seg, docSeg: snapshot.doc, feedback_context:snapshot.feedback_context,note_revisions:snapshot.note_revisions,
+      page_load_ready:originalLoadReady,page_load:load,sketch_cursor:snapshot.sketch_cursor,
+      paused: snapshot.paused, live: !snapshot.paused && !snapshot.ended, ended: snapshot.ended, driver: snapshot.driver, notes: notes.map((note) => ({ note, seg: snapshot.doc, state: 'open' })) };
     for (const [id,binding] of originals) if (!retainsOriginal(id,binding)) originals.delete(id);
     transport.setScope(snapshot.doc, snapshot.ended);
-    view.model = { seg: snapshot.seg, docSeg: snapshot.doc, feedback_context:snapshot.feedback_context,note_revisions:snapshot.note_revisions,
-      paused: snapshot.paused, live: !snapshot.paused && !snapshot.ended, ended: snapshot.ended, driver: snapshot.driver, notes: snapshot.notes.map((note) => ({ note, seg: snapshot.doc, state: 'open' })) };
     callback({ k: 'view', t: snapshot.t }, view.model);
-    for (const stroke of snapshot.strokes) {
+    for (const stroke of originalLoadReady ? snapshot.strokes : []) {
       if (stroke.seq <= strokeSeq) continue;
       strokeSeq = stroke.seq;
       callback({ ...stroke, k: 'stroke' }, view.model);

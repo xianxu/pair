@@ -455,8 +455,9 @@ func (b *Board) pageLocked(seg int) (int, error) {
 // openLocked counts a color's open notes on this page, pending included.
 func (b *Board) openLocked(color int) int {
 	n := 0
-	for _, l := range b.model.Live(b.st) {
-		if l.State == recording.NoteOpen && l.Author.Color == b.palette[color] {
+	load := b.currentPageLoadLocked()
+	for _, l := range b.st.Notes {
+		if l.State == recording.NoteOpen && b.st.OnPageLoad(l.Seg, load) && l.Author.Color == b.palette[color] {
 			n++
 		}
 	}

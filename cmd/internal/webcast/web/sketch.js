@@ -3,6 +3,7 @@ import { createSketchRecordDisplay, paintSketchPaths, createSketchPaintScheduler
 import { sketchNoteEntries } from './sketch-notes.js';
 import { mountFeedbackPanel } from './feedback-panel.js';
 import { mountFeedbackGlow } from './feedback-glow.js';
+import { feedbackReady, feedbackScopeKey, onFeedbackPage } from './page-load.js';
 
 // The controller owns input and drafts. The injected scene owns frozen DOM;
 // send/status are the only mutation/reconciliation boundary.
@@ -13,6 +14,7 @@ export function mountSketch(doc, win, view, options) {
   const gesture = createSketchGesture();
   let displayModel = view.model;
   let recordDisplay = options.paths ? null : createSketchRecordDisplay(displayModel);
+  let loadScope = feedbackScopeKey(view.model);
   const requests = new Set(),
     requestObservers = new Map(),
     placements = new Map();
@@ -41,6 +43,7 @@ export function mountSketch(doc, win, view, options) {
     message = '',
     paintGeneration = 0,
     entering = false,
+    entryGeneration = 0,
     deferredExit = null,
     finishDeadline = null,
     recoveryEnd = null,
@@ -126,7 +129,8 @@ export function mountSketch(doc, win, view, options) {
     view.feedbackVisibility?.invalidate();
     const s = state(),
       drawing = s.phase === 'drawing';
-    layer.style.pointerEvents = drawing ? 'auto' : 'none';
+    const ready = feedbackReady(view.model);
+    layer.style.pointerEvents = drawing && ready ? 'auto' : 'none';
     layer.style.touchAction = 'none';
     observer.style.pointerEvents = 'none';
     panel.hidden = !labelTarget;
@@ -135,7 +139,7 @@ export function mountSketch(doc, win, view, options) {
     colors.disabled = ['preparing', 'drawing', 'finishing', 'label-required', 'reconciling', 'paused'].includes(s.phase);
     retryButton.hidden = s.phase !== 'reconciling';
     continueButton.hidden = !canContinue();
-    sketchButton.disabled = !s.allowed || !s.live || s.ended;
+    sketchButton.disabled = !ready || !s.allowed || !s.live || s.ended;
     const unavailable = unavailableReason(s);
     sketchButton.title = unavailable || 'Sketch (pen)';
     sketchButton.setAttribute('aria-pressed', String(entering || drawingMode));
@@ -414,6 +418,7 @@ export function mountSketch(doc, win, view, options) {
     e.stopPropagation?.();
   }
   function down(e) {
+    if (!feedbackReady(view.model)) return;
     consumePointer(e);
     if (state().phase !== 'drawing' || contact || e.isPrimary === false || e.button !== 0 || !e.buttons)
       return;
@@ -561,11 +566,11 @@ export function mountSketch(doc, win, view, options) {
     }
   }
   async function enter() {
-    if (disposed || entering) return;
+    if (disposed || entering || !feedbackReady(view.model)) return;
     dispatch({ type: 'sync', ...options.authority() });
     if (!state().allowed || !state().live || state().ended) return;
     entering = true;
-    const stamp = generation;
+    const entry = ++entryGeneration, stamp = generation;
     try {
       await scene.preflight?.();
       if (disposed || generation !== stamp) return;
@@ -581,12 +586,15 @@ export function mountSketch(doc, win, view, options) {
       }
       await idle();
     } catch (error) {
+      if (disposed || entryGeneration !== entry) return;
       message = 'The held scene is unavailable. Try Sketch again.';
       show();
     } finally {
-      entering = false;
-      deferredExit = null;
-      show();
+      if (!disposed && entryGeneration === entry) {
+        entering = false;
+        deferredExit = null;
+        show();
+      }
     }
   }
   function finishingDeadline() {
@@ -630,7 +638,7 @@ export function mountSketch(doc, win, view, options) {
     return false;
   }
   function openLabel(key) {
-    if (disposed || state().slots.find((s) => s.sketch === key)?.finishing) return;
+    if (disposed || !feedbackReady(view.model) || state().slots.find((s) => s.sketch === key)?.finishing) return;
     const changed = labelTarget !== key;
     if (changed) labelInput.value = drafts.get(key) || '';
     labelTarget = key;
@@ -639,7 +647,7 @@ export function mountSketch(doc, win, view, options) {
     if (changed) labelInput.focus();
   }
   async function saveLabel() {
-    if (!labelTarget) return;
+    if (!labelTarget || !feedbackReady(view.model)) return;
     const key = labelTarget, label = labelInput.value;
     reconcileSketches();
     let slot = state().slots.find((s) => s.sketch === key);
@@ -734,8 +742,8 @@ export function mountSketch(doc, win, view, options) {
     const visibilityToken=view.feedbackVisibility?.token();
     const stamp = ++paintGeneration,
       sceneGeneration = generation;
-    const allPaths = options.paths ? options.paths() : recordDisplay.paths();
-    const paths = view.feedbackMask ? allPaths.filter(p=>view.feedbackMask.sketchVisible(p.sketch, options.sketchMetadata ? options.sketchMetadata(p.sketch) : recordDisplay?.metadata(p.sketch))) : allPaths;
+    const allPaths = feedbackReady(view.model) ? (options.paths ? options.paths() : recordDisplay.paths()) : [];
+    const paths = allPaths.filter(p=>onFeedbackPage(view.model,p.source?.doc)&&(!view.feedbackMask||view.feedbackMask.sketchVisible(p.sketch, options.sketchMetadata ? options.sketchMetadata(p.sketch) : recordDisplay?.metadata(p.sketch))));
     const liveKeys = new Set();
     const targets = await Promise.all(
       paths.map((p) => {
@@ -936,6 +944,20 @@ export function mountSketch(doc, win, view, options) {
   }
   const unsubscribe = view.onRecord?.((r) => {
     if (disposed) return;
+    const nextScope = feedbackScopeKey(view.model);
+    if (nextScope !== loadScope) {
+      loadScope = nextScope;
+      // Retire local controller work only; accepted recording/display history
+      // is not cleared and can be projected again on the same load's return.
+      paintGeneration++;
+      entryGeneration++; entering = false; deferredExit = null; labelTarget = null; drafts.clear();
+      dispatch({type:'clear'});
+      cancel(); scene.dispose(); sceneSketch = null; setDrawingMode(false);
+      placements.clear(); ink.clear(); seenInk.clear(); hoverPaint = null;
+      glow.clear(); notesPanel.clearHighlight(); notesPanel.setSketches([]);
+      for (const canvas of [observer,layer]) canvas.getContext('2d')?.clearRect(0,0,canvas.width,canvas.height);
+      message = ''; show();
+    }
     if ((!scene.ready && !r.k.startsWith('sketch-')) || r.k === 'sketch-snapshot') {
       placements.clear();
       forceInk = true;

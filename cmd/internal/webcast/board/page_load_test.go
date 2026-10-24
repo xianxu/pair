@@ -6,6 +6,7 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/xianxu/pair/cmd/internal/broadcast"
 	"github.com/xianxu/pair/cmd/internal/webcast/recording"
 )
 
@@ -342,5 +343,20 @@ func TestPageLoadOperatorWireOwnedAndPauseKeepsScope(t *testing.T) {
 	view = r.bd.OperatorView()
 	if view.PageLoadReady || view.PageLoad != nil || r.bd.CurrentPageLoad() != nil {
 		t.Fatal("pending view claimed known load")
+	}
+}
+
+func TestPageLoadColorQuotaFollowsSameLoadReturn(t *testing.T) {
+	a := &recording.PageLoad{Target: "A", Loader: "L1", Root: 1}
+	r := loadPage(newRig(t), recording.SegLive, a)
+	for i := 0; i < broadcast.MaxNotesPerColor; i++ {
+		if _, err := r.note(r.p1.ID, 0); err != nil {
+			t.Fatal(err)
+		}
+	}
+	loadPage(r, recording.SegTab, &recording.PageLoad{Target: "B", Loader: "L2", Root: 1})
+	loadPage(r, recording.SegTab, a)
+	if _, err := r.note(r.p1.ID, 0); !errors.Is(err, ErrColorFull) {
+		t.Fatalf("same-load quota reset on activation: %v", err)
 	}
 }

@@ -188,11 +188,13 @@ test('anchor membership retains empty and undone accepted strokes with exact sou
   const d = createSketchDisplay();
   d.install(bootstrap());
   assert.equal(d.hasAnchor(1, 7), true);
+  assert.equal(d.hasCurrentAnchor(7), true);
   assert.equal(d.hasAnchor(2, 7), false);
   assert.equal(d.hasAnchor(1, 8), false);
   assert.equal(d.hasAnchor('1', 7), false);
   d.apply({ sketch: 's', stroke: { id: 'p', sealed: true, visible: false } });
   assert.equal(d.hasAnchor(1, 7), true);
+  assert.equal(d.hasCurrentAnchor(7), true);
   d.apply({
     sketch: 's',
     stroke: {
@@ -204,6 +206,7 @@ test('anchor membership retains empty and undone accepted strokes with exact sou
   assert.equal(d.hasAnchor(1, 8), true);
   d.apply({ sketch: 's', header: { phase: 'cleared' } });
   assert.equal(d.hasAnchor(1, 7), false);
+  assert.equal(d.hasCurrentAnchor(7), false);
   assert.equal(d.hasAnchor(1, 8), false);
 });
 test('anchor index install/clear and rejected batches are atomic, shared anchor membership survives other clears', async () => {
@@ -216,6 +219,7 @@ test('anchor index install/clear and rejected batches are atomic, shared anchor 
   d.install(view);
   d.apply({ sketch: 's', header: { phase: 'cleared' } });
   assert.equal(d.hasAnchor(1, 7), true);
+  assert.equal(d.hasCurrentAnchor(7), true);
   const before = d.stats();
   assert.throws(() =>
     d.applyBatch([
@@ -225,21 +229,26 @@ test('anchor index install/clear and rejected batches are atomic, shared anchor 
   );
   assert.equal(d.hasAnchor(1, 99), false);
   assert.equal(d.hasAnchor(1, 7), true);
+  assert.equal(d.hasCurrentAnchor(7), true);
   assert.deepEqual(d.stats(), before);
   assert.throws(() =>
     d.applyBatch([{ clear: true }, { sketch: 'absent', points: { id: 'p', offset: 0, pts: [[1, 2, 0.5]] } }]),
   );
   assert.equal(d.hasAnchor(1, 7), true);
+  assert.equal(d.hasCurrentAnchor(7), true);
   const broken = bootstrap();
   broken.sketches[0].strokes[0].pts = [[NaN, 2, 0.5]];
   assert.throws(() => d.install(broken));
   assert.equal(d.hasAnchor(1, 7), true);
+  assert.equal(d.hasCurrentAnchor(7), true);
   d.apply({ clear: true });
   assert.equal(d.hasAnchor(1, 7), false);
+  assert.equal(d.hasCurrentAnchor(7), false);
   const cleared = bootstrap();
   cleared.sketches[0].phase = 'cleared';
   d.install(cleared);
   assert.equal(d.hasAnchor(1, 7), false);
+  assert.equal(d.hasCurrentAnchor(7), false);
 });
 test('8/16 point chunks never rebuild or revisit anchor metadata', async () => {
   const { createSketchDisplay } = await mod();
@@ -251,6 +260,7 @@ test('8/16 point chunks never rebuild or revisit anchor metadata', async () => {
     for (let i = 0; i < n; i++) d.apply({ sketch: 's', points: { id: 'p', offset: i, pts: [[i, 2, 0.5]] } });
     assert.equal(d.stats().anchorVisits, visits);
     assert.equal(d.hasAnchor(1, 7), true);
+  assert.equal(d.hasCurrentAnchor(7), true);
     assert.equal(d.stats().points, n);
   }
 });
@@ -274,4 +284,18 @@ test('painter returns pressure-expanded bounds from only its existing projection
   assert.equal(visits,n);assert.deepEqual(bounds,{left:-2,top:-402,right:n+1,bottom:n-399});
  }
  assert.equal(paintSketchPaths(g,[{width:4,pts:[[NaN,1,.5]]}]),null);
+});
+
+test('32/64 metadata anchor updates keep load-wide membership without rescanning point history', async () => {
+ const {createSketchDisplay}=await mod();
+ for(const n of [32,64]) {
+  const d=createSketchDisplay();d.install(bootstrap());const before=d.stats();
+  for(let i=1;i<n;i++)d.apply({sketch:'s',stroke:{begin:{id:'p'+i,at:{node:7+i,box:[0,0,1,1]},width:4}}});
+  assert.equal(d.stats().points,before.points);assert.equal(d.stats().anchorVisits-before.anchorVisits,n-1);
+  for(let i=0;i<n;i++)assert.equal(d.hasCurrentAnchor(7+i),true);
+  const visits=d.stats().anchorVisits;
+  for(let i=0;i<n;i++)d.apply({sketch:'s',points:{id:i?'p'+i:'p',offset:0,pts:[[1,2,.5]]}});
+  assert.equal(d.stats().anchorVisits,visits);assert.equal(d.stats().points,n);
+  d.install({sketches:[]});assert.equal(d.hasCurrentAnchor(7),false);
+ }
 });

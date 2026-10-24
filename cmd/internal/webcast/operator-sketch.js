@@ -1,6 +1,7 @@
 import { mountSketch } from './web/sketch.js';
 import { createSketchDisplay } from './web/sketch-render.js';
 import { createSketchDelivery, createSketchTransfer } from './web/sketch-delivery.js';
+import { feedbackLoad, feedbackReady } from './web/page-load.js';
 
 // One context owns this transport. Its operation permissions survive timeout
 // and document-only updates; destruction closes every pending promise.
@@ -33,10 +34,14 @@ export function createOperatorSketchTransport(report, win, generation) {
   },close(){closed=true;for(const p of pending.values()){win.clearTimeout(p.timer);p.reject(Error('Sketch context retired.'));}pending.clear();origins.clear();}};
 }
 
-export function createOperatorSketchReceiver(changed){
+export function createOperatorSketchReceiver(changed,scope=()=>null){
   const display=createSketchDisplay(),transfer=createSketchTransfer();let completed=null,retired=false;
   const delivery=createSketchDelivery({installBootstrap:value=>display.install(value),applyBatch:patches=>display.applyBatch(patches)});
-  return {metadata:(sketch,stroke)=>display.metadata(sketch,stroke),paths:()=>display.paths({borrow:true}),hasAnchor:(document,node)=>display.hasAnchor(document,node),cursor:()=>delivery.cursor(),receive(message){
+  const visible=()=>{
+    const model=scope();
+    return !model||feedbackLoad(model)===undefined||feedbackReady(model)&&delivery.cursor().epoch===model.sketch_cursor?.epoch;
+  };
+  return {metadata:(sketch,stroke)=>display.metadata(sketch,stroke),paths:()=>visible()?display.paths({borrow:true}):[],hasAnchor:(document,node)=>visible()&&display.hasAnchor(document,node),hasCurrentAnchor:node=>visible()&&display.hasCurrentAnchor(node),cursor:()=>delivery.cursor(),receive(message){
     if(retired)throw Error('Sketch context retired.');
     if(message.phase==='begin'){
       const current=transfer.cursor();
@@ -65,7 +70,7 @@ export function mountOperatorSketch({host,root,box,report,view,annotation,palett
   let authority={epoch:0,holder:'operator',ready:false,generation:null},frame=null,ready=null,disposed=false,bypass=false,sceneVersion=0,opening=null;
   const transport=createOperatorSketchTransport(envelope=>report({t:'sketch',request:envelope}),win,()=>authority.generation);
   let tool;
-  const receiver=createOperatorSketchReceiver(payload=>{tool?.reconcileSketches({authoritative:true,clear:payload.batch?.patches.some(p=>p.clear===true)});tool?.refresh();});
+  const receiver=createOperatorSketchReceiver(payload=>{tool?.reconcileSketches({authoritative:true,clear:payload.batch?.patches.some(p=>p.clear===true)});tool?.refresh();},()=>view.model);
   const submissionPreview=createOperatorSubmissionPreview({root,receiver,setStatus:(key,text)=>annotation.notes?.setStatus(key,text)},doc);
   const ask=(kind,body={},epoch=authority.epoch)=>transport.ask(kind,body,epoch,kind==='scene-prepare'?60000:5000);
   const bounds=()=>box.getBoundingClientRect();
@@ -111,7 +116,7 @@ export function mountOperatorSketch({host,root,box,report,view,annotation,palett
     fromPage(x,y){const [left,top]=origin(),s=scale(),scroll=ready?.scroll||[0,0];return [left+(x-scroll[0])*s,top+(y-scroll[1])*s];},
     dispose(){sceneVersion++;ready=null;opening?.cancel();opening=null;if(frame){const owned=frame;frame=null;owned.remove();if(win.__couchcastPrivateSceneFrame===owned)delete win.__couchcastPrivateSceneFrame;ask('scene-dispose').catch(()=>{});}},
   };
-  const current=()=>({allowed:authority.ready&&authority.holder==='operator',epoch:authority.epoch,live:!view.model.paused&&!view.model.ended&&view.model.seg>0,ended:!!view.model.ended});
+  const current=()=>({allowed:feedbackReady(view.model)&&authority.ready&&authority.holder==='operator',epoch:authority.epoch,live:!view.model.paused&&!view.model.ended&&view.model.seg>0,ended:!!view.model.ended});
   tool=mountSketch(doc,win,view,{root,box,scene,palette,notesPanel:annotation.notes,paths:receiver.paths,sketchMetadata:receiver.metadata,authority:current,showUnavailable:true,unavailableHint:()=>authority.holder==='operator'?'Drawing is getting ready. Wait a moment to sketch.':'A viewer is driving. Ask them to release control so you can sketch.',send:(kind,body)=>ask(kind,body,body.epoch),status:body=>ask('sketch-status',body,body.epoch),onMode(active){bypass=true;try{annotation.setMode('watch');}finally{bypass=false;}if(frame)frame.hidden=!active;},onTool(mode){bypass=true;try{annotation.setMode(mode);}finally{bypass=false;}}});
   const previousBeforeMode=view.beforeAnnotationMode;
   const beforeMode=mode=>disposed||bypass?true:tool.beforeAnnotationMode(mode);

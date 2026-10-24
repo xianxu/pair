@@ -6,6 +6,26 @@ import { mountAnnotation } from '../../cmd/internal/webcast/web/annotate.js';
 
 import { Element } from './dom-fixture.mjs';
 
+test('operator pending load immediately retires shared notes and unsaved editor without mutation',()=>{
+ class E extends Element {appendChild(el){this.append(el);el.parentNode=this;return el;}remove(){if(this.parentNode)this.parentNode.children=this.parentNode.children.filter(x=>x!==this);}getContext(){return {setTransform(){},clearRect(){}};}}
+ const root=new E('shadow'),host=new E('host'),frames=[],sent=[];
+ const doc={body:new E('body'),createElement:tag=>new E(tag)};
+ const win={innerWidth:800,innerHeight:600,scrollX:0,scrollY:0,crypto:{getRandomValues:b=>b.fill(1)},performance:{now:()=>0},requestAnimationFrame:fn=>frames.push(fn),addEventListener(){},setTimeout:()=>1,clearTimeout(){},clearInterval(){}};
+ const ui=mountOperator({host,root,report:m=>sent.push(m)},{annotate:{mountAnnotation},palette:['#ff0000'],css:''},doc,win);
+ const load={target:'tab',loader:'L',root:'1'},mask={scope:'cast',revision:'0',sketches:[],notes:[]};
+ const note={id:'saved',author:{id:'operator'},text:'Saved',at:{node:7,box:[0,0,20,20]}};
+ const snapshot=(revision,extra={})=>win.__couchcastOperatorView({feedback_mask:mask,revision,seg:1,doc:1,t:0,notes:[note],strokes:[],page_load_ready:true,page_load:load,sketch_cursor:{epoch:'A',seq:0},...extra});
+ snapshot(1);for(let i=0;i<3;i++)for(const fn of frames.splice(0))fn();assert.equal(root.querySelector('.feedback-open').textContent,'Open note');
+ win.__couchcastAnnotationAllowed(true,'1');ui.dialog.draft({draft:'unsaved'});
+ root.querySelector('.note-input').value='Unsaved';for(const fn of root.querySelector('.note-input').listeners.input)fn();
+ assert.deepEqual(win.__couchcastNoteUnsaved(),{draft:true});const count=sent.filter(m=>m.t==='mutate').length;
+ snapshot(2,{page_load_ready:false,page_load:null});
+ assert.equal(root.querySelector('.feedback-rows').children.length,0);assert.equal(ui.dialog.open,false);assert.equal(win.__couchcastNoteUnsaved(),null);assert.equal(ui.mode,'watch');assert.equal(root.querySelector('.mode').disabled,true);
+ assert.equal(sent.filter(m=>m.t==='mutate').length,count);
+ snapshot(3);for(let i=0;i<3;i++)for(const fn of frames.splice(0))fn();assert.equal(root.querySelector('.feedback-open').textContent,'Open note');assert.equal(ui.dialog.open,false);
+ snapshot(4,{page_load_ready:true,page_load:null});assert.equal(root.querySelector('.feedback-rows').children.length,0);
+});
+
 test('shared mount keeps all UI in its supplied root and holds a driven editor', () => {
   const body = new Element('body'), root = new Element('shadow'), box = new Element('box'); root.append(box);
   const doc = {body, createElement:(tag)=>new Element(tag)};
@@ -255,22 +275,23 @@ test('operator mount starts disabled and a new generation resets pen without dro
 });
 
 for (const coalesced of [false,true]) test(`operator permission clears browser strokes while preserving held draft (coalesced=${coalesced})`, () => {
+ class CanvasElement extends Element {getContext(){return {setTransform(){},clearRect(){},beginPath(){},stroke(){},moveTo(){},lineTo(){},arc(){},fill(){}};}}
  const root=new Element('shadow'); root.appendChild=(el)=>root.append(el);
  const host=new Element('host');
- const doc={body:new Element('body'),createElement:(tag)=>new Element(tag)};
+ const doc={body:new Element('body'),createElement:(tag)=>new CanvasElement(tag)};
  const win={innerWidth:100,scrollX:0,scrollY:0,crypto:{getRandomValues:(b)=>b.fill(1)},performance:{now:()=>0},requestAnimationFrame:()=>{},addEventListener:()=>{},setTimeout:()=>1,clearTimeout:()=>{},clearInterval:()=>{}};
  const ui=mountOperator({host,root,report:()=>{}},{annotate:{mountAnnotation},palette:['#f00'],css:''},doc,win);
- win.__couchcastOperatorView({feedback_mask:{scope:"cast",revision:"0",sketches:[],notes:[]},revision:1,seg:1,doc:1,t:0,notes:[],strokes:[]});
+ win.__couchcastOperatorView({feedback_mask:{scope:"cast",revision:"0",sketches:[],notes:[]},page_load_ready:true,page_load:{target:'tab',loader:'A',root:'1'},revision:1,seg:1,doc:1,t:0,notes:[],strokes:[]});
  assert.equal(root.querySelector('.mode').disabled,true);
  win.__couchcastAnnotationAllowed(true);
  assert.equal(root.querySelector('.mode').disabled,true); // missing generation never enables
  win.__couchcastAnnotationAllowed(true,'1');
  ui.dialog.draft({draft:'held'});
  root.querySelector('.note-input').value='keep this draft'; for(const fn of root.querySelector('.note-input').listeners.input)fn();
- win.__couchcastOperatorView({feedback_mask:{scope:"cast",revision:"0",sketches:[],notes:[]},revision:2,seg:1,doc:1,t:0,notes:[],strokes:[{seq:1,id:'viewer.pen',t:0,color:'#f00',pts:[[1,2,0]]}]});
+ win.__couchcastOperatorView({feedback_mask:{scope:"cast",revision:"0",sketches:[],notes:[]},page_load_ready:true,page_load:{target:'tab',loader:'A',root:'1'},revision:2,seg:1,doc:1,t:0,notes:[],strokes:[{seq:1,id:'viewer.pen',t:0,color:'#f00',pts:[[1,2,0]]}]});
  assert.equal(ui.strokes.visible(100).length,1);
  if (!coalesced) win.__couchcastAnnotationAllowed(false,'2');
- win.__couchcastOperatorView({feedback_mask:{scope:"cast",revision:"0",sketches:[],notes:[]},revision:3,seg:1,doc:1,t:0,notes:[],strokes:[]});
+ win.__couchcastOperatorView({feedback_mask:{scope:"cast",revision:"0",sketches:[],notes:[]},page_load_ready:true,page_load:{target:'tab',loader:'A',root:'1'},revision:3,seg:1,doc:1,t:0,notes:[],strokes:[]});
  win.__couchcastAnnotationAllowed(true,'3');
  ui.setMode('point');
  assert.equal(ui.strokes.visible(100).length,0);

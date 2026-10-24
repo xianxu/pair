@@ -40,7 +40,7 @@ test('operator snapshot installs exact sketch mask but trusts filtered note proj
  const node=()=>({style:{},appendChild(){}}),win={addEventListener(){},setTimeout:()=>1,clearTimeout(){}};let view,changes=0;
  mountOperator({host:node(),root:node(),report(){}},{annotate:{mountAnnotation(_d,_w,v){view=v;v.onFeedback(()=>changes++);return {strokes:{clear(){}},setAnnotationAllowed(){},setMode(){}};}},palette:[],css:''},{createElement:node},win);
  const mask={scope:'cast',revision:'1',sketches:[{id:'s',next_sequence:'5',digest:'a'.repeat(64)}],notes:[{id:'n',revision:'0'}]};
- win.__couchcastOperatorView({revision:1,doc:1,seg:1,t:1,notes:[{id:'n',text:'newer server-approved note'}],strokes:[],feedback_mask:mask});
+ win.__couchcastOperatorView({page_load_ready:true,page_load:{target:'tab',loader:'A',root:'1'},revision:1,doc:1,seg:1,t:1,notes:[{id:'n',text:'newer server-approved note'}],strokes:[],feedback_mask:mask});
  assert.equal(view.feedbackMask.sketchVisible('s',{next_sequence:5,digest:'a'.repeat(64)}),false);assert.equal(changes,1);
  assert.equal(view.model.notes.length,1,'console cannot apply fabricated note revision0');
 });
@@ -49,7 +49,7 @@ test('operator keeps its whole confirmed projection when a mask is missing or in
  const node=()=>({style:{},appendChild(){}}),win={addEventListener(){},setTimeout:()=>1,clearTimeout(){}};let view,changes=0;
  mountOperator({host:node(),root:node(),report(){}},{annotate:{mountAnnotation(_d,_w,v){view=v;v.onFeedback(()=>changes++);return {strokes:{clear(){}},setAnnotationAllowed(){},setMode(){}};}},palette:[],css:''},{createElement:node},win);
  const mask={scope:'cast',revision:'1',sketches:[{id:'s',next_sequence:'5',digest:'a'.repeat(64)}],notes:[]};
- const initial={revision:1,doc:1,seg:1,t:1,notes:[],strokes:[],feedback_mask:mask};win.__couchcastOperatorView(initial);
+ const initial={page_load_ready:true,page_load:{target:'tab',loader:'A',root:'1'},revision:1,doc:1,seg:1,t:1,notes:[],strokes:[],feedback_mask:mask};win.__couchcastOperatorView(initial);
  const model=view.model;
  for(const feedback_mask of [undefined,null,{scope:'',revision:'0',sketches:null,notes:null}]){
   assert.throws(()=>win.__couchcastOperatorView({...initial,revision:2,notes:[{id:'old',text:'unproven revision'}],feedback_mask}));
@@ -63,7 +63,7 @@ test('operator keeps its whole confirmed projection when a mask is missing or in
 test('operator rejects a stale mask together with its unproven note projection',()=>{
  const node=()=>({style:{},appendChild(){}}),win={addEventListener(){},setTimeout:()=>1,clearTimeout(){}};let view;
  mountOperator({host:node(),root:node(),report(){}},{annotate:{mountAnnotation(_d,_w,v){view=v;return {strokes:{clear(){}},setAnnotationAllowed(){},setMode(){}};}},palette:[],css:''},{createElement:node},win);
- const mask={scope:'cast',revision:'10',sketches:[],notes:[{id:'n',revision:'2'}]},frame={revision:1,doc:1,seg:1,t:1,notes:[],strokes:[],feedback_mask:mask};
+ const mask={scope:'cast',revision:'10',sketches:[],notes:[{id:'n',revision:'2'}]},frame={page_load_ready:true,page_load:{target:'tab',loader:'A',root:'1'},revision:1,doc:1,seg:1,t:1,notes:[],strokes:[],feedback_mask:mask};
  win.__couchcastOperatorView(frame);const model=view.model;
  assert.throws(()=>win.__couchcastOperatorView({...frame,revision:2,notes:[{id:'n',text:'old submitted note'}],feedback_mask:{...mask,revision:'9',notes:[]}}));
  assert.equal(view.model,model);
