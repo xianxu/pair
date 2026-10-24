@@ -43,8 +43,9 @@ before changing anything; no weakening of the "feedback changed" protection.
 - A press submits the board's open notes at their current revisions and its finished, labelled sketches at their
   current versions (already delivered versions left out, oldest 8 sketches), whatever the page is doing: on a page
   changing every 50 ms, unchanged notes submit (live test that reproduces the refusal on the old code first).
-- The only refusal is a note with an open edit or unsaved draft at the press, naming it; resolving uses the captured
-  revision, so a note edited after the press stays open (tests).
+- The only refusal is a note still being written at the press -- a new note not saved, or an edit whose text changed
+  and is not saved -- naming it; resolving uses the captured revision, so a note edited after the press stays open
+  (tests).
 - Sketch images render from the recording at each sketch's recorded anchors, never from the live painter (test).
 - The Pending feedback panel is informational: a preview that cannot refresh marks it out of date and never gates
   a submit (test).
@@ -61,16 +62,18 @@ before changing anything; no weakening of the "feedback changed" protection.
   witness is unfinished instead of failing; prepare takes it at the press with no preview gate, no stamp comparison
   and no freeze proposal. The selection carries no current view, so `appendSubmissionSketches` renders each sketch at
   its recorded finish scene.
-- [x] Note-edit refusal: the page reports an open note dialog or unsaved draft (one CDP evaluation); prepare refuses
-  naming the note ("note N is being edited; save or cancel it"), or "an unsaved note draft is open".
+- [x] Note-edit refusal: the page reports an unsaved draft or a changed, unsaved edit (one CDP evaluation); prepare
+  refuses naming the note ("note \"…\" has unsaved edits; save or cancel it, then submit again"), or "a new note is
+  not saved yet".
 - [x] Panel: the preview worker keeps publishing for display only; prepare no longer reads it. Drop the preview
   refusal plumbing that only served the gate (`previewRefusal` on prepare, `prepareMoved`), keep the panel's
   out-of-date mark.
 - [x] Noise at its source: the recorder's observer drops a selection identical to the last one it sent (a resync
   still sends); operator.js does not invalidate feedback visibility for selection records.
 - [x] Tests: live Chrome page changing every 50 ms (selection + text): old code refuses, new code submits unchanged
-  notes; a note edited after the press is not resolved; an open note edit refuses naming it; unit tests for the
-  selection rules and the observer dedupe; atlas/webcast-submission.md rewritten for the press-time contract.
+  notes, and the repeated caret is recorded once (the observer dedupe's test, mutation-checked; live only, since the
+  observer needs a real DOM); captured note revisions; an unsaved note refuses naming it; unit tests for the selection
+  rules; atlas, the agent reading guide, the couch skill and README rewritten for the press-time contract.
 
 ## Revisions
 
@@ -83,6 +86,10 @@ before changing anything; no weakening of the "feedback changed" protection.
   churn. Submit no longer depends on the preview: the press takes the board's feedback, the only refusal is an open
   note edit or draft, sketch images come from the recording, the panel is informational, and identical selection
   records stop invalidating visibility. Done-when and Plan replaced accordingly.
+
+- 2026-10-23 (close review): an open edit whose text is unchanged does not refuse -- there is nothing unsaved to lose
+  -- so the refusal is an unsaved draft or a changed, unsaved edit; Done-when and Plan say so. The observer dedupe is
+  tested live (it needs a real DOM), not by a unit test.
 
 ## Log
 
