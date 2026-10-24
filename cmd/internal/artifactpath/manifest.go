@@ -1670,6 +1670,7 @@ var NonArtifactSources = []string{
 	"cmd/internal/couchcore/worktree.go",
 	"cmd/internal/mouseinput/mouseinput.go",
 	"cmd/internal/couchtty/attention.go",
+	"cmd/internal/couchtty/attention_references.go",
 	"cmd/internal/couchtty/console_completion.go",
 	"cmd/internal/couchtty/console_presentation.go",
 	"cmd/internal/couchtty/console_slotgit.go",

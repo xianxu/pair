@@ -126,7 +126,7 @@ func (c *Console) layoutAttentionLocked(cols, screenRows int) {
 	}
 	for i, r := range rows {
 		c.attn.ids = append(c.attn.ids, r.item.ID)
-		items = append(items, menuItem{ID: i + 2, Text: r.text, Chip: true, Bg: r.bg})
+		items = append(items, menuItem{ID: i + 2, Text: r.text, Chip: true, Bg: r.bg, refs: true})
 	}
 	c.attn.box = renderMenuAt(attentionTitle, items, cols, screenRows, true)
 	if !c.attn.box.Open() {

@@ -55,6 +55,8 @@ type notesMenuLine struct {
 	// chipBg is a chip's own color, for items with no author palette (the
 	// attention list's kinds, pair#673); nil uses color.
 	chipBg color.Color
+
+	accents []bool // source byte positions carrying the bell reference accent
 }
 
 // menuItem is one entry of a titled menu, with its color chip or none. Bg,
@@ -65,6 +67,7 @@ type menuItem struct {
 	Color int
 	Chip  bool
 	Bg    color.Color
+	refs  bool // bell-only reference accents; Text remains plain
 }
 
 // Open reports whether there is a menu.
@@ -131,7 +134,13 @@ func renderMenuAt(title string, notes []menuItem, cols, rows int, top bool) Note
 	var items []notesMenuItem
 	shown := 0
 	for _, n := range notes {
-		wrapped := wrapNote(n.Text, textW)
+		source := sanitizedNote(n.Text)
+		wrapped := wrapNote(source, textW)
+		var accents []bool
+		if n.refs {
+			accents = referenceAccents(source, referenceToken)
+		}
+		offset := 0
 		need := len(wrapped)
 		more := len(notes) - shown - 1
 		reserve := 0
@@ -143,7 +152,7 @@ func renderMenuAt(title string, notes []menuItem, cols, rows int, top bool) Note
 		}
 		top := len(lines)
 		for i, l := range wrapped {
-			lines = append(lines, notesMenuLine{text: l, chip: n.Chip && i == 0, color: n.Color, chipBg: n.Bg, id: n.ID})
+			lines = append(lines, notesMenuLine{text: l, chip: n.Chip && i == 0, color: n.Color, chipBg: n.Bg, id: n.ID, accents: projectReferenceAccents(source, l, accents, &offset)})
 		}
 		items = append(items, notesMenuItem{ID: n.ID, Top: top, Bottom: len(lines)})
 		shown++
@@ -171,8 +180,7 @@ func renderMenuAt(title string, notes []menuItem, cols, rows int, top bool) Note
 // it is already plain, but it is drawn into the operator's terminal.
 func wrapNote(text string, width int) []string {
 	var out []string
-	for _, para := range strings.Split(text, "\n") {
-		para = rowtext.Sanitize(strings.ReplaceAll(para, "\t", " "))
+	for _, para := range strings.Split(sanitizedNote(text), "\n") {
 		wrapped := ansi.Wrap(para, width, " -")
 		out = append(out, strings.Split(wrapped, "\n")...)
 	}
@@ -213,19 +221,26 @@ func (m NotesMenu) Draw(f terminal.Frame, hover int, style broadcast.NoteStyle) 
 // menuLineCells is one line of the box, exactly w cells wide.
 func menuLineCells(line notesMenuLine, w int, bg color.Color, style broadcast.NoteStyle) []terminal.Cell {
 	cells := make([]terminal.Cell, 0, w)
-	put := func(s string, st uv.Style) {
+	put := func(s string, st uv.Style, accents ...[]bool) {
+		offset := 0
 		for s != "" && len(cells) < w {
 			g, width := ansi.FirstGraphemeCluster(s, ansi.GraphemeWidth)
 			s = s[len(g):]
 			if width == 0 {
+				offset += len(g)
 				continue
 			}
 			if len(cells)+width > w {
 				break
 			}
-			cells = append(cells, terminal.Cell{Content: g, Width: width, Style: st})
+			cellStyle := st
+			if len(accents) > 0 && offset < len(accents[0]) && accents[0][offset] {
+				cellStyle.Fg = notesMenuLink
+			}
+			offset += len(g)
+			cells = append(cells, terminal.Cell{Content: g, Width: width, Style: cellStyle})
 			if width == 2 {
-				cells = append(cells, terminal.Cell{Style: st})
+				cells = append(cells, terminal.Cell{Style: cellStyle})
 			}
 		}
 	}
@@ -253,7 +268,7 @@ func menuLineCells(line notesMenuLine, w int, bg color.Color, style broadcast.No
 			put("  ", plain)
 		}
 		put(" ", plain)
-		put(line.text, plain)
+		put(line.text, plain, line.accents)
 	}
 	for len(cells) < w {
 		put(" ", plain)
