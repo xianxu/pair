@@ -29,6 +29,14 @@ func TestInternalExecAlarmDoesNotLaunchOrResolveRuntime(t *testing.T) {
 	}
 }
 
+func TestInternalPaneReadyDoesNotLaunchOrResolveRuntime(t *testing.T) {
+	t.Setenv("PAIR_TAG", "")
+	var stdout, stderr bytes.Buffer
+	if code := runWithLegacyRuntime([]string{"internal", "pane-ready"}, &stdout, &stderr, nil); code != 2 || !strings.Contains(stderr.String(), "pane-ready") {
+		t.Fatalf("internal pane readiness: code=%d stdout=%q stderr=%q", code, stdout.String(), stderr.String())
+	}
+}
+
 func TestRunStreamingSubcommandRoutesChangelogToInjectedStderr(t *testing.T) {
 	// changelog with no flags → usage error to the *injected* stderr (proves the
 	// seam passes real stderr through, unlike the buffered Dispatch path).

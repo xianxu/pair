@@ -14,7 +14,9 @@ import (
 
 	"github.com/xianxu/pair/cmd/internal/artifactpath"
 	"github.com/xianxu/pair/cmd/internal/osfs"
+	"github.com/xianxu/pair/cmd/internal/panebirth"
 	"github.com/xianxu/pair/cmd/internal/readiness"
+	"github.com/xianxu/pair/cmd/internal/zellijquery"
 	"github.com/xianxu/pair/cmd/internal/zellijreply"
 )
 
@@ -37,6 +39,8 @@ type terminalOSAttempt struct {
 	rt                                                                 OSRuntime
 	name, config, layout, socket, socketRoot, scope, tag, agent, nonce string
 	create                                                             bool
+	creator                                                            *zellijquery.CreatorGuard
+	panePublished                                                      bool
 }
 
 func newTerminalOSAttempt(rt OSRuntime, name, config, layout string, create bool) (*terminalOSAttempt, error) {
@@ -73,8 +77,35 @@ func (a *terminalOSAttempt) Acquire(ctx context.Context) (io.Closer, error) {
 	if err != nil {
 		return nil, err
 	}
-	return AcquireTerminalLease(ctx, path)
+	session, err := AcquireTerminalLease(ctx, path)
+	if err != nil || !a.create {
+		return session, err
+	}
+	a.creator, err = zellijquery.AcquireCreator(ctx, a.terminalEnv(), a.creatorIdentity())
+	if err != nil {
+		return nil, errors.Join(err, session.Close())
+	}
+	return terminalCreatorLease{creator: a.creator, session: session}, nil
 }
+
+type terminalCreatorLease struct {
+	creator io.Closer
+	session io.Closer
+}
+
+func (l terminalCreatorLease) Close() error {
+	creatorErr := l.creator.Close()
+	return errors.Join(creatorErr, l.session.Close())
+}
+
+func (a *terminalOSAttempt) terminalEnv() []string {
+	return append(os.Environ(), "ZELLIJ_SOCKET_DIR="+a.socketRoot)
+}
+
+func (a *terminalOSAttempt) creatorIdentity() zellijquery.ReadyIdentity {
+	return zellijquery.ReadyIdentity{Namespace: filepath.Dir(filepath.Dir(a.socket)), Scope: a.scope, Tag: a.tag, Agent: a.agent, Session: a.name, Nonce: a.nonce}
+}
+
 func (a *terminalOSAttempt) Check(ctx context.Context) error {
 	if err := ctx.Err(); err != nil {
 		return err
@@ -82,6 +113,13 @@ func (a *terminalOSAttempt) Check(ctx context.Context) error {
 	if !a.create {
 		return requireListedLiveTerminal(ctx, a.name, listTerminalSessions, a.rt.liveSessionServers)
 	}
+	if a.creator == nil {
+		return errors.New("terminal creator exclusion is unavailable")
+	}
+	return a.creator.Preflight(ctx, a.checkCreate)
+}
+
+func (a *terminalOSAttempt) checkCreate(ctx context.Context) error {
 	servers, err := a.rt.liveSessionServers(ctx, a.name)
 	if err != nil {
 		return err
@@ -133,8 +171,16 @@ func (c terminalOSClient) Wait() HandoffExit {
 	return HandoffExit{Code: 1, Err: err}
 }
 func (a *terminalOSAttempt) Start(ctx context.Context) (HandoffClient, error) {
+	if a.create {
+		if a.creator == nil {
+			return nil, errors.New("terminal creator exclusion is unavailable")
+		}
+		if err := a.creator.Prepare(ctx); err != nil {
+			return nil, err
+		}
+	}
 	cmd := killOnCancel(exec.CommandContext(ctx, "zellij", terminalLaunchArgs(a.name, a.config, a.layout, a.create)...))
-	cmd.Env = append(os.Environ(), "ZELLIJ_SOCKET_DIR="+a.socketRoot)
+	cmd.Env = a.terminalEnv()
 	cmd.Stdin, cmd.Stdout, cmd.Stderr = os.Stdin, os.Stdout, os.Stderr
 	if err := cmd.Start(); err != nil {
 		return nil, err
@@ -145,9 +191,43 @@ func (a *terminalOSAttempt) Admit(ctx context.Context) error {
 	if !a.create {
 		return ctx.Err()
 	}
-	return admitTerminalAfterReady(ctx, ctx, a.observeAdmission, func(queryCtx context.Context) error {
+	return admitTerminalAfterReady(ctx, ctx, a.observeCreateAdmission, func(queryCtx context.Context) error {
 		return requireListedLiveTerminal(queryCtx, a.name, listTerminalSessions, a.rt.liveSessionServers)
 	})
+}
+
+// Exact first-pane evidence releases native namespace exclusion independently
+// of the agent's later readiness. Native admission still waits for AgentReady.
+func (a *terminalOSAttempt) observeCreateAdmission(ctx context.Context) error {
+	if !a.panePublished {
+		if a.creator == nil {
+			return errors.New("terminal creator exclusion is unavailable")
+		}
+		owner, err := artifactpath.NewStorageOwner(a.rt.globalDataDir(), a.scope, a.tag)
+		if err != nil {
+			return err
+		}
+		path, err := panebirth.Evidence(owner.Directory(), a.tag, a.agent)
+		if err != nil {
+			return err
+		}
+		raw, err := osfs.ReadRegularMetadata(ctx, path, panebirth.MaxRecordBytes)
+		if err != nil {
+			return err
+		}
+		pane, err := panebirth.DecodeRecord(raw)
+		if err != nil {
+			return err
+		}
+		if !pane.Identity.Equal(a.creatorIdentity()) {
+			return errors.New("waiting for this launch's first pane")
+		}
+		if err := a.creator.PublishReady(ctx, pane.Identity); err != nil {
+			return err
+		}
+		a.panePublished = true
+	}
+	return a.observeAdmission(ctx)
 }
 
 // Readiness consumes the selected startup window. Only after exact local evidence

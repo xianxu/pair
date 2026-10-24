@@ -112,7 +112,7 @@ func (s Source) readAttempt(ctx context.Context, callerDeadline time.Time, args 
 		path = "zellij"
 	}
 	cmd := exec.CommandContext(ctx, path, args...)
-	cmd.Env = s.Env
+	cmd.Env = ChildEnvironment(s.Env)
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout, cmd.Stderr = &stdout, &stderr
 	if observe, _ := ctx.Value(observerKey{}).(func(Observation)); observe != nil {
@@ -136,6 +136,17 @@ func (s Source) readAttempt(ctx context.Context, callerDeadline time.Time, args 
 			})
 		}()
 	}
+	lease, err := AcquireProbe(ctx, cmd.Env)
+	if err != nil {
+		result.ProcessErr = err
+		return result, err
+	}
+	defer func() {
+		if err := lease.Close(); err != nil {
+			result.ProcessErr = errors.Join(result.ProcessErr, err)
+			readErr = errors.Join(readErr, err)
+		}
+	}()
 	run := s.Run
 	if run == nil {
 		run = zellijexec.Run

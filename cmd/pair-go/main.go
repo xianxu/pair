@@ -3,6 +3,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"os"
@@ -54,6 +55,17 @@ type legacyRuntime interface {
 }
 
 func runWithLegacyRuntime(args []string, stdout, stderr io.Writer, rt legacyRuntime) int {
+	if len(args) >= 2 && args[0] == "internal" && args[1] == "pane-ready" {
+		if len(args) != 2 {
+			fmt.Fprintln(stderr, "pair pane-ready: unexpected arguments")
+			return 2
+		}
+		if err := launcher.PublishPaneReady(context.Background(), os.Environ()); err != nil {
+			fmt.Fprintln(stderr, "pair pane-ready:", err)
+			return 2
+		}
+		return 0
+	}
 	if len(args) >= 2 && args[0] == "internal" && args[1] == "exec-alarm" {
 		if err := execalarm.Run(args[2:]); err != nil {
 			fmt.Fprintln(stderr, err)
