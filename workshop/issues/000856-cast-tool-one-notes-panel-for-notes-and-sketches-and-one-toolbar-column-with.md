@@ -59,6 +59,11 @@ Close and landing use their SDLC gates. The recorded exact-source pre-close chec
 
 ## Log
 
+### 2026-10-24 — BR-4 composition evidence retained
+
+[workspace-geometry.log](../plans/000856-cast-feedback-workspace-plan.side/evidence/workspace-geometry.log) retains the exact final-source non-skipped result on ac362f793a33997bcc0503208ed07171a8dd2711: all16 actual toolbar/panel/status/editor measurements, deliberate overlap rejection, captured40px drag, existing save/stale/prepare/unsaved guards, PASS6.63s. The red minimized-overlap log is retained alongside it; node-final.log records all604 Node passes. Reader inventory passed. Source trees match the committed test blob named in the log. This completes the specific composed-workspace qualification that round2 left open; earlier native-review-fixes.log continues to cover drawing pressure, privacy, tab/SPA and handoff on unchanged production paths.
+
+
 ### 2026-10-24 — Final native composition source green
 
 Final TestOperatorFeedbackLivePrepareAndStalePanel passed6.63s (package6.861s), non-skipped, with exactly16 independent production rectangle measurements, overlap-negative mutation rejection, real ordinary/sketch editors and actual40px captured panel drag. Test source blob28b086fa339b18c4a0ad8a59d427a74018cce54a, printed by Git. Temporary prototype probes were removed. The minimized-width source fix is covered by this exact final matrix. All604 Node tests pass1.702s (zero skipped). Stage new test-source, finish reader inventory, commit/push, queue the final head and send its lease to TL for re-grant; then full close round3 with retained composition evidence. Do not create another check on the old cancelled heads.
