@@ -13,6 +13,9 @@ import (
 	"github.com/xianxu/pair/cmd/internal/procutil"
 )
 
+// fixtureLeaderPID publishes cancellation readiness before replacing the shell.
+const fixtureLeaderPID = `printf '%s' "$$" > "$1.tmp" && mv "$1.tmp" "$1" && exec sleep 30`
+
 func TestCLILeaderExitCannotAcknowledgeLiveDescendant(t *testing.T) {
 	for _, tc := range []struct{ name, redirect string }{
 		{"inherited-pipes", ""},
@@ -71,7 +74,7 @@ func TestCLILiveLeaderCancellationJoinsBeforeCompletion(t *testing.T) {
 	defer cancel()
 	done := make(chan Result, 1)
 	go func() {
-		done <- runCLI(ctx, "/bin/sh", Command{ID: "cancel", Args: []string{"-c", `printf '%s' "$$" > "$1"; exec sleep 30`, "fixture", marker}})
+		done <- runCLI(ctx, "/bin/sh", Command{ID: "cancel", Args: []string{"-c", fixtureLeaderPID, "fixture", marker}})
 	}()
 	waitFixture(t, func() bool { _, e := os.Stat(marker); return e == nil })
 	raw, e := os.ReadFile(marker)
@@ -117,5 +120,47 @@ func TestCLIGroupObservationClassification(t *testing.T) {
 				t.Fatalf("observation=%v", err)
 			}
 		})
+	}
+}
+
+func TestCLIPIDReadinessWaitsForCompletePublication(t *testing.T) {
+	root := t.TempDir()
+	marker := filepath.Join(root, "leader")
+	gate := filepath.Join(root, "release")
+	writing := filepath.Join(root, "writing")
+	// Shell redirection opens the output before invoking printf. Hold that
+	// invocation to expose the create/write gap without relying on scheduling.
+	held := `gate=$2; writing=$3; printf() { : > "$writing"; while [ ! -e "$gate" ]; do sleep 0.01; done; command printf "$@"; }; ` + fixtureLeaderPID
+	ctx, cancel := context.WithCancel(t.Context())
+	finished := make(chan struct{})
+	var result Result
+	go func() {
+		defer close(finished)
+		result = runCLI(ctx, "/bin/sh", Command{ID: "held-publication", Args: []string{"-c", held, "fixture", marker, gate, writing}})
+	}()
+	t.Cleanup(func() { cancel(); <-finished })
+	waitFixture(t, func() bool { _, err := os.Stat(writing); return err == nil })
+	if _, err := os.Stat(marker); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("PID readiness visible before write completed: %v", err)
+	}
+	if err := os.WriteFile(gate, nil, 0600); err != nil {
+		t.Fatal(err)
+	}
+	waitFixture(t, func() bool { _, err := os.Stat(marker); return err == nil })
+	raw, err := os.ReadFile(marker)
+	if err != nil {
+		t.Fatal(err)
+	}
+	pid, err := strconv.Atoi(string(raw))
+	if err != nil || pid <= 0 {
+		t.Fatalf("published PID=%q: %v", raw, err)
+	}
+	cancel()
+	<-finished
+	if result.CleanupUncertain || result.Error == "" {
+		t.Fatalf("cancellation=%+v", result)
+	}
+	if err := syscall.Kill(pid, 0); err != syscall.ESRCH {
+		t.Fatalf("child not joined: pid=%d err=%v", pid, err)
 	}
 }

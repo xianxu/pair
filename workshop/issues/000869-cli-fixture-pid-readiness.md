@@ -48,7 +48,7 @@ Publish the PID atomically or make the readiness observation require the complet
 
 ## Plan
 
-- [ ] Qualify the creation/write gap with a held writer, fix atomic publication and repeat cancellation controls.
+- [x] Qualify the creation/write gap with a held writer, fix atomic publication and repeat cancellation controls.
 - [ ] Audit readers, run recorded pre-close check, close/review and land.
 
 - [ ]
@@ -58,3 +58,11 @@ Publish the PID atomically or make the readiness observation require the complet
 2026-10-24: TL dispatch8443c3a7-e008-4e83-be76-433b6d4e37ff; #865 parked/claimed on separate branch. Claim/start-plan completed from main. Source census found the direct producer in cli_group_test.go and request_lifetime_test.go; sibling consumer already checks parseability. Quick plan posted to TL, proceeding unless objected. Asked TL for explicit exception to cross-repo generic lint growth for this test-only publication fix; existing held-write regression will guard the actual race.
 
 Failed full log: /Users/xianxu/workspace/pair/.git/sdlc/test-stats/failed/0c7a9818a957d392fc43e9fb44889545.log, SHA256 prefix13f839805c08. Exact failure: github.com/xianxu/pair/cmd/internal/testcouch/agentfixture.TestCLILiveLeaderCancellationJoinsBeforeCompletion. Focused repeat command: go test ./cmd/internal/testcouch/agentfixture -run '^TestCLILiveLeaderCancellationJoinsBeforeCompletion$' -count=1 -timeout=60s. Its log is retained in #863 evidence/independent-cli-marker-focused-repeat.log. No production or fixture change folded into #863; unclaimed follow-up.
+
+### 2026-10-24 — atomic producer and deterministic evidence
+
+TL460aae5a-7711-4ad1-b064-8d1f864405c4 approved the shared test-only producer/held-writer control and explicit lint exception: lesson entry, no golint rule. No production code changed. A shell printf override acknowledges the opened output and waits on a release marker, exposing the redirection/create-to-write interval without scheduler assumptions; runCLI still owns child/group cancellation and joined cleanup on every test path.
+
+Held-write RED failed deterministically: final PID readiness visible before write completed (/tmp/pair869-red.log,0.185s). Shared producer now writes adjacent private .tmp and mv publishes only after printf success, before exec. Both cancellation consumers use it. Focused three-test count30 PASS2.734s; CLI/cancellation race count10 PASS12.634s; full agentfixture package PASS13.245s. Repo lint PASS8.542s. Existing ESRCH and cleanup-uncertainty assertions still prove the owned process is joined before completion.
+
+Reader audit before repair: cli_group_test reads only its own temporary leader/writing/release files plus existing OS process identity; added shell mv reads/writes only literal paths passed beneath t.TempDir. request_lifetime_test reads only its existing generated fixture root/command/mailbox markers; no new artifact or external repository inputs. Both remain local_or_literal_fixture. Inventory first rejected exactly those two stale certificates, then each was individually recorded and staged; make test-affected-inventory PASS. git diff --check PASS. No atlas change applies to this private test-only fixture ordering correction (ARCH-ORDER/DRY); close will acknowledge no-atlas explicitly. Next: push PR and run recorded pre-close check on exact head.
