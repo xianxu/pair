@@ -16,6 +16,7 @@ claimant:
     workspace: pair:2
     worktree: /Users/xianxu/workspace/worktree/pair-slot2/pair
     repository: github.com/xianxu/pair
+flow: {kind: quick, provenance: inferred, spec: "0d4c0481", done: "59201f89"}
 ---
 
 # flake: changelogcmd distiller FIFO test hangs 20m in os.ReadFile
