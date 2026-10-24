@@ -1,12 +1,12 @@
 ---
 id: 000873
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-10-24
 updated: 2026-10-24
 estimate_hours:
-card_mirror: '1a9d263ca1ebca1378f15f69d459537609cad464' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '01186f3f68df1ac110dbba09e48e2bdbcd116c36' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-24T09:26:10-07:00
 claimant:
     operator: Xian Xu
@@ -17,6 +17,7 @@ claimant:
     repository: github.com/xianxu/pair
 flake_tests: [github.com/xianxu/pair/cmd/internal/couchcmd.TestFreshStartupRunSerializesLaunchThroughAdoption]
 flow: {kind: quick, provenance: inferred, spec: "9c4eb616", done: "fdf57cfe"}
+actual_hours: N/A
 ---
 
 # flake: TestFreshStartupRunSerializesLaunchThroughAdoption
