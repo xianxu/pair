@@ -1,6 +1,6 @@
 ---
 id: 000846
-status: open
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-10-23
@@ -8,7 +8,17 @@ updated: 2026-10-23
 estimate_hours:
 severity: low
 collaboration-mode: collaboration
-card_mirror: 'c3f5c51dc28fc011a1f2bae56dcee040bb7890d2' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '82728dba022599d741df080251b5ce1be2bc1779' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-23T15:07:20-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: Xian’s MacBook Pro
+    workspace: pair:8
+    worktree: /Users/xianxu/workspace/worktree/pair-slot8/pair
+    repository: github.com/xianxu/pair
+flow: {kind: quick, provenance: inferred, spec: "bdeeb9f3", done: "6df9dd6c"}
+actual_hours: 0.10
 ---
 
 # Couch: count-agnostic lifecycle drain diagnostic
@@ -28,10 +38,13 @@ Change the one string in `cmd/internal/couchcmd/lifecycle_notices.go` to `Lifecy
 
 ## Plan
 
-- [ ] Change the format string and its exact pin.
-- [ ] Focused and package tests for cmd/internal/couchcmd; go vet.
-- [ ] sdlc close with the run as evidence; recorded suite and merge before the day's window closes.
+- [x] Change the format string and its exact pin.
+- [x] Focused and package tests for cmd/internal/couchcmd; go vet.
+- [x] sdlc close with the run as evidence; recorded suite and merge before the day's window closes.
 
 ## Log
 
 ### 2026-10-23
+- 2026-10-23: closed — Focused drain pin green; full couchcmd package green (302.9s); go vet clean; recorded suite queued on 175209eef and running. One format string and its exact pin changed. No atlas: wording only, no new surface — the #802 drain passage already describes it semantically.; review verdict: SHIP
+
+Filed and claimed at the TL's direction after #802 landed, to fit before the day's window closes. Kept the requested structure but used `slot(s)`: `for N slots` still renders `for 1 slots`, so the count-agnostic property needs the parenthesized plural. One producer line and its exact pin; no other message touched. Quick flow (inferred, no estimate).
