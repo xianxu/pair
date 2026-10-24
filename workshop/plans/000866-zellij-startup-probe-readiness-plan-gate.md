@@ -41,6 +41,41 @@ rounds:
           family: persisted-unknown-field-preservation
           round: 1
       blocked: true
+    - reviewer_runs:
+        - version: 1
+          intent:
+            id: f9f4ee0b-0830-4922-9766-6e9a7f171d21
+            repository: github.com/xianxu/pair
+            issue_id: "000866"
+            recipe: plan-quality
+            round: 2
+            attempt: 1
+            agent: codex
+            root: /Users/xianxu/workspace/worktree/pair-slot5/pair
+            reviewed_head: e25b1d7fdb1b528982820dca92d56686e29c64cf
+            slot: pair:5
+            requested_at: "2026-10-24T10:35:39.966445Z"
+          phase: finished
+          pid: 65280
+          started_at: "2026-10-24T10:35:40.066103Z"
+          finished_at: "2026-10-24T10:36:03.742836Z"
+          session_id: 01a16d7b-01d4-7cf3-aae3-5bf89f0e8f64
+          outcome: returned
+      "n": 2
+      timestamp: "2026-10-24T03:36:03-07:00"
+      agent: codex
+      reviewer: codex (openai; author openai)
+      dispose:
+        - id: PQ-1
+          disposition: addressed
+          note: Explicit command-class ownership, lock order, joined cancellation, exec-helper lifetime controls, and the approved interactive residual resolve the exclusion contract.
+          round: 2
+        - id: PQ-2
+          disposition: addressed
+          note: Immutable publication and explicit top-level/nested raw-member preservation cover rewrites, with strict validation and older-reader/newer-record round-trip tests.
+          round: 2
+      blocked: false
+content_hash: ac2356385b57e08ed4c8aeb9bf350bb9690470de957302faaeb62569a753de12
 ---
 
 # Gate ledger — pair#866 (plan-quality)
@@ -57,7 +92,13 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **PQ-2** [Minor] `persisted-unknown-field-preservation` Make marker compatibility verification explicit
   ARCH-EVOLVE: The final revision promises additive strict-typed marker decoding but does not name how unknown members, including nested identity members, survive any rewrite. State whether markers have read-modify-write paths; where they do, name the preservation mechanism and an older-reader/newer-record round-trip strategy.
 
+## Round 2 — 2026-10-24T03:36:03-07:00 (codex) — passed
+
+### Disposed
+
+- PQ-1 — addressed — Explicit command-class ownership, lock order, joined cancellation, exec-helper lifetime controls, and the approved interactive residual resolve the exclusion contract.
+- PQ-2 — addressed — Immutable publication and explicit top-level/nested raw-member preservation cover rewrites, with strict validation and older-reader/newer-record round-trip tests.
+
 ## Open findings
 
-- **PQ-1** [Important] `exclusion-covers-native-scan-lifetime` Define exclusion ownership for interactive attach and exec-replacing commands
-- **PQ-2** [Minor] `persisted-unknown-field-preservation` Make marker compatibility verification explicit
+(none — every finding has been disposed)

@@ -5,9 +5,9 @@ deps: []
 github_issue:
 created: 2026-10-24
 updated: 2026-10-24
-estimate_hours:
+estimate_hours: 5.5
 severity: high
-card_mirror: '05833eb514c1aae1546dffc8f037df94f84edf05' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '24b09c75df20a849af40816d6c8c35055c3a90b2' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-24T02:48:13-07:00
 claimant:
     operator: Xian Xu
@@ -91,3 +91,28 @@ change-code round1 refused implementation on PQ-1: interactive attach has no sca
 Submitted TL c8f6e5d4 permits bounded-command/creator coverage with a declared interactive-attach residual if no attributable existing output witness holds. Source inspection found native startup bytes before connection, a mixed Pair PTY stream and an unattributable shared log; no new output decoder/logging namespace is proposed. The durable plan appends the requested consolidated third revision: publish exact first-pane evidence before rename, retain separate AgentReady semantics, explicitly own/join bounded native commands, exec a guarded Pair helper for kill, and leave interactive attach/native switching unguarded as a known limit. It includes the full Go/shell/Lua bypass inventory, immutable marker publication plus nested unknown-field tests, state/recovery rows and accepted creator-death limit. Await TL decision on this one consolidation, then rerun change-code; a further substantive correction requires stop/re-scope. #722 remains parked, unchanged and ready for its separate watched rerun.
 
 Submitted TL fbb6fc81 approves this consolidated third revision and directs change-code. If plan-quality asks for another mechanism, bring it to TL instead of adding it. Interactive attach/native reconnect remain the approved residual race; exact first-pane publication precedes rename, creator exclusion ends before the unchanged AgentReady wait, and exec replacement uses the joined helper. No code authority is assumed before change-code admits.
+
+## Estimate
+
+*Produced via brain/data/life/42shots/velocity/estimate-logic-v3.1.md against baseline-v3.1.md. Method A only.* The calibration source is marked stale by sdlc estimate-source, so these hours are provisional. Derived only after plan-quality round2 returned CLEAN and disposed PQ-1/PQ-2; estimate is not a design approval substitute.
+
+Decomposition: issue/spec research and three approved contours; one guard/admission module; shared kernel-lease extraction; additive first-pane publisher; native-command/helper integration and stateful fake; complete Go/shell caller migration; Lua adapter migration; one shared native qualification/discovery budget; atlas/inventory evidence; one close boundary. Existing x/sys/unix flock, osfs metadata, artifactpath, panebirth and testcouch cover the library check; no new native protocol or PTY library is assumed. Guard design uses the v2.1 library halving, then the thorough-plan x0.2 discount; other implementation designs use x0.2. Authoring research is counted once without discount. Familiarity1.0 reflects the existing launcher/harness seams; implementation values already include v3.1's40% scale, with no second scale. The design buffer is15% for the approved detailed plan. Native startup uncertainty remains a qualification risk, not permission for a new mechanism or timeout change.
+
+```estimate
+model: estimate-logic-v3.1
+familiarity: 1.0
+item: issue-spec design=1.0 impl=0.12
+item: greenfield-go-module design=0.2 impl=0.32
+item: smaller-go-module design=0.04 impl=0.2
+item: smaller-go-module design=0.06 impl=0.2
+item: api-integration design=0.4 impl=0.6
+item: cross-cutting-refactor design=0.2 impl=0.2
+item: lua-neovim design=0.4 impl=0.6
+item: real-api-discovery design=0 impl=0.24
+item: atlas-docs design=0.04 impl=0.08
+item: milestone-review design=0.04 impl=0.2
+design-buffer: 0.15
+total: 5.5
+```
+
+Design2.38h x1.15 + implementation2.76h =5.497h, rounded5.5h of focused ship time. This includes the one mandatory close review, not a redundant milestone boundary.
