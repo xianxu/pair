@@ -1,13 +1,13 @@
 ---
 id: 000838
-status: codecomplete
+status: done
 deps: [ariadne#575]
 github_issue:
 created: 2026-10-23
 updated: 2026-10-24
 estimate_hours: 3.73
 collaboration-mode: collaboration
-card_mirror: '389734822d9e982459e85615556fdafa445c96db' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '6e6de6296ecbfd81f18aa34f2eda839c638126ab' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-23T14:02:12-07:00
 claimant:
     operator: Xian Xu
