@@ -1,13 +1,21 @@
 ---
 id: 000852
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-10-23
 updated: 2026-10-23
 estimate_hours:
 severity: high
-card_mirror: 'a4537a5bde19e1af10b083c642e2397705ceabf4' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: 'f997a49a12deb5562c7a50db50023b9383b1ccda' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-23T18:13:29-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: Xian’s MacBook Pro
+    workspace: pair:9
+    worktree: /Users/xianxu/workspace/worktree/pair-slot9/pair
+    repository: github.com/xianxu/pair
 ---
 
 # Park rollback retries fail on main
@@ -27,6 +35,13 @@ Restore reliable proven-rollback retries within one Full quit, preserving the in
 - Appropriate race and affected checks pass, without blanket ignored errors or timeout inflation.
 
 ## Plan
+
+- [ ] Compare the unchanged focused count=1 /15 and /30 test at #827 landing 25905e0ecc875ce080ab401cfb445f54fcfcc20b and pre-#819 46270746147eb5d9048ab1107b1df19339f7b42e; retain logs and follow the first failing boundary.
+- [ ] Trace the failing deadline/drive through Leave, parkJoined, completion observation and store coordination; establish one measured root cause before choosing a fix. Ask #827's owner about budget intent.
+- [ ] Add a deterministic failing control for that cause, make the smallest correction preserving production deadlines, retry cap and uncertainty handling, then run focused N/2N and race controls.
+- [ ] Audit reader inventory, push, run recorded affected, close through mandatory fresh review and land. Reconcile #841 only after main is green.
+
+Quick-flow investigation; if the root cause requires a new mechanism or exceeds the shell, revise the plan and obtain TL approval before code. ARCH-PURE/ARCH-ORDER: prefer existing injected deadline/IO seams for controlled ordering rather than real-time assertions. ARCH-CONSTRAINTS: preserve production 60s whole-quit and per-completion budgets, concurrency cap and counted N/2N drive assertions; no timeout bump or flake registration. ARCH-DRY: reuse the existing park coordinator/futures and stateful lifecycle fixture. No persisted-format or user-facing state changes are currently proposed; production behavior and resource lifetimes remain the subject of investigation.
 
 - [ ]
 
