@@ -1,6 +1,7 @@
 # Send cast notes and sketches to the agent (#483, #753)
 
-Press **Shift+Ctrl+Alt+Return** in the draft Neovim, in normal or insert mode,
+Press **Shift+Ctrl+Alt+Return** from any Pair pane (including a fullscreen
+right-terminal application),
 to send the draft text and the board's open notes and finished sketches to the
 agent in that view. Each selected note
 carries focused recorded context, a replay link, draw-time box text, and its
@@ -11,6 +12,20 @@ revision and every finished, labelled sketch at its current version that no
 earlier submission delivered, offscreen ones included. What the page is doing
 never refuses it; a live page that changes many times a second submits like a
 quiet one. New feedback after the press waits for the next submission.
+
+
+Couch's **Chrome** status group shows **⏎** when the cast has open note revisions
+or finished labelled sketches still pending delivery. Click it to invoke the
+same draft action without changing pane focus. Preview publication is not
+required: a constantly changing page still shows Send. An acknowledgement hides
+only the delivered versions; newer feedback keeps the button visible. A clipped
+button has no click target. The cast and active actor are checked against the
+accepted frame, so a stale click refuses rather than sending to a successor.
+
+Terminal-cast NoteBoard notes are outside this transaction and do not show
+Send in the **LIVE** group. The missing terminal-sketch submission path is
+tracked separately as pair#859. These are Couch status controls, not buttons in
+the browser page's tool column.
 
 Confirmed submissions resolve their selected note revisions: acknowledgment
 transfers ownership of those notes to the agent; whatever follows (a pensive, an issue, a fix) is the agent's.

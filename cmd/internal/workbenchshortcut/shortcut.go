@@ -57,6 +57,7 @@ const (
 	ChordAltShiftT
 	ChordAltH
 	ChordAltL
+	ChordCtrlAltShiftEnter
 	// chordMax is one past the last chord. Enumerations over the chord space
 	// derive their bound from it, so a chord appended above is covered without
 	// editing the consumer. Both documentation guards previously stopped at
@@ -111,6 +112,7 @@ const (
 	ActionTerminalNewTab
 	ActionOpenHelp
 	ActionOpenChangelog
+	ActionSendDOM
 )
 
 type ShortcutInput struct {
@@ -178,6 +180,8 @@ type GlobalBinding struct {
 // Keyed literals (not positional): #132 added Help, and a positional list makes
 // every future field a silent shift of the one before it.
 var globalBindings = []GlobalBinding{
+	{Chord: ChordCtrlAltShiftEnter, Action: ActionSendDOM, LuaFunction: "PairSendDOM", NvimKey: "<C-S-M-CR>", AgentReserved: true,
+		Help: "send draft + pending cast feedback, from any pane"},
 	{Chord: ChordAltShiftEnter, Action: ActionToggleFocusedLayout, NvimKey: "<S-M-CR>", HandledInPane: true, AgentReserved: true,
 		DirectCommand: []string{"layout", "toggle-focused"}, Help: "toggle right terminal: normal ↔ focus (75% centered)"},
 	{Chord: ChordAltD, Action: ActionConfirmDetach, LuaFunction: "PairConfirmDetach", NvimKey: "<M-d>", FocusDraft: true,
@@ -439,7 +443,7 @@ func RightTerminalChordPassesThrough(chord Chord) bool {
 // workbench controls needed to operate the surrounding layout; everything else
 // belongs to the TUI, including global-looking draft actions.
 func RightTerminalTUIChordPassesThrough(chord Chord) bool {
-	if chord == ChordUnknown || chord == ChordAltShiftEnter || chord == ChordAltShiftT ||
+	if chord == ChordUnknown || chord == ChordCtrlAltShiftEnter || chord == ChordAltShiftEnter || chord == ChordAltShiftT ||
 		chord == ChordAltShiftLeft || chord == ChordAltShiftRight || chord == ChordAltK {
 		return false
 	}
@@ -454,6 +458,7 @@ var chordSequences = []struct {
 	sequence string
 	chord    Chord
 }{
+	{"\x1b[13;8u", ChordCtrlAltShiftEnter},
 	{"\x1bh", ChordAltH}, {"\x1b[104;3u", ChordAltH},
 	{"\x1bl", ChordAltL}, {"\x1b[108;3u", ChordAltL},
 	{"\x1bj", ChordAltJ}, {"\x1b[106;3u", ChordAltJ},
@@ -555,6 +560,8 @@ func FindChord(data []byte) ([]byte, Chord, []byte, []byte, bool) {
 
 func ChordName(chord Chord) string {
 	switch chord {
+	case ChordCtrlAltShiftEnter:
+		return "Shift+Ctrl+Alt+Return"
 	case ChordAltH:
 		return "Alt+h"
 	case ChordAltL:

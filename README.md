@@ -1818,8 +1818,8 @@ a duplicate creation. Text revisions and resolver attribution stay in the web
 recording; resolved notes still disappear from the live page.
 
 
-**Submit web notes (#483).** Press **Shift+Ctrl+Alt+Return** in the draft to send
-its text and all open cast-tab notes to the agent in view, with recorded context,
+🤖<**Submit web notes (#483).** Press **Shift+Ctrl+Alt+Return** in the draft to send>{**Submit cast feedback (#483, #842).** Press **Shift+Ctrl+Alt+Return** from any Pair pane, including a fullscreen right-terminal application, to send}
+🤖<its text and all open cast-tab notes to the agent in view, with recorded context,>{the draft text and pending open cast notes and finished labelled sketches to the agent in view, with recorded context,}
 🤖<current box text and one current PNG crop per note.>{draw-time box text and each note’s saved PNG crop.} The message includes the
 recording path and commands for reading the bundle. 🤖<Crops cover the current>{Crops preserve the original draw-time}
 viewport; 🤖<offscreen notes retain context with an unavailable crop. Capture waits>{notes without saved pixels retain context with an unavailable crop. Draw-time capture waits}
@@ -1828,6 +1828,8 @@ forcing styles. The draft can be empty. 🤖<Submitted notes become>{Acknowledge
 resolved: submitting transfers ownership of the notes to the agent; whatever
 follows (a pensive, an issue, a fix) is the agent's. See
 [submission evidence and recovery](atlas/webcast-submission.md).
+
+🤖{Couch’s Chrome status group shows **⏎** when that cast has pending open note revisions or finished labelled sketches. Click it for the same action without moving focus; a stale or unavailable preview does not hide Send. It disappears when no eligible feedback remains. Terminal-cast NoteBoard notes do not participate in this transaction and do not show Send in the LIVE group; the missing terminal-sketch path is tracked as #859.}
 
 🤖{**Captured page identity (#525, #538).** New DOM bundles use version 3: each note carries its captured `page` URL/title with `provenance: "cdp"`, `capture_id`, `source_document` and privacy decision. A bundle can span documents; read each note’s original page rather than assuming the current submission page. URL/title stay bound to the saved draw-time text and pixels; unavailable captures claim no page. Box text preserves its order and text-node entries with tag/classes instead of CSS selectors, and `at.node` remains the historical `@N` recording handle. Version-1 and version-2 bundles still load; version 2 retains its batch page in `source.page`. [Complete schema](atlas/webcast-submission.md).}
 

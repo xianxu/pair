@@ -110,6 +110,8 @@ type StatusModel struct {
 	TabStyle  TabStyle
 	Broadcast BroadcastCell
 	Pointer   PointerCell
+	// BroadcastSend and WebSend reflect eligible feedback, not note counts.
+	BroadcastSend, WebSend bool
 	// Notes is the broadcast's open sticky notes (#447), drawn as 💭N after
 	// the capability controls; not a click target.
 	Notes   int
@@ -201,6 +203,9 @@ type RenderedStatusRow struct {
 	Pointer ColumnSpan
 	// Notes is the 💭N count's span (#447 M4): a click opens the notes menu.
 	Notes ColumnSpan
+	// BroadcastSend and WebSend cover only complete drawn send glyphs.
+	BroadcastSend ColumnSpan
+	WebSend       ColumnSpan
 	// Webcast is the Chrome cell's span (#454); empty when Chrome isn't
 	// running or the cell was clipped.
 	Webcast ColumnSpan
@@ -289,7 +294,18 @@ func renderStatusCells(width int, m StatusModel, cells []chipCell, planned bool,
 	}
 	// The broadcast cell leads (#395): it is the indicator the broadcast
 	// checks every frame for, so nothing may push it off the row.
-	var control, pointer, notes ColumnSpan
+	// A send target is indivisible: reserve its normal leading gap and glyph
+	// together so a clipped control never leaves an active hit target.
+	sendButton := func() ColumnSpan {
+		if used+textwidth.Width(" ⏎") > width {
+			return ColumnSpan{}
+		}
+		appendText(" ", "")
+		start := used
+		appendText("⏎", "")
+		return ColumnSpan{Start: start, End: used}
+	}
+	var control, pointer, notes, broadcastSend, webSend ColumnSpan
 	if label := broadcastLabel(m.Broadcast); label != "" {
 		appendText(label, broadcast.LiveSGR)
 		control = ColumnSpan{Start: 0, End: used}
@@ -318,6 +334,9 @@ func renderStatusCells(width int, m StatusModel, cells []chipCell, planned bool,
 			if used > start {
 				notes = ColumnSpan{Start: start, End: used}
 			}
+		}
+		if m.BroadcastSend {
+			broadcastSend = sendButton()
 		}
 	}
 	var webcastSpan, webFocusSpan, webPointerLinkSpan, webDriveLinkSpan, webNotesSpan, webDriveSpan ColumnSpan
@@ -366,6 +385,9 @@ func renderStatusCells(width int, m StatusModel, cells []chipCell, planned bool,
 			if used > start {
 				webDriveSpan = ColumnSpan{Start: start, End: used}
 			}
+		}
+		if m.WebSend {
+			webSend = sendButton()
 		}
 	}
 	// Capture follows so actor chips and transient notices cannot hide a
@@ -529,7 +551,7 @@ func renderStatusCells(width int, m StatusModel, cells []chipCell, planned bool,
 		appendText(badge, sgr)
 		attention = ColumnSpan{Start: start, End: used}
 	}
-	return RenderedStatusRow{Body: row.String(), Chips: chips, GroupCounts: counts, Control: control, Pointer: pointer, Notes: notes, Webcast: webcastSpan, WebFocus: webFocusSpan, WebPointerLink: webPointerLinkSpan, WebDriveLink: webDriveLinkSpan, WebNotes: webNotesSpan, WebDrive: webDriveSpan, Attention: attention}, prefixUsed, actorBudget
+	return RenderedStatusRow{Body: row.String(), Chips: chips, GroupCounts: counts, Control: control, Pointer: pointer, Notes: notes, BroadcastSend: broadcastSend, WebSend: webSend, Webcast: webcastSpan, WebFocus: webFocusSpan, WebPointerLink: webPointerLinkSpan, WebDriveLink: webDriveLinkSpan, WebNotes: webNotesSpan, WebDrive: webDriveSpan, Attention: attention}, prefixUsed, actorBudget
 }
 
 // AttentionGlyph leads the attention badge (pair#673).

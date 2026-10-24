@@ -676,6 +676,9 @@ var SourceClassifications = []SourceClassification{
 // the artifact namespace requires an explicit SourceClassification.
 // pair:m5-concept pure
 var NonArtifactSources = []string{
+	// #842 routes the existing chord through an accepted terminal endpoint and
+	// caches an in-memory Board projection; no artifact path is constructed.
+	"cmd/internal/couchtty/console_send.go",
 	// #739 startup/automation/cue policy delegates to existing stores and
 	// transports; none constructs or names Pair artifact filenames.
 	"cmd/internal/couchcmd/automation.go",

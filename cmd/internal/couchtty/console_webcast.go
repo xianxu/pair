@@ -41,7 +41,8 @@ type webcastState struct {
 	cancel  context.CancelFunc
 	cast    *webcast.Cast
 	// update is the cast's latest, as last delivered to the loop.
-	update webcast.Update
+	update      webcast.Update
+	sendPending bool
 }
 
 // webcastShutdownWait bounds how long Couch's exit waits for Chrome and the
@@ -186,10 +187,18 @@ func (c *Console) webcastStarted(attempt uint64, cast *webcast.Cast, err error, 
 		})
 	}
 	updates, unsubscribe := cast.Subscribe()
+	candidates, stopCandidates := cast.SubmissionCandidateUpdates()
 	c.GoTracked(func() {
 		defer unsubscribe()
+		defer stopCandidates()
+		c.refreshSendFeedback(cast)
 		for {
 			select {
+			case _, open := <-candidates:
+				if !open {
+					candidates = nil
+				}
+				c.refreshSendFeedback(cast)
 			case u, open := <-updates:
 				if !open {
 					<-cast.Done()

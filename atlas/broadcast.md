@@ -4,6 +4,14 @@
 browser viewers (#395). Status: built (M1–M5): frame tap, hub, server, viewer page, session, Couch
 control, viewer theme and font, and `cloudflared` tunnels.
 
+
+Couch's status groups can expose **⏎** for feedback supported by the existing
+draft submission action. Chrome uses its Board's current open notes and finished
+labelled sketches, excluding exactly delivered versions; LIVE terminal notes do
+not participate. See [cast submission](webcast-submission.md). The status button
+and Shift+Ctrl+Alt+Return share one declared workbench action, available from any
+Pair pane without moving focus.
+
 ## Source: the Presenter tap
 
 `terminal.Presenter.SetTap` installs a `terminal.Tap`. It is called on the
