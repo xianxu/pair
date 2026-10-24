@@ -40,7 +40,9 @@ before changing anything; no weakening of the "feedback changed" protection.
 
 ## Done when
 
-- With unchanged pending annotations, a second press submits them (test reproducing the loop first).
+- A refused submission names its cause, and the panel reads out of date instead of showing stale counts (tests).
+- With unchanged pending feedback, a press after the preview is shown submits it, including after a refusal
+  while the preview could not refresh (test).
 - A genuine change between review and submit is still caught (test).
 
 ## Plan
@@ -53,8 +55,16 @@ Approved by the TL (10-23): diagnose first through the operator, no headed repro
   date: …" in place of stale counts. Tests: core reasons; the manager over the operator's shape (shown notes, then
   a sketch the panel cannot show, refused with the reason, admitted once shown); live Chrome: the operator's sequence
   prepares and freezes, the panel goes stale and recovers; the real manager over a real cast admits notes.
-- [ ] Stage on pair:0; the operator uses cast notes as usual and reports any refusal message.
-- [ ] Fix the cause the message names; test reproducing the loop first, and a genuine change still refused.
+- [x] Stage on pair:0; the operator uses cast notes as usual and reports any refusal message.
+- [x] ~~Fix the cause the message names~~: the loop did not recur on the staged build (see Revisions); step 1 lands
+  as the deliverable, and a recurrence names its cause for a follow-up.
+
+## Revisions
+
+- 2026-10-23 (TL): the stall did not reproduce on the staged build, so step 1's diagnostics are #849's deliverable.
+  Done-when moves from "fix the root cause, test reproducing the loop first" to the named refusal and stale panel,
+  with deterministic tests for an unchanged press admitted after a refusal and a genuine change still refused. If
+  the loop recurs, its message names the cause and a follow-up issue fixes it.
 
 ## Log
 
@@ -78,3 +88,17 @@ Investigation (pair:6), from the operator's recording 20261023T165427-6f1f (17:0
   and the real `submissionManager` over a real cast with four notes. All admit on the first press.
 - Untested differences: a headed, unfocused or occluded window (rAF throttling), the recorder's periodic screenshots,
   and a worker that ran for ten minutes across sketch-mode transitions.
+
+Staged diagnosis (pair:0, 3de33c10b, then the combined #849 + #850 build 6f0478a3a):
+
+- On the combined build the operator's DOM submission went through ("works now"; a note on Google's "Top stories"
+  section reached ops:0 at 20:42). The refusal loop did not recur, so its root cause stays unidentified.
+- Replay evidence stands as logged above: the board held the sketch from t=653 s while the panel still showed the
+  pre-label preview, so the preview worker stopped acknowledging publications after the sketch label. Neither the
+  headless replay of the operator's page and pen points nor the real manager over a real cast reproduced it.
+- Done-when tests (deterministic): `TestSubmissionRefusalNamesWhyThePreviewCouldNotRefresh` (the operator's shape: a
+  refusal naming why the preview could not refresh, the panel marked out of date, then the unchanged feedback
+  admitted once shown); `TestPreviewRefusalNamesItsCondition`; genuine change still refused:
+  `TestSubmissionFeedbackPublishesExactNotesAndRejectsLaterEdit`, `TestPreviewPrepareAndFreezeRejectStaleSelection`.
+  Live (WEBCAST_LIVE_CHROME=1): `TestOperatorFeedbackLivePrepareAndStalePanel`,
+  `TestSubmissionManagerLivePreparesUnchangedNotes`.
