@@ -1,6 +1,6 @@
 ---
 id: 000861
-status: codecomplete
+status: done
 created: 2026-10-24
 updated: 2026-10-24
 estimate_hours: 4.11
@@ -21,6 +21,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: 2bc8698da1c88a746406f1e0bc010c1efc7ac456
         evidence_commit: 8d3295e5e80cd9eeb1add83cb1b12713dbc0eb21
+        landed_commit: 965ba1ee6097dba463e75a3409547bf589904430
 ---
 
 # Adopt Ariadne shared sidedoc pin and qualify newly active lint rules
