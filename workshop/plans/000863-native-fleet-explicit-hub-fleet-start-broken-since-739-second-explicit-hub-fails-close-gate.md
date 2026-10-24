@@ -136,6 +136,49 @@ rounds:
       isolation: fenced
       reviewed: 3a25379a588a7d6eff2fc7d4d918cea9e4e67de6
       blocked: false
+    - reviewer_runs:
+        - version: 1
+          intent:
+            disposable_root: true
+            id: 8ccea2bc-e2c4-4379-bda4-547adc436a58
+            repository: github.com/xianxu/pair
+            issue_id: "000863"
+            recipe: fix-review
+            round: 4
+            attempt: 1
+            agent: codex
+            root: /Volumes/TestScratch/review-checkouts/1b990a29c5239c8a
+            reviewed_head: db3c572e729063328540b68d194bed58547055a1
+            slot: pair:7
+            requested_at: "2026-10-24T11:54:16.910347Z"
+          phase: finished
+          pid: 47527
+          started_at: "2026-10-24T11:54:17.052861Z"
+          finished_at: "2026-10-24T11:56:11.650163Z"
+          session_id: 01a16dc2-fbed-7623-8343-58145074d7da
+          outcome: returned
+      "n": 4
+      timestamp: "2026-10-24T04:56:39-07:00"
+      dispatched: "2026-10-24T04:54:13-07:00"
+      agent: codex
+      reviewer: codex (openai; author openai)
+      dispose:
+        - id: BR-1
+          disposition: addressed
+          note: Retained as addressed. Empty-only creation guards are unchanged; FreshHub history-preservation regressions passed.
+          round: 4
+        - id: BR-2
+          disposition: withdrawn
+          note: Retained as withdrawn under the previously reviewed narrowed acceptance revision. This interdiff adds no full native-matrix acceptance claim.
+          round: 4
+        - id: BR-3
+          disposition: addressed
+          note: Retained as addressed. The cleanup implementation and regression tests are unchanged; post-claim failure, uncertainty, and ownership-transfer tests passed.
+          round: 4
+      recipe: fix-review
+      isolation: fenced
+      reviewed: db3c572e729063328540b68d194bed58547055a1
+      blocked: false
 disputes:
     - id: BR-2
       rationale: 'Dispute the broad matrix as a landing blocker for the narrowed startup correction, not the retained failures or their unknown original cause. Fresh two-hub callers and dirty/force pass for both personalities on corrected code; later StartupArguments failure has a measured matching pinned-main Zellij panic now owned by #866. The single Codex idle refusal did not reproduce in either bounded comparison and is preserved in #867, not declared independent or flaky. TL24a27ad0 approves proceeding on this measured scope; TL1d357557 directs this formal dispute instead of further native retries. The original reviewer attach-input-ended/omitted-server signature remains unclassified; neither later passes nor TL approval is offered as proof of its cause.'
@@ -178,6 +221,14 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - BR-1 — addressed — Retained as addressed. Empty-only publication guards remain in both target paths; focused history, appeared-history, and FreshHub regression tests passed.
 - BR-2 — withdrawn — Withdrawn under the pinned plan's explicit narrowed acceptance revision. Inspected captures confirm FreshHubCaller and dirty/force pass for both personalities, matching lib.rs:1462 Zellij panics on baseline and branch, and passing baseline/instrumented-branch Codex comparisons. These measurements do not explain the original attach-input-ended signature or establish independence of the single idle refusal; the revised plan preserves those limits rather than claiming full-matrix acceptance.
 - BR-3 — addressed — enrollFreshStartupClaim defers exact-local-store rollback across discovery, identity, enrollment, and cancellation failures. The focused cohort passed. An independent Go overlay removing only that defer made TestFreshStartupPostClaimDiscoveryFailureRollsBack fail with a retained creating record and native marker.
+
+## Round 4 — 2026-10-24T04:56:39-07:00 (codex) — passed
+
+### Disposed
+
+- BR-1 — addressed — Retained as addressed. Empty-only creation guards are unchanged; FreshHub history-preservation regressions passed.
+- BR-2 — withdrawn — Retained as withdrawn under the previously reviewed narrowed acceptance revision. This interdiff adds no full native-matrix acceptance claim.
+- BR-3 — addressed — Retained as addressed. The cleanup implementation and regression tests are unchanged; post-claim failure, uncertainty, and ownership-transfer tests passed.
 
 ## Disputes
 

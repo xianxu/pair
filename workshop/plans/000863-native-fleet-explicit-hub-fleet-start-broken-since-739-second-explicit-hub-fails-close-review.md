@@ -295,3 +295,91 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-24T04:56:39-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 863 — Native fleet: explicit-hub Fleet.Start broken since #739; second explicit hub fails attach at a fresh start |
+| repo | pair |
+| issue file | workshop/issues/000863-native-fleet-explicit-hub-fleet-start-broken-since-739-second-explicit-hub-fails.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 060628d56ad8f81df7fad0709aa0552170370484..db3c572e729063328540b68d194bed58547055a1 |
+| command | sdlc close --issue 863 |
+| reviewer | codex (openai; author openai) |
+| isolation | fenced |
+| timestamp | 2026-10-24T04:56:39-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+The interdiff repairs stale test fixtures and expectations without changing production behavior or expanding scope. Targeted tests, installed-command scenarios, and the reader inventory passed. No new blocking defects were found.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      Retained as addressed. Empty-only creation guards are unchanged; FreshHub history-preservation regressions passed.
+  - id: BR-2
+    disposition: withdrawn
+    note: |
+      Retained as withdrawn under the previously reviewed narrowed acceptance revision. This interdiff adds no full native-matrix acceptance claim.
+  - id: BR-3
+    disposition: addressed
+    note: |
+      Retained as addressed. The cleanup implementation and regression tests are unchanged; post-claim failure, uncertainty, and ownership-transfer tests passed.
+```
+
+1. **Strengths**
+
+   - `cmd/couch/main_test.go:22` now independently exercises retained-history shutdown and zero-history automatic startup, preserving launch-count, attachment, and pipe-refusal assertions.
+   - `cmd/internal/couchtty/console_relaunch_chord_test.go:382` supplies handles to positive adoption fixtures while explicitly rejecting metadata-only and empty results.
+   - `cmd/internal/couchcmd/hubs_startup_test.go:625` preserves the complete joined diagnostic and existing no-effects assertions.
+
+2. **Critical findings:** None.
+
+3. **Important findings:** None.
+
+4. **Minor findings:** None.
+
+5. **Test coverage notes**
+
+   - All changed command and console tests passed.
+   - Both installed-command startup scenarios passed.
+   - Focused `StartResult`, FreshHub, and post-claim cleanup regressions passed.
+   - `make test-affected-inventory` and `git diff --check` passed.
+   - Full-suite and native acceptance runs were not repeated. The tracker accurately retains the failed earlier suite and pending final verification.
+
+6. **Architectural notes**
+
+   - **ARCH-DRY — pass:** the installed-command scenarios share one fixture helper.
+   - **ARCH-PURE — pass:** IO remains in integration fixtures; pure adoption policy is tested directly.
+   - **ARCH-PURPOSE — pass:** corrections preserve the original assertions and add negative controls.
+   - **ARCH-EVOLVE — pass:** no persisted format or reader/writer behavior changes.
+
+   No new architectural or user-facing surface requires atlas or README updates.
+
+7. **Plan revision recommendations:** None. The added revision records fixture corrections without changing the approved contract.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"8ccea2bc-e2c4-4379-bda4-547adc436a58","repository":"github.com/xianxu/pair","issue_id":"000863","recipe":"fix-review","round":4,"attempt":1,"agent":"codex","root":"/Volumes/TestScratch/review-checkouts/1b990a29c5239c8a","reviewed_head":"db3c572e729063328540b68d194bed58547055a1","slot":"pair:7","requested_at":"2026-10-24T11:54:16.910347Z"},"phase":"finished","pid":47527,"started_at":"2026-10-24T11:54:17.052861Z","finished_at":"2026-10-24T11:56:11.650163Z","session_id":"01a16dc2-fbed-7623-8343-58145074d7da","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 3.352540417s
+head: "db3c572e729063328540b68d194bed58547055a1"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412
