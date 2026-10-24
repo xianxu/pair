@@ -71,6 +71,12 @@ TL-approved conservative implementation: source projector, source sanitization h
 
 Conservative final verification: attention/notes/toggle/notification tests PASS 1.853s, targeted race PASS 3.933s, timezone/fixed-minute matrix PASS 0.585s, exhaustive artifact guard PASS 3.506s, reader inventory PASS, diff whitespace clean. Exact clipboard remains covered; candidate counts are 4N at N=8/16 (one match per rendered word), with fixed-size row masks. No recorded check is active yet on this new executable state; commit/push, fresh affected run and close follow.
 
+### 2026-10-23 — Landing blocked by main park regression #852
+
+Recorded affected attempt e5a7db4c973ffa5a5ff24dae9232b02b on executable d30f7c517f25996e15b8bf190d2ad6327e7bd4a5 failed TestLeaveParkRetriesProvenRollbackWithinOneQuit/15 (14 parked, 1 unresolved, context deadline). Other selected Go packages passed; script groups did not run. Terminal escape bytes before the failure header hid the named test from SDLC attribution (independent ariadne#582 filed by TL); immutable failed log SHA256 c3bacd32bd9aa1fd007370840ad07ec85903f8c8b8040d922ed1e362cff3592d.
+
+At TL direction, ran the identical focused command once on separate untouched diagnostic trees: go test -json ./cmd/internal/couchcore -run '^TestLeaveParkRetriesProvenRollbackWithinOneQuit$' -count=1 -timeout=90s. Issue executable d30f7c51 failed both /15 and /30 with an unexpected third recovery drive (65.102s). Pure origin/main f109640a6ad2477df1629ea9b1238d0b90a3f634 also failed both: /15 14 parked/1 unresolved (20.72s), /30 28 parked/2 unresolved (39.97s), context deadline after one drive; package61.055s. Filed unclaimed high-severity #852 with both reproductions for TL dispatch. Logs and trees retained under /Volumes/TestScratch/pair841-leave-repro-gub_n4rh. No park source changed, no flake registered, no check retried and no recorded runner remains active. #841 remains accepted SHIP/high, not landed; await #852 disposition, then obtain required affected pass before boarding. #825 remains queued after landing.
+
 ## Revisions
 
 ### 2026-10-23 — Make release-gate sequencing explicit
