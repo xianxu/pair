@@ -16,6 +16,7 @@ claimant:
     worktree: /Users/xianxu/workspace/worktree/pair-slot7/pair
     repository: github.com/xianxu/pair
 flake_tests: [github.com/xianxu/pair/cmd/internal/couchcmd.TestFreshStartupRunSerializesLaunchThroughAdoption]
+flow: {kind: quick, provenance: inferred, spec: "9c4eb616", done: "fdf57cfe"}
 ---
 
 # flake: TestFreshStartupRunSerializesLaunchThroughAdoption
