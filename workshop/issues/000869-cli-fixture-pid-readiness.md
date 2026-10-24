@@ -49,7 +49,7 @@ Publish the PID atomically or make the readiness observation require the complet
 ## Plan
 
 - [x] Qualify the creation/write gap with a held writer, fix atomic publication and repeat cancellation controls.
-- [ ] Audit readers, run recorded pre-close check, close/review and land.
+- [x] Audit readers and launch the recorded pre-close check; submit the verified patch to SDLC review and landing gates.
 
 - [ ]
 
@@ -66,3 +66,11 @@ TL460aae5a-7711-4ad1-b064-8d1f864405c4 approved the shared test-only producer/he
 Held-write RED failed deterministically: final PID readiness visible before write completed (/tmp/pair869-red.log,0.185s). Shared producer now writes adjacent private .tmp and mv publishes only after printf success, before exec. Both cancellation consumers use it. Focused three-test count30 PASS2.734s; CLI/cancellation race count10 PASS12.634s; full agentfixture package PASS13.245s. Repo lint PASS8.542s. Existing ESRCH and cleanup-uncertainty assertions still prove the owned process is joined before completion.
 
 Reader audit before repair: cli_group_test reads only its own temporary leader/writing/release files plus existing OS process identity; added shell mv reads/writes only literal paths passed beneath t.TempDir. request_lifetime_test reads only its existing generated fixture root/command/mailbox markers; no new artifact or external repository inputs. Both remain local_or_literal_fixture. Inventory first rejected exactly those two stale certificates, then each was individually recorded and staged; make test-affected-inventory PASS. git diff --check PASS. No atlas change applies to this private test-only fixture ordering correction (ARCH-ORDER/DRY); close will acknowledge no-atlas explicitly. Next: push PR and run recorded pre-close check on exact head.
+
+## Revisions
+
+- 2026-10-24 — Clarify the final procedural Plan row as readiness for the binary-owned close/landing gates rather than circularly requiring those gates complete before close can run. Done-when still requires their completion. No scope or design change.
+
+### 2026-10-24 — pushed-head check and review readiness
+
+PR591 opened from2269764c21de3c734ef9f3a5137cea34dc06eaa7. Recorded sdlc local-check run --pre-close resolved affected, then selected the full suite conservatively for the reader certificate delta (known #853 policy); lease-3370177446 is queued in machine FIFO, preserved in this terminal. GitHub local-gates-guard/verdict and merge-check pass. Mandatory close review may overlap the queued recorded check per tl-worker; a final check pass still precedes landing, and any code correction requires a fresh check. No atlas change applies to this private test-fixture publication ordering fix.
