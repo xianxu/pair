@@ -43,7 +43,7 @@ func TestDisposableZellijStartupReadiness(t *testing.T) {
 			stop := startupReadinessTraffic(t, ctx, fleet, cancel)
 			defer stop()
 			started := time.Now()
-			if err := fleet.Start(ctx); err != nil {
+			if err := startupReadinessStartHub(ctx, fleet, agent); err != nil {
 				t.Fatalf("primary startup: %v", err)
 			}
 			if err := fleet.StartWorker(ctx, 1); err != nil {
@@ -76,6 +76,82 @@ func TestDisposableZellijStartupReadiness(t *testing.T) {
 			break
 		}
 	}
+}
+
+// The shared Start on this branch waits for Agent0, while current attachment-only
+// startup intentionally opens the empty switcher. Drive the existing public
+// operator form rather than import #863's unlanded harness change. Down requests
+// preview; exactly one Enter starts. See TL a4eabbf3 and measured peer 8c904b9c.
+func startupReadinessStartHub(parent context.Context, fleet *testcouch.Fleet, agent string) error {
+	ctx, cancel := context.WithCancel(parent)
+	defer cancel()
+	done := make(chan error, 1)
+	go func() {
+		err := fleet.Start(ctx)
+		if err != nil {
+			cancel()
+		}
+		done <- err
+	}()
+	driveErr := startupReadinessHubForm(ctx, fleet, agent)
+	if driveErr != nil {
+		cancel()
+	}
+	return errors.Join(driveErr, <-done)
+}
+
+func startupReadinessHubForm(ctx context.Context, fleet *testcouch.Fleet, agent string) error {
+	waitScreen := func(text string) error {
+		return startupArgumentsWait(ctx, func() (bool, error) {
+			return strings.Contains(fleet.Screen(), text), nil
+		})
+	}
+	const root = "Ctrl+Y copy last notice / selected error"
+	settle, stop := context.WithTimeout(ctx, 5*time.Second)
+	open := startupArgumentsWait(settle, func() (bool, error) {
+		return strings.Contains(fleet.Screen(), root), nil
+	}) == nil
+	stop()
+	if !open {
+		if err := fleet.Press("\x00", 32, 5); err != nil {
+			return err
+		}
+		if err := waitScreen(root); err != nil {
+			return err
+		}
+	}
+	if err := fleet.Press("\x00", 32, 5); err != nil {
+		return err
+	}
+	if err := waitScreen("start thread"); err != nil {
+		return err
+	}
+	if err := fleet.Input([]byte(fleet.Workspaces.Primary)); err != nil {
+		return err
+	}
+	if err := fleet.Press("\x1b[B", 57353, 1); err != nil {
+		return err
+	}
+	for i := 0; i < 8 && !strings.Contains(fleet.Screen(), "agent "+agent); i++ {
+		if err := fleet.Press("\x1b[C", 57351, 1); err != nil {
+			return err
+		}
+		next, stop := context.WithTimeout(ctx, 2*time.Second)
+		_ = startupArgumentsWait(next, func() (bool, error) { return strings.Contains(fleet.Screen(), "agent "+agent), nil })
+		stop()
+	}
+	if err := waitScreen("agent " + agent); err != nil {
+		return err
+	}
+	if err := waitScreen("args  repo-default"); err != nil {
+		return err
+	}
+	if err := fleet.Press("\r", 13, 1); err != nil {
+		return err
+	}
+	return startupArgumentsWait(ctx, func() (bool, error) {
+		return !strings.Contains(fleet.Screen(), "start thread"), nil
+	})
 }
 
 // Source uses the fleet's child environment, rather than the test process's

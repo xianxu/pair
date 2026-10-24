@@ -95,6 +95,12 @@ The finite bypass rule lives in Pair's existing **internal/repolint** catalog ex
 
 **Next:** run the bounded shared native qualification on this integrated source for both agents, preserve full server/probe evidence and exact cleanup, finish any deterministic/fixture failures, reconcile atlas and affected-reader inputs, then recorded pre-close and binary-owned close review. #722 stays independently parked.
 
+### 2026-10-24 — first native attempt: pre-start harness mismatch, exact cleanup
+
+Native qualification at source a14881593ed58eeabcf58e12863c15208d39bc66 failed before any Pair startup: TestDisposableZellijStartupReadiness Claude245.83s/full278.52s, Fleet.Start waited for Agent0 while the attachment-only startup UI offered `hub · Ctrl+Space: start`. There were241 empty native listing samples, no wrapper records and a zero-byte server log; no readiness/panic avoidance coverage is claimed. Shared testcouch confirmed all exact owned generations absent and direct child/IO joined. Full capture [native-startup-readiness-a14881593.log](../evidence/000866/native-startup-readiness-a14881593.log), SHA256e213c94e337e0a8cb59fc3f2f499fc2aa9fd54f7863d9869b2861ee68b0ff864.
+
+Authenticated submitted TL a4eabbf3 authorizes driving the existing public start form in this qualification rather than waiting for #863's unlanded shared harness repair. Submitted pair:6 measurement8c904b9c corrects the exact sequence: wait for switcher root, Ctrl+Space to form, input primary path, Down requests preview, choose agent, wait `args  repo-default`, then **one Enter** starts. There is no resolve Enter and never a repeated Enter. The test now drives that observed form while joining Fleet.Start's existing wait; no production harness, private native owner or readiness mechanism added. Rerun after this checkpoint. All certificate changes were audited per reader; scanner registration adds only the new test names. Complete launcher passed178.379s, wrapcmd135.718s; three Couch fixture contamination failures passed targeted after private isolation. Explicit controlled-native fixture observations now retain exclusion-only test admission after their existing screen-render witness; ordinary probes still refuse their unmarked endpoint.
+
 ## Revisions
 
 ### 2026-10-24 — proposed shared readiness exclusion
