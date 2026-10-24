@@ -11,7 +11,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/xianxu/pair/cmd/internal/artifactpath"
 	"github.com/xianxu/pair/cmd/internal/osfs"
+	"github.com/xianxu/pair/cmd/internal/panebirth"
 	"github.com/xianxu/pair/cmd/internal/procutil"
 	"github.com/xianxu/pair/cmd/internal/readiness"
 	"github.com/xianxu/pair/cmd/internal/testpair"
@@ -180,6 +182,14 @@ func TestRegistrationNestedWrapperUsesDisposableEnvironment(t *testing.T) {
 		}
 	}
 	report, release := filepath.Join(root, "env.json"), filepath.Join(root, "release")
+	paths, err := artifactpath.ResolveScoped(root, "fixture")
+	if err != nil {
+		t.Fatal(err)
+	}
+	nativeRoot := filepath.Join(root, "native")
+	if err := os.MkdirAll(nativeRoot, 0700); err != nil {
+		t.Fatal(err)
+	}
 	foreignEvents := filepath.Join(t.TempDir(), "foreign-events")
 	if err := os.WriteFile(foreignEvents, []byte("preserve"), 0600); err != nil {
 		t.Fatal(err)
@@ -189,6 +199,7 @@ func TestRegistrationNestedWrapperUsesDisposableEnvironment(t *testing.T) {
 	env := testpair.Environment(t, root,
 		"PAIR_TEST_COUCH_TERMINAL_FIXTURE=1", "PAIR_TAG=fixture", "PAIR_AGENT=claude",
 		"PAIR_SESSION_NAME=fixture", "PAIR_LAUNCH_NONCE=nonce",
+		"PAIR_DATA_DIR="+root, "PAIR_SCOPE_KEY=0123456789abcdef", "ZELLIJ_SOCKET_DIR="+nativeRoot,
 		"PAIR_AGENT_READY_PATH="+filepath.Join(root, "agent-ready"),
 		"PAIR_TEST_ZELLIJ_READY="+filepath.Join(root, "ready"),
 		"PAIR_TEST_ZELLIJ_RELEASE="+release, "PAIR_TEST_ZELLIJ_ENV_REPORT="+report,
@@ -220,6 +231,22 @@ func TestRegistrationNestedWrapperUsesDisposableEnvironment(t *testing.T) {
 	}
 	if got := environmentValue(observed, "HOME"); got != root {
 		t.Fatalf("nested HOME=%q, want %q", got, root)
+	}
+	// The wrapper stands in for the real initial pane command. Its agent must
+	// not start before that pane has published this launch's exact evidence.
+	panePath, err := paths.PaneChecked("claude")
+	if err != nil {
+		t.Fatal(err)
+	}
+	paneRaw, err := os.ReadFile(panePath)
+	if err != nil {
+		t.Fatalf("agent started without first-pane evidence: %v", err)
+	}
+	pane, err := panebirth.DecodeRecord(paneRaw)
+	namespace, namespaceErr := filepath.EvalSymlinks(nativeRoot)
+	wantIdentity := panebirth.LaunchIdentity{Namespace: namespace, Scope: "0123456789abcdef", Tag: "fixture", Agent: "claude", Session: "fixture", Nonce: "nonce"}
+	if err != nil || namespaceErr != nil || !pane.Identity.Equal(wantIdentity) || pane.PaneID != "1" {
+		t.Fatalf("first-pane evidence=%+v err=%v namespace=%v; want %+v", pane, err, namespaceErr, wantIdentity)
 	}
 	for _, key := range []string{"PAIR_SCROLLBACK_EVENTS_PATH", "COUCH_TREE", "UNLISTED_FIXTURE_SECRET"} {
 		if value := environmentValue(observed, key); value != "" {

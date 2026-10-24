@@ -191,9 +191,13 @@ func (a *terminalOSAttempt) Admit(ctx context.Context) error {
 	if !a.create {
 		return ctx.Err()
 	}
-	return admitTerminalAfterReady(ctx, ctx, a.observeCreateAdmission, func(queryCtx context.Context) error {
+	err := admitTerminalAfterReady(ctx, ctx, a.observeCreateAdmission, func(queryCtx context.Context) error {
 		return requireListedLiveTerminal(queryCtx, a.name, listTerminalSessions, a.rt.liveSessionServers)
 	})
+	if err != nil && !a.panePublished {
+		return fmt.Errorf("terminal first-pane readiness unverified for session %q; pane-ready was not accepted before startup ended: %w", a.name, err)
+	}
+	return err
 }
 
 // Exact first-pane evidence releases native namespace exclusion independently

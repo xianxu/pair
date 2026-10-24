@@ -890,6 +890,8 @@ still inspect unmarked endpoints after the live creator releases exclusion; it
 keeps its existing authorization checks. Unknown state or a readiness marker does
 not authorize stopping a session.
 
+🤖{Update the Pair binary, Lua assets, and layouts together. Custom or older layouts selected through `PAIR_HOME` or another asset root must run `pair internal pane-ready` as the initial agent pane command before guarded native actions. If startup reports `terminal first-pane readiness unverified`, check for an old layout that omits that command; startup stops at its existing bound.}
+
 Startup exclusion protects bounded native commands from cooperating clients
 while the creator is alive. Interactive attach/reconnect, creator death, and
 foreign or older clients remain outside that protection. See

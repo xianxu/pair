@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -13,6 +14,28 @@ import (
 	"github.com/xianxu/pair/cmd/internal/panebirth"
 	"github.com/xianxu/pair/cmd/internal/zellijquery"
 )
+
+func TestCreatorMissingPaneReadinessNamesSessionAtBound(t *testing.T) {
+	dir := t.TempDir()
+	namespace := filepath.Join(dir, "native")
+	if err := os.MkdirAll(filepath.Join(namespace, "contract_version_1"), 0700); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("HOME", filepath.Join(dir, "home"))
+	t.Setenv("ZELLIJ_SOCKET_DIR", namespace)
+	a := &terminalOSAttempt{rt: OSRuntime{DataDir: filepath.Join(dir, "data")}, name: "missing-pane-session", socket: filepath.Join(namespace, "contract_version_1", "missing-pane-session"), socketRoot: namespace, scope: "0123456789abcdef", tag: "1-test-1", agent: "claude", nonce: "this-launch", create: true}
+	lease, err := a.Acquire(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer lease.Close()
+	ctx, cancel := context.WithTimeout(t.Context(), 25*time.Millisecond)
+	defer cancel()
+	err = a.Admit(ctx)
+	if !errors.Is(err, context.DeadlineExceeded) || !strings.Contains(err.Error(), "first-pane readiness unverified") || !strings.Contains(err.Error(), a.name) {
+		t.Fatalf("missing pane at startup bound must name phase/session and preserve deadline: %v", err)
+	}
+}
 
 func TestCreatorPaneReadinessReleasesBeforeAgentReady(t *testing.T) {
 	dir := t.TempDir()
@@ -88,5 +111,10 @@ func TestCreatorPaneReadinessReleasesBeforeAgentReady(t *testing.T) {
 	// the released guard or turn first-pane evidence into agent readiness.
 	if err := a.observeCreateAdmission(t.Context()); !errors.Is(err, os.ErrNotExist) {
 		t.Fatalf("repeated agent wait: %v", err)
+	}
+	agentCtx, stopAgentWait := context.WithTimeout(t.Context(), 25*time.Millisecond)
+	defer stopAgentWait()
+	if err := a.Admit(agentCtx); !errors.Is(err, context.DeadlineExceeded) || strings.Contains(err.Error(), "first-pane readiness unverified") {
+		t.Fatalf("accepted pane must keep later AgentReady timeout distinct: %v", err)
 	}
 }

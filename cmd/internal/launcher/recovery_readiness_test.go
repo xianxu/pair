@@ -12,6 +12,7 @@ import (
 	"github.com/xianxu/pair/cmd/internal/artifactpath"
 	"github.com/xianxu/pair/cmd/internal/testpair"
 	"github.com/xianxu/pair/cmd/internal/zellijquery"
+	"github.com/xianxu/pair/cmd/internal/zellijtest"
 )
 
 type unmarkedRecoveryWorld struct {
@@ -76,6 +77,8 @@ func (w *unmarkedRecoveryWorld) KillServer(server SessionServerIdentity) error {
 }
 
 func TestExplicitRecoveryOfUnmarkedEndpointKeepsExactAuthority(t *testing.T) {
+	liveReply := zellijtest.ShellCase(t, "recovery-readiness.live-session")
+	retiredReply := zellijtest.ShellCase(t, "recovery-readiness.retired-session")
 	root := testpair.ShortRoot(t)
 	t.Setenv("HOME", root)
 	t.Setenv("TMPDIR", root)
@@ -94,7 +97,7 @@ func TestExplicitRecoveryOfUnmarkedEndpointKeepsExactAuthority(t *testing.T) {
 	if err := os.WriteFile(state, []byte("live"), 0600); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(root, "zellij"), []byte("#!/bin/sh\nif [ -e \"$PAIR_TEST_RECOVERY_STATE\" ]; then printf 'pair-work [Created 1s ago]\\n'; else printf 'other [Created 1s ago]\\n'; fi\n"), 0700); err != nil {
+	if err := os.WriteFile(filepath.Join(root, "zellij"), []byte("#!/bin/sh\nif [ -e \"$PAIR_TEST_RECOVERY_STATE\" ]; then "+liveReply+"; else "+retiredReply+"; fi\n"), 0700); err != nil {
 		t.Fatal(err)
 	}
 	// An automatic observer cannot open a native client to this endpoint.

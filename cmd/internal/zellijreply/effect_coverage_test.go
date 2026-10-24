@@ -22,7 +22,7 @@ var m2EffectManifest = map[string]effectBoundary{
 	"layoutcmd/layoutcmd.go:SwitchRightTerminalTabContext:RunZellijAction#1": {token: "ctx"},
 	"layoutcmd/layoutcmd.go:newRightTerminalTabContext:RunZellijAction#1":    {token: "ctx"},
 	"layoutcmd/layoutcmd.go:execZellijContext:Output#1":                      {exemption: "read-only query collector, not a mutation"},
-	"layoutcmd/layoutcmd.go:RunZellijAction:CombinedOutput#1":                {exemption: "issued Runtime mutation implementation retains its lifetime"},
+	"layoutcmd/layoutcmd.go:RunZellijActionContext:RunNativeCommand#1":       {exemption: "issued Runtime mutation implementation retains its lifetime"},
 	"layoutcmd/rightpane.go:restoreTilingContext:RunZellijAction#1":          {token: "ctx"},
 	"layoutcmd/rightpane.go:restoreTilingContext:RunZellijAction#2":          {token: "ctx"},
 	"layoutcmd/rightpane.go:RunToggleFocusedContext:Write#1":                 {token: "ctx"},
@@ -52,7 +52,7 @@ var m2EffectManifest = map[string]effectBoundary{
 	"termcmd/run.go:RecordLastTerminalPaneID:Write#1":                        {exemption: "issued Runtime record-write implementation"},
 	"termcmd/run.go:RunZellijAction:RunZellijActionQuiet#1":                  {exemption: "issued Runtime mutation delegation retains its lifetime"},
 	"termcmd/run.go:RunZellijActionQuiet:RunZellijAction#1":                  {exemption: "issued Runtime mutation delegation retains its lifetime"},
-	"termcmd/run.go:runZellij:Run#1":                                         {exemption: "issued Runtime mutation subprocess retains its lifetime"},
+	"termcmd/run.go:runZellij:RunNativeCommand#1":                            {exemption: "issued Runtime mutation subprocess retains its lifetime"},
 	"draftroute/route.go:RouteLuaToPaneContext:RunZellijAction#1":            {token: "ctx"},
 	"draftroute/route.go:RouteLuaToPaneContext:RunZellijAction#2":            {token: "ctx"},
 	"clipcmd/run.go:RunCopyOnSelect:ClipboardCopy#1":                         {exemption: "independent clipboard mirror must survive refused auto-quote"},
@@ -75,7 +75,7 @@ var m2OwnerFiles = []string{
 	"draftroute/route.go", "clipcmd/run.go", "couchtty/console.go",
 }
 
-var effectSinkNames = strings.Fields("RunZellijAction RunZellijActionQuiet RecordLastLeftPaneID RecordLastTerminalPaneID Write Clear NudgeWrap SetPaneColor ResetPaneColorAfter WriteFile FocusPaneContext WritePaneKeyContext SetNoteAnchor ClipboardCopy SpawnDetached RegisterTerminalPane newTab closeActive previousTab nextTab route handle Run Output CombinedOutput Start")
+var effectSinkNames = strings.Fields("RunZellijAction RunZellijActionQuiet RecordLastLeftPaneID RecordLastTerminalPaneID Write Clear NudgeWrap SetPaneColor ResetPaneColorAfter WriteFile FocusPaneContext WritePaneKeyContext SetNoteAnchor ClipboardCopy SpawnDetached RegisterTerminalPane newTab closeActive previousTab nextTab route handle Run RunNativeCommand Output CombinedOutput Start")
 
 var effectReadMethods = strings.Fields("CurrentPaneID FullscreenStore CurrentTabJSON CurrentTabJSONContext ListPanesJSON ListPanesJSONContext LastLeftPaneID LastTerminalPaneID TerminalPaneIDs CachedDraftPaneID Read TryLock ShellCommand ClipboardPaste ListPanesContext ListClientsContext")
 var effectDiagnosticMethods = strings.Fields("Log LogFresh LogFailure NotifyRefusal")
@@ -283,11 +283,16 @@ func TestEffectCoverageRejectsMissingAndWeakenedGuards(t *testing.T) {
 }
 
 func TestEffectCoverageRejectsUnclassifiedSinkReferences(t *testing.T) {
-	file, err := parser.ParseFile(token.NewFileSet(), "fixture.go", "package fixture\nfunc unlisted(){send:=rt.RunZellijAction;_=send()}", 0)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if failures := inspectEffectCoverage(map[string]*ast.File{"fixture.go": file}, map[string]effectBoundary{}); len(failures) == 0 {
-		t.Fatal("unclassified bound mutation escaped coverage")
+	for _, body := range []string{
+		"send:=rt.RunZellijAction;_=send()",
+		"_=zellijquery.RunNativeCommand()",
+	} {
+		file, err := parser.ParseFile(token.NewFileSet(), "fixture.go", "package fixture\nfunc unlisted(){"+body+"}", 0)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if failures := inspectEffectCoverage(map[string]*ast.File{"fixture.go": file}, map[string]effectBoundary{}); len(failures) == 0 {
+			t.Fatalf("unclassified effect escaped coverage: %s", body)
+		}
 	}
 }

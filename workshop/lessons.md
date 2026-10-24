@@ -2893,3 +2893,5 @@ and external temporary roots rather than relying on the host's TMPDIR.
 - #866 dry-run follow-up: GNU Make executes recipe lines containing a direct MAKE reference even under -n. Keep graph inspection from entering wrapper setup, and audit the scripts behind explicit recipe wrappers rather than dropping ownership checks.
 - #866 all-target sweep: Qualify a supplier with its own module metadata and bounded source dependency closure from one checkout/ref; optional new dependencies must not disqualify valid older suppliers.
 - #866 copy completion: Attribute fixture completion to exact operation argv. A shared executable can also run background helpers; their successful exit must never satisfy another operation's completion channel.
+
+- #866 composed startup coverage: a terminal fake must execute the production first-pane publisher before agent readiness; AgentReady alone cannot model creator admission. Run every default Go package locally with suite flags after helper/lease migrations, and retain a named phase/session error for missing first-pane evidence at the existing startup bound.
