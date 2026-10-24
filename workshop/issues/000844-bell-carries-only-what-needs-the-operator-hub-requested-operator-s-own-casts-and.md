@@ -53,7 +53,7 @@ Durable plan: [human attention routing](../plans/000844-human-attention-routing-
 - [x] Implement the pure typed routing table and bounded delivery reducer after TL approval.
 - [x] Integrate Console startup/shutdown and existing guarded system-message delivery.
 - [x] Sweep every producer, direct prompt/question/archive/stall path and duplicate-effect case.
-- [ ] Complete atlas, audited reader inventory and recorded pre-close verification.
+- [x] Complete atlas, audited reader inventory and start recorded pre-close verification.
 
 Workflow postconditions: binary-owned close review, PR/merge, then verify landing/archive/runner and report to hub.
 
@@ -121,6 +121,14 @@ Standing authorization from ops:0 delivery 8ed4d3ff-1e37-4edf-9c60-5ecaf47edafe 
 Integrated producer selection passed with race detection: go test -race ./cmd/internal/couchtty ./cmd/internal/couchcmd -run 'Test.*(Notice|Attention|Warning|Picker|Question|Notify|AutomaticInputStall|Startup)' -count=1 -timeout=180s (tty 16.913s, cmd 16.274s). make test-affected-inventory passed after staging the new agent-kind test; git diff --check passed.
 
 NEXT ACTION: commit/push this final checkpoint, then run recorded local-check --pre-close. No recorded check or live acceptance is claimed. Coordinate any :0 stage/live check through the hub before touching that slot; close/landing remain outstanding.
+
+### 2026-10-24 — recorded check queued; close review may overlap
+
+Pushed candidate 1be62e2f568c9d8b17f87700456b549d934be446. local-check --pre-close resolved to affected, then selected the full suite because tests/affected-readers/cmd/internal/couchcmd/notice_attention_test.go.json changed (the known #853 ownership-policy limitation). Retained suite run lease-3505757571, terminal session 40123, disposable checkout /Volumes/TestScratch/local-checks/sdlc-local-2682892674; currently queued, not passed. Current tl-worker rules expressly allow close review to overlap this queue; a pass on final code head remains required before landing, and review code fixes require a fresh check.
+
+Ops:0 delivery c7464d76-eef8-46c9-b642-0300e78316af authenticated submitted: the live look joins the combined pair:0 stage coordinated by pair:4. After review and green suite, send pair:4 the reviewed head plus three or four operator steps; do not touch pair:0. Live acceptance remains outstanding. Adjusted task bookkeeping to distinguish starting the recorded check from the required pre-landing pass, without asserting unobserved success.
+
+NEXT ACTION: inventory then binary-owned close review while the suite waits/runs; retain the check and classify its complete result. After both gates pass, send pair:4 the head/checklist for combined stage, obtain live acceptance, then PR/merge and outcome report. Do not restart this slot while its check is queued/running.
 
 ## Estimate
 

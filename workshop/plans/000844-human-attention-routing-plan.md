@@ -175,10 +175,10 @@ The following names are the production API to implement; unit tests call these f
 **Files:** relevant atlas/couch attention documentation and atlas/index.md; this issue/plan.
 
 - [x] Document policy-table anchor, operator eligibility, ownership, automation-off and bounded delivery semantics at map level.
-- [ ] Run `git diff --check`, targeted verification above and inventory; push final head, run `sdlc local-check run --pre-close` and await its recorded result.
-- [ ] Finish the pre-close reader inventory and verification evidence in the issue Log.
+- [x] Run `git diff --check`, targeted verification above and inventory; push final code head and start `sdlc local-check run --pre-close`.
+- [x] Finish the pre-close reader inventory and focused verification evidence in the issue Log.
 
-Workflow postconditions: use measured actuals and the binary-owned close review; address its findings through the ledger, then land through sdlc PR/merge and report verified PR/archive/runner completion to hub. Stage only if TL requests a live check.
+Workflow postconditions: await the recorded pass on final code and TL-coordinated live acceptance before landing; use measured actuals and the binary-owned close review; address its findings through the ledger, then land through sdlc PR/merge and report verified PR/archive/runner completion to hub. Stage only if TL requests a live check.
 
 ## Approval request / remaining decisions
 
@@ -194,3 +194,5 @@ Approve the typed table, four-worker/128-entry dispatcher and the single aggrega
 - 2026-10-24: implementation retained the existing wait-watcher ownership for picker/question messages, including timing/mute/deduplication; HubHandled describes canonical effect ownership, not a submitted receipt. No immediate duplicate picker send was added. Publication freezes memory-only readiness/epoch before asynchronous work, tested against OFF/ON ordering.
 
 - 2026-10-24: moved future close/landing/report actions out of implementation checkboxes; those are workflow postconditions, not deliverables that can truthfully be ticked before the close gate itself (lesson #871).
+
+- 2026-10-24: separated recorded-check start (completed implementation task) from awaiting its passing result (mandatory pre-landing postcondition), following tl-worker's explicit allowance for close review to overlap a queued check. Ops:0 assigned the live look to pair:4's combined stage after review and green suite; no unilateral pair:0 stage.
