@@ -117,3 +117,7 @@ A fixture-only repair is already pushed as b3da4973ef63b6a1af8ab941721abde8f3038
 ### 2026-10-24 — assigned adoption and source-qualified design
 
 Hub a942ac93 assigned this slot to land adoption first. Source qualification splits40 deadline observations into13 virtual-clock,6 selection/wait-stub and21 real-timer/native sites. Hub f9c009c1 authorizes exactly the independent fuzz oracle and standalone DOM materializer per-site allows until ariadne#590 fixes role classification. Every other observation gets its cause repaired. Design is in the durable plan; no implementation or estimate yet.
+
+### 2026-10-24 — plan approved; PQ-1 refined
+
+Authenticated hub d3628148 approves the durable plan. First change-code review found only PQ-1 function-scoped-test-strategy; durable plan now names each risky function, the cue API, independent adversarial oracle and mechanical assertions. Re-running plan-quality before implementation.

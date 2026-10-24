@@ -48,6 +48,27 @@ JSON validation performs json.Valid once plus one byte pass, one decoded-key ope
 
 Deadline creation/expiration/parent propagation is O(1) per request, no polling thread per cue. Each child test waits for its exact readiness marker/stage before expiration and joins its actual command/reader. Context watchers/timers cancel in cleanup; test roots remove at t.Cleanup; subprocesses remain within existing exact group owners. No durable store/cache family is added. Normal logs and issue evidence follow existing workshop archive lifecycle (ARCH-LIFECYCLE).
 
+## Function-scoped test strategies
+
+The cue API is `testwait.DeadlineOnCue(parent context.Context, budget time.Duration) (context.Context, func(), context.CancelFunc)`: the second result expires the request with DeadlineExceeded; the third cancels and releases the parent notification. Factory tests capture the selected duration before returning this context. It is not a replacement parent deadline for own-request-budget tests.
+
+| Risky function / seam | Adversarial strategy and mechanical guard |
+|---|---|
+| internal/jsonstrict.Scan(raw, Options) and its private scan work-counter seam | Independent legacy-token differential fuzz oracle plus owner-specific option cross-product; assert same accept/refuse and error authority for exact/folded Unicode/escaped keys, number-range policy, trailing bytes and depth boundaries. Count byte/key visits at N/2N and visitor invocations; reject prefix rescans or missed nested keys. |
+| strictjson.Decode, RejectDuplicateKeys, RejectDuplicateKeysPreserveNumbers, SplitObject and EncodeObject | Existing wrapper tests plus independent raw round-trip assertions: preserve defaults, required/null and unknown raw members across scanner extraction, including huge retained numbers and escaped duplicate keys. |
+| historyarchive.decodeJSONNoDuplicateKeys, DecodeUploadReceipt and label/receipt JSON codecs | Existing typed fixture oracle against folded Unicode aliases, strict/non-strict unknown members, depth64/65 and retained raw extensions; assert old accepted bytes remain accepted and ambiguous owned fields refuse before typed adoption. |
+| submission.visitJSONKeys and DecodeManifest | Nested unknown-extension adversaries and visitor-error sentinel: assert every sensitive alias is visited, exact duplicate policy remains, opaque values survive and owner schema still rejects invalid authority. |
+| repolint.uniqueJSONKeys and decodeDebt | Existing debt codec/ratchet tests with exact duplicate, unknown and trailing-document mutations; assert same established exact-key policy and unchanged shrink authority. |
+| testwait.DeadlineOnCue | Controlled parent cancel versus explicit expire/cancel ordering, including simultaneous calls under race: assert initially live, first terminal cause wins with correct Err, and cancel releases its parent notification without a retained watcher. Use test deadline only as deadlock guard. |
+| OSProvisionIO.Run and its deadline factory | TERM-deaf real child emits marker only after trap installation; capture requested budget then expire on that marker. Assert own-request DeadlineExceeded and actual exact-group/pipe joins, never caller-deadline substitution. |
+| vmcmd.Run / private runWithDeadline | Stateful Runtime entered/gates oracle: capture selected budget, reach each named stage, expire, then assert stage-specific refusal and cleanup with an independently live context. |
+| agentfixture.runCLI / private runCLIWithDeadline and commandCLITimeout | Pure default/override duration assertion plus real-child startup marker before injected own deadline expiry; assert selected budget, result and exact child/group joins. CLIAdmissionTransition uses fixed queue/deadline times; native expired absolute deadline at full capacity proves no spawn. |
+| Cloudflared.Open and its private startup timer factory | Controlled fake-process readiness before timer firing, assert selected duration and exact no-tunnel branch; retain real process/reap observation. Session hidden-indicator uses manualClock.fireGrace only after hidden frame activation. |
+| MemController.Detach grace callback and instance afterFunc factory | Hold CtlLeave sink write, invoke captured expiry callback outside controller lock, assert credential and turn revocation before release, then join callback. Existing controller contract remains authority. |
+| harnessTTY capture startup/teardown helpers | Distinct ready-after-handlers marker gates startup timer; controlled wait results gate escalation while real Kill/Wait/reader joins prove cleanup. Output/classification/geometry tests use normal defaults; stubbed teardown tests assert exact selected grace. |
+| launcher independent-retirement observation | Fake world records kill followed by a fresh surviving-owner observation before cue caller expiry; assert exact signal target and refusal, preventing a test that exits before the independent recheck. |
+| testpair.ShortRoot and startup optional socket-TMPDIR helper | Existing real listener contract plus long inherited TMPDIR: assert physical path bound/privacy, normal temp preservation, opt-in isolated root, cleanup after nested subtest and environment restoration. |
+
 ## Task 1: pin and qualify catalog boundary
 
 Files: go.mod/go.sum; tests/affected-config-test.py; internal/repolint/{local_catalog_test,catalog_test,zellij_query_boundary_rule_test}.go and any newly landed equivalent catalog adapter files; tests/affected-readers for audited changed readers.
@@ -62,11 +83,11 @@ Files: go.mod/go.sum; tests/affected-config-test.py; internal/repolint/{local_ca
 
 Files: internal/jsonstrict/{scan.go,scan_test.go}; cmd/internal/strictjson/{decode.go,decode_equivalence_test.go,*_test.go}; cmd/internal/historyarchive/drive_model.go and receipt/label tests; cmd/internal/submission/privacy.go and privacy/codec tests; internal/repolint/{catalog_test,debt_test}.go; examples/mock-to-real/internal/jsonvalue/value.go.
 
-- [ ] Pin owner-specific acceptance before refactor: exact keys versus Unicode-fold aliases (s/long-s, K/Kelvin, escaped/invalid Unicode), one JSON value, trailing input, depth64/65 including scalar children, oversized numbers, unknown raw extension round trips and required/null fields.
+- [ ] Run the function-scoped Scan and owner-wrapper adversarial strategies above before extraction; preserve their independent oracle and mechanical assertions in colocated named tests.
 - [ ] Extract the existing optimized parser into root internal/jsonstrict.Scan(raw, Options), retaining thin Decode/RejectDuplicateKeys wrappers and owner typed validation. Add the options needed by the three readers; no second parser.
 - [ ] Route historyarchive duplicate scan through folded/depth64/preserve-number options; preserve strict/non-strict typed decode. Route submission duplicate scan through exact/preserve-number visitor, keeping sensitive-alias policy in submission. Route debt scan through exact structural validation; preserve unknown/trailing checks.
 - [ ] Keep the fuzz legacy tokenizer and standalone DOM builder unchanged except the two authorized per-site json-recursive-scanner allows naming ariadne#590. Preserve sample's independent dependency-free module.
-- [ ] Test key visitor reaches unknown objects and arrays, propagates its error, and cannot skip nested duplicate validation. Retain independent differential fuzz oracle and bounded fuzz runs.
+- [ ] Run Scan visitor and submission.visitJSONKeys strategies above; retain the independent FuzzRejectDuplicateKeysEquivalent oracle with bounded fuzz runs.
 - [ ] Count byte/key work at N and2N, assert linear work and one visitor call per key. Run strictjson/historyarchive/submission/repolint targeted contracts and standalone example contract tests; commit.
 
 ## Task 3: bounded canonical socket fixtures
@@ -91,7 +112,7 @@ Files: cmd/internal/sessionwatch/{peer_turn_test,probation_test,run_test}.go; cm
 
 Files: cmd/internal/testwait/{deadline.go,deadline_test.go}; cmd/internal/broadcast/{cloudflared.go,cloudflared_test.go,session_test.go}; cmd/internal/couchcore/{provision_io.go,provision_subprocess_test.go}; cmd/internal/vmcmd/{runtime.go,runtime_test.go}; cmd/internal/launcher/{recovery_terminal_test,recovery_terminal_confirmed_test}.go; cmd/internal/webcast/drive/{controller_mem.go,drawing_test.go}; cmd/internal/testcouch/agentfixture/{run.go,run_test.go,cli_group_test.go,request_lifetime_test.go}; cmd/internal/wrapcmd/{harness_tty_live_test,peer_live_tall_test}.go.
 
-- [ ] Test cue deadline context contract: initially live, explicit expiry gives DeadlineExceeded, cancel gives Canceled, parent cancellation propagates, concurrent expire/cancel race is safe and all watchers join. Use test deadline as deadlock guard, not elapsed speed acceptance.
+- [ ] Implement and verify testwait.DeadlineOnCue against its controlled-order function strategy above; keep own-request budget factories distinct from caller cancellation.
 - [ ] Broadcast hidden-indicator uses existing manualClock after/ticks/fireGrace; cloudflared no-URL fixture publishes process readiness before injected startup timer fires. Assert selected startup budget and exact no-tunnel failure branch.
 - [ ] Provision TERM-deaf fixture publishes readiness after installing trap; injected request deadline expires then. Assert selected own request duration and group cleanup. VM RunRequestTimeout waits for each fake named stage before expiry; assert stage reached and independent cleanup context remains live.
 - [ ] Launcher strict/confirmed retirement fakes expire the caller only after exact kill plus a subsequent independent observation of the still-live owner. Preserve signal authority assertions.
@@ -114,3 +135,7 @@ Files: cmd/internal/testwait/{deadline.go,deadline_test.go}; cmd/internal/broadc
 ### 2026-10-24 — initial source-qualified plan
 
 Separates substrate adoption from #838. Preserves all51 observations and records exactly two hub-approved false-positive sites with upstream ariadne#590. Implementation waits hub approval and change-code; no estimate before plan-quality.
+
+### 2026-10-24 — PQ-1 function-scoped verification refinement
+
+Named the cue API and private deadline variants, and replaced prose-only case inventories with a per-risky-function adversarial strategy and mechanical guard table. Existing approved scope, normal budgets, independent oracle, work counters and readiness ordering remain unchanged.
