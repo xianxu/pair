@@ -334,3 +334,7 @@ whitespace false positives. This is the same approved shared-grammar authority,
 with no new resolver or state. Whole pure package/race checks pass. Current
 recorded-check entry is `sdlc local-check run --pre-close` per the authenticated
 #578 fleet notice, superseding explicit affected selection in earlier tasks.
+
+### 2026-10-24 — native qualification follows explicit startup
+
+Hub2da96548 approves a test-only explicit operator start bootstrap while shared863 is open. The main-based native rerun failed before any editorial step because Fleet.Start waits for an auto-started hub after739. Qualification may opt into PAIR_NATIVE_EDITORIAL_BOOTSTRAP=1, using the existing Screen/Press form path and joining Fleet.Start. Editorial assertions, shared runtime, production behavior and existing300s context stay unchanged. Ordinary startup qualification remains863's responsibility; no runtime fork or timeout increase.

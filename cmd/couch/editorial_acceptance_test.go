@@ -12,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/xianxu/pair/cmd/internal/launcher"
 	"github.com/xianxu/pair/cmd/internal/sessionsync"
 	"github.com/xianxu/pair/cmd/internal/testcouch"
 	"github.com/xianxu/pair/cmd/internal/testcouch/agentfixture"
@@ -151,9 +152,7 @@ func TestNativeEditorial(t *testing.T) {
 			}
 			ctx, cancel := context.WithTimeout(t.Context(), 300*time.Second)
 			defer cancel()
-			if err := fleet.Start(ctx); err != nil {
-				t.Fatal(err)
-			}
+			nativeEditorialStart(t, ctx, fleet, kind)
 			actor, err := fleet.Agent(0)
 			if err != nil || actor.Agent != kind {
 				t.Fatalf("fixture personality: %+v %v", actor, err)
@@ -437,6 +436,74 @@ func TestNativeEditorial(t *testing.T) {
 		}) {
 			break
 		}
+	}
+}
+
+// Until #863 repairs Fleet.Start, opt-in qualification follows the operator's
+// explicit start gesture after #739. Editorial steps and budgets stay unchanged.
+func nativeEditorialStart(t *testing.T, ctx context.Context, fleet *testcouch.Fleet, agent string) {
+	t.Helper()
+	if os.Getenv("PAIR_NATIVE_EDITORIAL_BOOTSTRAP") != "1" {
+		if err := fleet.Start(ctx); err != nil {
+			t.Fatal(err)
+		}
+		return
+	}
+	startup, cancel := context.WithCancel(ctx)
+	started := make(chan error, 1)
+	go func() { started <- fleet.Start(startup) }()
+	joined := false
+	defer func() {
+		cancel()
+		if !joined {
+			<-started
+		}
+	}()
+	// Wait for the cold switcher to draw before opening its form. Pressing
+	// early can toggle a different view instead of selecting the start action.
+	forceFleetWaitScreen(t, ctx, fleet, "Ctrl+Y copy last notice / selected error")
+	forceFleetPress(t, fleet, "\x00", 32, 5)
+	forceFleetWaitScreen(t, ctx, fleet, "start thread")
+	if err := fleet.Input([]byte(fleet.Workspaces.Primary)); err != nil {
+		t.Fatal(err)
+	}
+	forceFleetPress(t, fleet, "\x1b[B", 57353, 1)
+	forceFleetWaitScreen(t, ctx, fleet, "args  repo-default")
+	agents := launcher.AgentInventory()
+	for range agents {
+		screen := fleet.Screen()
+		if strings.Contains(screen, "agent "+agent) {
+			break
+		}
+		previous := ""
+		for _, candidate := range agents {
+			if strings.Contains(screen, "agent "+candidate) {
+				previous = "agent " + candidate
+				break
+			}
+		}
+		if previous == "" {
+			t.Fatalf("start form has no selected agent: %s", screen)
+		}
+		forceFleetPress(t, fleet, "\x1b[C", 57351, 1)
+		if err := waitFleet(ctx, func() (bool, error) {
+			return !strings.Contains(fleet.Screen(), previous), nil
+		}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	forceFleetWaitScreen(t, ctx, fleet, "agent "+agent)
+	forceFleetWaitScreen(t, ctx, fleet, "args  repo-default")
+	forceFleetPress(t, fleet, "\r", 13, 1)
+	if err := waitFleet(ctx, func() (bool, error) {
+		return !strings.Contains(fleet.Screen(), "start thread"), nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	err := <-started
+	joined = true
+	if err != nil {
+		t.Fatal(err)
 	}
 }
 
