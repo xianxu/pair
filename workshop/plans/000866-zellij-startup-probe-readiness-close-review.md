@@ -118,3 +118,118 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000415
+
+---
+
+## Re-review — 2026-10-24T05:09:54-07:00 (REWORK)
+
+| field | value |
+|-------|-------|
+| issue | 866 — Wait for Zellij readiness before startup probe clients |
+| repo | pair |
+| issue file | workshop/issues/000866-zellij-startup-probe-readiness.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 0859007d1bdee7f723eef4ba086e3ec18ff79312..3c25bc2be5b79f3575e6b91ab2abf8b33abaa9ed |
+| command | sdlc close --issue 866 |
+| reviewer | codex (openai; author openai) |
+| isolation | fenced |
+| timestamp | 2026-10-24T05:09:54-07:00 |
+| verdict | REWORK |
+
+## Review
+
+```verdict
+verdict: REWORK
+confidence: high
+```
+
+All four prior findings are addressed, including verified regression failures with the two behavioral fixes removed. Runtime and inventory checks passed. One plan-to-code mismatch remains: the governing resolver concept row names an unchanged file. This is blocking under the review’s explicit rule that every core-concept contradiction is Critical; no additional runtime defect was found.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      The actual CLI regression covers all nine supported reads across four adapter spellings, plus qualified-read and explicit-mutation controls. It passes at head and fails for five non-list read types when the old classifier is restored in a disposable copy.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      The fixture uses testpair.ShortRoot and the long-TMPDIR regression passes. Restoring os.MkdirTemp reproduces bind: invalid argument in that regression.
+  - id: BR-3
+    disposition: addressed
+    note: |
+      README.md:884-897 now documents unmarked legacy sessions, rebuilding/relaunching cooperating clients, authorized recovery and accepted coverage limits, linking the atlas. These statements match acquireNative and the documented interactive/death exclusions.
+  - id: BR-4
+    disposition: addressed
+    note: |
+      PlanProbeAdmission is removed. The plan revision at line 364 supersedes its earlier row; production uses qualifyCandidates, directly exercised by the counted 8/16 tests.
+findings:
+  - id: new
+    severity: Critical
+    kind: defect
+    family: core-concept-traceability
+    title: |
+      Governing resolver concept row names an unchanged implementation file
+    detail: |
+      workshop/plans/000866-zellij-startup-readiness-plan.md:255 lists cmd/internal/artifactpath/session_lock.go as modified for the new marker/namespace-lock resolvers, but that file is unchanged across the pinned range. ZellijNamespaceLease, ZellijReadyDirectory and ZellijReadyMarker are instead new in cmd/internal/artifactpath/zellij_readiness.go:12-44. Later revisions correct other implementation locations but not this row. Reconcile this row and append a specific Revisions correction. This is Critical under the supplied core-concepts cross-check rule; it is a traceability defect, not a runtime failure. ARCH-PURPOSE.
+```
+
+1. **Strengths**
+
+   - Exact first-pane identity releases creator exclusion before AgentReady, avoiding the bootstrap rename dependency cycle.
+   - Helper-read qualification is now checked through the production CLI route, with meaningful negative controls.
+   - Strict codecs preserve nested unknown fields; retirement controls preserve successor generations and uncertain evidence.
+   - README rollout guidance and atlas coverage limits agree with the implementation.
+
+2. **Critical findings**
+
+   - Plan line 255: replace the incorrect resolver location/status with `artifactpath/zellij_readiness.go` (**new**) and `manifest.go` (**modified**), and record the correction under `## Revisions`.
+
+3. **Important findings**
+
+   None.
+
+4. **Minor findings**
+
+   None.
+
+5. **Test coverage notes**
+
+   - Passed complete `zellijquery`, `panebirth`, `artifactpath`, `pair-go` and `repolint` packages.
+   - Passed query/panebirth race tests, focused launcher controls and native-admission tests across all seven migrated caller packages.
+   - Passed `tests/zellij-trace-test.sh` and `make test-affected-inventory`.
+   - Both behavioral corrections fail their regression tests when reverted in the disposable copy; that copy was removed.
+   - Native qualification was inspected through retained captures and verified hashes, not rerun.
+
+6. **Architectural notes**
+
+   | Marker | Result |
+   |---|---|
+   | ARCH-DRY | Pass — duplicate admission API removed; shared lease implementation retained. |
+   | ARCH-PURE | Pass — codecs and identity policy remain pure; filesystem admission is separate. |
+   | ARCH-PURPOSE | Flag — governing resolver traceability remains inconsistent. Runtime coverage matches the revised scope. |
+   | ARCH-MOCK | Pass — stateful scanner controls exercise the production seam; native conformance evidence retained. |
+   | ARCH-CONSTRAINTS | Pass — caller deadlines, candidate bounds and socket-safe fixtures verified. |
+   | ARCH-SECURE | Pass — strict metadata handling and conservative read admission verified. |
+   | ARCH-ORDER | Pass — scoped permits, exact identity fencing and joined cancellation are exercised. |
+   | ARCH-FUNERAL | Pass — fixed lock stripes and exact-generation retirement define resource lifetimes. |
+   | ARCH-EVOLVE | Pass — additive top-level and nested fields survive round trips. |
+
+7. **Plan revision recommendation**
+
+   Add a `## Revisions` entry explicitly superseding line 255 with the actual resolver file and its **new** status. This correction is prose-only; source inspection is sufficient verification.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"123e0044-84d3-45cc-a374-e7fc3877b8a0","repository":"github.com/xianxu/pair","issue_id":"000866","recipe":"milestone-review","round":2,"attempt":1,"agent":"codex","root":"/Volumes/TestScratch/review-checkouts/c43bff9a480c2b5f","reviewed_head":"3c25bc2be5b79f3575e6b91ab2abf8b33abaa9ed","slot":"pair:5","requested_at":"2026-10-24T12:05:23.802307Z"},"phase":"finished","pid":63142,"started_at":"2026-10-24T12:05:23.999499Z","finished_at":"2026-10-24T12:09:52.708006Z","session_id":"01a16dcd-2986-7543-a798-40fe67ccfbcc","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 2.968876s
+head: "3c25bc2be5b79f3575e6b91ab2abf8b33abaa9ed"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000409

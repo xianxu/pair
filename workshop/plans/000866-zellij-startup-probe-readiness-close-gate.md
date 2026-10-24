@@ -61,6 +61,60 @@ rounds:
       recipe: milestone-review
       isolation: fenced
       blocked: true
+    - reviewer_runs:
+        - version: 1
+          intent:
+            disposable_root: true
+            id: 123e0044-84d3-45cc-a374-e7fc3877b8a0
+            repository: github.com/xianxu/pair
+            issue_id: "000866"
+            recipe: milestone-review
+            round: 2
+            attempt: 1
+            agent: codex
+            root: /Volumes/TestScratch/review-checkouts/c43bff9a480c2b5f
+            reviewed_head: 3c25bc2be5b79f3575e6b91ab2abf8b33abaa9ed
+            slot: pair:5
+            requested_at: "2026-10-24T12:05:23.802307Z"
+          phase: finished
+          pid: 63142
+          started_at: "2026-10-24T12:05:23.999499Z"
+          finished_at: "2026-10-24T12:09:52.708006Z"
+          session_id: 01a16dcd-2986-7543-a798-40fe67ccfbcc
+          outcome: returned
+      "n": 2
+      timestamp: "2026-10-24T05:09:55-07:00"
+      dispatched: "2026-10-24T05:05:20-07:00"
+      agent: codex
+      reviewer: codex (openai; author openai)
+      dispose:
+        - id: BR-1
+          disposition: addressed
+          note: The actual CLI regression covers all nine supported reads across four adapter spellings, plus qualified-read and explicit-mutation controls. It passes at head and fails for five non-list read types when the old classifier is restored in a disposable copy.
+          round: 2
+        - id: BR-2
+          disposition: addressed
+          note: 'The fixture uses testpair.ShortRoot and the long-TMPDIR regression passes. Restoring os.MkdirTemp reproduces bind: invalid argument in that regression.'
+          round: 2
+        - id: BR-3
+          disposition: addressed
+          note: README.md:884-897 now documents unmarked legacy sessions, rebuilding/relaunching cooperating clients, authorized recovery and accepted coverage limits, linking the atlas. These statements match acquireNative and the documented interactive/death exclusions.
+          round: 2
+        - id: BR-4
+          disposition: addressed
+          note: PlanProbeAdmission is removed. The plan revision at line 364 supersedes its earlier row; production uses qualifyCandidates, directly exercised by the counted 8/16 tests.
+          round: 2
+      findings:
+        - kind: defect
+          id: BR-5
+          severity: Critical
+          title: Governing resolver concept row names an unchanged implementation file
+          detail: workshop/plans/000866-zellij-startup-readiness-plan.md:255 lists cmd/internal/artifactpath/session_lock.go as modified for the new marker/namespace-lock resolvers, but that file is unchanged across the pinned range. ZellijNamespaceLease, ZellijReadyDirectory and ZellijReadyMarker are instead new in cmd/internal/artifactpath/zellij_readiness.go:12-44. Later revisions correct other implementation locations but not this row. Reconcile this row and append a specific Revisions correction. This is Critical under the supplied core-concepts cross-check rule; it is a traceability defect, not a runtime failure. ARCH-PURPOSE.
+          family: core-concept-traceability
+          round: 2
+      recipe: milestone-review
+      isolation: fenced
+      blocked: true
 ---
 
 # Gate ledger — pair#866 (boundary-review)
@@ -81,9 +135,20 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-4** [Minor] `single-admission-policy` (kind: defect) PlanProbeAdmission is an unused parallel admission implementation
   cmd/internal/zellijquery/readiness.go:66-77 has no production or test callers; production instead uses qualifyCandidates in readiness_os.go:182-205. The governing concept table nevertheless claims direct counted tests for PlanProbeAdmission. Remove the unused API and correct the table, or make one pure policy serve production and direct tests. ARCH-DRY, ARCH-PURE.
 
+## Round 2 — 2026-10-24T05:09:55-07:00 (codex) — BLOCKED
+
+### Disposed
+
+- BR-1 — addressed — The actual CLI regression covers all nine supported reads across four adapter spellings, plus qualified-read and explicit-mutation controls. It passes at head and fails for five non-list read types when the old classifier is restored in a disposable copy.
+- BR-2 — addressed — The fixture uses testpair.ShortRoot and the long-TMPDIR regression passes. Restoring os.MkdirTemp reproduces bind: invalid argument in that regression.
+- BR-3 — addressed — README.md:884-897 now documents unmarked legacy sessions, rebuilding/relaunching cooperating clients, authorized recovery and accepted coverage limits, linking the atlas. These statements match acquireNative and the documented interactive/death exclusions.
+- BR-4 — addressed — PlanProbeAdmission is removed. The plan revision at line 364 supersedes its earlier row; production uses qualifyCandidates, directly exercised by the counted 8/16 tests.
+
+### Raised
+
+- **BR-5** [Critical] `core-concept-traceability` (kind: defect) Governing resolver concept row names an unchanged implementation file
+  workshop/plans/000866-zellij-startup-readiness-plan.md:255 lists cmd/internal/artifactpath/session_lock.go as modified for the new marker/namespace-lock resolvers, but that file is unchanged across the pinned range. ZellijNamespaceLease, ZellijReadyDirectory and ZellijReadyMarker are instead new in cmd/internal/artifactpath/zellij_readiness.go:12-44. Later revisions correct other implementation locations but not this row. Reconcile this row and append a specific Revisions correction. This is Critical under the supplied core-concepts cross-check rule; it is a traceability defect, not a runtime failure. ARCH-PURPOSE.
+
 ## Open findings
 
-- **BR-1** [Critical] `native-read-admission` (kind: defect) Non-list helper reads bypass positive readiness qualification
-- **BR-2** [Important] `unix-fixture-path-budget` (kind: defect) The new recovery regression fails with a long inherited temporary directory
-- **BR-3** [Important] `user-facing-migration-docs` (kind: defect) README startup and rollout guidance was not updated
-- **BR-4** [Minor] `single-admission-policy` (kind: defect) PlanProbeAdmission is an unused parallel admission implementation
+- **BR-5** [Critical] `core-concept-traceability` (kind: defect) Governing resolver concept row names an unchanged implementation file

@@ -133,6 +133,10 @@ Corrected source c9d6f8ed4c3b642a8de48676f1cd9d90ccee4c67 passed the same dispos
 
 Fresh recorded pre-close on that pushed source escalated affected to the full suite for the repository-backed native qualification reader. Run lease-2764913252, log /Users/xianxu/workspace/pair/.git/sdlc/test-stats/inflight/e615446903a6493db61d51e33e739a57/run.log, is queued in the normal FIFO (initial position6). No recorded pass yet. The following evidence-only commit changes no code; retain this run through the normal close review. Landing and TL-sequenced operator smoke remain outstanding.
 
+### 2026-10-24 — close review round2 traceability correction
+
+Round2 disposed BR-1 through BR-4 as addressed, including reviewer counter-tests that reproduced both behavioral regressions when reverted. It found no further runtime defect, but returned REWORK for BR-5: the governing resolver row named unchanged artifactpath/session_lock.go rather than new artifactpath/zellij_readiness.go and modified manifest.go. The plan now appends an authoritative replacement mapping for both earlier resolver rows and reconciles unchanged session_handoff.go versus modified session_handoff_os.go. The class audit used Git name-status and direct resolver/source/manifest inspection. This is prose-only; keep recorded run lease-2764913252 and its FIFO place. Normal close retry remains required.
+
 ## Revisions
 
 ### 2026-10-24 — final plan bookkeeping and source ownership

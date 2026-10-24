@@ -362,3 +362,17 @@ All governing implementation/control tasks above are satisfied by the source and
 The first close review returned REWORK: the earlier completion statement did not account for non-list helper reads. BR-1 is corrected by enumerating the read-only CliAction variants in supported Zellij0.45.1 (tag efd8fd5a89a20c07a111d248ad7fce53848d2c18): list-clients, list-panes, list-tabs, current-tab-info, are-floating-panes-visible, dump-screen, dump-layout and query-tab-names, plus top-level list-sessions. The existing automatic-read marker admission now covers that complete class. The actual early CLI route tests every read against an unmarked endpoint with bare, named and absolute-executable adapters, then verifies positive-marker admission and explicit mutation access. No new mechanism or explicit-recovery restriction is added.
 
 BR-2 replaces the remaining Unix-socket fixture's generic temporary root with existing testpair.ShortRoot, with a long inherited TMPDIR regression. BR-3 adds the README rollout steps and accepted limits. BR-4 removes unused PlanProbeAdmission: the earlier governing concept-table entry is superseded by the implemented pure QualifyReadyMarker/codec functions and the single qualifyCandidates IO loop; counted8/16 tests exercise that production loop. ARCH-DRY favors one policy implementation. The generated close-review ledger preserves the findings; targeted verification, corrected-head native qualification, a fresh recorded pre-close and normal close retry remain required.
+
+
+### 2026-10-24 — BR-5 authoritative resolver and handoff ownership correction
+
+This append-only correction supersedes the resolver rows in both earlier concept tables (including the governing row formerly at line255). The new resolvers are **not** implemented in artifactpath/session_lock.go; that existing file is unchanged. Git name-status against the issue branch point and direct source inspection establish this replacement mapping:
+
+| Implemented concept | Actual file | Status in this issue | Verification |
+|---|---|---|---|
+| PairCachePaths.ZellijNamespaceLease, ZellijReadyDirectory, ZellijReadyMarker | cmd/internal/artifactpath/zellij_readiness.go | new | TestZellijReadinessConstructorsUseCanonicalNamespace; TestZellijReadinessKeysRemainBoundedAndCurrent |
+| Resolver bindings, source classification and lifecycle declaration | cmd/internal/artifactpath/manifest.go | modified | TestZellijReadinessManifestProtectsLifecycleArtifacts; TestZellijReadinessSourcesArePreciselyClassified |
+| Creator handoff and first-pane-to-marker release | cmd/internal/launcher/session_handoff_os.go | modified | existing creator handoff controls, exact identity/release-before-AgentReady regression |
+| Existing handoff policy definitions | cmd/internal/launcher/session_handoff.go | unchanged; reused | no new policy implementation here |
+
+The previous implementation reconciliation still governs the first-pane publisher location (new launcher/pane_ready.go), the local repolint inventory ownership and exact retirement file. The BR-4 correction still removes PlanProbeAdmission in favor of the single production qualification loop. All other governing core file/status rows were checked against Git name-status; this revision records location/status corrections only, with no new mechanism, state or source change. ARCH-PURPOSE requires the durable concept map to describe the implementation reviewers can inspect.
