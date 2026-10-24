@@ -1,13 +1,13 @@
 ---
 id: 000849
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-10-23
 updated: 2026-10-23
 estimate_hours:
 collaboration-mode: collaboration
-card_mirror: '16b2df0542cff7dfc0e87a1fce8967bc62f1ec20' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '05a3ac3ef81a9eabe39596be6e4e237a492d4a79' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-23T17:38:50-07:00
 claimant:
     operator: Xian Xu
@@ -17,6 +17,7 @@ claimant:
     worktree: /Users/xianxu/workspace/worktree/pair-slot6/pair
     repository: github.com/xianxu/pair
 flow: {kind: full, provenance: inferred}
+actual_hours: 4.07
 ---
 
 # Cast notes: DOM submission loops on 'Feedback changed' and never submits
