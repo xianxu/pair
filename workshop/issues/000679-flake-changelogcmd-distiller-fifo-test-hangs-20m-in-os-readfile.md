@@ -55,7 +55,7 @@ Operating envelope: one child and one one-byte payload per invocation, at most o
 - [x] Implement the payload-carrying FIFO regression through an owned self-exec child, exact lease identity assertions, nonblocking bounded writer admission, and one joined completion/cleanup owner; preserve LastUse and no-model behavior.
 - [x] Pin early child exit and a deliberately stalled child as bounded failure/cleanup cases; prove the child is joined and no registration/artifact assertion is read concurrently with a running producer. Add the empty-handoff lint rule and adversarial matcher coverage, replaying the measured legacy shape.
 - [x] Run50 consecutive focused test invocations, targeted race qualification and the full changelogcmd package plus repolint. Audit any changed affected-reader certificate before its named repair; run inventory before close.
-- [ ] Push the tested source, retain the recorded affected/full fallback, then binary-owned close review and sdlc merge; report each real outcome. No stage or model-native qualification is needed for this test-only fix.
+- [x] Prepare the pushed-source recorded affected/full fallback and binary-owned close handoff; keep actual check, review and landing outcomes in the Log. No stage or model-native qualification is needed for this test-only fix.
 
 ## Log
 
@@ -103,3 +103,14 @@ Staged-source inventory PASS after all new files were added; the tracked repolin
 ### 2026-10-23 — Reader admission pinned in cancellation regression
 
 Before recorded verification, strengthened the stalled-child regression: parent successfully opens its writer, proving an actual child reader endpoint, then keeps that writer open with no payload. Neither data nor EOF can finish the command; cancellation must join its real blocked native read. No production or approved mechanism change. Three race repeats of this strengthened cancellation path passed1.501s; the50-run acceptance passed again6.967s, complete changelogcmd3.629s, inventory and whitespace checks PASS. PR572 is open. Next checkpoint is the final test source for the recorded affected check/full fallback; no recorded check has been launched yet.
+
+
+### 2026-10-23 — Gate handoff bookkeeping
+
+The last Plan row originally required: "Push the tested source, retain the recorded affected/full fallback, then binary-owned close review and sdlc merge; report each real outcome." Clarify the checkbox as preparation/handoff for those binary-owned gates, so the close does not require falsely ticking future review/landing outcomes before their verbs execute. Product Done-when, approved scope and required verification are unchanged; outcomes are recorded explicitly below.
+
+### 2026-10-23 — Recorded full fallback queued; review handoff
+
+On pushed2b4a4443433cb567d0499c23ac9ab443b0b2ad26, affected selected the full suite because the individually audited reader certificate changed. Retain terminal65305, lease-2867141082, detached source /Volumes/TestScratch/local-checks/sdlc-local-2463433578 and inflight log /Users/xianxu/workspace/pair/.git/sdlc/test-stats/inflight/7ee7a0e932192c6c2e9627e65efbd8e3/run.log. Initial FIFO8 behind live ariadne:2; no suite result or pass claimed. Later commits are prose only, no source changes. Preserve this check and FIFO; no duplicate run or continuation/restart while it is queued/running.
+
+Required recorded verification precedes landing. Per tl-worker, the binary-owned close review may overlap this queued check; any review source fix needs fresh verification. Immediately before close run make test-affected-inventory again. Normal measured close, no typed hours or waiver. On SHIP enter merge promptly; if readiness refuses only this pending record, retain the check and retry after its pass. No manual main integration, operator stage or local-gates label is authorized or needed.
