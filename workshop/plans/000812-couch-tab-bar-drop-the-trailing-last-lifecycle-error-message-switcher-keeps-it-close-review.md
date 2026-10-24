@@ -884,3 +884,94 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-23T20:49:31-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 812 — Couch tab bar: drop the trailing last lifecycle/error message (switcher keeps it) |
+| repo | pair |
+| issue file | workshop/issues/000812-couch-tab-bar-drop-the-trailing-last-lifecycle-error-message-switcher-keeps-it.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | f5c2c8cc5932ce1586eaf8aa9fb0425663ea1415..185bfada2c36b073596d18adb3da02603e960f11 |
+| command | sdlc close --issue 812 |
+| reviewer | codex (openai; author openai) |
+| isolation | fenced |
+| timestamp | 2026-10-23T20:49:31-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+The conflict resolution preserves main’s exact metadata-warning wording and #812’s actionable diagnostic routing. Focused tests pass, including three repetitions under race detection. The interdiff introduces no new surface, scope change, or blocking defect; BR-1–BR-6 remain addressed.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      Retained prior disposition; this interdiff leaves queue diagnostic routing unchanged.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      Retained prior disposition; Chrome informational and warning classification is unchanged.
+  - id: BR-3
+    disposition: addressed
+    note: |
+      Retained prior disposition; background-agent warning routing is unchanged.
+  - id: BR-4
+    disposition: addressed
+    note: |
+      Retained prior disposition; corrected regression oracles and fixtures are unchanged.
+  - id: BR-5
+    disposition: addressed
+    note: |
+      Warning-publication acknowledgment remains intact; the metadata attention regression passes.
+  - id: BR-6
+    disposition: addressed
+    note: |
+      Retained prior disposition; unexpected-exit publication synchronization is unchanged.
+```
+
+1. **Strengths**
+   - The resolution retains typed `actionable: true` routing and main’s count-agnostic wording (`cmd/internal/couchcmd/lifecycle_notices.go:191`).
+   - Complementary tests verify exact diagnostic text and actual attention publication (`lifecycle_notices_test.go:663`, `lifecycle_diagnostic_attention_test.go:12`).
+   - Issue Spec, Done when, and implementation plan remain unchanged.
+
+2. **Critical findings:** None.
+
+3. **Important findings:** None.
+
+4. **Minor findings:** None.
+
+5. **Test coverage notes:** Four focused lifecycle tests passed normally and with `-race -count=3`; range whitespace checks passed. No full-suite result is claimed.
+
+6. **Architectural notes**
+   - **ARCH-DRY — Pass:** Reuses the existing diagnostic owner and routing.
+   - **ARCH-PURE — Pass:** Adds no IO or business-logic coupling.
+   - **ARCH-PURPOSE — Pass:** Preserves actionable warning visibility through the conflict resolution.
+   - **ARCH-EVOLVE — Pass:** No persisted-format changes.
+   - No new surface requires atlas or README updates.
+
+7. **Plan revision recommendations:** None.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"0c7ee2e5-d81b-46da-8d63-64c11f193055","repository":"github.com/xianxu/pair","issue_id":"000812","recipe":"fix-review","round":10,"attempt":1,"agent":"codex","root":"/Volumes/TestScratch/review-checkouts/9b4fcbd58e1caac8","reviewed_head":"185bfada2c36b073596d18adb3da02603e960f11","slot":"pair:1","requested_at":"2026-10-24T03:48:28.952182Z"},"phase":"finished","pid":82805,"started_at":"2026-10-24T03:48:29.043873Z","finished_at":"2026-10-24T03:49:30.737944Z","session_id":"01a16c06-3807-72c3-992c-ca6d0f1b439b","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 1.934381291s
+head: "185bfada2c36b073596d18adb3da02603e960f11"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412
