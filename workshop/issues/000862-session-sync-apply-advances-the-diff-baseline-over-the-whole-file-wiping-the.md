@@ -1,12 +1,12 @@
 ---
 id: 000862
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-10-24
 updated: 2026-10-24
 estimate_hours:
-card_mirror: 'ad29701005c921a39535c1fa45ea756931a7c5e6' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: 'baae92017e13475e309b9c40ca8bb2bc2a83e802' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-24T15:58:12-07:00
 claimant:
     operator: Xian Xu
@@ -16,6 +16,7 @@ claimant:
     worktree: /Users/xianxu/workspace/worktree/pair-slot3/pair
     repository: github.com/xianxu/pair
 flow: {kind: quick, provenance: inferred, spec: "8f4253b6", done: "4ffedb0d"}
+actual_hours: N/A
 ---
 
 # session-sync apply advances the diff baseline over the whole file, wiping the operator's unread edits elsewhere
