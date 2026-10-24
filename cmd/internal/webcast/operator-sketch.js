@@ -136,6 +136,7 @@ export function mountOperatorSketch({host,root,box,report,view,annotation,palett
   win.__couchcastSketchDelivery=deliver;
   win.__couchcastSketchAuthority=updateAuthority;
   win.__couchcastSketchSubmissionPreview=submissionPreview.publish;
+  win.__couchcastSketchSubmissionPreviewStale=submissionPreview.stale;
   const resize=()=>{if(disposed)return;layoutScene();tool.refresh({geometry:true});};
   const dispose=()=>{
     if(disposed)return;disposed=true;submissionPreview.dispose();tool.dispose();receiver.retire();transport.close();unRecord?.();style.remove();
@@ -143,6 +144,7 @@ export function mountOperatorSketch({host,root,box,report,view,annotation,palett
     if(win.__couchcastSketchDelivery===deliver)delete win.__couchcastSketchDelivery;
     if(win.__couchcastSketchAuthority===updateAuthority)delete win.__couchcastSketchAuthority;
     if(win.__couchcastSketchSubmissionPreview===submissionPreview.publish)delete win.__couchcastSketchSubmissionPreview;
+    if(win.__couchcastSketchSubmissionPreviewStale===submissionPreview.stale)delete win.__couchcastSketchSubmissionPreviewStale;
     if(view.beforeAnnotationMode===beforeMode)view.beforeAnnotationMode=previousBeforeMode;
     win.removeEventListener?.('resize',resize);win.removeEventListener?.('pagehide',dispose);
   };
@@ -226,7 +228,18 @@ export function createOperatorSubmissionPreview({root,receiver},doc){
     if(chosen.some(({node},i)=>list.children[i]!==node))for(const {node} of chosen)list.append(node);
     const count=`Pending feedback: ${chosen.length} sketches, ${value.notes.length} annotation${value.notes.length===1?'':'s'}${value.remaining?`, ${value.remaining} more sketches`:''}${noteRemaining?`, ${noteRemaining} more annotations`:''}`;
     if(heading.textContent!==count)heading.textContent=count;
+    delete panel.dataset.stale;list.style.opacity='';
     noteCount=value.notes.length;panel.hidden=chosen.length===0&&noteCount===0&&value.remaining===0&&noteRemaining===0;cards=nextCards;last=ack;fingerprint=nextFingerprint;return copyAck();
   }
-  return {publish,captureBusy:()=>!disposed&&!panel.hidden&&(cards.size>0||noteCount>0),dispose(){if(disposed)return;disposed=true;cards.clear();last=null;panel.remove();}};
+  // The manager could not refresh: say so instead of leaving old counts that
+  // look current. Display only; it acknowledges nothing and keeps the last ack.
+  function stale(reason){
+    if(disposed)return false;
+    if(typeof reason!=='string'||!reason.trim())throw Error('Invalid stale preview reason.');
+    if(panel.hidden)return false;
+    panel.dataset.stale='true';list.style.opacity='0.4';
+    heading.textContent=`Pending feedback is out of date: ${reason.slice(0,300)}`;
+    return true;
+  }
+  return {publish,stale,captureBusy:()=>!disposed&&!panel.hidden&&(cards.size>0||noteCount>0),dispose(){if(disposed)return;disposed=true;cards.clear();last=null;panel.remove();}};
 }

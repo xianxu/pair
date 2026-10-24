@@ -34,6 +34,7 @@ type submissionManager struct {
 	job                 *submissionJob
 	previewState        core.PreviewState
 	previewRun          *submissionPreviewRun
+	previewProblem      string // why the worker last could not refresh; "" once shown
 	deliveredGeneration uint64
 	previewStart        sync.Mutex // serializes host-worker replacement and joined retirement
 }
@@ -70,6 +71,27 @@ func (c *Console) submissionCast() (submissionCast, error) {
 		return nil, nil
 	}
 	return c.wcast.cast, nil
+}
+
+// prepareMoved names what changed while prepare read outside the lock.
+func prepareMoved(ended, restarted, host, delivered, job, cast, board bool) string {
+	switch {
+	case ended:
+		return "the request ended"
+	case restarted:
+		return "the preview restarted"
+	case host:
+		return "the private console host changed"
+	case delivered:
+		return "a delivery completed"
+	case job:
+		return "another submission started"
+	case cast:
+		return "the cast changed"
+	case board:
+		return "the feedback changed while it was read"
+	}
+	return ""
 }
 func (c *Console) submissionReplay(ctx context.Context, id string) (string, error) {
 	if err := ctx.Err(); err != nil {
@@ -170,7 +192,7 @@ func (m *submissionManager) request(ctx context.Context, op, id string, target c
 		if len(selected.Sketches) > 0 || len(selected.Notes) > 0 {
 			run := m.previewRun
 			if run == nil || run.cast != cast {
-				return couchmessage.SubmissionStatus{}, errSubmissionPreview
+				return couchmessage.SubmissionStatus{}, m.refusePreviewLocked("no preview is running for this cast")
 			}
 			host, deliveryGeneration := run.host, m.deliveredGeneration
 			// Release ownership only for bounded external reads. Every state used
@@ -184,12 +206,12 @@ func (m *submissionManager) request(ctx context.Context, op, id string, target c
 			}
 			m.mu.Lock()
 			if readErr != nil {
-				return couchmessage.SubmissionStatus{}, errSubmissionPreview
+				return couchmessage.SubmissionStatus{}, m.refusePreviewLocked("the feedback could not be read again: " + readErr.Error())
 			}
 			current, currentErr := m.current()
 			latest, latestErr := cast.SubmissionSelection()
-			if m.ctx.Err() != nil || ctx.Err() != nil || m.previewRun != run || run.host != host || m.deliveredGeneration != deliveryGeneration || m.job != priorJob || (m.job != nil && m.job.busy) || currentErr != nil || current != cast || latestErr != nil || latest.SketchGeneration != selected.SketchGeneration {
-				return couchmessage.SubmissionStatus{}, errSubmissionPreview
+			if why := prepareMoved(m.ctx.Err() != nil || ctx.Err() != nil, m.previewRun != run, run.host != host, m.deliveredGeneration != deliveryGeneration, m.job != priorJob || (m.job != nil && m.job.busy), currentErr != nil || current != cast, latestErr != nil || latest.SketchGeneration != selected.SketchGeneration); why != "" {
+				return couchmessage.SubmissionStatus{}, m.refusePreviewLocked(why)
 			}
 			if err := m.guard(target); err != nil {
 				return couchmessage.SubmissionStatus{}, err

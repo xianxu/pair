@@ -38,7 +38,11 @@ panel are the separate #805 follow-up.
 A stale visible selection, changed note revision, sketch version, mask or private
 host refuses preparation and refreshes the preview; draft and ink remain intact.
 A held drawing scene, open editor, incomplete paint or partial shape placement
-cannot establish a visible selection. There is no browser
+cannot establish a visible selection. The refusal names the condition that
+refused ("Feedback changed (…)"), adding why the preview last could not refresh
+when nothing current is shown; a preview that cannot refresh marks the panel
+**Pending feedback is out of date: …** in place of its old counts (pair#849).
+There is no browser
 send button or viewer agent-dispatch route. Remaining shapes wait for the next
 explicit submission.
 

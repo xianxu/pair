@@ -1,6 +1,7 @@
 package submission
 
 import (
+	"fmt"
 	"github.com/xianxu/pair/cmd/internal/webcast/query"
 	"github.com/xianxu/pair/cmd/internal/webcast/recording"
 	"github.com/xianxu/pair/cmd/internal/webcast/sketchimage"
@@ -90,6 +91,21 @@ func (previewStopped) previewPayload() {}
 type PreviewState struct {
 	payload previewPayload
 	next    uint64
+}
+
+func (p PreviewPhase) String() string {
+	switch p {
+	case PreviewDirty:
+		return "the preview is waiting to refresh"
+	case PreviewPublishing:
+		return "the preview is being shown"
+	case PreviewShown:
+		return "the preview is shown"
+	case PreviewStopped:
+		return "the preview stopped"
+	default:
+		return "no preview is shown"
+	}
 }
 
 func (s PreviewState) Phase() PreviewPhase {
@@ -187,7 +203,8 @@ type PreviewRefreshNeeded struct{}
 
 func (PreviewRefreshNeeded) previewEffect() {}
 
-type PreviewRefuse struct{}
+// PreviewRefuse names the condition that refused, for the operator's message.
+type PreviewRefuse struct{ Reason string }
 
 func (PreviewRefuse) previewEffect() {}
 
@@ -277,16 +294,20 @@ func NextPreview(state PreviewState, event PreviewEvent) (PreviewState, []Previe
 				if publication.selection.Visibility != nil {
 					if e.Fresh == nil || !samePreparedFeedback(publication.selection, *e.Fresh) {
 						effects := invalidate()
-						return state, append([]PreviewEffect{PreviewRefuse{}}, effects...)
+						return state, append([]PreviewEffect{PreviewRefuse{Reason: "the visible feedback differs from the shown preview"}}, effects...)
 					}
 					publication.selection = clonePreviewSelection(*e.Fresh)
 				}
 				return state, []PreviewEffect{PreviewFreezeProposal{Publication: publication}}
 			}
+			reason := "the private console host changed since the preview was shown"
+			if shown := p.publication.selection.Stamp; shown != e.Stamp {
+				reason = fmt.Sprintf("the feedback changed since the preview was shown (board %d→%d, delivered %d→%d)", shown.Board, e.Stamp.Board, shown.Delivered, e.Stamp.Delivered)
+			}
 			effects := invalidate()
-			return state, append([]PreviewEffect{PreviewRefuse{}}, effects...)
+			return state, append([]PreviewEffect{PreviewRefuse{Reason: reason}}, effects...)
 		}
-		effects := []PreviewEffect{PreviewRefuse{}}
+		effects := []PreviewEffect{PreviewRefuse{Reason: "the current feedback has not been shown yet (" + state.Phase().String() + ")"}}
 		if state.Phase() == PreviewDirty {
 			effects = append(effects, PreviewRefreshNeeded{})
 		}
@@ -294,7 +315,7 @@ func NextPreview(state PreviewState, event PreviewEvent) (PreviewState, []Previe
 	case PreviewFreezeRejected:
 		if p, ok := state.payload.(previewShown); ok && samePreviewPublication(p.publication, e.Publication) {
 			effects := invalidate()
-			return state, append([]PreviewEffect{PreviewRefuse{}}, effects...)
+			return state, append([]PreviewEffect{PreviewRefuse{Reason: "the board refused to freeze the shown preview"}}, effects...)
 		}
 	}
 	return state, nil

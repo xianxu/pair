@@ -307,6 +307,26 @@ func (c *Chrome) PublishSubmissionPreview(ctx context.Context, pub core.PreviewP
 	return err
 }
 
+// MarkSubmissionPreviewStale tells the private panel that its counts are out
+// of date, and why. Display only: no publication changes and nothing is acked.
+func (c *Chrome) MarkSubmissionPreviewStale(ctx context.Context, host core.PreviewHost, reason string) error {
+	p := &c.submissionPreview
+	p.mu.Lock()
+	scope := p.scope
+	current := !p.closed && scope != nil && host.ID != "" && p.host == host
+	p.mu.Unlock()
+	if !current || c.conn == nil {
+		return board.ErrStale
+	}
+	data, err := json.Marshal(reason)
+	if err != nil {
+		return err
+	}
+	bounded, cancel := context.WithTimeout(ctx, callTimeout)
+	defer cancel()
+	return c.conn.Call(bounded, scope.scope.ParentSession, "Runtime.evaluate", map[string]any{"contextId": scope.scope.ParentContext, "returnByValue": true, "expression": "globalThis.__couchcastSketchSubmissionPreviewStale&&globalThis.__couchcastSketchSubmissionPreviewStale(" + string(data) + ")"}, nil)
+}
+
 // Awaiting is one owned publication, never per-point state. Delivery progress
 // only wakes the manager when it can unblock a previously unavailable preview.
 func (c *Chrome) awaitSubmissionPreviewDelivery(host core.PreviewHost, operation uint64) bool {
@@ -390,6 +410,14 @@ func (c *Cast) SubmissionPreviewUpdates() (<-chan struct{}, func()) {
 	ch := make(chan struct{})
 	close(ch)
 	return ch, func() {}
+}
+func (c *Cast) MarkSubmissionPreviewStale(ctx context.Context, host core.PreviewHost, reason string) error {
+	if browser, ok := c.browser.(interface {
+		MarkSubmissionPreviewStale(context.Context, core.PreviewHost, string) error
+	}); ok {
+		return browser.MarkSubmissionPreviewStale(ctx, host, reason)
+	}
+	return ErrNotRecording
 }
 func (c *Cast) PublishSubmissionPreview(ctx context.Context, p core.PreviewPublication) error {
 	if browser, ok := c.browser.(interface {

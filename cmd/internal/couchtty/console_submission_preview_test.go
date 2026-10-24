@@ -32,6 +32,8 @@ type submissionPreviewFake struct {
 	visibility     core.FeedbackVisibility
 	readVisibility func()
 	resolvePreview func()
+	publishErr     error
+	stale          chan string
 }
 
 func previewFakeSketch(id string) board.SelectedSketch {
@@ -140,8 +142,20 @@ func (f *submissionPreviewFake) SubmissionPreviewHost(context.Context) (core.Pre
 	defer f.muPreview.Unlock()
 	return f.host, f.life, nil
 }
+func (f *submissionPreviewFake) MarkSubmissionPreviewStale(_ context.Context, _ core.PreviewHost, reason string) error {
+	if f.stale != nil {
+		f.stale <- reason
+	}
+	return nil
+}
 func (f *submissionPreviewFake) PublishSubmissionPreview(ctx context.Context, p core.PreviewPublication) error {
 	f.published <- p
+	f.muPreview.Lock()
+	err := f.publishErr
+	f.muPreview.Unlock()
+	if err != nil {
+		return err
+	}
 	if f.gate != nil {
 		select {
 		case <-f.gate:
@@ -729,5 +743,54 @@ func TestSubmissionPreviewFreshReadRechecksDeliveryGeneration(t *testing.T) {
 	defer base.mu.Unlock()
 	if base.prepared != 0 {
 		t.Fatal("stale read started capture")
+	}
+}
+
+// pair#849: the operator's shape. Notes were shown, then a labeled sketch the
+// panel could not show: the panel says it is out of date, the refusal says why,
+// and once the panel shows it the next press is admitted.
+func TestSubmissionRefusalNamesWhyThePreviewCouldNotRefresh(t *testing.T) {
+	m, base, target := newSubmissionManagerTest(t)
+	f := newSubmissionPreviewFake(base)
+	f.selection.Sketches = nil
+	f.selection.Notes = []board.SelectedNote{{ID: "note", Revision: 1}}
+	f.stale = make(chan string, 4)
+	m.current = func() (submissionCast, error) { return f, nil }
+	ctx, cancel := context.WithCancel(m.ctx)
+	done := make(chan struct{})
+	go func() { defer close(done); watchSubmissionPreview(m, ctx, f) }()
+	defer func() { cancel(); <-done }()
+	<-f.published
+	waitSubmissionPreviewShown(t, m)
+
+	f.muPreview.Lock()
+	f.selection.Sketches = []board.SelectedSketch{previewFakeSketch("shape")}
+	f.selection.SketchGeneration++
+	f.publishErr = errors.New("Selected sketch preview is unavailable.")
+	f.setVisibleFrame()
+	f.muPreview.Unlock()
+	f.candidates <- struct{}{}
+	<-f.published
+	const why = "the panel did not show it: Selected sketch preview is unavailable."
+	select {
+	case got := <-f.stale:
+		if got != why {
+			t.Fatalf("panel marked %q", got)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("panel not marked out of date")
+	}
+	_, err := m.request(context.Background(), "prepare", "press-1", target)
+	if !errors.Is(err, errSubmissionPreview) || !strings.Contains(err.Error(), "the current feedback has not been shown yet") || !strings.Contains(err.Error(), "the preview could not refresh: "+why) {
+		t.Fatalf("refusal = %v", err)
+	}
+
+	f.muPreview.Lock()
+	f.publishErr = nil
+	f.muPreview.Unlock()
+	f.candidates <- struct{}{}
+	waitSubmissionPreviewShown(t, m)
+	if _, err := m.request(context.Background(), "prepare", "press-2", target); err != nil {
+		t.Fatalf("shown feedback refused: %v", err)
 	}
 }

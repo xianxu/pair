@@ -345,3 +345,33 @@ func TestPreviewSameStampWithChangedContentsInvalidates(t *testing.T) {
 		}
 	}
 }
+
+// pair#849: a refused prepare says which condition refused.
+func TestPreviewRefusalNamesItsCondition(t *testing.T) {
+	host := PreviewHost{ID: "console", Generation: 1}
+	stamp := PreviewStamp{Board: 5, Delivered: 1}
+	refusal := func(state PreviewState, e PreviewPrepare) string {
+		t.Helper()
+		_, effects := NextPreview(state, e)
+		for _, effect := range effects {
+			if r, ok := effect.(PreviewRefuse); ok {
+				return r.Reason
+			}
+		}
+		t.Fatalf("not refused: %#v", effects)
+		return ""
+	}
+	if got := refusal(PreviewState{}, PreviewPrepare{Host: host, Stamp: stamp}); got != "the current feedback has not been shown yet (no preview is shown)" {
+		t.Fatalf("unshown: %q", got)
+	}
+	state, _ := NextPreview(PreviewState{}, PreviewHostChanged{Host: host})
+	state, _ = NextPreview(state, PreviewCandidatesChanged{Selection: PreviewSelection{Stamp: stamp}})
+	state, effects := NextPreview(state, PreviewRefresh{})
+	state, _ = NextPreview(state, PreviewPublishAccepted{Publication: effects[0].(PreviewPublish).Publication})
+	if got := refusal(state, PreviewPrepare{Host: host, Stamp: PreviewStamp{Board: 6, Delivered: 1}}); got != "the feedback changed since the preview was shown (board 5→6, delivered 1→1)" {
+		t.Fatalf("moved board: %q", got)
+	}
+	if got := refusal(state, PreviewPrepare{Host: PreviewHost{ID: "console", Generation: 2}, Stamp: stamp}); got != "the private console host changed since the preview was shown" {
+		t.Fatalf("moved host: %q", got)
+	}
+}
