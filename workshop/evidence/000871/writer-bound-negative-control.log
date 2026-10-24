@@ -1,0 +1,11 @@
+--- FAIL: TestProfileWriterSaturationBoundsBytesAndCallsAtNAnd2N (0.00s)
+    --- FAIL: TestProfileWriterSaturationBoundsBytesAndCallsAtNAnd2N/16 (0.00s)
+        profiling_faults_test.go:143: saturating write: n=8 err=profile artifact byte limit exceeded
+    --- FAIL: TestProfileWriterSaturationBoundsBytesAndCallsAtNAnd2N/32 (0.00s)
+        profiling_faults_test.go:143: saturating write: n=8 err=profile artifact byte limit exceeded
+FAIL
+write budget couchcmd: bytes=0 cap=100663296 repeats=1
+FAIL	github.com/xianxu/pair/cmd/internal/couchcmd	0.382s
+FAIL
+
+exit=1

@@ -2910,3 +2910,5 @@ and external temporary roots rather than relying on the host's TMPDIR.
 - #856 native composition: fixed-position width:auto is shrink-to-fit and depends on the current left anchor. Measuring at an offscreen old anchor can understate the width before clamping. Preserve intrinsic max-content sizing under a maximum, and pin real browser rectangles across resize; standalone/fixed-width geometry fixtures cannot expose this feedback.
 
 - #856 native gestures: preserve held-button identity in CDP mouseMoved events, matching the established native drag fixture. A none move can lose pending capture and leave the owner gesture poisoned; compare on a fresh gesture, and inspect admission/capture/cancel/host events before changing production lifetime behavior. Measure composed UI only after its intentional private-capture suppression has released.
+
+- #871: implementation Plan checkboxes describe deliverable behavior and qualification. Keep close/merge/report as explicit workflow postconditions rather than an unchecked self-reference that close itself demands; never tick a future landing to satisfy the guard.
