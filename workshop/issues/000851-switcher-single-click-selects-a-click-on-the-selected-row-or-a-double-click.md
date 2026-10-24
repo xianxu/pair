@@ -66,9 +66,10 @@ Envelope: one decision per accepted press, no IO before the existing declared op
 
 ## Done when
 
-- Single click selects without switching; a second click on the selected row switches; a double click switches
-  (tests driving the real mouse event path, including the double-click timing window).
-- Enter and the other switcher keys behave as before (existing tests pass).
+- In the open switcher, a press on a different eligible row selects without switching. A press on the selected visible root row activates; rapid100ms double presses and delayed5s second presses are covered through real mouse input, with exactly one activation and no timer.
+- Open-switcher chips follow the same rule. A hidden chip first reveals/selects, clearing only the filter/group/view that hides it and preserving visible restrictions. A chip clicked from a nested frame first returns to the root and selects without activation.
+- Chips outside the switcher still activate immediately; +N still opens its group. Canonical row identity, current operation vetoes and non-left/release/motion/wheel negatives remain covered.
+- Enter and the other switcher keys behave as before (existing tests pass). README and atlas describe selection versus activation and retrying a selected row.
 
 ## Plan
 
@@ -152,3 +153,9 @@ Authenticated Submitted ops:0 delivery51719893-1354-48dd-b33a-a4c70d7d94b4 repor
 Normal close attempt terminal3575 ended before review with: "can't auto-compute (measurement branch proof: measurement sources exceed snapshot limit 128)". Attempted measurement window2026-10-23T20:43:25-07:00 through2026-10-24T10:40:39-07:00. No actuals were fabricated or review dispatched. Submitted hub818613af-945d-4b2c-ba4b-ced126499fa8 explicitly authorizes precise --no-actual with this source-count refusal and window in --verified; the long multi-session window is intentionally refused by the source cap. Re-run inventory, then close with that exact acknowledgment.
 
 Hub correction a1f718e7-b5b6-4074-aa67-d6d74dd875b8 supersedes stage-clear coordination for851 landing: land independently; preserve838's combined stage while editorial operator check continues. Pair:3 received a16e8e21-871b-430a-9c56-5ecc296c8beb as Submitted.851 does not clear or wait for that stage. No code changes since passing suite/operator candidate.
+
+### 2026-10-24 — BR-1/BR-2 documentation and acceptance synchronization
+
+First close review found no executable defect and independently passed couchtty51.647s, focused race3.508s, artifact guard2.290s and pinned fixture12.973s, but FIX-THEN-SHIP could not finalize with Important ledger findingsBR-1/BR-2 open. README still described immediate switcher-row clicks and unqualified one-click warm retry; original Done-when still named a double-click timing window and omitted scoped chips. Corrected the complete affected README passages and the equivalent atlas warm-retry claim. Reconciled Done-when to the already-approved no-timer design, existing rapid/delayed press proof, inside/outside and hidden/nested chip outcomes, selective restriction preservation, existing vetoes and keyboard behavior. This changes no implementation, authority or scope; it records the acceptance already approved and observed. The previous timing-window wording is superseded; no timing recognizer was added. Re-run full close as its ledger refusal explicitly directs, so both findings receive dispositions.
+
+Stage status: pair:3 subsequently reported authenticated supported clear c9fdefd3-b08a-44bb-b714-7ba41ccf3442 after838 operator PASS; its lease is released and pair:0 rebuilt on main.851 took no stage action. Fresh inventory and diff whitespace checks pass for these prose-only review corrections; executable code remains exactly the passing suite/operator code.

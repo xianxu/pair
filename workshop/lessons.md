@@ -2848,3 +2848,5 @@ and external temporary roots rather than relying on the host's TMPDIR.
 
 - #845 review execution: a native harness watchdog must cover the test’s own startup/scenario context plus cleanup. A shorter go-test deadline aborts defers and creates unverifiable residue; inspect/reconcile that exact owner before starting another fleet, and do not call the watchdog a product failure.
 - #802 BR-1: operator-facing notice wording is restated in the embedded `skills/couch/SKILL.md` and the atlas. When a producer string changes, grep the literal shape and reason labels repo-wide and update every live restatement; archived issues and comments that describe the condition are not copies. Updating the atlas alone is not the sweep.
+
+- #851 BR-1/BR-2: When an approved input gesture changes, sweep every user-facing restatement, including retry instructions and selection-versus-activation language, rather than only the atlas's headline. Reconcile Done-when with the approved Spec and tested modes before close; remove superseded timing assumptions and enumerate inside/outside, hidden and nested behavior. Record the revision without changing the implementation contract.

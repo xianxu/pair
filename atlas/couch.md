@@ -191,7 +191,8 @@ Stable lock inodes occupy 256 stripes in session-locks-v2 and are retained.
 
 Startup attachments and explicit Continue use the same single bounded retry.
 Background attachment does not block the console or steal focus. Every failure
-keeps its Continue outcome and shows a reason with a one-click warm attach retry;
+keeps its Continue outcome and shows a reason; activating its selected row
+retries the warm attachment (if its row is not selected, select it first);
 a later inventory observation may independently change the outcome.
 Authenticated wrappers reconnect and join the broker independently of panes;
 retained thread/workspace, positive terminal listing, readiness and exact process
