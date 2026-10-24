@@ -7,10 +7,13 @@
 <aside id="toolbar" aria-label="Cast tools">
  <button id="live" class="live">●<small>Live</small></button>
  <div class="tool-rule"></div>
- <button id="sketch" aria-pressed="false">✎<small>Sketch</small></button>
+ <button id="pointer" aria-pressed="true" title="Pointer">↖<small>Pointer</small></button>
+ <button id="sketch" aria-pressed="false" title="Sketch (pen)">✎<small>Pen</small></button>
  <div id="drawing-tools" hidden>
   <div class="palette" aria-label="Ink color"><button class="swatch selected" style="--ink:#d45536" aria-label="Terracotta ink"></button><button class="swatch" style="--ink:#3f7890" aria-label="Blue ink"></button><button class="swatch" style="--ink:#b6982e" aria-label="Gold ink"></button></div>
-  <button id="stroke">╱<small>Stroke</small></button>
+ </div>
+ <button id="annotation" aria-pressed="false" title="Annotation (note)">▤<small>Note</small></button>
+ <div id="history-tools" hidden>
   <button id="undo" hidden>↶<small>Undo</small></button><button id="redo" hidden>↷<small>Redo</small></button>
   <button id="done">✓<small>Done</small></button>
  </div>
@@ -20,5 +23,5 @@
  <div id="note-body"></div>
 </section>
 <button id="notes-button" hidden aria-label="Open Notes; drag to move">Notes <span id="mini-count"></span> ↗</button>
-<nav class="scenarios" aria-label="Mock scenarios"><details open><summary>Layout mock · try a flow</summary><div class="scenario-actions"><button data-scene="mixed">Mixed list</button><button data-scene="long">Long list</button><button data-scene="empty">Empty</button><button data-scene="status">Status</button><button data-scene="tab">Switch tab</button><button data-scene="reload">Reload page</button><button data-scene="app">App update</button><button data-scene="pending">Loading page</button><button data-scene="driver">Viewer driving</button></div><p id="scenario-hint">Synthetic feedback. Changes stay in this mock.</p></details></nav>
+<nav class="scenarios" aria-label="Mock scenarios"><details open><summary>Layout mock · try a flow</summary><div class="scenario-actions"><button data-scene="mixed">Mixed list</button><button data-scene="long">Long list</button><button data-scene="empty">Empty</button><button data-scene="status">Status</button><button data-scene="tab">Switch tab</button><button data-scene="new-tab">New tab</button><button data-scene="reload">Reload page</button><button data-scene="app">App update</button><button data-scene="pending">Loading page</button><button data-scene="driver">Viewer driving</button></div><p id="scenario-hint">Open in a non-cast Chrome window to avoid the live cast’s injected tools. Synthetic feedback only.</p></details></nav>
 </body></html>

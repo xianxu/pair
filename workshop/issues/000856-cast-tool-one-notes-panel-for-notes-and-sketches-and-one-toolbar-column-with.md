@@ -80,3 +80,11 @@ The operator's latest design removes sketch thumbnails from the original Spec. E
 ### 2026-10-23 — Revised mock qualification
 
 Non-skipped native Chrome check passed 0.63s (package 0.789s): four compact type icons and no thumbnail element; sketch hover glows only its anchor; annotation hover glows its box; hover does not scroll; missing anchor clears prior highlight; actual keyboard focus highlights; minimize and reload clear transient glow. Initial keyboard-focus probe exposed that property-assigned focusin/focusout handlers did not run; switched to explicit event listeners and reran with actual focus (no synthetic focus event). Temporary fixture removed after qualification. Mock server remains at http://127.0.0.1:51106/ with live reload. Node syntax and diff checks rerun. #850 retained check acquired its slot after 4776s and is now running; no duplicate or cancellation.
+
+### 2026-10-23 — Actual tools and mock viewing boundary
+
+Applied operator feedback 96da76d2-2673-40a2-b1aa-38ef59fe0206: mock now includes Pointer and Annotation (Note), names Sketch as Pen, retains Live/Pause, colors, conditional Undo/Redo and Done, and removes Stroke. Marking a synthetic card in Pen mode supplies a history action. Instructions say open in a non-cast Chrome window: the real cast injection otherwise overlays the mock; no capture/origin exclusion changes were made. Added a new-tab scenario starting empty. #857's target+loader+root scope and native same-URL new-target regression cover the live cross-tab leak.
+
+### 2026-10-23 — Tool mock verification
+
+Non-skipped native Chrome qualification passed 0.80s (package 1.036s): actual tool IDs and no Stroke action; Pen page action exposes Undo, Undo exposes Redo; Note page action opens an unsaved editor and Cancel discards its draft; same-URL New tab starts empty and returning restores four original rows; panel/toolbar rectangles remain separate at 1280/768/320×800. Temporary fixture removed after use. Node syntax and whitespace checks pass. Next: operator layout review in a non-cast Chrome window at the existing mock URL. Production code remains held.

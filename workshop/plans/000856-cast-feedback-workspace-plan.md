@@ -185,3 +185,9 @@ Authenticated TL receipt bdff0bdf-86f8-4099-94c7-8de3cfac6ab4 approves this join
 ### 2026-10-23 — Operator mock feedback: icons and hover association
 
 Receipt b5c92d0c-2c24-4098-bb02-e83190857da9 supersedes thumbnails: use a small static sketch icon distinct from the annotation icon. Hovering an entry makes only its corresponding sketch ink or anchored note box glow. Include equivalent keyboard focus behavior, clear highlight on lifecycle transitions, and retain current-load/confirmed-anchor guards. This removes thumbnail generation/cache work entirely. Mock-1 is revised in place; no production code changes.
+
+### 2026-10-23 — Real tool names and isolated mock viewing
+
+Operator feedback 96da76d2-2673-40a2-b1aa-38ef59fe0206: show the actual tools in one column: Live/Pause, Pointer, Sketch (Pen) and its colors, Annotation (Note), available Undo/Redo, Done. Remove the artificial Stroke action; drawing on the synthetic page exercises history instead. Pointer/annotation remain discoverable while sketch-specific tools reveal on Pen. This clarifies, rather than adds to, the production tool adapters.
+
+The operator opened the mock inside the live cast Chrome and real injected tools covered it, including another tab's notes. View this mock in a non-cast Chrome window; do not change recorder origin-exclusion policy just for the mock. Add a New tab scenario with empty feedback even at the same URL. #857 membership remains exact target plus loader plus root, never load-only or URL-only: a new target starts empty, while return to a known same target/load restores its rows. Preserve the live observation as a native regression requirement using synthetic captures without copying private screenshots.
