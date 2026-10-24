@@ -56,19 +56,19 @@ before changing anything; no weakening of the "feedback changed" protection.
 - [x] Name the cause, protection unchanged (step 1, ebb4242be): named refusals, worker's refresh problem, panel marked
   out of date.
 - [x] Stage on pair:0; the operator reproduced it on echo: "the panel did not show it: board: the page changed".
-- [ ] Press-time selection (option one, TL 10-23): a pure core function picks from the board selection minus
+- [x] Press-time selection (option one, TL 10-23): a pure function (`board.Selection.PressSelection`) picks from the board selection minus
   delivered versions (sketches oldest 8 first, remaining counted); `Board.Selection` leaves out a sketch whose
   witness is unfinished instead of failing; prepare takes it at the press with no preview gate, no stamp comparison
   and no freeze proposal. The selection carries no current view, so `appendSubmissionSketches` renders each sketch at
   its recorded finish scene.
-- [ ] Note-edit refusal: the page reports an open note dialog or unsaved draft (one CDP evaluation); prepare refuses
+- [x] Note-edit refusal: the page reports an open note dialog or unsaved draft (one CDP evaluation); prepare refuses
   naming the note ("note N is being edited; save or cancel it"), or "an unsaved note draft is open".
-- [ ] Panel: the preview worker keeps publishing for display only; prepare no longer reads it. Drop the preview
+- [x] Panel: the preview worker keeps publishing for display only; prepare no longer reads it. Drop the preview
   refusal plumbing that only served the gate (`previewRefusal` on prepare, `prepareMoved`), keep the panel's
   out-of-date mark.
-- [ ] Noise at its source: the recorder's observer drops a selection identical to the last one it sent (a resync
+- [x] Noise at its source: the recorder's observer drops a selection identical to the last one it sent (a resync
   still sends); operator.js does not invalidate feedback visibility for selection records.
-- [ ] Tests: live Chrome page changing every 50 ms (selection + text): old code refuses, new code submits unchanged
+- [x] Tests: live Chrome page changing every 50 ms (selection + text): old code refuses, new code submits unchanged
   notes; a note edited after the press is not resolved; an open note edit refuses naming it; unit tests for the
   selection rules and the observer dedupe; atlas/webcast-submission.md rewritten for the press-time contract.
 
@@ -131,3 +131,18 @@ Root cause (operator reproduction on the combined build, recording 20261023T2056
   read, resolve, freeze and panel acknowledgement span several CDP round trips under one revision, so on echo they
   never complete, and prepare refused because nothing current was shown. Quiet pages (Google) complete, which is why
   the earlier session worked.
+
+Implementation (option one), cc5810671 + 5cd9a3e78:
+
+- Prepare reads the delivered versions and `SubmissionUnsavedNote` outside the manager lock, re-checks job, cast,
+  delivery generation and guard, then takes `SubmissionSelection().PressSelection(delivered)`. The core preview events
+  that served the gate (`PreviewPrepare`, `PreviewFreezeProposal`, `PreviewFreezeRejected`, `PreviewRefuse`) and the
+  manager's freeze and refusal plumbing are gone; the worker still publishes the panel and marks it out of date.
+- The unsaved-note check is `noteDialog.unsaved` (collab.js, shared by broadcast and webcast through the symlink):
+  a new draft, or an edit whose text differs from the saved text. An untouched open edit does not refuse.
+- `Board.selectionLocked` skips a sketch without finished witnesses instead of returning `ErrBroken`.
+- Reproducing echo's noise took `document.dispatchEvent(new Event('selectionchange'))`: re-collapsing the same caret,
+  rewriting the caret's text node and a focused input re-set in a headless tab fire no `selectionchange` in Chrome.
+  The exact trigger in echo's board re-render was not pinned down; the observer only listens for the event.
+- Pre-existing, not this change: webcast `TestLiveConformance` and `TestLiveCastEndToEnd` fail at the in-page pause
+  control click on clean origin/main too.
