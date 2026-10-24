@@ -193,7 +193,7 @@ func (c *Console) finishMenuRefresh(result menuRefreshResult) {
 func (c *Console) reduceMenu(event MenuEvent) {
 	event.At = c.now()
 	c.mu.Lock()
-	if event.Kind == MenuEventKey || event.Kind == MenuEventMouseSwitch || event.Kind == MenuEventParkHotkey {
+	if event.Kind == MenuEventKey || event.Kind == MenuEventMouseSwitch || event.Kind == MenuEventMouseRowClick || event.Kind == MenuEventParkHotkey {
 		c.navigationGeneration++
 	}
 	c.ensureMenuLocked(couchcore.ThreadAddress{})

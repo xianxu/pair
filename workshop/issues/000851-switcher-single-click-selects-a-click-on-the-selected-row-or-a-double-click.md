@@ -72,8 +72,8 @@ Envelope: one decision per accepted press, no IO before the existing declared op
 
 ## Plan
 
-- [ ] Add RED pure event and real SGR mouse-path regressions for different/selected rows, rapid double press and delayed selected press; canonical recordless-slot identity, reorder/replacement, hidden-chip reveal, group counts, nested frames and current operation vetoes.
-- [ ] Implement the shared pure select/activate transition and scoped Console routing/classification. Preserve direct actor-view chip switching and keyboard behavior. Pin release/motion/right/modifier negatives, manual-versus-paging origin, stale geometry and8/16 dispatch counts.
+- [x] Add RED pure event and real SGR mouse-path regressions for different/selected rows, rapid double press and delayed selected press; canonical recordless-slot identity, reorder/replacement, hidden-chip reveal, group counts, nested frames and current operation vetoes.
+- [x] Implement the shared pure select/activate transition and scoped Console routing/classification. Preserve direct actor-view chip switching and keyboard behavior. Pin release/motion/right/modifier negatives, manual-versus-paging origin, stale geometry and8/16 dispatch counts.
 - [ ] Run focused and race checks plus complete couchtty; update the existing atlas/user interaction text and individually audit any named affected-reader changes. Commit/push; run sdlc local-check run --pre-close and inventory before binary-owned close. Request a hub-authorized :0 stage/operator click check after the tested build is reviewable; then normal SDLC landing and stage cleanup.
 
 ## Log
@@ -92,3 +92,11 @@ The proposed design makes both operator gestures derive from existing selected-r
 679's retained merger exited0: PR572 and train PR574 verified MERGED, train334 integrated suite passed12m57s with no split suites. Claimed851, then start-plan created its own branch from main715b1e199cf2368c46c7e43cb9a4d8c67c4624e3. Catch-up rebuilt local tools against ariadne8d3b37c4518bc49f2f8c4bf5adc728dc9de3f93a; seeded workflow changes were deferred automatically, with no local-gates edit.
 
 Current terminal_input.go sends root row hits straight to MenuEventMouseSwitch, while actor chips call switchToThread regardless of panel focus. ReduceMenu's MouseSwitch arm resolves a current typed target, applies existing busy/selectability/operation checks, selects it, then dispatches with Manual origin. +N groups only open a scoped root. newMouseFixture already drives real SGR bytes through Console.Run and the confirmed hit map, with FakeHost, fake children, owned teardown and a recording dispatcher; Console.now and testClock already exist. No production edit, native UI action, stage, recorded check or merge runner has started for851. Next: send this committed plan to ops:0 and await approval; use the new --pre-close selector for the eventual recorded check.
+
+### 2026-10-23 — Approved implementation and local proof
+
+ops:0 approved the selected-row acknowledgment and all scoped chip behavior (delivery acf73f3c-f5d0-462c-ab33-302794103a3b, authenticated Submitted). change-code completed quick flow. The real SGR regression was RED: a different-row first press dispatched switch; a hidden chip failed to reveal its target. Added MenuEventMouseRowClick and a pure selection transition; the former MouseSwitch arm is shared unchanged for activation. Root list hits and panel chip hits use selection; external chips remain immediate. Typed keys, visible root membership and current operation vetoes remain mandatory. Navigation generation, landing attempt and copy feedback recognize the new input.
+
+GREEN: focused real-path tests, reducer tests (8/16 effect counts, recordless identities, reorder/replacement, hidden and nested chips, pending and operation vetoes), non-left/release/motion/wheel negatives; focused race check passed4.336s. Full couchtty passed46.402s. Go1.27.3 make build passed. Atlas updated. After staging the new tests, make test-affected-inventory passed without reader repairs. The focused selection, raw mouse, +N and stale-geometry cases also passed10 repetitions in14.033s. Next commit/push and run the recorded --pre-close selector on the pushed head.
+
+Stage dry-run refuses because pair:0 is held by #849, stage/000849-000850 from pair:6. Preserve it. The approved operator check waits for those cast-notes items to free the stage, then sdlc stage --build and report exact binary revisions to ops:0. No stage effect, PR, recorded check or merge runner started yet.
