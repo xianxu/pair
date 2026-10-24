@@ -17,6 +17,7 @@ claimant:
     worktree: /Users/xianxu/workspace/worktree/pair-slot9/pair
     repository: github.com/xianxu/pair
 flake_tests: [github.com/xianxu/pair/cmd/internal/testcouch/agentfixture.TestCancellationRetirementAllowsIDReuseWithoutInheritedRevocation]
+flow: {kind: quick, provenance: inferred, spec: "210d6aa8", done: "8753b161"}
 ---
 
 # flake: TestCancellationRetirementAllowsIDReuseWithoutInheritedRevocation
