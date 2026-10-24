@@ -15,6 +15,7 @@ claimant:
     workspace: pair:3
     worktree: /Users/xianxu/workspace/worktree/pair-slot3/pair
     repository: github.com/xianxu/pair
+flow: {kind: quick, provenance: inferred, spec: "8f4253b6", done: "4ffedb0d"}
 ---
 
 # session-sync apply advances the diff baseline over the whole file, wiping the operator's unread edits elsewhere
