@@ -140,6 +140,20 @@ Review returned BR-1 Critical (notice-owner-loss-fallback), BR-2 Important (user
 
 Canceled old suite lease-3505757571 through sdlc local-check cancel while it was still queued (never executed), so obsolete code will not consume a full run; terminal confirmed context-canceled suite-lock wait. No check pass or flake classification. Queue a fresh check only after the review fixes are verified and pushed. Hub informed in submitted message 6f903a07-b5c1-442d-b57b-ea269732cc4d.
 
+### 2026-10-24 — BR-1 identity retention approved
+
+The class sweep found a second loss ordering: removing both source workspace and owner leaves Thread-only occurrences without the root needed to retain automation provenance. Hub approved one Root string in the existing owner fact, copied to existing occurrence.OwnerRoot at publication (authenticated submitted delivery 600b1333-b9a6-46a5-8dc8-ce8f929e811c). Current verified ownership takes precedence; removed sources retain their exact prior root. No queue, retry, wire or durable state added; regression before production correction. This complements the pending/refused absence-vs-revocation fix.
+
+BR-2 corrected README's summary and bell interaction text, plus architecture map parity. BR-3 consolidated both AST analyses and rejection fixtures into cmd/internal/testnotice, keeping package-specific audited projections/forwarders. Main independently reran helper/inventory tests PASS (helper 0.062s, cmd 0.335s, tty 0.365s). Individually refreshed certificates still cover each caller's own Go package; helper parses supplied bytes and literal fixture tests only. Targeted repolint found three pre-existing branch fixed sleeps in notice_delivery_test.go; replaced with bounded production reconciliation/event observations in the same repair round, with final lint still required.
+
+### 2026-10-24 — BR-1 repair verified
+
+Observed deterministic REDs: reducer confirmed-owner-loss produced no effect; backend disconnected epoch changed 2 to 0; four held admissions plus one pending occurrence produced no fallback; refusal immediately before the real guard produced zero projections; Thread-only source-plus-owner removal produced zero fallback in both orderings; startup-buffered owner resolution failed to retain exact root. Fixes retain verified Root at publication and OwnerChanged, preserve the cached automation epoch on proven unavailability, and route only confirmed Refused results through RouteNotice when the frozen generation still matches. Pending and guarded OFF/ON-plus-disconnect cases remain feed-only; admitted/uncertain/late duplicate cases never bell or resend.
+
+Agent final broad race x3 passed (core 1.786s, cmd 3.842s). Main independently reran integrated race selection across core/tty/cmd/testnotice (TestNotice, ConsoleNotice, Condition, Picker, WaitNotice, WaitAutomation, Archive, AutomaticInputStall, Findings): PASS core 4.117s, tty 2.042s, cmd 5.112s, helper 1.146s. Main repolint catalog PASS 4.871s after the three fixed sleeps were removed. make test-affected-inventory and git diff --check PASS. README/architecture map and shared analyzer corrections are committed separately. No recorded check pass or live acceptance yet.
+
+NEXT ACTION: commit/push this verified fix, rerun the binary close review with the authorized precise actual waiver; satisfy any noon freshness refusal before queuing a new final-head recorded pre-close check. After review and recorded pass, send pair:4 head plus short operator checklist for the combined stage; do not touch pair:0 independently.
+
 ## Estimate
 
 Produced via brain/data/life/42shots/velocity/estimate-logic-v3.1.md against baseline-v3.1.md. Method A only. Calibration is flagged stale by estimate-source, so these are provisional ship-wall-clock hours. Read v2/v2.1 procedure and table: retain issue/spec design cost; use x0.2 design discount for approved module/integration/refactor decisions, 40% implementation conversion, familiarity 1.0 and 15% design buffer.

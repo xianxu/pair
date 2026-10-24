@@ -27,6 +27,9 @@ type NoticeDeliveryOccurrence struct {
 }
 
 type NoticeDeliveryOwner struct {
+	// Root is verified ephemeral owner identity. Occurrences retain it when
+	// their source disappears before the admission/availability decision.
+	Root    string
 	State   NoticeOwnerState
 	Binding string
 	Epoch   uint64
@@ -168,6 +171,9 @@ func AdvanceNoticeDelivery(previous NoticeDeliveryState, event NoticeDeliveryEve
 			entry := &state.Entries[i]
 			if entry.Phase == NoticeDeliveryPending && (event.ID == "" || entry.Occurrence.ID == event.ID) {
 				entry.Owner = event.Owner
+				if event.Owner.Root != "" {
+					entry.Occurrence.OwnerRoot = event.Owner.Root
+				}
 			}
 		}
 	case NoticeDeliverySendResult, NoticeDeliveryReceiptObserved:
@@ -177,6 +183,12 @@ func AdvanceNoticeDelivery(previous NoticeDeliveryState, event NoticeDeliveryEve
 				continue
 			}
 			if event.Kind == NoticeDeliveryReceiptObserved || entry.Phase == NoticeDeliverySending && event.Result == NoticeDeliveryRefused {
+				if event.Kind == NoticeDeliverySendResult && entry.Owner.Epoch == event.Owner.Epoch {
+					route := RouteNotice(NoticeRouteInput{Class: entry.Occurrence.Class, Origin: entry.Occurrence.Origin, Owner: event.Owner.State, HubHandled: entry.Occurrence.HubHandled})
+					if route.Bell {
+						effects = append(effects, NoticeDeliveryEffect{Kind: NoticeDeliveryBell, Occurrence: entry.Occurrence})
+					}
+				}
 				state.Entries = append(state.Entries[:i], state.Entries[i+1:]...)
 			} else if entry.Phase == NoticeDeliverySending {
 				entry.Phase = NoticeDeliveryAwaitingReceipt

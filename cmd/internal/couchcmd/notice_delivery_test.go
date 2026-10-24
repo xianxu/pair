@@ -99,7 +99,9 @@ func TestNoticeDeliveryAdapterBootBindAndUncertain(t *testing.T) {
 		return len(d.state.Entries) == 1 && d.state.Entries[0].Phase == couchcore.NoticeDeliveryAwaitingReceipt
 	})
 	// Several ownership/receipt polls cannot resubmit uncertain admission.
-	time.Sleep(250 * time.Millisecond)
+	for i := 0; i < 3; i++ {
+		d.reconcile()
+	}
 	w.mu.Lock()
 	if len(w.attempts) != 1 {
 		t.Fatal("uncertain admission resent")
@@ -163,7 +165,9 @@ func TestNoticeDeliveryAdapterDisabledDoesNotReplay(t *testing.T) {
 	w.mu.Lock()
 	w.owner.State = couchcore.NoticeOwnerEnabled
 	w.mu.Unlock()
-	time.Sleep(250 * time.Millisecond)
+	for i := 0; i < 3; i++ {
+		d.reconcile()
+	}
 	w.mu.Lock()
 	defer w.mu.Unlock()
 	if len(w.attempts) != 0 {
@@ -184,7 +188,7 @@ func TestNoticeDeliveryAdapterClearFencesQueuedAndCopiesSource(t *testing.T) {
 	d.Publish(couchtty.Notice{Class: couchcore.NoticeLivePicker, Condition: "picker:exact-thread", Cleared: true})
 	w := newNoticeDeliveryWorld()
 	d.Bind(w)
-	time.Sleep(150 * time.Millisecond)
+	d.reconcile()
 	w.mu.Lock()
 	defer w.mu.Unlock()
 	if len(w.attempts) != 0 {
@@ -313,5 +317,207 @@ func TestNoticeDeliveryAdapterPendingEpochCannotRevive(t *testing.T) {
 		if effect.Owner.Epoch != 1 {
 			t.Fatal("admission adopted later automation epoch")
 		}
+	}
+}
+
+// The real service still resolves ownership and guards ingress; only admission
+// ordering is controlled so disconnects happen at exact effect boundaries.
+type noticeGuardedAdmission struct {
+	service *messageService
+	entered chan couchcore.NoticeDeliveryEffect
+	release chan struct{}
+}
+
+func (g *noticeGuardedAdmission) NoticeOwner(o couchcore.NoticeDeliveryOccurrence) couchcore.NoticeDeliveryOwner {
+	return g.service.NoticeOwner(o)
+}
+func (g *noticeGuardedAdmission) NoticeReceipt(id string) (bool, bool) {
+	return g.service.NoticeReceipt(id)
+}
+func (g *noticeGuardedAdmission) DeliverNotice(ctx context.Context, e couchcore.NoticeDeliveryEffect) couchcore.NoticeDeliveryResult {
+	select {
+	case g.entered <- e:
+	case <-ctx.Done():
+		return couchcore.NoticeDeliveryRefused
+	}
+	select {
+	case <-g.release:
+	case <-ctx.Done():
+		return couchcore.NoticeDeliveryRefused
+	}
+	return g.service.DeliverNotice(ctx, e)
+}
+func noticeDeliveryWithoutOwnerLoop(t *testing.T, service *messageService) (*noticeDelivery, *noticeGuardedAdmission) {
+	t.Helper()
+	d := pausedNoticeDelivery()
+	d.ctx, d.cancel = context.WithCancel(t.Context())
+	g := &noticeGuardedAdmission{service: service, entered: make(chan couchcore.NoticeDeliveryEffect, 4), release: make(chan struct{})}
+	d.Bind(g)
+	d.wg.Add(4)
+	for i := 0; i < 4; i++ {
+		go d.worker()
+	}
+	t.Cleanup(d.Close)
+	return d, g
+}
+func noticeEnterAdmission(t *testing.T, g *noticeGuardedAdmission) couchcore.NoticeDeliveryEffect {
+	t.Helper()
+	select {
+	case e := <-g.entered:
+		return e
+	case <-time.After(time.Second):
+		t.Fatal("admission did not reach guard")
+		return couchcore.NoticeDeliveryEffect{}
+	}
+}
+func noticeNonzeroEpoch(t *testing.T, service *messageService) {
+	t.Helper()
+	for _, action := range []string{"off", "on"} {
+		if _, err := service.controlAutomation("/repo1", action); err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+
+func TestNoticeDeliveryOwnerLossPendingFallsBack(t *testing.T) {
+	for _, revoked := range []bool{false, true} {
+		t.Run(fmt.Sprintf("automation-revoked-%t", revoked), func(t *testing.T) {
+			r, slots := hubMessageRig(t)
+			noticeNonzeroEpoch(t, r.s)
+			d, g := noticeDeliveryWithoutOwnerLoop(t, r.s)
+			for i := 0; i < 4; i++ {
+				d.Publish(couchtty.Notice{Class: couchcore.NoticeChildExited, Thread: bindingThread(slots[2]), Body: fmt.Sprintf("held-%d", i)})
+				noticeEnterAdmission(t, g)
+			}
+			d.Publish(couchtty.Notice{Class: couchcore.NoticeChildExited, Thread: bindingThread(slots[2]), Body: "pending-owner-loss"})
+			if revoked {
+				noticeNonzeroEpoch(t, r.s)
+			}
+			r.s.broker.Disconnect(slots[1])
+			d.reconcile()
+			d.mu.Lock()
+			defer d.mu.Unlock()
+			want := 1
+			if revoked {
+				want = 0
+			}
+			if len(d.projections) != want || want > 0 && d.projections[0].Occurrence.Body != "pending-owner-loss" {
+				t.Fatalf("owner-loss fallback=%+v entries=%d wantBell=%d", d.projections, len(d.state.Entries), want)
+			}
+			if len(d.state.Entries) != 4 {
+				t.Fatal("pending owner-loss did not retire exactly once")
+			}
+		})
+	}
+}
+
+func TestNoticeDeliveryOwnerLossAtGuardFallsBack(t *testing.T) {
+	for _, revoked := range []bool{false, true} {
+		t.Run(fmt.Sprintf("automation-revoked-%t", revoked), func(t *testing.T) {
+			r, slots := hubMessageRig(t)
+			noticeNonzeroEpoch(t, r.s)
+			d, g := noticeDeliveryWithoutOwnerLoop(t, r.s)
+			d.Publish(couchtty.Notice{Class: couchcore.NoticeChildExited, Thread: bindingThread(slots[2]), Body: "guard-owner-loss"})
+			effect := noticeEnterAdmission(t, g)
+			if revoked {
+				noticeNonzeroEpoch(t, r.s)
+			}
+			r.s.broker.Disconnect(slots[1])
+			close(g.release)
+			noticeDeliveryEventually(t, func() bool { d.mu.Lock(); defer d.mu.Unlock(); return len(d.state.Entries) == 0 })
+			d.mu.Lock()
+			defer d.mu.Unlock()
+			want := 1
+			if revoked {
+				want = 0
+			}
+			if len(d.projections) != want {
+				t.Fatalf("confirmed refusal projections=%d want=%d", len(d.projections), want)
+			}
+			if _, known, _ := r.s.broker.ReceiptSnapshot(effect.AdmissionID); known {
+				t.Fatal("disconnected guard admitted a broker message")
+			}
+		})
+	}
+}
+
+func TestNoticeDeliveryOwnerLossWithoutSourceMetadata(t *testing.T) {
+	for _, pending := range []bool{false, true} {
+		for _, revoked := range []bool{false, true} {
+			t.Run(fmt.Sprintf("pending-%t-revoked-%t", pending, revoked), func(t *testing.T) {
+				r, slots := hubMessageRig(t)
+				noticeNonzeroEpoch(t, r.s)
+				d, g := noticeDeliveryWithoutOwnerLoop(t, r.s)
+				if pending {
+					for i := 0; i < 4; i++ {
+						d.Publish(couchtty.Notice{Class: couchcore.NoticeChildExited, Thread: bindingThread(slots[2]), Body: fmt.Sprintf("held-%d", i)})
+						noticeEnterAdmission(t, g)
+					}
+				}
+				// Thread is the only producer provenance: no SourceSlot or OwnerRoot hint.
+				d.Publish(couchtty.Notice{Class: couchcore.NoticeChildExited, Thread: bindingThread(slots[2]), Body: "removed-source-owner-loss"})
+				if !pending {
+					noticeEnterAdmission(t, g)
+				}
+				if revoked {
+					noticeNonzeroEpoch(t, r.s)
+				}
+				r.disconnect(slots[2])
+				r.disconnect(slots[1])
+				noticeDeliveryEventually(t, func() bool {
+					r.s.mu.Lock()
+					defer r.s.mu.Unlock()
+					_, source := r.s.workspaces[slots[2]]
+					_, owner := r.s.workspaces[slots[1]]
+					return !source && !owner
+				})
+				if pending {
+					d.reconcile()
+				} else {
+					close(g.release)
+					noticeDeliveryEventually(t, func() bool { d.mu.Lock(); defer d.mu.Unlock(); return len(d.state.Entries) == 0 })
+				}
+				d.mu.Lock()
+				defer d.mu.Unlock()
+				want := 1
+				if revoked {
+					want = 0
+				}
+				if len(d.projections) != want {
+					t.Fatalf("exact removed-owner fallback=%d want=%d", len(d.projections), want)
+				}
+			})
+		}
+	}
+}
+
+func TestNoticeDeliveryOwnerLossAfterBootResolution(t *testing.T) {
+	r, slots := hubMessageRig(t)
+	noticeNonzeroEpoch(t, r.s)
+	d, g := noticeDeliveryWithoutOwnerLoop(t, r.s)
+	d.mu.Lock()
+	d.backend = nil
+	d.mu.Unlock()
+	d.Publish(couchtty.Notice{Class: couchcore.NoticeChildExited, Thread: bindingThread(slots[2]), Body: "buffered-before-bind"})
+	d.Bind(g)
+	for i := 0; i < 4; i++ {
+		d.Publish(couchtty.Notice{Class: couchcore.NoticeChildExited, Thread: bindingThread(slots[2]), Body: fmt.Sprintf("held-%d", i)})
+		noticeEnterAdmission(t, g)
+	}
+	d.reconcile() // Booting episode now resolves, but all four admissions are held.
+	r.disconnect(slots[2])
+	r.disconnect(slots[1])
+	noticeDeliveryEventually(t, func() bool {
+		r.s.mu.Lock()
+		defer r.s.mu.Unlock()
+		_, source := r.s.workspaces[slots[2]]
+		_, owner := r.s.workspaces[slots[1]]
+		return !source && !owner
+	})
+	d.reconcile()
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	if len(d.projections) != 1 || d.projections[0].Occurrence.Body != "buffered-before-bind" {
+		t.Fatal("boot resolution failed to retain exact owner provenance")
 	}
 }

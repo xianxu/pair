@@ -116,6 +116,11 @@ func (d *noticeDelivery) Publish(n couchtty.Notice) {
 	if d.backend != nil {
 		owner = d.backend.NoticeOwner(occurrence)
 	}
+	// Retain verified ownership before source metadata can be removed. A later
+	// live source lookup still wins; without it, use this exact prior root.
+	if owner.Root != "" {
+		occurrence.OwnerRoot = owner.Root
+	}
 	route := couchcore.RouteNotice(couchcore.NoticeRouteInput{Class: occurrence.Class, Origin: occurrence.Origin, Owner: owner.State, HubHandled: occurrence.HubHandled})
 	if !route.Hub && !route.Bell && !route.Defer {
 		d.mu.Unlock()
@@ -236,6 +241,9 @@ func (d *noticeDelivery) reconcile() {
 					}
 				}
 				if pending {
+					// NoticeOwner retains the resolved owner's automation epoch even
+					// while unavailable: same-epoch absence reaches RouteNotice's Bell,
+					// whereas OFF/ON invalidation retires without reviving the event.
 					if entry.Owner.State != couchcore.NoticeOwnerBooting && owner.Epoch != entry.Owner.Epoch {
 						d.advanceLocked(couchcore.NoticeDeliveryEvent{Kind: couchcore.NoticeDeliveryConditionCleared, Now: time.Now(), ID: entry.Occurrence.ID})
 					} else {
@@ -327,9 +335,15 @@ func (d *noticeDelivery) worker() {
 			ctx, cancel := context.WithTimeout(d.ctx, 2*time.Second)
 			result := backend.DeliverNotice(ctx, effect)
 			cancel()
+			// Only a confirmed non-admission can acquire a new local disposition.
+			// Admitted/uncertain sends remain receipt-owned and are never rerouted.
+			var owner couchcore.NoticeDeliveryOwner
+			if result == couchcore.NoticeDeliveryRefused && d.ctx.Err() == nil {
+				owner = backend.NoticeOwner(effect.Occurrence)
+			}
 			d.mu.Lock()
 			if !d.state.Closed {
-				d.advanceLocked(couchcore.NoticeDeliveryEvent{Kind: couchcore.NoticeDeliverySendResult, Now: time.Now(), ID: effect.Occurrence.ID, Token: effect.Token, Result: result})
+				d.advanceLocked(couchcore.NoticeDeliveryEvent{Kind: couchcore.NoticeDeliverySendResult, Now: time.Now(), ID: effect.Occurrence.ID, Token: effect.Token, Result: result, Owner: owner})
 			}
 			d.mu.Unlock()
 			d.signal()

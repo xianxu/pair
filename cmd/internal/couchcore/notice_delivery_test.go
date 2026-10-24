@@ -231,3 +231,36 @@ func TestNoticeDeliveryAdmittedTracksReceipt(t *testing.T) {
 		t.Fatal("admitted occurrence lost receipt tracking")
 	}
 }
+
+func TestNoticeDeliveryRefusedOwnerLossFallback(t *testing.T) {
+	for _, tc := range []struct {
+		name   string
+		result NoticeDeliveryResult
+		owner  NoticeDeliveryOwner
+		bell   bool
+	}{
+		{"confirmed-owner-loss", NoticeDeliveryRefused, NoticeDeliveryOwner{State: NoticeOwnerUnavailable, Epoch: 7}, true},
+		{"connected-refusal", NoticeDeliveryRefused, NoticeDeliveryOwner{State: NoticeOwnerEnabled, Epoch: 7}, false},
+		{"automation-revoked", NoticeDeliveryRefused, NoticeDeliveryOwner{State: NoticeOwnerUnavailable, Epoch: 9}, false},
+		{"uncertain-owner-loss", NoticeDeliveryUncertain, NoticeDeliveryOwner{State: NoticeOwnerUnavailable, Epoch: 7}, false},
+		{"admitted-owner-loss", NoticeDeliveryAdmitted, NoticeDeliveryOwner{State: NoticeOwnerUnavailable, Epoch: 7}, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			now := time.Unix(100, 0)
+			state, effects := AdvanceNoticeDelivery(NoticeDeliveryState{}, NoticeDeliveryEvent{Kind: NoticeDeliveryOccurrenceAdded, Now: now, Occurrence: NoticeDeliveryOccurrence{ID: "owner-loss", Class: NoticeChildExited}, Owner: NoticeDeliveryOwner{State: NoticeOwnerEnabled, Epoch: 7}})
+			token := effects[0].Token
+			state, effects = AdvanceNoticeDelivery(state, NoticeDeliveryEvent{Kind: NoticeDeliverySendResult, Now: now, ID: "owner-loss", Token: token, Result: tc.result, Owner: tc.owner})
+			want := 0
+			if tc.bell {
+				want = 1
+			}
+			if len(effects) != want || want > 0 && effects[0].Kind != NoticeDeliveryBell {
+				t.Fatalf("effects=%+v want bell=%t", effects, tc.bell)
+			}
+			_, effects = AdvanceNoticeDelivery(state, NoticeDeliveryEvent{Kind: NoticeDeliverySendResult, Now: now, ID: "owner-loss", Token: token, Result: NoticeDeliveryRefused, Owner: NoticeDeliveryOwner{State: NoticeOwnerUnavailable, Epoch: 7}})
+			if len(effects) != 0 {
+				t.Fatal("duplicate/uncertain completion generated fallback")
+			}
+		})
+	}
+}

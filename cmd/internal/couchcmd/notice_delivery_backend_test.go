@@ -65,3 +65,20 @@ func TestNoticeOwnerDefersRegistryConnectUntilIdentityIsCommitted(t *testing.T) 
 		t.Fatalf("committed identity did not resolve owner: %+v", got)
 	}
 }
+
+func TestNoticeOwnerLossRetainsAutomationEpoch(t *testing.T) {
+	r, slots := hubMessageRig(t)
+	noticeNonzeroEpoch(t, r.s)
+	occurrence := couchcore.NoticeDeliveryOccurrence{Thread: bindingThread(slots[2])}
+	before := r.s.NoticeOwner(occurrence)
+	r.s.broker.Disconnect(slots[1])
+	absent := r.s.NoticeOwner(occurrence)
+	if absent.State != couchcore.NoticeOwnerUnavailable || absent.Epoch != before.Epoch {
+		t.Fatalf("absence erased automation identity: before=%+v after=%+v", before, absent)
+	}
+	noticeNonzeroEpoch(t, r.s)
+	revoked := r.s.NoticeOwner(occurrence)
+	if revoked.State != couchcore.NoticeOwnerUnavailable || revoked.Epoch == before.Epoch {
+		t.Fatalf("absent owner hid automation revocation: before=%+v after=%+v", before, revoked)
+	}
+}

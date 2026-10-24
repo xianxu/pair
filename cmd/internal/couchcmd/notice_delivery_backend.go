@@ -101,9 +101,13 @@ func (s *messageService) resolveNoticeOwner(o couchcore.NoticeDeliveryOccurrence
 		// Registry publication precedes EffectConnect's identity/broker commit.
 		// That in-flight witness is unknown readiness, never proof of absence.
 		if booting || pendingIdentity {
-			return couchcore.NoticeDeliveryOwner{State: couchcore.NoticeOwnerBooting}
+			return couchcore.NoticeDeliveryOwner{State: couchcore.NoticeOwnerBooting, Root: root}
 		}
-		return couchcore.NoticeDeliveryOwner{State: couchcore.NoticeOwnerUnavailable}
+		// Availability is independent of automation generation. Retain the
+		// resolved owner's epoch after disconnect so a queued occurrence can
+		// distinguish owner loss from an intervening OFF/ON revocation.
+		_, epoch := s.hubAutomationPermit(root)
+		return couchcore.NoticeDeliveryOwner{State: couchcore.NoticeOwnerUnavailable, Epoch: epoch, Root: root}
 	}
 	s.mu.Lock()
 	delete(s.noticeBoot, root) // actual connection ends this startup witness
@@ -113,7 +117,7 @@ func (s *messageService) resolveNoticeOwner(o couchcore.NoticeDeliveryOccurrence
 	if on {
 		state = couchcore.NoticeOwnerEnabled
 	}
-	return couchcore.NoticeDeliveryOwner{State: state, Binding: lifecycleBindingKey(hub), Epoch: epoch}
+	return couchcore.NoticeDeliveryOwner{State: state, Binding: lifecycleBindingKey(hub), Epoch: epoch, Root: root}
 }
 
 // DeliverNotice preserves the exact recipient and automation generation frozen
