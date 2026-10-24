@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -57,11 +56,24 @@ func TestDisposableSlashKeys(t *testing.T) {
 				t.Fatal(err)
 			}
 			seen := map[string]bool{}
+			var hubBinding, workerBinding couchmessage.Binding
 			for _, actor := range actors.Actors {
 				seen[actor.Binding.Slot] = true
+				if actor.Binding.Slot == "fixture:0" {
+					hubBinding = actor.Binding
+				}
+				if actor.Binding.Slot == "fixture:1" {
+					workerBinding = actor.Binding
+				}
 			}
 			if len(actors.Actors) != 2 || !seen["fixture:0"] || !seen["fixture:1"] {
 				t.Fatalf("wrong genuine steward/worker cohort: %+v", actors)
+			}
+			if err := hubBinding.Validate(); err != nil {
+				t.Fatal(err)
+			}
+			if err := workerBinding.Validate(); err != nil {
+				t.Fatal(err)
 			}
 			for n := 0; n <= 1; n++ {
 				ready, err := fleet.Agent(n)
@@ -137,23 +149,34 @@ func TestDisposableSlashKeys(t *testing.T) {
 			if err != nil && !errors.Is(err, os.ErrNotExist) {
 				t.Fatal(err)
 			}
-			// Startup may submit the supervisor's restart notice. Freeze the
-			// settled journal, then require exactly one appended command.
+			// Idle does not fence the independent startup producer. Classify
+			// exact system envelopes with public server-origin receipt evidence.
+			oracle := newSlashJournalOracle(baseline, hubBinding, workerBinding)
+			proofs := map[string]couchmessage.Receipt{}
+			lookup := func(id string) (couchmessage.Receipt, error) {
+				result, err := fleet.ActorCLI(ctx, 0, "--message-status", id, "--json")
+				if err != nil || result.ExitCode != 0 || result.Truncated {
+					return couchmessage.Receipt{}, fmt.Errorf("public message-status exit=%d truncated=%t: %v", result.ExitCode, result.Truncated, err)
+				}
+				var response couchmessage.Response
+				if err := json.Unmarshal([]byte(result.Stdout), &response); err != nil {
+					return couchmessage.Receipt{}, err
+				}
+				if response.Code != "ok" || response.Receipt == nil {
+					return couchmessage.Receipt{}, fmt.Errorf("public message-status lacks receipt: code=%s", response.Code)
+				}
+				t.Logf("system journal receipt id=%s status=%s", id, response.Receipt.Status)
+				return *response.Receipt, nil
+			}
 			assertAccepted := func() (bool, error) {
 				accepted, err := fleet.Accepted(1)
-				if errors.Is(err, os.ErrNotExist) {
-					return false, nil
-				}
-				if err != nil {
+				if err != nil && !errors.Is(err, os.ErrNotExist) {
 					return false, err
 				}
-				if len(accepted) <= len(baseline) {
-					return false, nil
+				if err := refreshSlashJournalProofs(accepted, len(baseline), proofs, hubBinding, workerBinding, lookup); err != nil {
+					return false, err
 				}
-				if len(accepted) != len(baseline)+1 || accepted[len(baseline)].Body != "/model" || len(baseline) > 0 && !reflect.DeepEqual(accepted[:len(baseline)], baseline) {
-					return false, fmt.Errorf("expected unchanged baseline plus exactly one /model submission: %+v", accepted)
-				}
-				return true, nil
+				return oracle.Observe(accepted, proofs)
 			}
 			receipt := keys("clear-line", "text:/model", "enter")
 			afterCommand = true
@@ -183,12 +206,12 @@ func TestDisposableSlashKeys(t *testing.T) {
 			}); err != nil {
 				t.Fatal(err)
 			}
-			if ok, err := assertAccepted(); err != nil || !ok {
-				t.Fatalf("ordinary prose submitted unexpectedly: %v", err)
+			if err := waitFleet(ctx, assertAccepted); err != nil {
+				t.Fatalf("ordinary prose journal proof: %v", err)
 			}
 			keys("clear-line")
-			if ok, err := assertAccepted(); err != nil || !ok {
-				t.Fatalf("recovery changed accepted inputs: %v", err)
+			if err := waitFleet(ctx, assertAccepted); err != nil {
+				t.Fatalf("recovery journal proof: %v", err)
 			}
 
 			cleanup, cancelCleanup := context.WithTimeout(context.Background(), 15*time.Second)

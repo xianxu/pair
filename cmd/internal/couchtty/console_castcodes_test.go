@@ -67,7 +67,9 @@ func TestCodesMenuRotatesAndDisconnects(t *testing.T) {
 	}
 	f.chooseCodes(t, codesAction{link: broadcast.LinkView})
 	waitFor(t, "a new view code", func() bool { return viewCode(t, s) != old })
-	waitFor(t, "retained rotation feedback", func() bool { return strings.Contains(f.con.menuSnapshot().LatestFeed, "New LIVE view code") })
+	waitFor(t, "retained rotation feedback", func() bool {
+		return f.con.menuSnapshot().LatestFeed == "New LIVE view code; viewers disconnected. Hover LIVE for code."
+	})
 	if f.con.attentionCount() != 0 {
 		t.Fatal("manual code rotation created actionable attention")
 	}
@@ -98,18 +100,18 @@ func TestCodesMenuRotatesAndDisconnects(t *testing.T) {
 // replaces a newer one.
 func TestGuessRotationAlertAndFlash(t *testing.T) {
 	copied := noticeClipboard(t)
-	const full = "Too many wrong codes on the LIVE view link: its code changed. Hover LIVE to see it."
+	const full = "LIVE view link: too many wrong codes; code changed. Hover LIVE for code."
 	f := broadcastFixture(t, &broadcast.FakeTunnel{}, nil)
 	f.startLive(t)
 	attempt := f.screenAttempt()
 	f.con.onCodeRotated(castScreen, attempt, broadcast.LinkView, castlock.Rotation{Code: "5193", Reason: castlock.ReasonGuessing, Gen: 2})
 	waitFor(t, "retained guessing alert", func() bool {
-		return strings.Contains(f.con.menuSnapshot().LatestFeed, "Too many wrong codes on the LIVE view link")
+		return strings.Contains(f.con.menuSnapshot().LatestFeed, "LIVE view link: too many wrong codes")
 	})
 	f.con.attn.mu.Lock()
 	items := f.con.attn.list.Items()
 	f.con.attn.mu.Unlock()
-	if len(items) != 1 || !strings.Contains(items[0].Body, "Too many wrong codes on the LIVE view link") {
+	if len(items) != 1 || !strings.Contains(items[0].Body, "LIVE view link: too many wrong codes") {
 		t.Fatalf("guessing warning attention = %+v", items)
 	}
 	if strings.Contains(items[0].Body, "5193") || strings.Contains(f.con.menuSnapshot().LatestFeed, "5193") {
@@ -171,9 +173,9 @@ func TestEveryGuessRotationNotifiesIncludingCap(t *testing.T) {
 						con.setNotice("waiting for the next rotation")
 						capped := i == 2
 						con.onCodeRotated(kind, attempt, link, castlock.Rotation{Code: code, Reason: castlock.ReasonGuessing, Gen: uint64(i + 2), Capped: capped})
-						want := fmt.Sprintf("Too many wrong codes on the %s %s link: its code changed. Hover %s to see it.", kind.name(), link, kind.name())
+						want := fmt.Sprintf("%s %s link: too many wrong codes; code changed. Hover %s for code.", kind.name(), link, kind.name())
 						if capped {
-							want = fmt.Sprintf("Too many wrong codes on the %s %s link: its code changed; the link is locked until you rotate its code.", kind.name(), link)
+							want = fmt.Sprintf("%s %s link: too many wrong codes; code changed, link locked until you rotate its code.", kind.name(), link)
 						}
 						waitFor(t, fmt.Sprintf("rotation %d notice", i+1), func() bool {
 							con.mu.Lock()
@@ -205,7 +207,7 @@ func TestRapidGuessRotationsLeaveCapNotice(t *testing.T) {
 	f.con.mu.Lock()
 	notice := f.con.feed.Row().Body
 	f.con.mu.Unlock()
-	want := "Too many wrong codes on the LIVE view link: its code changed; the link is locked until you rotate its code."
+	want := "LIVE view link: too many wrong codes; code changed, link locked until you rotate its code."
 	if notice != want {
 		t.Fatalf("rapid rotations left notice %q, want %q", notice, want)
 	}

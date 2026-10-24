@@ -28,7 +28,7 @@ func TestLifecycleMissingMetadataDiagnosticRaisesAttention(t *testing.T) {
 	case <-testwait.After(t):
 		t.Fatal("missing-metadata warning was not published")
 	}
-	openWarningAttention(t, input, host, "lacked verified slot metadata")
+	openWarningAttention(t, input, host, "metadata unverified")
 }
 
 func TestLifecycleCapacityWarningIsOncePerPublisherLifetime(t *testing.T) {

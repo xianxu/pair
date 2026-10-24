@@ -394,7 +394,7 @@ func (c *Console) runCodesSelection() {
 	if len(links) > 1 {
 		what = "codes"
 	}
-	c.setNotice(fmt.Sprintf("New %s %s; its viewers were disconnected. Hover %s to see it.", kind.name(), what, kind.name()))
+	c.setNotice(fmt.Sprintf("New %s %s; viewers disconnected. Hover %s for code.", kind.name(), what, kind.name()))
 }
 
 // copyCastLink copies one of a cast's links, as its control's click does.
@@ -482,9 +482,9 @@ func (c *Console) onCodeRotated(kind castKind, attempt uint64, link string, r ca
 	notice := ""
 	if r.Reason == castlock.ReasonGuessing {
 		if r.Capped {
-			notice = fmt.Sprintf("Too many wrong codes on the %s %s link: its code changed; the link is locked until you rotate its code.", kind.name(), link)
+			notice = fmt.Sprintf("%s %s link: too many wrong codes; code changed, link locked until you rotate its code.", kind.name(), link)
 		} else {
-			notice = fmt.Sprintf("Too many wrong codes on the %s %s link: its code changed. Hover %s to see it.", kind.name(), link, kind.name())
+			notice = fmt.Sprintf("%s %s link: too many wrong codes; code changed. Hover %s for code.", kind.name(), link, kind.name())
 		}
 	}
 	c.codes.mu.Unlock()
