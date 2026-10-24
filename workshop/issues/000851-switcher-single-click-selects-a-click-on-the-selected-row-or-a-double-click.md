@@ -15,6 +15,7 @@ claimant:
     workspace: pair:2
     worktree: /Users/xianxu/workspace/worktree/pair-slot2/pair
     repository: github.com/xianxu/pair
+flow: {kind: quick, provenance: inferred, spec: "3dc35b44", done: "4d90c246"}
 ---
 
 # Switcher: single click selects, a click on the selected row or a double click switches
