@@ -743,3 +743,73 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-23T17:01:34-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 812 — Couch tab bar: drop the trailing last lifecycle/error message (switcher keeps it) |
+| repo | pair |
+| issue file | workshop/issues/000812-couch-tab-bar-drop-the-trailing-last-lifecycle-error-message-switcher-keeps-it.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 4ce9260a4ed5fef2b3b4b12da9bd8139e51eae07..432189a799971b1663e8a7ab8e16f989ac0eebcc |
+| command | sdlc close --issue 812 |
+| reviewer | codex (openai; author openai) |
+| isolation | fenced |
+| timestamp | 2026-10-23T17:01:34-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+The pinned interdiff preserves both sides’ intent: main’s bell navigation, capability limits, and folded-slot rendering coexist with removed tab-bar notices and retained switcher display/copy. No new defects or scope expansion found. BR-1–BR-6 remain disposed; this window provides no evidence requiring reopening them.
+
+```findings
+{}
+```
+
+1. **Strengths**
+   - Capability tests retain independent expected text, Unicode width, and control-sanitization checks.
+   - Restart acceptance checks inspect current terminal cells and verify the complete copied diagnostic.
+   - README correctly combines switcher feed behavior with capability diagnostic copy precedence.
+
+2. **Critical findings:** None.
+
+3. **Important findings:** None.
+
+4. **Minor findings:** None.
+
+5. **Test coverage notes**
+   - Focused couchtty and couchcmd tests passed.
+   - Repeated race checks passed three times, including changed tests, Ctrl-Return navigation, and folded-state rendering.
+   - Affected-reader inventory and range whitespace checks passed; the refreshed certificate matches the file digest.
+   - No full-suite or live-acceptance result is claimed by this review.
+
+6. **Architectural notes**
+   - **ARCH-DRY — Pass:** Reuses existing feed and clipboard assertion helpers.
+   - **ARCH-PURE — Pass:** Rendering remains pure; console fixtures exercise integration behavior.
+   - **ARCH-PURPOSE — Pass:** Conflict resolutions preserve notice removal and retained diagnostic access.
+   - **ARCH-EVOLVE — Pass:** No persisted-format change; certificate refresh retains the existing schema.
+
+7. **Plan revision recommendations:** None. The added conflict-repair entry records the fix without changing scope.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"d36b6f9d-0657-4992-b138-41403e927d38","repository":"github.com/xianxu/pair","issue_id":"000812","recipe":"fix-review","round":8,"attempt":1,"agent":"codex","root":"/Volumes/TestScratch/review-checkouts/22583e556e19799f","reviewed_head":"432189a799971b1663e8a7ab8e16f989ac0eebcc","slot":"pair:1","requested_at":"2026-10-23T23:59:56.329959Z"},"phase":"finished","pid":16018,"started_at":"2026-10-23T23:59:56.5838Z","finished_at":"2026-10-24T00:01:33.256969Z","session_id":"01a16b34-fd39-7f10-b493-73c1ea9d920f","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 3.211854584s
+head: "432189a799971b1663e8a7ab8e16f989ac0eebcc"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412
