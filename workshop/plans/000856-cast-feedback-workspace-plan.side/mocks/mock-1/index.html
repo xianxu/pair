@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en" data-mock-version="mock-1" data-mock-screen="workspace">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Cast Notes · layout mock</title><link rel="stylesheet" href="tokens.css"><script type="module" src="app.js"></script></head>
+<body>
+<header class="page-head"><span class="brand">Fieldwork<span class="brand-dot">●</span></span><span class="project-tag">A shared workspace</span></header>
+<main><div class="eyebrow">WORKSPACE / OCTOBER 23</div><h1 id="page-title"></h1><p id="page-subtitle"></p><div id="cards"></div><footer>Thoughtful work, one small step at a time.</footer></main>
+<aside id="toolbar" aria-label="Cast tools">
+ <button id="live" class="live">●<small>Live</small></button>
+ <div class="tool-rule"></div>
+ <button id="sketch" aria-pressed="false">✎<small>Sketch</small></button>
+ <div id="drawing-tools" hidden>
+  <div class="palette" aria-label="Ink color"><button class="swatch selected" style="--ink:#d45536" aria-label="Terracotta ink"></button><button class="swatch" style="--ink:#3f7890" aria-label="Blue ink"></button><button class="swatch" style="--ink:#b6982e" aria-label="Gold ink"></button></div>
+  <button id="stroke">╱<small>Stroke</small></button>
+  <button id="undo" hidden>↶<small>Undo</small></button><button id="redo" hidden>↷<small>Redo</small></button>
+  <button id="done">✓<small>Done</small></button>
+ </div>
+</aside>
+<section id="notes" aria-label="Notes panel">
+ <header id="panel-handle" tabindex="0" aria-label="Move Notes panel; use arrow keys"><div class="panel-title"><strong>Notes <span id="count"></span></strong><button id="minimize" aria-label="Minimize Notes">−</button></div><div id="status" role="status"></div></header>
+ <div id="note-body"></div>
+</section>
+<button id="notes-button" hidden aria-label="Open Notes; drag to move">Notes <span id="mini-count"></span> ↗</button>
+<nav class="scenarios" aria-label="Mock scenarios"><details open><summary>Layout mock · try a flow</summary><div class="scenario-actions"><button data-scene="mixed">Mixed list</button><button data-scene="long">Long list</button><button data-scene="empty">Empty</button><button data-scene="status">Status</button><button data-scene="tab">Switch tab</button><button data-scene="reload">Reload page</button><button data-scene="app">App update</button><button data-scene="pending">Loading page</button><button data-scene="driver">Viewer driving</button></div><p id="scenario-hint">Synthetic feedback. Changes stay in this mock.</p></details></nav>
+</body></html>

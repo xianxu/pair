@@ -112,9 +112,9 @@ UI-only panel/thumbnail state dies with mount teardown; observers, drag listener
 
 ### 1. Layout mock and approval (#856, design artifact)
 
-- [ ] Commit this plan and issue decisions before long-running checks or serving.
-- [ ] Build the synthetic clickable mock at the paths above, with one fixture source and explicit screen/version markers following existing mock examples.
-- [ ] Exercise the flow at 320, 768 and desktop widths; inspect toolbar/panel rectangles and keyboard paths in a bounded headless browser.
+- [x] Commit this plan and issue decisions before long-running checks or serving.
+- [x] Build the synthetic clickable mock at the paths above, with one fixture source and explicit screen/version markers following existing mock examples.
+- [x] Exercise the flow at 320, 768 and desktop widths; inspect toolbar/panel rectangles in a bounded headless browser. Keyboard arrow movement is exposed for operator review; native flow covered mixed rows, read-only labels, unsaved/save, unavailable anchor, tab return, app update, reload partition and tool reveal.
 - [ ] Serve the mock, send URL plus mixed-list/tool-reveal/narrow-window review to the hub, and record operator decisions in Revisions. Stop production implementation until approved.
 
 ### 2. Unified panel and column (#856, after #850/#849 land)
@@ -177,3 +177,7 @@ Commands: `node --test cmd/internal/webcast/web/*.test.js`; targeted `go test ./
 ### 2026-10-23 — TL decisions and #849 integration
 
 Joint design requested for morning testability, with #857 still a separate main-based branch. Finished sketch labels stay read-only. Show on page uses only a positively confirmed current-load anchor. Incorporate #849's new press-time selection and unsaved-note-only guard; the preview is informational and must not regain submission authority. Earlier-load feedback has no UI drawer. Operator mock approval and plan approval remain required before production implementation.
+
+### 2026-10-23 — Joint plan approved
+
+Authenticated TL receipt bdff0bdf-86f8-4099-94c7-8de3cfac6ab4 approves this joint plan, including pending/unknown load contributing no page feedback and keeping the unsaved-note guard. The separate operator layout approval is still outstanding. Mock-1 is served locally for that review; production implementation remains held.
