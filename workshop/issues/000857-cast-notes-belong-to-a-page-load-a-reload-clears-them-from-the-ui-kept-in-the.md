@@ -53,9 +53,9 @@ Change:
 
 ## Plan
 
-- [ ] Implement persisted load identity and replay/catch-up preservation per [the durable plan](../plans/000857-page-load-feedback-plan.md).
-- [ ] Fence recorder navigation at ingress and filter Board's atomic press selection from confirmed scope.
-- [ ] After #856 lands, integrate the current-load UI projection and unfiltered historical provenance.
+- [x] Implement persisted load identity and replay/catch-up preservation per [the durable plan](../plans/000857-page-load-feedback-plan.md).
+- [x] Fence recorder navigation at ingress and filter Board's atomic press selection from confirmed scope.
+- [x] After #856 lands, integrate the current-load UI projection and unfiltered historical provenance.
 - [ ] Qualify fake/native reload, pause/resume, tab return, app update and same-URL new-tab behavior; close, stage through the hub and merge.
 
 ## Log
@@ -113,7 +113,20 @@ Observed regressions before fixes: pending scope neither published an empty oper
 
 Browser adapter work and full Node qualification are in progress. Native TestPageLoadLiveFeedbackLifecycle is being added with note-only tab-return rebinding first, then sketches, pause/resume, app-only update, same-URL second target and real reload; no green native result yet. Next: finish JS/native integration, source-bound complete verification, inventory, recorded pre-close and mandatory close review. Normal measured actuals apply under ariadne#591; no historical actuals were rewritten.
 
+### 2026-10-24 — Browser and integration qualification
+
+Node suite PASS615/615 with full output in the canonical plan side evidence. Nine native/module cases PASS33.781s, zero skips: panel, composed workspace, live annotations, module assembly, live drawing/pressure/privacy/SPA, handoff label and TestPageLoadLiveFeedbackLifecycle. The lifecycle test independently confirms actual target/loader/backend-root identity, note-only original rebinding after A→B→A, sketch retention, pause/resume, app-only update, same-URL second target empty, real reload empty without later app edit, and unfiltered disk query history. This native output precedes the final serializer/admission fixes; rerun on the final source before claiming final qualification.
+
+Broader webcast checks exposed missing modern metadata in private fixtures and an actual typed-serialization gap. Modern fixtures now declare exact identities; historical tests explicitly retain already-admitted selections before a distinct later load, and privacy tests use independent page presses rather than fresh cross-load admission. Legacy wire fixtures remain unchanged. Typed submission source/finish/page scene now own optional page_load, retain nested raw extensions, reject malformed identity, and compare exact scalar provenance after durable read. Full submission/query PASS12.068s/7.763s; full webcast PASS17.500s before the final unknown-load admission guard.
+
+Final behavioral regressions exposed and fixed: same-load return must keep the existing eight-note color quota; an initial pending/failed capture contributes no feedback without refusing ordinary submission; all unknown loads refuse fresh note/pointer work; session-cell counter exhaustion fails closed. Board/recorder PASS6.049s/5.198s after the boundary fixes. Inventory audit named three changed readers: submission/model_test uses only literal/temporary store fixtures; board/sketch_delivery_test executes repository JS and remains non_go_full_fallback; recorder/recorder_paths_test uses stateful fake CDP, in-memory resources and literal frame names. Re-recorded only those three audited dispositions. Next: commit final source, rerun component/native/race evidence, push, recorded pre-close, mandatory fresh close review, then request the hub's separate #857 operator stage. Morning combined stage was built without #857 and is not delayed.
+
 ## Revisions
+
+### 2026-10-24 — Approved detach qualification
+
+TL2eb592a8 requires fakeChrome to refuse every CDP method after detach, the active-detach fixture to settle initial Live while retaining exact A-then-B output, and a separate pending-initial-capture detach case to report the existing diagnostic and record only valid first-live B. Added that qualification to Done when; the owner mechanism is unchanged.
+
 
 ### 2026-10-23 — Dependent branch and submit behavior
 
