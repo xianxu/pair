@@ -43,11 +43,14 @@ react to before code.
 - The toolbar is one column with the reveal-on-toggle behaviour, and no other cast UI overlaps it at common viewport
   sizes (tests), plus the operator's live look.
 
+- Sketch rows use small type icons, with no thumbnails; hovering or focusing a row glows only its confirmed page geometry and clears on leave/lifecycle change.
+- The column uses Live/Pause, Pointer, Sketch (Pen) with colors, Annotation (Note), available Undo/Redo and Done. Finished labels remain read-only; status stays in the Notes header; unsaved-note submission protection remains intact.
+
 ## Plan
 
 Durable joint design: [Cast feedback workspace](../plans/000856-cast-feedback-workspace-plan.md). #857 remains a dependent issue on its own eventual main-based branch.
 
-- [ ] Deliver the clickable layout mock and record operator approval.
+- [x] Deliver the clickable layout mock and record operator approval.
 - [ ] Implement the unified panel and protected one-column toolbar after #850/#849 land.
 - [ ] Qualify, close, obtain the live look and land through SDLC.
 
@@ -88,3 +91,7 @@ Applied operator feedback 96da76d2-2673-40a2-b1aa-38ef59fe0206: mock now include
 ### 2026-10-23 — Tool mock verification
 
 Non-skipped native Chrome qualification passed 0.80s (package 1.036s): actual tool IDs and no Stroke action; Pen page action exposes Undo, Undo exposes Redo; Note page action opens an unsaved editor and Cancel discards its draft; same-URL New tab starts empty and returning restores four original rows; panel/toolbar rectangles remain separate at 1280/768/320×800. Temporary fixture removed after use. Node syntax and whitespace checks pass. Next: operator layout review in a non-cast Chrome window at the existing mock URL. Production code remains held.
+
+### 2026-10-23 — Operator layout acceptance
+
+Authenticated TL e378240d-75dd-498d-96e8-91b542182269 records operator “yes, like it” on the reworked mock and directs production #856 then #857, aiming for the morning stage together with #849. Done-when now explicitly includes approved icon/hover and actual-tool refinements. Mock work is complete. #850 remains in its existing exact-source suite; no stacked issue commits. Next: change-code plan-quality/estimate gates and independently testable production work; integrate parent APIs only from landed main.

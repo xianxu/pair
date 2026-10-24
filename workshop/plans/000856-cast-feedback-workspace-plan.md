@@ -115,7 +115,7 @@ UI-only panel/highlight state dies with mount teardown; observers, drag listener
 - [x] Commit this plan and issue decisions before long-running checks or serving.
 - [x] Build the synthetic clickable mock at the paths above, with one fixture source and explicit screen/version markers following existing mock examples.
 - [x] Exercise the flow at 320, 768 and desktop widths; inspect toolbar/panel rectangles in a bounded headless browser. Keyboard arrow movement is exposed for operator review; native flow covered mixed rows, read-only labels, unsaved/save, unavailable anchor, tab return, app update, reload partition and tool reveal.
-- [ ] Serve the mock, send URL plus mixed-list/tool-reveal/narrow-window review to the hub, and record operator decisions in Revisions. Stop production implementation until approved.
+- [x] Serve the mock, send URL plus mixed-list/tool-reveal/narrow-window review to the hub, and record operator decisions in Revisions. Operator accepted the reworked layout.
 
 ### 2. Unified panel and column (#856, after #850/#849 land)
 
@@ -191,3 +191,7 @@ Receipt b5c92d0c-2c24-4098-bb02-e83190857da9 supersedes thumbnails: use a small 
 Operator feedback 96da76d2-2673-40a2-b1aa-38ef59fe0206: show the actual tools in one column: Live/Pause, Pointer, Sketch (Pen) and its colors, Annotation (Note), available Undo/Redo, Done. Remove the artificial Stroke action; drawing on the synthetic page exercises history instead. Pointer/annotation remain discoverable while sketch-specific tools reveal on Pen. This clarifies, rather than adds to, the production tool adapters.
 
 The operator opened the mock inside the live cast Chrome and real injected tools covered it, including another tab's notes. View this mock in a non-cast Chrome window; do not change recorder origin-exclusion policy just for the mock. Add a New tab scenario with empty feedback even at the same URL. #857 membership remains exact target plus loader plus root, never load-only or URL-only: a new target starts empty, while return to a known same target/load restores its rows. Preserve the live observation as a native regression requirement using synthetic captures without copying private screenshots.
+
+### 2026-10-23 — Layout accepted; production authorized
+
+TL receipt e378240d-75dd-498d-96e8-91b542182269 records the operator’s “yes, like it” and authorizes #856 production followed by #857, aiming for the combined morning test stage with #849. No further layout approval is pending. Production still crosses change-code and consumes dependent issue APIs only after their main landing; pure independently scoped helpers can be prepared first without stacking commits.
