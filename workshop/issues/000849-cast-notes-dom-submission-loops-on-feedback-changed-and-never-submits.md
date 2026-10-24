@@ -16,7 +16,7 @@ claimant:
     workspace: pair:6
     worktree: /Users/xianxu/workspace/worktree/pair-slot6/pair
     repository: github.com/xianxu/pair
-flow: {kind: quick, provenance: inferred, spec: "a96fc805", done: "c2d1c028"}
+flow: {kind: quick, provenance: inferred, spec: "46dabe43", done: "f7c72a4b"}
 ---
 
 # Cast notes: DOM submission loops on 'Feedback changed' and never submits
