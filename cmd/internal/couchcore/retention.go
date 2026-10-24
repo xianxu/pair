@@ -501,10 +501,16 @@ func RecoverStoreRetention(ctx context.Context, namespace CouchNamespace, c *sto
 	return nil
 }
 
+// isStoreContention reports a store.lock held by someone else: the raw errno of
+// a nonblocking attempt or the typed refusal of a bounded wait (#827).
+func isStoreContention(err error) bool {
+	return errors.Is(err, ErrThreadStoreBusy) || errors.Is(err, unix.EWOULDBLOCK) || errors.Is(err, unix.EAGAIN)
+}
+
 // Busy nested stores yield through the same maintenance scheduling contract as
 // a busy Pair root; callers must not turn contention into permanent failure.
 func retentionLockError(err error) error {
-	if errors.Is(err, ErrThreadStoreBusy) || errors.Is(err, unix.EWOULDBLOCK) || errors.Is(err, unix.EAGAIN) {
+	if isStoreContention(err) {
 		return fmt.Errorf("Couch store busy: %w", storagegc.ErrCoordinatorBusy)
 	}
 	return err
