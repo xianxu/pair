@@ -174,6 +174,10 @@ Traced production before changing fixtures (TL79012a45): Couch's menu reads proj
 
 Targeted RED reproduces all three failures; with the fixture correction, all three pass under race (5.923s) and the complete couchtty package passes65.620s. Inventory passes. Full-suite failure is attributable to the corrected fixture, not infrastructure. Requeue the recorded pre-close check on the pushed fixed head and run the narrow fixed review. TL412ed457 explicitly requests the legacy-active-segment refusal/reload caveat in operator steps; recorded it in the draft and atlas. Combined #857/#866 stage remains pending hub authorization.
 
+### 2026-10-24 — Final recorded check passes; ready for operator stage
+
+Retained pre-close run d44ae76f7e233e3acfd70a340eb55d05 (lease-3431074150) completed PASS, exit0,13m39s on fixed source6615515753ca49f840209747317995d81913d24b. Complete suite log is .git/sdlc/local-checks/6615515753ca49f840209747317995d81913d24b/suite.log, SHA2563f2d1ec14a751c9ab441e56070f699391239854fabac9b696c47468177defe99. All tests passed, including the corrected Couch web-notes fixture; no flake waiver. Narrow re-close remains SHIP/no findings. Hub outcome receipt6f1f5fd9-6c21-48b5-9cc4-9b9327b95c7a is submitted. Next step: wait for hub authorization and pair:0 release, verify #866's final green head with pair:5, build the authorized combined stage, verify exact binary provenance and send the joint operator steps (including legacy unknown-segment refusal/reload caveat). No pair:0 change or merge before that operator check.
+
 ## Estimate
 
 Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md` against `baseline-v3.1.md`. Method A only. The calibration source is marked stale by estimate-source, so the result is provisional.
