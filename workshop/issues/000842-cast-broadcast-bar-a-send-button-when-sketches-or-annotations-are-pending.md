@@ -133,3 +133,9 @@ Next: push and record pre-close on corrected head, narrow re-close for the inven
 ### 2026-10-24 corrected inventory verification queued
 
 Pushed dc8e129e3db665c6f8e1c4a5b78b93c9cb050dff. Pre-close selected affected, then the nvim/init.lua reader required the full suite. Retained run lease-4211780212, attempt 4d31f5b161cfb46c10ae38aed56ed74d, tool session 88851; normal FIFO position 5 at admission. Log: /Users/xianxu/workspace/pair/.git/sdlc/test-stats/inflight/4d31f5b161cfb46c10ae38aed56ed74d/run.log. No passing result claimed. Narrow re-close may overlap this queued check; final recorded pass and combined cast acceptance still precede landing.
+
+### 2026-10-24 — corrected recorded pass and combined-stage handoff
+
+Corrected recorded suite on dc8e129e3db665c6f8e1c4a5b78b93c9cb050dff (lease-4211780212, attempt4d31f5b161cfb46c10ae38aed56ed74d) completed exit0 in12m25s, log SHA256 prefixfa21fc199765. Saved full log /Users/xianxu/workspace/pair/.git/sdlc/local-checks/dc8e129e3db665c6f8e1c4a5b78b93c9cb050dff/suite.log. Narrow inventory re-close finalized SHIP, no findings, reviewed code unchanged in its subsequent close/docs commits. Actual-time engine refused its ambiguous attribution interval; exact refusal was recorded in verified and the N/A outcome was reported to the hub before the later ariadne#591 rule change.
+
+Handed pair:3 Git-verified reviewed head7b76b99218dccced46a984e41f8bea00d6681af8 and operator steps after pass. Authenticated receipt3ef44445-aa0d-453a-8f2b-679ea56c6879 reports the combined stage is built on pair:0 with #851, #838, main's #856 and this #842 head; #857 omitted. Pair:3 reports all5 binary revision checks clean and combined targeted checks passing. #838 owns that stage lease; do not independently stage or clear it. Send steps live with its morning-combined-check evidence. Operator live acceptance remains pending; no landing yet. This entry is evidence-only, not a code change or claim of operator approval.
