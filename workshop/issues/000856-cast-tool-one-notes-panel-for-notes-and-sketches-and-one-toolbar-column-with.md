@@ -68,3 +68,15 @@ Finished sketch labels are read-only for this delivery; unfinished labels keep A
 ### 2026-10-23 — Plan approved; mock ready
 
 TL approved the joint plan (receipt bdff0bdf-86f8-4099-94c7-8de3cfac6ab4). Created synthetic mock-1 under the canonical plan.side/mocks directory with one shared fixtures.json. Served at http://127.0.0.1:51106/ by retained terminal 71609. Node syntax and diff-whitespace checks passed. A temporary native qualification reused the repository's headlessPage CDP fixture and passed non-skipped in 1.49s (package 1.677s): mixed entries, finished read-only label, unsaved/save, unavailable anchor, tab return, same-load app update, reload partition, tool reveal, and independent rectangle assertions for expanded/minimized Notes against the toolbar at 1280/768/320×800. Inspected screenshots; no panel/toolbar overlap. The temporary qualification source was removed after use; this is mock evidence, not production feature qualification. Next: send the mock URL to the hub for operator layout feedback, then implement only after acceptance and landed #850/#849. #850's existing lease remains queued without duplication.
+
+### 2026-10-23 — Operator mock refinement
+
+Applied authenticated feedback b5c92d0c-2c24-4098-bb02-e83190857da9 to mock and joint plan: replace thumbnails with compact sketch/annotation type icons; hover or focus a row glows its corresponding page geometry without scrolling. Missing anchors do not guess. Highlight clears when leaving/reconciling/minimizing/changing page. Coordinate #842/#843 with pair:7: #856 owns protected column/layout, while send-button and tooltip behavior remain their issues.
+
+### 2026-10-23 — Icons and hover supersede initial thumbnail scope
+
+The operator's latest design removes sketch thumbnails from the original Spec. Entries use type icons and page-side hover glow instead. The plan records the corresponding lifecycle, current-load identity and no-selection-mutation requirements. Production code still waits for the layout look.
+
+### 2026-10-23 — Revised mock qualification
+
+Non-skipped native Chrome check passed 0.63s (package 0.789s): four compact type icons and no thumbnail element; sketch hover glows only its anchor; annotation hover glows its box; hover does not scroll; missing anchor clears prior highlight; actual keyboard focus highlights; minimize and reload clear transient glow. Initial keyboard-focus probe exposed that property-assigned focusin/focusout handlers did not run; switched to explicit event listeners and reran with actual focus (no synthetic focus event). Temporary fixture removed after qualification. Mock server remains at http://127.0.0.1:51106/ with live reload. Node syntax and diff checks rerun. #850 retained check acquired its slot after 4776s and is now running; no duplicate or cancellation.

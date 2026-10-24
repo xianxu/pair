@@ -34,7 +34,7 @@ Paths below are relative to `cmd/internal/webcast/` unless stated otherwise. New
 
 One recording has many page loads; a load has one target and potentially many activation segments. Each feedback item belongs to the load at its accepted creation boundary. Segment/document counters remain activation and draft fences; they are not repurposed as load identity. A→B→A can have a new activation segment and the same load.
 
-The entries projection owns no saved note text, sketch history, delivery ledger or permission. It derives rows from the existing note/sketch owners and commands carry their exact IDs/revisions. The layout calculation owns only rectangles. Reuse painter thumbnail primitives and #850's bounded ink cache rather than generating another screenshot/cache family. Natural future extensions are finished-label editing through a separately approved command and richer row presentation, not a second feedback store.
+The entries projection owns no saved note text, sketch history, delivery ledger or permission. It derives rows from the existing note/sketch owners and commands carry their exact IDs/revisions. The layout calculation owns only rectangles. Rows use small static type icons, not thumbnails. Reuse existing anchored-box/sketch overlay painting for hover glow; no screenshot or row-image cache is created. Natural future extensions are finished-label editing through a separately approved command and richer row presentation, not a second feedback store.
 
 ### Integration points
 
@@ -57,7 +57,7 @@ Mock assets live in `workshop/plans/000856-cast-feedback-workspace-plan.side/moc
 
 Initial proposed layout: a protected right-hand tool column, with live/pause first and Sketch second. Sketch on reveals palette, available Undo/Redo, then Done in that same column. The yellow 300×320 Notes panel starts beside the column, with a fixed title/status header and a scrolling mixed list. Its minimized Notes (N) button and panel share #850's session-local anchor. All drag, resize and popup clamping excludes the toolbar rectangle; on narrow viewports the panel shrinks/scrolls rather than covering tools. At widths too small for both full surfaces, retain the toolbar and a minimized Notes control; expanding uses the remaining bounded area. Exact placement and minimum useful size are operator mock decisions, not assumptions to hard-code before review.
 
-The panel is the sole reading/opening surface: ordinary notes retain their existing edit/save/cancel commands, sketch rows show a thumbnail and label, unfinished sketches expose Add note, and completed labels expose View note read-only. Opening a row does not invent a new editor or bypass its unsaved state. Status messages are in the panel header; while minimized, the Notes control conveys status and reopening reveals the text. No separate Pending feedback box or Sketch notes selector remains. Anchored pins and ink remain on the page as feedback, not per-sketch read buttons.
+The panel is the sole reading/opening surface: ordinary notes retain their existing edit/save/cancel commands, sketch rows show a small sketch icon and label, unfinished sketches expose Add note, and completed labels expose View note read-only. Opening a row does not invent a new editor or bypass its unsaved state. Status messages are in the panel header; while minimized, the Notes control conveys status and reopening reveals the text. No separate Pending feedback box or Sketch notes selector remains. Anchored pins and ink remain on the page as feedback, not per-sketch read buttons. Hovering a row glows its sketch ink or annotation’s anchored box on the page; keyboard focus offers the same association. Hover never scrolls, mutates selection or advances stamps. Unknown/off-view anchors produce no guessed glow. Clear the transient highlight on leave, focus exit, row removal, minimize, load change and teardown; late placement replies are fenced by the same current-load/revision identity.
 
 The mock supports mixed/empty/long lists, minimized/expanded panel, sketch tool reveal, paused/driven state, unsaved editor, read-only finished label, unavailable anchor and current-load change. Show the page-load rule in the flow even though persistence lands in #857. Serve with `couch mock serve workshop/plans/000856-cast-feedback-workspace-plan.side/mocks --port 0`; send the returned URL and a short review sequence to the hub. Hold production code for the operator's layout answer.
 
@@ -71,7 +71,7 @@ Actions: open/minimize Notes, drag or keyboard-move, toggle Sketch, draw/undo/re
 | Panel minimized or viewport resized | Notes button clamped away from tools | Open Notes | Session-local position may clamp; saved feedback intact |
 | Sketch off / on, undo or redo unavailable | One column; only actionable history controls shown | Toggle Sketch or Done | Existing unfinished-label rules unchanged |
 | Unsaved ordinary note or unfinished mandatory label | Editor in bounded panel, explicit unsaved status | Save or cancel | Cancel discards only that draft; submit preserves #849's unsaved-note refusal |
-| Finished sketch label | Read-only text and thumbnail | Show on page or close | None |
+| Finished sketch label | Read-only text and sketch icon | Show on page or close | None |
 | Anchor absent, ambiguous, detached or outside confirmed load | Plain “Cannot show on this page” status | Close row | No mutation, navigation or inferred location |
 | Top navigation or target change awaiting an authoritative snapshot | “Loading page” status; no old-load feedback or creation controls | Wait, then retry capture if it fails | Existing saved history retained; draft follows existing stale-document cancellation policy |
 | Snapshot fails, detaches, or returns after a newer generation | Unavailable current-page state; stale completion ignored | Retry capture | No saved history lost; no guessed identity |
@@ -101,12 +101,12 @@ This is an interactive local tool, co-tenanted with suites and agents. Do not ad
 | Growth driver | Work and bound | Counted guard |
 |---------------|----------------|---------------|
 | F current feedback rows | One projection pass O(F); keyed DOM reconciliation O(F), no nested row search | `feedback-entries.test.js` N=32/64 counts visits and key lookups, <= constant×F |
-| P visible sketch paths / V vertices | Reuse one existing painter pass and cached bounds; thumbnail work only on changed sketch version | Panel fixture N=8/16 sketches counts renderer calls; unchanged updates add zero paint work |
+| P visible sketch paths / V vertices | Reuse one existing painter pass and cached bounds; hover glow reuses that geometry without rebuilding paths | Hover fixture N=8/16 sketches counts geometry visits; highlighting one keyed item never rescans all ink |
 | R resize/drag events | One layout computation and one measurement per update, independent of row count | Layout/DOM test counts measurements at 32/64 rows and rejects row-dependent reads |
 | E recorder events / S snapshot nodes | Constant event classification; one bounded resnapshot per admitted generation, O(S) snapshot | Fake-CDP N=8/16 duplicate events counts snapshot calls, overlapping work bounded by current recorder owner |
 | H retained feedback / L activation segments | O(H) projection with O(1) load lookup, not a scan of L for each item | Reducer/Board N=32/64 items and segments counts membership lookups |
 
-UI-only panel/thumbnail state dies with mount teardown; observers, drag listeners, pointer capture and highlight handles are released on cancel, off, detach and dispose. Keyed row/thumbnail caches remove deleted/noncurrent keys rather than retaining every visited page. Page-load metadata grows once per existing segment and is removed with its recording under existing retention; there is no new durable index, cache or background process. Mock assets archive with the plan. Tests use disposable folders/profiles and join all owned work.
+UI-only panel/highlight state dies with mount teardown; observers, drag listeners, pointer capture and highlight handles are released on cancel, off, detach and dispose. Keyed row caches remove deleted/noncurrent keys rather than retaining every visited page. Page-load metadata grows once per existing segment and is removed with its recording under existing retention; there is no new durable index, cache or background process. Mock assets archive with the plan. Tests use disposable folders/profiles and join all owned work.
 
 ## Implementation tasks
 
@@ -123,7 +123,7 @@ UI-only panel/thumbnail state dies with mount teardown; observers, drag listener
 - [ ] Implement projections/layout without IO; reuse the floating-panel reducer, painter and existing note/sketch IDs and commands.
 - [ ] Add the thin keyed panel adapter and connect it to annotate/sketch models. Remove #850's separate selector and its obsolete tests; retain its grouping/click/viewport regressions under the unified surface.
 - [ ] Move existing live/pause and sketch controls into one protected column; route status publication to the Notes header. Preserve control revisions, driver/off rules and UI-suppression gate.
-- [ ] Keep `noteDialog.unsaved` and `__couchcastNoteUnsaved` through editor mounting; keep sketch finished-label view read-only. Implement confirmed-anchor scroll/highlight with explicit unavailable result.
+- [ ] Keep `noteDialog.unsaved` and `__couchcastNoteUnsaved` through editor mounting; keep sketch finished-label view read-only. Implement confirmed-anchor scroll/highlight with explicit unavailable result. Row hover and keyboard focus glow only the corresponding current-load sketch ink or annotation box, without scrolling or changing feedback selection.
 - [ ] Run focused Node and native operator tests, update `atlas/webcast-submission.md` and the relevant webcast atlas map, audit reader inventory, push, and run `sdlc local-check run --pre-close`.
 - [ ] Close through SDLC's fresh review, fix findings on the tested source, and coordinate operator stage/live acceptance through the hub. Land #856 before starting #857's branch.
 
@@ -152,7 +152,7 @@ Tests are code, not a prose case inventory. The following maps production seams 
 | `feedbackEntries`, keyed panel adapter | Mixed IDs/revisions, deletion, delayed model update, untrusted labels | One current row per authoritative key; text insertion, no markup execution; no replacement of active editor |
 | `feedbackLayout`, floating panel transitions | Small bounds, keyboard/drag cancel, resize, teardown | Protected toolbar never overlaps panel/button/popup; every session resource ends |
 | Tool column and status routing | Paused/driven/off, history unavailable, stale control revision | Existing action admission unchanged; one column and one status owner |
-| `noteDialog.unsaved`, label/show commands | Changed text, held editor, finished label, ambiguous/stale anchor | Submit guard preserved; final label immutable; no guessed scrolling/navigation |
+| `noteDialog.unsaved`, label/show commands | Changed text, held editor, finished label, ambiguous/stale anchor, hover/focus interrupted by reload or removal | Submit guard preserved; final label immutable; no guessed scrolling/navigation |
 | PageLoad decode/rewrite and reducer | Missing/invalid/duplicate fields, unknown nested fields, legacy record, receipt-bearing sketches | Typed strict owned fields; unknowns preserved; digest and historical data unchanged |
 | Recorder event/resnapshot transition | Duplicate/out-of-order navigation, detach, iframe, delayed capture | Pending before IO; only newest confirmed top-load snapshot becomes live |
 | Board selection and Go/JS display projection | Different loads/targets, tab-return segments, delivered revisions, unknown scope | UI and press use same membership; exact admitted versions stay pinned |
@@ -181,3 +181,7 @@ Joint design requested for morning testability, with #857 still a separate main-
 ### 2026-10-23 — Joint plan approved
 
 Authenticated TL receipt bdff0bdf-86f8-4099-94c7-8de3cfac6ab4 approves this joint plan, including pending/unknown load contributing no page feedback and keeping the unsaved-note guard. The separate operator layout approval is still outstanding. Mock-1 is served locally for that review; production implementation remains held.
+
+### 2026-10-23 — Operator mock feedback: icons and hover association
+
+Receipt b5c92d0c-2c24-4098-bb02-e83190857da9 supersedes thumbnails: use a small static sketch icon distinct from the annotation icon. Hovering an entry makes only its corresponding sketch ink or anchored note box glow. Include equivalent keyboard focus behavior, clear highlight on lifecycle transitions, and retain current-load/confirmed-anchor guards. This removes thumbnail generation/cache work entirely. Mock-1 is revised in place; no production code changes.
