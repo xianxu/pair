@@ -3613,6 +3613,10 @@ park leave (`leave_park.go`):
   therefore poll it within `storeReadLockWait` and then return
   `ErrThreadStoreBusy`. Before #827 they refused at the first EWOULDBLOCK, which
   is what left fan-out parks behind. Retention maintenance still yields at once.
+  `isStoreContention` names both forms (typed busy, raw EWOULDBLOCK/EAGAIN).
+  Repository-argument publication retries contention until the caller's
+  deadline and refuses a caller without one (#877); at the deadline its error
+  carries both the context error and the last busy.
 
 **Asleep slots** (#830). A full quit marks what it parks; `couch --wake`, from
 the main hub, brings back the other hubs.
