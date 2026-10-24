@@ -1,6 +1,6 @@
 ---
 id: 000871
-status: codecomplete
+status: done
 created: 2026-10-24
 updated: 2026-10-24
 estimate_hours: 0.804
@@ -21,6 +21,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: fd1276fe74291faedad6bbc13f9effd7721d414d
         evidence_commit: 2840cf46132c2f6d1142f634f5ddacbb56b39b7f
+        landed_commit: 2413c4987413ac3678c517be93f2d58273c4016b
 ---
 
 # Land the opt-in launch-only Couch profiler independently
