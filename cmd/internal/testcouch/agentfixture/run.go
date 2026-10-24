@@ -328,6 +328,11 @@ func Run(parent context.Context, c Config, stdin io.Reader, stdout io.Writer) (r
 				return errors.New("fixture result reservations exceed limit")
 			}
 			for _, entry := range entries {
+				// A snapshot can contain the full quota of synchronous writes.
+				// Observe cancellation before admitting another ordinary request.
+				if ctx.Err() != nil {
+					return nil
+				}
 				name := entry.Name()
 				if strings.HasPrefix(name, ".publish-") {
 					continue

@@ -33,8 +33,7 @@ func TestEditorialMigrationPreviewAndConfirmedApply(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			c, _ := editorial.DefaultCatalog()
-			want, err := editorial.PlanMigration([]byte(migrationDocument), c)
+			want, err := editorial.PlanMigration([]byte(migrationDocument))
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -63,7 +62,7 @@ func TestEditorialMigrationPreviewAndConfirmedApply(t *testing.T) {
 
 func TestEditorialMigrationPreflightsRegisteredGrowth(t *testing.T) {
 	r := newRig(t)
-	prefix := "---\ncollaboration-mode: {chat: [Notes]}\n---\n# Notes\n"
+	prefix := "---\ncollaboration-mode: {chat: [Notes]}\n---\n" + strings.Repeat("# Notes\nbody\n\n", 8)
 	base := prefix + strings.Repeat("x", documentMaxBytes-len(prefix))
 	r.put(r.p.File, base)
 	if _, err := r.sync.Register(r.p.File, "ops:0"); err != nil {
@@ -80,7 +79,7 @@ func TestEditorialMigrationPreflightsRegisteredGrowth(t *testing.T) {
 }
 
 func TestEditorialMigrationRefusalsDoNotPublish(t *testing.T) {
-	for _, name := range []string{"stale", "operator-lock", "alias-lock", "conflict", "dangling", "missing-hash", "short-hash", "preview-hash"} {
+	for _, name := range []string{"stale", "operator-lock", "alias-lock", "lossy-ask", "dangling", "missing-hash", "short-hash", "preview-hash"} {
 		t.Run(name, func(t *testing.T) {
 			r := newRig(t)
 			r.put(r.p.File, migrationDocument)
@@ -106,8 +105,8 @@ func TestEditorialMigrationRefusalsDoNotPublish(t *testing.T) {
 				}
 				r.put(alias+".lock", "operator")
 				request.File = alias
-			case "conflict":
-				r.put(r.p.File, strings.Replace(migrationDocument, "hello", "<!-- collaboration-mode: collaboration -->\nhello", 1))
+			case "lossy-ask":
+				r.put(r.p.File, strings.Replace(migrationDocument, "hello", "- legacy bullet ask", 1))
 				request.Confirm = false
 				request.IfHash = ""
 			case "dangling":

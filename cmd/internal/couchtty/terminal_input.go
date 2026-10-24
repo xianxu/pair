@@ -274,7 +274,11 @@ func (c *Console) routeMouseEvent(event terminal.InputEvent) {
 			}
 			for _, chip := range chips {
 				if chip.Row == hit.Y-top && hit.X-1 >= chip.Start && hit.X-1 < chip.End {
-					c.switchToThread(chip.Thread)
+					if panel {
+						c.reduceMenu(MenuEvent{Kind: MenuEventMouseRowClick, Address: chip.Thread, RevealTarget: true})
+					} else {
+						c.switchToThread(chip.Thread)
+					}
 					break
 				}
 			}
@@ -282,7 +286,7 @@ func (c *Console) routeMouseEvent(event terminal.InputEvent) {
 		}
 		if panel {
 			if key, thread, ok := (RenderedMenu{Extents: extents}).PointToRow(hit.Y-1, hit.X-1); ok {
-				c.reduceMenu(MenuEvent{Kind: MenuEventMouseSwitch, Address: thread, RowKey: key})
+				c.reduceMenu(MenuEvent{Kind: MenuEventMouseRowClick, Address: thread, RowKey: key})
 			}
 			return
 		}

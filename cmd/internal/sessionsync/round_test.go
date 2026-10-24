@@ -2,7 +2,6 @@ package sessionsync
 
 import (
 	"reflect"
-	"strings"
 	"testing"
 	"time"
 )
@@ -82,19 +81,6 @@ func TestDeriveRoundAttachesReasonsByOverlap(t *testing.T) {
 	}
 }
 
-func TestPresentation(t *testing.T) {
-	for content, want := range map[string]string{
-		"---\npresentation: propose\n---\n": "propose",
-		"---\npresentation: direct\n---\n":  "direct",
-		"---\npresentation: bogus\n---\n":   "highlight",
-		"no frontmatter\n":                  "highlight",
-	} {
-		if got := Presentation(content); got != want {
-			t.Errorf("Presentation(%q)=%q, want %q", content, got, want)
-		}
-	}
-}
-
 // BuildEdit is the engine both edit paths share: refusals are the apply
 // refusals, and the round matches what Sync.Apply records for the same edit.
 func TestBuildEditSharesTheApplyEngine(t *testing.T) {
@@ -111,10 +97,4 @@ func TestBuildEditSharesTheApplyEngine(t *testing.T) {
 	wantRefusal(t, err, ExitRefused, "edits-invalid")
 	_, err = BuildEdit(base, nil, now, false)
 	wantRefusal(t, err, ExitRefused, "refused")
-	// Under propose the written bytes are markers.
-	doc := "---\npresentation: propose\n---\nThe quick fox.\n"
-	e, err = BuildEdit(doc, []EditRecord{{Old: "quick", Occurrence: 1, New: "slow"}}, now, false)
-	if err != nil || !strings.Contains(e.Next, "🤖~quick~{slow}") || e.Round.Presentation != "propose" {
-		t.Fatalf("propose edit=%+v err=%v", e, err)
-	}
 }

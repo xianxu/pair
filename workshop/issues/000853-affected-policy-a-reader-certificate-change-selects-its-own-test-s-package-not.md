@@ -1,12 +1,20 @@
 ---
 id: 000853
-status: open
-deps: []
+status: blocked
+deps: [ariadne#598]
 github_issue:
 created: 2026-10-23
-updated: 2026-10-23
+updated: 2026-10-24
 estimate_hours:
-card_mirror: '5379b5a4b0e7fcd7a7e861263b7550ae02b4bba3' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '8aad738d64b9ae14af32c09deb8c6141f87dc5e0' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-24T10:26:38-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: Xian’s MacBook Pro
+    workspace: pair:1
+    worktree: /Users/xianxu/workspace/worktree/pair-slot1/pair
+    repository: github.com/xianxu/pair
 ---
 
 # Affected policy: a reader-certificate change selects its own test's package, not the full suite
@@ -38,3 +46,16 @@ everything. Keep the full-suite fallback for changes to the policy itself, the s
 ## Log
 
 ### 2026-10-23
+
+
+### 2026-10-24 — provider prerequisite; paused before implementation
+
+Claimed and entered planning on an independent branch from main. The blocker is structural: `.sdlc/affected.json` has full overrides `tests/**` and `cmd/couch/**`; removing the former leaves certificates unclassified. Ariadne `affected.Plan` unions native Graph.Owners with group paths, but Group.Go only triggers groups and cannot add packages. Current certificates contain disposition/hash, not declared reads. Reverse imports do not express runtime executable/fixture reads. ARCH-DRY: keep selection in the provider, rather than duplicating it in Pair or creating hundreds of test groups.
+
+Ops approved the provider split (delivery e3fddf94-32aa-4044-99a5-c68e0cd84276). Filed **ariadne#598**, unclaimed, `workshop/issues/000598-affected-declared-input-ownership.md`; ariadne:5 takes it after #592 lands. Contract: declared non-Go path ownership adds Go packages through the existing union/closure, certificates record audited reads, malformed/unknown/deleted mappings fail conservatively, and policy/selector/shared harness fallbacks remain full. Set this issue's deps accordingly. No production or test code changed; no tests or passing measurement claimed.
+
+**NEXT ACTION:** after ariadne#598 lands, resume this branch, integrate main and the provider, audit all certificate readers, finalize the consumer plan and obtain TL approval before change-code. Include #825's request_lifetime certificate and cmd/couch main_test.go/editorial_acceptance_test.go exact selections, unknown/deleted/renamed cases, explicit full precedence and actual native fixture reads. Local-gates configuration needs operator verification. In the meantime TL explicitly directed pair:1 to work #844 on its own branch from main; no stacking.
+
+## Revisions
+
+- 2026-10-24: planning found a missing provider capability. At ops:0 direction, block on ariadne#598 and defer the consumer design until its contract lands; #844 proceeds independently meanwhile. Original Done-when remains in force, plus the TL's cmd/couch test-file scope.

@@ -750,7 +750,6 @@ var NonArtifactSources = []string{
 	"cmd/internal/launcher/startup_budget.go",
 	"cmd/internal/startupbudget/budget.go",
 	// #823 editorial settings and embedded mode briefs name no Pair artifacts.
-	"cmd/internal/editorial/catalog.go",
 	"cmd/internal/editorial/document.go",
 	"cmd/internal/editorial/markdown.go",
 	"cmd/internal/editorial/source.go",
@@ -1704,6 +1703,8 @@ var NonArtifactSources = []string{
 	"cmd/internal/couchtty/mouse.go",
 	"cmd/internal/couchtty/mousetrace.go",
 	"cmd/internal/couchtty/menu.go",
+	// #851 pure mouse selection owns no artifact paths or I/O.
+	"cmd/internal/couchtty/menu_mouse.go",
 	"cmd/internal/couchtty/console_operation_adoption.go",
 	"cmd/internal/couchtty/menu_operations.go",
 	"cmd/internal/couchtty/menu_copy.go",
