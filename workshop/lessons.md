@@ -8,6 +8,7 @@ representative evidence, not an exhaustive index.
 ## Proof and verification
 
 - #841 BR-1/BR-2/BR-3: For a conservative visual aid, match final fitted display words and permit false negatives. Exclude generated metadata and ambiguous path/link/bracket chunks; skip wrapped row edges that may be fragments. Source-substring projection fails when fitting removes zero-width characters. Use fixed-clock grammar boundaries and exact clipped-row accents, not a test satisfied by any earlier colored label.
+- #852: Retry-count fixtures with synchronous fake completion must drive injected completion and whole-operation deadlines explicitly. A real deadline can expire during coordinated store finalization after proof is already present, adding spurious recovery drives. Pair a tiny-budget positive with withheld-proof, cancellation and whole-budget controls; keep production budgets unchanged.
 
 - #833: A failed component's later refusal must wrap its retained cause, not replace it with a generic unavailable error or join a new synthetic leaf. Publish the failed state and first cause together under the same mutex; pin queued, later and owner-completion paths plus the real shutdown caller, including physical errors joined with cancellation.
 
@@ -2838,4 +2839,10 @@ and external temporary roots rather than relying on the host's TMPDIR.
 
 - #162 BR-3: Never erase blank composer rows to prove a single-line command. Preserve the positively bounded input structure independently of cursor position; right-padding normalization is per row. Where terminal padding and authored blank rows are indistinguishable, decline command authority instead of inferring from the cursor. Preserve established peer-envelope comparison separately through the shared geometry/projector, and make synthetic agents render the native boundary their command proof needs.
 - #819 PQ-1: express planned tests as named production functions, adversarial input classes and mechanical invariants. Keep executable case inventories in test code; preserve cost bounds and verification commands in the plan.
+
+- #845: A command selected for an isolated PATH may depend on basename-dispatched helpers. Resolve only needed helpers from that executable’s own installation and pin the actual private-PATH operation; Apple’s /usr/bin/git launcher can hide the physical Git executable’s helper lookup failure. Preserve helper invocation names when symlinks resolve to a multicall binary.
+
+- #845 inventory: untracked Go tests are absent from the tracked reader inventory. Stage new tests before the final audit, inspect the command’s completed exit status, and only then start close or queue verification; never batch a gate mutation after a verification result that has not been checked.
+
+- #845 review execution: a native harness watchdog must cover the test’s own startup/scenario context plus cleanup. A shorter go-test deadline aborts defers and creates unverifiable residue; inspect/reconcile that exact owner before starting another fleet, and do not call the watchdog a product failure.
 - #802 BR-1: operator-facing notice wording is restated in the embedded `skills/couch/SKILL.md` and the atlas. When a producer string changes, grep the literal shape and reason labels repo-wide and update every live restatement; archived issues and comments that describe the condition are not copies. Updating the atlas alone is not the sweep.

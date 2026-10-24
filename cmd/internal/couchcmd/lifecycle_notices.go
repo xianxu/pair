@@ -176,7 +176,7 @@ func (p *lifecyclePublisher) observe(e couchtty.LifecycleObservation) {
 			}
 		}
 		if missing > 0 {
-			p.diagnostics[""] = fmt.Sprintf("Lifecycle: %d slots' metadata unverified at restart drain", missing)
+			p.diagnostics[""] = fmt.Sprintf("Lifecycle: metadata unverified for %d slot(s) at restart drain", missing)
 		}
 		clear(p.unresolved)
 		p.advanceLocked(couchcore.LifecycleNoticeEvent{Kind: couchcore.LifecycleNoticeDrain, Reason: fmt.Sprintf("restart reattachments complete; %d failed", e.Failures)})
