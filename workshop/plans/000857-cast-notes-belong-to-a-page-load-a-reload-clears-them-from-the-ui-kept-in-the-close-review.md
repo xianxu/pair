@@ -196,3 +196,100 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-24T04:56:53-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 857 — Cast notes belong to a page load; a reload clears them from the UI (kept in the recording) |
+| repo | pair |
+| issue file | workshop/issues/000857-cast-notes-belong-to-a-page-load-a-reload-clears-them-from-the-ui-kept-in-the.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 7cb0b672ebb6aca081ae63f19c27b0aafc45270f..6100fb6a8fea05d1b5822677e999f17e1badd7d8 |
+| command | sdlc close --issue 857 |
+| reviewer | codex (openai; author openai) |
+| isolation | fenced |
+| timestamp | 2026-10-24T04:56:53-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+The implementation matches the documented page-load contract: live feedback and submission selection use exact load identity, while recording queries retain history. No new blocking defects found. Local native qualification again failed before page creation, but the independently retained, source-bound host evidence resolves BR-2.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      Verified the reconciled Core concepts and Integration points tables against the pinned diff and filesystem: unchanged catch-up and generic adapters are identified as reused, and submission provenance and page_load_live_test.go are included.
+  - id: BR-3
+    disposition: addressed
+    note: |
+      atlas/webcast-format.md:227 now describes creation-segment load membership and the standalone adapter fallback, matching liveNotes in cmd/internal/webcast/web/annotate.js:136 and the shared page-load helpers.
+  - id: BR-2
+    disposition: withdrawn
+    note: |
+      Inspected independent-host metadata, passing non-skipped lifecycle output, and cleanup evidence. The log SHA256 matches fd63b1446d35513c95bfc31edc608061d6e5edf5101ccbdc96d7e0fac8b13c27. Git confirms only tracker/evidence changes between qualified source eadf97328b414bc627c434b9a561f3b181f21408 and pinned HEAD. My exact native command reproduced the pre-page Chrome GPU exit_code=6 failure; it does not contradict the independent lifecycle measurement.
+```
+
+1. **Strengths**
+
+   - Exact target/loader/root identity stays lossless across Go, JSON, and JavaScript; unknown identity never matches.
+   - Recorder reservation and confirmation distinguish preserved historical writes from current UI authority.
+   - Board selection, note projections, and sketch delivery consistently filter by current load.
+   - Codec tests cover nested extension preservation, strict identity validation, and older preserving-reader rewrites.
+
+2. **Critical findings:** None.
+
+3. **Important findings:** None.
+
+4. **Minor findings:** None.
+
+5. **Test coverage notes**
+
+   Independently passed:
+
+   - Recording, recorder, Board, query, sketchimage, and submission packages.
+   - Full webcast package.
+   - All 615 Node tests, zero skipped.
+   - Focused recorder/Board ordering tests under the race detector.
+
+   Inspected deterministic capture/write barriers, stale completion rejection, detach, close drain, same-load restoration, and catch-up preservation. Native host evidence covers reload, pause/resume, tab return, app mutation, same-URL new target, UI selection, and retained history. No runtime correction was claimed for the prior findings, so fix-removal testing was unnecessary.
+
+6. **Architectural notes for upcoming work**
+
+   - **ARCH-DRY — Pass:** Shared identity, membership, and source-facts helpers serve consumers.
+   - **ARCH-PURE — Pass:** Identity/codecs and recorder transitions are directly testable; IO remains in owners.
+   - **ARCH-PURPOSE — Pass:** Live consumers and press selection are scoped; historical queries remain complete.
+   - **ARCH-MOCK — Pass:** Stateful fake CDP exercises production seams; native evidence qualifies real behavior.
+   - **ARCH-CONSTRAINTS — Pass:** Serialized snapshots, counted workload checks, and existing queue/deadline bounds remain.
+   - **ARCH-SECURE — Pass:** Persisted identity is validated strictly; no added credential surface found.
+   - **ARCH-ORDER — Pass:** Typed transitions, private reservations, generation fences, and controlled interleavings enforce ownership.
+   - **ARCH-FUNERAL — Pass:** Metadata follows recording retention; runtime cells and UI caches have cleanup paths.
+   - **ARCH-EVOLVE — Pass:** Additive metadata preserves nested unknown fields; older-reader limitations are documented.
+
+   README and atlas updates cover the changed user behavior and architectural surface.
+
+7. **Plan revision recommendations:** None. Remaining unchecked stage/merge work is explicitly pending, not claimed delivered.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"29782dc2-e470-4498-b0ec-2818180cf046","repository":"github.com/xianxu/pair","issue_id":"000857","recipe":"milestone-review","round":3,"attempt":1,"agent":"codex","root":"/Volumes/TestScratch/review-checkouts/43211b260c17c4a5","reviewed_head":"6100fb6a8fea05d1b5822677e999f17e1badd7d8","slot":"pair:4","requested_at":"2026-10-24T11:54:26.866769Z"},"phase":"finished","pid":52876,"started_at":"2026-10-24T11:54:27.021521Z","finished_at":"2026-10-24T11:56:36.360994Z","session_id":"01a16dc3-22ce-72e0-8007-92015f0b1c5f","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 3.415830792s
+head: "6100fb6a8fea05d1b5822677e999f17e1badd7d8"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412

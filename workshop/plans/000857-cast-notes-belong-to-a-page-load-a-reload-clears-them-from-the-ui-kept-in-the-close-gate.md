@@ -94,6 +94,49 @@ rounds:
       recipe: milestone-review
       isolation: fenced
       blocked: true
+    - reviewer_runs:
+        - version: 1
+          intent:
+            disposable_root: true
+            id: 29782dc2-e470-4498-b0ec-2818180cf046
+            repository: github.com/xianxu/pair
+            issue_id: "000857"
+            recipe: milestone-review
+            round: 3
+            attempt: 1
+            agent: codex
+            root: /Volumes/TestScratch/review-checkouts/43211b260c17c4a5
+            reviewed_head: 6100fb6a8fea05d1b5822677e999f17e1badd7d8
+            slot: pair:4
+            requested_at: "2026-10-24T11:54:26.866769Z"
+          phase: finished
+          pid: 52876
+          started_at: "2026-10-24T11:54:27.021521Z"
+          finished_at: "2026-10-24T11:56:36.360994Z"
+          session_id: 01a16dc3-22ce-72e0-8007-92015f0b1c5f
+          outcome: returned
+      "n": 3
+      timestamp: "2026-10-24T04:56:53-07:00"
+      dispatched: "2026-10-24T04:54:23-07:00"
+      agent: codex
+      reviewer: codex (openai; author openai)
+      dispose:
+        - id: BR-1
+          disposition: addressed
+          note: 'Verified the reconciled Core concepts and Integration points tables against the pinned diff and filesystem: unchanged catch-up and generic adapters are identified as reused, and submission provenance and page_load_live_test.go are included.'
+          round: 3
+        - id: BR-3
+          disposition: addressed
+          note: atlas/webcast-format.md:227 now describes creation-segment load membership and the standalone adapter fallback, matching liveNotes in cmd/internal/webcast/web/annotate.js:136 and the shared page-load helpers.
+          round: 3
+        - id: BR-2
+          disposition: withdrawn
+          note: Inspected independent-host metadata, passing non-skipped lifecycle output, and cleanup evidence. The log SHA256 matches fd63b1446d35513c95bfc31edc608061d6e5edf5101ccbdc96d7e0fac8b13c27. Git confirms only tracker/evidence changes between qualified source eadf97328b414bc627c434b9a561f3b181f21408 and pinned HEAD. My exact native command reproduced the pre-page Chrome GPU exit_code=6 failure; it does not contradict the independent lifecycle measurement.
+          round: 3
+      recipe: milestone-review
+      isolation: fenced
+      reviewed: 6100fb6a8fea05d1b5822677e999f17e1badd7d8
+      blocked: false
 disputes:
     - id: BR-2
       rationale: The reviewer-local GPU startup failure occurs before page creation and is not a failure of the page-load lifecycle. TL94ff9a00 explicitly requested independent source-bound host qualification by pair:5; that independent run now passes. Runtime source has not changed since the qualified head. The reviewed requirement is qualified without disabling Chrome checks or altering production.
@@ -126,6 +169,14 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - BR-1 — addressed — Plan integration rows now distinguish reused consumers from changed files and identify page_load_live_test.go as the native fixture. The Revisions passage at workshop/plans/000857-page-load-feedback-plan.md:250 explains unchanged ownership. recording/catchup.go retains complete Seg records; passing replay/compaction tests qualify that reuse (ARCH-PURPOSE).
 - BR-2 — not-addressed — At pinned head eadf97328b414bc627c434b9a561f3b181f21408, WEBCAST_LIVE_CHROME=1 go test ./cmd/internal/webcast -run '^TestPageLoadLiveFeedbackLifecycle$' -count=1 -v -timeout=150s failed at page_load_live_test.go:53 before page creation: GPU process exit_code=6, “GPU process isn't usable.” Inspected the committed successful rerun log and confirmed subsequent changes are documentation/evidence only, but the implementor log alone does not resolve the required independent qualification. BR-2 remains kind: unverifiable; provide independently verifiable source-bound host evidence or rerun review with working native Chrome (ARCH-MOCK).
 - BR-3 — addressed — atlas/webcast-format.md:227–231 now describes creation-segment load membership, same-load restoration and the standalone adapter fallback, matching web/annotate.js:138 and web/page-load.js. This is a prose-only correction supported by the code and passing browser tests (ARCH-DRY).
+
+## Round 3 — 2026-10-24T04:56:53-07:00 (codex) — passed
+
+### Disposed
+
+- BR-1 — addressed — Verified the reconciled Core concepts and Integration points tables against the pinned diff and filesystem: unchanged catch-up and generic adapters are identified as reused, and submission provenance and page_load_live_test.go are included.
+- BR-3 — addressed — atlas/webcast-format.md:227 now describes creation-segment load membership and the standalone adapter fallback, matching liveNotes in cmd/internal/webcast/web/annotate.js:136 and the shared page-load helpers.
+- BR-2 — withdrawn — Inspected independent-host metadata, passing non-skipped lifecycle output, and cleanup evidence. The log SHA256 matches fd63b1446d35513c95bfc31edc608061d6e5edf5101ccbdc96d7e0fac8b13c27. Git confirms only tracker/evidence changes between qualified source eadf97328b414bc627c434b9a561f3b181f21408 and pinned HEAD. My exact native command reproduced the pre-page Chrome GPU exit_code=6 failure; it does not contradict the independent lifecycle measurement.
 
 ## Disputes
 
