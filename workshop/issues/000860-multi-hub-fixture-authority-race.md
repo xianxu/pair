@@ -60,8 +60,10 @@ The approved same-class sweep moves hub/hubs configuration in already-connected 
 
 - [x] Add the deterministic startup-policy regression and observe RED; the existing exact notification race count20 is already RED.
 - [x] Forward the existing authority decorator through the necessary fixture constructors; build final ownership before initialization and remove the enumerated live-service hub/hubs assignments.
-- [ ] Run exact and consumer repeated races plus the relevant guard/recovery/archive/lifecycle controls, then full couchcmd race qualification. Add the lesson and audit each changed reader certificate individually.
-- [ ] Push, run recorded pre-close, close through the mandatory fresh review, and land; no passing result is claimed before its run completes.
+- [x] Run exact and consumer repeated races plus the relevant guard/recovery/archive/lifecycle controls, then full couchcmd race qualification. Add the lesson and audit each changed reader certificate individually.
+- [x] Push corrected code and initiate the recorded pre-close check; retain its exact run through the mandatory close review under the worker overlap rule.
+
+Landing follows the close verdict and completed recorded check; neither is claimed before it completes.
 
 Quick flow, test-only. ARCH-DRY: reuse decorateAuthority, not a second service-start mechanism. ARCH-ORDER: ownership is final before the constructor launches readers; actual ownership moves still use the existing hubRuntime mutex. ARCH-PURPOSE: enumerate live-wrapper siblings in this round rather than repairing only the two captured lines. ARCH-PURE/MOCK: all changes stay in the existing stateful socket fixtures; production routing is unchanged. ARCH-CONSTRAINTS: no new workload, capacity, timing or cost driver; tests retain existing budgets and use bounded repetitions. ARCH-SECURE/EVOLVE: no new trust boundary, credentials or persisted formats. ARCH-FUNERAL: existing fixture cancellation, joins and private-directory cleanup remain the owners of their resources. Regression plus lesson is the approved enforcement; no catalog follow-up unless another recurrence appears.
 
@@ -102,3 +104,9 @@ Extend the named multiHubWaitRig repair to analogous fixture assignments after w
 Full couchcmd race failed in304.234s at newWorkerCueRig's post-connect authority.child replacement, racing the same execute authority read. Exact unknown/uncertain coordinator count20 reproduced RED2.390s on5443413ec. TL approved folding this sibling in (f28ac8d5-81f5-4bec-b5eb-4bea676489a3), and explicitly directed cancellation of old-head queued lease-3482810010; the supported cancel completed successfully. No pass is claimed for that cancelled check. Compose the child-proof closure before construction and supply the three custom proof callbacks through the same fixture constructor, preserving their assertions and atomic proof/ordinal state. The counted no-wrapper fixture remains distinct. Requeue pre-close only after the corrected source is pushed.
 
 The corrected coordinator cases all pass20 race repetitions8.246s, including role-change, committed-report and bounded-proof controls; inventory and diff checks pass. The replacement full package race is running on the corrected source.
+
+### 2026-10-24 — Package race qualified; recorded suite retained
+
+Full couchcmd race on the corrected source passed177.165s (exit0), raw log /tmp/pair860-full-race-final.log. Repository lint previously passed17.395s; repeated hub controls4.208s, analogous consumer controls9.189s and child-proof controls8.246s all passed20 race repetitions. No code changed after the corrected source was pushed.
+
+Pre-close on60e7b5c2fcac6590d65d37c2085f54fc9152868d resolved to affected, then correctly selected the full suite because the audited reader certificate changed. Retained run lease-1964064630 / attempt e517daf3cc672fe0fea983bcb14802c2 in detached checkout /Volumes/TestScratch/local-checks/sdlc-local-2276976659 is queued; no suite pass is claimed. Close review may overlap that queued check under tl-worker's explicit rule, and a recorded pass must precede landing. The final Plan row now records the completed push/check initiation, with close and landing kept as workflow gates rather than a falsely completed checkbox; this is a bookkeeping clarification, no scope change.
