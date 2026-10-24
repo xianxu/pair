@@ -2557,7 +2557,9 @@ claim. The launcher then exports exact paths to Go helpers, shell, Neovim, and
 both Zellij layouts.
 Each resolved-consumer family is tied to a named resolver/member witness;
 closed vocabulary allowances separately cover exact non-path protocol and CLI
-uses. Every production source is exhaustively inventoried as one of those
+uses. Typed constant allowances additionally pin the declared type, symbol,
+literal and occurrence count; implicit, untyped and computed initializers do
+not qualify. Every production source is exhaustively inventoried as one of those
 classes or as a non-artifact source; new files have no implicit default, and a
 Go source that imports `artifactpath` cannot remain in the non-artifact class.
 Current resolved consumers have positive family-specific resolver/member (or

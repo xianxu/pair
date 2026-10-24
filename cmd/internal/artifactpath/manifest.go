@@ -23,13 +23,14 @@ const (
 type VocabularyContext string
 
 const (
-	GoStructTagVocabulary    VocabularyContext = "go-struct-tag"
-	GoCallArgumentVocabulary VocabularyContext = "go-call-argument"
-	GoCaseValueVocabulary    VocabularyContext = "go-case-value"
-	GoComparisonVocabulary   VocabularyContext = "go-comparison"
-	GoKeyValueVocabulary     VocabularyContext = "go-key-value"
-	GoReturnVocabulary       VocabularyContext = "go-return"
-	ExactLineVocabulary      VocabularyContext = "exact-line"
+	GoStructTagVocabulary     VocabularyContext = "go-struct-tag"
+	GoCallArgumentVocabulary  VocabularyContext = "go-call-argument"
+	GoCaseValueVocabulary     VocabularyContext = "go-case-value"
+	GoComparisonVocabulary    VocabularyContext = "go-comparison"
+	GoKeyValueVocabulary      VocabularyContext = "go-key-value"
+	GoReturnVocabulary        VocabularyContext = "go-return"
+	GoTypedConstantVocabulary VocabularyContext = "go-typed-constant"
+	ExactLineVocabulary       VocabularyContext = "exact-line"
 )
 
 // VocabularyAllowance names one exact non-path use of an artifact-family token.
@@ -241,6 +242,17 @@ var Families = []Family{
 // shell, Lua, and KDL sources.
 // pair:m5-concept pure
 var SourceClassifications = []SourceClassification{
+	// #844 these counted enum literals identify notice producers, never paths.
+	{Path: "cmd/internal/couchcore/notice_route.go", Kind: VocabularyConsumer, Families: []string{"agent", "continuation", "lifecycle"}, Vocabulary: []VocabularyAllowance{
+		goTypedConstantVocabulary("agent", "agent-priority-warning", "NoticeClass", "NoticeAgentPriorityWarning", 1),
+		goTypedConstantVocabulary("continuation", "continuation-scanner-failed", "NoticeClass", "NoticeContinuationScannerFailed", 1),
+		goTypedConstantVocabulary("continuation", "continuation-missed", "NoticeClass", "NoticeContinuationMissed", 1),
+		goTypedConstantVocabulary("continuation", "continuation-failed", "NoticeClass", "NoticeContinuationFailed", 1),
+		goTypedConstantVocabulary("lifecycle", "lifecycle-attempt-diagnostic", "NoticeClass", "NoticeLifecycleAttemptDiagnostic", 1),
+		goTypedConstantVocabulary("lifecycle", "lifecycle-result-warning", "NoticeClass", "NoticeLifecycleResultWarning", 1),
+		goTypedConstantVocabulary("lifecycle", "remote-lifecycle-diagnostic", "NoticeClass", "NoticeRemoteLifecycleDiagnostic", 1),
+		goTypedConstantVocabulary("lifecycle", "lifecycle-publisher-diagnostic", "NoticeClass", "NoticeLifecyclePublisherDiagnostic", 1),
+	}},
 	{Path: "cmd/internal/artifactpath/editor_endpoint.go", Kind: Constructor, Families: []string{"editor-endpoint"}},
 	{Path: "cmd/internal/couchcmd/editor_endpoint_service.go", Kind: ResolvedConsumer, Families: []string{"editor-endpoint"}, BindingNames: []string{"editor-endpoint-state", "editor-endpoint-stage"}},
 	{Path: "cmd/internal/editorendpoint/store.go", Kind: ResolvedConsumer},
@@ -900,6 +912,17 @@ var NonArtifactSources = []string{
 	"cmd/internal/couchcore/attention_list.go",
 	"cmd/internal/couchcore/attention_store.go",
 	"cmd/internal/couchtty/console_attention.go",
+
+	// #844 notice routing owns ephemeral broker facts and UI projection, not
+	// Pair tag-artifact filenames. SourceRoot/OwnerRoot are cached identities;
+	// the backend delegates delivery to the existing message broker.
+	"cmd/internal/couchcmd/notice_delivery.go",
+	"cmd/internal/couchcmd/notice_delivery_backend.go",
+	"cmd/internal/couchcore/notice_delivery.go",
+	"cmd/internal/couchtty/console_notice_route.go",
+	// The shared inventory analyzer parses supplied source bytes and literal
+	// fixtures; it neither reads nor constructs session artifact paths.
+	"cmd/internal/testnotice/inventory.go",
 
 	// #587 resource accounting and bounded namespace snapshots are not Pair tag artifacts.
 	"cmd/internal/couchcmd/resources.go",
@@ -2089,6 +2112,12 @@ func familyNames() []string {
 		names = append(names, family.Name)
 	}
 	return names
+}
+
+// goTypedConstantVocabulary grants only an explicit top-level const literal
+// with this exact named type and symbol; computed and inherited values do not qualify.
+func goTypedConstantVocabulary(family, value, typeName, symbol string, count int) VocabularyAllowance {
+	return VocabularyAllowance{Family: family, Value: value, Context: GoTypedConstantVocabulary, Use: typeName + "." + symbol, Count: count}
 }
 
 func goStructVocabulary(family, value, field string, count int) VocabularyAllowance {

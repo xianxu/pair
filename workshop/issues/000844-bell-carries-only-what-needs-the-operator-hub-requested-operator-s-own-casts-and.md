@@ -58,6 +58,8 @@ Durable plan: [human attention routing](../plans/000844-human-attention-routing-
 
 - [x] Repair owner-scoped generation and refused-disposition transitions under the approved revised contract, then rerun verification.
 
+- [x] Complete the exact artifact inventory and typed-constant checker correction with targeted proof.
+
 Workflow postconditions: binary-owned close review, PR/merge, then verify landing/archive/runner and report to hub.
 
 ## Log
@@ -207,6 +209,19 @@ Fleet load notice f519f9ef-8cc2-4170-aa40-57339de83591 verified submitted: no fu
 Pair:4 message 7cb81381-2930-4b27-b018-50c88df654f2 verified submitted: combined stage is #857+#866+#844 after green, explicit hub build go still required; no pair:0 action. Operator restart will use COUCH_PROFILE_DIR for #871, configured by the stage coordinator/hub.
 
 NEXT ACTION: wait for terminal session91413's complete result; classify all failures, then implement the approved exact checker contract test-first and verify sequentially. Do not cancel/restart the owned run. Re-close narrowly and record the repaired head before sending pair:4 green head/checklist; live acceptance still precedes merge.
+
+### 2026-10-24 — full recorded result classified
+
+Suite attempt edbeede104e57e5a7c6c9c011f66b53a on d7a07ecba6348d1d1a9d9de3c3704c45926c19c6 finished unknown-failure, exit2 in 16m1s, retained log /Users/xianxu/workspace/pair/.git/sdlc/test-stats/failed/edbeede104e57e5a7c6c9c011f66b53a.log (sha256 prefix bd21d6a20aaa). Only named failing test: github.com/xianxu/pair/cmd/internal/artifactpath.TestProductionArtifactReferencesAreExactlyClassified. All other packages completed; couchcmd98.527s, couchcore398.199s, couchtty46.965s and repolint14.461s passed. This is the deterministic missing classification/unsupported typed-constant use-site defect, not a flake. Do not register it or use flake resume to overwrite it. Repair on a new pushed head and record a fresh check.
+
+The owned recorded run has exited. Approved exact checker correction now proceeds test-first, with one targeted test run at a time under the fleet load rule. No change to routing policy, capacity, generation or admission semantics is authorized by this fix. Narrow re-close and a fresh recorded green head precede stage handoff.
+
+
+### 2026-10-24 — approved exact checker correction verified
+
+Implemented only the approved eight typed enum allowances and five audited non-artifact entries. The new context pins the explicit top-level constant's named type, symbol, literal and occurrence count; mutation regressions reject implicit/untyped/computed initializers, local shadows, variables, wrong symbol/type/literal/count and duplicates. No waiver or debt-list growth. RED: the old checker rejected both valid typed-constant fixtures. Focused GREEN passed 2.023s. Main independently ran the full artifactpath package count1 (PASS 13.587s) and TestTrackedGoFilesPassCatalog count1 (PASS 6.400s), sequentially under the fleet load limit.
+
+The coverage reader was audited: production roots and generated runtime/doc fixtures are unchanged; new mutations use literal Go in owned temporary directories, with no new repository inputs. Only its exact certificate was refreshed using the inventory's per-reader fixed_scanner command. Atlas maps the exact context. NEXT ACTION: finish inventory, commit/push this correction, narrow re-close, then a fresh pushed-head recorded pre-close. After review and recorded green, send pair:4 the head/checklist; combined stage requires explicit hub go and live acceptance before merge.
 
 ## Estimate
 
