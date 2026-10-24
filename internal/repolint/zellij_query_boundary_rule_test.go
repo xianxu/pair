@@ -8,19 +8,21 @@ import (
 	"github.com/xianxu/ariadne/pkg/golint"
 )
 
-// Rule.Match receives no filename. Bind the production/diagnostic ownership
-// policy here, rather than exempting entire fixture or consumer packages.
+// Bind filename-sensitive production/diagnostic ownership here without
+// exempting entire fixture or consumer packages.
 func pairCatalogFor(filename string) []golint.Rule {
 	catalog := append([]golint.Rule(nil), pairCatalog...)
 	for i := range catalog {
 		if catalog[i].Name == "test-fifo-empty-handoff" && strings.HasSuffix(filename, "_test.go") {
-			catalog[i].Match = emptyFIFOHandoffs
+			catalog[i].Match = syntaxMatch(emptyFIFOHandoffs)
 		}
 		if catalog[i].Name == "slash-command-submit" {
-			catalog[i].Match = func(file *ast.File) []ast.Node { return slashCommandSubmits(filename, file) }
+			catalog[i].Match = func(file *ast.File, _ *golint.CheckContext) []ast.Node { return slashCommandSubmits(filename, file) }
 		}
 		if catalog[i].Name == "zellij-query-boundary" {
-			catalog[i].Match = func(file *ast.File) []ast.Node { return zellijQueryBoundaryBypasses(filename, file) }
+			catalog[i].Match = func(file *ast.File, _ *golint.CheckContext) []ast.Node {
+				return zellijQueryBoundaryBypasses(filename, file)
+			}
 		}
 	}
 	return catalog

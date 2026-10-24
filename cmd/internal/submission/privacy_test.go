@@ -235,3 +235,39 @@ func TestPrivacyManifestRejectsAmbiguousKeysOnReload(t *testing.T) {
 		})
 	}
 }
+
+func TestPrivacySharedScanVisitsOpaqueExtensions(t *testing.T) {
+	for _, key := range []string{"Privacy", "privacy_rule", "URL"} {
+		raw := []byte(`{"future":[{"` + key + `":1e9999}]}`)
+		seen := false
+		sentinel := fmt.Errorf("visitor authority")
+		err := checkJSONKeys(raw, func(depth int, name string) error {
+			if name == key {
+				if depth != 2 {
+					t.Fatalf("depth=%d", depth)
+				}
+				seen = true
+				return sentinel
+			}
+			return nil
+		})
+		if err != sentinel || !seen {
+			t.Fatalf("visitor lost opaque extension key %q: %v", key, err)
+		}
+	}
+	if err := checkJSONKeys([]byte(`{"future":{"a":1e9999,"A":2}}`), func(int, string) error { return nil }); err != nil {
+		t.Fatal("exact-key policy changed", err)
+	}
+	for _, raw := range []string{`{"future":[{"a":1,"\u0061":2}]}`, `{} {}`} {
+		if err := checkJSONKeys([]byte(raw), func(int, string) error { return nil }); err == nil {
+			t.Fatalf("accepted ambiguous JSON %s", raw)
+		}
+	}
+	for _, key := range []string{"Privacy", "URL", "Source_document"} {
+		raw := []byte(`{"future":[{"` + key + `":1e9999}]}`)
+		_, err := DecodePreserving(raw)
+		if err == nil {
+			t.Fatalf("permission alias accepted in unknown extension: %s", raw)
+		}
+	}
+}

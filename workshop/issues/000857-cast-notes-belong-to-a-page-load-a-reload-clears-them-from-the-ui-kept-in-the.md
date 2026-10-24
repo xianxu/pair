@@ -42,8 +42,27 @@ Change:
 
 ## Plan
 
-- [ ]
+Dependent implementation section in [Cast feedback workspace](../plans/000856-cast-feedback-workspace-plan.md); its own branch and change-code gate follow #856 landing.
+
+- [ ] Approve page-load identity, pending-scope and compatibility policies in the joint design.
+- [ ] Persist/derive load membership and fence top-navigation snapshots.
+- [ ] Filter UI and atomic press selection, qualify native lifecycle and preserve history query.
+- [ ] Close, obtain operator acceptance and land independently.
 
 ## Log
 
 ### 2026-10-23
+
+### 2026-10-23 — Joint plan with #856
+
+Claimed alongside #856 at the hub's request. Recording already computes loader/root identity but does not persist it; top frame navigation currently updates loader without directly forcing resnapshot. DocSeg is an activation fence, so tab return cannot use it as the page-load identity. Plan derives note/sketch membership from additive segment metadata, preserving sketch request digests and unfiltered historical query. Pending or legacy-unknown scope excludes page feedback rather than borrowing a prior load. This policy and codec extension handling are explicitly proposed for approval, not implemented. #849 owns board/submission.go until landing; coordinate before edits. Next: joint design approval, then own main-based branch after #856 lands.
+
+## Revisions
+
+### 2026-10-23 — Dependent branch and submit behavior
+
+TL approved one joint plan with #856 and a separate #857 branch from landed main. No earlier-load UI drawer. #849's new atomic press selection is the membership seam; preview does not gate submission and an already admitted selection stays pinned through later navigation. Unknown current load contributes no page feedback while ordinary text and the unsaved-note guard retain #849 behavior; this conservative edge policy awaits joint plan approval.
+
+### 2026-10-23 — Operator's live cross-tab observation
+
+Authenticated TL feedback 96da76d2-2673-40a2-b1aa-38ef59fe0206 reports the live cast injected the echo tab's two notes into a newly opened mock tab as “not on this view.” This is direct motivating evidence for target plus load membership, not just reload handling. The synthetic native qualification must include a new tab at the same URL starting with no prior feedback, with tab return restoring only its matching original load; query still retains history. Private screenshots remain in ops assets, not copied into Pair. Mock viewing uses a non-cast Chrome window to separate proposed layout from the current production injection.

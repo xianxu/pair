@@ -34,6 +34,7 @@ type MemController struct {
 	inj       Injector
 	clock     func() int64
 	grace     time.Duration
+	afterFunc func(time.Duration, func()) stoppableTimer
 	next      int
 	seats     map[string]*seat // by viewer id
 	keys      map[string]string
@@ -55,10 +56,12 @@ type MemController struct {
 	drawingWitness chan struct{} // nil while a handoff/reset outcome is unsettled
 }
 
+type stoppableTimer interface{ Stop() bool }
+
 type seat struct {
 	Seat
 	streams     int
-	timer       *time.Timer
+	timer       stoppableTimer
 	drawingLife chan struct{}
 }
 
@@ -136,7 +139,11 @@ func (f *MemController) Attach(viewer string) (func(), error) {
 
 // idleLocked starts s's grace period; when it ends with no stream, s leaves.
 func (f *MemController) idleLocked(s *seat) {
-	s.timer = time.AfterFunc(f.grace, func() {
+	afterFunc := f.afterFunc
+	if afterFunc == nil {
+		afterFunc = func(budget time.Duration, expire func()) stoppableTimer { return time.AfterFunc(budget, expire) }
+	}
+	s.timer = afterFunc(f.grace, func() {
 		f.mu.Lock()
 		defer f.mu.Unlock()
 		if f.closed {

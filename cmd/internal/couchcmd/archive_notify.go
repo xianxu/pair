@@ -46,13 +46,9 @@ func (s *messageService) notifyArchiveWarning(ctx context.Context, body string, 
 	}
 	title = truncateBytes(notifyosc.Sanitize([]byte(title)), notifyosc.MaxTitleBytes-len("…"))
 	var failures []error
-	var id string
-	if available {
-		var err error
-		id, err = newRequestID()
-		if err != nil {
-			failures = append(failures, err)
-		}
+	id, err := newRequestID()
+	if err != nil {
+		failures = append(failures, err)
 	}
 	if err := ctx.Err(); err != nil {
 		return body, err
@@ -64,9 +60,16 @@ func (s *messageService) notifyArchiveWarning(ctx context.Context, body string, 
 		const suffix = "; primary hub unavailable; full report in continuous.log"
 		body = truncateBytes(body, notifyosc.MaxMessageBytes-len(suffix)-len("…")) + suffix
 		title = "History backup"
-	} else if id != "" {
+	}
+	if id != "" {
+		thread := couchcore.ThreadAddress{}
+		if available {
+			thread = bindingThread(owner)
+		} else {
+			label = "Couch"
+		}
 		s.observeAttention(couchcore.AttentionFact{Kind: couchcore.AttentionNotify, Notify: couchcore.AttentionItem{
-			ID: "notify-" + id, Thread: bindingThread(owner), Label: label, Title: "History backup", Body: body,
+			ID: "notify-" + id, Thread: thread, Label: label, Title: "History backup", Body: body,
 		}})
 	}
 	if err := ctx.Err(); err != nil {

@@ -4,11 +4,12 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
-	"io"
 	"net"
 	"net/url"
 	"strconv"
 	"strings"
+
+	"github.com/xianxu/pair/internal/jsonstrict"
 )
 
 const MaxOriginPolicyBytes = 64 << 10
@@ -213,50 +214,7 @@ func OriginOf(raw string) string {
 }
 
 func checkJSONKeys(data []byte, check func(depth int, key string) error) error {
-	// Inspect keys before struct decoding loses duplicates and case aliases.
-	// The caller checks its schema; the scanner rejects duplicates everywhere.
-	d := json.NewDecoder(bytes.NewReader(data))
-	d.UseNumber()
-	var value func(int) error
-	value = func(depth int) error {
-		token, err := d.Token()
-		if err != nil {
-			return err
-		}
-		delimiter, ok := token.(json.Delim)
-		if !ok {
-			return nil
-		}
-		keys := map[string]bool{}
-		for d.More() {
-			if delimiter == '{' {
-				key, err := d.Token()
-				if err != nil {
-					return err
-				}
-				s, ok := key.(string)
-				if !ok || keys[s] {
-					return errors.New("duplicate JSON key")
-				}
-				if err := check(depth, s); err != nil {
-					return err
-				}
-				keys[s] = true
-			}
-			if err := value(depth + 1); err != nil {
-				return err
-			}
-		}
-		_, err = d.Token()
-		return err
-	}
-	if err := value(0); err != nil {
-		return err
-	}
-	if _, err := d.Token(); err != io.EOF {
-		return errors.New("trailing JSON")
-	}
-	return nil
+	return jsonstrict.Scan(data, jsonstrict.Options{PreserveNumbers: true, VisitKey: check})
 }
 
 func strictJSON(data []byte, out any) error {

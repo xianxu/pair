@@ -44,9 +44,18 @@ type hubStartupRig struct {
 // The legacy detached flag remains for shared startup fixtures; every hub
 // terminal must now be explicitly seeded as surviving.
 func newHubStartupRig(t *testing.T, _ bool, beforeAdoption ...func(*hubStartupRig)) *hubStartupRig {
-	return newHubStartupRigWithFirst(t, true, beforeAdoption...)
+	return newHubStartupFixture(t, true, true, beforeAdoption...)
 }
+
 func newHubStartupRigWithFirst(t *testing.T, firstSurvived bool, beforeAdoption ...func(*hubStartupRig)) *hubStartupRig {
+	return newHubStartupFixture(t, firstSurvived, true, beforeAdoption...)
+}
+
+func newHubStartupOwnershipRig(t *testing.T, _ bool, retainedOwnership bool, beforeAdoption ...func(*hubStartupRig)) *hubStartupRig {
+	return newHubStartupFixture(t, true, retainedOwnership, beforeAdoption...)
+}
+
+func newHubStartupFixture(t *testing.T, firstSurvived, retainedOwnership bool, beforeAdoption ...func(*hubStartupRig)) *hubStartupRig {
 	t.Helper()
 	root, err := filepath.EvalSymlinks(t.TempDir())
 	if err != nil {
@@ -75,7 +84,31 @@ func newHubStartupRigWithFirst(t *testing.T, firstSurvived bool, beforeAdoption 
 	rt := newRT(t, append(append([]string(nil), paths...), ordinary)...)
 
 	rt.runner = couchcore.NewFakeRunner()
-	other := seedDetachedThread(t, rt, ordinary)
+	// Exercise both owned-helper repair and routine borrowed reattachment.
+	// Missing unique helper proof preserves lifecycle state and remains feedback.
+	ordinaryScope, err := launcher.ResolveRepoScope(ordinary)
+	if err != nil {
+		t.Fatal(err)
+	}
+	seed, err := rt.NewCouch()
+	if err != nil {
+		t.Fatal(err)
+	}
+	profile := &couchcore.LaunchProfile{Agent: "claude", Argv: []string{}}
+	var incarnations []couchcore.ThreadIncarnation
+	if retainedOwnership {
+		incarnations = []couchcore.ThreadIncarnation{{PID: 5151, Identity: "old-ordinary", State: couchcore.IncarnationLive, LaunchProfile: profile}}
+	}
+	other, err := seed.Threads.CreateThread(couchcore.ThreadRecord{
+		SchemaVersion: couchcore.ThreadSchemaVersion,
+		Address:       couchcore.ThreadAddress{RepoScope: ordinaryScope.Key, Tag: "couch-0102030405060708"},
+		StartingPath:  ordinary, WorkingPath: ordinary, CreatedAt: time.Unix(1, 0).UTC(), Revision: 1,
+		LatestLaunchProfile: profile,
+		Incarnations:        incarnations,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
 	rt.artifacts.SetDetachedSession(other.Address, "pair-"+other.Address.RepoScope+"-"+string(other.Address.Tag))
 	// Directory selection authorizes only surviving terminal attachment. These
 	// fixtures explicitly seed both hub sessions rather than relying on Fresh.
@@ -263,9 +296,15 @@ func testHubStartupLaterFailure(t *testing.T, warmFirst bool) {
 	if call.err == nil || !strings.Contains(call.err.Error(), "isolated second hub launch refusal") || !strings.Contains(call.err.Error(), r.paths[1]) || !strings.Contains(call.err.Error(), "diagnostics ") {
 		t.Fatalf("second launch did not report its injected refusal: %v", call.err)
 	}
-	waitWarmAcceptance(t, "visible hub refusal and retry action", func() bool {
-		return strings.Contains(r.host.Written(), "hub failed; open it in the switcher to …")
+	// Startup failure is an attention item; ordinary tab rendering no longer
+	// carries the general notice feed.
+	testwait.Until(t, "startup failure attention", func() bool {
+		return strings.Contains(r.host.Written(), couchtty.AttentionGlyph+"1")
 	})
+	openWarningAttention(t, r.input, r.host, "hub failed")
+	if _, err := r.input.Write([]byte("\x1b[97;7u")); err != nil {
+		t.Fatal(err)
+	}
 	r.assertFirstUsable(t)
 	waitWarmAcceptance(t, "warm worker starts despite failed hub", func() bool { r.mu.Lock(); defer r.mu.Unlock(); return len(r.children) == 2 })
 	r.mu.Lock()
@@ -645,7 +684,20 @@ func TestBareCwdHubResolverFailureStaysUnknownAndUsable(t *testing.T) {
 			t.Error("unknown startup console did not stop")
 		}
 	})
-	waitWarmAcceptance(t, "unverified bare hub has visible unknown notice", func() bool { return strings.Contains(host.Written(), couchtty.ChromeStatusText(want)) })
+	screen := startupWarmScreen(t, 240, 30, host.Written)
+	t.Cleanup(func() {
+		if t.Failed() {
+			t.Logf("unknown startup screen: %q", screen())
+		}
+	})
+	waitWarmAcceptance(t, "unverified bare hub has visible unknown notice", func() bool {
+		// History observation precedes hub resolution in the joined diagnostic.
+		// Assert its visible prefix and the second cause separately; Ctrl+Y
+		// below pins the exact full notice, including the joined newline.
+		visible := screen()
+		return strings.Contains(visible, "startup: unknown; workspace identity unavailable") &&
+			strings.Contains(visible, "hub automation unavailable: hub ")
+	})
 	assertCopied(writer, want)
 	if _, err := console.Ops()(couchcore.OperationCall{Name: "list"}); err != nil {
 		t.Fatalf("unknown hub blocked switcher operations: %v", err)

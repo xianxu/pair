@@ -188,12 +188,15 @@ type ActionableThreadSummary struct {
 	// ContinuationMissed is the one line a compaction that didn't finish
 	// left (#522). It constrains nothing.
 	ContinuationMissed *checkpoint.Miss `json:"continuation_missed,omitempty"`
-	Address            ThreadAddress    `json:"address"`
-	StartingPath       string           `json:"starting_path"`
-	WorkingPath        string           `json:"working_path"`
-	Name               string           `json:"name,omitempty"`
-	Description        string           `json:"description,omitempty"`
-	PublishedSummary   string           `json:"published_summary,omitempty"`
+	// AsleepAt is when a full shutdown put this thread to sleep (pair#830,
+	// ThreadAsleep); nil when it is not asleep. Display and wake selection only.
+	AsleepAt         *time.Time    `json:"asleep_at,omitempty"`
+	Address          ThreadAddress `json:"address"`
+	StartingPath     string        `json:"starting_path"`
+	WorkingPath      string        `json:"working_path"`
+	Name             string        `json:"name,omitempty"`
+	Description      string        `json:"description,omitempty"`
+	PublishedSummary string        `json:"published_summary,omitempty"`
 	// Slug is a live thread's latest pair-slug orientation line, unfenced
 	// (`<branch> | <focus>`). Display-only (ApplySlugs); "" when there is none.
 	Slug string `json:"slug,omitempty"`
@@ -338,6 +341,7 @@ func ProjectActionableThreads(input ThreadProjectionInput) []ActionableThreadSum
 			Address:                record.Address,
 			Continuation:           continuationStatus(record),
 			ContinuationMissed:     cloneMiss(record.ContinuationMissed),
+			AsleepAt:               asleepAt(record),
 			Recovery:               ProjectRecoveryChoices(record, evidence[record.Address], state, reason),
 			StartingPath:           record.StartingPath,
 			WorkingPath:            record.WorkingPath,

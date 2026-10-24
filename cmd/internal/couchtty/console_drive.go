@@ -1,6 +1,7 @@
 package couchtty
 
 import (
+	"context"
 	"errors"
 	"strconv"
 
@@ -223,7 +224,7 @@ func (c *Console) startDriveOperation(cast *webcast.Cast, op string, who recordi
 		c.mu.Lock()
 		c.drivePending = nil
 		c.mu.Unlock()
-		c.driveResult(err, "")
+		c.setNotice(driveFailure(err))
 		return
 	}
 	c.GoTracked(func() {
@@ -265,10 +266,23 @@ func (c *Console) startDriveOperation(cast *webcast.Cast, op string, who recordi
 // one that did is told by applyDrive, from the state that results.
 func (c *Console) driveResult(err error, done string) {
 	if err != nil {
-		c.setNotice(driveFailure(err))
+		if expectedControlFailure(err) {
+			c.setNotice(driveFailure(err))
+		} else {
+			c.setWarning(driveFailure(err))
+		}
 	} else if done != "" {
 		c.setNotice(done)
 	}
+}
+
+// expectedControlFailure reports ordinary control races and canceled work;
+// neither requires a new operator obligation after the original click.
+func expectedControlFailure(err error) bool {
+	return errors.Is(err, drive.ErrNoSeat) || errors.Is(err, drive.ErrControlOp) ||
+		errors.Is(err, drive.ErrDriveUnavailable) || errors.Is(err, drive.ErrClosed) ||
+		errors.Is(err, drive.ErrNotLive) || errors.Is(err, context.Canceled) ||
+		errors.Is(err, context.DeadlineExceeded)
 }
 
 // driveFailure is what the operator is told when a control change fails:

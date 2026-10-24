@@ -44,7 +44,6 @@ func TestRenderStatusAttentionDoesNotRestyleFocusedActor(t *testing.T) {
 func TestRenderStatusRowFitsTheWidth(t *testing.T) {
 	m := StatusModel{
 		Actors: []StatusActor{{Label: "one", Active: true}, {Label: "two"}, {Label: "three"}},
-		Notice: "a notice long enough to need cutting off somewhere sensible",
 	}
 	for _, w := range []int{10, 20, 40, 80} {
 		got := RenderStatusRow(w, m).Body
@@ -54,13 +53,12 @@ func TestRenderStatusRowFitsTheWidth(t *testing.T) {
 	}
 }
 
-// Labels and notices carry AGENT-PUBLISHED text (couchcore.Describe reads a
+// Labels carry AGENT-PUBLISHED text (couchcore.Describe reads a
 // sidecar the session writes). A description containing \x1b[2J would clear the
 // operator's screen from the status row.
 func TestRenderStatusRowStripsControlBytesFromUntrustedText(t *testing.T) {
 	got := RenderStatusRow(80, StatusModel{
 		Actors: []StatusActor{{Label: "ev\x1b[2Jil", Active: true}},
-		Notice: "also \x07 bad \x1b[31m",
 	}).Body
 	for _, bad := range []string{"\x1b", "\x07"} {
 		if strings.Contains(got, bad) {
@@ -73,8 +71,8 @@ func TestRenderStatusRowStripsControlBytesFromUntrustedText(t *testing.T) {
 }
 
 func TestRenderStatusRowWithNoActors(t *testing.T) {
-	got := RenderStatusRow(40, StatusModel{Notice: "nothing running"}).Body
-	if !strings.Contains(got, "nothing running") {
-		t.Fatalf("the notice was dropped: %q", got)
+	got := RenderStatusRow(40, StatusModel{}).Body
+	if got != "" {
+		t.Fatalf("empty model rendered trailing text: %q", got)
 	}
 }

@@ -19,6 +19,7 @@ import (
 	"testing"
 
 	"github.com/xianxu/ariadne/pkg/golint"
+	"github.com/xianxu/pair/internal/jsonstrict"
 	"github.com/xianxu/pair/internal/reporoot"
 )
 
@@ -59,7 +60,7 @@ func sleepSites(filename string, source []byte) ([]sleepAt, error) {
 	var nodes []ast.Node
 	for _, rule := range golint.Catalog {
 		if rule.Name == sleepRule {
-			nodes = rule.Match(file)
+			nodes = rule.Match(file, &golint.CheckContext{Path: filename, Package: path.Dir(filename), PackageName: file.Name.Name})
 		}
 	}
 	owners := map[ast.Node]string{}
@@ -159,47 +160,7 @@ func decodeDebt(data []byte) (Debt, error) {
 // Encoding/json deliberately accepts repeated keys; debt is an authority, so
 // repeated fields must refuse rather than let the last spelling win.
 func uniqueJSONKeys(data []byte) error {
-	decoder := json.NewDecoder(bytes.NewReader(data))
-	var value func() error
-	value = func() error {
-		token, err := decoder.Token()
-		if err != nil {
-			return err
-		}
-		delimiter, ok := token.(json.Delim)
-		if !ok {
-			return nil
-		}
-		switch delimiter {
-		case '{':
-			seen := map[string]bool{}
-			for decoder.More() {
-				key, err := decoder.Token()
-				if err != nil {
-					return err
-				}
-				name, ok := key.(string)
-				if !ok || seen[name] {
-					return fmt.Errorf("duplicate or invalid JSON field %v", key)
-				}
-				seen[name] = true
-				if err := value(); err != nil {
-					return err
-				}
-			}
-		case '[':
-			for decoder.More() {
-				if err := value(); err != nil {
-					return err
-				}
-			}
-		default:
-			return fmt.Errorf("invalid JSON delimiter %q", delimiter)
-		}
-		_, err = decoder.Token()
-		return err
-	}
-	return value()
+	return jsonstrict.Scan(data, jsonstrict.Options{})
 }
 
 func checkDebt(findings []locatedFinding, sites []sleepAt, debt Debt) ([]locatedFinding, error) {

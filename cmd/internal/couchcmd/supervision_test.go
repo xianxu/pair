@@ -411,9 +411,6 @@ func TestSupervisionIntegrationStartupQueuedOnceWithoutOwedRow(t *testing.T) {
 // The existing inbox becomes the extra hub; main is a separate connected slot.
 func multiHubWaitRig(t *testing.T) (*waitRig, couchmessage.Binding) {
 	t.Helper()
-	w := newWaitRig(t, true, false, claudePermissionTail)
-	main := w.world.add(3)
-	w.v2wrapper(main, "h3", false)
 	claims, err := couchcore.ParseHubClaims([]byte("repo:2\n"))
 	if err != nil {
 		t.Fatal(err)
@@ -425,8 +422,12 @@ func multiHubWaitRig(t *testing.T) (*waitRig, couchmessage.Binding) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	w.s.authority.hub = "/repo3"
-	w.s.authority.hubs = &hubRuntime{state: state}
+	w := newWaitRig(t, true, false, claudePermissionTail, func(a messageAuthority) messageAuthority {
+		a.hub, a.hubs = "/repo3", &hubRuntime{state: state}
+		return a
+	})
+	main := w.world.add(3)
+	w.v2wrapper(main, "h3", false)
 	for b, n := range map[couchmessage.Binding]int{w.hub: 1, w.worker: 2, main: 3} {
 		number := n
 		w.world.set(b, func(s *worldSlot) {
@@ -443,6 +444,21 @@ func multiHubWaitRig(t *testing.T) (*waitRig, couchmessage.Binding) {
 		w.s.mu.Unlock()
 	}
 	return w, main
+}
+
+func TestMultiHubWaitRigSeedsOwnershipBeforeServiceStart(t *testing.T) {
+	w, _ := multiHubWaitRig(t)
+	for _, phase := range []string{"initial", "restart"} {
+		if phase == "restart" {
+			w.restart(nil)
+		}
+		for _, root := range []string{"/repo3", "/repo1"} {
+			status, err := w.s.controlAutomation(root, "status")
+			if err != nil || !status.Enabled {
+				t.Fatalf("%s: configured hub %s lacks startup automation: %+v %v", phase, root, status, err)
+			}
+		}
+	}
 }
 
 func TestHubSupervisionWaitUsesOwnHub(t *testing.T) {

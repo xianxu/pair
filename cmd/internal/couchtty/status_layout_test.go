@@ -21,7 +21,7 @@ func TestStatusBarWrapsWholeGroupsBeforeHidingActors(t *testing.T) {
 }
 
 func TestStatusBarWideRowsRetainExactLegacyBytesAndSpans(t *testing.T) {
-	m := StatusModel{Broadcast: BroadcastLive, Pointer: PointerOn, Webcast: WebcastLive, Attention: 2, Notice: "ready", Actors: hubModel()}
+	m := StatusModel{Broadcast: BroadcastLive, Pointer: PointerOn, Webcast: WebcastLive, Attention: 2, Actors: hubModel()}
 	m.Actors[2].Active = true
 	m.Actors[3].Glyph = "*"
 	m.Actors[4].Blocked = true
@@ -183,7 +183,7 @@ func FuzzStatusBarBoundsAndActive(f *testing.F) {
 		if len(actors) > 0 {
 			actors[len(actors)-1].Active = true
 		}
-		b := RenderStatusBar(width, maxRows, StatusModel{Actors: actors, Broadcast: BroadcastCell(rows % 3), Attention: int(w % 6), Notice: "ready 猫"})
+		b := RenderStatusBar(width, maxRows, StatusModel{Actors: actors, Broadcast: BroadcastCell(rows % 3), Attention: int(w % 6)})
 		if b.Height() > maxRows {
 			t.Fatalf("height %d > %d", b.Height(), maxRows)
 		}
@@ -207,20 +207,20 @@ func FuzzStatusBarBoundsAndActive(f *testing.F) {
 	})
 }
 
-func TestStatusBarOverflowCountStaysAfterTransientNotice(t *testing.T) {
+func TestStatusBarOverflowCountStaysAtEnd(t *testing.T) {
 	actors := make([]StatusActor, 30)
 	for i := range actors {
 		actors[i] = hubActor("repo"+strconv.Itoa(i), strconv.Itoa(i), 0)
 	}
 	for width := 10; width < 60; width++ {
-		b := RenderStatusBar(width, 2, StatusModel{Actors: actors, Notice: "transient"})
+		b := RenderStatusBar(width, 2, StatusModel{Actors: actors})
 		plain := rowPlain(b.Rows[len(b.Rows)-1])
 		at := strings.LastIndex(plain, "+")
 		if at < 0 {
 			t.Fatalf("no count: %q", b.Body())
 		}
 		if _, err := strconv.Atoi(plain[at+1:]); err != nil {
-			t.Fatalf("notice followed overflow count: %q", b.Body())
+			t.Fatalf("text followed overflow count: %q", b.Body())
 		}
 	}
 }

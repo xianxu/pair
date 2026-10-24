@@ -316,9 +316,11 @@ func TestRecorderClickBeforeNavigation(t *testing.T) {
 // fresh snapshot: the recording still ends as the page is.
 func TestRecorderOverflowResyncs(t *testing.T) {
 	h := &harness{t: t, fc: newFakeChrome(), out: &memOut{}}
+	reports := &recorderReports{}
 	gate := make(chan struct{})
 	slow := &gatedCaller{fakeChrome: h.fc, gate: gate}
 	h.r = Start(Options{ID: "t", Call: slow, ShotEvery: -1, MaxQueue: 5,
+		Logf: reports.logf, Warnf: reports.warnf,
 		Out: func() (Opened, error) { return Opened{Sink: &h.out.sink}, nil }})
 	t.Cleanup(func() { h.r.Close() })
 	p := h.page("A", "http://a/", "L1")
@@ -352,6 +354,13 @@ func TestRecorderOverflowResyncs(t *testing.T) {
 	}
 	if err := sameTree(p.doc, s.Top, "doc"); err != nil {
 		t.Fatalf("after resync: %v\n%s", err, h.kinds())
+	}
+	if err := h.r.Close(); err == nil {
+		t.Fatal("legacy close lost its resynced overflow report")
+	}
+	logs, warnings := reports.snapshot()
+	if len(logs) != 1 || len(warnings) != 0 {
+		t.Fatalf("recovered overflow logs = %v, warnings = %v", logs, warnings)
 	}
 }
 

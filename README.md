@@ -578,6 +578,7 @@ couch --session-sync operator-release FILE --id ID --turn TOKEN --json
                          contract: atlas/couch-agentic-documents.md (agents still hold no lock)
 couch --recover-plan-from-sdlc   per-slot recovery report (JSON), see below
 couch --resume repo:N [--json]   from a live slot: Continue if listed live, otherwise resume an established native binding
+couch --wake [--json]            from the live main hub: resume every other hub a full quit put to sleep (asleep workers wait for their hub)
 couch --resume-candidates repo:N [--json]
                          preview explicit choices: screen-tail evidence or unconfirmed native ID, cwd and activity; no automatic selection
 couch --resume repo:N --candidate KEY [--json]
@@ -1257,10 +1258,12 @@ does this, and it never resumes a parked thread.
 Resume does not allocate a temporary actor first or add a full native inventory
 scan. While a Pair pane is displayed, Alt+d reaches Pair, which detaches only
 its Zellij client; Couch's own detach is the switcher's Alt+d (#245).
-Messages on the reserved status row retire themselves: a momentary refusal
-("previous: nowhere to return to") goes after about twelve seconds, while an
-actor's exit stands until something replaces it -- one answers the keystroke you
-just pressed, the other explains why a pane disappeared.
+General messages no longer trail the tab bar, in either collapse or multiline
+mode. Open the switcher to see the latest retained message. Operation notices
+and clipboard feedback keep their own precedence there; a new feed message does
+not replace an operation error or progress notice. Actionable asynchronous
+warnings also appear in the attention list; routine progress, success and key
+feedback stay in the switcher.
 
 The first thread for a repository uses its primary checkout (`:0`). Starting
 another fills the lowest free number (`:1`, `:2`, …), under
@@ -1527,13 +1530,14 @@ history in place. With an empty list it stays put and says nothing is waiting.
 It no longer jumps to the newest page or accepts a switcher row. Ordinary
 `Enter` still selects a switcher row or the selected attention item.
 
-The **notification list (bell)** (pair#673) shows what is waiting on you, newest first. It holds three kinds of item: the hub's `couch --notify` messages,
+The **notification list (bell)** (pair#673) shows what is waiting on you, newest first. It holds the hub's `couch --notify` messages, actionable asynchronous Couch warnings,
 slots blocked on a permission prompt or picker, and slots whose turn ended with
 a question to you. While the list has items, the right end of the status row
 shows `🔔N`, red if a slot is blocked on a prompt; click it to open the list too.
 The list opens at the top right. `Up`/`Down` (or `k`/`j`) move, `Enter` or a
-click jumps to the item's slot and removes the item, `d` dismisses, and
-`Escape` closes. Choose **Clear all** or press `c` to empty the list. Opening,
+click jumps to the item's attached thread and removes the item. A global Couch
+warning or an item whose thread is no longer attached opens the switcher
+instead. `d` dismisses, and `Escape` closes. Choose **Clear all** or press `c` to empty the list. Opening,
 dismissing or clearing a prompt/question hides that occurrence until the slot
 stops waiting; a fresh occurrence shows again. Notification messages expire
 after 12 hours; an unresolved live prompt/question never expires. The list is
@@ -1573,9 +1577,9 @@ it asks the running Couch to share the recording and prints its replay link
 alone on stdout (any note goes to stderr), and with no Couch it refuses.
 `couch --broadcast-web-query` alone prints its usage. See [atlas/webcast-format.md](atlas/webcast-format.md#agent-queries-462).
 
-🤖{Sketch evidence uses the same operator submission chord, Shift+Ctrl+Alt+Return: the console shows Pending feedback with sketch and annotation counts, indexed shape thumbnails and notes before submission. The press submits the board's open notes and finished sketches as they are, offscreen ones included, with up to eight sketches; the rest wait for the next submission. What the page is doing never refuses it; only a note still being written does. One full-viewport replay image reconstructs, from the recording, where the newest chosen sketch finished, with matching number badges; original page URLs, literal element IDs and pressure paths stay unchanged. Saved note crops retain their original draw-time pixels. The sketch_page provenance is replay-rendered; pointer gestures and private tool UI are excluded. The Pending feedback panel is information, never a gate. Legacy shared and per-sketch bundles remain readable. Confirmed delivery removes only the submitted sketch versions and note revisions from the live display; unsent or newer feedback stays. Original ink and notes remain in recording history and replay. Local tools can inspect `couch --broadcast-web-query DIR sketches [--sketch ID] [--at MS] [--json]` or export a private image and metadata with `couch --broadcast-web-query DIR sketch-image --sketch ID --out NEW_DIR [--at MS]`. These tools never dispatch to an agent. See [sketch evidence and retry behavior](atlas/webcast-submission.md).}
+🤖{Sketch evidence uses the same operator submission chord, Shift+Ctrl+Alt+Return: the Notes panel header shows informational pending sketch and annotation counts; rows use small type icons and text, without thumbnails. The press submits the board's open notes and finished sketches as they are, offscreen ones included, with up to eight sketches; the rest wait for the next submission. What the page is doing never refuses it; only a note still being written does. One full-viewport replay image reconstructs, from the recording, where the newest chosen sketch finished, with matching number badges; original page URLs, literal element IDs and pressure paths stay unchanged. Saved note crops retain their original draw-time pixels. The sketch_page provenance is replay-rendered; pointer gestures and private tool UI are excluded. The pending status in the Notes header is information, never a gate. Legacy shared and per-sketch bundles remain readable. Confirmed delivery removes only the submitted sketch versions and note revisions from the live display; unsent or newer feedback stays. Original ink and notes remain in recording history and replay. Local tools can inspect `couch --broadcast-web-query DIR sketches [--sketch ID] [--at MS] [--json]` or export a private image and metadata with `couch --broadcast-web-query DIR sketch-image --sketch ID --out NEW_DIR [--at MS]`. These tools never dispatch to an agent. See [sketch evidence and retry behavior](atlas/webcast-submission.md).}
 
-🤖{Cast open notes appear in a yellow, scrolling panel. Minimize it to Notes (N), drag that button or the panel header, or move the focused handle with arrow keys (Shift for larger steps). Both forms share their position until reload. Sketch notes (N) opens a scrolling list of on-view sketches, with one identified Add note row for an unfinished label or View note row for a final, read-only label. Overlapping drawings remain individually selectable. Moving or minimizing these controls leaves anchored feedback and the Pending feedback selection unchanged.}
+🤖{Cast annotations and sketches share one yellow Notes panel. Minimize it to Notes (N), drag the button or panel header, or move the focused handle with arrow keys (Shift for larger steps). Both forms share their position until reload. Rows use small annotation/sketch icons, not thumbnails; Add note opens an unfinished sketch label, while View note reads a finished label. Hover or keyboard focus makes its confirmed page box or ink glow. Show on page scrolls to a confirmed original; when it cannot, it says so. Existing editors and pending status stay inside the panel. In cast Chrome, Live/Pause, Pointer, Pen with its colours, Note and useful Undo/Redo/Done share one protected tool column. Choose the sketch colour before starting Pen; it stays fixed for that sketch. Moving or minimizing the panel leaves saved feedback and submission selection unchanged.}
 
 `couch --broadcast-web-replay [ID|DIR] [--at MS]` plays recordings in the
 viewer: play, pause, speed, and a timeline that shows pauses as gaps, notes,
@@ -1885,12 +1889,14 @@ focus view explains how to tag a thread. The switcher remembers the last view us
 exits. Reopening clears search text but keeps the view. With text in the filter,
 Space is a literal search character; it does not toggle views.
 
-In the switcher, `Ctrl+Y` copies a selected operation diagnostic/error first,
-then the current capability diagnostic, then the full last retained status notice.
-Chrome shows at most 40 display cells of a status; copying includes clipped text,
-and retained feed notices remain copyable after expiry. Repeating the copy uses
-the current capability diagnostic while one is displayed, or the same feed notice
-until another arrives. A failed or unconfirmed attempt keeps its
+The switcher shows the latest retained feed message whenever no operation
+notice takes precedence. `Ctrl+Y` copies a selected operation diagnostic/error
+first, then the current capability diagnostic, then the full last retained feed
+notice, including clipped text and notices whose transient lifetime has expired.
+Chrome limits capability status text to 40 display cells; copying retains its
+full diagnostic. Repeating the copy uses the current capability diagnostic while
+one is displayed, or the same feed notice until another arrives. A failed or
+unconfirmed attempt keeps its
 original notice for **Ctrl+Y** retry even if a newer notice arrives; **Esc** dismisses
 the copy feedback without leaving the switcher. Navigation and background refreshes
 keep that feedback and ordinary operation errors independently visible.
@@ -1929,6 +1935,10 @@ another agent. Warm attachment does not establish a native binding: cold
 conversation resume still requires one. Open a thread's actions to **park**,
 **detach**, or **relaunch** it through Couch. In the switcher, `Alt+d` detaches
 all live threads and returns to the shell; `Alt+x` parks them after confirmation.
+The slots that full quit parks read **Asleep** in the switcher, unlike a slot you
+parked on its own. After the next start, resume the main hub from the switcher;
+from it, `couch --wake` resumes every other asleep hub. Each hub then wakes its
+own asleep workers, so plain parked slots stay parked.
 Those two chords are not intercepted while a Pair pane is displayed. They
 reach the agent or invoke the draft/right pane's existing Pair actions. Use the
 switcher for Couch's durable retirement.

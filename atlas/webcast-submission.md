@@ -38,12 +38,12 @@ which ("note \"…\" has unsaved edits; save or cancel it, then submit again").
 Resolving after dispatch uses each note's captured revision, so a note edited
 after the press stays open.
 
-The private operator Chrome UI shows **Pending feedback**, with the sketch and
-annotation counts of what is painted on the console, indexed pressure-ink
-thumbnails and attached sketch notes. It is information, never a gate: a
-preview that cannot refresh marks it **Pending feedback is out of date: …** in
-place of its old counts, and the press submits regardless. Annotation crop
-cards in this mixed panel are the separate #805 follow-up.
+The private operator Chrome UI uses one **Notes** panel for annotations and
+sketches, with compact type icons and no thumbnails. Its fixed header carries
+informational pending counts and **Pending feedback is out of date: …** status.
+`createOperatorSubmissionPreview` retains publication/cursor validation and
+acknowledgments but creates no separate preview panel or images. The press still
+uses the Board snapshot and the unsaved-note guard, independently of this status.
 
 A caret or text selection changes nothing the console shows: the recorder sends
 a selection only when it differs from the last one, and the board pushes the
@@ -149,14 +149,16 @@ Live pins follow a connected anchor or a confident unique replacement on the sam
 route, projecting the original region onto its new box. Removed, hidden, clipped,
 offscreen, conflicting or ambiguous anchors show no box. The shared list retains
 all open notes, including notes on earlier documents, labelled **not on this view**
-when placement is unavailable. Its yellow floating panel can be minimized to
-Notes (N), moved by its header/button or arrow keys, and restored at that same
-session-local position. The list scrolls inside its fixed height. Presentation
-changes do not hide anchored feedback or resolve selected revisions. One Sketch notes (N) button opens a bounded scrolling list of all eligible
-on-view sketches, each with an identified Add note or View note row. Add note
-uses the existing unfinished-label flow; View note inspects a completed label
-read-only. Overlapping sketches remain individually selectable. Pending feedback remains the separate exact
-submission preview; its acknowledgment and stale-selection checks are unchanged.
+when placement is unavailable. The single yellow Notes panel also lists accepted
+sketches, including offscreen or unavailable anchors. It minimizes to Notes (N),
+moves by header/button or arrow keys,
+and keeps its shared session-local anchor. Existing editors appear inside its
+scrolling body; final sketch labels remain read-only. Hover/focus glows the
+corresponding confirmed geometry. Show on page uses only a validated original
+and reports unavailable rather than guessing. These actions do not hide anchored
+feedback or resolve submitted revisions. Pending counts/stale status live in the
+same header and do not gate submission. Minimized Notes marks status, with the
+full text in its tooltip and accessible name; opening an editor restores the panel.
 Weak/common text cannot select a replacement;
 truncated searches cannot claim uniqueness. Operator originals arrive as actual DOM
 objects through a bounded, document-scoped recorder/CDP bridge; weak references

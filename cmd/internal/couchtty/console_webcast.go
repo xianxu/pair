@@ -51,13 +51,16 @@ var webcastShutdownWait = 6 * time.Second
 // SetWebcast enables the cast Chrome with this configuration. Without it the
 // key only explains why nothing happens.
 func (c *Console) SetWebcast(cfg webcast.CastConfig) {
-	// The recorder's problems (#458: a recording that can't be written, or
-	// that lost something) are the operator's to see while it runs. Posted
-	// asynchronously: Chrome's loop reports its recorder's end, and must
-	// never wait on the console.
+	// Generic recording reports include healthy checks and recovered resyncs.
+	// Only explicitly actionable sources raise attention. Both callbacks post
+	// asynchronously so Chrome never waits on the console.
 	cfg.Logf = func(format string, args ...any) {
 		msg := "Chrome cast: " + fmt.Sprintf(format, args...)
 		c.GoTracked(func() { c.setNotice(msg) })
+	}
+	cfg.Warnf = func(format string, args ...any) {
+		msg := "Chrome cast: " + fmt.Sprintf(format, args...)
+		c.GoTracked(func() { c.setWarning(msg) })
 	}
 	c.webcastCfg = &cfg
 }
@@ -134,7 +137,7 @@ func (c *Console) webcastStarted(attempt uint64, cast *webcast.Cast, err error, 
 		c.wcast = webcastState{attempt: attempt}
 		c.mu.Unlock()
 		if err != nil {
-			c.setNotice("Chrome failed to start: " + err.Error())
+			c.setWarning("Chrome failed to start: " + err.Error())
 		}
 		return
 	}
@@ -221,7 +224,7 @@ func (c *Console) webcastUpdated(cast *webcast.Cast, u webcast.Update) {
 	c.wcast.update = u
 	c.mu.Unlock()
 	if u.State.Recovery != "" && u.State.Recovery != oldRecovery {
-		c.setNotice(u.State.Recovery)
+		c.setWarning(u.State.Recovery)
 	}
 	c.repaint()
 }
@@ -262,7 +265,7 @@ func (c *Console) webcastEnded(cast *webcast.Cast) {
 	case errors.Is(err, webcast.ErrClosedByOperator):
 		c.setNotice("Chrome closed — cast ended.")
 	default:
-		c.setNotice("Chrome cast ended: " + err.Error())
+		c.setWarning("Chrome cast ended: " + err.Error())
 	}
 }
 

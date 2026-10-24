@@ -436,6 +436,32 @@ func (f *Fleet) RestartSupervisor(ctx context.Context) error {
 	return f.Start(ctx)
 }
 
+// QuitConsole ends the supervisor's console process after a full quit, so a
+// later StartCold begins a fresh one.
+func (f *Fleet) QuitConsole(ctx context.Context) error {
+	ctx, done, err := f.begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer done()
+	f.mu.Lock()
+	p := f.console
+	f.mu.Unlock()
+	if p != nil {
+		select {
+		case <-p.done:
+		default:
+			if err := p.Close(ctx); err != nil {
+				return err
+			}
+		}
+	}
+	f.mu.Lock()
+	f.console = nil
+	f.mu.Unlock()
+	return nil
+}
+
 func (f *Fleet) Close(ctx context.Context) (result error) {
 	// Evidence publication failure never revokes in-memory cleanup authority.
 	// Finish actual cleanup, then surface the bounded first failure to the caller.

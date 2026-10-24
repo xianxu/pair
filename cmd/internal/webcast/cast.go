@@ -58,6 +58,8 @@ type CastConfig struct {
 	// Logf reports a recording's problems to the operator: one that can't
 	// be opened or written, a resync, and at its end what it lost.
 	Logf func(format string, args ...any)
+	// Warnf reports actionable failures; nil falls back to Logf for legacy clients.
+	Warnf func(format string, args ...any)
 	// Host is the endpoint shared with the screen broadcast.
 	Host *broadcast.Host
 	// Ping is the viewers' keepalive; zero is broadcast.DefaultPing.
@@ -134,6 +136,7 @@ type Cast struct {
 	recDir           string
 	check            func(context.Context, string) (string, error)
 	logf             func(string, ...any)
+	warnf            func(string, ...any)
 	// server and token: for tests. pointerToken is the pointer link's
 	// (pair#506), "" when the cast takes no notes; driveToken is the drive
 	// link's (#467), "" when the cast can't be driven.
@@ -152,6 +155,9 @@ type Cast struct {
 // StartCast launches the browser and returns once it runs; the cast's links
 // open in the background, so the operator has Chrome at once.
 func StartCast(ctx context.Context, cfg CastConfig) (*Cast, error) {
+	if cfg.Warnf == nil {
+		cfg.Warnf = cfg.Logf
+	}
 	// The links' locks (pair#495), each minted with its token before the
 	// token is routable; they end after the mount.
 	locks := &broadcast.LinkLocks{}
@@ -193,7 +199,7 @@ func StartCast(ctx context.Context, cfg CastConfig) (*Cast, error) {
 			}
 			return ErrNotRecording
 		})
-		bd.Logf = cfg.Logf
+		bd.Logf = cfg.Warnf
 		sketches = bd.NewSketchService(func(ctx context.Context, in board.SketchWrite) (board.SketchWriteResult, error) {
 			browser, err := browserForDraft(ctx)
 			if err != nil {
@@ -248,7 +254,7 @@ func StartCast(ctx context.Context, cfg CastConfig) (*Cast, error) {
 				return ctrl.DrawingAuthority()
 			}
 			return drive.DrawingAuthority{}
-		}, SketchAsset: sketchAssetReader(recDir), NoteDrafts: drafts, ID: id, Logf: cfg.Logf, Out: func() (recorder.Opened, error) {
+		}, SketchAsset: sketchAssetReader(recDir), NoteDrafts: drafts, ID: id, Logf: cfg.Logf, Warnf: cfg.Warnf, Out: func() (recorder.Opened, error) {
 			opened, err := out()
 			if err == nil {
 				opened.Sink = &draftEvidenceSink{sink: opened.Sink, notes: drafts, ids: map[string]bool{}, logf: cfg.Logf}
@@ -297,7 +303,7 @@ func StartCast(ctx context.Context, cfg CastConfig) (*Cast, error) {
 	}
 	mountCtx, cancel := context.WithCancel(context.Background())
 	c := &Cast{browser: b, pub: newPublisher(Update{State: b.State()}), cancel: cancel, done: make(chan struct{}), liveSink: liveSink,
-		board: bd, sketches: sketches, noteDrafts: drafts, sketchPages: cfg.SketchPages, readOriginPolicy: cfg.ReadOriginPolicy, recDir: recDir, check: cfg.Check, logf: cfg.Logf}
+		board: bd, sketches: sketches, noteDrafts: drafts, sketchPages: cfg.SketchPages, readOriginPolicy: cfg.ReadOriginPolicy, recDir: recDir, check: cfg.Check, logf: cfg.Logf, warnf: cfg.Warnf}
 	if d, ok := b.(Driven); ok && ro != nil {
 		grace := cfg.DriveGrace
 		if grace <= 0 {
@@ -325,8 +331,8 @@ func StartCast(ctx context.Context, cfg CastConfig) (*Cast, error) {
 			c.drive.Close()
 			c.drive = nil
 			c.driveOff = "couldn't make the drive link: " + err.Error()
-			if cfg.Logf != nil {
-				cfg.Logf("remote driving is off: %s", c.driveOff)
+			if cfg.Warnf != nil {
+				cfg.Warnf("remote driving is off: %s", c.driveOff)
 			}
 		}
 	} else {
@@ -335,7 +341,7 @@ func StartCast(ctx context.Context, cfg CastConfig) (*Cast, error) {
 	if c.drive != nil {
 		drawingController.Store(c.drive)
 	}
-	srv := NewServer(token, b, cfg.Ping, live, cfg.Presence).WithBoard(bd).WithNoteDrafts(drafts, func(r *http.Request) string { return broadcast.NoteOwnerFromContext(r.Context()) }).WithPointer(pointerToken).WithDrive(c.drive, driveToken).WithDriveLog(cfg.Logf).WithLocks(locks)
+	srv := NewServer(token, b, cfg.Ping, live, cfg.Presence).WithBoard(bd).WithNoteDrafts(drafts, func(r *http.Request) string { return broadcast.NoteOwnerFromContext(r.Context()) }).WithPointer(pointerToken).WithDrive(c.drive, driveToken).WithDriveLog(cfg.Logf, cfg.Warnf).WithLocks(locks)
 	srv.sketches = sketches
 	srv.sketchAsset = sketchAssetReader(recDir)
 	srv.proxy = proxy
@@ -515,11 +521,15 @@ func (c *Cast) checkRecording() {
 	if logf == nil {
 		logf = func(string, ...any) {}
 	}
+	warnf := c.warnf
+	if warnf == nil {
+		warnf = logf
+	}
 	go func() {
 		summary, err := c.check(context.Background(), c.recDir)
 		switch {
 		case err != nil:
-			logf("fidelity check: %v", err)
+			warnf("fidelity check: %v", err)
 		case summary != "":
 			logf("%s", summary)
 		}

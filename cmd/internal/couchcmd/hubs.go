@@ -112,7 +112,7 @@ func startExplicitHubs(console *couchtty.Console, hubs *hubRuntime, startup couc
 		enqueue = newLifecycleRemoteQueue(console, couches[0]).Queue
 	}
 	queueExplicitHubs(hubs.snapshot().Hubs()[1:], enqueue, func(root string, err error) {
-		console.Notify(couchtty.Notice{Kind: "status", Body: fmt.Sprintf("hub failed; open it in the switcher to retry: %s: %v", root, err)})
+		console.Warn(couchtty.Notice{Kind: "status", Body: fmt.Sprintf("hub failed; open it in the switcher to retry: %s: %v", root, err)})
 	}, startup)
 }
 

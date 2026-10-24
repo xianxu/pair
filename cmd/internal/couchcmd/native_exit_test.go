@@ -35,14 +35,20 @@ type exitRig struct {
 	exits    []couchmessage.NativeExit
 }
 
-func newExitRig(t *testing.T) (*exitRig, couchmessage.Binding) {
-	r, bindings := hubMessageRig(t)
-	e := &exitRig{serviceRig: r, ordinal: 1, identity: "100:child-one"}
-	r.s.authority.child = func(context.Context, couchmessage.Binding) (uint64, string, error) {
-		e.mu.Lock()
-		defer e.mu.Unlock()
-		return e.ordinal, e.identity, nil
-	}
+func newExitRig(t *testing.T, decorate ...func(messageAuthority) messageAuthority) (*exitRig, couchmessage.Binding) {
+	e := &exitRig{ordinal: 1, identity: "100:child-one"}
+	r, bindings := hubMessageRig(t, func(a messageAuthority) messageAuthority {
+		a.child = func(context.Context, couchmessage.Binding) (uint64, string, error) {
+			e.mu.Lock()
+			defer e.mu.Unlock()
+			return e.ordinal, e.identity, nil
+		}
+		if len(decorate) > 0 {
+			a = decorate[0](a)
+		}
+		return a
+	})
+	e.serviceRig = r
 	exited := func(_ couchmessage.Binding, _ couchcore.WorkspaceIdentity, report couchmessage.NativeExit) {
 		e.mu.Lock()
 		e.exits = append(e.exits, report)
@@ -143,8 +149,10 @@ func TestNativeExitNotInferredFromAttachment(t *testing.T) {
 
 // A Couch without the recorded-child seam refuses rather than guessing.
 func TestNativeExitWithoutChildEvidenceIsUnsupported(t *testing.T) {
-	e, worker := newExitRig(t)
-	e.s.authority.child = nil
+	e, worker := newExitRig(t, func(a messageAuthority) messageAuthority {
+		a.child = nil
+		return a
+	})
 	if got := e.call(t, nativeExitRequest(worker, 1, "100:child-one", 0)); got.Code != "unsupported" || e.count() != 0 {
 		t.Fatalf("no evidence seam: %+v, %d facts", got, e.count())
 	}
@@ -155,7 +163,10 @@ func TestNativeExitWithoutChildEvidenceIsUnsupported(t *testing.T) {
 // through the production wiring (handler, Console sequence, publisher).
 func TestNativeExitReachesTheHubAsOneLifecycleNotice(t *testing.T) {
 	ep := newControlledEndpoint()
-	r, publisher, _ := lifecyclePublisherRig(t, ep)
+	r, publisher, _ := lifecyclePublisherRigWithAuthority(t, ep, func(a messageAuthority) messageAuthority {
+		a.child = func(context.Context, couchmessage.Binding) (uint64, string, error) { return 5, "500:child", nil }
+		return a
+	})
 	worker := r.world.add(2)
 	r.attach(worker, "worker")
 	r.wrapper(worker)
@@ -164,7 +175,6 @@ func TestNativeExitReachesTheHubAsOneLifecycleNotice(t *testing.T) {
 	t.Cleanup(func() { console.Stop(); console.Run() })
 	console.SetLifecycleObserver(publisher.observe)
 	wireNativeExitNotices(r.s, console)
-	r.s.authority.child = func(context.Context, couchmessage.Binding) (uint64, string, error) { return 5, "500:child", nil }
 
 	var response couchmessage.Response
 	if err := couchmessage.Call(context.Background(), r.brokerSock, nativeExitRequest(worker, 5, "500:child", 3), &response); err != nil || response.Code != "ok" {

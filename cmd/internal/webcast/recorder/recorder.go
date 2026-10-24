@@ -89,6 +89,8 @@ type Options struct {
 	MaxQueue int
 	Now      func() time.Time
 	Logf     func(format string, args ...any)
+	// Warnf reports actionable failures. Nil preserves legacy Logf reporting.
+	Warnf func(format string, args ...any)
 	// Dialog, when set, is a channel closed while the cast tab shows a
 	// JavaScript dialog (#467): input and the page's script are stopped
 	// until the operator answers it, so a driver's dispatch gives up.
@@ -267,6 +269,9 @@ func Start(opts Options) *Recorder {
 	}
 	if opts.Logf == nil {
 		opts.Logf = func(string, ...any) {}
+	}
+	if opts.Warnf == nil {
+		opts.Warnf = opts.Logf
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	r := &Recorder{
@@ -515,7 +520,10 @@ func (r *Recorder) run() {
 	// Results that came back after the end are dropped: the recording is
 	// closed.
 	if r.sink != nil {
-		r.err = errors.Join(r.err, r.sink.Close())
+		if err := r.sink.Close(); err != nil {
+			r.err = errors.Join(r.err, err)
+			r.opts.Warnf("recorder: close: %v", err)
+		}
 	}
 	final := r.stats()
 	r.final = &final
@@ -695,7 +703,7 @@ func (r *Recorder) write() error {
 			failure = errors.Join(failure, err)
 			if r.err == nil {
 				r.err = err
-				r.opts.Logf("recorder: write: %v", err)
+				r.opts.Warnf("recorder: write: %v", err)
 			}
 		}
 	}
@@ -733,7 +741,7 @@ func (r *Recorder) goLive(at time.Time, l Live) {
 		o, err := r.opts.Out()
 		if err != nil {
 			r.err = err
-			r.opts.Logf("recorder: open: %v", err)
+			r.opts.Warnf("recorder: open: %v", err)
 			return
 		}
 		r.sink, r.frames, r.assets, r.t0, r.opened = o.Sink, o.Frames, o.Assets, at, true
@@ -777,7 +785,7 @@ func (r *Recorder) goLive(at time.Time, l Live) {
 func (r *Recorder) snapshotTop(at time.Time, why string) {
 	root, key, err := r.document(r.top)
 	if err != nil {
-		r.opts.Logf("recorder: no snapshot of the cast tab (%v); the cast is not recorded until it goes live again", err)
+		r.opts.Warnf("recorder: no snapshot of the cast tab (%v); the cast is not recorded until it goes live again", err)
 		r.live = false
 		if r.m.st.Live {
 			// A tab switch whose new tab can't be read: the previous
@@ -793,7 +801,7 @@ func (r *Recorder) snapshotTop(at time.Time, why string) {
 	r.tab.URL = root.DocumentURL
 	seg := &rec.Seg{Seg: r.seg, Why: why, Tab: r.tab, VP: r.viewport()}
 	if err := r.m.Seg(r.t(at), seg, r.top, root, key); err != nil {
-		r.opts.Logf("%v", err)
+		r.opts.Warnf("%v", err)
 	}
 	r.segT = r.m.st.T
 }
@@ -843,7 +851,7 @@ func (r *Recorder) resnapshot(at time.Time, session string) bool {
 		r.tab.URL = root.DocumentURL
 		seg := &rec.Seg{Seg: r.seg, Why: rec.SegNavigate, Tab: r.tab, VP: r.viewport()}
 		if err := r.m.Seg(r.t(at), seg, session, root, key); err != nil {
-			r.opts.Logf("%v", err)
+			r.opts.Warnf("%v", err)
 		}
 		r.segT = r.m.st.T
 		r.observe(session, true)

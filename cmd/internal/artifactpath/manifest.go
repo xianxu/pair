@@ -1559,6 +1559,9 @@ var NonArtifactSources = []string{
 	// #827's bounded full quit drives existing park authorities; it constructs
 	// no artifact filenames.
 	"cmd/internal/couchcore/leave_park.go",
+	// #830's asleep mark is a record member; it constructs no artifact filenames.
+	"cmd/internal/couchcore/asleep.go",
+	"cmd/internal/couchcmd/wake.go",
 	// #651 routes existing thread/lifecycle authorities; it constructs no
 	// artifact filenames or new artifact family.
 	"cmd/internal/couchcore/park_recovery.go",
@@ -1783,6 +1786,7 @@ var NonArtifactSources = []string{
 	"cmd/internal/testcouch/terminal.go",
 	// pair#479 test wait helper: bounds a wait by the test deadline; names no file.
 	"cmd/internal/testwait/testwait.go",
+	"cmd/internal/testwait/deadline.go",
 	// Test failure diagnostics inspect host load, not session artifacts.
 	"cmd/internal/testwait/host.go",
 	"cmd/internal/ctxmeter/ctxmeter.go",
@@ -1943,6 +1947,7 @@ var NonArtifactSources = []string{
 	"cmd/internal/slugcmd/slug.go",
 	"cmd/internal/slugline/slugline.go",
 	"cmd/internal/strictjson/decode.go",
+	"internal/jsonstrict/scan.go",
 	"cmd/internal/strictjson/object.go",
 	"cmd/internal/lifetimelease/lease.go",
 	"cmd/internal/termcmd/rename.go",
@@ -1953,6 +1958,7 @@ var NonArtifactSources = []string{
 	"cmd/internal/threadrecord/lifecycle.go",
 	"cmd/internal/threadrecord/record.go",
 	"cmd/internal/threadrecord/transcript.go",
+	"cmd/internal/threadrecord/sleep.go",
 	"cmd/internal/threadrecord/previous_session.go",
 	"cmd/internal/titlepoller/owner.go",
 	"cmd/internal/titlepoller/legacy_os.go",

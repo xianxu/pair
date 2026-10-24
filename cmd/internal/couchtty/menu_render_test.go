@@ -135,12 +135,25 @@ func TestRenderMenuKeepsSelectedRowVisibleAndBounded(t *testing.T) {
 		}
 	}
 	state := NewMenuState(threads, couchcore.ThreadAddress{})
-	state.Frames[0].SelectedAddress = threads[99].Address
-	got := RenderMenu(state, 40, 10, time.Unix(200000, 0).UTC(), true)
-	if !strings.Contains(got, "thread-099") || !strings.Contains(got, "▸") {
-		t.Fatalf("selected row is outside viewport: %q", got)
+	for _, selected := range []int{0, 49, 99} {
+		state.Frames[0].SelectedAddress = threads[selected].Address
+		for _, feed := range []string{"", "latest feed", "untrusted\x1b[2J\n界" + strings.Repeat("long message ", 100)} {
+			state.LatestFeed = feed
+			for width := 40; width <= 120; width += 20 {
+				for height := 10; height <= 30; height += 10 {
+					got := RenderMenu(state, width, height, time.Unix(200000, 0).UTC(), true)
+					if !strings.Contains(got, fmt.Sprintf("thread-%03d", selected)) || !strings.Contains(got, "▸") {
+						t.Fatalf("selection %d outside %dx%d viewport with feed %q: %q", selected, width, height, feed, got)
+					}
+					if strings.Contains(got, "\x1b[2J") {
+						t.Fatal("feed injected terminal control")
+					}
+					assertRenderedBounds(t, got, width, height)
+				}
+			}
+		}
 	}
-	assertRenderedBounds(t, got, 40, 10)
+
 }
 
 func TestRenderMenuSingleSurfaceStaysInsideTerminalWithLongBreadcrumb(t *testing.T) {

@@ -153,6 +153,10 @@ type SwitchAgentResult struct {
 	Record  ActorRecord
 	Handle  Handle
 	Notice  string
+	// CleanupWarning is one completed switch's actionable cleanup fact. Notice
+	// also contains ordinary recovery feedback, so consumers must not infer
+	// severity from its wording. This field is never persisted.
+	CleanupWarning string `json:"-"`
 }
 
 func (r SwitchAgentResult) Started() (StartResult, bool) {
@@ -597,6 +601,7 @@ func (c *Couch) SwitchAgent(ctx context.Context, request SwitchAgentRequest) (_ 
 		thread = parked.Thread
 		if parked.CleanupError != nil {
 			result.Notice = parked.CleanupError.Error()
+			result.CleanupWarning = parked.CleanupError.Error()
 		}
 	}
 	// Clear whatever the last couch left behind, on the same terms resume and

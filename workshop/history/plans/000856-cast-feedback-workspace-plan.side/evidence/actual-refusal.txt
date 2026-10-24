@@ -1,0 +1,13 @@
+Captured close stderr (terminal ANSI styling removed); no actuals retry performed.
+
+Measured actual unavailable for issue close — recover the evidence below.
+
+  Semantic: focused dev-hours on this issue (#856) — not wall-clock.
+
+  [!] can't auto-compute (branch attribution for 062e2184-2117-4c26-b929-ceec3b5a8030 (/Users/xianxu/workspace/worktree/pair-slot4/pair): concurrent claims have unknown, resting or ambiguous active branch during 2026-10-23T21:35:40-07:00 → 2026-10-24T04:36:48Z; ; close recovery: --no-actual with the evidence in --verified).
+  → ask the TL/hub to restore the named measurement evidence, then re-run sdlc actual --issue 856.
+
+  Then re-run:
+    sdlc close --issue 856 --verified '<evidence>'
+
+  Pass --no-actual (or --force) only when measurement is not applicable; close records actual_hours: N/A and skips calibration.

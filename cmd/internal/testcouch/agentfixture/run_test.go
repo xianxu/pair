@@ -15,14 +15,13 @@ import (
 	"time"
 
 	"github.com/xianxu/pair/cmd/internal/sessioninventory"
+	"github.com/xianxu/pair/cmd/internal/testpair"
+	"github.com/xianxu/pair/cmd/internal/testwait"
 )
 
 func fixtureConfig(t *testing.T, agent string) Config {
 	t.Helper()
-	root, err := filepath.EvalSymlinks(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	root := testpair.ShortRoot(t)
 	for _, dir := range []string{"home", "codex", "actor", "repo"} {
 		if err := os.Mkdir(filepath.Join(root, dir), 0700); err != nil {
 			t.Fatal(err)
@@ -432,13 +431,46 @@ func TestRunCLIUsesPerRequestBudget(t *testing.T) {
 	if got := commandCLITimeout(Command{Timeout: 90 * time.Second}); got != 90*time.Second {
 		t.Fatalf("caller budget shortened: %v", got)
 	}
-	started := time.Now()
-	result := runCLI(context.Background(), "/bin/sh", Command{ID: "bounded", Kind: Exec, Timeout: 100 * time.Millisecond, Args: []string{"-c", "printf started; exec sleep 30"}})
-	if result.Error == "" {
-		t.Fatalf("request budget did not cancel child: %+v", result)
+	now := time.Unix(1700000000, 0)
+	if got := commandCLIDeadline(Command{Timeout: 90 * time.Second}, now); got != now.Add(90*time.Second) {
+		t.Fatalf("selected deadline=%v", got)
 	}
-	if elapsed := time.Since(started); elapsed > 2*time.Second {
-		t.Fatalf("budget cancellation did not join promptly: %v", elapsed)
+	absolute := now.Add(20 * time.Second)
+	if got := commandCLIDeadline(Command{Timeout: 90 * time.Second, DeadlineUnixNano: absolute.UnixNano()}, now); got != absolute {
+		t.Fatalf("admission deadline=%v", got)
+	}
+	marker := filepath.Join(t.TempDir(), "child-ready")
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	armed := make(chan func(), 1)
+	done := make(chan Result, 1)
+	command := Command{ID: "bounded", Kind: Exec, Timeout: 90 * time.Second, Args: []string{"-c", `printf ready > "$1"; exec sleep 30`, "fixture", marker}}
+	go func() {
+		done <- runCLIWithDeadline(ctx, "/bin/sh", command, func(parent context.Context, selected time.Time) (context.Context, context.CancelFunc) {
+			if selected.IsZero() {
+				t.Error("request deadline not selected")
+			}
+			child, expire, stop := testwait.DeadlineOnCue(parent, commandCLITimeout(command))
+			armed <- expire
+			return child, stop
+		})
+		close(done)
+	}()
+	t.Cleanup(func() { cancel(); <-done })
+	waitFixture(t, func() bool { _, err := os.Stat(marker); return err == nil })
+	select {
+	case result := <-done:
+		t.Fatalf("request ended before expiry: %+v", result)
+	default:
+	}
+	(<-armed)()
+	select {
+	case result := <-done:
+		if result.Error == "" || result.CleanupUncertain {
+			t.Fatalf("request expiry did not join child: %+v", result)
+		}
+	case <-testwait.After(t):
+		t.Fatal("request expiry did not finish")
 	}
 }
 

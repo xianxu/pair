@@ -41,11 +41,11 @@ func TestOperatorSharedModulesExecute(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	annotate, err := assembleOperatorModule(string(bytes), map[string]string{"./collab.js": "collab", "./annotation-policy.js": "policy", "./capture-draft.js": "capture", "./floating-panel.js": "floating"})
+	annotate, err := assembleOperatorModule(string(bytes), map[string]string{"./collab.js": "collab", "./annotation-policy.js": "policy", "./capture-draft.js": "capture", "./feedback-panel.js": "feedbackPanel", "./feedback-glow.js": "feedbackGlow"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	runOperatorJS(t, "const collab="+collab+"; const policy="+policy+"; const capture={}; const floating={}; const annotate="+annotate+`;const b=annotate.regionOf([50,50],[50,50],{x:0,y:0,w:100,h:100},'mouse'); if(JSON.stringify(b)!=='[45,45,10,10]') throw Error('box'); const c=annotate.chunker(); c.add(1,2,0); if(c.take()[0][0][0]!==1) throw Error('stroke');`)
+	runOperatorJS(t, "const collab="+collab+"; const policy="+policy+"; const capture={}; const feedbackPanel={}; const feedbackGlow={}; const annotate="+annotate+`;const b=annotate.regionOf([50,50],[50,50],{x:0,y:0,w:100,h:100},'mouse'); if(JSON.stringify(b)!=='[45,45,10,10]') throw Error('box'); const c=annotate.chunker(); c.add(1,2,0); if(c.take()[0][0][0]!==1) throw Error('stroke');`)
 }
 
 func runOperatorJS(t *testing.T, source string) {

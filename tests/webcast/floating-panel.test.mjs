@@ -148,3 +148,40 @@ test('mode rendering and measurement follow the pure transition sequence',async(
  ]);
  assert.deepEqual(panelTrace.slice(-2).map(e=>e.event),['geometry','click']);
 });
+
+test('optional protected geometry owns bounds, empty visibility and presentation',()=>{
+ const cost={styles:0,geometry:0,capture:[]},doc={createElement:tag=>new Node(tag,cost)};
+ const win=new Node('window',cost);win.innerWidth=800;win.innerHeight=600;
+ let width=620;const events=[];
+ const panel=mountFloatingPanel(doc,win,{parent:doc.createElement('main'),showEmpty:true,
+  geometry:()=>({viewport:{left:12,top:12,width,height:576},size:{width:300,height:320},left:332,top:110}),
+  onPresentation:e=>events.push(e)});
+ assert.equal(panel.root.hidden,false);assert.ok(panel.header);
+ for(let i=0;i<50;i++)panel.header.querySelector('.floating-panel-drag').fire('keydown',{key:'ArrowRight',shiftKey:true});
+ assert.equal(panel.root.style.inset.split(' ')[3],'332px');
+ panel.header.querySelector('.floating-panel-minimize').fire('click');assert.equal(events.at(-1).minimized,true);
+ width=0;panel.refresh();assert.equal(panel.root.hidden,true);
+ width=620;panel.refresh();assert.equal(panel.root.hidden,false);
+ panel.dispose();
+});
+
+test('minimized status growth reclamps its complete control and retires a tentative drag',()=>{
+ const f=fixture(1);
+ f.root.getBoundingClientRect=()=>({width:f.root.classList.contains('minimized')?50+f.restore.textContent.length*8:300,height:32});
+ f.minimize.fire('click');for(let i=0;i<50;i++)f.restore.fire('keydown',{key:'ArrowRight',shiftKey:true});
+ f.restore.fire('pointerdown');f.root.fire('pointermove',{clientX:-100,clientY:100});
+ f.setStatus('Pending feedback is out of date.');
+ assert.equal(f.restore.hasPointerCapture(1),false);
+ assert.equal(Number.parseFloat(f.root.style.inset.split(' ')[3])+f.root.getBoundingClientRect().width,788);
+ assert.equal(f.restore.title,'Pending feedback is out of date.');
+ const before={...f.cost};f.setStatus('Pending feedback is out of date.');assert.deepEqual(f.cost,before);
+ f.setStatus('');assert.equal(f.restore.textContent,'Notes (1)');
+});
+
+test('unchanged status during a drag retains capture and the tentative anchor',()=>{
+ const f=fixture(1);f.setStatus('Pending feedback.');
+ f.header.fire('pointerdown');f.root.fire('pointermove',{clientX:100,clientY:100});
+ const inset=f.root.style.inset;assert.equal(f.header.hasPointerCapture(1),true);
+ f.setStatus('Pending feedback.');assert.equal(f.header.hasPointerCapture(1),true);assert.equal(f.root.style.inset,inset);
+ f.root.fire('pointerup');assert.equal(f.header.hasPointerCapture(1),false);assert.equal(f.root.style.inset,inset);
+});

@@ -53,6 +53,11 @@ func validateLifecycle(record Record) error {
 	if record.Park != nil && record.VerifiedPark != nil {
 		return fmt.Errorf("active and verified park cannot coexist")
 	}
+	if record.Asleep != nil {
+		if err := record.Asleep.Validate(); err != nil {
+			return err
+		}
+	}
 
 	nonces := make(map[string]struct{}, len(record.ParkHistory)+1)
 	for i := range record.ParkHistory {

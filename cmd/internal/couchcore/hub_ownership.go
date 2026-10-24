@@ -71,6 +71,20 @@ func (s HubOwnership) Main() string {
 func (s HubOwnership) IsHub(root string) bool {
 	return slices.ContainsFunc(s.hubs, func(h HubDefinition) bool { return h.Root == root })
 }
+
+// Wakes is couch --wake's authority (pair#830): only the main hub wakes, and
+// only another hub's own slot. A worker is woken by its hub, never from here.
+func (s HubOwnership) Wakes(caller, target string) error {
+	switch {
+	case caller == "" || caller != s.Main():
+		return fmt.Errorf("only the main hub (%s) may wake the asleep hubs", s.Main())
+	case target == caller:
+		return fmt.Errorf("the main hub is already awake")
+	case !s.IsHub(target):
+		return fmt.Errorf("%s is not a hub; its hub wakes it", target)
+	}
+	return nil
+}
 func (s HubOwnership) hubForSlot(slot HubSlot) string {
 	for _, h := range s.hubs {
 		if h.Slot == slot {

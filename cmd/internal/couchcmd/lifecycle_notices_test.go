@@ -73,7 +73,12 @@ func TestLifecyclePublisherUsesCanonicalSystemReceiptAndRestartBarrier(t *testin
 
 func lifecyclePublisherRig(t *testing.T, ep couchmessage.DeliveryEndpoint, notices ...func(string)) (*serviceRig, *lifecyclePublisher, couchmessage.Binding) {
 	t.Helper()
-	r := newServiceRig(t)
+	return lifecyclePublisherRigWithAuthority(t, ep, nil, notices...)
+}
+
+func lifecyclePublisherRigWithAuthority(t *testing.T, ep couchmessage.DeliveryEndpoint, decorate func(messageAuthority) messageAuthority, notices ...func(string)) (*serviceRig, *lifecyclePublisher, couchmessage.Binding) {
+	t.Helper()
+	r := newServiceRig(t, decorate)
 	r.world.hub = "/repo1"
 	r.restart(nil)
 	hub := r.world.add(1)
@@ -438,7 +443,7 @@ func TestLifecyclePublisherDrainsResolvableMetadataBeforeFreeze(t *testing.T) {
 	r.waitConnected(hub, true)
 	// Start the shell after producing its inputs, so a concurrent refresh cannot
 	// hide omission of the drain boundary's atomic metadata reduction.
-	p := &lifecyclePublisher{service: r.s, ready: map[uint64]couchcore.LifecycleNoticeEffect{}, attempts: map[uint64]lifecycleAttempt{}, roots: map[string]bool{}, identities: map[string]couchcore.WorkspaceIdentity{}, unresolved: map[string]unresolvedFact{}, diagnostics: map[string]string{}, wake: make(chan struct{}, 1), results: make(chan lifecycleAdmission, 128)}
+	p := &lifecyclePublisher{service: r.s, ready: map[uint64]couchcore.LifecycleNoticeEffect{}, attempts: map[uint64]lifecycleAttempt{}, roots: map[string]bool{}, identities: map[string]couchcore.WorkspaceIdentity{}, unresolved: map[string]unresolvedFact{}, diagnostics: map[string]lifecycleDiagnostic{}, wake: make(chan struct{}, 1), results: make(chan lifecycleAdmission, 128)}
 	p.observe(couchtty.LifecycleObservation{Kind: "restart-armed"})
 	fact := lifecycleSlotObservation(2, 1)
 	fact.Initiation = "operator"
@@ -632,7 +637,7 @@ func TestLifecyclePublisherOrdinaryFactWaitsForItsWorkspace(t *testing.T) {
 }
 
 func TestLifecyclePublisherReplacementBeforeAdmissionReleasesFrozenToken(t *testing.T) {
-	p := &lifecyclePublisher{ready: map[uint64]couchcore.LifecycleNoticeEffect{}, attempts: map[uint64]lifecycleAttempt{}, diagnostics: map[string]string{}}
+	p := &lifecyclePublisher{ready: map[uint64]couchcore.LifecycleNoticeEffect{}, attempts: map[uint64]lifecycleAttempt{}, diagnostics: map[string]lifecycleDiagnostic{}}
 	p.advanceLocked(couchcore.LifecycleNoticeEvent{Kind: couchcore.LifecycleNoticeConfirmed, Fact: couchcore.LifecycleNoticeFact{Hub: "/hub", Slot: "pair:2", Incarnation: "worker", Observation: 1, Kind: couchcore.LifecycleStarted}})
 	p.advanceLocked(couchcore.LifecycleNoticeEvent{Kind: couchcore.LifecycleNoticeHubReady, Hub: "/hub", Incarnation: "one", Ready: true})
 	p.advanceLocked(couchcore.LifecycleNoticeEvent{Kind: couchcore.LifecycleNoticeHubReady, Hub: "/hub", Incarnation: "two", Ready: true})
@@ -761,7 +766,12 @@ func TestLifecycleOrdinaryFactExpires(t *testing.T) {
 
 func lifecycleManualPublisher(t *testing.T, endpoints ...couchmessage.DeliveryEndpoint) (*serviceRig, *lifecyclePublisher) {
 	t.Helper()
-	r := newServiceRig(t)
+	return lifecycleManualPublisherWithAuthority(t, nil, endpoints...)
+}
+
+func lifecycleManualPublisherWithAuthority(t *testing.T, decorate func(messageAuthority) messageAuthority, endpoints ...couchmessage.DeliveryEndpoint) (*serviceRig, *lifecyclePublisher) {
+	t.Helper()
+	r := newServiceRig(t, decorate)
 	r.world.hub = "/repo1"
 	r.restart(nil)
 	hub := r.world.add(1)
@@ -771,7 +781,7 @@ func lifecycleManualPublisher(t *testing.T, endpoints ...couchmessage.DeliveryEn
 	r.attach(hub, "hub")
 	r.wrapper(hub)
 	r.waitConnected(hub, true)
-	p := &lifecyclePublisher{service: r.s, ready: map[uint64]couchcore.LifecycleNoticeEffect{}, attempts: map[uint64]lifecycleAttempt{}, roots: map[string]bool{}, identities: map[string]couchcore.WorkspaceIdentity{}, unresolved: map[string]unresolvedFact{}, diagnostics: map[string]string{}, wake: make(chan struct{}, 1), results: make(chan lifecycleAdmission, 128)}
+	p := &lifecyclePublisher{service: r.s, ready: map[uint64]couchcore.LifecycleNoticeEffect{}, attempts: map[uint64]lifecycleAttempt{}, roots: map[string]bool{}, identities: map[string]couchcore.WorkspaceIdentity{}, unresolved: map[string]unresolvedFact{}, diagnostics: map[string]lifecycleDiagnostic{}, wake: make(chan struct{}, 1), results: make(chan lifecycleAdmission, 128)}
 	return r, p
 }
 
@@ -864,13 +874,15 @@ func TestLifecyclePublisherAutomationEpochRetiresReadyBacklog(t *testing.T) {
 
 func TestLifecyclePublisherAutomationEpochFencesDelayedAdmission(t *testing.T) {
 	ep := newControlledEndpoint()
-	r, p := lifecycleManualPublisher(t, ep)
 	ownership, err := couchcore.NewHubOwnership([]couchcore.HubDefinition{{Root: "/repo1", Workspace: "/", Slot: couchcore.HubSlot{Repository: "/repo1"}}})
 	if err != nil {
 		t.Fatal(err)
 	}
 	h := &hubRuntime{state: ownership}
-	r.s.authority.hubs = h
+	r, p := lifecycleManualPublisherWithAuthority(t, func(a messageAuthority) messageAuthority {
+		a.hubs = h
+		return a
+	}, ep)
 	release, err := holdHubEffect(t.Context(), h)
 	if err != nil {
 		t.Fatal(err)

@@ -1,6 +1,8 @@
 import { createFeedbackMask } from './web/feedback-mask.js';
 import { createPlacement } from './web/annotation-placement.js';
 import { createFeedbackVisibility } from './web/feedback-visibility.js';
+import { feedbackLayout } from './web/feedback-layout.js';
+import { mountCastTools } from './web/cast-tools.js';
 
 // Trusted adapter inside couchcast, never the page's JavaScript world.
 export function operatorTransport(report, win) {
@@ -74,11 +76,18 @@ export function operatorTransport(report, win) {
   };
 }
 
-export function mountOperator({ host, root, report }, { annotate, palette, css, sketch }, doc = document, win = window) {
+export function mountOperator({ host, root, report, liveButton, banner }, { annotate, palette, css, sketch }, doc = document, win = window) {
   const style = doc.createElement('style');
   style.textContent = css + '\n.operator-box{position:fixed;inset:0;pointer-events:none}.note-dialog{pointer-events:auto}.annotate.operator-driving{visibility:hidden}.annotation-hint{max-width:120px;color:#222;background:#fff;border-radius:5px;font:12px/1.3 system-ui;text-align:right}.annotation-hint:empty{display:none}';
   root.appendChild(style);
   const box = doc.createElement('div'); box.className = 'operator-box'; root.appendChild(box);
+  const workspaceLayout=()=>{
+    const layout=feedbackLayout({width:win.innerWidth,height:win.innerHeight});
+    const top=Math.min(win.innerWidth<=650?82:108,Math.max(0,win.innerHeight-56));
+    return {...layout,toolbar:{...layout.toolbar,top,height:Math.max(0,win.innerHeight-top-12)}};
+  };
+  const tools=liveButton?mountCastTools(doc,win,{parent:root,liveButton,layout:workspaceLayout}):null;
+  if(banner)banner.hidden=true;
   const transport = operatorTransport(report, win);
   const callbacks = new Set(),feedbackHooks=new Set();
   let visibility,ui;
@@ -98,6 +107,7 @@ export function mountOperator({ host, root, report }, { annotate, palette, css, 
     (binding.document === originalDocument && visibleNodeIDs.has(id)) ||
     sketchMount?.receiver?.hasAnchor(binding.document,id) === true;
   const view = {
+    tools,
     feedbackMask,
     onVisibility(fn){return visibility.onInvalidate(fn);},
     onFeedback(fn){feedbackHooks.add(fn);return()=>feedbackHooks.delete(fn);},
@@ -165,6 +175,7 @@ export function mountOperator({ host, root, report }, { annotate, palette, css, 
   captureCall.context = () => transport.annotationGeneration();
   ui = annotate.mountAnnotation(doc, win, view, {
     root, box, stage: box, palette, operator: true, annotationAllowed: false, post, prepareDraft, captureCall,
+    notesLayout: tools ? workspaceLayout : undefined,
     who: { id: () => 'operator', name: () => 'Operator', viewer: () => ({ id: 'operator', name: 'Operator' }) },
     colors: { get: () => picked, set: (n) => { picked = n; } },
   });
@@ -173,6 +184,7 @@ export function mountOperator({ host, root, report }, { annotate, palette, css, 
     ui.sketch = mounted.tool;
 	win.__couchcastOperatorSketch = mounted.tool;
   }
+  view.reveal = note => view.placementOf.reveal?.(note) === true;
   win.__couchcastCaptureBusy = () => ui.dialog.open || !!sketchMount?.captureBusy();
   win.__couchcastNoteUnsaved = () => ui.dialog.unsaved;
   // #523 supplies this capability input through CDP in the isolated world.
@@ -217,6 +229,6 @@ export function mountOperator({ host, root, report }, { annotate, palette, css, 
   };
   for(const event of ['scroll','resize','popstate','hashchange'])win.addEventListener(event,()=>callback({k:event,t:0},view.model),{passive:true});
   for(const event of ['pointerdown','pointerup','pointercancel'])win.addEventListener(event,()=>visibility.invalidate(),{capture:true,passive:true});
-  win.addEventListener('pagehide', () => {originals.clear();visibility.dispose();}, { once: true });
+  win.addEventListener('pagehide', () => {originals.clear();visibility.dispose();tools?.dispose();ui.dispose?.();}, { once: true });
   return ui;
 }
