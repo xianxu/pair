@@ -5,8 +5,8 @@ deps: []
 github_issue:
 created: 2026-10-24
 updated: 2026-10-24
-estimate_hours:
-card_mirror: '94479282d6a5c7dcae81ae54446c85a675575045' # card fields mirrored from issue-cards; edit via sdlc
+estimate_hours: 1.333
+card_mirror: '4fd092766f657f1e4bcb64c796571240b59e037a' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-24T00:18:23-07:00
 claimant:
     operator: Xian Xu
@@ -15,7 +15,7 @@ claimant:
     workspace: pair:7
     worktree: /Users/xianxu/workspace/worktree/pair-slot7/pair
     repository: github.com/xianxu/pair
-flow: {kind: quick, provenance: inferred, spec: "c4a82515", done: "7518db97"}
+flow: {kind: full, provenance: operator}
 ---
 
 # Native fleet: explicit-hub Fleet.Start broken since #739; second explicit hub fails attach at a fresh start
@@ -97,3 +97,22 @@ Read-only independent audit: hub-effect gate is released when empty StartInterac
 2026-10-24 — Hub563a3e8a: the Spec's harness-only start-gesture repair is superseded by fresh-start policy: zero-history configured hubs start normally, automation off; known shutdowns stay parked. Preserve no automatic hub input. Hub c1133e63 authorizes matching #830 Hubs input for measurement without stacking. Hub bc2786cd adds conditional production duplicate-Enter correction if two launches are demonstrated. Durable plan records both proven defects and the still-unclassified peer observation; no speculative registry change.
 
 2026-10-24 — Hub7c48d75b approved the plan. Pinned full flow because startup policy crosses core/orchestration/native acceptance. Plan-quality PQ-1 asked for function-level adversarial strategies rather than prose case inventories; revised the whole test-strategy class, preserving design. No production implementation before the gate passes.
+
+## Estimate
+
+Produced via brain/data/life/42shots/velocity/estimate-logic-v3.1.md against baseline-v3.1.md. Method A only; estimate-source marks calibration stale, so provisional. Three well-specced smaller Go extensions (classification/child contract, startup orchestration, form/harness qualification) each use upper v2 impl0.5h scaled40%=0.2h; design0.3h discounted by the approved detailed spec to0.06h. One native-boundary discovery budget uses0.6h x40%=0.24h. Docs use design0.2h x0.2=0.04h, impl0.2h x40%=0.08h; one review chunk uses0.4h x40%=0.16h. Existing lifecycle and native harness eliminate any novel-stack/library work. Familiarity1.0; thorough-plan design buffer15%. Total0.22 x1.15 +1.08 =1.333h.
+
+```estimate
+model: estimate-logic-v3.1
+familiarity: 1.0
+item: smaller-go-module design=0.06 impl=0.20
+item: smaller-go-module design=0.06 impl=0.20
+item: smaller-go-module design=0.06 impl=0.20
+item: real-api-discovery design=0.0 impl=0.24
+item: atlas-docs design=0.04 impl=0.08
+item: milestone-review design=0.0 impl=0.16
+design-buffer: 0.15
+total: 1.333
+```
+
+2026-10-24 — Pair:6 b5498b2e explicitly retracts unverified double-launch hypothesis: no second-launch evidence, corrected helper failed to launch and had no captured screen. It polled actor0; producer context unchanged. Shared our accepted-preview predicate and single-start Enter sequence (Down requests preview, args repo-default means accepted). Persistent peer not-live remains unclassified/likely helper, not production proof. Held-effect reducer qualification stays in scope without new state absent a failing invariant.
