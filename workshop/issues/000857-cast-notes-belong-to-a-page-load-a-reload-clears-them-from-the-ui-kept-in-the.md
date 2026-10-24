@@ -1,12 +1,12 @@
 ---
 id: 000857
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-10-23
 updated: 2026-10-24
 estimate_hours: 3.29
-card_mirror: 'd69741f3dc62b732c696a2ed454b8144decc0cc7' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: 'd253dcdbac784d894c98b9fb29a259055bbc0ed2' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-23T21:35:40-07:00
 claimant:
     operator: Xian Xu
@@ -16,6 +16,7 @@ claimant:
     worktree: /Users/xianxu/workspace/worktree/pair-slot4/pair
     repository: github.com/xianxu/pair
 flow: {kind: full, provenance: operator}
+actual_hours: N/A
 ---
 
 # Cast notes belong to a page load; a reload clears them from the UI (kept in the recording)
