@@ -1,12 +1,12 @@
 ---
 id: 000860
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-10-23
 updated: 2026-10-24
 estimate_hours:
-card_mirror: '5a04c92d804322cec1434d02d8be35cc0e113b7c' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '7d6e1cf834ed9294d0799fe7f98d9a9e20e10026' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-24T00:22:54-07:00
 claimant:
     operator: Xian Xu
@@ -16,6 +16,7 @@ claimant:
     worktree: /Users/xianxu/workspace/worktree/pair-slot9/pair
     repository: github.com/xianxu/pair
 flow: {kind: quick, provenance: inferred, spec: "6553758b", done: "0e308a0d"}
+actual_hours: 0.59
 ---
 
 # Multi-hub test fixture mutates authority after message readers start
