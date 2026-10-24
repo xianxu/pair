@@ -8,14 +8,8 @@ import (
 	"github.com/xianxu/pair/cmd/internal/editorial"
 )
 
-// The immutable embedded catalog is shared by all transaction snapshots.
-var sharedEditorialCatalog, sharedEditorialCatalogError = editorial.DefaultCatalog()
-
 func compileEditorial(content string) (*editorial.DocumentPolicy, error) {
-	if sharedEditorialCatalogError != nil {
-		return nil, sharedEditorialCatalogError
-	}
-	p, err := editorial.Compile([]byte(content), sharedEditorialCatalog)
+	p, err := editorial.Compile([]byte(content))
 	if err != nil {
 		return nil, &Refusal{Exit: ExitRefused, Code: "editorial-invalid", Reason: err.Error()}
 	}
@@ -64,6 +58,7 @@ func sectionPolicyHash(content, heading string, p *editorial.DocumentPolicy) (st
 		Name      string
 		Level     int
 		Directive string
+		Tag       string
 	}
 	var ancestors []context
 	for at := selected; at >= 0; at = p.Headings[at].Parent {
@@ -71,6 +66,9 @@ func sectionPolicyHash(content, heading string, p *editorial.DocumentPolicy) (st
 		x := context{Name: h.Name, Level: h.Level}
 		if h.Directive != nil {
 			x.Directive = string(h.Directive.Raw)
+		}
+		if h.Tag != nil {
+			x.Tag = string(h.Tag.Raw)
 		}
 		ancestors = append(ancestors, x)
 	}
@@ -84,7 +82,7 @@ func sectionPolicyHash(content, heading string, p *editorial.DocumentPolicy) (st
 		Domain, Body string
 		Document     []string
 		Ancestors    []context
-	}{"pair/editorial-section/v1", body, document, ancestors})
+	}{"pair/editorial-section/v2", body, document, ancestors})
 	if err != nil {
 		return "", err
 	}

@@ -54,10 +54,7 @@ func (s *Sync) MigrateEditorial(req EditorialMigrationRequest) (EditorialMigrati
 		if req.Confirm && req.IfHash != before {
 			return EditorialMigrationResult{}, &Refusal{Exit: ExitStale, Code: "stale", Hash: before, Reason: "the source changed since migration preview; preview again before confirming"}
 		}
-		if sharedEditorialCatalogError != nil {
-			return EditorialMigrationResult{}, sharedEditorialCatalogError
-		}
-		plan, err := editorial.PlanMigration([]byte(f.content), sharedEditorialCatalog)
+		plan, err := editorial.PlanMigration([]byte(f.content))
 		if err != nil {
 			return EditorialMigrationResult{}, &Refusal{Exit: ExitRefused, Code: "editorial-invalid", Reason: err.Error()}
 		}

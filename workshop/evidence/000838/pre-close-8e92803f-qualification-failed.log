@@ -1,0 +1,95 @@
+bash tests/lib/with-pair-test-binary.sh /Library/Developer/CommandLineTools/usr/bin/make test
+go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime
+python3 -B tests/conformance-vm-test.py
+...................
+----------------------------------------------------------------------
+Ran 19 tests in 0.031s
+
+OK
+python3 -B tests/conformance-command-test.py
+........
+----------------------------------------------------------------------
+Ran 8 tests in 0.242s
+
+OK
+python3 -B tests/conformance-paths-test.py
+....
+----------------------------------------------------------------------
+Ran 4 tests in 0.001s
+
+OK
+python3 -B tests/native-terminal-ci-test.py
+..........
+----------------------------------------------------------------------
+Ran 10 tests in 0.124s
+
+OK
+python3 -B scripts/vm/test_provision.py
+.........
+----------------------------------------------------------------------
+Ran 9 tests in 0.020s
+
+OK
+python3 -B scripts/vm/test_nightly.py
+..................
+----------------------------------------------------------------------
+Ran 18 tests in 4.478s
+
+OK
+python3 -B tests/test-affected-test.py
+.............
+----------------------------------------------------------------------
+Ran 13 tests in 8.319s
+
+OK
+python3 -B tests/affected-go-readers-test.py
+test_changed_source_reader_prints_executable_required_disposition (__main__.FastInventoryCLI.test_changed_source_reader_prints_executable_required_disposition) ... ok
+test_duplicate_keys_refuse_without_rewrite (__main__.FastInventoryCLI.test_duplicate_keys_refuse_without_rewrite) ... ok
+test_fast_check_names_exact_repair_and_preserves_unknown_fields (__main__.FastInventoryCLI.test_fast_check_names_exact_repair_and_preserves_unknown_fields) ... ok
+test_independent_reader_updates_merge_with_real_git (__main__.FastInventoryCLI.test_independent_reader_updates_merge_with_real_git) ... ok
+test_legacy_aggregate_and_bad_certificate_path_refuse (__main__.FastInventoryCLI.test_legacy_aggregate_and_bad_certificate_path_refuse) ... ok
+test_make_regenerates_only_an_explicitly_named_audit (__main__.FastInventoryCLI.test_make_regenerates_only_an_explicitly_named_audit) ... ok
+test_missing_certificate_and_invalid_records_refuse (__main__.FastInventoryCLI.test_missing_certificate_and_invalid_records_refuse) ... ok
+test_named_record_leaves_other_changed_reader_unaccepted (__main__.FastInventoryCLI.test_named_record_leaves_other_changed_reader_unaccepted) ... ok
+test_non_json_constants_refuse_without_rewrite (__main__.FastInventoryCLI.test_non_json_constants_refuse_without_rewrite) ... ok
+test_record_refuses_untracked_and_scanner_waivers_without_writing (__main__.FastInventoryCLI.test_record_refuses_untracked_and_scanner_waivers_without_writing) ... ok
+test_removed_reader_has_exact_removal_command (__main__.FastInventoryCLI.test_removed_reader_has_exact_removal_command) ... ok
+test_unknown_numbers_roundtrip_without_precision_or_type_changes (__main__.FastInventoryCLI.test_unknown_numbers_roundtrip_without_precision_or_type_changes) ... ok
+test_changed_and_deleted_audited_file_refuse (__main__.ReaderInventoryTest.test_changed_and_deleted_audited_file_refuse) ... ok
+test_duplicate_or_invalid_disposition_refuses (__main__.ReaderInventoryTest.test_duplicate_or_invalid_disposition_refuses) ... ok
+test_fixed_scanner_requires_every_registered_test (__main__.ReaderInventoryTest.test_fixed_scanner_requires_every_registered_test) ... ok
+test_native_helper_api_requires_repository_input_classification (__main__.ReaderInventoryTest.test_native_helper_api_requires_repository_input_classification) ... ok
+test_new_relative_and_joined_readers_refuse (__main__.ReaderInventoryTest.test_new_relative_and_joined_readers_refuse) ... ok
+test_repository_inventory_and_fixed_preflight (__main__.ReaderInventoryTest.test_repository_inventory_and_fixed_preflight) ... ok
+test_repository_source_walk_cannot_be_waived_as_local (__main__.ReaderInventoryTest.test_repository_source_walk_cannot_be_waived_as_local) ... ok
+test_seeded_cross_package_violation_stops_actual_affected_run (__main__.ReaderInventoryTest.test_seeded_cross_package_violation_stops_actual_affected_run) ... ok
+test_untracked_and_nonreader_files_are_outside_inventory (__main__.ReaderInventoryTest.test_untracked_and_nonreader_files_are_outside_inventory) ... ok
+
+----------------------------------------------------------------------
+Ran 21 tests in 52.140s
+
+OK
+python3 -B tests/affected-config-test.py
+test_check_config (__main__.AffectedConfigTest.test_check_config) ... Qualifying upstream affected source: /Users/xianxu/go/pkg/mod/github.com/xianxu/ariadne@v0.0.0-20261024032245-5a17f789619d
+FAIL
+
+======================================================================
+FAIL: test_check_config (__main__.AffectedConfigTest.test_check_config)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Volumes/TestScratch/local-checks/sdlc-local-2132651540/tests/affected-config-test.py", line 395, in test_check_config
+    self.assertEqual(result.returncode, 0, result.stdout)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 1 != 0 : # github.com/xianxu/ariadne/cmd/sdlc/fixture
+internal/affected/golist.go:16:2: no required module provides package github.com/xianxu/ariadne/cmd/sdlc/internal/processgroup; to add it:
+	go get github.com/xianxu/ariadne/cmd/sdlc/internal/processgroup
+FAIL	github.com/xianxu/ariadne/cmd/sdlc/fixture [setup failed]
+FAIL
+
+
+----------------------------------------------------------------------
+Ran 1 test in 0.038s
+
+FAILED (failures=1)
+make[1]: *** [test-affected-config] Error 1
+make: *** [test] Error 2

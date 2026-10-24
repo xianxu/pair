@@ -565,7 +565,7 @@ func (f *file) prepareWrite(req WriteRequest, rows []Entry, now time.Time) (prep
 	if err != nil {
 		return preparedWrite{}, err
 	}
-	content, err := contentStep(f.content, next, req.resolved, now, !req.Frontmatter, req.Frontmatter, policy)
+	content, err := contentStep(f.content, next, req.resolved, now, !req.Frontmatter, policy)
 	if err != nil {
 		return preparedWrite{}, err
 	}
