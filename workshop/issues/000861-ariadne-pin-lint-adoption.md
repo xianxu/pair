@@ -36,7 +36,13 @@ Adopt the newer Ariadne substrate on its own main-based issue branch. Preserve t
 
 ## Plan
 
-- [ ]
+Durable source-qualified plan: workshop/plans/000861-ariadne-pin-lint-adoption-plan.md.
+
+- [ ] Adopt normal pin and contextual catalog boundary; qualify real upstream planner fixture.
+- [ ] Consolidate three JSON readers with preserved owner contracts; retain two authorized independent-role exceptions pending ariadne#590.
+- [ ] Reuse canonical ShortRoot; preserve ordinary inherited TMPDIR and optional startup socket isolation.
+- [ ] Replace virtual budget shortcuts and native expiry races with explicit observed transitions and cue-owned deadlines/timers.
+- [ ] Audit readers, pass catalog/targeted/pre-close, update atlas, close and land; then return #838.
 
 ## Log
 
@@ -105,3 +111,9 @@ FAIL
 ```
 
 A fixture-only repair is already pushed as b3da4973ef63b6a1af8ab941721abde8f3038faf on #838: four unmodified provider packages (affected/jsonstrict/processgroup/pkg-procgroup), root module go.mod/go.sum, all sibling/exact-ref/installed-module paths PASS (778 group/file inputs each). Reuse the qualified source change via the hub; do not stack an issue branch on unlanded #838. The callback adapter is still uncommitted in pair:3, available as a patch on request.
+
+## Revisions
+
+### 2026-10-24 — assigned adoption and source-qualified design
+
+Hub a942ac93 assigned this slot to land adoption first. Source qualification splits40 deadline observations into13 virtual-clock,6 selection/wait-stub and21 real-timer/native sites. Hub f9c009c1 authorizes exactly the independent fuzz oracle and standalone DOM materializer per-site allows until ariadne#590 fixes role classification. Every other observation gets its cause repaired. Design is in the durable plan; no implementation or estimate yet.
