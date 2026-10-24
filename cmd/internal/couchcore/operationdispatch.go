@@ -398,6 +398,9 @@ func CouchLiveOwnerExecutor(c *Couch) OperationExecutor {
 			}
 			return c.PrepareStart(ctx, StartArgs{Cwd: path, Stack: a["agent"], Action: StartAction(a["action"])})
 		case "start-hub":
+			if a["action"] == string(StartFresh) {
+				return c.StartFreshHub(ctx, a["path"])
+			}
 			return c.StartInteractive(ctx, StartArgs{Cwd: a["path"], Action: StartAction(a["action"])})
 		case "start":
 			// The SAME inputs the preview resolved from, so re-resolution is

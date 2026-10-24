@@ -129,6 +129,27 @@ func (c *Couch) startExplicitInteractive(ctx context.Context, args StartArgs) (S
 	if err != nil {
 		return StartResult{}, err
 	}
+	return c.startInteractiveResolution(ctx, resolution)
+}
+
+// StartFreshHub is called only with the initial zero-history startup permission.
+// A primary opens normally; a never-used numbered slot needs its existing fresh
+// path, because OpenSlot deliberately requires a resumable current conversation.
+func (c *Couch) StartFreshHub(ctx context.Context, path string) (StartResult, error) {
+	if err := ctx.Err(); err != nil {
+		return StartResult{}, err
+	}
+	resolution, err := c.resolveStartResolution(ctx, StartArgs{Cwd: path, Action: StartOpen})
+	if err != nil {
+		return StartResult{}, err
+	}
+	if resolution.Target.Kind == ThreadTargetSlot {
+		return c.StartFreshSlot(ctx, resolution.Target.Slot.WorktreeRoot, resolution.RequestedAgent)
+	}
+	return c.startInteractiveResolution(ctx, resolution)
+}
+
+func (c *Couch) startInteractiveResolution(ctx context.Context, resolution StartResolution) (StartResult, error) {
 	if resolution.Target.Kind == ThreadTargetSlot {
 		return c.spawnManagedResolution(ctx, resolution)
 	}
