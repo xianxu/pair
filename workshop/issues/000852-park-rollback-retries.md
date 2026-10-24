@@ -47,6 +47,14 @@ Quick-flow investigation; if the root cause requires a new mechanism or exceeds 
 
 ## Log
 
+### 2026-10-23 — Root measurement and approved test-only correction
+
+Both historical count=1 comparisons fail: #827 landing 25905e0ecc875ce080ab401cfb445f54fcfcc20b package43.368s (/15 pass16.42s; /30 unexpected recovery [1 2] instead of [1],26.58s), and pre-#819 46270746147eb5d9048ab1107b1df19339f7b42e package41.865s (same /30 failure25.44s; /15 pass16.14s). Couchcore has no diff between these pins. Logs: 827-repro.jsonl and pre819-repro.jsonl in the retained scratch root.
+
+Disposable main-tree tracing then measured matching completion proof already present, followed by applyCompletion/FinalizePark taking1.125574875s (b006) and1.102143834s (b00a), both returning context deadline exceeded with the real1s completion context expired. The /15 assertion failed with [fresh fresh recovery] instead of [fresh fresh], package22.296s; main-finalization.jsonl preserves the trace. The fixture's injected2.5s commit clock is unrelated to this real deadline. #827 author confirms this test measures drive counts, not host IO latency. Root cause: incidental wall-clock expiration during serialized finalization in a synchronous-completion fixture.
+
+TL approved test-only correction (submitted 5300a5cd-9dec-47f7-861a-cdb52e7c3973): inject the existing completionDeadline and leaveParkDeadline seams, control cancellation and spend completion only when proof is missing; retain whole-budget/cancel controls and add tiny-budget/missing-proof controls. Production budgets and logic remain untouched. The shared lint catalog's sub-second deadline rule does not catch this1s instance; TL explicitly waived a peer lint extension for this issue.
+
 ### 2026-10-23 — Baseline comparison requested by ops:0
 
 The same command ran once on each Git-pinned tree, after the standard make runtimebundle-generate preparation:
