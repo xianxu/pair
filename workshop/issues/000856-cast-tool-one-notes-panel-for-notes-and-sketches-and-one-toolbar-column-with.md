@@ -59,6 +59,10 @@ Close and landing use their SDLC gates. The recorded exact-source pre-close chec
 
 ## Log
 
+### 2026-10-24 — Retained native evidence for BR-4
+
+The corrected production source is Git commit791e8742c1459ba95e1f84ce4ac83cec7265bf03. Non-skipped host output is retained at [native-review-fixes.log](../plans/000856-cast-feedback-workspace-plan.side/evidence/native-review-fixes.log); all8 named tests passed27.857s, including actual browser gestures, private capture, preview/unsaved refusal, minimized-editor reopening and viewport separation at1280/320. [node-review-fixes.log](../plans/000856-cast-feedback-workspace-plan.side/evidence/node-review-fixes.log) retains all603 Node passes. The source was committed unchanged immediately after these runs. BR-4's review-host GPU startup refusal is not product evidence; this working-host output supplies the requested qualification. Inventory re-audit passed after staging the new test. Requeued recorded pre-close is retained in terminal34212 on this source; no second run is active.
+
 ### 2026-10-24 — Close round1 REWORK and correction
 
 Close review raised BR-1 (sketch membership depended on viewport placement), BR-2 (annotation hover scaled only origins), BR-3 (minimized status invisible), and BR-4 (review sandbox Chrome GPU startup failed). Reproduced/fixed the three behavior defects with red/green tests through pure and actual DOM adapters. Accepted identities retain keyed rows across offscreen/null/restored geometry; both corners of box and clip project through the viewer; minimized Notes visibly says Status with the full message in tooltip/accessibility text, remeasuring its bounded control. Also fixed the related adopted-editor reachability: opening note or label restores minimized Notes before focus. No saved-feedback/command authority change.
