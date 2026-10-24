@@ -50,7 +50,7 @@ Installed binary /opt/homebrew/Cellar/zellij/0.45.1/bin/zellij. Verified local t
 
 - [x] Approve the readiness/coordination contour in [the durable plan](../plans/000866-zellij-startup-readiness-plan.md), then enter change-code; no estimate before its gate.
 - [x] Implement one readiness authority and bounded shared admission with deterministic regression controls and normal bypass prevention.
-- [ ] Qualify shared disposable native startup, retain exact cleanup/failure evidence, record pre-close verification, then close/land through the gates.
+- [x] Qualify shared disposable native startup and retain exact cleanup/failure evidence. Recorded pre-close and the final close/landing gates are tracked explicitly in the Log below.
 
 ## Log
 
@@ -107,7 +107,17 @@ At source6f05e60447f4244d6ed438a6fa9925e27330604b the public-form qualification 
 
 Full passing capture [native-startup-readiness-form-6f05e6044.log](../evidence/000866/native-startup-readiness-form-6f05e6044.log), SHA2563ed9ae274e99f983b46d58fb28f6e2c095048e929fe5e784d7ab308a6dd91882. The earlier pre-start failure stays separate and byte-for-byte intact (terminal padding makes raw evidence fail whitespace-only diff checks; source checks exclude these captures). No standalone upstream reproducer succeeded; no report filed. Fresh combined targeted packages passed zellijquery15.545s, panebirth0.135s, pairlifecycletest1.810s, pair-go15.003s and repolint14.101s. Interactive negative control passed its race run3 times; it demonstrates the accepted uncovered overlap rather than certifying it safe. Final affected-reader audit passed after individual input reviews and minimal scanner-name registration. Atlas now maps the implemented boundaries and limits. Next: recorded pre-close on the pushed head, operator smoke coordination, one binary-owned close review and landing.
 
+### 2026-10-24 — acceptance gates queued
+
+PR588 is open on pushed d1d1388cddeff9818feb1c3f7dff569318d8a149. `sdlc local-check run --pre-close` selected affected, then escalated to the declared full suite because the new native qualification is a repository-backed fixture reader. Recorded run lease-1599648425 is queued in the normal machine FIFO (initial position4); it must pass before landing. The binary-owned close review may overlap this queued check under the worker contract; a code-changing review fix requires verification on the final code. No recorded suite pass is claimed yet. No restart/continuation while this owned check is queued or running.
+
+Authenticated submitted TL a48aa40a directs pre-close/close now and defers the operator look to pair:4's combined stage after pair:0 is free. Smoke steps were submitted to pair:4 as delivery43416c45: fresh Claude+Codex startup, pane title, ordinary terminal action/input; no pair:0 changes by this slot. Wait for TL's stage/landing sequencing. The final Plan row now separates completed qualification from these explicit outstanding gate actions, rather than implying the publication itself is already complete.
+
 ## Revisions
+
+### 2026-10-24 — final plan bookkeeping and source ownership
+
+The qualification deliverable is complete; its former combined Plan row is narrowed to that completed work and points at the outstanding recorded-check/review/landing Log rather than ticking publication prematurely. This changes bookkeeping, not the approved mechanism or acceptance requirements. The actual first-pane IO publisher is launcher/pane_ready.go, keeping panebirth/record.go pure; the finite source guard uses Pair's existing internal/repolint extension to shared pkg/golint. Both implementation locations and their direct controls are mapped in the atlas.
 
 ### 2026-10-24 — proposed shared readiness exclusion
 
