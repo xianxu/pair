@@ -51,6 +51,7 @@ Quick-flow investigation; if the root cause requires a new mechanism or exceeds 
 ## Log
 
 ### 2026-10-23 — Root measurement and approved test-only correction
+- 2026-10-23: closed — Test-only fixture correction; no new architectural surface. Tiny-budget/missing-proof controls RED before 8.670s then GREEN6.154s; matching proof finalization traced at1.10-1.13s against real1s. Focused park/retry/joined-future and N15/30 exact counts PASS36.421s, race PASS34.706s; whole-budget and caller cancellation retained, lint PASS5.738s, inventory PASS immediately before close, diff clean. Production budgets untouched. Recorded affected running on pushed44cde4961; required pass before landing. (done-when: contract moved since change-code; judged by the close review); review verdict: SHIP
 
 Both historical count=1 comparisons fail: #827 landing 25905e0ecc875ce080ab401cfb445f54fcfcc20b package43.368s (/15 pass16.42s; /30 unexpected recovery [1 2] instead of [1],26.58s), and pre-#819 46270746147eb5d9048ab1107b1df19339f7b42e package41.865s (same /30 failure25.44s; /15 pass16.14s). Couchcore has no diff between these pins. Logs: 827-repro.jsonl and pre819-repro.jsonl in the retained scratch root.
 
