@@ -49,6 +49,7 @@ Root cause (measured from history): #728 (4a1d1bf76) wrote the publication loop 
   - bounded busy refusal: lock never released, ctx deadline: error Is context.DeadlineExceeded and Is ErrThreadStoreBusy, nothing written;
   - cancellation: ctx cancelled while waiting: error Is context.Canceled, nothing written.
 - [ ] Fix: one predicate isStoreContention(err) (ErrThreadStoreBusy, EWOULDBLOCK, EAGAIN), shared by retentionLockError and the publication loop (ARCH-DRY). The loop retries contention until the caller's ctx ends, then returns ctx.Err joined with the last contention error, so the adoption warning says the store stayed busy. No timeout bump, no assertion change; storeReadLockWait and maintenance wait 0 unchanged.
+- [ ] TL condition, no unbounded retry: the loop refuses a context without a deadline (a future caller cannot spin), and the test wrapper rememberRepoConfiguration passes a bounded context instead of Background; a test pins the refusal.
 - [ ] Verify: the concurrent-instance test -count=20 green; store-wait tests; atlas couch store-lock note.
 
 Composition with #854 (PR 590, unlanded): there the inner wait is capped at the deadline and returns DeadlineExceeded, which is not contention, so the loop returns it unchanged; the second lander integrates.
@@ -56,3 +57,7 @@ Composition with #854 (PR 590, unlanded): there the inner wait is capped at the 
 ## Log
 
 Filed unclaimed from #866; no fix made in that branch. Reported exact isolated reproduction exit1 and full-set failure. No flake classification claimed.
+
+pair:9 evidence (TL relayed; registration does not persist it): suite attempt 65d6f942 on 912ce21e failed in full (27m32s); targeted runs of TestRepoPreferenceConcurrentInstancesPreserveOtherRepositoriesAndAgents failed 17 of 20 in 22.5 s.
+
+TL approved the plan with the no-unbounded-retry condition above.
