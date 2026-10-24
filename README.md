@@ -1251,7 +1251,8 @@ with bounded parallelism, most recently active first, without moving your keyboa
 Until a thread is ready it is greyed out: a placeholder on the status row, with
 a spinner on the one starting now, and a `queued` or `reattaching…` row in the
 switcher. Neither can be clicked or selected. A thread that fails to come back
-keeps Continue with its failure reason, and one click retries the warm attachment.
+keeps Continue with its failure reason. Select its row, then activate it to retry
+the warm attachment; an already-selected row takes one click.
 Quitting part-way leaves the rest detached for next time. Only a bare start
 does this, and it never resumes a parked thread.
 
@@ -1961,10 +1962,18 @@ stays open. Capture any needed native transcript coordinates before switching;
 the previous tty recording remains available through `couch --peek repo:N
 --previous`.
 
-The status row and the switcher are **clickable**: a click on an actor's chip, or
-anywhere in its rows in the switcher, switches to it, and empty space does
-nothing. A click is always a manual switch, so `Ctrl-Backspace` undoes it even
-when the actor was paging. couch enables click reporting for itself and withholds
+The status row and the switcher are **clickable**. In the open switcher, clicking
+a different eligible row selects it without switching; clicking the selected row
+activates it. A rapid double click selects then activates exactly once, and a
+slower second click also activates: no timer is involved. Chips inside the open
+switcher follow the same rule. A chip hidden by a filter or group first reveals
+and selects its row, clearing only what hides it; from a nested menu, the first
+chip click returns to the root and selects. Chips outside the switcher still
+switch immediately, `+N` keeps opening its group, and empty space does nothing.
+Keyboard navigation and Enter are unchanged.
+
+An activating click is always manual, so `Ctrl-Backspace` undoes it even when
+the actor was paging. couch enables click reporting for itself and withholds
 every report from a child that never asked for one, so mouse selection and scroll
 inside an attached Pair session are unaffected.
 

@@ -300,7 +300,8 @@ Stable lock inodes occupy 256 stripes in session-locks-v2 and are retained.
 
 Startup attachments and explicit Continue use the same single bounded retry.
 Background attachment does not block the console or steal focus. Every failure
-keeps its Continue outcome and shows a reason with a one-click warm attach retry;
+keeps its Continue outcome and shows a reason; activating its selected row
+retries the warm attachment (if its row is not selected, select it first);
 a later inventory observation may independently change the outcome.
 Authenticated wrappers reconnect and join the broker independently of panes;
 retained thread/workspace, positive terminal listing, readiness and exact process
@@ -3408,7 +3409,14 @@ reasserting click-only mode over a child that needs drag motion.
 The existing Ctrl+vertical-wheel product policy remains explicit in the typed
 input adapter; it is separate from terminal mode ownership and tracked by #226.
 
-A click dispatches the SAME declared `switch` (or `resume`) operation Enter
+Inside the open switcher, a left press on a different row selects it without
+switching; a press on the selected visible row activates it (#851). A double
+click therefore selects then activates, with no timer. Chips inside the open
+switcher follow the same rule; a hidden chip first reveals and selects its
+row, while +N retains its group-opening action. Tab-bar chips outside the
+switcher still activate immediately. Keyboard behavior is unchanged.
+
+An activating click dispatches the SAME declared `switch` (or `resume`) operation Enter
 dispatches, chosen by the same `enterOperationFor` rule — one authority, because
 a restatement had already diverged on its first day. The one difference is that a
 click is always MANUAL: it suppresses the attention capture, so the landing is

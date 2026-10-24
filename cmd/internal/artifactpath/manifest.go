@@ -1704,6 +1704,8 @@ var NonArtifactSources = []string{
 	"cmd/internal/couchtty/mouse.go",
 	"cmd/internal/couchtty/mousetrace.go",
 	"cmd/internal/couchtty/menu.go",
+	// #851 pure mouse selection owns no artifact paths or I/O.
+	"cmd/internal/couchtty/menu_mouse.go",
 	"cmd/internal/couchtty/console_operation_adoption.go",
 	"cmd/internal/couchtty/menu_operations.go",
 	"cmd/internal/couchtty/menu_copy.go",

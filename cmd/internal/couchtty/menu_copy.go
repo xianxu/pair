@@ -35,7 +35,7 @@ func ReduceCopyFeedback(state CopyFeedback, event MenuEvent) (CopyFeedback, bool
 	}
 	if !state.held() {
 		switch event.Kind {
-		case MenuEventKey, MenuEventMouseSwitch, MenuEventParkHotkey:
+		case MenuEventKey, MenuEventMouseSwitch, MenuEventMouseRowClick, MenuEventParkHotkey:
 			return CopyFeedback{}, false
 		}
 	}
