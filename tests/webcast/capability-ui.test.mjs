@@ -17,7 +17,7 @@ test('late annotation mount takes latest permission; off cancels stroke and hold
  const original=h.win.fetch;h.win.fetch=(url,init)=>url==='palette.json'?new Promise(r=>palette=r):original(url,init);
  h.caps(true,false);const mounting=mountAnnotate(h.doc,h.win,h.v);h.caps(false,false,2);
  palette({ok:true,json:async()=>({palette:['#ff0000'],annotate:true})});const ui=await mounting;
- ui.setMode('point');assert.equal(ui.mode,'watch');assert.match(h.root.querySelector('.annotation-hint').textContent,/off/i);
+ ui.setMode('point');assert.equal(ui.mode,'watch');assert.match(h.root.querySelector('.feedback-status').textContent,/off/i);
  h.caps(true,false,3);ui.setMode('point');const layer=h.root.querySelector('.annotate');
  await h.event(layer,'pointerdown');await h.event(layer,'pointermove',{clientX:40});
  const posted=h.posts.length;h.caps(false,false,4);await h.event(layer,'pointerup');for(const fn of [...h.timers.values()])fn();

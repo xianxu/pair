@@ -26,8 +26,8 @@ Paths below are relative to `cmd/internal/webcast/` unless stated otherwise. New
 |------|----------|----------------|
 | Feedback entries projection: keyed note/sketch rows from existing models | `web/feedback-entries.js` | new / #856 |
 | Workspace layout: protected toolbar rectangle and panel bounds | `web/feedback-layout.js` | new / #856 |
-| Floating panel transitions and session-local anchor | `web/floating-panel.js` from #850 | reused / #856 |
-| Sketch summary selector | `web/sketch-notes.js` from #850 | deleted/replaced by unified entries / #856 |
+| Floating panel transitions and session-local anchor | `web/floating-panel.js` from #850 | modified with optional geometry / #856 |
+| Sketch painted-bounds grouping | `web/sketch-notes.js` from #850 | modified: pure helper retained, DOM selector removed / #856 |
 | PageLoad: exact target, loader and backend root identity | `recording/page_load.go` | new / #857 |
 | Segment load, current load, creation-load projection | `recording/record.go`, `recording/reduce.go`, `recording/sketch_state.go` | modified / #857 |
 | Selection scope and press-time membership | `board/submission.go` after #849 | modified / #857 |
@@ -40,10 +40,12 @@ The entries projection owns no saved note text, sketch history, delivery ledger 
 
 | Name | Lives in | Status / issue | Wraps |
 |------|----------|----------------|-------|
-| Unified Notes DOM adapter | `web/feedback-panel.js`, `web/annotate.js`, `web/annotate.css` | new/modified / #856 | keyed rows, editor, scrolling panel |
-| Tool-column adapter | `inject.js`, `operator.js`, `web/sketch.js`, `web/sketch.css` | modified / #856 | existing live/pause, Sketch, palette and commands |
+| Unified Notes DOM adapter | `web/feedback-panel.js`, `web/feedback-panel.css`, `web/annotate.js` | new/modified / #856 | keyed rows, editor, scrolling panel |
+| Tool-column adapter | `web/cast-tools.js`, `web/cast-tools.css`, `inject.js`, `operator.js`, `web/sketch.js`, `web/sketch.css` | new/modified / #856 | existing live/pause, Pointer, Pen, Note, palette and commands |
 | Informational status adapter | `operator-sketch.js`, `web/feedback-panel.js` | modified / #856 | existing preview/status publication |
-| Anchor action | `operator.js`, `web/feedback-panel.js` | modified / #856 | confirmed current anchor, scroll and highlight |
+| Anchor action | `web/annotation-placement.js`, `web/render.js`, `web/viewer.js`, `operator.js` | modified / #856 | confirmed original anchor before scrolling and rechecking placement |
+| Hover glow canvas owner | `web/feedback-glow.js`, `web/annotate.js`, `web/sketch.js` | new/modified / #856 | pixel-only painting with existing box/ink placement |
+| Embedded asset and operator module graph | `server.go`, `operator_script.go`, `web/index.html` | modified / #856 | shared runtime JS/CSS and import/export seams |
 | Recorder navigation/load owner | `recorder/recorder.go`, `recorder/mirror.go` | modified / #857 | CDP top-frame events and fenced snapshot |
 | Operator projection | `board/operator_view.go`, `board/sketch_delivery.go`, `web/model.js`, `web/annotate.js`, `web/sketch-render.js`, `operator.js` | modified / #857 | current-load rows, pins, ink and controls |
 | Recording codec and catch-up | `recording/contract.go`, `recording/catchup.go`, `recording/sketch_snapshot.go` | modified / #857 | file replay and restart |
@@ -195,3 +197,11 @@ The operator opened the mock inside the live cast Chrome and real injected tools
 ### 2026-10-23 — Layout accepted; production authorized
 
 TL receipt e378240d-75dd-498d-96e8-91b542182269 records the operator’s “yes, like it” and authorizes #856 production followed by #857, aiming for the combined morning test stage with #849. No further layout approval is pending. Production still crosses change-code and consumes dependent issue APIs only after their main landing; pure independently scoped helpers can be prepared first without stacking commits.
+
+### 2026-10-24 — Production integration and palette decision
+
+#850/#849 are landed and consumed from main. Added thin `web/feedback-glow.js` canvas owner and `web/cast-tools.js` control-adoption owner alongside the planned panel: the former keeps hover pixel-only to avoid MutationObserver-driven visibility stamp churn; the latter reuses actual button listeners and permissions. `createPlacement.reveal` factors confirmed-original validation before scrolling and then rechecks placement. The separate sketch selector is removed, retaining only its pure painted-bounds grouping helper. Pending feedback now supplies header text and retains its publication/ack checks without DOM cards.
+
+TL receipt 0ed24a81-0dcd-481a-a33b-9a6ee394b937 approves the one mock deviation: pen colours remain visible/selectable before starting, since the accepted begin fixes the colour and the existing adapter disables changes while active. No extra arming state is added. Undo/Redo/Done remain conditional. Morning stage steps must call this out.
+
+Actual Node command is `node --test tests/webcast/*.test.mjs`; tests reside there, not web/*.test.js. New IO helpers are tested by `feedback-glow.test.mjs`, `cast-tools.test.mjs` and `feedback-panel.test.mjs`; trusted reveal extends `annotation-placement.test.mjs`. Runtime assets are embedded/routed in server.go and imported by the actual operator bundle. Existing source-bound native fixtures are migrated to the unified panel and column, retaining privacy and lifecycle assertions.

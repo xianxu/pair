@@ -14,15 +14,15 @@ test('live note mask redraws pins, list and open dialog without modifying note s
  v.feedbackMask=createFeedbackMask({changed:()=>{for(const fn of hooks)fn();}});
  const ui=mountAnnotation(doc,win,v,{root,box,stage:box,palette:['#112233'],annotate:false,who:{id:()=> 'viewer',name:()=> 'Viewer',viewer:()=>({id:'viewer',name:'Viewer'})},colors:{get:()=>0,set(){}},post:()=>assert.fail('display cannot post')});
  const flush=()=>{while(frames.length)frames.shift()();};flush();
- const panel=root.querySelector('.annotation-notes');
- const list=root.querySelector('.annotation-note-list');assert.ok(list,'list is the scrolling panel body');
+ const panel=root.querySelector('.feedback-panel');
+ const list=root.querySelector('.feedback-rows');assert.ok(list,'rows live in the shared scrolling panel body');
  assert.equal(list.children.length,1);
  const click={preventDefault(){},stopPropagation(){},detail:0};
  panel.querySelector('.floating-panel-minimize').listeners.click[0](click);
  assert.equal(panel.classList.contains('minimized'),true);
  assert.equal(root.querySelector('.pins').children.length,1,'minimizing preserves anchored feedback');
  assert.equal(entry.revision,0);assert.equal(entry.state,'open');
- list.children[0].listeners.click[0]({stopPropagation(){}});assert.equal(ui.dialog.open,true);
+ list.children[0].querySelector('.feedback-open').listeners.click[0]({stopPropagation(){}});assert.equal(ui.dialog.open,true);
  v.feedbackMask.install({scope:'cast',revision:'1',sketches:[],notes:[{id:'n',revision:'0'}]});flush();
  assert.equal(list.children.length,0);assert.equal(root.querySelector('.pins').children.length,0);assert.equal(ui.dialog.open,false);
  assert.equal(entry.state,'open');assert.equal(entry.note,note);

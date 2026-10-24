@@ -148,3 +148,19 @@ test('mode rendering and measurement follow the pure transition sequence',async(
  ]);
  assert.deepEqual(panelTrace.slice(-2).map(e=>e.event),['geometry','click']);
 });
+
+test('optional protected geometry owns bounds, empty visibility and presentation',()=>{
+ const cost={styles:0,geometry:0,capture:[]},doc={createElement:tag=>new Node(tag,cost)};
+ const win=new Node('window',cost);win.innerWidth=800;win.innerHeight=600;
+ let width=620;const events=[];
+ const panel=mountFloatingPanel(doc,win,{parent:doc.createElement('main'),showEmpty:true,
+  geometry:()=>({viewport:{left:12,top:12,width,height:576},size:{width:300,height:320},left:332,top:110}),
+  onPresentation:e=>events.push(e)});
+ assert.equal(panel.root.hidden,false);assert.ok(panel.header);
+ for(let i=0;i<50;i++)panel.header.querySelector('.floating-panel-drag').fire('keydown',{key:'ArrowRight',shiftKey:true});
+ assert.equal(panel.root.style.inset.split(' ')[3],'332px');
+ panel.header.querySelector('.floating-panel-minimize').fire('click');assert.equal(events.at(-1).minimized,true);
+ width=0;panel.refresh();assert.equal(panel.root.hidden,true);
+ width=620;panel.refresh();assert.equal(panel.root.hidden,false);
+ panel.dispose();
+});

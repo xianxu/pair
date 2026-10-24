@@ -1,12 +1,14 @@
 // Local presentation state only: no note data, persistence, or feedback authority.
 const finite = (value, fallback = 0) => Number.isFinite(value) ? value : fallback;
-const dimensions = value => ({width: Math.max(0, finite(value?.width)), height: Math.max(0, finite(value?.height))});
+const dimensions = value => ({width: Math.max(0, finite(value?.width)), height: Math.max(0, finite(value?.height)), ...(Number.isFinite(value?.left) ? {left:value.left,top:finite(value.top)} : {})});
 function bounded(state) {
   const {viewport, size} = state;
-  const mx = Math.min(12, viewport.width / 2), my = Math.min(12, viewport.height / 2);
+  const custom = Number.isFinite(viewport.left);
+  const mx = custom ? 0 : Math.min(12, viewport.width / 2), my = custom ? 0 : Math.min(12, viewport.height / 2);
+  const x = viewport.left || 0, y = viewport.top || 0;
   return {...state,
-    left: Math.min(Math.max(mx, finite(state.left)), Math.max(mx, viewport.width - mx - size.width)),
-    top: Math.min(Math.max(my, finite(state.top)), Math.max(my, viewport.height - my - size.height))};
+    left: Math.min(Math.max(x + mx, finite(state.left)), Math.max(x + mx, x + viewport.width - mx - size.width)),
+    top: Math.min(Math.max(y + my, finite(state.top)), Math.max(y + my, y + viewport.height - my - size.height))};
 }
 
 // Events carry measured geometry; the reducer never reads the DOM.
@@ -50,7 +52,7 @@ export function floatingPanelTransition(previous, event) {
   return bounded(state);
 }
 
-export function mountFloatingPanel(doc, win, {parent, body, title = 'Notes', className = 'annotation-notes', initialTop = 110, initialRight = 12}) {
+export function mountFloatingPanel(doc, win, {parent, body, title = 'Notes', className = 'annotation-notes', initialTop = 110, initialRight = 12, geometry, showEmpty = false, onPresentation = () => {}}) {
   const element = (tag, cls, text) => {
     const node = doc.createElement(tag); node.className = cls;
     if (text !== undefined) node.textContent = text;
@@ -68,13 +70,17 @@ export function mountFloatingPanel(doc, win, {parent, body, title = 'Notes', cla
   body ||= element('div', '');
   body.className = `${body.className || ''} floating-panel-body`.trim();
   header.append(handle, minimize); root.append(header, body, restore); parent.append(root);
-  const viewport = () => ({width: finite(win.innerWidth), height: finite(win.innerHeight)});
+  let customGeometry = geometry?.('expanded');
+  const viewport = () => customGeometry?.viewport || ({width: finite(win.innerWidth), height: finite(win.innerHeight)});
   const measure = () => {
+    if (customGeometry?.size) return customGeometry.size;
     const rect = root.getBoundingClientRect();
-    return {width: rect.width || Math.min(300, Math.max(0, win.innerWidth - 24)), height: rect.height || Math.min(320, Math.max(0, win.innerHeight - 24))};
+    const width = rect.width || Math.min(300, Math.max(0, win.innerWidth - 24));
+    const height = rect.height || Math.min(320, Math.max(0, win.innerHeight - 24));
+    return customGeometry ? {width:Math.min(width, customGeometry.viewport.width),height:Math.min(height, customGeometry.viewport.height)} : {width,height};
   };
   let state = floatingPanelTransition(null, {type: 'init', viewport: viewport(), size: measure(),
-    left: finite(win.innerWidth) - finite(initialRight, 12) - Math.min(300, Math.max(0, finite(win.innerWidth) - 24)), top: initialTop});
+    left: customGeometry?.left ?? finite(win.innerWidth) - finite(initialRight, 12) - Math.min(300, Math.max(0, finite(win.innerWidth) - 24)), top: customGeometry?.top ?? initialTop});
   let count = 0, captureTarget = null;
   const removers = [];
   const listen = (node, type, fn) => {
@@ -94,15 +100,32 @@ export function mountFloatingPanel(doc, win, {parent, body, title = 'Notes', cla
   const cancel = () => { const id = state.gesture?.id; send({type: 'cancel'}); release(id); };
   const presentation = () => {
     const minimized = state.mode === 'minimized';
+    root.hidden = (!showEmpty && count === 0) || state.viewport.width === 0 || state.viewport.height === 0;
+    if (customGeometry) {
+      root.style.width = minimized ? 'auto' : `${state.size.width}px`;
+      root.style.height = minimized ? 'auto' : `${state.size.height}px`;
+      root.style.maxWidth = `${state.viewport.width}px`;
+      root.style.maxHeight = `${state.viewport.height}px`;
+    }
     root.classList.toggle('minimized', minimized);
     header.hidden = minimized; body.hidden = minimized; restore.hidden = !minimized;
     handle.textContent = `${title} (${count})`; restore.textContent = `${title} (${count})`;
+    onPresentation({minimized, hidden:root.hidden});
+  };
+  const refresh = () => {
+    if (state.disposed) return;
+    cancel(); customGeometry = geometry?.(state.mode);
+    if (geometry && !customGeometry) {
+      for (const property of ['width','height','maxWidth','maxHeight']) root.style[property] = '';
+    }
+    send({type:'geometry', size:measure(), viewport:viewport()}); presentation();
   };
   const mode = value => {
     cancel();
     // The reducer owns the mode; render that state before measuring its form.
     send({type: 'mode', mode: value}); presentation();
-    send({type: 'geometry', size: measure(), viewport: viewport()});
+    if (geometry) refresh();
+    else send({type: 'geometry', size: measure(), viewport: viewport()});
   };
   const stop = event => { event.preventDefault(); event.stopPropagation(); };
   const press = event => {
@@ -144,9 +167,9 @@ export function mountFloatingPanel(doc, win, {parent, body, title = 'Notes', cla
     send({type: 'keyboard', dx: delta[0] * step, dy: delta[1] * step});
   };
   listen(handle, 'keydown', keyboard); listen(restore, 'keydown', keyboard);
-  listen(win, 'resize', () => { if (!state.disposed) { cancel(); send({type: 'geometry', size: measure(), viewport: viewport()}); } });
-  presentation(); anchor(); root.hidden = true;
-  return {root, body,
+  listen(win, 'resize', refresh);
+  presentation(); anchor();
+  return {root, body, header, refresh,
     setCount(value) {
       if (state.disposed) return;
       const nextCount = Math.max(0, Math.floor(finite(value)));
