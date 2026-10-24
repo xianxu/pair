@@ -15,6 +15,7 @@ claimant:
     workspace: pair:9
     worktree: /Users/xianxu/workspace/worktree/pair-slot9/pair
     repository: github.com/xianxu/pair
+flow: {kind: quick, provenance: inferred, spec: "ccb7b222", done: "55fd417f"}
 ---
 
 # Publish cancellation fixture PID readiness atomically
