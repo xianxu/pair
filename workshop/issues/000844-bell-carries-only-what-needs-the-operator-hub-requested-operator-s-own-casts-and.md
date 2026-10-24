@@ -166,6 +166,10 @@ Stopped under the worker third-delta rule and appended a revised owner-scoped/di
 
 NEXT ACTION: present the committed revised plan to hub and await approval. No source changes, suite, stage or new close until approval; afterward change-code, deterministic red/green transition matrix, final pushed recorded check, close review and combined live look.
 
+### 2026-10-24 — revised contract approved
+
+Ops:0 approved exact-root generation validation, accepted-handoff adoption of destination Root/epoch, and one non-admitting AwaitingDisposition phase after confirmed refusal, with connected/feed, unavailable/bell, unknown/wait dispositions and unchanged bounds (authenticated submitted delivery a5bd7b97-5321-4e2f-8353-ab458864d057). Any fourth design delta must stop for scope reduction rather than another mechanism extension. Plan-quality owns the fresh-eyes check; run change-code before implementation. Revised plan request c4442aa0-0594-42f3-ae97-0ed0ba50b4b8 was submitted. No production changes have been made since round2's reviewed head.
+
 ## Estimate
 
 Produced via brain/data/life/42shots/velocity/estimate-logic-v3.1.md against baseline-v3.1.md. Method A only. Calibration is flagged stale by estimate-source, so these are provisional ship-wall-clock hours. Read v2/v2.1 procedure and table: retain issue/spec design cost; use x0.2 design discount for approved module/integration/refactor decisions, 40% implementation conversion, familiarity 1.0 and 15% design buffer.
