@@ -97,3 +97,110 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000408
+
+---
+
+## Re-review — 2026-10-24T03:39:59-07:00 (REWORK)
+
+| field | value |
+|-------|-------|
+| issue | 863 — Native fleet: explicit-hub Fleet.Start broken since #739; second explicit hub fails attach at a fresh start |
+| repo | pair |
+| issue file | workshop/issues/000863-native-fleet-explicit-hub-fleet-start-broken-since-739-second-explicit-hub-fails.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 99846a5015f753f05edaf4778618849f377a2f71..71bb4b2e719f929a3873145020110dd138634709 |
+| command | sdlc close --issue 863 |
+| reviewer | codex (openai; author openai) |
+| isolation | fenced |
+| timestamp | 2026-10-24T03:39:59-07:00 |
+| verdict | REWORK |
+
+## Review
+
+```verdict
+verdict: REWORK
+confidence: high
+```
+
+BR-1 is addressed: the history checks and locked creation guards are reachable, and their regression tests fail when those protections are disabled. One new correctness bug blocks shipping: failure during post-commit discovery/enrollment strands a numbered hub’s start transaction. BR-2 also remains unresolved; the retained native captures do not establish the required matrix or independence of the original failure.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      Configured unenrolled history is inspected, and ordinary/numbered creation rechecks emptiness under publication locks. Targeted tests pass; disabling these protections in a disposable pinned-head copy makes the observation and late-history regressions fail.
+  - id: BR-2
+    disposition: not-addressed
+    note: |
+      Inspected branch-required-native-7a71f335.log and the pinned-main comparison captures. StartupArguments/claude fails and skips Codex; EditedRestart/codex also fails in the matrix. The main StartupArguments failure has a different signature from the original attach-input-ended failure, while later passing comparisons do not establish its independence. Passing two-personality acceptance or measured classification of the outstanding failures is still needed; the recorded close approval and follow-up issues do not supply that evidence.
+findings:
+  - id: new
+    severity: Critical
+    kind: defect
+    family: committed-starts-require-terminal-disposition
+    title: |
+      Post-commit discovery or enrollment failure strands a creating hub transaction
+    detail: |
+      cmd/internal/couchcore/slotrecovery.go:491-499 returns directly after claimFreshRecord has published the local creating incarnation and native address claim. Discovery failure, identity disagreement, or enrollment failure bypasses launchClaimedThread and its rollback handling. In a disposable pinned-head copy, injecting a discovery failure after artifact Claim reproduced an error with zero launched children but a persisted creating transaction owned by the live supervisor. Finalize every post-publication failure through exact-record/nonce cleanup that also works before enrollment, and add regressions covering these exits. ARCH-ORDER and ARCH-FUNERAL.
+```
+
+1. **Strengths**
+
+   - The shared history reader covers unenrolled local current records, archives, recovery backups, and legacy global records.
+   - Empty-only publication shares the existing journal machinery and checks both stores while holding the established lock order.
+   - Real `Console.Run` tests hold launch and adoption separately, verify serial extra-hub startup, and confirm cancellation joins.
+   - README, atlas, and the embedded Couch skill now describe fresh startup and automation remaining off.
+
+2. **Critical findings**
+
+   - **New: stranded start claim**, [slotrecovery.go:491](/Volumes/TestScratch/review-checkouts/a1b688d778015779/cmd/internal/couchcore/slotrecovery.go:491). The three new error exits occur after durable publication but before lifecycle cleanup takes ownership. Handle these exits as confirmed pre-launch failures against the exact local transaction; preserve any uncertain enrollment progress separately.
+
+3. **Important findings**
+
+   - **BR-2 remains open.** The retained matrix passes fresh two-hub callers and dirty/force scenarios on both personalities, but fails StartupArguments/Claude and skips its Codex cohort. The documented comparisons do not resolve the original failure’s cause. See [the plan’s acceptance disposition](/Volumes/TestScratch/review-checkouts/a1b688d778015779/workshop/plans/000863-fresh-hub-startup-plan.md:160).
+
+4. **Minor findings**
+
+   None.
+
+5. **Test coverage notes**
+
+   - Targeted startup tests passed across `couchcore`, `couchcmd`, `couchtty`, and `testcouch`.
+   - Additional store, tag, Fresh-slot, recovery, and transaction tests passed.
+   - BR-1 negative controls failed as expected in a temporary pinned-head copy.
+   - A temporary injected-failure regression reproduced the new stranded transaction.
+   - Native evidence was inspected; no additional native run was performed. Temporary copies were removed, and the reviewed checkout remains unchanged.
+
+6. **Architectural notes**
+
+   - **ARCH-DRY — pass:** shared history checks and journal publication avoid parallel implementations.
+   - **ARCH-PURE — pass:** classification remains pure; storage and launch effects stay at integration boundaries.
+   - **ARCH-PURPOSE — flag:** BR-2’s acceptance requirement remains unestablished.
+   - **ARCH-MOCK — pass:** orchestration uses the production dispatcher with stateful process fakes and controllable ordering.
+   - **ARCH-CONSTRAINTS — pass:** directory inspection is bounded and context-aware; launch deadlines were not increased.
+   - **ARCH-SECURE — pass:** retained or unsafe history denies creation authority.
+   - **ARCH-ORDER — flag:** post-publication failures escape without a terminal transaction disposition.
+   - **ARCH-FUNERAL — flag:** those exits leave a durable claim without completion or cleanup.
+   - **ARCH-EVOLVE — pass:** no persisted format change was introduced.
+
+   The plan’s named entities exist at their stated locations; the revised integration boundaries match the implementation.
+
+7. **Plan revision recommendations**
+
+   Add a `## Revisions` entry enumerating every failure between successful claim publication and launch ownership, specifying exact local cleanup and tests for discovery failure, identity change, enrollment failure, and cancellation. Retain BR-2 as incomplete until its evidence requirement is satisfied.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"7afa2210-0e71-49d9-bf5a-37a5751ec1f2","repository":"github.com/xianxu/pair","issue_id":"000863","recipe":"milestone-review","round":2,"attempt":1,"agent":"codex","root":"/Volumes/TestScratch/review-checkouts/a1b688d778015779","reviewed_head":"71bb4b2e719f929a3873145020110dd138634709","slot":"pair:7","requested_at":"2026-10-24T10:35:51.33727Z"},"phase":"finished","pid":68024,"started_at":"2026-10-24T10:35:51.432715Z","finished_at":"2026-10-24T10:39:57.239786Z","session_id":"01a16d7b-2e29-7410-b27e-d01255a430f4","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 2.041710583s
+head: "71bb4b2e719f929a3873145020110dd138634709"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412
