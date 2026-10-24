@@ -43,7 +43,7 @@ Durable source-qualified plan: workshop/plans/000861-ariadne-pin-lint-adoption-p
 - [x] Consolidate three JSON readers with preserved owner contracts; retain two authorized independent-role exceptions pending ariadne#590.
 - [x] Reuse canonical ShortRoot; preserve ordinary inherited TMPDIR and optional startup socket isolation.
 - [x] Replace virtual budget shortcuts and native expiry races with explicit observed transitions and cue-owned deadlines/timers.
-- [ ] Audit readers, pass catalog/targeted/pre-close, update atlas, close and land; then return #838.
+- [x] Audit readers, pass catalog/targeted/pre-close and update atlas; implementation ready for close and landing, then return #838.
 
 ## Estimate
 
@@ -175,3 +175,11 @@ Atlas and lesson updated. Next: commit this qualified implementation; run clean-
 At committed implementation5c3d67edb2798b06b6368e7e1b0e244b619b36d3, all three real provider source modes passed on the clean archived Pair graph: installed581 module103.330s, exact581 Git ref102.596s, sibling103.437s. Each qualified778 distinct group/file inputs. Raw logs retained under workshop/evidence/000861/affected-*-passed.log. Fresh inventory PASS; Go1.27.3 verified; no protected gate-configuration path in branch diff. Full catalog includes staged new helpers and passes3483 sources/34 rules/100 exact debt sites.
 
 Next: push this documentation checkpoint, queue one --pre-close, notify hub for offered priority. Preserve runner/FIFO. Required final recorded pass and mandatory close review/landing are still pending. No native agent model/live fleet was touched; #838 owns the later real operator joint check.
+
+### 2026-10-24 — recorded pre-close PASS; close next
+
+Retained attempt412e0007e3f221a2893dcc6195396815 on pushed b578e7ab6b98bd3c783372a9d6df1c8cd1d2ea2f completed exit0 in15m51s after the normal priority wait. Full fallback was expected (standalone example module path and normal dependency pin). Every shell/editor check and all Go packages passed, including catalog, artifact inventory, editorial, Couch core, scanner, historyarchive, submission, native request cleanup and PTY fixtures. No retry, flake registration or gate waiver was used. SDLC posted sdlc-local/suite on that exact head.
+
+Authoritative raw record: /Users/xianxu/workspace/pair/.git/sdlc/local-checks/b578e7ab6b98bd3c783372a9d6df1c8cd1d2ea2f/suite.log. SHA256 b5fd724afaf96c15a87f28bdba3738ce1031dc31216349d2477f02ca5740228c. The reported unowned SSD temp folders belong to other processes; this worktree gained0 folders/0 bytes outside test scratch. No live fleet state was used. Draft PR580 local-gates guard is green with no protected configuration paths touched.
+
+Next: required fresh inventory check, mandatory whole-issue close review with measured actuals, then ready PR580 and enter sdlc merge --yes. After landing861, resume838 from its checkpoint, integrate main and run its pre-close; joint operator stage remains pending.
