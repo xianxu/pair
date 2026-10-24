@@ -149,35 +149,35 @@ Fixture examples remain source data rather than another prose case inventory. Co
 
 Files: `cmd/internal/editorial/contract_test.go`, `testdata/contract838/`; `workshop/evidence/000838/contract-provenance.json`; affected reader certificates only after auditing actual reads.
 
-- [ ] Verify #575 landed; refresh the ordinary dependency through weave. Verify #576 before final fixture pin/performance evidence. Record actual Git revision and exported file digests; no candidate copying into the dependency.
-- [ ] Add manifest-driven tests verifying exact spec/round/examples bytes. Replay all applicable exported fixtures, especially chat-tag, misplaced-tag, legacy scalar/map/comment, ignored/malformed keys, no-asks, command/question and scope examples. Keep #823's historical evidence intact, removing only obsolete production-catalog coupling from its test.
-- [ ] Write `TestCompileSharedChatContract` and `TestCompileRetiredValuesNeverRefuse`; run `go test ./cmd/internal/editorial -run 'TestCompileSharedChatContract|TestCompileRetiredValuesNeverRefuse'` and record RED on old behavior before implementation.
+- [x] Verify #575 landed; refresh the ordinary dependency through weave. Verify #576 before final fixture pin/performance evidence. Record actual Git revision and exported file digests; no candidate copying into the dependency.
+- [x] Add manifest-driven tests verifying exact spec/round/examples bytes. Replay all applicable exported fixtures, especially chat-tag, misplaced-tag, legacy scalar/map/comment, ignored/malformed keys, no-asks, command/question and scope examples. Keep #823's historical evidence intact, removing only obsolete production-catalog coupling from its test.
+- [x] Write `TestCompileSharedChatContract` and `TestCompileRetiredValuesNeverRefuse`; run `go test ./cmd/internal/editorial -run 'TestCompileSharedChatContract|TestCompileRetiredValuesNeverRefuse'` and record RED on old behavior before implementation.
 
 ### 2. Simplify compilation and edit guards
 
 Files: `editorial/{document,source,edits,markdown,catalog}.go` and colocated tests; remove runtime mode embeds when no consumer remains.
 
-- [ ] Adapt ChatScan sections/notices to byte intervals and protected source ownership, retaining Goldmark source facts for edit validation. One shared scan per Compile; include tag and owning heading/ancestor in section freshness tokens.
-- [ ] Delete retired processing/presentation/override resolution, domain/frontier enforcement and fill paths. Keep legacy declarations byte protected and nonfatal. Compile unknown/malformed settings using shared fallback without discarding unrelated ownership metadata.
-- [ ] Implement the function-scoped strategies below for authority preservation and chat grammar; preserve existing ready-referral and pending-marker guards.
+- [x] Adapt ChatScan sections/notices to byte intervals and protected source ownership, retaining Goldmark source facts for edit validation. One shared scan per Compile; include tag and owning heading/ancestor in section freshness tokens.
+- [x] Delete retired processing/presentation/override resolution, domain/frontier enforcement and fill paths. Keep legacy declarations byte protected and nonfatal. Compile unknown/malformed settings using shared fallback without discarding unrelated ownership metadata.
+- [x] Implement the function-scoped strategies below for authority preservation and chat grammar; preserve existing ready-referral and pending-marker guards.
 - [ ] Pin adapter scan counts at N/2N and fuzz generated base/candidate edits with an independent interval/item oracle. Run `go test ./cmd/internal/editorial` and `go test -race ./cmd/internal/editorial`; expected PASS including existing item-integrity regressions.
-- [ ] Commit the coherent pure-core change with issue, Agent and Co-Authored-By trailers.
+- [x] Commit the coherent pure-core change with issue, Agent and Co-Authored-By trailers.
 
 ### 3. Wire rounds, notices and operator migration
 
 Files: `sessionsync/{editorial,editorial_migration,editorial_codec,round,applyfile,sync}.go`, colocated tests; `couchcmd/session_sync.go` and `session_sync_editorial_test.go`.
 
 - [ ] Write failing public-seam tests through the stateful file rig for each write API; assert the common source/authority invariant and unchanged shadow on every rejected transaction.
-- [ ] Remove the runtime catalog dependency. Carry the shared notice sequence once in Read.Editorial; CLI renders the sequence without duplicated wrapper notices. Preserve old round codec/render semantics and unknown-field round trips.
-- [ ] Exercise PlanMigration with generated legacy documents and the independent chat-item projection oracle; test the existing confirmed transaction as event sequences. Implement only transformations proved to preserve chat items.
+- [x] Remove the runtime catalog dependency. Carry the shared notice sequence once in Read.Editorial; CLI renders the sequence without duplicated wrapper notices. Preserve old round codec/render semantics and unknown-field round trips.
+- [x] Exercise PlanMigration with generated legacy documents and the independent chat-item projection oracle; test the existing confirmed transaction as event sequences. Implement only transformations proved to preserve chat items.
 - [ ] Run `go test ./cmd/internal/sessionsync ./cmd/internal/couchcmd -run 'Editorial|Round|SessionSync'`, then focused race tests. Commit the integration with the same trailers.
 
 ### 4. Agent contract, acceptance and close
 
 Files: `cmd/internal/couchcmd/skills/couch/SKILL.md`, `cmd/couch/editorial_acceptance_test.go`; `atlas/couch-agentic-documents.md`, `atlas/couch.md`, `atlas/index.md`, README command/help references where affected.
 
-- [ ] Update all current guidance to single collaborative mode, shared question/command/scope rules, highlight and tag/legacy notices; remove instructions to fill mode keys or select processing axes. Preserve old fixture/evidence provenance, not stale product instructions.
-- [ ] Read-only audit real ops and brain chat/session docs: resolve actual paths, retain local digests and routing/notice summaries, never publish their content or modify them. Prove brain's existing chat document remains accepted unchanged.
+- [x] Update all current guidance to single collaborative mode, shared question/command/scope rules, highlight and tag/legacy notices; remove instructions to fill mode keys or select processing axes. Preserve old fixture/evidence provenance, not stale product instructions.
+- [x] Read-only audit real ops and brain chat/session docs: resolve actual paths, retain local digests and routing/notice summaries, never publish their content or modify them. Prove brain's existing chat document remains accepted unchanged.
 - [ ] Replay pinned fixtures through the public CLI in disposable testcouch. Run bounded native Claude and Codex flows on synthetic documents covering command, question, chat, ordinary marker in chat and new highlights; Qoder if available. No live fleet editing. Failures are classified before any rerun; use registered-flake recovery only when evidenced.
 - [ ] Propose a short operator stage checklist through the TL for the real editor experience: tagged section, command edit highlighted, question side doc, legacy doc still readable. Touch :0 only after stage authorization and clear only our lease afterward.
 - [ ] Run `make test-affected-inventory`; audit each named reader input before its exact repair command, never bulk-refresh. Run targeted packages, push, record `sdlc local-check run --name affected`, retain runner to completion.
@@ -307,3 +307,19 @@ processing Catalog. Existing transaction/round codec owners stay in place.
 Next: refresh change-code on this final API description; implement the already
 RED core tests, then finish all planned public-seam, native and operator
 acceptance before close. No further upstream API wait.
+
+### 2026-10-23 17:44 — shared answered-link correction qualification
+
+The implemented #576 adapter exposed an upstream defect: invalid/empty link
+URLs are marked answered. Owner-confirmed ariadne#581 corrects that shared
+reader/writer grammar; final close now additionally requires its normal landed
+module pin and the unchanged regressions GREEN. The architecture and product
+contract are unchanged; no local parser fork or retry substitutes for the fix.
+
+Mechanical native conformance uses the established testcouch Claude/Codex
+fixture personalities and does not claim model semantic judgment. Both passed
+on afb420dc6863376050548e1e7f40697ca09345d2; the operator's agreed stage check
+still qualifies the actual editor/agent behavior. Qoder is not a supported
+personality in this harness, and no real-model/Qoder credit run is claimed.
+All 13 collaborative primary fixtures pass public CLI; localized records retain
+the existing coarse diff refusal rather than expanding #838 into a new diff.

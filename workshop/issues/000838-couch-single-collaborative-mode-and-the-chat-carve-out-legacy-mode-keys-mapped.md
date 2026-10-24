@@ -48,10 +48,10 @@ simplifying pair#823's per-section mode machinery:
 Draft: [single collaborative mode and chat plan](../plans/000838-collaborative-chat-plan.md).
 One atomic full-flow implementation, one issue-close review (no Mx tags).
 
-- [ ] Approve design and verify ariadne#575 landing; qualify final scanner/notices against ariadne#576.
-- [ ] Pin shared fixtures; simplify the editorial compiler/guards around sidedoc.ChatSections.
-- [ ] Wire new highlight rounds, legacy notices and lossless operator map-to-tag migration.
-- [ ] Prove public seams, old rounds, real-doc read-only audit and disposable native acceptance; update atlas/help.
+- [x] Approve design and verify ariadne#575 landing; qualify final scanner/notices against ariadne#576.
+- [x] Pin shared fixtures; simplify the editorial compiler/guards around sidedoc.ChatSections.
+- [x] Wire new highlight rounds, legacy notices and lossless operator map-to-tag migration.
+- [x] Prove public seams, old rounds, real-doc read-only audit and disposable native acceptance; update atlas/help.
 - [ ] Inventory, recorded affected check, close review, operator acceptance as agreed with TL, then land.
 
 ## Estimate
@@ -331,6 +331,34 @@ timeout change or blind same-head retry. Re-audited native reader inputs (same
 candidate skill/fixtures/runtime bundle), exact certificate refreshed. Next is
 a new committed-head native run. Pure-core scoped race PASS 4.776s; the two
 confirmed #581 cases remain the only full-package blockers.
+
+### 2026-10-23 17:44 — native PASS; upstream gate remains
+
+Corrected committed/pushed head afb420dc6863376050548e1e7f40697ca09345d2:
+TestNativeEditorial EXIT0, 29.166s total; Claude personality12.31s and Codex
+personality10.02s. Each runs the real selected Couch/Zellij path in an isolated
+store with synthetic fixture workers. Five authored cases per personality cover
+numbered question/command chat, prose marker, legacy bullet map, ordinary command,
+question side-doc and all retired-key notices. Exact parent/side-doc bytes,
+new highlight rounds, unchanged owned-refusal artifacts, migration preview /
+confirm / stale / lossy refusal and candidate skill/prefix passed. Both owners
+explicitly confirm all generations absent and direct child/IO joined.
+Native log native-afb420dc-passed.log SHA256
+580bd3d79b9031008dc194c3c10e76e53e117f275b6b47a10bc0faeea97519c5.
+
+This is mechanical native CLI qualification, not a real model judgment about
+questions versus commands. That semantic/editor experience is in the prepared
+operator checklist and remains required before close. Qoder is installed, but
+the existing shared fixture owner supports only Claude/Codex; no Qoder model
+credits or semantic run is claimed and no speculative adapter was built.
+
+Fresh whole editorial package on this same head fails ONLY the two confirmed
+shared #581 malformed/empty-destination subtests (0.311s); retained exact output
+in core-afb420dc-upstream-581.log. No recorded affected check was queued against
+this known-red dependency. Last inventory PASS; no active stage or landing turn.
+Next: await #581 landing notice, update the normal pinned module, require the
+unmodified regression/full pure package and race PASS, then recorded affected
+on pushed head, hub-authorized operator stage and one issue-close review.
 
 ## Revisions
 
