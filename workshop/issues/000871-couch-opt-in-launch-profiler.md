@@ -40,7 +40,9 @@ Seam: profiling_model.go/model_test.go from a40b597e; profiling.go/profiling_tes
 ## Plan
 
 - [x] Execute [the extraction plan](../plans/000871-couch-opt-in-launch-profiler-plan.md): preserve the approved finite lifecycle and launch/env ownership, exclude scaled/native harness consumers.
-- [ ] Qualify deterministic ownership/fault/disabled controls, counted output bounds, real pprof parsing, inventory and pre-close; close, land and report the invocation for the operator's later restart decision.
+- [x] Qualify deterministic ownership/fault/disabled controls, counted output bounds, real pprof parsing and the audited inventory.
+
+Workflow still required before landing: finish the retained recorded pre-close, pass close review, self-merge through the normal gates and report the invocation. These are pending workflow postconditions, not an already-completed implementation claim.
 
 ## Log
 
@@ -93,3 +95,7 @@ Runtime/test head64ca9573ea78dac536e567dd3897764bc58477fb pushed. Pre-close sele
 ### 2026-10-24 — known actual-snapshot limit refused close
 
 Normal actual adoption attempted first. Close session1378 refused before review: measurement branch proof: measurement snapshot does not serialize: json: error calling MarshalJSON for type *gatestate.MeasurementInputs: measurement exceeds65536bytes. Exact refusal retained in measurement-snapshot-refusal.txt. Standing TLf039e10f explicitly retains --no-actual with evidence for this separate ariadne#593 limit; using that precise exception, no guessed hours or rewritten history. The retained pre-close lease advanced to FIFO1 and remains untouched; no test result claimed.
+
+### 2026-10-24 — plan-check structure corrected
+
+Close correctly refused the unchecked Plan row that bundled delivered deterministic qualification with the not-yet-completed close/landing itself. Split the completed implementation criteria from explicit pending workflow postconditions; no unfinished check, review or landing is marked done and no plan-check bypass is used. Runtime/test head and retained suite are unchanged.

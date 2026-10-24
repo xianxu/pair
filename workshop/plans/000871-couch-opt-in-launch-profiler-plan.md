@@ -66,8 +66,10 @@ There is no retry, network listener, agent-system message or automation-gate dep
 - [x] Qualify the production functions through the adversarial strategies below, keeping individual fault cases in executable tests. No new profiling mechanism is introduced.
 - [x] Run `go test ./cmd/internal/couchcmd -run '^(TestProfile|TestParseProfileRequest|TestSingletonChildUsesSelectedRoots)' -count=1`. It includes actual CPU/alloc runtime files and three real `go tool pprof -top` reads against os.Executable. Run the model/window/launch cohort with `-race` after deterministic tests pass.
 - [x] Audit launch-only integration on current main, preserve the existing Console finisher and child environment ownership. Validate artifact manifest and changed reader inventory; run make test-affected-inventory and git diff --check. No scaled harness or native conformance file should appear in the final diff.
-- [ ] Update issue Log with source provenance, red/green/fault/runtime results, and limits. Commit/push, run `sdlc local-check run --pre-close`, close with the binary-owned review, then promptly enter `sdlc merge --yes` on SHIP. The merge turn owns any later main integration and full suite. No manual chase of main after branch verification.
-- [ ] Verify PR, merge ancestry, tracker done/archive, clean retained workspace; send TL the actual pin and invocation `COUCH_PROFILE_DIR="$HOME/new-profile-dir" couch`. The TL/operator separately decides when to restart. Stop after landing.
+## Workflow after implementation
+
+Update issue Log with source provenance, red/green/fault/runtime results, and limits. Commit/push, run `sdlc local-check run --pre-close`, close with the binary-owned review, then promptly enter `sdlc merge --yes` on SHIP. The merge turn owns any later main integration and full suite. No manual chase of main after branch verification.
+Verify PR, merge ancestry, tracker done/archive, clean retained workspace; send TL the actual pin and invocation `COUCH_PROFILE_DIR="$HOME/new-profile-dir" couch`. The TL/operator separately decides when to restart. Stop after landing.
 
 ## Alternatives and exclusions
 
@@ -90,3 +92,7 @@ Selective extraction is the approved choice (ARCH-PURPOSE): it makes real launch
 ### 2026-10-24 — PQ-1 function-level test strategies
 
 Compressed the prose fault-case inventory into one adversarial strategy per production function. The executable tests retain the concrete missing coverage identified by the extraction audit; scope and operator-approved behavior are unchanged.
+
+### 2026-10-24 — separate implementation criteria from closing workflow
+
+The completed implementation checkboxes now end before the pending SDLC/landing postconditions. Close cannot truthfully mark its own completion before it runs. Recorded verification, review, merge and reports remain required in the explicit workflow section and issue Log. No behavioral scope change.
