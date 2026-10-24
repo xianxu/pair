@@ -93,6 +93,49 @@ rounds:
       recipe: milestone-review
       isolation: fenced
       blocked: true
+    - reviewer_runs:
+        - version: 1
+          intent:
+            disposable_root: true
+            id: ca899fb3-0809-4535-b97e-a29140749b2a
+            repository: github.com/xianxu/pair
+            issue_id: "000863"
+            recipe: milestone-review
+            round: 3
+            attempt: 1
+            agent: codex
+            root: /Volumes/TestScratch/review-checkouts/7736e71951190822
+            reviewed_head: 3a25379a588a7d6eff2fc7d4d918cea9e4e67de6
+            slot: pair:7
+            requested_at: "2026-10-24T10:52:34.151222Z"
+          phase: finished
+          pid: 76258
+          started_at: "2026-10-24T10:52:34.308649Z"
+          finished_at: "2026-10-24T10:55:04.405115Z"
+          session_id: 01a16d8a-7c2b-79b2-9011-f6143591e671
+          outcome: returned
+      "n": 3
+      timestamp: "2026-10-24T03:58:59-07:00"
+      dispatched: "2026-10-24T03:52:31-07:00"
+      agent: codex
+      reviewer: codex (openai; author openai)
+      dispose:
+        - id: BR-1
+          disposition: addressed
+          note: Retained as addressed. Empty-only publication guards remain in both target paths; focused history, appeared-history, and FreshHub regression tests passed.
+          round: 3
+        - id: BR-2
+          disposition: withdrawn
+          note: Withdrawn under the pinned plan's explicit narrowed acceptance revision. Inspected captures confirm FreshHubCaller and dirty/force pass for both personalities, matching lib.rs:1462 Zellij panics on baseline and branch, and passing baseline/instrumented-branch Codex comparisons. These measurements do not explain the original attach-input-ended signature or establish independence of the single idle refusal; the revised plan preserves those limits rather than claiming full-matrix acceptance.
+          round: 3
+        - id: BR-3
+          disposition: addressed
+          note: enrollFreshStartupClaim defers exact-local-store rollback across discovery, identity, enrollment, and cancellation failures. The focused cohort passed. An independent Go overlay removing only that defer made TestFreshStartupPostClaimDiscoveryFailureRollsBack fail with a retained creating record and native marker.
+          round: 3
+      recipe: milestone-review
+      isolation: fenced
+      reviewed: 3a25379a588a7d6eff2fc7d4d918cea9e4e67de6
+      blocked: false
 disputes:
     - id: BR-2
       rationale: 'Dispute the broad matrix as a landing blocker for the narrowed startup correction, not the retained failures or their unknown original cause. Fresh two-hub callers and dirty/force pass for both personalities on corrected code; later StartupArguments failure has a measured matching pinned-main Zellij panic now owned by #866. The single Codex idle refusal did not reproduce in either bounded comparison and is preserved in #867, not declared independent or flaky. TL24a27ad0 approves proceeding on this measured scope; TL1d357557 directs this formal dispute instead of further native retries. The original reviewer attach-input-ended/omitted-server signature remains unclassified; neither later passes nor TL approval is offered as proof of its cause.'
@@ -128,6 +171,14 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-3** [Critical] `committed-starts-require-terminal-disposition` (kind: defect) Post-commit discovery or enrollment failure strands a creating hub transaction
   cmd/internal/couchcore/slotrecovery.go:491-499 returns directly after claimFreshRecord has published the local creating incarnation and native address claim. Discovery failure, identity disagreement, or enrollment failure bypasses launchClaimedThread and its rollback handling. In a disposable pinned-head copy, injecting a discovery failure after artifact Claim reproduced an error with zero launched children but a persisted creating transaction owned by the live supervisor. Finalize every post-publication failure through exact-record/nonce cleanup that also works before enrollment, and add regressions covering these exits. ARCH-ORDER and ARCH-FUNERAL.
 
+## Round 3 — 2026-10-24T03:58:59-07:00 (codex) — passed
+
+### Disposed
+
+- BR-1 — addressed — Retained as addressed. Empty-only publication guards remain in both target paths; focused history, appeared-history, and FreshHub regression tests passed.
+- BR-2 — withdrawn — Withdrawn under the pinned plan's explicit narrowed acceptance revision. Inspected captures confirm FreshHubCaller and dirty/force pass for both personalities, matching lib.rs:1462 Zellij panics on baseline and branch, and passing baseline/instrumented-branch Codex comparisons. These measurements do not explain the original attach-input-ended signature or establish independence of the single idle refusal; the revised plan preserves those limits rather than claiming full-matrix acceptance.
+- BR-3 — addressed — enrollFreshStartupClaim defers exact-local-store rollback across discovery, identity, enrollment, and cancellation failures. The focused cohort passed. An independent Go overlay removing only that defer made TestFreshStartupPostClaimDiscoveryFailureRollsBack fail with a retained creating record and native marker.
+
 ## Disputes
 
 Findings the implementer declined (`sdlc finding dispute`), each answered by the
@@ -139,4 +190,4 @@ next review round.
 
 ## Open findings
 
-- **BR-3** [Critical] `committed-starts-require-terminal-disposition` (kind: defect) Post-commit discovery or enrollment failure strands a creating hub transaction
+(none — every finding has been disposed)

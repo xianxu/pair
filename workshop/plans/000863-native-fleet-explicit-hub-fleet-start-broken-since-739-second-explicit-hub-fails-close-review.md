@@ -204,3 +204,94 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-24T03:58:58-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 863 — Native fleet: explicit-hub Fleet.Start broken since #739; second explicit hub fails attach at a fresh start |
+| repo | pair |
+| issue file | workshop/issues/000863-native-fleet-explicit-hub-fleet-start-broken-since-739-second-explicit-hub-fails.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 99846a5015f753f05edaf4778618849f377a2f71..3a25379a588a7d6eff2fc7d4d918cea9e4e67de6 |
+| command | sdlc close --issue 863 |
+| reviewer | codex (openai; author openai) |
+| isolation | fenced |
+| timestamp | 2026-10-24T03:58:58-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: medium
+```
+
+The pinned change implements fresh startup with empty-only creation authority and fixes BR-3’s stranded claim. Focused tests and inventory checks passed; independently removing BR-3’s cleanup made its regression fail. BR-2 is withdrawn under the documented narrowed acceptance scope. The retained evidence supports that scope, but does not establish a complete native matrix pass or explain the original attach failure.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      Retained as addressed. Empty-only publication guards remain in both target paths; focused history, appeared-history, and FreshHub regression tests passed.
+  - id: BR-2
+    disposition: withdrawn
+    note: |
+      Withdrawn under the pinned plan's explicit narrowed acceptance revision. Inspected captures confirm FreshHubCaller and dirty/force pass for both personalities, matching lib.rs:1462 Zellij panics on baseline and branch, and passing baseline/instrumented-branch Codex comparisons. These measurements do not explain the original attach-input-ended signature or establish independence of the single idle refusal; the revised plan preserves those limits rather than claiming full-matrix acceptance.
+  - id: BR-3
+    disposition: addressed
+    note: |
+      enrollFreshStartupClaim defers exact-local-store rollback across discovery, identity, enrollment, and cancellation failures. The focused cohort passed. An independent Go overlay removing only that defer made TestFreshStartupPostClaimDiscoveryFailureRollsBack fail with a retained creating record and native marker.
+```
+
+1. **Strengths**
+
+   - [slotrecovery.go:524](cmd/internal/couchcore/slotrecovery.go:524) gives the published claim one cleanup owner before launch handoff, preserving the original error alongside cleanup failures.
+   - [startup_creation.go:15](cmd/internal/couchcore/startup_creation.go:15) checks history while holding publication locks, closing the gap between observation and mutation.
+   - Cleanup regressions exercise real local storage, successor preservation, enrollment publication failure, and successful ownership transfer.
+   - README, atlas, and the embedded Couch skill describe fresh startup and conservative recovery behavior.
+
+2. **Critical findings:** None.
+
+3. **Important findings:** None.
+
+4. **Minor findings:** None.
+
+5. **Test coverage notes**
+
+   - Focused startup, fresh creation, adoption, orchestration, and harness tests passed across `couchcore`, `couchcmd`, `couchtty`, and `testcouch`.
+   - `make test-affected-inventory` passed.
+   - BR-3’s independent negative control failed as expected; repository source remained unchanged.
+   - Native evidence captures and hashes were inspected. Native scenarios and the full suite were not rerun in this review.
+
+6. **Architectural notes**
+
+   - **ARCH-DRY — pass:** existing journal, reservation, and rollback mechanisms are reused.
+   - **ARCH-PURE — pass:** classification stays pure; storage and lifecycle effects remain at integration boundaries.
+   - **ARCH-PURPOSE — pass:** both ordinary and numbered targets enforce empty-only startup.
+   - **ARCH-MOCK — pass:** deterministic tests use stateful boundary fakes; retained native tests exercise the shared production path.
+   - **ARCH-CONSTRAINTS — pass:** history traversal has entry/context bounds; extra hubs launch serially.
+   - **ARCH-SECURE — pass:** unsafe paths, pending journals, and unreadable evidence deny creation.
+   - **ARCH-ORDER — pass:** publication, enrollment, and launch ownership have explicit handoff and tested failure paths.
+   - **ARCH-FUNERAL — pass:** failed pre-handoff claims receive exact cleanup; uncertain successors retain occupancy.
+   - **ARCH-EVOLVE — pass:** no persisted format change; extracted writers retain existing encoding behavior.
+
+7. **Plan revision recommendations:** None. Existing revisions cover the final implementation and narrowed native acceptance.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"ca899fb3-0809-4535-b97e-a29140749b2a","repository":"github.com/xianxu/pair","issue_id":"000863","recipe":"milestone-review","round":3,"attempt":1,"agent":"codex","root":"/Volumes/TestScratch/review-checkouts/7736e71951190822","reviewed_head":"3a25379a588a7d6eff2fc7d4d918cea9e4e67de6","slot":"pair:7","requested_at":"2026-10-24T10:52:34.151222Z"},"phase":"finished","pid":76258,"started_at":"2026-10-24T10:52:34.308649Z","finished_at":"2026-10-24T10:55:04.405115Z","session_id":"01a16d8a-7c2b-79b2-9011-f6143591e671","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 2.754480542s
+head: "3a25379a588a7d6eff2fc7d4d918cea9e4e67de6"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412
