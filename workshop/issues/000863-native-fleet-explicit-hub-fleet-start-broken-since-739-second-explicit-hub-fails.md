@@ -15,6 +15,7 @@ claimant:
     workspace: pair:7
     worktree: /Users/xianxu/workspace/worktree/pair-slot7/pair
     repository: github.com/xianxu/pair
+flow: {kind: quick, provenance: inferred, spec: "c4a82515", done: "7518db97"}
 ---
 
 # Native fleet: explicit-hub Fleet.Start broken since #739; second explicit hub fails attach at a fresh start
