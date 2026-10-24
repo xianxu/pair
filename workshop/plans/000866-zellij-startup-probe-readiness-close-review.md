@@ -583,3 +583,83 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-24T11:56:50-07:00 (REWORK)
+
+| field | value |
+|-------|-------|
+| issue | 866 — Wait for Zellij readiness before startup probe clients |
+| repo | pair |
+| issue file | workshop/issues/000866-zellij-startup-probe-readiness.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | b118e76f4fc1748df91dfd878ef4c6e5f150543d..abd991c4b2486fc9fafad261550ad79de9d614e6 |
+| command | sdlc close --issue 866 |
+| reviewer | codex (openai; author openai) |
+| isolation | fenced |
+| timestamp | 2026-10-24T11:56:50-07:00 |
+| verdict | REWORK |
+
+## Review
+
+```verdict
+verdict: REWORK
+confidence: high
+```
+
+The fixture repairs have meaningful regression evidence, and focused tests pass. However, this interdiff adds a production startup diagnostic that none of BR-1–BR-6 requested. The narrow-review contract requires a full close review for that scope expansion. No prior findings remain open; their recorded dispositions remain unchanged.
+
+```findings
+findings:
+  - id: new
+    severity: Important
+    kind: defect
+    family: post-close-scope-control
+    title: |
+      scope changed after close — run a full `sdlc close`
+    detail: |
+      cmd/internal/launcher/session_handoff_os.go:197 adds a new phase/session error wrapper, documented as new behavior in workshop/plans/000866-zellij-startup-readiness-plan.md:404. None of BR-1–BR-6 requested this runtime diagnostic; its regression fails against the base implementation, confirming an executable change. Run a full sdlc close covering the expanded scope, or remove this addition from the narrow fix bundle.
+```
+
+1. **Strengths**
+
+   - The registration fixture reuses production `PublishPaneReady` before starting its agent.
+   - Namespace isolation is tested against an owned poisoned inherited namespace.
+   - Effect coverage now recognizes `RunNativeCommand` and rejects unclassified uses.
+
+2. **Critical findings:** None.
+
+3. **Important findings:** The post-close scope expansion above requires a full review. This is a boundary-scope finding; no correctness defect was identified in the diagnostic itself.
+
+4. **Minor findings:** None.
+
+5. **Test coverage notes**
+
+   Focused launcher, Couchcore, effect-coverage, and fixture-decoder tests passed. Temporary Go overlays confirmed regressions fail without the diagnostic, pane publisher, and namespace binding. Inventory and diff whitespace checks passed. The complete launcher package passed; the broader package sweep was stopped during Couchcore and supplies no full-suite pass claim. Checkout unchanged.
+
+6. **Architectural notes**
+
+   - **ARCH-DRY — pass:** reuses the existing publisher and fixture serializer.
+   - **ARCH-PURE — pass:** changes remain in IO fixtures and the existing admission boundary.
+   - **ARCH-PURPOSE — pass:** fixture repairs exercise actual readiness ordering.
+   - **ARCH-EVOLVE — pass:** no persisted-format semantics changed.
+
+7. **Plan revision recommendations**
+
+   Add a `## Revisions` entry identifying the diagnostic as post-close scope and recording the required full-close review.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"6fd7dee6-abe7-493d-b4b3-a18a32dd7b49","repository":"github.com/xianxu/pair","issue_id":"000866","recipe":"fix-review","round":7,"attempt":1,"agent":"codex","root":"/Volumes/TestScratch/review-checkouts/8a0049f20efdc5c2","reviewed_head":"abd991c4b2486fc9fafad261550ad79de9d614e6","slot":"pair:5","requested_at":"2026-10-24T18:48:19.838584Z"},"phase":"finished","pid":171,"started_at":"2026-10-24T18:48:20.002599Z","finished_at":"2026-10-24T18:56:48.699083Z","session_id":"01a16f3e-0e84-7191-8a48-1b1eb3cb934d","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 2.828055s
+head: "abd991c4b2486fc9fafad261550ad79de9d614e6"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000409

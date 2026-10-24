@@ -2897,3 +2897,5 @@ and external temporary roots rather than relying on the host's TMPDIR.
 - #866 composed startup coverage: a terminal fake must execute the production first-pane publisher before agent readiness; AgentReady alone cannot model creator admission. Run every default Go package locally with suite flags after helper/lease migrations, and retain a named phase/session error for missing first-pane evidence at the existing startup bound.
 
 - #866 passive namespace hermeticity: replacing the native executable is insufficient when admission reads sockets before invoking it. Shared fake-query owners must bind a private socket namespace and prove isolation against an owned poisoned inherited namespace without touching a real server.
+
+- #866 BR-7: A newly approved production diagnostic after close expands behavior even when its bound and mechanism stay unchanged. Use the full close review; narrow fix-review applies only to the prior findings and their fixes.

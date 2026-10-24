@@ -232,6 +232,10 @@ Read-only lock audit: native fixtures in couchcore/title/layout/term use private
 
 Reported complete result cab776d6. Authenticated TL80e6373c accepts every target as fixed or explained and directs the machine-budgeted recorded pre-close suite now: loaded local package alarms are not evidence against866; if the recorded suite repeats one, investigate then. All41 non-Go target pass evidence remains above. No production narrowing, timeout bump, title-flake registration or independent877/878 fix was added. Proceed on the pushed corrected head with the existing queue limits, then narrow review/actual recorded outcome before staging.
 
+### 2026-10-24 — narrow review requires full close for approved diagnostic
+
+Round7 narrow close returned REWORK (BR-7, post-close-scope-control): the missing-first-pane phase/session diagnostic is executable behavior outside BR-1–BR-6. Focused tests and regression overlays passed; the review identified no correctness defect. Preserve the TL-approved diagnostic and request the full issue close review, as the finding and close contract require. The recorded pre-close suite lease-809461547 remains queued on pushed abd991c4; no source change, cancellation or duplicate suite. Append-only plan revision records the boundary change; do not claim stage readiness until the recorded result and full review return.
+
 ## Revisions
 
 ### 2026-10-24 — final plan bookkeeping and source ownership

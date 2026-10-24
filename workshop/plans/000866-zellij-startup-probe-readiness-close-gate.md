@@ -290,6 +290,43 @@ rounds:
       isolation: fenced
       reviewed: 456228a42c042e58b6a068fce31a913526e93a00
       blocked: false
+    - reviewer_runs:
+        - version: 1
+          intent:
+            disposable_root: true
+            id: 6fd7dee6-abe7-493d-b4b3-a18a32dd7b49
+            repository: github.com/xianxu/pair
+            issue_id: "000866"
+            recipe: fix-review
+            round: 7
+            attempt: 1
+            agent: codex
+            root: /Volumes/TestScratch/review-checkouts/8a0049f20efdc5c2
+            reviewed_head: abd991c4b2486fc9fafad261550ad79de9d614e6
+            slot: pair:5
+            requested_at: "2026-10-24T18:48:19.838584Z"
+          phase: finished
+          pid: 171
+          started_at: "2026-10-24T18:48:20.002599Z"
+          finished_at: "2026-10-24T18:56:48.699083Z"
+          session_id: 01a16f3e-0e84-7191-8a48-1b1eb3cb934d
+          outcome: returned
+      "n": 7
+      timestamp: "2026-10-24T11:56:50-07:00"
+      dispatched: "2026-10-24T11:48:16-07:00"
+      agent: codex
+      reviewer: codex (openai; author openai)
+      findings:
+        - kind: defect
+          id: BR-7
+          severity: Important
+          title: scope changed after close — run a full `sdlc close`
+          detail: cmd/internal/launcher/session_handoff_os.go:197 adds a new phase/session error wrapper, documented as new behavior in workshop/plans/000866-zellij-startup-readiness-plan.md:404. None of BR-1–BR-6 requested this runtime diagnostic; its regression fails against the base implementation, confirming an executable change. Run a full sdlc close covering the expanded scope, or remove this addition from the narrow fix bundle.
+          family: post-close-scope-control
+          round: 7
+      recipe: fix-review
+      isolation: fenced
+      blocked: false
 ---
 
 # Gate ledger — pair#866 (boundary-review)
@@ -357,6 +394,13 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 
 - BR-6 — addressed — Makefile.local:329 routes both targets through with-pair-test-binary.sh, which aliases the exact candidate and exports its PATH. The regression at tests/make-test-env-test.sh:79 passes; a directory-only mutation fails with ['wrong-sibling', 'wrong-sibling'].
 
+## Round 7 — 2026-10-24T11:56:50-07:00 (codex) — passed
+
+### Raised
+
+- **BR-7** [Important] `post-close-scope-control` (kind: defect) scope changed after close — run a full `sdlc close`
+  cmd/internal/launcher/session_handoff_os.go:197 adds a new phase/session error wrapper, documented as new behavior in workshop/plans/000866-zellij-startup-readiness-plan.md:404. None of BR-1–BR-6 requested this runtime diagnostic; its regression fails against the base implementation, confirming an executable change. Run a full sdlc close covering the expanded scope, or remove this addition from the narrow fix bundle.
+
 ## Open findings
 
-(none — every finding has been disposed)
+- **BR-7** [Important] `post-close-scope-control` (kind: defect) scope changed after close — run a full `sdlc close`
