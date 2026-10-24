@@ -1,12 +1,12 @@
 ---
 id: 000877
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-10-24
 updated: 2026-10-24
 estimate_hours:
-card_mirror: 'd3179cb01384945fde8ae1a7284be6460493b31d' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '1d3a6c6d98ff6035df32b0f8f05209c9bd36fcef' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-24T11:11:57-07:00
 claimant:
     operator: Xian Xu
@@ -17,6 +17,7 @@ claimant:
     repository: github.com/xianxu/pair
 flake_tests: [github.com/xianxu/pair/cmd/internal/couchcore.TestRepoPreferenceConcurrentInstancesPreserveOtherRepositoriesAndAgents]
 flow: {kind: quick, provenance: inferred, spec: "7b2652d2", done: "7a67b1e1"}
+actual_hours: N/A
 ---
 
 # Repository preference publication escapes typed store contention
