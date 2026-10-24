@@ -332,3 +332,15 @@ TL correction4cb3caa5 preserves follow-up order: land #812, then claim/plan #853
 Recorded pre-close on70185310b080 finished every remaining target, failed solely TestBareCwdHubResolverFailureStaysUnknownAndUsable: old ChromeStatusText(want) expected an ellipsized general tab notice. Full run exit2/16m49s/hashprefixa1d209453734, raw log .git/sdlc/test-stats/failed/7e2d7a82dda317862675e45057a20386.log. This is a deterministic integration oracle defect, not a flake; no passing retry over that head claimed. Corrected only that display assertion to inspect current VT cells with literal startup-unknown/unavailable prefix; full clipboard equality and no launch/mutation/list-operation checks remain. File/category sweep found no other removed ChromeStatusText/general-tab startup oracle. Expanded startup/Bare/RunConsole/borrowed/freshness race x3 PASS37.684s; complete couchcmd package PASS156.557s. Inventory PASS; no reader-input changes. Next: push fix, new exact-head pre-close, narrow re-close, immediate merge re-entry.
 
 The broader Hub-pattern race run additionally exposed TestHubNotifyNamesExtraHubAndBoundsCustomTitle: multiHubWaitRig writes authority.hub/hubs after newWaitRig started readers; execute concurrently reads at message_service.go:900. Two test files plus entire execute function byte-identical from original branchbasec0dbb32 through integratedmaincd347333, candidate70185310 and then-main aafc7c8. Source comparison only, not an executed baseline pass; recorded broad failure remains a failure. Filed unclaimed #860 with exact two-field race frames and bounded repro; no independent race fix under #812. It is distinct from the sole recorded full-suite failure above.
+
+
+### 2026-10-24 — exact measurement refusal; precise close recovery
+
+Corrected exact-head pre-close on1cc31f4afeaacaff16fa0eacae1f5091795c754a completed PASS exit0/13m56s, no failures/retry, raw log hashprefix37f58616e02c, sdlc-local/suite recorded. Inventory PASS. Re-close waited for #856's legitimate repo lock, then refused before dispatching review:
+
+```text
+Measured actual unavailable for issue close — recover the evidence below.
+can't auto-compute (branch attribution for 026445ed-4c22-46f5-b0ff-a2ba708a122a (/Users/xianxu/workspace/worktree/pair-slot1/pair): concurrent claims have unknown, resting or ambiguous active branch during 2026-10-23T05:01:56-07:00 → 2026-10-23T12:02:21Z; ; close recovery: --no-actual with the evidence in --verified).
+```
+
+The named session interval is25seconds at the claim boundary (12:02:21Z equals05:02:21-07:00). Earlier actual generations are historical measurements, not substitutes for the refused candidate. Sent exact refusal to TL. Follow the binary's precise --no-actual recovery with the refusal in --verified; no invented hours or telemetry edits. This records N/A rather than transplanting the earlier6.53h measurement. Code is unchanged since passing1cc31f4a; this is evidence-only bookkeeping, no new suite warranted. Next: narrow re-close with precise measurement flag, immediate merge re-entry.
