@@ -1,6 +1,6 @@
 ---
 id: 000852
-status: codecomplete
+status: done
 created: 2026-10-23
 updated: 2026-10-23
 estimate_hours:
@@ -22,6 +22,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: 44cde4961c6e9a3856a578254eac887cecdafaf6
         evidence_commit: f63feb798c3ab1ac3b967fae4239b0a66f9b93de
+        landed_commit: 12fd2e56acc65bb9e34a02f9d472e50e6918f0af
 ---
 
 # Park rollback retries fail on main
