@@ -155,34 +155,34 @@ Reuse current queue bounds (100,000 DOM and non-DOM events), CDP call timeout (5
 
 Files: create `recording/page_load.go`, `recording/page_load_test.go`, `recording/segment_codec.go`, `recording/segment_codec_test.go`; modify `recording/record.go`, `recording/codec.go`, `recording/reduce.go`, `recording/catchup.go`, `recording/contract.go` and their tests.
 
-- [ ] Write failing PageLoad and segment-codec tests using the function strategies below. Run `go test ./cmd/internal/webcast/recording -run 'Test(PageLoad|Segment)'` and inspect intended red failures.
-- [ ] Implement optional segment metadata and strict preserving segment codec. Add segment index and pure membership helpers without changing sketch request/digest fields.
-- [ ] Add preservation/replay tests through the production functions below. Run `go test ./cmd/internal/webcast/recording`; require PASS.
-- [ ] Commit the model/codec checkpoint with issue and author trailers.
+- [x] Write failing PageLoad and segment-codec tests using the function strategies below. Run `go test ./cmd/internal/webcast/recording -run 'Test(PageLoad|Segment)'` and inspect intended red failures.
+- [x] Implement optional segment metadata and strict preserving segment codec. Add segment index and pure membership helpers without changing sketch request/digest fields.
+- [x] Add preservation/replay tests through the production functions below. Run `go test ./cmd/internal/webcast/recording`; require PASS.
+- [x] Commit the model/codec checkpoint with issue and author trailers.
 
 ### 2. Recorder ingress fence and Board scope
 
 Files: create `recorder/page_load.go`, `recorder/page_load_test.go`, `board/page_load.go`, `board/page_load_test.go`; modify `recorder/recorder.go`, `recorder/mirror.go`, `recorder/recorder_test.go`, `board/board.go`, `board/submission.go`, `board/operator_view.go`, `board/sketch_delivery.go` and focused tests.
 
-- [ ] Add failing stateful fake-CDP and sink gates with explicit entry/release barriers and cancellation join, using the ordering strategies below; retain established event-order and stale-draft tests.
-- [ ] Implement the ingress-owned token and Board generation transition. Keep snapshot return evidence local until generation acceptance; propagate complete identity on each segment including resume/tab-return.
-- [ ] Add atomic selection and scope-publication tests through the named functions below. Add counted 8/16 and 32/64 guards from the cost table.
-- [ ] Run `go test ./cmd/internal/webcast/recorder ./cmd/internal/webcast/board` and focused `-race` ordering cases; require PASS and all fake work joined. Commit.
+- [x] Add failing stateful fake-CDP and sink gates with explicit entry/release barriers and cancellation join, using the ordering strategies below; retain established event-order and stale-draft tests.
+- [x] Implement the ingress-owned token and Board generation transition. Keep snapshot return evidence local until generation acceptance; propagate complete identity on each segment including resume/tab-return.
+- [x] Add atomic selection and scope-publication tests through the named functions below. Add counted 8/16 and 32/64 guards from the cost table.
+- [x] Run `go test ./cmd/internal/webcast/recorder ./cmd/internal/webcast/board` and focused `-race` ordering cases; require PASS and all fake work joined. Commit.
 
 ### 3. Live consumers, after #856 lands
 
 Files: `web/model.js`, `web/annotate.js`, `web/sketch-render.js`, `operator.js`, #856's panel/entry/glow adapters as actually landed, `board/feedback_context.go`, `query/querier.go`, `query/sketch.go`; tests in `tests/webcast/*.test.mjs` and colocated Go tests.
 
-- [ ] Merge landed main only after #856's landing; reconcile the actual entity table/file ownership before editing. Do not import its unlanded commits.
-- [ ] Add failing reducer/operator parity tests using the membership and lifecycle strategies below. Assert no old rows, pins, ink, labels or controls survive scope departure.
-- [ ] Filter all live feedback from the same derived current-load source, preserving selection/delivery/privacy stamps and #849's getter/unsaved guard. Clear transient hover/editor state through existing lifecycle owners; no new feedback store.
-- [ ] Add unfiltered query provenance assertions and exact root-string round trips. Run `node --test tests/webcast/*.test.mjs` and `go test ./cmd/internal/webcast/query ./cmd/internal/webcast/board`; require PASS. Commit.
+- [x] Merge landed main only after #856's landing; reconcile the actual entity table/file ownership before editing. Do not import its unlanded commits.
+- [x] Add failing reducer/operator parity tests using the membership and lifecycle strategies below. Assert no old rows, pins, ink, labels or controls survive scope departure.
+- [x] Filter all live feedback from the same derived current-load source, preserving selection/delivery/privacy stamps and #849's getter/unsaved guard. Clear transient hover/editor state through existing lifecycle owners; no new feedback store.
+- [x] Add unfiltered query provenance assertions and exact root-string round trips. Run `node --test tests/webcast/*.test.mjs` and `go test ./cmd/internal/webcast/query ./cmd/internal/webcast/board`; require PASS. Commit.
 
 ### 4. Native qualification and landing
 
-- [ ] Extend existing disposable native fixtures with same-URL reload without a later user DOM edit, same-load resume/tab return, app-only update and new same-URL target. Assert current UI/press selection and retained query history independently; use actual navigation events and completion barriers, no sleep as ordering proof.
-- [ ] Run the existing named native tests with `WEBCAST_LIVE_CHROME=1`, a watchdog covering scenario plus joined cleanup, and retain complete non-skipped source-bound output. Preserve a synthetic regression for the operator's new-tab observation, never private screenshots.
-- [ ] Update `atlas/webcast-submission.md` and relevant recording/recorder map/index for load versus activation, pending/unknown behavior, query provenance and old-reader limits. Reconcile concepts table against actual ownership.
+- [x] Extend existing disposable native fixtures with same-URL reload without a later user DOM edit, same-load resume/tab return, app-only update and new same-URL target. Assert current UI/press selection and retained query history independently; use actual navigation events and completion barriers, no sleep as ordering proof.
+- [x] Run the existing named native tests with `WEBCAST_LIVE_CHROME=1`, a watchdog covering scenario plus joined cleanup, and retain complete non-skipped source-bound output. Preserve a synthetic regression for the operator's new-tab observation, never private screenshots.
+- [x] Update `atlas/webcast-submission.md` and relevant recording/recorder map/index for load versus activation, pending/unknown behavior, query provenance and old-reader limits. Reconcile concepts table against actual ownership.
 - [ ] Stage new tests, run `make test-affected-inventory`, audit every named reader individually, push and run `sdlc local-check run --pre-close`. Close through the mandatory fresh SDLC review; fix blockers on newly verified source.
 - [ ] Ask hub to sequence the morning combined stage and operator steps. After acceptance and checks, enter `sdlc merge --yes` promptly; report actual landed PR/train, clear any owned stage through SDLC and finish cleanup.
 

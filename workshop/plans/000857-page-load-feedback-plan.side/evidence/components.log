@@ -1,0 +1,17 @@
+ok  	github.com/xianxu/pair/cmd/internal/webcast	22.820s
+ok  	github.com/xianxu/pair/cmd/internal/webcast/assets	2.338s
+ok  	github.com/xianxu/pair/cmd/internal/webcast/board	4.428s
+ok  	github.com/xianxu/pair/cmd/internal/webcast/capability	0.073s
+ok  	github.com/xianxu/pair/cmd/internal/webcast/drive	0.292s
+ok  	github.com/xianxu/pair/cmd/internal/webcast/fidelity	0.146s
+ok  	github.com/xianxu/pair/cmd/internal/webcast/notedraft	24.813s
+ok  	github.com/xianxu/pair/cmd/internal/webcast/notes	1.108s
+ok  	github.com/xianxu/pair/cmd/internal/webcast/query	8.136s
+ok  	github.com/xianxu/pair/cmd/internal/webcast/recorder	4.761s
+ok  	github.com/xianxu/pair/cmd/internal/webcast/recording	3.325s
+?   	github.com/xianxu/pair/cmd/internal/webcast/recording/internal/fixturegen	[no test files]
+ok  	github.com/xianxu/pair/cmd/internal/webcast/sketch	0.116s
+ok  	github.com/xianxu/pair/cmd/internal/webcast/sketchimage	0.465s
+ok  	github.com/xianxu/pair/cmd/internal/webcast/submission	0.108s
+ok  	github.com/xianxu/pair/cmd/internal/submission	9.577s
+ok  	github.com/xianxu/pair/cmd/internal/artifactpath	11.483s
