@@ -15,6 +15,7 @@ claimant:
     workspace: pair:5
     worktree: /Users/xianxu/workspace/worktree/pair-slot5/pair
     repository: github.com/xianxu/pair
+flow: {kind: quick, provenance: inferred, spec: "c4d7f89a", done: "cb65462b"}
 ---
 
 # Agent fixture quota exhaustion misses completion and cleanup join
