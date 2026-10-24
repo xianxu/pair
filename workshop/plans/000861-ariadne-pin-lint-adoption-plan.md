@@ -18,12 +18,12 @@ No new product state, persisted format or operator action is added. No live flee
 
 ## Core concepts
 
-| Name | Lives in | Status |
-|---|---|---|
-| Shared JSON structural scan, Options | internal/jsonstrict/scan.go | modified ownership: move existing optimized parser from cmd/internal/strictjson/decode.go |
-| AST-only Match adapter | internal/repolint/local_catalog_test.go | new; preserves existing local matchers |
-| Cue-owned deadline context | cmd/internal/testwait/deadline.go | new; test helper, explicit expiration plus parent propagation |
-| Virtual watcher runtime | cmd/internal/sessionwatch/*_test.go | modified tests; reuse existing Now/Sleep/onSleep |
+| Name | Kind | Lives in | Status |
+|---|---|---|---|
+| Shared JSON structural scan, Options | PURE | internal/jsonstrict/scan.go | modified ownership: move existing optimized parser from cmd/internal/strictjson/decode.go |
+| AST-only Match adapter | PURE | internal/repolint/local_catalog_test.go | new; preserves existing local matchers |
+| Cue-owned deadline context | INTEGRATION | cmd/internal/testwait/deadline.go | new; test helper, explicit expiration plus parent propagation |
+| Virtual watcher runtime | INTEGRATION (test clock/runtime) | cmd/internal/sessionwatch/*_test.go | modified tests; reuse existing Now/Sleep/onSleep |
 
 JSON Options explicitly selects exact versus Unicode-simple-fold key equality, preserved versus legacy float-range number acceptance, maximum depth, and an optional all-depth key visitor. Defaults preserve existing cmd/internal/strictjson behavior. Historyarchive requests folded keys, UseNumber and depth64. Submission keeps exact duplicate policy and its sensitive-key visitor, including opaque nested extension keys. Debt keeps its established exact policy. Thin owner wrappers retain typed strictness, required/null checks and raw unknown-field preservation (ARCH-EVOLVE); do not change serialized meanings or introduce a new version.
 
@@ -143,3 +143,7 @@ Named the cue API and private deadline variants, and replaced prose-only case in
 ### 2026-10-24 — implementation integration notes
 
 Corrected source function references to checkJSONKeys and idleLocked. Pin compilation also found removed vocab.CollaborationModes in main's old editorial catalog; preserve its exact three accepted historical strings locally until #838 deletes it. No product mode behavior changes. PTY helper uses a readiness-expiry channel beside its unchanged normal safety timer; real shutdown grace and actual child/reader joins stay unchanged.
+
+### 2026-10-24 — BR-2 explicit concept classifications
+
+Added PURE/INTEGRATION kinds to the core table. The scanner and AST adapter are deterministic transformations; cue deadlines and virtual watcher runtime wrap clock/context notification seams. This documents actual dependencies without changing the approved implementation.

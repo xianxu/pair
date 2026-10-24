@@ -185,3 +185,9 @@ Authoritative raw record: /Users/xianxu/workspace/pair/.git/sdlc/local-checks/b5
 Next: required fresh inventory check, mandatory whole-issue close review with measured actuals, then ready PR580 and enter sdlc merge --yes. After landing861, resume838 from its checkpoint, integrate main and run its pre-close; joint operator stage remains pending.
 
 Pre-close scratch-attribution clarification: SDLC reported31 unattributed SSD temp folders, not proved owners. The positive result is0 folders/0 bytes attributed to this worktree; the unattributed population remains unknown.
+
+### 2026-10-24 — close round1 qualification evidence
+
+Round1 REWORK identified BR-1 as an unverifiable host-dependent qualification, with no production correctness defect alleged; the reviewer sandbox timed out. Re-ran the offline installed-pin qualifier on exact reviewed head c7723fbda1471ee2ddb1f13bdc8c30e627dbf88d: exit0, Python22.766s, Go21.939s, cold graph14.73s,778 distinct inputs. Provider identity was verified via go list -m as normal581, Go1.27.3. Retained command/provider/head/timings in workshop/evidence/000861/affected-reviewed-head-proof.md and raw log SHA256 1f50a9d270c96bd5ebc4f0be0e07a9e2e63218ba8bb795ab5c40713d908b3ba4. No budget, code or waiver change. This supplies BR-1's requested host proof without asserting a cause for the sandbox timeout. BR-2 fixed by explicit PURE/INTEGRATION kinds and an appended plan Revision.
+
+Hub revoked the now-unneeded suite grant so #860 can land. Next: evidence-backed BR-1 disposition, fresh inventory, ordinary whole-issue re-close. On SHIP tell hub ready for renewed merge grant; do not alter landing priority ourselves.
