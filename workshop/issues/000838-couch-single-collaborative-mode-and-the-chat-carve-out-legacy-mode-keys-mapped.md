@@ -1,13 +1,13 @@
 ---
 id: 000838
-status: working
+status: codecomplete
 deps: [ariadne#575]
 github_issue:
 created: 2026-10-23
-updated: 2026-10-23
+updated: 2026-10-24
 estimate_hours: 3.73
 collaboration-mode: collaboration
-card_mirror: '4bb76ecd4955ad124c2821af2d8ec212badb2123' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '389734822d9e982459e85615556fdafa445c96db' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-23T14:02:12-07:00
 claimant:
     operator: Xian Xu
@@ -17,6 +17,7 @@ claimant:
     worktree: /Users/xianxu/workspace/worktree/pair-slot3/pair
     repository: github.com/xianxu/pair
 flow: {kind: full, provenance: operator}
+actual_hours: N/A
 ---
 
 # Couch: single collaborative mode and the @@chat@@ carve-out; legacy mode keys mapped or ignored
