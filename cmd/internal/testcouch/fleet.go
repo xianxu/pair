@@ -20,8 +20,7 @@ import (
 
 type Options struct {
 	ExplicitHub bool
-	// Hubs names workers whose workspaces are also configured hubs, after
-	// the primary (pair#830): Couch starts with every hub's directory.
+	// Hubs names worker workspaces configured as additional hubs, in order.
 	Hubs          []int
 	Workers       int
 	AgentKind     string
@@ -169,14 +168,13 @@ func (f *Fleet) Start(ctx context.Context) error {
 	return f.start(ctx, true)
 }
 
-// StartCold starts the supervisor without waiting for the primary hub's
-// agent: after a full quit, startup reattaches only surviving hubs (#739), so
-// none comes up until a resume (pair#830).
+// StartCold starts the owned console without waiting for an agent. The caller
+// can then perform the real operator gesture on an intentionally parked fleet.
 func (f *Fleet) StartCold(ctx context.Context) error {
 	return f.start(ctx, false)
 }
 
-func (f *Fleet) start(ctx context.Context, hub bool) error {
+func (f *Fleet) start(ctx context.Context, waitReady bool) error {
 	ctx, done, err := f.begin(ctx)
 	if err != nil {
 		return err
@@ -210,7 +208,7 @@ func (f *Fleet) start(ctx context.Context, hub bool) error {
 	if err := f.ownershipError(); err != nil {
 		return err
 	}
-	if !hub {
+	if !waitReady {
 		return nil
 	}
 	if err = f.WaitAgent(ctx, 0); err != nil {

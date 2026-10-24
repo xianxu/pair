@@ -1186,7 +1186,8 @@ func TestReduceRootKeyEnterRoutesByRowState(t *testing.T) {
 // "has it been used". So the guarantee has to live here, in the form's armed
 // submit -- and this test is what makes that claim checkable rather than a
 // sentence in a commit message.
-func TestStartFormArmedSubmitDispatchesOnce(t *testing.T) {
+func acceptedStartFormForRepeatTest(t *testing.T) MenuState {
+	t.Helper()
 	state := NewMenuState(menuThreads(), menuAddress("couch-one"))
 	state.Agents = []string{"claude"}
 	state.RootAgent = "claude"
@@ -1199,6 +1200,26 @@ func TestStartFormArmedSubmitDispatchesOnce(t *testing.T) {
 	frame.PreviewResolution.Worktree = "/repo/new"
 	frame.PreviewResolution.Profile.Agent = "claude"
 
+	return state
+}
+
+// Count effects rather than only final state: a duplicate launch can already
+// have escaped even if a later reducer result looks correct.
+func oneStartDispatchForRepeatTest(effects []MenuEffect) error {
+	count := 0
+	for _, effect := range effects {
+		if effect.Operation == "start" {
+			count++
+		}
+	}
+	if count != 1 {
+		return fmt.Errorf("start dispatches = %d, want exactly 1", count)
+	}
+	return nil
+}
+
+func TestStartFormArmedSubmitDispatchesOnce(t *testing.T) {
+	state := acceptedStartFormForRepeatTest(t)
 	first, effects := reduceKey(state, PanelKey{Kind: KeyEnter})
 	if len(effects) != 1 || effects[0].Operation != "start" {
 		t.Fatalf("first Enter = %+v, want one start effect", effects)
@@ -1207,12 +1228,35 @@ func TestStartFormArmedSubmitDispatchesOnce(t *testing.T) {
 		t.Fatalf("start carried fingerprint %q, want the accepted one", got)
 	}
 
-	// A second Enter on the state the first one produced must not start again.
-	_, again := reduceKey(first, PanelKey{Kind: KeyEnter})
-	for _, effect := range again {
-		if effect.Operation == "start" {
-			t.Fatalf("a second Enter dispatched another start: %+v", again)
+	// Hold the external effect: no operation result is reduced while the
+	// operator repeats Enter. Each key sees the preceding synchronous commit.
+	attempt := effects[0].Attempt
+	for repeat := 0; repeat < 32; repeat++ {
+		var again []MenuEffect
+		first, again = reduceKey(first, PanelKey{Kind: KeyEnter})
+		effects = append(effects, again...)
+		if err := oneStartDispatchForRepeatTest(effects); err != nil {
+			t.Fatalf("Enter repeat %d while completion held: %v", repeat, err)
 		}
+		_, held, found := menuOperationForAttempt(first, attempt)
+		if first.CurrentFrame().Kind != MenuFrameRoot || !found || held.Origin.Operation != "start" || held.Phase != MenuOperationRunning {
+			t.Fatalf("Enter repeat %d lost the held start: %+v", repeat, first)
+		}
+	}
+}
+
+func TestStartFormRepeatedEnterOracleRejectsLostStateCommit(t *testing.T) {
+	// Model a broken dispatcher that feeds a second key the old armed form.
+	// Independent constructions prevent shared maps/slices from hiding it.
+	_, first := reduceKey(acceptedStartFormForRepeatTest(t), PanelKey{Kind: KeyEnter})
+	_, replayed := reduceKey(acceptedStartFormForRepeatTest(t), PanelKey{Kind: KeyEnter})
+	if err := oneStartDispatchForRepeatTest(first); err != nil {
+		t.Fatal(err)
+	}
+	if err := oneStartDispatchForRepeatTest(append(first, replayed...)); err == nil {
+		t.Fatal("duplicate-dispatch oracle accepted a lost reducer commit")
+	} else {
+		t.Logf("negative control rejected: %v", err)
 	}
 }
 

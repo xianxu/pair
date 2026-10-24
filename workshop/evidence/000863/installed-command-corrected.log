@@ -1,0 +1,16 @@
+=== RUN   TestBareCouchInstalledCommand
+=== RUN   TestBareCouchInstalledCommand/known_shutdown_requires_explicit_start
+=== RUN   TestBareCouchInstalledCommand/known_shutdown_requires_explicit_start/pty_starts_and_attaches_hub
+=== RUN   TestBareCouchInstalledCommand/known_shutdown_requires_explicit_start/pipe_refuses_before_effects
+=== RUN   TestBareCouchInstalledCommand/zero_history_automatically_starts_hub
+=== RUN   TestBareCouchInstalledCommand/zero_history_automatically_starts_hub/pty_starts_and_attaches_hub
+=== RUN   TestBareCouchInstalledCommand/zero_history_automatically_starts_hub/pipe_refuses_before_effects
+--- PASS: TestBareCouchInstalledCommand (45.17s)
+    --- PASS: TestBareCouchInstalledCommand/known_shutdown_requires_explicit_start (34.00s)
+        --- PASS: TestBareCouchInstalledCommand/known_shutdown_requires_explicit_start/pty_starts_and_attaches_hub (11.57s)
+        --- PASS: TestBareCouchInstalledCommand/known_shutdown_requires_explicit_start/pipe_refuses_before_effects (0.07s)
+    --- PASS: TestBareCouchInstalledCommand/zero_history_automatically_starts_hub (11.16s)
+        --- PASS: TestBareCouchInstalledCommand/zero_history_automatically_starts_hub/pty_starts_and_attaches_hub (9.51s)
+        --- PASS: TestBareCouchInstalledCommand/zero_history_automatically_starts_hub/pipe_refuses_before_effects (0.08s)
+PASS
+ok  	github.com/xianxu/pair/cmd/couch	45.442s

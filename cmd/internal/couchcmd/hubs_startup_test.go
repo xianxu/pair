@@ -232,7 +232,7 @@ func (r *hubStartupRig) assertFirstUsable(t *testing.T) {
 
 func TestHubStartupTwoHubsPreserveFirstFocus(t *testing.T) {
 	r := newHubStartupRig(t, false)
-	startExplicitHubs(r.console, r.hubs)
+	startExplicitHubs(r.console, r.hubs, r.startup)
 	r.run(t)
 	if call := r.await(t, "start-hub"); call.err != nil {
 		t.Fatal(call.err)
@@ -290,7 +290,7 @@ func testHubStartupLaterFailure(t *testing.T, warmFirst bool) {
 			return v, e
 		})
 	}
-	startExplicitHubs(r.console, r.hubs)
+	startExplicitHubs(r.console, r.hubs, r.startup)
 	r.run(t)
 	call := r.await(t, "start-hub")
 	if call.err == nil || !strings.Contains(call.err.Error(), "isolated second hub launch refusal") || !strings.Contains(call.err.Error(), r.paths[1]) || !strings.Contains(call.err.Error(), "diagnostics ") {
@@ -331,7 +331,7 @@ func TestHubStartupDetachedExtraLaunchesWithoutDuplicateWarmAttempt(t *testing.T
 		}
 		return actual(call)
 	})
-	startExplicitHubs(r.console, r.hubs)
+	startExplicitHubs(r.console, r.hubs, r.startup)
 	r.run(t)
 	// LIFO cleanup releases the test barrier before Run cleanup joins workers.
 	t.Cleanup(func() { once.Do(func() { close(release) }) })
@@ -399,7 +399,7 @@ func TestHubStartupSingleHubDoesNotEnqueueAnotherLaunch(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	startExplicitHubs(r.console, single)
+	startExplicitHubs(r.console, single, r.startup)
 	r.run(t)
 	r.assertFirstUsable(t)
 	if !r.console.ReattachPassArmed() {
@@ -427,7 +427,7 @@ func TestHubStartupMissingFirstKeepsSwitcherWhileExtraSurvives(t *testing.T) {
 	if !r.console.ReattachPassArmed() {
 		t.Fatal("missing first hub prevented warm pass")
 	}
-	startExplicitHubs(r.console, r.hubs)
+	startExplicitHubs(r.console, r.hubs, r.startup)
 	r.run(t)
 	if call := r.await(t, "start-hub"); call.err != nil {
 		t.Fatal(call.err)
@@ -662,7 +662,9 @@ func TestBareCwdHubResolverFailureStaysUnknownAndUsable(t *testing.T) {
 		t.Fatalf("unverified hub was guessed: %v %v %v", hubs, roots, err)
 	}
 	want := startupSummary(couchcore.StartupObservation{
-		Kind: couchcore.StartupUnknown, Diagnostic: err,
+		// Both read-only history observation and hub ownership resolution fail.
+		// Keep the full joined diagnostic in the Ctrl+Y oracle.
+		Kind: couchcore.StartupUnknown, Diagnostic: errors.Join(catalog.Errors[path], err),
 		MissingHubs: []string{path}, ParkedUnknown: true,
 		Hubs: map[string]couchcore.StartupHubObservation{path: {Unknown: true}},
 	}, path)
@@ -683,10 +685,18 @@ func TestBareCwdHubResolverFailureStaysUnknownAndUsable(t *testing.T) {
 		}
 	})
 	screen := startupWarmScreen(t, 240, 30, host.Written)
+	t.Cleanup(func() {
+		if t.Failed() {
+			t.Logf("unknown startup screen: %q", screen())
+		}
+	})
 	waitWarmAcceptance(t, "unverified bare hub has visible unknown notice", func() bool {
-		// The switcher retains the full feed message at its natural width;
-		// the forty-cell capability-chrome projection does not apply here.
-		return strings.Contains(screen(), "startup: unknown; hub automation unavailable")
+		// History observation precedes hub resolution in the joined diagnostic.
+		// Assert its visible prefix and the second cause separately; Ctrl+Y
+		// below pins the exact full notice, including the joined newline.
+		visible := screen()
+		return strings.Contains(visible, "startup: unknown; workspace identity unavailable") &&
+			strings.Contains(visible, "hub automation unavailable: hub ")
 	})
 	assertCopied(writer, want)
 	if _, err := console.Ops()(couchcore.OperationCall{Name: "list"}); err != nil {

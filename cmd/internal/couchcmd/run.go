@@ -938,6 +938,11 @@ func runConsole(console *couchtty.Console, c *couchcore.Couch, start couchcore.S
 	if len(roots) > 0 {
 		launchHub = roots[0]
 	}
+	start, err = startFreshPrimary(context.Background(), c, startup, launchHub, start)
+	if err != nil {
+		renderError(stdout, err)
+		return 1
+	}
 	console.Notify(couchtty.Notice{Kind: "startup", Control: true, Body: startupSummary(startup, launchHub)})
 
 	_, ok := start.Handle.(couchcore.TerminalHandle)
@@ -949,7 +954,7 @@ func runConsole(console *couchtty.Console, c *couchcore.Couch, start couchcore.S
 		}
 		return 1
 	}
-	if err := beginConsole(console, start, startup.Kind != couchcore.StartupNormal || !startup.Hubs[launchHub].Survived); err != nil {
+	if err := beginConsole(console, start, startup.Kind != couchcore.StartupFresh && (startup.Kind != couchcore.StartupNormal || !startup.Hubs[launchHub].Survived)); err != nil {
 		renderError(stdout, err)
 		return 1
 	}
@@ -962,7 +967,7 @@ func runConsole(console *couchtty.Console, c *couchcore.Couch, start couchcore.S
 		defer messages.Close()
 	}
 	if hubs != nil {
-		startExplicitHubs(console, hubs, c)
+		startExplicitHubs(console, hubs, startup, c)
 	}
 	code := console.Run()
 	recordConsoleExit(console.TerminalFailure())

@@ -1,0 +1,25 @@
+=== RUN   TestLifecycleCompletionRequiresFinalAdoption
+=== RUN   TestLifecycleCompletionRequiresFinalAdoption/adopted
+    console_lifecycle_test.go:34: adopted completion: []
+=== RUN   TestLifecycleCompletionRequiresFinalAdoption/failed-adoption
+--- FAIL: TestLifecycleCompletionRequiresFinalAdoption (0.00s)
+    --- FAIL: TestLifecycleCompletionRequiresFinalAdoption/adopted (0.00s)
+    --- PASS: TestLifecycleCompletionRequiresFinalAdoption/failed-adoption (0.00s)
+=== RUN   TestLifecycleNewAdoptionResetsPreviousNeedsRelaunchEvidence
+    console_lifecycle_test.go:191: old incarnation suppressed replacement state: [{Address:{RepoScope:scope Tag:slot} Target:{Kind:slot Address:{RepoScope: Tag:} Slot:{Repo:pair RepoIdentity:/src/pair/.git PrimaryRoot:/src/pair EnvironmentRoot:/src/worktree/pair-slot1 WorktreeRoot:/src/worktree/pair-slot1/pair Number:1}} Kind:needs-relaunch Path:/src/worktree/pair-slot1/pair Incarnation:scope:slot:needs-relaunch Operation: Initiation:unknown Agent: Model: Branch: Issue: Mode: Observation:1 Failures:0}]
+--- FAIL: TestLifecycleNewAdoptionResetsPreviousNeedsRelaunchEvidence (0.00s)
+=== RUN   TestRelaunchResultIsAdoptedByTheConsole
+=== RUN   TestRelaunchResultIsAdoptedByTheConsole/a_completed_relaunch_is_adopted
+=== RUN   TestRelaunchResultIsAdoptedByTheConsole/a_start_is_still_adopted
+    console_relaunch_chord_test.go:409: attach dispatched = false, want true (dispatched [])
+=== RUN   TestRelaunchResultIsAdoptedByTheConsole/a_refused_relaunch_is_not
+=== RUN   TestRelaunchResultIsAdoptedByTheConsole/a_park-without-resume_is_not
+--- FAIL: TestRelaunchResultIsAdoptedByTheConsole (0.00s)
+    --- PASS: TestRelaunchResultIsAdoptedByTheConsole/a_completed_relaunch_is_adopted (0.00s)
+    --- FAIL: TestRelaunchResultIsAdoptedByTheConsole/a_start_is_still_adopted (0.00s)
+    --- PASS: TestRelaunchResultIsAdoptedByTheConsole/a_refused_relaunch_is_not (0.00s)
+    --- PASS: TestRelaunchResultIsAdoptedByTheConsole/a_park-without-resume_is_not (0.00s)
+FAIL
+write budget couchtty: bytes=0 cap=67108864 repeats=1
+FAIL	github.com/xianxu/pair/cmd/internal/couchtty	0.352s
+FAIL

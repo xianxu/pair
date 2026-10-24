@@ -379,9 +379,13 @@ func TestRelaunchResultIsAdoptedByTheConsole(t *testing.T) {
 		attach bool
 	}{
 		{"a completed relaunch is adopted", couchcore.RelaunchResult{
-			Outcome: couchcore.Relaunched, Record: record,
+			Outcome: couchcore.Relaunched, Record: record, Handle: stubHandle{id: "relaunched"},
 		}, true},
-		{"a start is still adopted", couchcore.StartResult{Record: record}, true},
+		{"a start is still adopted", couchcore.StartResult{Record: record, Handle: stubHandle{id: "started"}}, true},
+		// A successful surviving-only startup may find no child. A retained
+		// record alone cannot authorize attachment to a nonexistent handle.
+		{"a start without a child is not", couchcore.StartResult{Record: record}, false},
+		{"an empty start is not", couchcore.StartResult{}, false},
 		// Every other outcome accompanies an error and has no live child; a
 		// console that attached to one would be pointing at nothing.
 		{"a refused relaunch is not", couchcore.RelaunchResult{

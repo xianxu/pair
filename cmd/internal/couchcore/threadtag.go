@@ -1,6 +1,7 @@
 package couchcore
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"time"
@@ -13,6 +14,12 @@ const threadTagAttempts = 8
 // AllocateThreadTag reserves a monotonic conversation identity and returns only after the
 // corresponding composite record has been durably claimed without replacement.
 func (s *ThreadStore) AllocateThreadTag(repoScope, workingPath string, createdAt time.Time, nextTag func() (string, error), artifacts ThreadArtifactClaimer) (ThreadRecord, error) {
+	return s.allocateThreadTag(context.Background(), repoScope, workingPath, createdAt, nextTag, artifacts, false)
+}
+
+// allocateThreadTag retains the shared address claim loop; startup alone requires
+// target history to remain empty under the reservation publication lock.
+func (s *ThreadStore) allocateThreadTag(ctx context.Context, repoScope, workingPath string, createdAt time.Time, nextTag func() (string, error), artifacts ThreadArtifactClaimer, emptyStartup bool) (ThreadRecord, error) {
 	if nextTag == nil {
 		return ThreadRecord{}, errors.New("allocate thread tag: nil identity allocator")
 	}
@@ -24,6 +31,9 @@ func (s *ThreadStore) AllocateThreadTag(repoScope, workingPath string, createdAt
 		return ThreadRecord{}, err
 	}
 	if backend != s {
+		if emptyStartup {
+			return ThreadRecord{}, ErrStartResolutionChanged
+		}
 		return backend.AllocateThreadTag(repoScope, workingPath, createdAt, nextTag, artifacts)
 	}
 	for attempt := 0; attempt < threadTagAttempts; attempt++ {
@@ -50,7 +60,18 @@ func (s *ThreadStore) AllocateThreadTag(repoScope, workingPath string, createdAt
 		if err != nil {
 			return ThreadRecord{}, fmt.Errorf("allocate thread tag: claim scoped artifacts: %w", err)
 		}
-		created, err := s.CreateThread(record)
+		var created ThreadRecord
+		if emptyStartup {
+			err = s.withEmptyStartupTarget(ctx, s, repoScope, func() error {
+				if err := s.createThreadLocked(record); err != nil {
+					return err
+				}
+				created = cloneThreadRecord(record)
+				return nil
+			})
+		} else {
+			created, err = s.CreateThread(record)
+		}
 		if err == nil {
 			return created, nil
 		}

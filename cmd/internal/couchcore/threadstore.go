@@ -266,45 +266,54 @@ func (s *ThreadStore) CreateThread(record ThreadRecord) (ThreadRecord, error) {
 	}
 	var created ThreadRecord
 	err = s.withLock(func() error {
-		manifest, manifestRaw, manifestExists, err := s.loadManifestLocked()
-		if err != nil {
-			return err
-		}
-		if _, exists, err := s.readOptionalPayload(s.recordPath(record.Address)); err != nil {
-			return err
-		} else if exists || manifestContains(manifest, record.Address) {
-			return &ThreadExistsError{Address: record.Address}
-		}
-		if err := ValidateThreadRecord(record); err != nil {
-			return err
-		}
-		entries, err := s.createJournalEntries(record)
-		if err != nil {
-			return err
-		}
-		nextManifest := manifest
-		nextManifest.Generation++
-		nextManifest.Threads = append(nextManifest.Threads, record.Address)
-		sortThreadAddresses(nextManifest.Threads)
-		nextManifestRaw, err := json.MarshalIndent(nextManifest, "", "  ")
-		if err != nil {
-			return err
-		}
-		nextManifestRaw = append(nextManifestRaw, '\n')
-		var expectedManifest *[]byte
-		if manifestExists {
-			copy := append([]byte{}, manifestRaw...)
-			expectedManifest = &copy
-		}
-		afterManifest := append([]byte{}, nextManifestRaw...)
-		entries = append(entries, storeJournalEntry{Path: relativeStorePath(s.root, s.manifestPath()), Expected: expectedManifest, After: &afterManifest})
-		if err := s.commitJournalLocked(storeJournal{SchemaVersion: 1, Entries: entries}); err != nil {
+		if err := s.createThreadLocked(record); err != nil {
 			return err
 		}
 		created = cloneThreadRecord(record)
 		return nil
 	})
 	return created, err
+}
+
+// createThreadLocked publishes one validated record while the caller holds the
+// store lock. Empty-only startup adds its history guard under that same lock.
+func (s *ThreadStore) createThreadLocked(record ThreadRecord) error {
+	manifest, manifestRaw, manifestExists, err := s.loadManifestLocked()
+	if err != nil {
+		return err
+	}
+	if _, exists, err := s.readOptionalPayload(s.recordPath(record.Address)); err != nil {
+		return err
+	} else if exists || manifestContains(manifest, record.Address) {
+		return &ThreadExistsError{Address: record.Address}
+	}
+	if err := ValidateThreadRecord(record); err != nil {
+		return err
+	}
+	entries, err := s.createJournalEntries(record)
+	if err != nil {
+		return err
+	}
+	nextManifest := manifest
+	nextManifest.Generation++
+	nextManifest.Threads = append(nextManifest.Threads, record.Address)
+	sortThreadAddresses(nextManifest.Threads)
+	nextManifestRaw, err := json.MarshalIndent(nextManifest, "", "  ")
+	if err != nil {
+		return err
+	}
+	nextManifestRaw = append(nextManifestRaw, '\n')
+	var expectedManifest *[]byte
+	if manifestExists {
+		copy := append([]byte{}, manifestRaw...)
+		expectedManifest = &copy
+	}
+	afterManifest := append([]byte{}, nextManifestRaw...)
+	entries = append(entries, storeJournalEntry{Path: relativeStorePath(s.root, s.manifestPath()), Expected: expectedManifest, After: &afterManifest})
+	if err := s.commitJournalLocked(storeJournal{SchemaVersion: 1, Entries: entries}); err != nil {
+		return err
+	}
+	return nil
 }
 
 // createJournalEntries is the record half of publishing a new thread: the
