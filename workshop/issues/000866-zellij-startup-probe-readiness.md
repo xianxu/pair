@@ -220,6 +220,10 @@ Main comparison completed exactly once, exit1, source still clean at e2f58424b12
 
 Outcome reported hub96e1c20c. TL233cf35e confirms title diagnosis stays with866 and directs separate unclaimed quota-cleanup filing unless one exists. Exact-test/contour search of current origin/main active issues finds no duplicate;794 concerns build/provision wrapper descendants, a different test/package contour. Creation is in progress. No title flake registration, because main did not reproduce those failures. Continue corrected866 full Go with the staged helper-entry/stack diagnostics, without overlapping another local target sweep; all41 non-Go targets already passed on unchanged runtime source.
 
+### 2026-10-24 — quota issue filed; corrected full-Go diagnostic run retained
+
+Unclaimed #878 filed on origin at workshop/issues/000878-agent-fixture-quota-cleanup.md with main exact-head/log/hash, failed observation and cleanup join evidence; no checkout writes. Corrected866 full local Go now runs exact source head2d9f7c3ed423d95db452bfb1fcf2b91522464dd1 with unchanged flags/command and no overlapping local target sweep. Capture /Volumes/TestScratch/pair866-go-diagnostic-7tckj7xm/go.log; metadata/result alongside it. Watch owned terminal64830 until actual completion. The only title-test addition remains entry/stack diagnostics, no asserted fix or flake registration. No recorded suite queued.
+
 ## Revisions
 
 ### 2026-10-24 — final plan bookkeeping and source ownership
