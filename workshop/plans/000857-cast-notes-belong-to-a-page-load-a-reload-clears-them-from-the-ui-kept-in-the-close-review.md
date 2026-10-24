@@ -293,3 +293,89 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-24T06:07:48-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 857 — Cast notes belong to a page load; a reload clears them from the UI (kept in the recording) |
+| repo | pair |
+| issue file | workshop/issues/000857-cast-notes-belong-to-a-page-load-a-reload-clears-them-from-the-ui-kept-in-the.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | c79121698d445dea557528ce8e34149abf376c27..6615515753ca49f840209747317995d81913d24b |
+| command | sdlc close --issue 857 |
+| reviewer | codex (openai; author openai) |
+| isolation | fenced |
+| timestamp | 2026-10-24T06:07:48-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+The interdiff repairs the synthetic Couch recording fixture without weakening production admission or changing requests and behavioral assertions. Documentation matches the existing unknown-load policy. The Revisions additions record qualification work, with no scope change. No new defects found.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      The reconciled ownership tables remain intact; this interdiff introduces no new production entities or ownership changes.
+  - id: BR-2
+    disposition: withdrawn
+    note: |
+      Retained independent-host metadata, non-skipped lifecycle output, and cleanup evidence remain intact. The log hash matches fd63b1446d35513c95bfc31edc608061d6e5edf5101ccbdc96d7e0fac8b13c27; this interdiff changes no native lifecycle or production code.
+  - id: BR-3
+    disposition: addressed
+    note: |
+      atlas/webcast-format.md:231–235 retains the corrected creation-segment load predicate. The added legacy refusal passage at lines 96–98 matches Board.pageLocked and the server refusal text.
+```
+
+1. **Strengths**
+   - Fixture identity matches the builder’s target and supplies the authority normally provided by `commitTopSnapshot` (`console_webnotes_test.go:69`).
+   - HTTP requests and menu/copy/resolve assertions remain unchanged.
+   - Failure diagnostics now include the response body and check read errors (`console_webnotes_test.go:110`).
+
+2. **Critical findings:** None.
+
+3. **Important findings:** None.
+
+4. **Minor findings:** None.
+
+5. **Test coverage notes**
+   
+   Independently passed:
+   - Three affected Couch tests under `-race`.
+   - Complete Couch package: 65.496s.
+   - Existing unknown-load fresh-feedback refusal test.
+   - `make test-affected-inventory` and `git diff --check`.
+
+   Inspected retained RED evidence. No production behavior changed in this window.
+
+6. **Architectural notes**
+   - **ARCH-DRY — Pass:** Shared fixture repairs all three affected tests.
+   - **ARCH-PURE — Pass:** Changes remain in integration-test setup and diagnostics.
+   - **ARCH-PURPOSE — Pass:** Fix preserves downstream behavior assertions and trusted admission.
+   - **ARCH-EVOLVE — Pass:** No persisted format or rewrite changes.
+
+7. **Plan revision recommendations:** None.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"5ebe5930-229c-44a4-87bf-cc0f25873ef7","repository":"github.com/xianxu/pair","issue_id":"000857","recipe":"fix-review","round":4,"attempt":1,"agent":"codex","root":"/Volumes/TestScratch/review-checkouts/9b2dd91d4ef60070","reviewed_head":"6615515753ca49f840209747317995d81913d24b","slot":"pair:4","requested_at":"2026-10-24T13:05:20.694219Z"},"phase":"finished","pid":69951,"started_at":"2026-10-24T13:05:20.866992Z","finished_at":"2026-10-24T13:07:37.732211Z","session_id":"01a16e04-0ce6-76b0-88cb-603b322d9e49","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 20.574810125s
+head: "6615515753ca49f840209747317995d81913d24b"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000413

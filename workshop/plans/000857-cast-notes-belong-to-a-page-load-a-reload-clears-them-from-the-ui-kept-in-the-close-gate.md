@@ -137,6 +137,49 @@ rounds:
       isolation: fenced
       reviewed: 6100fb6a8fea05d1b5822677e999f17e1badd7d8
       blocked: false
+    - reviewer_runs:
+        - version: 1
+          intent:
+            disposable_root: true
+            id: 5ebe5930-229c-44a4-87bf-cc0f25873ef7
+            repository: github.com/xianxu/pair
+            issue_id: "000857"
+            recipe: fix-review
+            round: 4
+            attempt: 1
+            agent: codex
+            root: /Volumes/TestScratch/review-checkouts/9b2dd91d4ef60070
+            reviewed_head: 6615515753ca49f840209747317995d81913d24b
+            slot: pair:4
+            requested_at: "2026-10-24T13:05:20.694219Z"
+          phase: finished
+          pid: 69951
+          started_at: "2026-10-24T13:05:20.866992Z"
+          finished_at: "2026-10-24T13:07:37.732211Z"
+          session_id: 01a16e04-0ce6-76b0-88cb-603b322d9e49
+          outcome: returned
+      "n": 4
+      timestamp: "2026-10-24T06:07:48-07:00"
+      dispatched: "2026-10-24T06:05:00-07:00"
+      agent: codex
+      reviewer: codex (openai; author openai)
+      dispose:
+        - id: BR-1
+          disposition: addressed
+          note: The reconciled ownership tables remain intact; this interdiff introduces no new production entities or ownership changes.
+          round: 4
+        - id: BR-2
+          disposition: withdrawn
+          note: Retained independent-host metadata, non-skipped lifecycle output, and cleanup evidence remain intact. The log hash matches fd63b1446d35513c95bfc31edc608061d6e5edf5101ccbdc96d7e0fac8b13c27; this interdiff changes no native lifecycle or production code.
+          round: 4
+        - id: BR-3
+          disposition: addressed
+          note: atlas/webcast-format.md:231–235 retains the corrected creation-segment load predicate. The added legacy refusal passage at lines 96–98 matches Board.pageLocked and the server refusal text.
+          round: 4
+      recipe: fix-review
+      isolation: fenced
+      reviewed: 6615515753ca49f840209747317995d81913d24b
+      blocked: false
 disputes:
     - id: BR-2
       rationale: The reviewer-local GPU startup failure occurs before page creation and is not a failure of the page-load lifecycle. TL94ff9a00 explicitly requested independent source-bound host qualification by pair:5; that independent run now passes. Runtime source has not changed since the qualified head. The reviewed requirement is qualified without disabling Chrome checks or altering production.
@@ -177,6 +220,14 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - BR-1 — addressed — Verified the reconciled Core concepts and Integration points tables against the pinned diff and filesystem: unchanged catch-up and generic adapters are identified as reused, and submission provenance and page_load_live_test.go are included.
 - BR-3 — addressed — atlas/webcast-format.md:227 now describes creation-segment load membership and the standalone adapter fallback, matching liveNotes in cmd/internal/webcast/web/annotate.js:136 and the shared page-load helpers.
 - BR-2 — withdrawn — Inspected independent-host metadata, passing non-skipped lifecycle output, and cleanup evidence. The log SHA256 matches fd63b1446d35513c95bfc31edc608061d6e5edf5101ccbdc96d7e0fac8b13c27. Git confirms only tracker/evidence changes between qualified source eadf97328b414bc627c434b9a561f3b181f21408 and pinned HEAD. My exact native command reproduced the pre-page Chrome GPU exit_code=6 failure; it does not contradict the independent lifecycle measurement.
+
+## Round 4 — 2026-10-24T06:07:48-07:00 (codex) — passed
+
+### Disposed
+
+- BR-1 — addressed — The reconciled ownership tables remain intact; this interdiff introduces no new production entities or ownership changes.
+- BR-2 — withdrawn — Retained independent-host metadata, non-skipped lifecycle output, and cleanup evidence remain intact. The log hash matches fd63b1446d35513c95bfc31edc608061d6e5edf5101ccbdc96d7e0fac8b13c27; this interdiff changes no native lifecycle or production code.
+- BR-3 — addressed — atlas/webcast-format.md:231–235 retains the corrected creation-segment load predicate. The added legacy refusal passage at lines 96–98 matches Board.pageLocked and the server refusal text.
 
 ## Disputes
 
