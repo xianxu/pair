@@ -52,7 +52,7 @@ One atomic full-flow implementation, one issue-close review (no Mx tags).
 - [x] Pin shared fixtures; simplify the editorial compiler/guards around sidedoc.ChatSections.
 - [x] Wire new highlight rounds, legacy notices and lossless operator map-to-tag migration.
 - [x] Prove public seams, old rounds, real-doc read-only audit and disposable native acceptance; update atlas/help.
-- [ ] Inventory, recorded affected check, close review, operator acceptance as agreed with TL, then land.
+- [x] Inventory and recorded pre-close qualification complete; operator acceptance received; submit the close review and land through the SDLC gates.
 
 ## Estimate
 
@@ -501,6 +501,26 @@ Next: wait for the operator's per-issue acceptance through the hub using morning
 Authenticated hub56354f08 explicitly says keep the combined stage and do not clear.851 switcher PASS and856 Notes panel PASS;851 lands independently.842 Send FAIL sends to the focused pane instead of the draft; pair:7 owns that repair.838 with parley.nvim419 is not checked yet; operator is still on it. No838 acceptance inferred from another issue's PASS. Pair:0 was freshly observed at combined3d0135b0021209730956929c8926e30f9799ba79; no target mutation.
 
 Next: remain available for the hub's editorial result, retaining the838 lease and combined local ref. Follow the hub's subsequent clear/restage instruction through supported SDLC; never clear on851 acceptance alone.838 whole close and landing remain pending. No test, review or merge runner is active.
+
+### 2026-10-24 — operator acceptance and supported stage release
+
+Authenticated hub receipt 541f5c7b-9a3d-4fe8-a2bb-3e620c907431
+(ops:0 to pair:3, submitted) records the operator's #838 PASS on combined
+3d0135b0021209730956929c8926e30f9799ba79: “works really well inside couch!”
+for checklist steps 1–3 (command, question side document, @@chat@@ answers).
+This completes the agreed real operator acceptance alongside the retained
+native mechanical proof. #851 and #856 also passed; #842 failed separately
+and remains pair:7's repair and re-look, outside this issue.
+
+Following the hub's explicit clear instruction, the original supported
+sdlc stage --clear runner completed EXIT0. pair:0 returned to clean main
+at e2f58424b124c38b4340acee459f21fa009394f2; all five rebuilt binaries report
+that revision and vcs.modified=false. The shared #838 stage lease is released.
+The staging-only combined branch is retained as provenance and will not land.
+The feature branch remains unchanged in code since the passing recorded
+11ebba30 suite (13m57s; SHA256 4ccc4bb02b24017a3983d95ba367a6565c3ca3f5fcf367c415729e2def3dc040).
+Next: inventory, whole close with normal measured actuals and its mandatory
+review, then the authoritative merge runner after SHIP. No landing is claimed.
 
 ## Revisions
 
