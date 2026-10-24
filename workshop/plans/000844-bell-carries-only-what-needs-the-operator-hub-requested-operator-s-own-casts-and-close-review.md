@@ -310,3 +310,98 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-24T13:46:02-07:00 (REWORK)
+
+| field | value |
+|-------|-------|
+| issue | 844 — Bell carries only what needs the operator (hub-requested, operator's own casts and drives, no hub able to act); the rest goes to the hub |
+| repo | pair |
+| issue file | workshop/issues/000844-bell-carries-only-what-needs-the-operator-hub-requested-operator-s-own-casts-and.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | ef4e44efd8fe3532c8aa0f6780fc9a0713c8ca2f..f7f4ec084657b6f4bfcd669254f40f694a2b835a |
+| command | sdlc close --issue 844 |
+| reviewer | codex (openai; author openai) |
+| isolation | fenced |
+| timestamp | 2026-10-24T13:46:02-07:00 |
+| verdict | REWORK |
+
+## Review
+
+```verdict
+verdict: REWORK
+confidence: high
+```
+
+The checker changes pass the artifactpath package tests and affected-reader inventory. However, this interdiff introduces executable checker behavior beyond the previously disposed findings and adds a corresponding plan revision. The explicit fix-review scope rule therefore requires a full `sdlc close`.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      Previously accepted routing corrections and regression tests are unchanged in this window; no regression introduced by the interdiff was found.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      README.md:1264-1268 and :1536-1543 retain the corrected owning-hub, operator-exception and automation-OFF descriptions, consistent with couchcore/notice_route.go.
+  - id: BR-3
+    disposition: addressed
+    note: |
+      Both notice_class_inventory_test.go consumers still delegate analysis and rejection fixtures to cmd/internal/testnotice/inventory.go with package-specific configuration.
+findings:
+  - id: new
+    severity: Critical
+    kind: defect
+    family: close-review-scope-integrity
+    title: |
+      Scope changed after close — run a full `sdlc close`
+    detail: |
+      workshop/plans/000844-human-attention-routing-plan.md:258-262 adds a checker-design revision beyond recording any prior finding's fix. cmd/internal/artifactpath/manifest.go:32 introduces GoTypedConstantVocabulary, and coverage_test.go:755-762 adds executable acceptance behavior for it. None of BR-1, BR-2 or BR-3 requested this behavior. Although the focused checks pass and the plan records approval, the supplied narrow-review rule requires a full sdlc close for this expanded scope.
+```
+
+1. **Strengths**
+   - Typed-constant allowances pin the type, symbol, literal and occurrence count.
+   - Adversarial tests cover implicit, computed, local, mismatched and duplicate declarations.
+   - Atlas documentation describes the new checker contract.
+
+2. **Critical findings**
+   - The scope finding above blocks this narrow gate. Run a full `sdlc close` against the final head.
+
+3. **Important findings**
+   - None.
+
+4. **Minor findings**
+   - None.
+
+5. **Test coverage notes**
+   - Passed `go test ./cmd/internal/artifactpath -count=1`.
+   - Passed `make test-affected-inventory`.
+   - Passed pinned-range `git diff --check`.
+   - No files changed; working tree remains clean.
+
+6. **Architectural notes**
+   - **ARCH-DRY — pass:** new recognition reuses the existing allowance and coverage machinery.
+   - **ARCH-PURE — pass:** AST recognition operates on supplied syntax; repository scanning remains in the existing integration shell.
+   - **ARCH-PURPOSE — pass within the inspected implementation:** all six added source classifications are covered by the production inventory test.
+   - **ARCH-EVOLVE — pass:** no persisted schema or field meaning changes appear in this window.
+
+7. **Plan revision recommendations**
+   - Correct line 262’s instruction to perform a “narrow re-close”: this added executable contract requires full-close review under the supplied boundary rules.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"1c5e0bac-b06f-4c1d-8f31-7da57791f76b","repository":"github.com/xianxu/pair","issue_id":"000844","recipe":"fix-review","round":4,"attempt":1,"agent":"codex","root":"/Volumes/TestScratch/review-checkouts/98fa17fd279a15ba","reviewed_head":"f7f4ec084657b6f4bfcd669254f40f694a2b835a","slot":"pair:1","requested_at":"2026-10-24T20:45:07.53001Z"},"phase":"finished","pid":74943,"started_at":"2026-10-24T20:45:07.64089Z","finished_at":"2026-10-24T20:46:01.595562Z","session_id":"01a16fa8-fc42-7a00-a5f1-01b9b0ad3cf6","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 2.306326584s
+head: "f7f4ec084657b6f4bfcd669254f40f694a2b835a"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412

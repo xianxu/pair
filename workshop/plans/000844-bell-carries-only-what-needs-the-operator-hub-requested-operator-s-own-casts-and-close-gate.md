@@ -139,6 +139,56 @@ rounds:
       isolation: fenced
       reviewed: d7a07ecba6348d1d1a9d9de3c3704c45926c19c6
       blocked: false
+    - reviewer_runs:
+        - version: 1
+          intent:
+            disposable_root: true
+            id: 1c5e0bac-b06f-4c1d-8f31-7da57791f76b
+            repository: github.com/xianxu/pair
+            issue_id: "000844"
+            recipe: fix-review
+            round: 4
+            attempt: 1
+            agent: codex
+            root: /Volumes/TestScratch/review-checkouts/98fa17fd279a15ba
+            reviewed_head: f7f4ec084657b6f4bfcd669254f40f694a2b835a
+            slot: pair:1
+            requested_at: "2026-10-24T20:45:07.53001Z"
+          phase: finished
+          pid: 74943
+          started_at: "2026-10-24T20:45:07.64089Z"
+          finished_at: "2026-10-24T20:46:01.595562Z"
+          session_id: 01a16fa8-fc42-7a00-a5f1-01b9b0ad3cf6
+          outcome: returned
+      "n": 4
+      timestamp: "2026-10-24T13:46:02-07:00"
+      dispatched: "2026-10-24T13:45:05-07:00"
+      agent: codex
+      reviewer: codex (openai; author openai)
+      dispose:
+        - id: BR-1
+          disposition: addressed
+          note: Previously accepted routing corrections and regression tests are unchanged in this window; no regression introduced by the interdiff was found.
+          round: 4
+        - id: BR-2
+          disposition: addressed
+          note: README.md:1264-1268 and :1536-1543 retain the corrected owning-hub, operator-exception and automation-OFF descriptions, consistent with couchcore/notice_route.go.
+          round: 4
+        - id: BR-3
+          disposition: addressed
+          note: Both notice_class_inventory_test.go consumers still delegate analysis and rejection fixtures to cmd/internal/testnotice/inventory.go with package-specific configuration.
+          round: 4
+      findings:
+        - kind: defect
+          id: BR-4
+          severity: Critical
+          title: Scope changed after close — run a full `sdlc close`
+          detail: workshop/plans/000844-human-attention-routing-plan.md:258-262 adds a checker-design revision beyond recording any prior finding's fix. cmd/internal/artifactpath/manifest.go:32 introduces GoTypedConstantVocabulary, and coverage_test.go:755-762 adds executable acceptance behavior for it. None of BR-1, BR-2 or BR-3 requested this behavior. Although the focused checks pass and the plan records approval, the supplied narrow-review rule requires a full sdlc close for this expanded scope.
+          family: close-review-scope-integrity
+          round: 4
+      recipe: fix-review
+      isolation: fenced
+      blocked: true
 ---
 
 # Gate ledger — pair#844 (boundary-review)
@@ -173,6 +223,19 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - BR-2 — addressed — README.md:1264 and :1536 replace unconditional warning/prompt eligibility with owning-hub routing, operator exceptions, unavailable-owner fallback, and connected-OFF suppression, consistent with couchcore/notice_route.go:73.
 - BR-3 — addressed — Both package inventories use cmd/internal/testnotice/inventory.go:21 for analysis and its shared rejection fixtures, retaining package-specific projection and forwarding declarations.
 
+## Round 4 — 2026-10-24T13:46:02-07:00 (codex) — BLOCKED
+
+### Disposed
+
+- BR-1 — addressed — Previously accepted routing corrections and regression tests are unchanged in this window; no regression introduced by the interdiff was found.
+- BR-2 — addressed — README.md:1264-1268 and :1536-1543 retain the corrected owning-hub, operator-exception and automation-OFF descriptions, consistent with couchcore/notice_route.go.
+- BR-3 — addressed — Both notice_class_inventory_test.go consumers still delegate analysis and rejection fixtures to cmd/internal/testnotice/inventory.go with package-specific configuration.
+
+### Raised
+
+- **BR-4** [Critical] `close-review-scope-integrity` (kind: defect) Scope changed after close — run a full `sdlc close`
+  workshop/plans/000844-human-attention-routing-plan.md:258-262 adds a checker-design revision beyond recording any prior finding's fix. cmd/internal/artifactpath/manifest.go:32 introduces GoTypedConstantVocabulary, and coverage_test.go:755-762 adds executable acceptance behavior for it. None of BR-1, BR-2 or BR-3 requested this behavior. Although the focused checks pass and the plan records approval, the supplied narrow-review rule requires a full sdlc close for this expanded scope.
+
 ## Open findings
 
-(none — every finding has been disposed)
+- **BR-4** [Critical] `close-review-scope-integrity` (kind: defect) Scope changed after close — run a full `sdlc close`

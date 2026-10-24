@@ -223,6 +223,10 @@ Implemented only the approved eight typed enum allowances and five audited non-a
 
 The coverage reader was audited: production roots and generated runtime/doc fixtures are unchanged; new mutations use literal Go in owned temporary directories, with no new repository inputs. Only its exact certificate was refreshed using the inventory's per-reader fixed_scanner command. Atlas maps the exact context. NEXT ACTION: finish inventory, commit/push this correction, narrow re-close, then a fresh pushed-head recorded pre-close. After review and recorded green, send pair:4 the head/checklist; combined stage requires explicit hub go and live acceptance before merge.
 
+### 2026-10-24 — narrow gate BR-4 requires full close
+
+Round4 narrow review returned REWORK solely for close-review-scope-integrity: the approved typed-constant checker extension is executable behavior beyond BR-1/2/3 and therefore requires full close. All three prior findings remain addressed; no implementation defect was found, artifactpath and inventory independently passed in review. Follow BR-4 with a full close on the existing ledger; do not dispute or waive the scope guard. Fresh recorded attempt fcad99b65b2ba86d678b4544b601bcdd, lease-3796038393, remains queued on f7f4ec084657b6f4bfcd669254f40f694a2b835a. No code changes after that tested candidate. NEXT ACTION: full close, retain queued check, then coordinated live handoff after both pass.
+
 ## Estimate
 
 Produced via brain/data/life/42shots/velocity/estimate-logic-v3.1.md against baseline-v3.1.md. Method A only. Calibration is flagged stale by estimate-source, so these are provisional ship-wall-clock hours. Read v2/v2.1 procedure and table: retain issue/spec design cost; use x0.2 design discount for approved module/integration/refactor decisions, 40% implementation conversion, familiarity 1.0 and 15% design buffer.
