@@ -42,9 +42,9 @@ Alternatives: joining or locking the publisher inside RetireResult would add a r
 
 ## Plan
 
-- [ ] Pin the false-positive state with a held .publish-* file in the reuse and joined-child retirement controls; observe RED with the raw-directory oracle.
-- [ ] Use the existing countMailboxEntries for both live-publication retirement assertions, include entry names on failure, and add scratch-versus-genuine-record negative controls.
-- [ ] Run targeted lifecycle/capacity controls, repeated reuse and race, lint and reader inventory; prepare pushed pre-close verification and close. Recorded pre-close pass, mandatory fresh review and landing remain downstream gates until their own results.
+- [x] Pin the false-positive state with a held .publish-* file in the reuse and joined-child retirement controls; observe RED with the raw-directory oracle.
+- [x] Use the existing countMailboxEntries for both live-publication retirement assertions, include entry names on failure, and add scratch-versus-genuine-record negative controls.
+- [x] Run targeted lifecycle/capacity controls, repeated reuse and race, lint and reader inventory; prepare pushed pre-close verification and close. Recorded pre-close pass, mandatory fresh review and landing remain downstream gates until their own results.
 
 Quick flow, test-only correction. ARCH-ORDER: producer owns temporary hard-link cleanup after final result becomes visible; RetireResult removes cancellation then command then final result under the admission lock. No new state or effects. ARCH-CONSTRAINTS: preserve MaxRequests+1 cycles and existing limits; no new hot path or growth driver, and no timing-based waits. ARCH-FUNERAL: test-owned held scratch dies with t.TempDir; never unlink another publisher's temporary file. ARCH-EVOLVE/SECURE: production wire fields and identity validation unchanged. Existing stateful fixture remains the integration seam (ARCH-MOCK).
 
@@ -57,3 +57,17 @@ Quick flow, test-only correction. ARCH-ORDER: producer owns temporary hard-link 
 Claimed and started from fresh main84d84dd0298c7b1cf2d02ed7b90d127fcc4952bb after #852 landed. Latest #852 integration suite reproduced this test at cycle66 with one leaked result, followed by managed same-head exact-test pass3.297s (parent82a29a2a767de75660985214b5feb1e8, child64235cd95e13c908ddccc3466535cc55); root-cause repair is required, never a retry or timeout bump.
 
 TL295d506f-33e6-4f3b-a09a-89a60e9a0537 authorizes both open claims: #825 active root-cause work and #841 accepted SHIP/high awaiting recorded check/landing. #841 check lease-1223841125 remains live in runner81109 at detached HEAD954e3caea7078371c91c7523e86a70bdad751658 (/Volumes/TestScratch/local-checks/sdlc-local-1464763110); verified detached and matching dependency/policy/build inputs before switching. Its docs-only tip is af5785f92. Return to board #841 on pass; do not cancel/restart it. ariadne#580 tracks overlapping-time attribution. A bounded read-only agent investigates result publication/retirement ordering while this session reproduces and traces the lifecycle.
+
+### 2026-10-23 — Publication scratch caused the false leak assertion
+
+Unchanged focused stress (count10) reproduced cycle127 leaked results:1 in42.148s. Read-only investigation traced atomicJSON: os.Link publishes the final name, then deferred os.Remove retires scratch; ReadResult and RetireResult can finish between them. Existing TestRunRetiredResultsKeepMailboxBoundedBeyondLifetimeQuota already holds .publish-held and excludes scratch. Directory-snapshot/ID-fence ordering revealed no request replay or inherited cancellation defect. Agentfixture subtree e774d056251c5e40d77b20c3e46fc3d8037323dc is identical on current main and the original #841 executable diagnostic tree.
+
+In the disposable diagnostic tree, seeding results/.publish-held reproduces deterministically: cycle0 fails0.249s with entries=[- .publish-held]. This is a modeled publisher interval, not a claimed capture of the intermittent filename. On the issue branch, both held-scratch regressions RED0.439s with the raw oracle; after using countMailboxEntries both GREEN5.198s, including genuine-result/unknown-entry negative controls. Full agentfixture PASS13.794s, full package race PASS15.420s, held-scratch reuse count10 PASS35.054s; all keep existing cancellation, uncertain-result, ID reuse and capacity checks. Lint catalog PASS5.078s; diff clean.
+
+Reader inventory initially named request_lifetime_test.go as changed. Audited fixtureConfig/startLifetimeFixture: all OS reads/writes are under t.TempDir-owned ControlDir/Root, and new fs.ReadDir uses fstest.MapFS in memory. No tracked repository input or fallback changed. Recorded only that file's existing local_or_literal_fixture disposition; inventory PASS. No production files, state, wire formats or timeout/retry policy changed; lessons updated. No new generic lint rule is proposed for distinguishing live-publisher from quiescent directory assertions; both applicable sites now have deterministic held-scratch guards. The stale-shutdown assertion targets the separate ordinary-result directory with no ordinary publisher and remains valid. Push, recorded pre-close, fresh close review and landing follow; no recorded pass claimed yet.
+
+## Revisions
+
+### 2026-10-23 — Specify the verified test-oracle defect
+
+The root cause is counting publisher-owned scratch as a retained mailbox result. Fill the previously empty Spec/Plan and add explicit acceptance for held scratch plus real-record negatives; preserve the original no-retry/no-timeout requirement. Correct the two live-publication test assertions using the existing counter; runtime lifecycle changes would solve the wrong contract.

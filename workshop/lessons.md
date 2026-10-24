@@ -7,6 +7,8 @@ representative evidence, not an exhaustive index.
 
 ## Proof and verification
 
+- #825: A final file made visible by a hard link can be consumed before its publisher removes the temporary name. Retirement/capacity assertions must count mailbox records with the shared counter, not raw directory entries. Hold publication scratch in regression tests and retain negative controls for genuine records; never remove another producer's scratch to satisfy the oracle.
+
 - #852: Retry-count fixtures with synchronous fake completion must drive injected completion and whole-operation deadlines explicitly. A real deadline can expire during coordinated store finalization after proof is already present, adding spurious recovery drives. Pair a tiny-budget positive with withheld-proof, cancellation and whole-budget controls; keep production budgets unchanged.
 
 - #833: A failed component's later refusal must wrap its retained cause, not replace it with a generic unavailable error or join a new synthetic leaf. Publish the failed state and first cause together under the same mutex; pin queued, later and owner-completion paths plus the real shutdown caller, including physical errors joined with cancellation.

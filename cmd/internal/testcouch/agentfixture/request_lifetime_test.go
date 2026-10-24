@@ -5,12 +5,14 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
 	"syscall"
 	"testing"
+	"testing/fstest"
 	"time"
 )
 
@@ -60,6 +62,10 @@ func TestUncertainResultCannotRetireCorrelatedFiles(t *testing.T) {
 
 func TestRequestCancellationAcknowledgesJoinedChild(t *testing.T) {
 	config := startLifetimeFixture(t)
+	// The final result can be consumed before its publisher removes this name.
+	if err := os.WriteFile(filepath.Join(config.ControlDir, "results", ".publish-held"), []byte("in progress"), 0600); err != nil {
+		t.Fatal(err)
+	}
 	marker := filepath.Join(config.Root, "child-pid")
 	if err := WriteCommand(config.ControlDir, Command{ID: "active", Kind: Exec, Timeout: time.Hour, Args: []string{"-c", `printf '%s' "$$" > "$1"; exec sleep 30`, "fixture", marker}}); err != nil {
 		t.Fatal(err)
@@ -87,8 +93,8 @@ func TestRequestCancellationAcknowledgesJoinedChild(t *testing.T) {
 	}
 	for _, sub := range []string{"commands", "results", "cancellations"} {
 		entries, err := os.ReadDir(filepath.Join(config.ControlDir, sub))
-		if err != nil || len(entries) != 0 {
-			t.Fatalf("terminal %s not reclaimed: entries=%d err=%v", sub, len(entries), err)
+		if err != nil || countMailboxEntries(entries) != 0 {
+			t.Fatalf("terminal %s not reclaimed: entries=%v err=%v", sub, entries, err)
 		}
 	}
 }
@@ -164,6 +170,10 @@ func TestQueuedRequestDeadlineIncludesAdmissionWait(t *testing.T) {
 
 func TestCancellationRetirementAllowsIDReuseWithoutInheritedRevocation(t *testing.T) {
 	config := startLifetimeFixture(t)
+	// Model the valid interval between linking a result and removing scratch.
+	if err := os.WriteFile(filepath.Join(config.ControlDir, "results", ".publish-held"), []byte("in progress"), 0600); err != nil {
+		t.Fatal(err)
+	}
 	for cycle := 0; cycle < MaxRequests+1; cycle++ {
 		command := Command{ID: "reused", Kind: Exec, Args: []string{"-c", "printf done"}}
 		if err := WriteCommand(config.ControlDir, command); err != nil {
@@ -184,10 +194,38 @@ func TestCancellationRetirementAllowsIDReuseWithoutInheritedRevocation(t *testin
 		}
 		for _, sub := range []string{"commands", "results", "cancellations"} {
 			entries, err := os.ReadDir(filepath.Join(config.ControlDir, sub))
-			if err != nil || len(entries) != 0 {
-				t.Fatalf("cycle%d leaked %s: %d %v", cycle, sub, len(entries), err)
+			if err != nil || countMailboxEntries(entries) != 0 {
+				t.Fatalf("cycle%d leaked %s: entries=%v err=%v", cycle, sub, entries, err)
 			}
 		}
+	}
+}
+
+// Excluding publication scratch must never conceal a real result or marker.
+func TestRetiredMailboxCountsRealRecords(t *testing.T) {
+	for _, tc := range []struct {
+		name  string
+		files []string
+		want  int
+	}{
+		{"scratch only", []string{".publish-held"}, 0},
+		{"result remains", []string{".publish-held", "reused.json"}, 1},
+		{"two results remain", []string{".publish-held", "first.json", "second.json"}, 2},
+		{"unexpected entry remains", []string{".publish-held", "unexpected"}, 1},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			mailbox := fstest.MapFS{}
+			for _, name := range tc.files {
+				mailbox[name] = &fstest.MapFile{}
+			}
+			entries, err := fs.ReadDir(mailbox, ".")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got := countMailboxEntries(entries); got != tc.want {
+				t.Fatalf("mailbox records=%d want=%d, entries=%v", got, tc.want, entries)
+			}
+		})
 	}
 }
 
