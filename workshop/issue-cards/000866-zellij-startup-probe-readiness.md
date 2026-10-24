@@ -3,7 +3,7 @@ id: 000866
 status: working
 created: 2026-10-24
 updated: 2026-10-24
-estimate_hours:
+estimate_hours: 5.5
 github_issue:
 severity: high
 started: 2026-10-24T02:48:13-07:00
