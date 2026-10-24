@@ -2909,3 +2909,5 @@ and external temporary roots rather than relying on the host's TMPDIR.
 - #856 native gestures: preserve held-button identity in CDP mouseMoved events, matching the established native drag fixture. A none move can lose pending capture and leave the owner gesture poisoned; compare on a fresh gesture, and inspect admission/capture/cancel/host events before changing production lifetime behavior. Measure composed UI only after its intentional private-capture suppression has released.
 
 - #871: implementation Plan checkboxes describe deliverable behavior and qualification. Keep close/merge/report as explicit workflow postconditions rather than an unchecked self-reference that close itself demands; never tick a future landing to satisfy the guard.
+
+- #873: Lifecycle serialization does not exclude preview readers that take a subordinate store lock outside the coordinator. Empty-only startup reservations are foreground work: select the existing bounded foreground policy at every global/local acquisition, preserve before/after evidence checks, and pin maintenance as a zero-wait negative control.
