@@ -370,3 +370,20 @@ test('OFF pin inspection reveals the held draft for recovery without replacing i
  for(const fn of chip.listeners.click)fn({stopPropagation(){}});
  assert.equal(input.value,'existing');assert.equal(ui.dialog.draftPayload,null);
 });
+
+test('annotation publishes one shared workspace and preserves unsaved draft authority',()=>{
+ const root=new Element('shadow'),box=new Element('box');root.append(box);
+ const doc={body:root,createElement:tag=>new Element(tag)};
+ const win={innerWidth:800,innerHeight:600,crypto:{getRandomValues:b=>b.fill(1)},performance:{now:()=>0},requestAnimationFrame:()=>{},addEventListener(){},removeEventListener(){},setTimeout:()=>1,clearTimeout(){},clearInterval(){}};
+ const view={model:{seg:1,docSeg:1,notes:[]},onRecord(){},toPage:(x,y)=>[x,y],fromPage:(x,y)=>[x,y]};
+ const ui=mountAnnotation(doc,win,view,{root,box,stage:box,palette:['#ff0000'],who:{id:()=> 'operator',name:()=> 'Operator',viewer:()=>({id:'operator',name:'Operator'})},colors:{get:()=>0,set(){}},post:async()=>({status:204}),operator:true});
+ assert.equal(typeof ui.notes?.setSketches,'function');
+ assert.equal(ui.controls.pointer,root.querySelector('.mode'));
+ assert.equal(ui.controls.note.textContent,'💭');
+ assert.ok(ui.notes.body.contains(root.querySelector('.note-dialog')));
+ ui.dialog.draft({draft:'held'});const input=root.querySelector('.note-input');input.value='still unsaved';for(const fn of input.listeners.input)fn();
+ assert.deepEqual(ui.dialog.unsaved,{draft:true});
+ ui.notes.showReadonly('finished sketch');assert.deepEqual(ui.dialog.unsaved,{draft:true});
+ ui.setAnnotationAllowed(false);assert.equal(input.value,'still unsaved');
+ ui.dispose();
+});
