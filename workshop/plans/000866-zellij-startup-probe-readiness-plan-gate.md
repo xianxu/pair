@@ -1,4 +1,24 @@
 ---
+reviewer_runs:
+    - version: 1
+      intent:
+        id: 9e99fe78-5677-44fc-b1ed-93a962ad5ee8
+        repository: github.com/xianxu/pair
+        issue_id: "000866"
+        recipe: estimate-quality
+        round: 1
+        attempt: 1
+        agent: codex
+        root: /Users/xianxu/workspace/worktree/pair-slot5/pair
+        reviewed_head: 1595b00ecc0f712b3cddd2a33c528116af85cdd5
+        slot: pair:5
+        requested_at: "2026-10-24T10:37:48.968077Z"
+      phase: finished
+      pid: 4808
+      started_at: "2026-10-24T10:37:49.143936Z"
+      finished_at: "2026-10-24T10:38:19.402997Z"
+      session_id: 01a16d7c-faaf-7ff1-9283-8ccb8f7cd3c3
+      outcome: returned
 gate: plan-quality
 issue: 866
 id_prefix: PQ
@@ -75,7 +95,32 @@ rounds:
           note: Immutable publication and explicit top-level/nested raw-member preservation cover rewrites, with strict validation and older-reader/newer-record round-trip tests.
           round: 2
       blocked: false
-content_hash: ac2356385b57e08ed4c8aeb9bf350bb9690470de957302faaeb62569a753de12
+    - reviewer_runs:
+        - version: 1
+          intent:
+            id: ca3fb152-cb0a-49ac-a649-7dff5fbc7713
+            repository: github.com/xianxu/pair
+            issue_id: "000866"
+            recipe: plan-quality
+            round: 3
+            attempt: 1
+            agent: codex
+            root: /Users/xianxu/workspace/worktree/pair-slot5/pair
+            reviewed_head: 1595b00ecc0f712b3cddd2a33c528116af85cdd5
+            slot: pair:5
+            requested_at: "2026-10-24T10:37:14.973925Z"
+          phase: finished
+          pid: 92761
+          started_at: "2026-10-24T10:37:15.206031Z"
+          finished_at: "2026-10-24T10:37:43.320951Z"
+          session_id: 01a16d7c-7737-7382-9778-16db52dd5bac
+          outcome: returned
+      "n": 3
+      timestamp: "2026-10-24T03:37:43-07:00"
+      agent: codex
+      reviewer: codex (openai; author openai)
+      blocked: false
+content_hash: 448818aedad8e4183d6dc11a984bbd4888e6eddeb21c5e000faab82d58055ff8
 ---
 
 # Gate ledger — pair#866 (plan-quality)
@@ -98,6 +143,8 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 
 - PQ-1 — addressed — Explicit command-class ownership, lock order, joined cancellation, exec-helper lifetime controls, and the approved interactive residual resolve the exclusion contract.
 - PQ-2 — addressed — Immutable publication and explicit top-level/nested raw-member preservation cover rewrites, with strict validation and older-reader/newer-record round-trip tests.
+
+## Round 3 — 2026-10-24T03:37:43-07:00 (codex) — passed
 
 ## Open findings
 
