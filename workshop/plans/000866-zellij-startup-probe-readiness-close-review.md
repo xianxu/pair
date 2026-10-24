@@ -331,3 +331,75 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-24T06:11:50-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 866 — Wait for Zellij readiness before startup probe clients |
+| repo | pair |
+| issue file | workshop/issues/000866-zellij-startup-probe-readiness.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 77e6bdd8de0437b8a0124c2a00c1011b066422a2..0465f3846b724d833335a1540709f2d3e4327c40 |
+| command | sdlc close --issue 866 |
+| reviewer | codex (openai; author openai) |
+| isolation | fenced |
+| timestamp | 2026-10-24T06:11:50-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+The pinned interdiff fixes eager launcher lookup without changing the approved scope. Identity/RPC commands retain their argv; native commands still traverse the guarded helper. No new blocking defects found. No prior findings remain open; BR-1 through BR-5 retain their recorded dispositions.
+
+```findings
+{}
+```
+
+1. **Strengths**
+
+   - `nvim/review/restore_client.lua:24` classifies commands before consulting the native launcher provider.
+   - `nvim/review/restore_client_test.lua:6` covers identity, RPC, and native routing through the actual run method.
+   - Updated integration fixtures execute the current Pair helper with private native namespaces.
+
+2. **Critical findings:** None.
+
+3. **Important findings:** None.
+
+4. **Minor findings:** None.
+
+5. **Test coverage notes**
+
+   Passed restore-client, restore-admission, DOM CLI, route/poke, workbench routing, changed repolint controls, tracked-source enforcement, and affected-reader inventory checks. Substituting the old eager lookup in memory makes the new regression fail. Whitespace checks passed; checkout remains clean. No full-suite or native-fleet rerun performed.
+
+6. **Architectural notes**
+
+   - **ARCH-DRY — pass:** reuses existing adapter and test-binary builder.
+   - **ARCH-PURE — pass:** routing remains in the thin process boundary; injected tests exercise it directly.
+   - **ARCH-PURPOSE — pass:** covers both non-native command classes while preserving guarded native execution.
+   - **ARCH-EVOLVE — pass:** no persisted-format semantics change.
+
+   No new user-facing or architectural surface requires README or atlas changes.
+
+7. **Plan revision recommendations:** None.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"00d15af6-47e8-43b7-a559-82a493327a24","repository":"github.com/xianxu/pair","issue_id":"000866","recipe":"fix-review","round":4,"attempt":1,"agent":"codex","root":"/Volumes/TestScratch/review-checkouts/110b3f66cbea9318","reviewed_head":"0465f3846b724d833335a1540709f2d3e4327c40","slot":"pair:5","requested_at":"2026-10-24T13:09:37.978742Z"},"phase":"finished","pid":25720,"started_at":"2026-10-24T13:09:38.122543Z","finished_at":"2026-10-24T13:11:47.508785Z","session_id":"01a16e07-fb57-75a0-8cac-b98165870ab6","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 27.301496166s
+head: "0465f3846b724d833335a1540709f2d3e4327c40"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000413

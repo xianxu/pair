@@ -166,6 +166,36 @@ rounds:
       isolation: fenced
       reviewed: bdbf7367ba61debbe2017f5cf5656e38a7c2e829
       blocked: false
+    - reviewer_runs:
+        - version: 1
+          intent:
+            disposable_root: true
+            id: 00d15af6-47e8-43b7-a559-82a493327a24
+            repository: github.com/xianxu/pair
+            issue_id: "000866"
+            recipe: fix-review
+            round: 4
+            attempt: 1
+            agent: codex
+            root: /Volumes/TestScratch/review-checkouts/110b3f66cbea9318
+            reviewed_head: 0465f3846b724d833335a1540709f2d3e4327c40
+            slot: pair:5
+            requested_at: "2026-10-24T13:09:37.978742Z"
+          phase: finished
+          pid: 25720
+          started_at: "2026-10-24T13:09:38.122543Z"
+          finished_at: "2026-10-24T13:11:47.508785Z"
+          session_id: 01a16e07-fb57-75a0-8cac-b98165870ab6
+          outcome: returned
+      "n": 4
+      timestamp: "2026-10-24T06:11:50-07:00"
+      dispatched: "2026-10-24T06:09:10-07:00"
+      agent: codex
+      reviewer: codex (openai; author openai)
+      recipe: fix-review
+      isolation: fenced
+      reviewed: 0465f3846b724d833335a1540709f2d3e4327c40
+      blocked: false
 ---
 
 # Gate ledger — pair#866 (boundary-review)
@@ -209,6 +239,8 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - BR-3 — addressed — README.md:884-897 documents legacy-session refusal, rebuild/relaunch guidance, authorized recovery and coverage limits, consistent with acquireNative and the interactive/death controls.
 - BR-4 — addressed — PlanProbeAdmission is absent from production. The revision at plan line 364 supersedes its earlier row; counted 8/16 tests exercise the production qualifyCandidates loop.
 - BR-5 — addressed — Plan lines 367-378 explicitly supersede both earlier resolver rows. Source and pinned name-status confirm zellij_readiness.go is new, manifest.go and session_handoff_os.go are modified, and session_lock.go and session_handoff.go are unchanged.
+
+## Round 4 — 2026-10-24T06:11:50-07:00 (codex) — passed
 
 ## Open findings
 
