@@ -2913,6 +2913,7 @@ and external temporary roots rather than relying on the host's TMPDIR.
 
 - #871: implementation Plan checkboxes describe deliverable behavior and qualification. Keep close/merge/report as explicit workflow postconditions rather than an unchecked self-reference that close itself demands; never tick a future landing to satisfy the guard.
 
+- #878: A context-aware outer select does not bound a synchronous mailbox snapshot. Check cancellation at each request admission, retain the existing joined cleanup owner, and test with a channel-held write plus queued work. Observe quota completion per correlated request; one short deadline over128 filesystem transactions measures aggregate load instead of the transition.
 - #851 BR-1/BR-2: When an approved input gesture changes, sweep every user-facing restatement, including retry instructions and selection-versus-activation language, rather than only the atlas's headline. Reconcile Done-when with the approved Spec and tested modes before close; remove superseded timing assumptions and enumerate inside/outside, hidden and nested behavior. Record the revision without changing the implementation contract.
 
 - #851 BR-3: Evaluate composed filters in their effective candidate universe. Exact-over-fuzzy matching is nonmonotonic: an outside exact match can suppress a valid scoped fuzzy result. Reveal checks must retain applicable scope for the filter, then retain both for view checks. Pin a mixed-restriction case and the converse cases where scope/filter removal is actually needed.
