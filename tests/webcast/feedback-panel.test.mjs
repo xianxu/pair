@@ -7,6 +7,8 @@ import {feedbackLayout} from '../../cmd/internal/webcast/web/feedback-layout.js'
 class Node extends Element {
  constructor(tag,cost){super(tag);this.cost=cost;this.hidden=false;this._text='';this.style=new Proxy({}, {set:(o,k,v)=>{cost.mutations++;o[k]=v;return true;}});}
  set textContent(v){this.cost.mutations++;this._text=v;} get textContent(){return this._text;}
+ setAttribute(k,v){this.attributes??={};this.attributes[k]=String(v);}
+ getAttribute(k){return this.attributes?.[k]??null;}
  set innerHTML(v){throw Error('markup forbidden');}
  append(...nodes){for(const node of nodes){node.remove();node.parentNode=this;this.children.push(node);this.cost.mutations++;}}
  insertBefore(node,before){node.remove();node.parentNode=this;this.children.splice(this.children.indexOf(before),0,node);this.cost.mutations++;}
@@ -137,4 +139,27 @@ test('pending count remains visible beside control status without repeated DOM w
  assert.equal(f.status.textContent,'Annotation is off. · Pending feedback: 1 sketches, 0 annotations');
  const before=f.cost.mutations;f.setStatus('control','Annotation is off.');f.setStatus('preview','Pending feedback: 1 sketches, 0 annotations');assert.equal(f.cost.mutations,before);
  f.setStatus('preview','');assert.equal(f.status.textContent,'Annotation is off.');
+});
+
+test('minimized Notes visibly conveys status and restores the full message without losing position',()=>{
+ const f=fixture(()=>feedbackLayout({width:800,height:600}));f.setNotes([{id:'n',text:'note'}]);
+ f.root.querySelector('.floating-panel-minimize').fire('click');const restore=f.root.querySelector('.floating-panel-restore');
+ const label=restore.textContent;f.setStatus('preview','Pending feedback is out of date.');
+ assert.notEqual(restore.textContent,label);assert.match(restore.textContent,/Status/);
+ assert.match(restore.getAttribute('aria-label'),/Pending feedback is out of date/);
+ assert.equal(restore.title,'Pending feedback is out of date.');
+ restore.fire('click');assert.equal(f.header.hidden,false);assert.equal(f.status.textContent,'Pending feedback is out of date.');
+ f.setStatus('preview','');f.root.querySelector('.floating-panel-minimize').fire('click');assert.equal(restore.textContent,label);
+ assert.equal(restore.title,'');assert.equal(restore.getAttribute('aria-label'),label);
+});
+
+test('opening an adopted editor restores minimized Notes and retires read-only view',()=>{
+ const f=fixture(),editor=f.doc.createElement('div');editor.hidden=true;f.adoptEditor(editor);
+ f.setSketches([{sketch:'s',label:'finished'}]);button(rows(f)[0],'open').fire('click');
+ f.root.querySelector('.floating-panel-minimize').fire('click');assert.equal(f.body.hidden,true);
+ assert.equal(f.showEditor(editor),true);editor.hidden=false;
+ assert.equal(f.body.hidden,false);assert.equal(f.header.hidden,false);
+ assert.equal(f.body.querySelector('.feedback-readonly').hidden,true);
+ assert.equal(f.showEditor(f.doc.createElement('div')),false);
+ f.dispose();assert.equal(f.showEditor(editor),false);
 });

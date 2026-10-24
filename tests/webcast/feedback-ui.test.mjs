@@ -23,13 +23,15 @@ test('live note mask redraws pins, list and open dialog without modifying note s
  assert.equal(root.querySelector('.pins').children.length,1,'minimizing preserves anchored feedback');
  assert.equal(entry.revision,0);assert.equal(entry.state,'open');
  list.children[0].querySelector('.feedback-open').listeners.click[0]({stopPropagation(){}});assert.equal(ui.dialog.open,true);
+ assert.equal(panel.classList.contains('minimized'),false,'opening a note makes the adopted editor reachable');
  v.feedbackMask.install({scope:'cast',revision:'1',sketches:[],notes:[{id:'n',revision:'0'}]});flush();
  assert.equal(list.children.length,0);assert.equal(root.querySelector('.pins').children.length,0);assert.equal(ui.dialog.open,false);
  assert.equal(entry.state,'open');assert.equal(entry.note,note);
  entry.revision=1;for(const fn of hooks)fn();flush();assert.equal(list.children.length,1,'newer note revision reappears');
- assert.equal(panel.classList.contains('minimized'),true,'updates preserve local panel mode');
+ assert.equal(panel.classList.contains('minimized'),false,'updates preserve the expanded mode selected by opening a note');
  assert.equal(panel.hidden,false);
- assert.equal(panel.querySelector('.floating-panel-restore').textContent,'Notes (1)');
+ assert.equal(panel.querySelector('.floating-panel-restore').textContent,'Notes (1) · Status');
+ assert.ok(root.querySelector('.feedback-status').textContent,'pending editor status remains discoverable');
  v.feedbackMask.install({scope:'cast',revision:'2',sketches:[],notes:[{id:'n',revision:'2'}]});
  for(const revision of [0,1,2]){entry.revision=revision;for(const fn of hooks)fn();flush();assert.equal(list.children.length,0,'old reconnect prefix must not flash a known submitted note');}
  entry.revision=3;for(const fn of hooks)fn();flush();assert.equal(list.children.length,1,'current newer note remains visible');

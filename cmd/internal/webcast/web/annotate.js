@@ -607,6 +607,7 @@ export function mountAnnotation(doc, win, v, { root, box, stage, palette, who, c
     name.value = who.name();
     name.hidden = !!who.name();
     author.textContent = '';
+    notesPanel.showEditor(dlg);
     dialog.draft(payload);
     drawDrag();
   }
@@ -630,16 +631,20 @@ export function mountAnnotation(doc, win, v, { root, box, stage, palette, who, c
 
   // place puts an element over a page-px box, in the box element's client
   // px (fromPage gives the window's).
-  const place = (e, b) => {
-    const r = box.getBoundingClientRect();
+  const clientBox = (b, r) => {
     const [x0, y0] = v.fromPage(b[0], b[1]), [x1, y1] = v.fromPage(b[0] + b[2], b[1] + b[3]);
-    Object.assign(e.style, { left: `${x0 - r.left}px`, top: `${y0 - r.top}px`, width: `${x1 - x0}px`, height: `${y1 - y0}px` });
+    return [x0 - r.left, y0 - r.top, x1 - x0, y1 - y0];
+  };
+  const place = (e, b) => {
+    const [x, y, width, height] = clientBox(b, box.getBoundingClientRect());
+    Object.assign(e.style, { left: `${x}px`, top: `${y}px`, width: `${width}px`, height: `${height}px` });
   };
 
   const openNote = (n, by) => {
     v.feedbackVisibility?.invalidate();
     notesPanel.clearHighlight();
     if (operator && !!policy.driver) return;
+    notesPanel.showEditor(dlg);
     dlg.hidden = false;
     const opened = annotate && !unavailable() && n.owner && n.owner === (operator ? 'operator' : owner)
       ? dialog.edit(n) : dialog.view(n, { resolvable: annotate });
@@ -654,11 +659,9 @@ export function mountAnnotation(doc, win, v, { root, box, stage, palette, who, c
     const placed = v.placementOf?.(note, {originalOnly:true, withClip:true});
     if (!placed?.box) { glow.clear(); return; }
     glow.draw((g, rect) => {
-      const [x,y,w,h]=placed.box, [cx,cy]=v.fromPage(x,y);
-      const [clipX,clipY]=v.fromPage(placed.clip[0],placed.clip[1]);
-      g.beginPath();g.rect(clipX-rect.left,clipY-rect.top,placed.clip[2],placed.clip[3]);g.clip();
+      g.beginPath();g.rect(...clientBox(placed.clip,rect));g.clip();
       g.strokeStyle='#eab34b';g.shadowColor='#eab34b';g.shadowBlur=14;g.lineWidth=3;
-      g.strokeRect(cx-rect.left,cy-rect.top,w,h);
+      g.strokeRect(...clientBox(placed.box,rect));
     });
   };
   const revealNote = note => {

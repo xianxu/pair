@@ -149,8 +149,7 @@ Live pins follow a connected anchor or a confident unique replacement on the sam
 route, projecting the original region onto its new box. Removed, hidden, clipped,
 offscreen, conflicting or ambiguous anchors show no box. The shared list retains
 all open notes, including notes on earlier documents, labelled **not on this view**
-when placement is unavailable. The single yellow Notes panel also lists eligible
-on-view sketches. It minimizes to Notes (N), moves by header/button or arrow keys,
+when placement is unavailable. The single yellow Notes panel also lists accepted sketches, including offscreen or unavailable anchors. It minimizes to Notes (N), moves by header/button or arrow keys,
 and keeps its shared session-local anchor. Existing editors appear inside its
 scrolling body; final sketch labels remain read-only. Hover/focus glows the
 corresponding confirmed geometry. Show on page uses only a validated original

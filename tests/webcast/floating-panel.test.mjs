@@ -164,3 +164,16 @@ test('optional protected geometry owns bounds, empty visibility and presentation
  width=620;panel.refresh();assert.equal(panel.root.hidden,false);
  panel.dispose();
 });
+
+test('minimized status growth reclamps its complete control and retires a tentative drag',()=>{
+ const f=fixture(1);
+ f.root.getBoundingClientRect=()=>({width:f.root.classList.contains('minimized')?50+f.restore.textContent.length*8:300,height:32});
+ f.minimize.fire('click');for(let i=0;i<50;i++)f.restore.fire('keydown',{key:'ArrowRight',shiftKey:true});
+ f.restore.fire('pointerdown');f.root.fire('pointermove',{clientX:-100,clientY:100});
+ f.setStatus('Pending feedback is out of date.');
+ assert.equal(f.restore.hasPointerCapture(1),false);
+ assert.equal(Number.parseFloat(f.root.style.inset.split(' ')[3])+f.root.getBoundingClientRect().width,788);
+ assert.equal(f.restore.title,'Pending feedback is out of date.');
+ const before={...f.cost};f.setStatus('Pending feedback is out of date.');assert.deepEqual(f.cost,before);
+ f.setStatus('');assert.equal(f.restore.textContent,'Notes (1)');
+});

@@ -635,6 +635,7 @@ export function mountSketch(doc, win, view, options) {
     if (changed) labelInput.value = drafts.get(key) || '';
     labelTarget = key;
     show();
+    notesPanel.showEditor(panel);
     if (changed) labelInput.focus();
   }
   async function saveLabel() {
@@ -867,7 +868,7 @@ export function mountSketch(doc, win, view, options) {
       notesPanel.setStatus('sketch',shown?'':'Cannot show on this page: anchor unavailable.');
       if(shown)hover(entry);
     };
-    notesPanel.setSketches(rows,{open:entry=>addNote(entry.sketch),hover,reveal});
+    notesPanel.setSketches(rows,{open:entry=>addNote(entry.sketch),hover,reveal,available:entry=>!!entry.bounds});
     forceInk = false;
     inkTransform = transformKey;
     // Reconcile by accepted point prefix. Unconfirmed samples remain visibly

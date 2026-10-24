@@ -1019,3 +1019,55 @@ test('cached painted bounds retain note discovery after scroll hides the first p
  assert.equal(h.root.querySelector('.feedback-open'),button);
  ui.dispose();
 });
+
+test('actual Notes panel preserves finished sketch identity through offscreen and unavailable anchors, then restores availability',async()=>{
+ const {mountSketch}=await mod(),h=harness();
+ const path={sketch:'accepted',id:'stroke',width:4,color:'#ff0000',at:{node:7,box:[0,0,100,100]},pts:[[10,10,.5],[30,10,.8]]};
+ let placement=path.at.box,reveals=0;
+ h.options.paths=()=>[path];h.options.sketchMetadata=()=>({phase:'complete',label:'Kept accepted label'});
+ h.view.placementOf=()=>placement;h.view.reveal=()=>{reveals++;return !!placement;};
+ const ui=mountSketch(h.doc,h.win,h.view,h.options);await h.flush();
+ const row=h.root.querySelector('.feedback-row'),open=h.root.querySelector('.feedback-open'),reveal=h.root.querySelector('.feedback-reveal');
+ assert.ok(row);assert.equal(row.dataset.placement,'visible');
+ h.view.fromPage=(x,y)=>[x,y-300];ui.refresh({geometry:true});await h.flush();
+ assert.equal(h.root.querySelector('.feedback-row'),row,'scrolling away cannot remove the keyed row');
+ assert.equal(row.dataset.placement,'unavailable');assert.equal(h.root.querySelector('.feedback-location').textContent,'not on this view');
+ const sent=h.sent.length;h.event(open,'click');
+ assert.equal(h.root.querySelector('.feedback-readonly-text').textContent,'Kept accepted label');assert.equal(h.sent.length,sent);
+ placement=null;ui.refresh({geometry:true});await h.flush();
+ assert.equal(h.root.querySelector('.feedback-open'),open);assert.equal(row.dataset.placement,'unavailable');
+ assert.equal(h.root.querySelector('.feedback-readonly').hidden,false);
+ assert.equal(h.root.querySelector('.feedback-readonly-text').textContent,'Kept accepted label');
+ h.event(h.root.querySelector('.feedback-readonly-close'),'click');
+ const painted=h.context.paintedPoints;h.event(row,'mouseenter');assert.equal(h.context.paintedPoints,painted,'unavailable anchor cannot glow');
+ h.event(reveal,'click');assert.equal(reveals,1);assert.match(h.root.querySelector('.feedback-status').textContent,/anchor unavailable/);
+ placement=path.at.box;h.view.fromPage=(x,y)=>[x,y];ui.refresh({geometry:true});await h.flush();
+ assert.equal(h.root.querySelector('.feedback-row'),row);assert.equal(row.dataset.placement,'visible');
+ assert.equal(h.root.querySelector('.feedback-location').textContent,'');
+ h.event(reveal,'click');assert.equal(reveals,2);assert.equal(h.root.querySelector('.feedback-status').textContent,'');
+ assert.equal(h.sent.length,sent);ui.dispose();
+});
+
+test('actual Notes Add note remains editable after all owned ink scrolls away',async()=>{
+ const {mountSketch}=await mod(),h=harness(),ui=mountSketch(h.doc,h.win,h.view,h.options);
+ await ui.enter();h.event(ui.layer,'pointerdown');await h.flush();h.event(ui.layer,'pointerup');await h.flush();
+ const open=h.root.querySelector('.feedback-open');assert.equal(open.textContent,'Add note');
+ h.scene.fromPage=(x,y)=>[x,y-300];ui.refresh({geometry:true});await h.flush();
+ assert.equal(h.root.querySelector('.feedback-open'),open);
+ h.event(open,'click');await h.flush();assert.equal(h.root.querySelector('.sketch-label').hidden,false);
+ ui.labelInput.value='Owned offscreen label';await ui.saveLabel();await h.flush();
+ assert.equal(open.textContent,'View note');ui.dispose();
+});
+
+test('requesting a sketch label expands its minimized adopted Notes editor',async()=>{
+ const {mountSketch}=await mod(),h=harness(),ui=mountSketch(h.doc,h.win,h.view,h.options);
+ await ui.enter();h.event(ui.layer,'pointerdown');await h.flush();h.event(ui.layer,'pointerup');await h.flush();
+ const notes=h.root.querySelector('.feedback-panel'),body=h.root.querySelector('.feedback-body');
+ h.event(h.root.querySelector('.floating-panel-minimize'),'click');
+ assert.equal(notes.classList.contains('minimized'),true);assert.equal(body.hidden,true);
+ await ui.leave('watch');await h.flush();
+ assert.equal(h.root.querySelector('.sketch-label').parentNode,body);
+ assert.equal(h.root.querySelector('.sketch-label').hidden,false);
+ assert.equal(notes.classList.contains('minimized'),false);assert.equal(body.hidden,false);
+ assert.equal(ui.labelInput.focused,true);ui.dispose();
+});

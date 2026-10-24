@@ -59,11 +59,20 @@ Close and landing use their SDLC gates. The recorded exact-source pre-close chec
 
 ## Log
 
+### 2026-10-24 — Close round1 REWORK and correction
+
+Close review raised BR-1 (sketch membership depended on viewport placement), BR-2 (annotation hover scaled only origins), BR-3 (minimized status invisible), and BR-4 (review sandbox Chrome GPU startup failed). Reproduced/fixed the three behavior defects with red/green tests through pure and actual DOM adapters. Accepted identities retain keyed rows across offscreen/null/restored geometry; both corners of box and clip project through the viewer; minimized Notes visibly says Status with the full message in tooltip/accessibility text, remeasuring its bounded control. Also fixed the related adopted-editor reachability: opening note or label restores minimized Notes before focus. No saved-feedback/command authority change.
+
+TL03d62472 directed cancelling the old queued check and fixing the obsolete native preview fixture before requeue. Exact lease-2850435122 cancellation completed successfully, no test result recorded. Migrated its Note/Pen/history and status selectors, preserving real CDP gestures and all Board/prepare/freeze/unsaved guards: native TestOperatorFeedbackLivePrepareAndStalePanel passed4.92s. Other native TestOperatorLiveAnnotation passed4.97s and OpenContactHandoffLabel passed1.83s. Focused post-fix panel/floating tests pass27/27; sketch/helper tests72/72; geometry/UI tests15/15. Complete Node/native reruns are in progress before the fixed head is pushed and requeued. No old check, merge runner or stage owned here remains.
+
+
 ### 2026-10-23
 
 ### 2026-10-23 — Joint design checkpoint
 
 Claimed #856 and #857; started #856 from main while #850's final-source recorded check runs from its own detached snapshot. No #850 runner holds this checkout. #857 remains dependent and will get its own branch from landed main. Read the recorder/Board/UI seams and a bounded page-load survey; the durable plan records the state table, counted growth guards and codec/digest compatibility risk. No production changes yet. Next: commit the plan, send it to the hub tonight, then build the synthetic clickable layout mock for operator feedback. Preserve #850's retained check lease-3551124609 and return for merge when it passes.
+
+Final correction qualification: all603 Node tests passed3.219s. One non-skipped native run passed all8 named tests (CastNotesPanelLive, OperatorLiveAnnotation, OperatorFeedbackLivePrepareAndStalePanel, OperatorSketchLiveDrawing, OperatorSketchLiveOpenContactHandoffLabel, and three bundle assembly/execution checks), package27.857s. The preview native fixture now minimizes before a new annotation and before Done, requiring the real editor rectangle to be visible; both restored correctly. No native test was skipped. Fix source is ready to checkpoint and requeue, with review-host GPU refusal answered by retained native evidence from the working host.
 
 ## Revisions
 

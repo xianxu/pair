@@ -46,8 +46,7 @@ The cast Chrome uses the viewer's `mountAnnotation` (`web/annotate.js`) and
 shadow host. `operator_script.go` assembles these trusted embedded modules into
 isolated-world script scopes; `operator.js` supplies local page coordinates and
 the CDP binding transport. No page-origin HTTP or localStorage is involved.
-One yellow 300×320 Notes panel holds ordinary annotations and eligible on-view
-sketches. `web/feedback-panel.js` reconciles typed keys from `feedback-entries.js`;
+One yellow 300×320 Notes panel holds ordinary annotations and accepted sketches, including those whose ink or anchor is offscreen/unavailable. `web/feedback-panel.js` reconciles typed keys from `feedback-entries.js`;
 rows show small type icons and text, never thumbnails. Existing note/sketch editor
 nodes are adopted into its scrolling body, with status in the fixed header.
 Finished sketch labels are read-only; Add note uses the existing unfinished-label

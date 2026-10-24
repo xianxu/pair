@@ -210,3 +210,7 @@ Actual Node command is `node --test tests/webcast/*.test.mjs`; tests reside ther
 ### 2026-10-24 — Landing and morning production-look sequencing
 
 TL66eb5fd0-b8a4-40d7-a896-3ba247374694 approves #856 landing after SHIP and exact-source checks on the accepted mock plus native evidence; the combined morning stage covers the production look, with subsequent operator changes as follow-ups. #857 then starts on its own branch from landed main. The stage is main plus #857 if ready plus #842, only after hub sequencing. This supersedes the earlier pre-landing production-look ordering for #856.
+
+### 2026-10-24 — Boundary review fixes
+
+BR-1 separates list membership from placement: all accepted eligible sketch identities remain in the sole Notes panel when bounds become offscreen, missing or malformed. Geometry controls availability, glow and confirmed-original reveal only. BR-2 shares a two-corner page-to-client rectangle projection between annotation placement and hover, including its clip. BR-3 adds a visible Status suffix to minimized Notes with the full message as tooltip/accessibility text, then remeasures/clamps its complete control. Opening either adopted editor expands Notes before focus, retaining one presentation owner and existing command authority. The older native preview fixture is migrated to the real column/header, preserving all prepare/freeze/unsaved assertions. These are corrections to the accepted sole-panel, geometry and minimized-status contracts, not new product commands.

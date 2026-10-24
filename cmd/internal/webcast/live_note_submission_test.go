@@ -147,8 +147,8 @@ func TestOperatorFeedbackLivePrepareAndStalePanel(t *testing.T) {
 				t.Fatal(err)
 			}
 		}
-		if string(eval(world, `[...__couchcastOperatorSketch.labelInput.getRootNode().querySelectorAll('.annotate-rail .mode')].find(b=>b.textContent==='💭')?.getAttribute('aria-pressed')`)) != `"true"` {
-			clickRoot(".annotate-rail .mode", "💭")
+		if string(eval(world, `[...__couchcastOperatorSketch.labelInput.getRootNode().querySelectorAll('.cast-tools .mode')].find(b=>b.textContent==='▤ Note')?.getAttribute('aria-pressed')`)) != `"true"` {
+			clickRoot(".cast-tools .mode", "▤ Note")
 		}
 		mouse("mousePressed", region[0], region[1], 1)
 		mouse("mouseMoved", region[0]+region[2], region[1]+region[3], 1)
@@ -156,7 +156,7 @@ func TestOperatorFeedbackLivePrepareAndStalePanel(t *testing.T) {
 		quoted, _ := json.Marshal(text)
 		// The editor resets when it opens: type and save once it is ready.
 		wait("note saved by the editor", func() bool {
-			return string(eval(world, `(()=>{const root=__couchcastOperatorSketch.labelInput.getRootNode(),d=root.querySelector('.note-dialog'),input=root.querySelector('.note-input');if(!d||d.hidden||d.classList.contains('hidden'))return false;if(input.value!==`+string(quoted)+`){input.value=`+string(quoted)+`;input.dispatchEvent(new Event('input',{bubbles:true}));}const b=[...root.querySelectorAll('.note-buttons button')].find(b=>b.textContent==='Save');if(!b||b.disabled)return false;b.click();return true})()`)) == "true"
+			return string(eval(world, `(()=>{const root=__couchcastOperatorSketch.labelInput.getRootNode(),d=root.querySelector('.note-dialog'),input=root.querySelector('.note-input');if(!d||d.hidden||d.classList.contains('hidden')||!d.getBoundingClientRect().height)return false;if(input.value!==`+string(quoted)+`){input.value=`+string(quoted)+`;input.dispatchEvent(new Event('input',{bubbles:true}));}const b=[...root.querySelectorAll('.note-buttons button')].find(b=>b.textContent==='Save');if(!b||b.disabled)return false;b.click();return true})()`)) == "true"
 		})
 		notes++
 		wait("note on the board", func() bool {
@@ -222,25 +222,28 @@ func TestOperatorFeedbackLivePrepareAndStalePanel(t *testing.T) {
 	}
 	heading := func() string {
 		var text string
-		_ = json.Unmarshal(eval(world, `(()=>{const p=__couchcastOperatorSketch.labelInput.getRootNode().querySelector('.sketch-submission-preview');return (p.dataset.stale?'[stale] ':'')+p.querySelector('.sketch-submission-count').textContent})()`), &text)
+		_ = json.Unmarshal(eval(world, `(()=>{const text=__couchcastOperatorSketch.labelInput.getRootNode().querySelector('.feedback-status').textContent,index=text.indexOf('Pending feedback');return index<0?text:text.slice(index)})()`), &text)
 		return text
 	}
 
+	// Opening either existing editor must restore a minimized Notes panel.
+	clickRoot(".floating-panel-header button", "Minimize")
 	note([4]float64{100, 120, 300, 70}, "Operator: if the channel is public, why is this here?")
 	note([4]float64{100, 350, 300, 90}, "Operator: three levels of audience control; why do we need 3?")
 	show("two notes", 0)
 	// The operator's sketch, drawn while that preview was shown.
-	clickRoot(".sketch-toolbar button", "Sketch")
+	clickRoot(".cast-tools button", "✎ Pen")
 	wait("drawing", func() bool { return string(eval(world, `__couchcastOperatorSketch.state().phase`)) == `"drawing"` })
 	stroke([2]float64{100, 150}, [2]float64{180, 150}, [2]float64{260, 152})
-	clickRoot(".sketch-toolbar button", "Undo")
+	clickRoot(".cast-tools button", "Undo")
 	wait("undo recorded", func() bool {
-		return string(eval(world, `!Array.from(__couchcastOperatorSketch.labelInput.getRootNode().querySelectorAll('.sketch-toolbar button')).find(b=>b.textContent==='Redo').disabled`)) == "true"
+		return string(eval(world, `!__couchcastOperatorSketch.controls.redo.disabled`)) == "true"
 	})
 	stroke([2]float64{90, 110}, [2]float64{200, 106}, [2]float64{204, 130}, [2]float64{92, 132}, [2]float64{90, 110})
-	clickRoot(".sketch-toolbar button", "Done")
+	clickRoot(".floating-panel-header button", "Minimize")
+	clickRoot(".cast-tools button", "Done")
 	wait("label editor", func() bool {
-		return string(eval(world, `!__couchcastOperatorSketch.labelInput.parentElement.hidden`)) == "true"
+		return string(eval(world, `!__couchcastOperatorSketch.labelInput.parentElement.hidden&&__couchcastOperatorSketch.labelInput.getBoundingClientRect().height>0`)) == "true"
 	})
 	eval(world, `(()=>{const input=__couchcastOperatorSketch.labelInput;input.value='make this a dropdown menu to select a different audience? or a "viewpoint"?';input.dispatchEvent(new Event('input',{bubbles:true}));return true})()`)
 	clickRoot("button", "Save label")
@@ -258,7 +261,7 @@ func TestOperatorFeedbackLivePrepareAndStalePanel(t *testing.T) {
 	if err = cast.MarkSubmissionPreviewStale(ctx, host, "the panel did not show it: test"); err != nil {
 		t.Fatal(err)
 	}
-	if got := heading(); got != "[stale] Pending feedback is out of date: the panel did not show it: test" {
+	if got := heading(); got != "Pending feedback is out of date: the panel did not show it: test" {
 		t.Fatalf("stale heading %q", got)
 	}
 	// A failed refresh retires the host, as the manager's does; the refresh
@@ -281,8 +284,8 @@ func TestOperatorFeedbackLivePrepareAndStalePanel(t *testing.T) {
 		t.Fatalf("nothing unsaved, yet: %q %v", got, err)
 	}
 	// A note still being written is the one thing a press refuses.
-	if string(eval(world, `[...__couchcastOperatorSketch.labelInput.getRootNode().querySelectorAll('.annotate-rail .mode')].find(b=>b.textContent==='💭')?.getAttribute('aria-pressed')`)) != `"true"` {
-		clickRoot(".annotate-rail .mode", "💭")
+	if string(eval(world, `[...__couchcastOperatorSketch.labelInput.getRootNode().querySelectorAll('.cast-tools .mode')].find(b=>b.textContent==='▤ Note')?.getAttribute('aria-pressed')`)) != `"true"` {
+		clickRoot(".cast-tools .mode", "▤ Note")
 	}
 	mouse("mousePressed", 100, 470, 1)
 	mouse("mouseMoved", 400, 540, 1)

@@ -81,7 +81,7 @@ export function mountFloatingPanel(doc, win, {parent, body, title = 'Notes', cla
   };
   let state = floatingPanelTransition(null, {type: 'init', viewport: viewport(), size: measure(),
     left: customGeometry?.left ?? finite(win.innerWidth) - finite(initialRight, 12) - Math.min(300, Math.max(0, finite(win.innerWidth) - 24)), top: customGeometry?.top ?? initialTop});
-  let count = 0, captureTarget = null;
+  let count = 0, statusText = '', captureTarget = null;
   const removers = [];
   const listen = (node, type, fn) => {
     node.addEventListener(type, fn);
@@ -109,7 +109,10 @@ export function mountFloatingPanel(doc, win, {parent, body, title = 'Notes', cla
     }
     root.classList.toggle('minimized', minimized);
     header.hidden = minimized; body.hidden = minimized; restore.hidden = !minimized;
-    handle.textContent = `${title} (${count})`; restore.textContent = `${title} (${count})`;
+    handle.textContent = `${title} (${count})`;
+    restore.textContent = `${title} (${count})${statusText ? ' · Status' : ''}`;
+    restore.title = statusText;
+    restore.setAttribute('aria-label', `${title} (${count})${statusText ? ': ' + statusText : ''}`);
     onPresentation({minimized, hidden:root.hidden});
   };
   const refresh = () => {
@@ -170,6 +173,12 @@ export function mountFloatingPanel(doc, win, {parent, body, title = 'Notes', cla
   listen(win, 'resize', refresh);
   presentation(); anchor();
   return {root, body, header, refresh,
+    expand() { if (!state.disposed && state.mode !== 'expanded') mode('expanded'); },
+    setStatus(value) {
+      if (state.disposed || statusText === String(value || '')) return;
+      cancel(); statusText = String(value || ''); presentation();
+      if (state.mode === 'minimized') send({type:'geometry', size:measure(), viewport:viewport()});
+    },
     setCount(value) {
       if (state.disposed) return;
       const nextCount = Math.max(0, Math.floor(finite(value)));

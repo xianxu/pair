@@ -131,6 +131,7 @@ export function mountFeedbackPanel(doc, win, {parent, layout = () => null}) {
       const primary = ['editor','sketch','control'].map(key => statuses.get(key)).find(Boolean);
       const textValue = [...new Set([primary, statuses.get('preview')].filter(Boolean))].join(' · ');
       if (status.textContent !== textValue) status.textContent = textValue;
+      floating.setStatus(textValue);
     },
     setEnabled(value) { if (disposed || enabled === !!value) return; enabled = !!value; clearHover(); floating.refresh(); if (!enabled) floating.root.hidden = true; },
     refresh() { if (!disposed) { clearHover(); floating.refresh(); if (!enabled) floating.root.hidden = true; } },
@@ -138,6 +139,10 @@ export function mountFeedbackPanel(doc, win, {parent, layout = () => null}) {
       if (disposed || !node || editors.has(node)) return;
       editors.set(node, {parent:node.parentNode, next:node.nextSibling, hadClass:node.classList.contains('feedback-editor')});
       node.classList.add('feedback-editor'); body.append(node); closeReadonly(); clearHover();
+    },
+    showEditor(node) {
+      if (disposed || !enabled || !editors.has(node)) return false;
+      closeReadonly(); clearHover(); floating.expand(); return true;
     },
     showReadonly,
     clearHighlight() { if (!disposed) clearHover(); },
