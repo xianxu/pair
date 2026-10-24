@@ -1,0 +1,9 @@
+Requested UTC window: 2026-10-24T07:44:22Z to 2026-10-24T07:44:38Z
+HEAD reflog with adjacent entries:
+HEAD@{2026-10-24T00:59:31-07:00} 59082b1c2d7e24d3d0777ae6c1222baec8b84630 commit: #863: plan: preserve fresh-hub caller measurement and exact scope
+HEAD@{2026-10-24T00:46:15-07:00} d23a25922b0070c64fe0d581a78fd3f6e75ff82a commit: #863: plan: checkpoint urgent caller-registration investigation and startup intent
+HEAD@{2026-10-24T00:44:38-07:00} 99846a5015f753f05edaf4778618849f377a2f71 checkout: moving from main-slot7 to 000863-native-fleet-explicit-hub-fleet-start-broken-since-739-second-explicit-hub-fails
+HEAD@{2026-10-24T00:44:32-07:00} 99846a5015f753f05edaf4778618849f377a2f71 merge 99846a5015f753f05edaf4778618849f377a2f71: Fast-forward
+HEAD@{2026-10-24T00:44:22-07:00} bbee4ced16c388ce4643a525585a2100643c35a5 checkout: moving from 000842-cast-broadcast-bar-a-send-button-when-sketches-or-annotations-are-pending to main-slot7
+HEAD@{2026-10-24T00:44:14-07:00} e4f88aeb4dbb39aab8f25a5dedd384c96ec918a8 commit: #842: log: retain SHIP and the combined-stage wait before urgent startup work
+HEAD@{2026-10-24T00:36:09-07:00} 57e65c33cf0c8e43ddeaac7c147effce238dd2cf sdlc mirror codecomplete card
