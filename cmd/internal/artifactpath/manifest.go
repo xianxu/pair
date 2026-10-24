@@ -676,6 +676,9 @@ var SourceClassifications = []SourceClassification{
 // the artifact namespace requires an explicit SourceClassification.
 // pair:m5-concept pure
 var NonArtifactSources = []string{
+	// #871 owns explicit private diagnostics and in-memory lifecycle only.
+	"cmd/internal/couchcmd/profiling.go",
+	"cmd/internal/couchcmd/profiling_model.go",
 	// #739 startup/automation/cue policy delegates to existing stores and
 	// transports; none constructs or names Pair artifact filenames.
 	"cmd/internal/couchcmd/automation.go",

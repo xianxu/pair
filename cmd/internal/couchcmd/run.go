@@ -497,7 +497,18 @@ func runTypedOperationStyle(op couchcore.Operation, parsed, prepareArgs map[stri
 	}
 	finish := func(console *couchtty.Console, c *couchcore.Couch, start couchcore.StartResult, out io.Writer) int {
 		wireTitles(console, c, rt.Getenv)
-		return runConsole(console, c, start, out, hubs)
+		run := func() int { return runConsole(console, c, start, out, hubs) }
+		if forceConsole && op.Name == "start" {
+			code, profileErr := runProfiledConsole(rt.Getenv, func(text string) {
+				console.Notify(couchtty.Notice{Kind: "profile", Control: true, Body: text})
+			}, run)
+			// Run has restored the terminal; shutdown diagnostics can now be printed.
+			if profileErr != nil {
+				fmt.Fprintln(stderr, "couch: profile incomplete at shutdown:", profileErr)
+			}
+			return code
+		}
+		return run()
 	}
 	return runTypedOperationWithConsoleStyle(op, parsed, prepareArgs, forceConsole, layout, style, inFile, outFile, stdin, stdout, stderr, rt, finish, setup...)
 }

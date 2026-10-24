@@ -1,0 +1,5 @@
+Close on #871, 2026-10-24; original attempt session1378.
+Measured actual unavailable for issue close.
+measurement branch proof: measurement snapshot does not serialize: json: error calling MarshalJSON for type *gatestate.MeasurementInputs: measurement exceeds 65536 bytes
+
+Standing TL authorization f039e10f-2410-4c68-a1dc-bd908a2fe6ac: the separate 64 KiB snapshot refusal (ariadne#593) still uses --no-actual with evidence. No fabricated hours, history rewrite or evidence restoration attempted.
