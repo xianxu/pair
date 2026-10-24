@@ -116,3 +116,11 @@ item: milestone-review design=0 impl=0.20
 design-buffer: 0.15
 total: 2.43
 ```
+
+### 2026-10-24 — Prerequisites landed; production started
+
+#850 landed in train342 through PR579 (car PR576), exact-source suite11m46s and integrated suite16m9s, final CI green, retained runner exited0 after archive/cleanup. #849/PR578 is also on main. Switched back to #856 and merged landed origin/main once before integration, preserving the independent issue branch and approved gate checkpoint. Applied independent feedbackEntries and feedbackLayout helpers after observing missing-module red in repo, then all15 Node tests passed (including typed keyed rows,32/64 linear visits, generated geometry and protected-toolbar containment). Code is now on #856, not a stacked parent branch. Next: shared panel/column adapters and trusted hover/reveal integration; preserve noteDialog.unsaved and press-time submission.
+
+Morning stage instruction551aad52-aa8b-4fc9-84d6-6c5b9a9dfe10: combine #856, #857 if ready and pair:7's #842. Ask hub before staging; pair:0 remains leased by #851. Pair:7 will supply verified head/operator steps after recorded check and SHIP.
+
+Integration survey: annotations publish existing note placement; sketches publish existing cached painted bounds. Hover uses a pre-mounted pixel canvas so pointer/focus does not mutate DOM and churn visibility stamps. Show on page must use confirmed original identity, never fuzzy replacement or historical rectangles; offscreen reveal needs a separate trusted-original action before normal placement refresh. Forward placement options through the viewer adapter. Tests live under tests/webcast/*.test.mjs (correcting the earlier plan's illustrative web/*.test.js command).
