@@ -184,3 +184,81 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-24T03:04:05-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 861 — Adopt Ariadne shared sidedoc pin and qualify newly active lint rules |
+| repo | pair |
+| issue file | workshop/issues/000861-ariadne-pin-lint-adoption.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 893245e3907d8b3f013a4749a4d8341a4581c618..2bc8698da1c88a746406f1e0bc010c1efc7ac456 |
+| command | sdlc close --issue 861 |
+| reviewer | codex (openai; author openai) |
+| isolation | fenced |
+| timestamp | 2026-10-24T03:04:05-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+The narrow interdiff introduces no blocking defects. The conflicted reader certificate now matches the combined source, its fixture classification remains accurate, and inventory validation passes. Tracker revisions record integration and qualification evidence without changing the approved scope.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: withdrawn
+    note: |
+      Retain the prior withdrawal: this interdiff changes neither qualification code nor budgets and introduces no evidence contradicting that disposition.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      The plan's Core concepts table explicitly classifies scanner/adapters as PURE and deadline/watcher seams as INTEGRATION; its BR-2 Revision accurately records that documentation correction.
+```
+
+1. **Strengths**
+
+   - The resolved certificate’s SHA256 exactly matches `request_lifetime_test.go`.
+   - Auditing the combined reader confirms local generated mailboxes, child markers, ShortRoot fixtures and `fstest.MapFS`; `local_or_literal_fixture` remains appropriate.
+   - Spec and Done-when remain unchanged.
+
+2. **Critical findings:** None.
+
+3. **Important findings:** None.
+
+4. **Minor findings:** None.
+
+5. **Test coverage notes:** `make test-affected-inventory` and `git diff --check` passed. A read-only comparison confirmed the base certificate fails JSON parsing while the head certificate parses and matches the reader. No runtime source changed in this window.
+
+6. **Architectural notes**
+
+   - **ARCH-DRY — pass:** no duplicated behavior introduced.
+   - **ARCH-PURE — pass:** no logic or IO boundaries changed.
+   - **ARCH-PURPOSE — pass:** certificate resolution preserves both integrated test populations and the required reader audit.
+   - **ARCH-EVOLVE — pass:** certificate schema and disposition retain their existing meanings; no fields were discarded.
+
+   No new architectural or user-facing surface requires atlas or README changes.
+
+7. **Plan revision recommendations:** None.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"655c6c12-1359-4562-aa53-b9a2fee49975","repository":"github.com/xianxu/pair","issue_id":"000861","recipe":"fix-review","round":3,"attempt":1,"agent":"codex","root":"/Volumes/TestScratch/review-checkouts/bd260f9a9727257a","reviewed_head":"2bc8698da1c88a746406f1e0bc010c1efc7ac456","slot":"pair:3","requested_at":"2026-10-24T10:03:14.520904Z"},"phase":"finished","pid":28793,"started_at":"2026-10-24T10:03:14.631132Z","finished_at":"2026-10-24T10:04:03.23042Z","session_id":"01a16d5d-5293-72d3-be5a-e686e409e9b9","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 2.0819685s
+head: "2bc8698da1c88a746406f1e0bc010c1efc7ac456"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000410

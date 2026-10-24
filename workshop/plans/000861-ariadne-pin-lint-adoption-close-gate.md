@@ -329,6 +329,45 @@ rounds:
       isolation: fenced
       reviewed: bddf4ed8812aeaa9f35ba6863f8d0035411f0400
       blocked: false
+    - reviewer_runs:
+        - version: 1
+          intent:
+            disposable_root: true
+            id: 655c6c12-1359-4562-aa53-b9a2fee49975
+            repository: github.com/xianxu/pair
+            issue_id: "000861"
+            recipe: fix-review
+            round: 3
+            attempt: 1
+            agent: codex
+            root: /Volumes/TestScratch/review-checkouts/bd260f9a9727257a
+            reviewed_head: 2bc8698da1c88a746406f1e0bc010c1efc7ac456
+            slot: pair:3
+            requested_at: "2026-10-24T10:03:14.520904Z"
+          phase: finished
+          pid: 28793
+          started_at: "2026-10-24T10:03:14.631132Z"
+          finished_at: "2026-10-24T10:04:03.23042Z"
+          session_id: 01a16d5d-5293-72d3-be5a-e686e409e9b9
+          outcome: returned
+      "n": 3
+      timestamp: "2026-10-24T03:04:05-07:00"
+      dispatched: "2026-10-24T03:03:12-07:00"
+      agent: codex
+      reviewer: codex (openai; author openai)
+      dispose:
+        - id: BR-1
+          disposition: withdrawn
+          note: 'Retain the prior withdrawal: this interdiff changes neither qualification code nor budgets and introduces no evidence contradicting that disposition.'
+          round: 3
+        - id: BR-2
+          disposition: addressed
+          note: The plan's Core concepts table explicitly classifies scanner/adapters as PURE and deadline/watcher seams as INTEGRATION; its BR-2 Revision accurately records that documentation correction.
+          round: 3
+      recipe: fix-review
+      isolation: fenced
+      reviewed: 2bc8698da1c88a746406f1e0bc010c1efc7ac456
+      blocked: false
 disputes:
     - id: BR-1
       rationale: The requested exact reviewed-head host qualification now passes with unchanged budgets; the sandbox timeout remains recorded, without an established production defect.
@@ -358,6 +397,13 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 
 - BR-2 — addressed — The plan's Core concepts table at lines 21–26 now supplies accurate PURE/INTEGRATION classifications, and lines 147–149 record the clarification under Revisions. The before/after diff and the scanner, adapter, deadline and watcher implementations support those classifications.
 - BR-1 — withdrawn — The supplied log matches its recorded SHA256, and no executable source changed after its measured c7723fb head. Independently rerunning GOPROXY=off GOSUMDB=off python3 -B tests/affected-config-test.py on pinned bddf4ed passed: cold graph 48.81s, Go fixture 56.376s, Python total 57.270s, within unchanged budgets using the normal 581 provider.
+
+## Round 3 — 2026-10-24T03:04:05-07:00 (codex) — passed
+
+### Disposed
+
+- BR-1 — withdrawn — Retain the prior withdrawal: this interdiff changes neither qualification code nor budgets and introduces no evidence contradicting that disposition.
+- BR-2 — addressed — The plan's Core concepts table explicitly classifies scanner/adapters as PURE and deadline/watcher seams as INTEGRATION; its BR-2 Revision accurately records that documentation correction.
 
 ## Disputes
 
