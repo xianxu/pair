@@ -40,24 +40,37 @@ before changing anything; no weakening of the "feedback changed" protection.
 
 ## Done when
 
-- A refused submission names its cause, and the panel reads out of date instead of showing stale counts (tests).
-- With unchanged pending feedback, a press after the preview is shown submits it, including after a refusal
-  while the preview could not refresh (test).
-- A genuine change between review and submit is still caught (test).
+- A press submits the board's open notes at their current revisions and its finished, labelled sketches at their
+  current versions (already delivered versions left out, oldest 8 sketches), whatever the page is doing: on a page
+  changing every 50 ms, unchanged notes submit (live test that reproduces the refusal on the old code first).
+- The only refusal is a note with an open edit or unsaved draft at the press, naming it; resolving uses the captured
+  revision, so a note edited after the press stays open (tests).
+- Sketch images render from the recording at each sketch's recorded anchors, never from the live painter (test).
+- The Pending feedback panel is informational: a preview that cannot refresh marks it out of date and never gates
+  a submit (test).
+- An identical repeated selection record neither reaches the recording twice nor invalidates feedback visibility
+  (tests).
 
 ## Plan
 
-Approved by the TL (10-23): diagnose first through the operator, no headed repro.
-
-- [x] Name the cause, protection unchanged: each prepare refusal names its condition (`PreviewRefuse.Reason`,
-  `previewRefusal` still `errors.Is` `errSubmissionPreview`); the preview worker keeps why it last could not
-  refresh and adds it to a refusal made while nothing current is shown; the panel reads "Pending feedback is out of
-  date: …" in place of stale counts. Tests: core reasons; the manager over the operator's shape (shown notes, then
-  a sketch the panel cannot show, refused with the reason, admitted once shown); live Chrome: the operator's sequence
-  prepares and freezes, the panel goes stale and recovers; the real manager over a real cast admits notes.
-- [x] Stage on pair:0; the operator uses cast notes as usual and reports any refusal message.
-- [x] ~~Fix the cause the message names~~: the loop did not recur on the staged build (see Revisions); step 1 lands
-  as the deliverable, and a recurrence names its cause for a follow-up.
+- [x] Name the cause, protection unchanged (step 1, ebb4242be): named refusals, worker's refresh problem, panel marked
+  out of date.
+- [x] Stage on pair:0; the operator reproduced it on echo: "the panel did not show it: board: the page changed".
+- [ ] Press-time selection (option one, TL 10-23): a pure core function picks from the board selection minus
+  delivered versions (sketches oldest 8 first, remaining counted); `Board.Selection` leaves out a sketch whose
+  witness is unfinished instead of failing; prepare takes it at the press with no preview gate, no stamp comparison
+  and no freeze proposal. The selection carries no current view, so `appendSubmissionSketches` renders each sketch at
+  its recorded finish scene.
+- [ ] Note-edit refusal: the page reports an open note dialog or unsaved draft (one CDP evaluation); prepare refuses
+  naming the note ("note N is being edited; save or cancel it"), or "an unsaved note draft is open".
+- [ ] Panel: the preview worker keeps publishing for display only; prepare no longer reads it. Drop the preview
+  refusal plumbing that only served the gate (`previewRefusal` on prepare, `prepareMoved`), keep the panel's
+  out-of-date mark.
+- [ ] Noise at its source: the recorder's observer drops a selection identical to the last one it sent (a resync
+  still sends); operator.js does not invalidate feedback visibility for selection records.
+- [ ] Tests: live Chrome page changing every 50 ms (selection + text): old code refuses, new code submits unchanged
+  notes; a note edited after the press is not resolved; an open note edit refuses naming it; unit tests for the
+  selection rules and the observer dedupe; atlas/webcast-submission.md rewritten for the press-time contract.
 
 ## Revisions
 
@@ -65,6 +78,11 @@ Approved by the TL (10-23): diagnose first through the operator, no headed repro
   Done-when moves from "fix the root cause, test reproducing the loop first" to the named refusal and stale panel,
   with deterministic tests for an unchanged press admitted after a refusal and a genuine change still refused. If
   the loop recurs, its message names the cause and a follow-up issue fixes it.
+
+- 2026-10-23 (TL, option one): the operator reproduced the refusal on echo; the cause is page churn, not feedback
+  churn. Submit no longer depends on the preview: the press takes the board's feedback, the only refusal is an open
+  note edit or draft, sketch images come from the recording, the panel is informational, and identical selection
+  records stop invalidating visibility. Done-when and Plan replaced accordingly.
 
 ## Log
 
@@ -102,3 +120,14 @@ Staged diagnosis (pair:0, 3de33c10b, then the combined #849 + #850 build 6f0478a
   `TestSubmissionFeedbackPublishesExactNotesAndRejectsLaterEdit`, `TestPreviewPrepareAndFreezeRejectStaleSelection`.
   Live (WEBCAST_LIVE_CHROME=1): `TestOperatorFeedbackLivePrepareAndStalePanel`,
   `TestSubmissionManagerLivePreparesUnchangedNotes`.
+
+Root cause (operator reproduction on the combined build, recording 20261023T205617-99c5):
+
+- Message: "Feedback changed (the current feedback has not been shown yet (the preview is waiting to refresh); the
+  preview could not refresh: the panel did not show it: board: the page changed)".
+- echo's board emits a `selection` record every 100–200 ms (the same caret, node 3 offset 3, repeated), plus pointer,
+  hover and a layout record every 5 s. Every record runs `visibility.invalidate()` (operator.js record callback),
+  which bumps the visibility revision and notifies Couch; Couch drops its cached visibility. The preview worker's
+  read, resolve, freeze and panel acknowledgement span several CDP round trips under one revision, so on echo they
+  never complete, and prepare refused because nothing current was shown. Quiet pages (Google) complete, which is why
+  the earlier session worked.
