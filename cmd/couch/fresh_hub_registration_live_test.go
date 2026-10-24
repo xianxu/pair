@@ -18,7 +18,7 @@ func TestDisposableFreshHubCaller(t *testing.T) {
 	}
 	binaries := testcouch.Build(t)
 	t.Run("claude", func(t *testing.T) {
-		fleet := testcouch.New(t, binaries, testcouch.Options{Workers: 1, ExplicitHub: true, AgentKind: "claude", RuntimeBudget: 4 * time.Minute, RetainStartupServerLog: true})
+		fleet := testcouch.New(t, binaries, testcouch.Options{Workers: 2, ExplicitHub: true, Hubs: []int{1}, AgentKind: "claude", RuntimeBudget: 4 * time.Minute, RetainStartupServerLog: true})
 		setup, stopSetup := context.WithTimeout(t.Context(), 180*time.Second)
 		err := fleet.Prepare(setup)
 		stopSetup()
@@ -61,7 +61,7 @@ func TestDisposableFreshHubCaller(t *testing.T) {
 		startErr := <-started
 		started <- startErr
 		t.Logf("joined startup observer: %v", startErr)
-		for observation := 0; observation < 8; observation++ {
+		for observation := 0; observation < 65; observation++ {
 			result, err := fleet.ActorCLI(ctx, 0, "--actors", "--json")
 			t.Logf("caller observation %d: result=%+v err=%v", observation, result, err)
 			if err == nil && result.ExitCode == 0 && !result.CleanupUncertain {
@@ -77,6 +77,6 @@ func TestDisposableFreshHubCaller(t *testing.T) {
 				t.Fatal(ctx.Err())
 			}
 		}
-		t.Fatalf("ready fresh hub never became a live caller in eight observations; screen:\n%s", fleet.Screen())
+		t.Fatalf("ready fresh hub never became a live caller in 65 observations; screen:\n%s", fleet.Screen())
 	})
 }

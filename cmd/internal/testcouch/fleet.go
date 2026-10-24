@@ -19,7 +19,9 @@ import (
 )
 
 type Options struct {
-	ExplicitHub   bool
+	ExplicitHub bool
+	// Hubs names worker workspaces configured as additional hubs, in order.
+	Hubs          []int
 	Workers       int
 	AgentKind     string
 	RuntimeBudget time.Duration
@@ -36,6 +38,13 @@ func validateOptions(o Options) error {
 	}
 	if o.RuntimeBudget < 0 || o.RuntimeBudget > 24*time.Hour {
 		return fmt.Errorf("invalid fleet runtime budget")
+	}
+	seen := map[int]bool{}
+	for _, n := range o.Hubs {
+		if !o.ExplicitHub || n < 1 || n > o.Workers || seen[n] {
+			return fmt.Errorf("extra hubs need an explicit primary hub and distinct provisioned workers")
+		}
+		seen[n] = true
 	}
 	return nil
 }
@@ -512,6 +521,9 @@ func (f *Fleet) consoleCommand() *exec.Cmd {
 	args := []string{}
 	if f.Options.ExplicitHub {
 		args = append(args, f.Workspaces.Primary)
+	}
+	for _, n := range f.Options.Hubs {
+		args = append(args, f.Workspaces.Workers[n])
 	}
 	cmd := exec.Command(filepath.Join(f.Roots.Mutable["bin"], "couch"), args...)
 	cmd.Dir = f.Workspaces.Primary
