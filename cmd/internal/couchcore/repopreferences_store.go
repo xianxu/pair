@@ -8,7 +8,6 @@ import (
 	"path/filepath"
 
 	"github.com/xianxu/pair/cmd/internal/osfs"
-	"golang.org/x/sys/unix"
 )
 
 // Repository arguments belong to the global Couch namespace, even when a thread
@@ -24,6 +23,8 @@ func (s *ThreadStore) repoPreferencesBackend() (*ThreadStore, error) {
 	global.readOnly = s.readOnly
 	return global, nil
 }
+
+var errUnboundedPublication = errors.New("remember repository arguments: the caller gave no deadline")
 
 func (s *ThreadStore) repoPreferencesPath() string {
 	return filepath.Join(s.namespace.Dir(), "threadstore", "repo-preferences.json")
@@ -83,15 +84,24 @@ func (s *ThreadStore) rememberRepoConfigurationContext(ctx context.Context, repo
 		return global.writeStoreAtomicLocked(global.repoPreferencesPath(), raw)
 	}
 	// Each attempt releases the coordinator before waiting for a busy nested
-	// store. Brief concurrent publications serialize within the original budget.
+	// store. Brief concurrent publications serialize within the original budget,
+	// which the caller must give: the retry has no other bound (#877).
+	if _, ok := ctx.Deadline(); !ok {
+		return errUnboundedPublication
+	}
+	var busy error
 	for {
 		err := global.withUpdateLockContext(ctx, update)
-		if !errors.Is(err, unix.EWOULDBLOCK) && !errors.Is(err, unix.EAGAIN) {
-			return err
+		if isStoreContention(err) {
+			busy = err
+			if err = waitForStoreLockContext(ctx); err == nil {
+				continue
+			}
 		}
-		if err := waitForStoreLockContext(ctx); err != nil {
-			return err
+		if busy != nil && ctx.Err() != nil && errors.Is(err, ctx.Err()) {
+			return fmt.Errorf("remember repository arguments: %w (store stayed busy: %w)", err, busy)
 		}
+		return err
 	}
 }
 

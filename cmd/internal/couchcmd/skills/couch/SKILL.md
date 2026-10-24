@@ -541,7 +541,7 @@ need no registration and keep their legacy owner compatibility.
 | `operator-release FILE --id ID --turn TOKEN --json` | Editor-only: removes only that exact turn; absent protection is already-released |
 | `read --section HEADING FILE [--json]` | Prints `hash: H`, then that `## HEADING` section's body |
 | `read --frontmatter FILE [--json]` | The complete leading `---` block and its hash; acknowledges only this block |
-| `read --all FILE --json` | The whole snapshot/hash and resolved `Read.Editorial` policy/briefs; acknowledges every edit, so run `diff` first |
+| `read --all FILE --json` | The whole snapshot/hash and `Read.Editorial` chat/protected-source ranges and notices; acknowledges every edit, so run `diff` first |
 | `write --section HEADING BODYFILE FILE --if-hash H` | Replaces that section if it still has hash H (whole heading lines only) and prints the new hash |
 | `write --frontmatter BODYFILE FILE --if-hash H` | Replaces only the leading block; preserves body bytes and unread body edits |
 | `write --all BODYFILE FILE --if-hash H` | Replaces the whole file (keep the frontmatter) if it still has hash H |
@@ -552,28 +552,29 @@ need no registration and keep their legacy owner compatibility.
 | `migrate-editorial FILE [--json]` | Operator-run preview of the exact legacy-map conversion and source hash |
 | `migrate-editorial FILE --confirm --if-hash H [--json]` | Operator-run confirmation of that preview; source changes require a new preview |
 
-- **Editorial snapshot:** on every round, run `diff` before `read --all FILE --json`, then use
-  `Read.Editorial` from that snapshot. `EditorialCoordinates: document-byte-offsets` means all region and owned-source
-  ranges refer to the complete source, including on a section read. Read each region's effective collaboration,
-  presentation and processing settings, its processing briefs, scope/frontier and instruction. Semantic interpretation
-  of those briefs and asks remains your responsibility; the write guard enforces mechanical bounds.
-  - Defaults are `collaboration-mode: discussion`, `presentation-mode: highlight`, `processing-mode: free-form`.
-    Each axis inherits independently from its nearest applicable heading comment, then document settings, then defaults.
-    An override is a whole `<!-- key: value; key: value -->` line immediately under an ATX heading. Unknown or malformed
-    declarations refuse the round. Preserve ordinary comments and code examples.
-  - All mode keys, `processing-instruction`, readable legacy aliases/maps and heading mode comments are operator-owned
-    in **every presentation mode**. Do not add, delete, move or change them through any agent write. Canonical presence
-    wins over aliases; warnings never authorize a rewrite. The operator can edit settings normally between rounds.
-  - `discussion`: carry out imperatives; questions branch to linked discussion side docs. `collaboration`: edit or answer
-    in place. `chat`: each shallowest list item is an ask; preserve its original text and append only an answer link.
-    Extend an existing answer doc for a follow-up, leaving its link intact, including older `qa/` or flat side-doc paths.
-    Ready markers inside chat retain discussion routing. Chat asks remain reachable outside processing scope/frontier.
-  - Create each new side doc under `<name>.side/YYYY-MM/YYYY-MM-DD-NN-slug.md` beside `<name>.md`; an answer uses
-    `→ [answer](PATH)` and a discussion uses `→ [discussion](PATH)`. Give new frontmatter all three defaults above;
-    do not copy the parent's legacy processing brief. Existing linked docs keep their metadata and location.
-  - Normal reads and agent writes never fill settings or migrate maps. Only an explicitly requested operator migration
-    uses the preview/confirmation command above; it accepts no arbitrary body. Conflicts, unmatched map names, multiple
-    leading legacy modes and a held operator lock refuse without rewriting the document.
+- **Collaborative round:** use the shared `xx-universal-review` collaborative editing contract and round instructions
+  for question/command classification, scope, briefs, chat grammar and side-doc/index handling. There is one mode.
+  The operator's direct edits are content. Ready markers ask questions or give commands: questions and unclear commands
+  open linked side docs; clear commands act within their scope. When unsure, treat the ask as a question. Load an editing
+  brief only when the ask calls for it. These are your responsibilities; Couch does not classify natural language.
+  - Run `diff` before `read --all FILE --json` on every round. Use the captured `Read.Editorial` chat regions,
+    protected sources and compatibility notices. `EditorialCoordinates: document-byte-offsets` means ranges refer to
+    the complete source, even on section reads. Report each shared notice once, verbatim, in your reply.
+  - A standalone `@@chat@@` line directly above an ATX heading makes its section chat. Each numbered shallowest-indent
+    item gets an answer doc, whether question or command: preserve its text and append ` → [answer](PATH)`.
+    For follow-ups extend the existing linked doc and leave its link intact, including older `qa/` or flat paths.
+    Ready markers within chat still follow ordinary marker routing. Report misplaced tags using the shared notice.
+  - Legacy chat scalars, maps and heading comments retain their old numbered/bullet ask grammar. Retired presentation,
+    processing and instruction keys select nothing; malformed or unknown values are nonfatal compatibility notices.
+    Normal agent writes never add, remove, move or rewrite legacy keys, real chat tags or their heading attachment.
+    Warnings never authorize a rewrite. The operator may edit these sources between rounds.
+  - Create new side docs under `<name>.side/YYYY-MM/YYYY-MM-DD-NN-slug.md` beside `<name>.md`, without mode keys.
+    Answers use `→ [answer](PATH)` and discussions use `→ [discussion](PATH)`. Pair each link with its `discussions:`
+    entry under the shared contract. Existing linked docs retain their metadata and location.
+  - Only an explicitly requested operator migration uses the preview/confirmation command above; it accepts no
+    arbitrary body. It converts maps to tags only when routing and eligible asks are preserved, refusing with the
+    affected section when numbered-only tags would lose legacy bullet or preamble asks. Never renumber asks or fill
+    defaults to make migration pass. Conflicting assignments, unmatched names, stale source and held locks can refuse.
 
 - **Refusals:** exit 3 = the operator holds the lock: queue the update until
   their submit. Exit 6 = `stale`: the section changed since you read it; it
@@ -585,18 +586,15 @@ need no registration and keep their legacy owner compatibility.
   - Every record resolves against the file as it stands, before anything is written. One empty, missing or overlapping record refuses the whole batch with exit 1 and `edits-invalid`, which lists each bad record. Nothing is written: fix the records and apply again.
   - Exit 6 has one answer: `read --all` again, rebuild the records, apply again.
   - Keep `write` for generated content that isn't an edit.
-- **In pair's review workbench (no Couch)**, use `pair review apply EDITS.json FILE --if-hash H --json` instead. It takes the same records, exits and propose rules. Commit its `Body` verbatim with docflow right after it lands. A review with no edits still applies, with records `[]`; that reply has no `Body`, so commit nothing (pair#690).
+- **In pair's review workbench (no Couch)**, use `pair review apply EDITS.json FILE --if-hash H --json` instead. It takes the same records and exits, with clean edits and highlight metadata. Commit its `Body` verbatim with docflow right after it lands. A review with no edits still applies, with records `[]`; that reply has no `Body`, so commit nothing (pair#690).
   - A `Warning` in the reply means the file was written but the round wasn't recorded: commit `Body` anyway.
   - `pair review round FILE --json` (`Round`, `Body`, `Current`) recovers a lost reply.
 - **Rounds:** every write of yours that changes the file, `write` or `apply`, becomes the round parley highlights. Only `apply` spans carry your reasons. The round clears on the operator's next submit.
-- **`presentation-mode: propose`:** Couch writes changes in that base region as per-line markers for the operator to accept or reject. Never write the markers yourself. Direct regions have no change decoration; highlight regions show changes. Per-span presentation survives commits and resume; absent span values fall back to the round, then highlight.
-  - A change over 3 lines refuses with `propose-too-large`. A line the marker grammar can't carry refuses with `propose-unencodable`. For either refusal, write the change as a side-doc proposal, linked in place by `→ [proposal](…)`.
-  - These apply directly, not proposed:
-    - records wholly inside the frontmatter;
-    - the record that replaces the operator's ready marker with a new `→ [proposal](PATH)` or `→ [discussion](PATH)` link;
-    - the fold a link's `🤖[fold in]` asks for, which keeps that link with ` (folded YYYY-MM-DD)` appended.
-  - Pair the `discussions:` entry with its link yourself; the engine doesn't verify that.
-  - A protected-setting edit refuses with `operator-owned` in every mode. Malformed policy refuses with `editorial-invalid`; split a cross-policy edit into separate records. No subset of a refused batch lands.
+- **Presentation:** new edits always use highlight, regardless of retired document keys. Build clean edits; never
+  write proposal markers yourself. Old recorded direct/highlight/propose rounds and spans keep their historical meanings
+  through read, record and resume. An absent span value falls back to the round, then highlight; do not reinterpret it.
+  Known-field and duplicate-key checks remain strict, and unknown nested extensions survive rewrites.
+  Protected-source edits refuse with `operator-owned`; no subset of a refused batch lands.
 - **Forgotten lock:** a valid operator-lock time older than 30 minutes adds
   its age and advice to ping the operator (or add a Needs you item for the
   TL's session file). The lock never expires; malformed or future times still

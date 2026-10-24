@@ -381,6 +381,11 @@ func runSessionSyncCLI(a *sessionSyncArgs, rt Runtime, stdout, stderr io.Writer)
 			}
 			return 0
 		}
+		if r.Editorial != nil {
+			for _, notice := range r.Editorial.Diagnostics {
+				fmt.Fprintf(stderr, "couch: editorial: %s\n", notice.Message)
+			}
+		}
 		fmt.Fprintf(stdout, "hash: %s\n%s", r.Hash, r.Body)
 	case "round":
 		res, err := s.Round(file)
