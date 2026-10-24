@@ -449,21 +449,6 @@ Filed unclaimed #861 with exact evidence and findings. Authenticated hub dispatc
 
 Next for #838: after #861 lands, integrate main, verify inventory and rerun --pre-close. On PASS coordinate main+#851+#838 staging-only combined build with pair:2 (owns :0 lease); parley.nvim#419 is separately staged. Actual operator acceptance, whole-close/review and landing remain pending. No own runner remains live now. Work resumes on #861 next.
 
-## Revisions
-
-### 2026-10-23 — initial implementation design
-
-Expanded the empty Plan after the TL's dispatch, preserving the operator's
-Spec and Done when. Recorded the approved ariadne#575 dependency, shared
-scanner ownership and one atomic review boundary. Proposed (not yet approved)
-lossless-only migration refusals and ariadne#576 final qualification, with the
-reasons and alternatives in the durable plan.
-
-### 2026-10-23 14:08 — approved migration detail
-
-TL approval makes the draft's lossless-only migration refusal part of this
-implementation contract; the refusal must name the affected section. Upstream
-sequencing and project operator acceptance are approved as recorded above.
 
 ### 2026-10-24 — adoption landed; integrated targeted qualification
 
@@ -510,3 +495,29 @@ Hub-authorized staging-only ref000838-stage-morning-20261024 is3d0135b0021209730
 851 owner authenticated1bbd6f4f released its lease through supported clear. Then sdlc stage --build EXIT0 acquired838 stage on pair:0. All5 binaries report vcs.revision=3d0135b0021209730956929c8926e30f9799ba79, vcs.modified=false. Fresh Git confirms target HEAD at that pin, tracked tree clean. Already-running Couch is not restarted by this worker; the operator restarts once for the joint check. Returned to this original838 feature branch; retained combined local ref for stage reachability. Owner851's later f3f461bf4 is Log-only; its handed-off source is unchanged.
 
 Next: wait for the operator's per-issue acceptance through the hub using morning-combined-check.md, jointly with parley.nvim419's separate stage. On feedback fix the owning branch and requalify/restage through coordination; never edit the combined stage as development. On all required acceptance, clear this combined838 lease through sdlc stage --clear while838 is active, then fresh inventory and whole sdlc close with measured actuals, make PR584 ready and land through normal sdlc merge. Do not land the staging-only merge; keep its local ref until clear. No own test/review/merge process remains active now.
+
+### 2026-10-24 10:32 — partial operator results; retain combined stage
+
+Authenticated hub56354f08 explicitly says keep the combined stage and do not clear.851 switcher PASS and856 Notes panel PASS;851 lands independently.842 Send FAIL sends to the focused pane instead of the draft; pair:7 owns that repair.838 with parley.nvim419 is not checked yet; operator is still on it. No838 acceptance inferred from another issue's PASS. Pair:0 was freshly observed at combined3d0135b0021209730956929c8926e30f9799ba79; no target mutation.
+
+Next: remain available for the hub's editorial result, retaining the838 lease and combined local ref. Follow the hub's subsequent clear/restage instruction through supported SDLC; never clear on851 acceptance alone.838 whole close and landing remain pending. No test, review or merge runner is active.
+
+## Revisions
+
+### 2026-10-23 — initial implementation design
+
+Expanded the empty Plan after the TL's dispatch, preserving the operator's
+Spec and Done when. Recorded the approved ariadne#575 dependency, shared
+scanner ownership and one atomic review boundary. Proposed (not yet approved)
+lossless-only migration refusals and ariadne#576 final qualification, with the
+reasons and alternatives in the durable plan.
+
+### 2026-10-23 14:08 — approved migration detail
+
+TL approval makes the draft's lossless-only migration refusal part of this
+implementation contract; the refusal must name the affected section. Upstream
+sequencing and project operator acceptance are approved as recorded above.
+
+### 2026-10-24 — checkpoint placement correction
+
+Moved the dated adoption, native-check, pre-close and stage checkpoints from below Revisions into the existing Log, preserving their text and evidence. They record execution outcomes, not design revisions. The original design revision entries remain unchanged; partial operator acceptance is appended to Log. No source or approved contract change.
