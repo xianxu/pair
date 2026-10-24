@@ -79,6 +79,10 @@ At TL direction, ran the identical focused command once on separate untouched di
 
 ## Revisions
 
+### 2026-10-23 — Resume landing after #852
+
+#852 landed in PR573 (12fd2e56acc65bb9e34a02f9d472e50e6918f0af); its controlled fixture budgets restore the park test, with production unchanged. TL's latest directive 738c7185-dcc5-4f7b-9fa8-4e9a9ddd5b26 resumes #841 before #825. #825 is reserved by this slot but not started. Re-entered merge; it refused because #841's original affected attempt had failed, so no passing boarding record existed. Merged current main without conflicts to include the landed repair before verification. Own accepted bell code is unchanged; no passing check is being discarded or repeated. Run the new pre-close selector on the pushed repaired head, then re-enter landing. Existing SHIP/high review and no-stage disposition remain; no re-close unless a gate requires it.
+
 ### 2026-10-23 — Make release-gate sequencing explicit
 
 Split the final Plan checkbox into completed pre-close preparation and downstream release gates in prose. Close review and landing cannot truthfully be pre-ticked before running their own verbs; scope and Done when are unchanged.
