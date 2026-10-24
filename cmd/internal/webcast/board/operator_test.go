@@ -415,3 +415,31 @@ func TestOperatorGenerationRequiresCanonicalUint64String(t *testing.T) {
 		}
 	}
 }
+
+// pair#849: a caret re-set many times a second (echo's live board) must not
+// push the operator page a fresh view each time; a real change still does.
+func TestOperatorViewIgnoresSelectionRecords(t *testing.T) {
+	r := newRig(t).page(recording.SegLive)
+	ch, stop := r.bd.SubscribeOperator()
+	defer stop()
+	before := <-ch
+	for i := 0; i < 5; i++ {
+		r.add(&recording.Selection{Anchor: &recording.Pos{3, 3}, Focus: &recording.Pos{3, 3}})
+	}
+	select {
+	case v := <-ch:
+		t.Fatalf("selection pushed view %d after %d", v.Revision, before.Revision)
+	default:
+	}
+	if _, err := r.note(r.p1.ID, 0); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case v := <-ch:
+		if len(v.Notes) != 1 {
+			t.Fatalf("note view %+v", v.Notes)
+		}
+	default:
+		t.Fatal("a note pushed no view")
+	}
+}

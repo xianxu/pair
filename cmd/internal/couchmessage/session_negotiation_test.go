@@ -327,7 +327,7 @@ func TestNegotiationTimeoutDoesNotFallBack(t *testing.T) {
 	defer client.Close()
 	defer server.Close()
 	go func() { _, _ = transportReadFrameLimit(server, MaxSessionFrameBytes) }() // read hello-v2, never ack
-	err := sessionHandshake(client, selfBinding("pair:1"), &testBuild, FrameHelloV2)
+	err := sessionHandshake(client, selfBinding("pair:1"), &testBuild, FrameHelloV2, nil)
 	if err == nil || errors.Is(err, errNoAck) {
 		t.Fatalf("timeout handled as an old broker: %v", err)
 	}
@@ -356,5 +356,97 @@ func TestNegotiationFallbackRedialFailureReturnsError(t *testing.T) {
 	err = c.session(context.Background(), socket, selfBinding("pair:1"), time.Millisecond)
 	if err == nil || errors.Is(err, errNoAck) {
 		t.Fatalf("session = %v, want the redial's dial error", err)
+	}
+}
+
+// Frozen v4 field set: a modern client must omit the cue from both its
+// downgraded hello and every subsequent observation.
+type workerCueLegacyFrame struct {
+	Op             string
+	Binding        *Binding       `json:",omitempty"`
+	Observation    *Observation   `json:",omitempty"`
+	Code           string         `json:",omitempty"`
+	Error          string         `json:",omitempty"`
+	Build          *BuildIdentity `json:",omitempty"`
+	Settled        *bool          `json:",omitempty"`
+	Picker         *bool          `json:",omitempty"`
+	BackgroundWork *bool          `json:",omitempty"`
+}
+
+func TestWorkerCueNegotiatesDownWithoutLeakingFields(t *testing.T) {
+	for _, accepted := range []string{FrameHello, FrameHelloV2, FrameHelloV3, FrameHelloV4} {
+		t.Run(accepted, func(t *testing.T) {
+			socket := sessionSocket(t)
+			listener, err := net.ListenUnix("unix", &net.UnixAddr{Name: socket, Net: "unix"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer listener.Close()
+			result := make(chan error, 1)
+			go func() {
+				for {
+					conn, err := listener.AcceptUnix()
+					if err != nil {
+						return
+					}
+					raw, err := transportReadFrameLimit(conn, MaxSessionFrameBytes)
+					var hello workerCueLegacyFrame
+					if err != nil || strictjson.Decode(raw, &hello) != nil || hello.Op != accepted {
+						conn.Close()
+						continue
+					}
+					ack, _ := json.Marshal(workerCueLegacyFrame{Op: FrameAck, Code: "ok"})
+					if err := transportWriteFrame(conn, ack); err != nil {
+						conn.Close()
+						result <- err
+						return
+					}
+					raw, err = transportReadFrameLimit(conn, MaxSessionFrameBytes)
+					var activity workerCueLegacyFrame
+					if err == nil {
+						err = strictjson.Decode(raw, &activity)
+					}
+					if err == nil && (activity.Op != FrameActivity || activity.Observation == nil || activity.Observation.Sequence != 9) {
+						err = errors.New("ordinary messaging lost on downgrade")
+					}
+					conn.Close()
+					result <- err
+					return
+				}
+			}()
+			c := NewSessionClient()
+			c.SetBuild(testBuild)
+			c.WorkerCue(&WorkerCueReport{LaunchOrdinal: 7, State: WorkerCueNeeded})
+			c.Update(Observation{Sequence: 9})
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			go c.Run(ctx, socket, selfBinding("pair:1"), DefaultReconnectBackoff, time.Millisecond)
+			select {
+			case err := <-result:
+				if err != nil {
+					t.Fatal(err)
+				}
+			case <-time.After(3 * time.Second):
+				t.Fatal("no compatible downgraded observation")
+			}
+		})
+	}
+}
+
+func TestWorkerCueValidationKeepsOldHelloStrict(t *testing.T) {
+	b := selfBinding("pair:1")
+	cue := &WorkerCueReport{LaunchOrdinal: 7, State: WorkerCueNeeded}
+	for _, op := range []string{FrameHello, FrameHelloV2, FrameHelloV3, FrameHelloV4, FrameAck} {
+		f := SessionFrame{Op: op, Binding: &b, Build: &testBuild, WorkerCue: cue, Code: "ok"}
+		if _, err := EncodeSessionFrame(f); err == nil {
+			t.Fatalf("%s accepted v5 evidence", op)
+		}
+	}
+	for _, state := range []WorkerCueState{"", "unexpected"} {
+		bad := *cue
+		bad.State = state
+		if _, err := EncodeSessionFrame(SessionFrame{Op: FrameHelloV5, Binding: &b, Build: &testBuild, WorkerCue: &bad}); err == nil {
+			t.Fatal("unknown cue state accepted")
+		}
 	}
 }

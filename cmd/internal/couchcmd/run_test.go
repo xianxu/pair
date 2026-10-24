@@ -434,8 +434,8 @@ func TestInteractiveHubLaunchResumesDetachedSession(t *testing.T) {
 	}
 }
 
-// A hub with no surviving session or native resume proof starts a new thread.
-func TestInteractiveHubLaunchStartsFreshWithoutResumeProof(t *testing.T) {
+// Missing terminals stay idle; native proof never authorizes implicit startup.
+func TestInteractiveHubLaunchLeavesMissingSessionIdle(t *testing.T) {
 	rt := newRT(t, "/repo")
 	stale := seedDetachedThread(t, rt, "/repo")
 	rt.artifacts.SetNativeBinding(stale.Address, "claude", sessioninventory.BindingUnbound, "")
@@ -454,11 +454,11 @@ func TestInteractiveHubLaunchStartsFreshWithoutResumeProof(t *testing.T) {
 
 	var attached couchcore.StartResult
 	finish := func(console *couchtty.Console, c *couchcore.Couch, start couchcore.StartResult, _ io.Writer) int {
-		if start.Handle == nil || len(rt.runner.Ops) == 0 {
-			t.Fatal("explicit hub startup did not launch its child")
+		if start.Handle != nil || len(rt.runner.Ops) != 0 {
+			t.Fatal("implicit startup launched a missing hub")
 		}
 		wireResolver(console, c)
-		if err := dispatchInitialAttach(console, start); err != nil {
+		if err := beginConsole(console, start); err != nil {
 			t.Fatalf("initial attach: %v", err)
 		}
 		attached = start
@@ -470,14 +470,13 @@ func TestInteractiveHubLaunchStartsFreshWithoutResumeProof(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("interactive launch: code=%d stdout=%q stderr=%q", code, stdout.String(), stderr.String())
 	}
-	defer rt.runner.SetExited(attached.Handle.ID(), 0)
 
-	if attached.Record.Thread == stale.Address {
-		t.Fatalf("startup reattached %+v with no surviving session", stale.Address)
+	if attached.Handle != nil || rt.artifacts.BindingResolutions() != 0 {
+		t.Fatalf("startup read native proof or reattached %+v with no surviving session", stale.Address)
 	}
 }
 
-func TestInteractiveHubLaunchResumesProvenParkedThread(t *testing.T) {
+func TestInteractiveHubLaunchLeavesProvenParkedThreadIdle(t *testing.T) {
 	rt := newRT(t, "/repo")
 	parked := seedVerifiedPark(t, rt, "/repo")
 	rt.artifacts.SetNativeBinding(parked.Address, "claude", sessioninventory.BindingEstablished, "native-root-1")
@@ -498,11 +497,11 @@ func TestInteractiveHubLaunchResumesProvenParkedThread(t *testing.T) {
 
 	var attached couchcore.StartResult
 	finish := func(console *couchtty.Console, c *couchcore.Couch, start couchcore.StartResult, _ io.Writer) int {
-		if start.Handle == nil || len(rt.runner.Ops) == 0 {
-			t.Fatal("explicit hub startup did not launch its child")
+		if start.Handle != nil || len(rt.runner.Ops) != 0 {
+			t.Fatal("implicit startup launched a missing hub")
 		}
 		wireResolver(console, c)
-		if err := dispatchInitialAttach(console, start); err != nil {
+		if err := beginConsole(console, start); err != nil {
 			t.Fatalf("initial attach: %v", err)
 		}
 		attached = start
@@ -514,16 +513,8 @@ func TestInteractiveHubLaunchResumesProvenParkedThread(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("interactive launch: code=%d stdout=%q stderr=%q", code, stdout.String(), stderr.String())
 	}
-	defer rt.runner.SetExited(attached.Handle.ID(), 0)
-	if attached.Record.Thread != parked.Address {
-		t.Fatalf("interactive root = %+v, want %+v", attached.Record.Thread, parked.Address)
-	}
-	if len(rt.runner.Ops) == 0 || !strings.Contains(rt.runner.Ops[0], "pair "+launcher.CouchSessionFlag+" resume "+string(parked.Address.Tag)+" --layout3") {
-		t.Fatalf("interactive child operations = %v, want resumed parked root", rt.runner.Ops)
-	}
-	child := rt.runner.Child(attached.Handle.ID())
-	if !strings.Contains(strings.Join(child.Env, "\n"), "native-root-1") {
-		t.Fatalf("attached resume env = %v, want saved native root", child.Env)
+	if attached.Handle != nil || rt.artifacts.BindingResolutions() != 0 {
+		t.Fatalf("startup attempted cold resume of %+v", parked.Address)
 	}
 }
 
@@ -1672,7 +1663,17 @@ func TestWarmOnlyIsUnreachableFromTheCommandLine(t *testing.T) {
 	}
 }
 
-// Startup arms background warm-only attachment after its selected hub adopts.
+// Startup arms background warm-only attachment even when the selected hub is absent.
+func TestBeginConsoleArmsWarmPassWithoutInitialHandle(t *testing.T) {
+	console, _, _ := consoleRunnerFor("start", strings.NewReader(""), true, nil, nil)
+	if err := beginConsole(console, couchcore.StartResult{}); err != nil {
+		t.Fatal(err)
+	}
+	if !console.ReattachPassArmed() {
+		t.Fatal("missing launch hub prevented surviving worker attachments")
+	}
+}
+
 func TestBeginConsoleArmsWarmPassOnlyAfterSuccessfulAttach(t *testing.T) {
 	address := couchcore.ThreadAddress{RepoScope: "816fc349d3faebf8", Tag: "couch-0102030405060708"}
 	runner := couchcore.NewFakeRunner()

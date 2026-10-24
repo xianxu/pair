@@ -346,6 +346,13 @@ export function noteDialog(els, deps) {
     get editable() { return state.mode === 'draft' || state.mode === 'edit'; },
     get replacementBlocked() { return state.error === HELD_NOTE_RECOVERY; },
     get draftPayload() { return state.mode === 'draft' ? state.payload : null; },
+    // What a submission must not take from under the operator (pair#849): a
+    // new note not yet saved, or an existing note whose text was changed.
+    get unsaved() {
+      if (state.mode === 'draft') return { draft: true };
+      if (state.mode === 'edit' && state.text !== (state.target?.text ?? '')) return { id: state.target?.id || '', text: state.target?.text || '' };
+      return null;
+    },
   };
 }
 

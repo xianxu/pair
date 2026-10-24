@@ -46,6 +46,7 @@ const (
 	LifecycleNoticeReceipt
 	LifecycleNoticeShutdown
 	LifecycleNoticeDiscard
+	LifecycleNoticeSuppressHub
 )
 
 type LifecycleNoticeEvent struct {
@@ -160,6 +161,25 @@ func AdvanceLifecycleNotices(s LifecycleNoticeState, e LifecycleNoticeEvent) (Li
 			h.parts = []lifecycleNoticePart{{body: "Couch hub changed; earlier lifecycle notices were dropped; check Slots"}}
 			s.hubs[hub] = h
 		}
+	case LifecycleNoticeSuppressHub:
+		if e.Hub == "" || len(e.Hub) > 4096 {
+			return s, nil
+		}
+		for key, current := range s.facts {
+			if current.fact.Hub == e.Hub {
+				current.retired = current.fact.Observation
+				current.changes = 0
+				s.facts[key] = current
+			}
+		}
+		if h, ok := s.hubs[e.Hub]; ok {
+			if h.token != 0 {
+				effects = append(effects, LifecycleNoticeEffect{Kind: LifecycleNoticeCancel, Hub: e.Hub, Incarnation: h.target, Token: h.token})
+			}
+			h.parts, h.token, h.target = nil, 0, ""
+			h.suppressed = false
+			s.hubs[e.Hub] = h
+		}
 	case LifecycleNoticeArm:
 		s.collecting = true
 	case LifecycleNoticeDrain:
@@ -197,6 +217,10 @@ func AdvanceLifecycleNotices(s LifecycleNoticeState, e LifecycleNoticeEvent) (Li
 		current.fact = f
 		if current.changes < ^uint32(0) {
 			current.changes++
+		}
+		if e.Outcome == "suppressed" {
+			current.retired = f.Observation
+			current.changes = 0
 		}
 		s.facts[key] = current
 		h := s.hubs[f.Hub]
@@ -260,7 +284,7 @@ func AdvanceLifecycleNotices(s LifecycleNoticeState, e LifecycleNoticeEvent) (Li
 			}
 			h.suppressed = true
 		}
-		if !submitted {
+		if !submitted && e.Outcome != "suppressed" {
 			diagnostic(e.Hub, "Lifecycle notice "+e.Outcome+"; no automatic replay")
 		}
 		if e.Outcome == "unsupported" {

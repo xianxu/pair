@@ -439,9 +439,9 @@ Zellij metadata routing waits until no native server is running, normally the
 next machine reboot, and retains the original directory as `session_info.disk`.
 See [Couch scratch](atlas/couch-scratch.md) for the lifecycle and fallback rules.
 
-Opening Couch launches or attaches each requested hub, including the cwd hub
-when no directory is given. A hub listed live uses Continue; otherwise its
-normal startup resumes a proven conversation or starts fresh. Other slots are
+Opening Couch attaches surviving requested hubs, including the cwd hub when no
+directory is given. Missing or uncertain hubs remain in the switcher; startup
+never starts a new agent or resumes a stopped conversation. Other slots are
 observed and attached in the background when projected Continue. Startup never
 launches or resumes their agents, completes interrupted starts, or replays their
 recovery journals. Attachments use bounded parallelism and one retry; a failure
@@ -458,6 +458,23 @@ row, `Ctrl+Y` copies its retained diagnostic; otherwise a current capability
 diagnostic takes precedence over the last notice. Status text in chrome is limited
 to 40 display cells, with `…`; copying retains the full diagnostic.
 Recovery confirmations stay on their row until you select it to review them.
+
+Hub automation controls Couch's generated input and scheduled runs. It starts on
+for a positively surviving hub after a normal restart, and off for missing hubs
+or a full-shutdown/unknown start. After a cold start, hubs stay stopped by design:
+choose **Resume from disk** on a retained switcher row, or **Ctrl+Space → Start**
+with the hub directory when no row exists. Normal warm reattachment is unchanged.
+The retained startup notice names missing hubs and says
+`hub automation off; say turn it on`. Automation status labels these hubs
+`missing at startup:`: that is startup history, not current liveness, and remains
+after a hub is manually attached. The TL uses
+`couch --automation on|off|status [hub]` for its own hub. **Ctrl+G** in the
+switcher toggles the selected hub automation on/off; the result names the hub.
+Worker reports, operator input and desktop notices still arrive while off.
+Suppressed notices and missed scheduled runs are never replayed when turned on.
+Each newly started worker receives one generic restart cue; surviving wrappers
+do not receive that cue again after a Couch-only restart. The separate request
+to resend an unanswered report remains once per Couch lifetime.
 
 Couch keeps agent-pane context titles and cmux activity heat titles current from
 its existing inventory and minute activity refreshes. Hosted Pair starts no
@@ -1087,12 +1104,13 @@ Codex, Qoder and non-hub receivers keep singleton delivery, as do older wrappers
 that explicitly refuse the batch protocol.
 
 Couch also sends its configured hub system notices for confirmed slot starts,
-resumes, parks, relaunches, recovery and needs-relaunch transitions. Restart
-reattachments form one summary after the existing pass drains; larger summaries
-use numbered parts through the same delivery queue. Rows include known cached
+resumes, parks, relaunches, recovery and needs-relaunch transitions while hub
+automation is on. Automatic startup observations stay in Slots and the retained
+startup notice; they do not produce a later hub summary. Larger ordinary
+summaries use numbered parts through the same delivery queue. Rows include known cached
 agent/model, branch/issue and initiation; unknown fields stay unknown. These are
-Slots information, with no reply or work requested. Native-agent exit is not
-reported: an attachment ending does not prove the agent exited (#657).
+Slots information, with no reply or work requested. A native-agent exit requires
+the wrapper's reaped-child proof; an attachment ending does not prove it (#657).
 
 `COUCH_LIFECYCLE_NOTICES=off` disables lifecycle notices for this Couch process;
 the default is `on`, and other nonempty values refuse startup. No configured hub
@@ -1109,6 +1127,8 @@ Lifecycle notices keep bounded current state, not durable event history. Repeate
 unsent changes coalesce with a count. A busy hub waits on its existing composer;
 uncertain input is not replayed. Failed publication produces a local diagnostic,
 with later confirmed changes or receiver readiness enabling a fresh snapshot.
+Automation off retires unsent occurrences; turning it back on only admits new
+events, including across a rapid off/on during a delayed publication.
 An ownership move drops pending lifecycle history and tells the new hub to check
 Slots. Input already admitted to the previous hub finishes there with its original
 receipt; Couch does not replay or reroute it. New events follow the new owner.
@@ -1178,13 +1198,13 @@ below 1 second; adversarial OS starvation is outside that claim. Pair cleanup
 retains its 10-second outer deadline and 5-second exact-Zellij inner wait.
 Leave Couch applies one disposition to every live actor and returns to the
 shell: in the switcher, `Alt+d` **detaches** them, so quitting never kills a running agent, and
-`Alt+x` **parks** them behind the same confirmation a single park needs. A later bare `couch` returns to the work already in
-that repository: **detached first, then parked, most recently
-active within each class**. It starts a new thread only when there is nothing to
-return to. Ranking replaced an exactness rule that was a ratchet -- two
-resumable rows at one path created a third, guaranteeing the next startup
-created a fourth -- and wanting a fresh agent instead costs one chord inside
-Pair (`Alt+Shift+N` restarts the conversation, keeping the workbench).
+`Alt+x` **parks** them behind the same confirmation a single park needs. A later
+bare `couch` reattaches a positively surviving session, most recently active
+first. Parked or missing sessions stay stopped; without a surviving launch hub,
+Couch opens the switcher. Use **Ctrl+Space** to open the explicit Start form and
+enter the hub directory. An empty configured hub names that action in its
+display-only entry. Inside a live Pair, `Alt+Shift+N` restarts the conversation
+while keeping the workbench.
 
 **One primary per repository.** A repository has at most one primary (`:0`)
 thread; more agents in it are slots (`:1+`). `couch` anywhere inside a
@@ -1546,7 +1566,9 @@ it asks the running Couch to share the recording and prints its replay link
 alone on stdout (any note goes to stderr), and with no Couch it refuses.
 `couch --broadcast-web-query` alone prints its usage. See [atlas/webcast-format.md](atlas/webcast-format.md#agent-queries-462).
 
-🤖{Sketch evidence uses the same operator submission chord, Shift+Ctrl+Alt+Return: the console shows Pending feedback with sketch and annotation counts, indexed shape thumbnails and notes before submission. It submits only feedback actually visible on the current console, with up to eight completed sketches; deferred feedback stays visible as N more sketches and N more annotations. A stale visible selection refuses preparation. One full-viewport replay image reconstructs the current recorded prefix pinned at the submission chord, with matching number badges and current projections for the chosen shapes; original page URLs, literal element IDs and pressure paths stay unchanged. Saved note crops retain their original draw-time pixels. The sketch_page provenance is replay-rendered-current-view; pointer gestures and private tool UI are excluded. Legacy shared and per-sketch bundles remain readable. Confirmed delivery removes only the submitted sketch versions and note revisions from the live display; unsent or newer feedback stays. Original ink and notes remain in recording history and replay. Local tools can inspect `couch --broadcast-web-query DIR sketches [--sketch ID] [--at MS] [--json]` or export a private image and metadata with `couch --broadcast-web-query DIR sketch-image --sketch ID --out NEW_DIR [--at MS]`. These tools never dispatch to an agent. See [sketch evidence and retry behavior](atlas/webcast-submission.md).}
+🤖{Sketch evidence uses the same operator submission chord, Shift+Ctrl+Alt+Return: the console shows Pending feedback with sketch and annotation counts, indexed shape thumbnails and notes before submission. The press submits the board's open notes and finished sketches as they are, offscreen ones included, with up to eight sketches; the rest wait for the next submission. What the page is doing never refuses it; only a note still being written does. One full-viewport replay image reconstructs, from the recording, where the newest chosen sketch finished, with matching number badges; original page URLs, literal element IDs and pressure paths stay unchanged. Saved note crops retain their original draw-time pixels. The sketch_page provenance is replay-rendered; pointer gestures and private tool UI are excluded. The Pending feedback panel is information, never a gate. Legacy shared and per-sketch bundles remain readable. Confirmed delivery removes only the submitted sketch versions and note revisions from the live display; unsent or newer feedback stays. Original ink and notes remain in recording history and replay. Local tools can inspect `couch --broadcast-web-query DIR sketches [--sketch ID] [--at MS] [--json]` or export a private image and metadata with `couch --broadcast-web-query DIR sketch-image --sketch ID --out NEW_DIR [--at MS]`. These tools never dispatch to an agent. See [sketch evidence and retry behavior](atlas/webcast-submission.md).}
+
+🤖{Cast open notes appear in a yellow, scrolling panel. Minimize it to Notes (N), drag that button or the panel header, or move the focused handle with arrow keys (Shift for larger steps). Both forms share their position until reload. Sketch notes (N) opens a scrolling list of on-view sketches, with one identified Add note row for an unfinished label or View note row for a final, read-only label. Overlapping drawings remain individually selectable. Moving or minimizing these controls leaves anchored feedback and the Pending feedback selection unchanged.}
 
 `couch --broadcast-web-replay [ID|DIR] [--at MS]` plays recordings in the
 viewer: play, pause, speed, and a timeline that shows pauses as gaps, notes,

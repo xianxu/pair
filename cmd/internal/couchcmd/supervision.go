@@ -2,6 +2,7 @@ package couchcmd
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sync"
 	"time"
@@ -27,12 +28,14 @@ type supervisionSend struct {
 // supervisionCoordinator adapts live evidence to the pure rules. Never hold mu
 // across broker calls: endpoint delivery may synchronously call back here.
 type supervisionCoordinator struct {
-	mu      sync.Mutex
-	state   *supervisionState
-	sends   map[string]supervisionSend
-	service *messageService
-	now     func() time.Time
-	notice  func(string)
+	mu                  sync.Mutex
+	state               *supervisionState
+	sends               map[string]supervisionSend
+	workerCues          map[string]workerCueAttempt
+	cueCapacityNotified bool
+	service             *messageService
+	now                 func() time.Time
+	notice              func(string)
 }
 
 func newSupervisionCoordinator(s *messageService, notice func(string)) *supervisionCoordinator {
@@ -108,7 +111,7 @@ func (c *supervisionCoordinator) admitted(id string, receipt *couchmessage.Recei
 // sendGenerated shares normal Broker.Send policy, including its busy queue.
 // Metadata exists only while admission/delivery is outstanding; the broker is
 // the single capacity owner. No report or reply is dropped to fit a cache.
-func (c *supervisionCoordinator) sendGenerated(ctx context.Context, from, to couchmessage.Binding, id, body string, prompt bool) (couchmessage.Receipt, error) {
+func (c *supervisionCoordinator) sendGenerated(ctx context.Context, from, to couchmessage.Binding, id, body string, prompt bool, permit hubInputPermit) (couchmessage.Receipt, error) {
 	c.mu.Lock()
 	c.remember(id, from, c.now(), true)
 	if prompt {
@@ -117,7 +120,7 @@ func (c *supervisionCoordinator) sendGenerated(ctx context.Context, from, to cou
 		c.sends[id] = v
 	}
 	c.mu.Unlock()
-	receipt, err := c.service.broker.SendSystem(ctx, from, id, couchmessage.Route{Target: to.Slot}, body)
+	receipt, err := c.service.sendAutomaticSystem(ctx, from, to, id, body, permit)
 	if err != nil {
 		c.admitted(id, nil)
 	} else {
@@ -224,19 +227,24 @@ func (c *supervisionCoordinator) tick(ctx context.Context, now time.Time, muted 
 		log.snapshot(now, rows, liveness, c.service.broker)
 	}
 	available := map[couchmessage.Binding]bool{}
+	permits := map[couchmessage.Binding]hubInputPermit{}
 	var facts []supervisionFacts
 	for _, r := range rows {
 		if c.service.isHubBinding(r.Binding) {
 			continue
 		}
+		permit := c.service.captureOwnerHubInputPermit(r.Binding)
+		permits[r.Binding] = permit
 		_, available[r.Binding] = c.service.hubBindingFor(r.Binding)
 		f := supervisionFacts{binding: r.Binding, known: r.Known, resting: r.Resting, pending: r.Pending, quiet: now.Sub(r.LastActivity)}
 		if live != nil {
 			if l, ok := (*live)[r.Binding.Slot]; ok && l.Binding == r.Binding {
 				f.settled = l.Settled != nil && *l.Settled
+				c.cueWorker(ctx, l)
 			}
 		}
 		f.muted = muted[r.Binding.Slot]
+		f.automationOff = !permit.enabled
 		f.submission, _ = c.service.broker.Submission(r.Binding)
 		facts = append(facts, f)
 	}
@@ -247,7 +255,7 @@ func (c *supervisionCoordinator) tick(ctx context.Context, now time.Time, muted 
 		if ctx.Err() != nil {
 			return
 		}
-		if !c.service.isConnected(fx.binding) {
+		if !c.service.isConnected(fx.binding) || c.service.isHubBinding(fx.binding) {
 			continue
 		}
 		if fx.kind != supervisionPrompt {
@@ -268,14 +276,25 @@ func (c *supervisionCoordinator) tick(ctx context.Context, now time.Time, muted 
 		}
 		from, to, body := hub, fx.binding, startupResendPrompt
 		if fx.kind == supervisionNudge {
+			if !permits[fx.binding].current(c.service) {
+				c.waitNudged(fx.binding, fx.report)
+				continue
+			}
 			from, to = fx.binding, hub
 			body = fmt.Sprintf("slot %s: %d min with no later hub message or operator submission observed; inspect with couch --peek %s", fx.binding.Slot, int(fx.age/time.Minute), fx.binding.Slot)
 		}
 		id, err := newRequestID()
 		if err == nil {
-			_, err = c.sendGenerated(ctx, from, to, id, body, fx.kind == supervisionPrompt)
+			permit := permits[fx.binding]
+			if fx.kind == supervisionPrompt {
+				permit = c.service.captureHubInputPermit(to)
+			}
+			_, err = c.sendGenerated(ctx, from, to, id, body, fx.kind == supervisionPrompt, permit)
 		}
 		if err != nil {
+			if fx.kind == supervisionNudge && errors.Is(err, errHubAutomationOff) {
+				c.waitNudged(fx.binding, fx.report)
+			}
 			if fx.kind == supervisionPrompt {
 				c.notice(fmt.Sprintf("startup resend prompt to %s unavailable: %v; hub should request fresh status", to.Slot, err))
 			}
@@ -285,4 +304,55 @@ func (c *supervisionCoordinator) tick(ctx context.Context, now time.Time, muted 
 			c.waitNudged(fx.binding, fx.report)
 		}
 	}
+}
+
+// generatedHubInputOff gates automatic composer input only. Worker-directed
+// messages retain their independent delivery policy even when their hub is off.
+func (s *messageService) generatedHubInputOff(to couchmessage.Binding) bool {
+	return !s.captureHubInputPermit(to).enabled
+}
+
+// hubInputPermit remembers the observation's automation generation. A slow
+// tail/status check cannot revive its occurrence through an intervening off/on.
+type hubInputPermit struct {
+	root    string
+	enabled bool
+	epoch   uint64
+}
+
+func (p hubInputPermit) current(s *messageService) bool {
+	if !p.enabled {
+		return false
+	}
+	if p.root == "" {
+		return true
+	}
+	enabled, epoch := s.hubAutomationPermit(p.root)
+	return enabled && epoch == p.epoch
+}
+func (s *messageService) captureHubInputPermit(to couchmessage.Binding) hubInputPermit {
+	s.mu.Lock()
+	identity, known := s.workspaces[to]
+	s.mu.Unlock()
+	if !known {
+		return hubInputPermit{}
+	}
+	if !s.authority.isHub(identity) {
+		return hubInputPermit{enabled: true}
+	}
+	enabled, epoch := s.hubAutomationPermit(identity.WorktreeRoot)
+	return hubInputPermit{root: identity.WorktreeRoot, enabled: enabled, epoch: epoch}
+}
+
+// The canonical owner exists independently of whether its wrapper is available.
+func (s *messageService) captureOwnerHubInputPermit(from couchmessage.Binding) hubInputPermit {
+	s.mu.Lock()
+	identity, known := s.workspaces[from]
+	s.mu.Unlock()
+	if !known {
+		return hubInputPermit{}
+	}
+	root := s.authority.owner(identity)
+	enabled, epoch := s.hubAutomationPermit(root)
+	return hubInputPermit{root: root, enabled: enabled, epoch: epoch}
 }
