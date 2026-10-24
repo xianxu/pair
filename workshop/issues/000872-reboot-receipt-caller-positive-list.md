@@ -15,7 +15,7 @@ claimant:
     workspace: pair:2
     worktree: /Users/xianxu/workspace/worktree/pair-slot2/pair
     repository: github.com/xianxu/pair
-flow: {kind: quick, provenance: inferred, spec: "45e204ae", done: "bdbf53cd"}
+flow: {kind: full, provenance: inferred}
 ---
 
 # Admitted worker reboot loses steward positive-list authentication during receipt polling
@@ -58,6 +58,8 @@ Approved diagnostic implementation detail: [diagnostic plan](../plans/000872-reb
 Filed unclaimed by pair:9 per TL ops:0 direction. Largest completed original cohort N5 (its waveform was separately invalid because startup system submissions stopped redraw before capture). #865 retains workload repair and measurement; #871 separately lands the opt-in profiler. No retained native owner remains from this failure.
 
 ### 2026-10-24 — claim and initial causal trace
+- 2026-10-24: closed — TL diagnostic-only Revision f0957f0c: exact judged listing/time/hash/count/truncation and selected projection survive refusal; stateful accepted-then-missing/EXITED CLI regressions retain uncertainty, one mutation and no resend; focused launcher/core/couchcmd/testcouch race PASS; ONE headless Claude sample reached worker5 PASS124.74s, modified=false f24dc287ba445bb177a119519049f4005b676770, exact cleanup, native log SHA25649a80409da7725cd3585dc3563bc8576465136ce95f68568c2eb316813ddda6f. Cause unclassified; next occurrence retains evidence; follow-up only on recurrence. Reader audit/inventory PASS. Pre-close full fallback retained cf624d980 lease-1341640699 queued; pass precedes landing. Authorized no-actual: measurement branch proof: measurement sources exceed snapshot limit 128; no measurement window printed (issue started2026-10-24T16:04:42-07:00, refusal observed16:34:43-07:00); ariadne603 working/unlanded, standing hub128-source authorization applies, no typed hours.; review verdict: SHIP
+- 2026-10-24: flow upgraded quick → full — 229 added lines in code files (limit 100)
 
 Dispatched by verified ops:0 receipt 2fab61cc-ee8e-4641-abad-09e875dc45b2 after #851 landed, while #874's approved planning-only contract waits for #737. Claimed and start-plan completed on this separate main-based branch. The first start-plan correctly refused while on the parked #874 branch; its committed/pushed clean checkpoint was preserved, switched to main-slot2, then reran successfully. No stacked commits or runtime changes.
 
