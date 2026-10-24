@@ -8,8 +8,6 @@ import (
 	"sort"
 	"strconv"
 	"strings"
-
-	"github.com/xianxu/ariadne/pkg/vocab"
 )
 
 // Scope names the portion of a document a processing brief may change.
@@ -170,13 +168,13 @@ func (c *Catalog) ResolveProcessing(selector string) (Mode, error) {
 	return Mode{}, fmt.Errorf("unknown processing mode %q; valid choices: %s", selector, choices)
 }
 
-// ResolveCollaboration validates an exact collaboration value against its
-// vocabulary owner. It supplies no document default.
+// ResolveCollaboration preserves the legacy three-value document contract until
+// the single-mode consumer lands (#838). Ariadne no longer exports this retired
+// vocabulary; these accepted bytes are historical compatibility, not new modes.
 func ResolveCollaboration(value string) (string, error) {
-	for _, name := range vocab.CollaborationModes {
-		if name == value {
-			return name, nil
-		}
+	switch value {
+	case "discussion", "collaboration", "chat":
+		return value, nil
 	}
 	return "", fmt.Errorf("unknown collaboration mode %q", value)
 }

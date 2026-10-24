@@ -58,7 +58,7 @@ func helper() { unix.Mkfifo(path, 0600); f, _ := os.OpenFile(path, os.O_WRONLY, 
 		{"dynamic payload limitation", imports + `func helper() { unix.Mkfifo(path, 0600); f, _ := os.OpenFile(path, os.O_WRONLY, 0600); f.Write(payload); f.Close() }`, 0},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			findings, err := golint.Check("fixture_test.go", []byte(tc.source), []golint.Rule{{Name: "test-fifo-empty-handoff", Incident: "pair#679", Message: "write a nonempty FIFO payload before closing the writer", Match: emptyFIFOHandoffs}})
+			findings, err := golint.Check("fixture_test.go", []byte(tc.source), []golint.Rule{{Name: "test-fifo-empty-handoff", Incident: "pair#679", Message: "write a nonempty FIFO payload before closing the writer", Match: syntaxMatch(emptyFIFOHandoffs)}})
 			if err != nil || len(findings) != tc.want {
 				t.Fatalf("findings=%+v err=%v want=%d", findings, err, tc.want)
 			}

@@ -112,7 +112,7 @@ func TestOperatorSketchLiveDrawing(t *testing.T) {
 	clickTool := func(name string) {
 		t.Helper()
 		var xy [2]float64
-		if err := json.Unmarshal(eval(world, fmt.Sprintf(`(()=>{const root=__couchcastOperatorSketch.labelInput.getRootNode(),b=[...root.querySelectorAll('.sketch-toolbar button')].find(b=>b.textContent===%q),r=b.getBoundingClientRect();if(b.disabled||!b.contains(root.elementFromPoint(r.x+r.width/2,r.y+r.height/2)))throw Error('toolbar action unavailable');return [r.x+r.width/2,r.y+r.height/2]})()`, name)), &xy); err != nil {
+		if err := json.Unmarshal(eval(world, fmt.Sprintf(`(()=>{const root=__couchcastOperatorSketch.labelInput.getRootNode(),b=__couchcastOperatorSketch.controls[%q],r=b.getBoundingClientRect();if(b.disabled||!b.contains(root.elementFromPoint(r.x+r.width/2,r.y+r.height/2)))throw Error('toolbar action unavailable');return [r.x+r.width/2,r.y+r.height/2]})()`, name)), &xy); err != nil {
 			t.Fatal(err)
 		}
 		for _, typ := range []string{"mousePressed", "mouseReleased"} {
@@ -134,8 +134,8 @@ func TestOperatorSketchLiveDrawing(t *testing.T) {
 	wait("operator UI unsuppressed", func() bool {
 		return string(eval(world, `!__couchcastOperatorSketch.labelInput.getRootNode().host.hidden`)) == "true"
 	})
-	if got := string(eval(world, `(()=>{const root=__couchcastOperatorSketch.labelInput.getRootNode(),bar=root.querySelector('.sketch-toolbar'),buttons=[...bar.querySelectorAll('button')];return !bar.hidden&&getComputedStyle(bar).display!=='none'&&!buttons.find(b=>b.textContent==='Sketch').disabled&&buttons.find(b=>b.textContent==='Done').disabled})()`)); got != "true" {
-		t.Fatalf("annotation-off console toolbar unavailable or idle Done enabled: %s; %s", got, eval(world, `JSON.stringify([...__couchcastOperatorSketch.labelInput.getRootNode().querySelectorAll('.sketch-toolbar button')].map(b=>({text:b.textContent,disabled:b.disabled,display:getComputedStyle(b).display})))`))
+	if got := string(eval(world, `(()=>{const root=__couchcastOperatorSketch.labelInput.getRootNode(),bar=root.querySelector('.cast-tools'),controls=__couchcastOperatorSketch.controls;return !bar.hidden&&getComputedStyle(bar).display!=='none'&&bar.contains(controls.pen)&&controls.pen.textContent==='✎ Pen'&&!controls.pen.disabled&&controls.done.disabled})()`)); got != "true" {
+		t.Fatalf("annotation-off console toolbar unavailable or idle Done enabled: %s; %s", got, eval(world, `JSON.stringify([...__couchcastOperatorSketch.labelInput.getRootNode().querySelectorAll('.cast-tools button')].map(b=>({text:b.textContent,disabled:b.disabled,display:getComputedStyle(b).display})))`))
 	}
 	var records []recording.Record
 	read := func() []recording.Record {
@@ -154,13 +154,13 @@ func TestOperatorSketchLiveDrawing(t *testing.T) {
 		}
 		return false
 	})
-	clickTool("Sketch")
+	clickTool("pen")
 	wait("prepared console scene", func() bool { return string(eval(world, `__couchcastOperatorSketch.state().phase`)) == `"drawing"` })
 	if err := recorder.CaptureBackgroundScreenshot(ctx, chrome.conn, session, world, map[string]any{"format": "png"}, nil); !errors.Is(err, recorder.ErrBackgroundCaptureDeferred) {
 		t.Fatalf("active drawing background capture: %v", err)
 	}
-	if got := string(eval(world, `(()=>{const root=__couchcastOperatorSketch.labelInput.getRootNode();return ['Sketch','Undo','Redo','Done'].every(name=>{const b=[...root.querySelectorAll('.sketch-toolbar button')].find(b=>b.textContent===name),r=b.getBoundingClientRect();return r.width>0&&r.height>0&&r.left>=0&&r.top>=0&&r.right<=innerWidth&&r.bottom<=innerHeight&&b.contains(root.elementFromPoint(r.x+r.width/2,r.y+r.height/2))})})()`)); got != "true" {
-		t.Fatalf("active sketch toolbar buttons are hidden or covered: %s; %s", got, eval(world, `JSON.stringify([...__couchcastOperatorSketch.labelInput.getRootNode().querySelectorAll('.sketch-toolbar button')].map(b=>{const r=b.getBoundingClientRect(),s=getComputedStyle(b),hit=b.getRootNode().elementFromPoint(r.x+r.width/2,r.y+r.height/2);return {text:b.textContent,rect:[r.x,r.y,r.width,r.height],position:s.position,z:s.zIndex,hit:hit?.className}}))`))
+	if got := string(eval(world, `(()=>{const root=__couchcastOperatorSketch.labelInput.getRootNode();return ['pen','done'].every(name=>{const b=__couchcastOperatorSketch.controls[name],r=b.getBoundingClientRect();return r.width>0&&r.height>0&&r.left>=0&&r.top>=0&&r.right<=innerWidth&&r.bottom<=innerHeight&&b.contains(root.elementFromPoint(r.x+r.width/2,r.y+r.height/2))})})()`)); got != "true" {
+		t.Fatalf("active sketch toolbar buttons are hidden or covered: %s; %s", got, eval(world, `JSON.stringify([...__couchcastOperatorSketch.labelInput.getRootNode().querySelectorAll('.cast-tools button')].map(b=>{const r=b.getBoundingClientRect(),s=getComputedStyle(b),hit=b.getRootNode().elementFromPoint(r.x+r.width/2,r.y+r.height/2);return {text:b.textContent,rect:[r.x,r.y,r.width,r.height],position:s.position,z:s.zIndex,hit:hit?.className}}))`))
 	}
 	if got := string(eval(0, `typeof globalThis.__couchcastOperatorSketch==='undefined'&&typeof globalThis.__couchcastPrivateSceneFrame==='undefined'`)); got != "true" {
 		t.Fatalf("console hooks exposed in product world: %s", got)
@@ -213,14 +213,14 @@ func TestOperatorSketchLiveDrawing(t *testing.T) {
 	wait("confirmed stroke", func() bool {
 		return string(eval(world, `__couchcastOperatorSketch.state().slots.every(s=>!s.inflight&&!s.queued)`)) == "true"
 	})
-	clickTool("Undo")
+	clickTool("undo")
 	waitKind("sketch-undo")
 	wait("Redo enabled", func() bool {
-		return string(eval(world, `!Array.from(__couchcastOperatorSketch.labelInput.getRootNode().querySelectorAll('.sketch-toolbar button')).find(b=>b.textContent==='Redo').disabled`)) == "true"
+		return string(eval(world, `!__couchcastOperatorSketch.controls.redo.disabled`)) == "true"
 	})
-	clickTool("Redo")
+	clickTool("redo")
 	waitKind("sketch-redo")
-	clickTool("Done")
+	clickTool("done")
 	wait("required label", func() bool {
 		return string(eval(world, `!__couchcastOperatorSketch.labelInput.parentElement.hidden`)) == "true"
 	})
@@ -329,28 +329,28 @@ func TestOperatorSketchLiveDrawing(t *testing.T) {
 		})
 	}
 	publishPreview(1)
-	if got := string(eval(world, `(()=>{const root=__couchcastOperatorSketch.labelInput.getRootNode(),preview=root.querySelector('.sketch-submission-preview'),cards=preview.querySelectorAll('.sketch-submission-card'),canvas=cards[0]?.querySelector('canvas');if(preview.hidden||cards.length!==1||preview.querySelectorAll('button').length!==0||!preview.textContent.includes('Pending feedback: 1 sketches, 0 annotations')||!preview.textContent.includes('Move this console control')||!canvas)return false;const pixels=canvas.getContext('2d').getImageData(0,0,canvas.width,canvas.height).data;let ink=0,min=canvas.width,max=-1;for(let y=0;y<canvas.height;y++)for(let x=0;x<canvas.width;x++)if(pixels[(y*canvas.width+x)*4+3]>20){ink++;min=Math.min(min,x);max=Math.max(max,x)}const thickness=x=>{let n=0;for(let y=0;y<canvas.height;y++)if(pixels[(y*canvas.width+x)*4+3]>20)n++;return n};const thin=thickness(Math.round(min+(max-min)*.25)),thick=thickness(Math.round(min+(max-min)*.75));globalThis.previewCard=cards[0];globalThis.previewCanvas=canvas;return ink>0&&thin>0&&thick>thin})()`)); got != "true" {
-		t.Fatalf("native pressure/count/note preview unavailable: %s", got)
+	if got := string(eval(world, `(()=>{const root=__couchcastOperatorSketch.labelInput.getRootNode(),notes=root.querySelector('.feedback-panel'),rows=notes.querySelectorAll('.feedback-row[data-key^="sketch:"]'),canvas=root.querySelector('.sketch-observer');if(notes.hidden||rows.length!==1||root.querySelector('.sketch-submission-preview,.sketch-submission-card')||!root.querySelector('.feedback-status').textContent.includes('Pending feedback: 1 sketches, 0 annotations')||!rows[0].textContent.includes('Move this console control')||!canvas)return false;const pixels=canvas.getContext('2d').getImageData(0,0,canvas.width,canvas.height).data;let ink=0,min=canvas.width,max=-1;for(let y=0;y<canvas.height;y++)for(let x=0;x<canvas.width;x++)if(pixels[(y*canvas.width+x)*4+3]>20){ink++;min=Math.min(min,x);max=Math.max(max,x)}const thickness=x=>{let n=0;for(let y=0;y<canvas.height;y++)if(pixels[(y*canvas.width+x)*4+3]>20)n++;return n};const thin=thickness(Math.round(min+(max-min)*.25)),thick=thickness(Math.round(min+(max-min)*.75));globalThis.previewRow=rows[0];globalThis.previewCanvas=canvas;return ink>0&&thin>0&&thick>thin})()`)); got != "true" {
+		t.Fatalf("native pressure/count/note preview unavailable: %s; %s", got, eval(world, `(()=>{const root=__couchcastOperatorSketch.labelInput.getRootNode(),panel=root.querySelector(".feedback-panel"),canvas=root.querySelector(".sketch-observer"),pixels=canvas.getContext("2d").getImageData(0,0,canvas.width,canvas.height).data;let ink=0,min=canvas.width,max=-1;for(let y=0;y<canvas.height;y++)for(let x=0;x<canvas.width;x++)if(pixels[(y*canvas.width+x)*4+3]>20){ink++;min=Math.min(min,x);max=Math.max(max,x)}const thickness=x=>{let n=0;for(let y=0;y<canvas.height;y++)if(pixels[(y*canvas.width+x)*4+3]>20)n++;return n};return {hidden:panel.hidden,rows:[...panel.querySelectorAll(".feedback-row")].map(r=>({key:r.dataset.key,text:r.textContent})),status:panel.querySelector(".feedback-status").textContent,canvas:[canvas.width,canvas.height],ink,min,max,thin:thickness(Math.round(min+(max-min)*.25)),thick:thickness(Math.round(min+(max-min)*.75))}})()`))
 	}
-	// Completed watch-mode cards are also private open UI: periodic capture
-	// must defer before hiding their host, preserving both focus and card identity.
+	// Completed watch-mode Notes are also private open UI: periodic capture
+	// must defer before hiding their host, preserving both focus and row identity.
 	eval(world, `globalThis.previewIdleFocus=__couchcastOperatorSketch.labelInput.getRootNode().activeElement`)
 	for i := 0; i < 3; i++ {
 		if e := recorder.CaptureBackgroundScreenshot(ctx, chrome.conn, session, world, map[string]any{"format": "png"}, nil); !errors.Is(e, recorder.ErrBackgroundCaptureDeferred) {
 			t.Fatalf("completed preview background capture must defer: %v", e)
 		}
 	}
-	if got := string(eval(world, `(()=>{const root=__couchcastOperatorSketch.labelInput.getRootNode();return root.activeElement===previewIdleFocus&&root.querySelector('.sketch-submission-card')===previewCard&&previewCard.querySelector('canvas')===previewCanvas})()`)); got != "true" {
-		t.Fatalf("idle capture changed preview focus/identity: %s", got)
+	if got := string(eval(world, `(()=>{const root=__couchcastOperatorSketch.labelInput.getRootNode();return root.activeElement===previewIdleFocus&&root.querySelector('.feedback-row[data-key^="sketch:"]')===previewRow&&root.querySelector('.sketch-observer')===previewCanvas})()`)); got != "true" {
+		t.Fatalf("idle capture changed Notes focus/identity: %s", got)
 	}
-	// Discovery controls sit beside the ink; they must not steal a later pen
-	// stroke at the same recorded coordinates.
-	if got := string(eval(world, `(()=>{const root=__couchcastOperatorSketch.labelInput.getRootNode(),buttons=[...root.querySelectorAll('.sketch-notes-summary')];return buttons.length>0&&buttons.every(b=>{const r=b.getBoundingClientRect();return !(110>=r.left&&110<r.right&&140>=r.top&&140<r.bottom)})})()`)); got != "true" {
-		t.Fatalf("sketch note affordance covers existing ink: %s", got)
+	// One Notes panel replaces per-sketch controls and must not steal a later
+	// pen stroke at the same recorded coordinates.
+	if got := string(eval(world, `(()=>{const root=__couchcastOperatorSketch.labelInput.getRootNode(),panels=[...root.querySelectorAll('.feedback-panel')];return !root.querySelector('.sketch-notes-summary,.sketch-note-control')&&panels.length===1&&panels.every(p=>{const r=p.getBoundingClientRect();return !(110>=r.left&&110<r.right&&140>=r.top&&140<r.bottom)})})()`)); got != "true" {
+		t.Fatalf("unified Notes panel covers existing ink or retains separate controls: %s", got)
 	}
 	// Start an unfinished second sketch whose ink is inside the first stroke's
 	// bounds, preserving the existing original-node placement checks below.
-	clickTool("Sketch")
+	clickTool("pen")
 	wait("second preview focus sketch", func() bool { return string(eval(world, `__couchcastOperatorSketch.state().phase`)) == `"drawing"` })
 	pen("mousePressed", 110, .2, 1)
 	pen("mouseMoved", 120, .2, 1)
@@ -358,13 +358,13 @@ func TestOperatorSketchLiveDrawing(t *testing.T) {
 	wait("second stroke settled", func() bool {
 		return string(eval(world, `__couchcastOperatorSketch.state().slots.every(s=>!s.inflight&&!s.queued)`)) == "true"
 	})
-	clickTool("Done")
+	clickTool("done")
 	wait("second required label focus", func() bool {
 		return string(eval(world, `(()=>{const input=__couchcastOperatorSketch.labelInput;return !input.parentElement.hidden&&input.getRootNode().activeElement===input})()`)) == "true"
 	})
 	eval(world, `(()=>{const input=__couchcastOperatorSketch.labelInput;input.value='AB';input.setSelectionRange(1,1);globalThis.previewBlur=0;input.addEventListener('blur',()=>previewBlur++);return true})()`)
 	for i := 0; i < 3; i++ {
-		// Remote ordinary pointer traffic must neither replace the preview cards nor
+		// Remote ordinary pointer traffic must neither replace the Notes rows nor
 		// interrupt the real sketch editor. The recorder remains the sole writer.
 		selected, e := cast.board.Selection()
 		if e != nil {
@@ -384,8 +384,8 @@ func TestOperatorSketchLiveDrawing(t *testing.T) {
 			t.Fatal("active label editor admitted a completed visibility witness")
 		}
 	}
-	if got := string(eval(world, `new Promise(resolve=>setTimeout(()=>{const input=__couchcastOperatorSketch.labelInput,root=input.getRootNode();resolve(root.activeElement===input&&input.selectionStart===1&&input.selectionEnd===1&&previewBlur===0&&root.querySelector('.sketch-submission-card')===previewCard&&previewCard.querySelector('canvas')===previewCanvas)},50))`)); got != "true" {
-		t.Fatalf("preview refresh/remote traffic stole editor focus or replaced cards: %s", got)
+	if got := string(eval(world, `new Promise(resolve=>setTimeout(()=>{const input=__couchcastOperatorSketch.labelInput,root=input.getRootNode();resolve(root.activeElement===input&&input.selectionStart===1&&input.selectionEnd===1&&previewBlur===0&&root.querySelector('.feedback-row[data-key^="sketch:"]')===previewRow&&root.querySelector('.sketch-observer')===previewCanvas)},50))`)); got != "true" {
+		t.Fatalf("preview refresh/remote traffic stole editor focus or replaced Notes rows: %s", got)
 	}
 	call("Input.insertText", map[string]any{"text": "x"}, nil)
 	if got := string(eval(world, `__couchcastOperatorSketch.labelInput.value`)); got != `"AxB"` {
@@ -394,13 +394,13 @@ func TestOperatorSketchLiveDrawing(t *testing.T) {
 	eval(world, `(async()=>{const s=__couchcastOperatorSketch;s.labelInput.value='Preview focus draft';await s.saveLabel();return true})()`)
 	wait("second sketch finished", func() bool { return string(eval(world, `!globalThis.__couchcastPrivateSceneFrame`)) == "true" })
 	publishPreview(2)
-	if got := string(eval(world, `(()=>{const p=__couchcastOperatorSketch.labelInput.getRootNode().querySelector('.sketch-submission-preview');return p.querySelectorAll('.sketch-submission-card').length===2&&p.textContent.includes('Preview focus draft')})()`)); got != "true" {
+	if got := string(eval(world, `(()=>{const p=__couchcastOperatorSketch.labelInput.getRootNode().querySelector('.feedback-panel');return p.querySelectorAll('.feedback-row[data-key^="sketch:"]').length===2&&p.textContent.includes('Preview focus draft')&&p.querySelector('.feedback-status').textContent.includes('Pending feedback: 2 sketches, 0 annotations')})()`)); got != "true" {
 		t.Fatalf("second finished shape missing from preview: %s", got)
 	}
 	// After dispatch suppresses every exact version, no empty panel should
 	// keep optional fidelity captures deferred; recorded ink remains unchanged.
 	publishPreview(2, true)
-	if got := string(eval(world, `(()=>{const root=__couchcastOperatorSketch.labelInput.getRootNode();return root.querySelectorAll('.sketch-submission-card').length===0&&!__couchcastCaptureBusy()})()`)); got != "true" {
+	if got := string(eval(world, `(()=>{const root=__couchcastOperatorSketch.labelInput.getRootNode();return !root.querySelector('.sketch-submission-preview,.sketch-submission-card')&&!root.querySelector('.feedback-status').textContent.includes('Pending feedback:')&&!__couchcastCaptureBusy()})()`)); got != "true" {
 		t.Fatalf("empty preview still holds capture suppression: %s", got)
 	}
 	if err := recorder.CaptureBackgroundScreenshot(ctx, chrome.conn, session, world, map[string]any{"format": "png"}, &screenshot); err != nil || screenshot.Data == "" {
@@ -465,7 +465,7 @@ func TestOperatorSketchLiveDrawing(t *testing.T) {
 	// Masked vectors stay in history, but are no longer eligible in the
 	// current visible pending selection.
 	publishPreview(2)
-	if got := string(eval(world, `__couchcastOperatorSketch.labelInput.getRootNode().querySelectorAll('.sketch-submission-card').length`)); got != "0" {
+	if got := string(eval(world, `__couchcastOperatorSketch.labelInput.getRootNode().querySelectorAll('.feedback-row[data-key^="sketch:"]').length`)); got != "0" {
 		t.Fatalf("masked feedback still selected: %s", got)
 	}
 	publishPreview(2, true)
@@ -488,7 +488,7 @@ func TestOperatorSketchLiveDrawing(t *testing.T) {
 		}
 	})
 	diagnosePostSubmit := func() {
-		postSubmitDiagnostic = string(eval(world, `(()=>{const tool=__couchcastOperatorSketch,root=tool.labelInput.getRootNode(),frame=globalThis.__couchcastPrivateSceneFrame,canvases=[...tool.layer.parentNode.querySelectorAll('canvas')];return JSON.stringify({state:tool.state(),status:root.querySelector('.sketch-status')?.textContent,visibility:document.visibilityState,focused:document.hasFocus(),host:{connected:root.host.isConnected,hidden:root.host.hidden},frame:frame?{hidden:frame.hidden,rect:frame.getBoundingClientRect().toJSON(),ready:!!frame.contentWindow}:null,hit:root.elementFromPoint(110,140)?.className,layer:{hidden:tool.layer.hidden,pointerEvents:getComputedStyle(tool.layer).pointerEvents,zIndex:getComputedStyle(tool.layer).zIndex,rect:tool.layer.getBoundingClientRect().toJSON()},canvases:canvases.map(c=>({class:c.className,hidden:c.hidden,width:c.width,height:c.height,pointerEvents:getComputedStyle(c).pointerEvents,display:getComputedStyle(c).display}))})})()`))
+		postSubmitDiagnostic = string(eval(world, `(()=>{const tool=__couchcastOperatorSketch,root=tool.labelInput.getRootNode(),frame=globalThis.__couchcastPrivateSceneFrame,canvases=[...tool.layer.parentNode.querySelectorAll('canvas')];return JSON.stringify({state:tool.state(),status:root.querySelector('.feedback-status')?.textContent,visibility:document.visibilityState,focused:document.hasFocus(),host:{connected:root.host.isConnected,hidden:root.host.hidden},frame:frame?{hidden:frame.hidden,rect:frame.getBoundingClientRect().toJSON(),ready:!!frame.contentWindow}:null,hit:root.elementFromPoint(110,140)?.className,layer:{hidden:tool.layer.hidden,pointerEvents:getComputedStyle(tool.layer).pointerEvents,zIndex:getComputedStyle(tool.layer).zIndex,rect:tool.layer.getBoundingClientRect().toJSON()},canvases:canvases.map(c=>({class:c.className,hidden:c.hidden,width:c.width,height:c.height,pointerEvents:getComputedStyle(c).pointerEvents,display:getComputedStyle(c).display}))})})()`))
 	}
 
 	// Match the operator's intervening box-note flow through the real shared
@@ -497,7 +497,7 @@ func TestOperatorSketchLiveDrawing(t *testing.T) {
 		t.Fatal(e)
 	}
 	wait("annotation palette available before post-submit drawing", func() bool {
-		return string(eval(world, `(()=>{const root=__couchcastOperatorSketch.labelInput.getRootNode(),b=[...root.querySelectorAll('.annotate-rail .mode')].find(b=>b.textContent==='💭');return !!b&&!b.disabled})()`)) == "true"
+		return string(eval(world, `(()=>{const root=__couchcastOperatorSketch.labelInput.getRootNode(),b=[...root.querySelectorAll('.cast-tools .mode')].find(b=>b.textContent==='▤ Note');return !!b&&!b.disabled})()`)) == "true"
 	})
 	clickNativeRootButton := func(selector, text string) {
 		t.Helper()
@@ -509,7 +509,7 @@ func TestOperatorSketchLiveDrawing(t *testing.T) {
 			call("Input.dispatchMouseEvent", map[string]any{"type": kind, "x": point[0], "y": point[1], "button": "left", "clickCount": 1}, nil)
 		}
 	}
-	clickNativeRootButton(".annotate-rail .mode", "💭")
+	clickNativeRootButton(".cast-tools .mode", "▤ Note")
 	for _, event := range []struct {
 		kind    string
 		x, y    float64
@@ -540,7 +540,7 @@ func TestOperatorSketchLiveDrawing(t *testing.T) {
 		return false
 	})
 	t.Logf("intervening real box note saved; %s", postSubmitDiagnostic)
-	clickTool("Sketch")
+	clickTool("pen")
 	wait("new post-submit held scene", func() bool {
 		diagnosePostSubmit()
 		return string(eval(world, `__couchcastOperatorSketch.state().phase`)) == `"drawing"`
@@ -561,7 +561,7 @@ func TestOperatorSketchLiveDrawing(t *testing.T) {
 	wait("new post-submit stroke settled", func() bool {
 		return string(eval(world, `__couchcastOperatorSketch.state().slots.every(s=>!s.inflight&&!s.queued)`)) == "true"
 	})
-	clickTool("Add note")
+	clickTool("done")
 	wait("new post-submit Note editor", func() bool {
 		return string(eval(world, `!__couchcastOperatorSketch.labelInput.parentElement.hidden`)) == "true"
 	})
@@ -584,15 +584,15 @@ func TestOperatorSketchLiveDrawing(t *testing.T) {
 	})
 	previewDelivered = deliveredMask.Sketches
 	publishPreview(3)
-	if got := string(eval(world, `(()=>{const p=__couchcastOperatorSketch.labelInput.getRootNode().querySelector('.sketch-submission-preview');return !p.hidden&&p.querySelectorAll('.sketch-submission-card').length===1&&p.textContent.includes('New after submitted feedback')})()`)); got != "true" {
-		t.Fatalf("new post-submit sketch missing pending card: %s; %s", got, postSubmitDiagnostic)
+	if got := string(eval(world, `(()=>{const p=__couchcastOperatorSketch.labelInput.getRootNode().querySelector('.feedback-panel');return !p.hidden&&p.querySelectorAll('.feedback-row[data-key^="sketch:"]').length===1&&p.textContent.includes('New after submitted feedback')&&p.querySelector('.feedback-status').textContent.includes('Pending feedback: 1 sketches,')})()`)); got != "true" {
+		t.Fatalf("new post-submit sketch missing pending Notes row: %s; %s", got, postSubmitDiagnostic)
 	}
 	if ink := pixels(); ink.Count == 0 {
 		t.Fatalf("new completed post-submit sketch invisible: %s", postSubmitDiagnostic)
 	}
 
 	// Keep the third exact version UNSENT across the real tab round trip. A
-	// pending thumbnail proves receiver vectors survived; its live ink must also
+	// pending Notes count proves receiver selection survived; its live ink must also
 	// return to the same physical source element after reactivation.
 	unsentStateBefore, e := recording.Reduce(read(), math.MaxInt64)
 	if e != nil {
@@ -657,7 +657,7 @@ func TestOperatorSketchLiveDrawing(t *testing.T) {
 	if unsentRestored.Count == 0 {
 		t.Logf("late unsent tab-return binding: boardDoc=%d sourceDoc=%d at.node=%d sameConnectedDOM=%s sourceOriginalHook=%s", cast.board.OperatorView().Doc, unsentSourceDoc, unsentAnchor, eval(0, `globalThis.__testUnsentOriginalButton===document.querySelector('button')&&globalThis.__testUnsentOriginalButton.isConnected`), eval(world, fmt.Sprintf(`__couchcastOperatorOriginal(%d,%d,document.querySelector('button'))`, unsentSourceDoc, unsentAnchor)))
 		selected, e := cast.SubmissionSelection()
-		t.Fatalf("UNSENT tab-return ink missing: pixels=%+v, pending=%s, drawing=%s, boardDoc=%d, mask=%+v, selection=%+v err=%v, receiver=%+v", unsentRestored, eval(world, `(()=>{const p=__couchcastOperatorSketch.labelInput.getRootNode().querySelector('.sketch-submission-preview');return {hidden:p.hidden,count:p.querySelectorAll('.sketch-submission-card').length,text:p.textContent}})()`), postSubmitDiagnostic, cast.board.OperatorView().Doc, cast.board.FeedbackMask(), selected, e, cast.board.OperatorSketchDeliveryStats())
+		t.Fatalf("UNSENT tab-return ink missing: pixels=%+v, pending=%s, drawing=%s, boardDoc=%d, mask=%+v, selection=%+v err=%v, receiver=%+v", unsentRestored, eval(world, `(()=>{const p=__couchcastOperatorSketch.labelInput.getRootNode().querySelector('.feedback-panel');return {hidden:p.hidden,count:p.querySelectorAll('.feedback-row[data-key^="sketch:"]').length,text:p.textContent}})()`), postSubmitDiagnostic, cast.board.OperatorView().Doc, cast.board.FeedbackMask(), selected, e, cast.board.OperatorSketchDeliveryStats())
 	}
 	t.Logf("unsent third sketch live pixels survived real A-to-B-to-A: %+v", unsentRestored)
 	// Exercise the exact private visibility/recorder/Board/builder path after
@@ -679,7 +679,7 @@ func TestOperatorSketchLiveDrawing(t *testing.T) {
 		t.Fatal("current projection rewrote original source")
 	}
 
-	t.Logf("mask-only post-submit real pointer/Note/save/card passed; %s", postSubmitDiagnostic)
+	t.Logf("mask-only post-submit real pointer/Note/save/Notes row passed; %s", postSubmitDiagnostic)
 	previewDelivered = nil
 	publishPreview(3, true)
 	if e = cast.SetDeliveredFeedback(core.DeliveredFeedback{RecordingID: deliveredMask.RecordingID}); e != nil {
@@ -755,7 +755,7 @@ func TestOperatorSketchLiveDrawing(t *testing.T) {
 	diagnosePostSubmit()
 	t.Logf("sanitized same-context head/body/root SPA before Sketch: %s", postSubmitDiagnostic)
 	eval(world, `(()=>{const original=globalThis.__couchcastSketchReply;globalThis.__testSPAReplies=[];globalThis.__couchcastSketchReply=reply=>{__testSPAReplies.push({request:reply.request,ok:reply.ok,error:reply.error,outcome:reply.value?.outcome,status:reply.value?.status});if(__testSPAReplies.length>20)__testSPAReplies.shift();return original(reply)};return true})()`)
-	clickTool("Sketch")
+	clickTool("pen")
 	wait("SPA held scene drawing", func() bool {
 		diagnosePostSubmit()
 		phase := string(eval(world, `__couchcastOperatorSketch.state().phase`))
@@ -794,7 +794,7 @@ func TestOperatorSketchLiveDrawing(t *testing.T) {
 	wait("SPA pressure path settled", func() bool {
 		return string(eval(world, `__couchcastOperatorSketch.state().slots.every(s=>!s.inflight&&!s.queued)`)) == "true"
 	})
-	clickTool("Add note")
+	clickTool("done")
 	wait("SPA sketch Note editor", func() bool {
 		return string(eval(world, `!__couchcastOperatorSketch.labelInput.parentElement.hidden`)) == "true"
 	})
@@ -807,8 +807,8 @@ func TestOperatorSketchLiveDrawing(t *testing.T) {
 	})
 	previewDelivered = deliveredMask.Sketches
 	publishPreview(4)
-	if got := string(eval(world, `(()=>{const p=__couchcastOperatorSketch.labelInput.getRootNode().querySelector('.sketch-submission-preview');return !p.hidden&&p.querySelectorAll('.sketch-submission-card').length===1&&p.textContent.includes('Sketch after SPA replacement')})()`)); got != "true" {
-		t.Fatalf("SPA new sketch pending card missing: %s; %s", got, postSubmitDiagnostic)
+	if got := string(eval(world, `(()=>{const p=__couchcastOperatorSketch.labelInput.getRootNode().querySelector('.feedback-panel');return !p.hidden&&p.querySelectorAll('.feedback-row[data-key^="sketch:"]').length===1&&p.textContent.includes('Sketch after SPA replacement')&&p.querySelector('.feedback-status').textContent.includes('Pending feedback: 1 sketches,')})()`)); got != "true" {
+		t.Fatalf("SPA new sketch pending Notes row missing: %s; %s", got, postSubmitDiagnostic)
 	}
 	t.Logf("same-context SPA head/body/root replacement then real pen/Note/save/pending passed")
 	for _, r := range records {
@@ -924,7 +924,7 @@ func TestOperatorSketchLiveOpenContactHandoffLabel(t *testing.T) {
 
 	defer func() {
 		if t.Failed() {
-			t.Logf("operator handoff diagnostic: %s", eval(world, `JSON.stringify({state:__couchcastOperatorSketch.state(),ui:__couchcastOperatorSketch.labelInput.getRootNode().querySelector('.sketch-status')?.textContent})`))
+			t.Logf("operator handoff diagnostic: %s", eval(world, `JSON.stringify({state:__couchcastOperatorSketch.state(),ui:__couchcastOperatorSketch.labelInput.getRootNode().querySelector('.feedback-status')?.textContent})`))
 		}
 	}()
 	eval(world, `(async()=>{await __couchcastOperatorSketch.enter();return true})()`)

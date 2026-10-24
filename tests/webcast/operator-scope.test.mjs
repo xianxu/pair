@@ -148,7 +148,7 @@ test('operator shared sketch and annotation record subscribers coexist',()=>{
 // receiver. Only the existing DOM fixture's geometry/canvas surface is supplied;
 // source snapshots and private sketch delivery use the production adapters.
 function feedbackRoundtrip(text,{actualSketch=false}={}) {
-  const frames=[],sent=[],events=new Map(),visibilityNotices=[];
+  const frames=[],sent=[],events=new Map(),visibilityNotices=[],previewStatuses=new Map();
   const win={innerWidth:800,innerHeight:600,scrollX:0,scrollY:0,location:{href:'https://example.test/a'},getComputedStyle:n=>n.style,
     crypto:{getRandomValues:b=>b.fill(1)},performance:{now:()=>0},requestAnimationFrame:fn=>frames.push(fn),
     addEventListener(event,fn){if(!events.has(event))events.set(event,[]);events.get(event).push(fn);},removeEventListener(){},cancelAnimationFrame(){},setTimeout:()=>1,clearTimeout(){},clearInterval(){}};
@@ -178,7 +178,7 @@ function feedbackRoundtrip(text,{actualSketch=false}={}) {
   const ui=mountOperator({host,root,report:m=>{if(m.t==='operator')sent.push(m);if(m.t==='feedback-view')visibilityNotices.push(m);}},{annotate:{mountAnnotation},palette:['#112233'],css:'',sketch:{mount(options){
     view=options.view;
     if(actualSketch){const mounted=mountOperatorSketch(options,doc,win);receiver=mounted.receiver;preview={publish:value=>win.__couchcastSketchSubmissionPreview(value)};return mounted;}
-    receiver=createOperatorSketchReceiver(()=>{});preview=createOperatorSubmissionPreview({root,receiver},doc);
+    receiver=createOperatorSketchReceiver(()=>{});preview=createOperatorSubmissionPreview({root,receiver,setStatus:(source,text)=>previewStatuses.set(source,text)},doc);
     return {tool:{},receiver,captureBusy:()=>preview.captureBusy()};
   }}},doc,win);
   const digest='a'.repeat(64),mask={scope:'cast',revision:'9',sketches:[{id:'submitted-shape',next_sequence:'5',digest}],notes:[]};
@@ -187,14 +187,15 @@ function feedbackRoundtrip(text,{actualSketch=false}={}) {
   const bytes=Buffer.from(JSON.stringify({bootstrap:{epoch:'cast',seq:7,display:{sketches:shapes}}}));
   receiver.receive({phase:'begin',handle:'history',epoch:'cast',total:bytes.length});
   receiver.receive({phase:'chunk',handle:'history',epoch:'cast',total:bytes.length,offset:0,base64:bytes.toString('base64')});
-  preview.publish({host:'A',generation:'1',revision:'1',operation:'1',stamp:{board:'1',delivered:'1'},items:[{recording_id:'rec',id:'unsent-shape',next_sequence:5,digest}],notes:[{id:note.id,revision:'0'}],remaining:0,cursor:{epoch:'cast',seq:7}});
+  const previewValue={host:'A',generation:'1',revision:'1',operation:'1',stamp:{board:'1',delivered:'1'},items:[{recording_id:'rec',id:'unsent-shape',next_sequence:5,digest}],notes:[{id:note.id,revision:'0'}],remaining:0,cursor:{epoch:'cast',seq:7}};
+  const previewAck=preview.publish(previewValue);
   const flush=()=>{let budget=30;while(frames.length){assert.ok(budget-->0,'annotation redraw did not settle');frames.shift()();}};
   const snapshot=(revision,document,url,notes)=>{win.location.href=url;win.__couchcastOperatorView({revision,doc:document,seg:document,t:revision,notes,strokes:[],feedback_mask:structuredClone(mask),
     ...(actualSketch?{feedback_context:{recording_id:'rec',t:revision,record_index:revision*10,doc:document,tab:url.endsWith('/a')?'A':'B',url,title:'Page',vp:{w:800,h:600,dpr:1},scroll:[0,0]},note_revisions:Object.fromEntries(notes.map(n=>[n.id,'0']))}:{})});flush();};
-  const rows=()=>root.querySelector('.annotation-note-list').children;
+  const rows=()=>Array.from(root.querySelector('.feedback-rows').children).filter(row=>row.dataset.key.startsWith('note:'));
   const pin=()=>root.querySelector('.pins').children[0];
   const settle=async()=>{for(let i=0;i<20;i++){flush();await Promise.resolve();}};
-  return {win,root,anchor,note,ui,view,receiver,preview,snapshot,flush,settle,rows,pin,sent,digest,events,visibilityNotices};
+  return {win,root,anchor,note,ui,view,receiver,preview,snapshot,flush,settle,rows,pin,sent,digest,events,visibilityNotices,previewStatuses,previewValue,previewAck};
 }
 
 for(const text of ['Save','Distinct original action for the operator roundtrip']) test(`source tab roundtrip keeps unsent feedback reachable and restores only safe placement (${text==='Save'?'common':'distinct'})`,()=>{
@@ -202,26 +203,31 @@ for(const text of ['Save','Distinct original action for the operator roundtrip']
   h.snapshot(1,1,'https://example.test/a',[h.note]);
   assert.equal(h.win.__couchcastOperatorOriginal(1,7,h.anchor),true);h.flush();
   assert.equal(h.rows().length,1);assert.equal(h.pin().hidden,false);assert.equal(h.rows()[0].dataset.placement,'visible');
-  const history=structuredClone(h.receiver.paths()),sketchCard=h.root.querySelector('.sketch-submission-cards').children[0];
+  const history=structuredClone(h.receiver.paths()),metadata=structuredClone(h.receiver.metadata('unsent-shape'));
+  assert.equal(h.root.querySelector('.sketch-submission-cards'),undefined,'preview must not paint a second feedback surface');
+  assert.equal(h.previewStatuses.get('preview'),'Pending feedback: 1 sketches, 1 annotation');
+  assert.equal(h.previewAck.accepted,true);assert.equal(h.preview.captureBusy(),true);
   h.snapshot(2,0,'https://example.test/a',[]);
   assert.equal(h.rows().length,0,'inactive target must retire its page projection');
   assert.equal(h.view.feedbackMask.sketchVisible('submitted-shape',{next_sequence:5,digest:h.digest}),false,'inactive view forgot confirmed history');
   assert.equal(h.win.__couchcastOperatorOriginal(1,7,h.anchor),false,'inactive scope accepted a stale identity binding');
   h.snapshot(3,2,'https://example.test/b',[h.note]);
-  assert.equal(h.rows().length,1);assert.match(h.rows()[0].textContent,/not on this view/);assert.equal(h.pin().hidden,true);
+  assert.equal(h.rows().length,1);assert.match(h.rows()[0].querySelector('.feedback-location').textContent,/not on this view/);assert.equal(h.pin().hidden,true);
   assert.equal(h.view.placementOf(h.receiver.paths()[0]),null,'historical sketch anchor must not project onto another route');
-  h.rows()[0].listeners.click[0]({stopPropagation(){}});
+  h.rows()[0].querySelector('.feedback-open').listeners.click[0]({stopPropagation(){}});
   assert.equal(h.ui.dialog.open,true,'unplaced note must still open');
   assert.equal(h.root.querySelector('.note-input').value,h.note.text);h.ui.dialog.close();
   // Returning A is a fresh recording document within the same isolated world;
   // the retained sketch still owns the original connected DOM binding.
   h.snapshot(4,3,'https://example.test/a',[h.note]);
   assert.equal(h.rows().length,1);
-  assert.doesNotMatch(h.rows()[0].textContent,/not on this view/);assert.equal(h.pin().hidden,false,'retained original failed to restore the pin');
+  assert.doesNotMatch(h.rows()[0].querySelector('.feedback-location').textContent,/not on this view/);assert.equal(h.pin().hidden,false,'retained original failed to restore the pin');
   assert.ok(h.view.placementOf(h.receiver.paths()[0]),'safe retained sketch anchor did not recover placement');
   assert.deepEqual(h.receiver.paths(),history,'tab switch deleted retained complete sketch history');
   assert.equal(h.receiver.metadata('unsent-shape').phase,'complete');
-  assert.equal(h.root.querySelector('.sketch-submission-cards').children[0],sketchCard,'tab switch replaced pending sketch evidence');
+  assert.deepEqual(h.receiver.metadata('unsent-shape'),metadata,'tab switch changed retained sketch evidence');
+  assert.deepEqual(h.preview.publish(h.previewValue),h.previewAck,'tab switch changed the exact validated preview acknowledgement');
+  assert.equal(h.previewStatuses.get('preview'),'Pending feedback: 1 sketches, 1 annotation');
   assert.equal(h.view.feedbackMask.sketchVisible('submitted-shape',{next_sequence:5,digest:h.digest}),false);
   assert.equal(h.view.feedbackMask.sketchVisible('unsent-shape',h.receiver.metadata('unsent-shape')),true);
   assert.deepEqual(h.note,original,'placement mutated recorded note evidence');assert.equal(h.sent.length,0,'display roundtrip emitted a mutation');
@@ -255,7 +261,7 @@ test('retained binding cannot promote an ambiguous replacement and actual clear 
   h.snapshot(3,3,'https://example.test/a',[h.note]);
   assert.equal(h.win.__couchcastOperatorOriginal(3,7,replacement),false,'historical ID rebound to a same-shape node');
   assert.equal(h.view.placementOf(path),null);
-  assert.match(h.rows()[0].textContent,/not on this view/);assert.equal(h.pin().hidden,true);
+  assert.match(h.rows()[0].querySelector('.feedback-location').textContent,/not on this view/);assert.equal(h.pin().hidden,true);
   // The accepted annotation-clear delta drops the historical anchor index.
   const bytes=Buffer.from(JSON.stringify({batch:{epoch:'cast',from:8,to:8,patches:[{clear:true}]}}));
   h.receiver.receive({phase:'begin',handle:'clear',epoch:'cast',total:bytes.length});
@@ -291,7 +297,7 @@ test('actual console painters publish only completed current note and accepted s
   h.anchor.rect.left=110;for(const fn of h.events.get('scroll')||[])fn();
   assert.throws(()=>h.win.__couchcastFeedbackVisibility(),/paint|unavailable/i);await h.settle();
   assert.deepEqual(h.win.__couchcastFeedbackVisibility().sketches[0].paths[0].box,[110,20,100,50]);
-  h.rows()[0].listeners.click[0]({stopPropagation(){}});assert.throws(()=>h.win.__couchcastFeedbackVisibility(),/busy|drawing/i);
+  h.rows()[0].querySelector('.feedback-open').listeners.click[0]({stopPropagation(){}});assert.throws(()=>h.win.__couchcastFeedbackVisibility(),/busy|drawing/i);
   h.ui.dialog.close();await h.settle();assert.equal(h.win.__couchcastFeedbackVisibility().notes.length,1);
   h.snapshot(2,0,'https://example.test/a',[]);await h.settle();assert.throws(()=>h.win.__couchcastFeedbackVisibility(),/context|unavailable/i);
 });

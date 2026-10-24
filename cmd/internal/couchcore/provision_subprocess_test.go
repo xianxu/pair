@@ -45,14 +45,46 @@ func TestProvisionProcessOutputLimits(t *testing.T) {
 
 func TestProvisionProcessCancellation(t *testing.T) {
 	t.Parallel()
-
-	// A TERM-deaf child that would outlive the test: Run returning at all is
-	// the bounded stop. Two bounds stand behind it, the group SIGKILL and
-	// WaitDelay; only losing both hangs into the binary timeout. The error
-	// names the deadline that ended it, with no stopwatch (#479).
-	_, err := (OSProvisionIO{}).Run(context.Background(), ProvisionCommand{Program: "sh", Args: []string{"-c", "trap '' TERM; sleep 3600 & wait"}, Timeout: 100 * time.Millisecond})
-	if !errors.Is(err, context.DeadlineExceeded) {
-		t.Fatalf("error=%v", err)
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	progress := &provisionReadyWriter{ready: make(chan struct{})}
+	armed := make(chan func(), 1)
+	const requested = 45 * time.Second
+	runner := OSProvisionIO{deadline: func(parent context.Context, budget time.Duration) (context.Context, context.CancelFunc) {
+		if budget != requested {
+			t.Errorf("request budget = %v, want %v", budget, requested)
+		}
+		child, expire, stop := testwait.DeadlineOnCue(parent, budget)
+		armed <- expire
+		return child, stop
+	}}
+	done := make(chan error, 1)
+	go func() {
+		_, err := runner.Run(ctx, ProvisionCommand{Program: "sh", Args: []string{"-c", "trap '' TERM; printf ready >&2; sleep 3600 & wait"}, Progress: progress, Timeout: requested})
+		done <- err
+		close(done)
+	}()
+	t.Cleanup(func() { cancel(); <-done })
+	var expire func()
+	select {
+	case expire = <-armed:
+	case <-testwait.After(t):
+		t.Fatal("request deadline was not created")
+	}
+	// Readiness follows the TERM trap, so expiry cannot bypass group escalation.
+	select {
+	case <-progress.ready:
+	case <-testwait.After(t):
+		t.Fatal("TERM-deaf child did not become ready")
+	}
+	expire()
+	select {
+	case err := <-done:
+		if !errors.Is(err, context.DeadlineExceeded) {
+			t.Fatalf("error=%v", err)
+		}
+	case <-testwait.After(t):
+		t.Fatal("expired command did not join")
 	}
 }
 

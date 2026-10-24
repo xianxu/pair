@@ -29,23 +29,25 @@ func TestCastNotesPanelLive(t *testing.T) {
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		// The standalone panel fixture excludes the launcher control, which
 		// otherwise overlaps its controls at the deliberately tiny viewport.
-		fmt.Fprint(w, `<!doctype html><meta charset="utf-8"><link rel="stylesheet" href="/web/annotate.css"><link rel="stylesheet" href="/web/sketch.css">
-<style>couchcast-control{display:none!important}html,body{margin:0;width:100%;height:100%;overflow:hidden}#page{position:fixed;width:110px;height:44px}.note-row{display:block;width:100%;min-height:80px;white-space:normal;overflow-wrap:anywhere}</style>
+		fmt.Fprint(w, `<!doctype html><meta charset="utf-8"><link rel="stylesheet" href="/web/annotate.css"><link rel="stylesheet" href="/web/sketch.css"><link rel="stylesheet" href="/web/feedback-panel.css">
+<style>couchcast-control{display:none!important}html,body{margin:0;width:100%;height:100%;overflow:hidden}#page{position:fixed;width:110px;height:44px}</style>
 <button id="page">Previously covered page</button><script type="module">
-import {mountFloatingPanel} from '/web/floating-panel.js';
+import {mountFeedbackPanel} from '/web/feedback-panel.js';
 import {paintSketchPaths} from '/web/sketch-render.js';
-import {sketchNoteEntries,mountSketchNoteControls} from '/web/sketch-notes.js';
+import {sketchNoteEntries} from '/web/sketch-notes.js';
 window.pageClicks=0;window.rowClicks=0;document.querySelector('#page').onclick=()=>pageClicks++;
-window.resetPanel=()=>{window.panel?.dispose();pageClicks=0;rowClicks=0;const body=document.createElement('div');
-for(let i=0;i<60;i++){const row=document.createElement('button');row.className='note-row';row.textContent='Note '+i+' '+('Long note text with wrapping. '.repeat(12));row.onclick=()=>rowClicks++;body.append(row);}
-window.panel=mountFloatingPanel(document,window,{parent:document.body,body});panel.setCount(60);window.ready=true;};resetPanel();
+window.fixtureNotes=count=>Array.from({length:count},(_,i)=>({id:'n'+i,text:'Note '+i+' '+('Long note text with wrapping. '.repeat(12))}));
+window.noteActions={open:()=>rowClicks++};
+window.resetPanel=()=>{window.panel?.dispose();pageClicks=0;rowClicks=0;
+window.panel=mountFeedbackPanel(document,window,{parent:document.body});panel.setNotes(fixtureNotes(60),noteActions);window.ready=true;};resetPanel();
 window.showSketchControls=(paths,targets)=>{
- window.sketchControls?.dispose();document.querySelector('#sketch-fixture')?.remove();
+ window.panel?.dispose();document.querySelector('#sketch-fixture')?.remove();
  const root=document.createElement('div');root.id='sketch-fixture';root.style.cssText='position:fixed;inset:0;pointer-events:none';document.body.append(root);
  const canvas=document.createElement('canvas');canvas.width=innerWidth;canvas.height=innerHeight;root.append(canvas);
  const bounds=paths.map((p,i)=>paintSketchPaths(canvas.getContext('2d'),[p],{project:()=>targets[i]}));
- window.sketchControls=mountSketchNoteControls(document,{parent:root,onAdd:()=>{throw Error('final labels cannot mutate')}});
- sketchControls.update(sketchNoteEntries(paths,bounds,{metadata:key=>({phase:'complete',label:'Final visible sketch '+key}),editable:new Set(),viewport:{width:innerWidth,height:innerHeight}}),{width:innerWidth,height:innerHeight});
+ window.panel=mountFeedbackPanel(document,window,{parent:document.body});
+ panel.setNotes([{id:paths[0].sketch,text:'Accepted annotation sharing a sketch identity'}],noteActions);
+ panel.setSketches(sketchNoteEntries(paths,bounds,{metadata:key=>({phase:'complete',label:'Final visible sketch '+key}),editable:new Set(),viewport:{width:innerWidth,height:innerHeight}}),{open:()=>{throw Error('final labels cannot mutate')}});
 };
 </script>`)
 	}))
@@ -154,12 +156,14 @@ window.showSketchControls=(paths,targets)=>{
 		require(`getComputedStyle(panel.root).position==='fixed' && getComputedStyle(panel.root).backgroundColor==='rgb(255, 245, 157)' && panel.body.scrollHeight>panel.body.clientHeight`)
 		header := rect(".floating-panel-header")
 		require(`document.documentElement.scrollWidth===innerWidth && document.documentElement.scrollHeight===innerHeight`)
-		click(".note-row")
+		eval(`document.querySelector('.feedback-row .feedback-open').scrollIntoView({block:'center'})`, nil)
+		click(".feedback-row .feedback-open")
 		require("rowClicks===1")
 		rowAnchor := rect(".floating-notes")
 		if rowAnchor["left"] != r["left"] || rowAnchor["top"] != r["top"] {
 			t.Fatalf("ordinary row click dragged panel: before=%v after=%v", r, rowAnchor)
 		}
+		eval(`panel.body.scrollTop=0`, nil)
 		b := rect(".floating-panel-body")
 		call("Input.dispatchMouseEvent", map[string]any{"type": "mouseWheel", "x": b["x"] + b["width"]/2, "y": b["y"] + b["height"]/2, "deltaX": 0, "deltaY": 500}, nil)
 		wait("panel.body.scrollTop>0")
@@ -200,7 +204,7 @@ window.showSketchControls=(paths,targets)=>{
 		if math.Abs(small["left"]-moved["left"]) < 20 {
 			t.Fatalf("minimized drag did not move: before=%v after=%v", moved, small)
 		}
-		eval(`(()=>{const b=document.querySelector('.floating-panel-restore');for(let i=0;i<200;i++)b.dispatchEvent(new KeyboardEvent('keydown',{key:'ArrowRight',shiftKey:true,bubbles:true}));panel.setCount(999999);})()`, nil)
+		eval(`(()=>{const b=document.querySelector('.floating-panel-restore');for(let i=0;i<200;i++)b.dispatchEvent(new KeyboardEvent('keydown',{key:'ArrowRight',shiftKey:true,bubbles:true}));panel.setNotes(fixtureNotes(100),noteActions);})()`, nil)
 		require(`(()=>{const r=panel.root.getBoundingClientRect();return panel.root.classList.contains('minimized')&&r.right<=innerWidth&&r.left>=0})()`)
 		click(".floating-panel-restore")
 		require(`!panel.root.classList.contains('minimized') && !panel.body.hidden`)
@@ -244,30 +248,28 @@ window.showSketchControls=(paths,targets)=>{
 	// Native scroll/multipath/edge proof uses bounds from the real painter.
 	resize(320, 480)
 	eval(`(()=>{const p={sketch:'s',id:'p',width:4,color:'#ff0000',at:{box:[0,0,100,800]},pts:[[30,100,.5],[60,700,.5]]};showSketchControls([p],[ [0,-500,100,800] ]);})()`, nil)
-	reachable := `(()=>{const e=document.querySelector('.sketch-notes-summary'),r=e?.getBoundingClientRect();return !!r&&r.width>0&&r.height>0&&r.left>=0&&r.top>=0&&r.right<=innerWidth&&r.bottom<=innerHeight&&e===document.elementFromPoint(r.x+r.width/2,r.y+r.height/2)})()`
+	reachable := `(()=>{const e=document.querySelector('.floating-panel-minimize'),r=e?.getBoundingClientRect();return !!r&&r.width>0&&r.height>0&&r.left>=0&&r.top>=0&&r.right<=innerWidth&&r.bottom<=innerHeight&&e===document.elementFromPoint(r.x+r.width/2,r.y+r.height/2)})()`
 	require(reachable)
-	click(".sketch-notes-summary")
-	click(".sketch-note-control")
-	require(`document.querySelector('.sketch-note-text').textContent==='Final visible sketch s'&&!document.querySelector('.sketch-note-view').hidden`)
-	click(".sketch-note-close")
+	click(`.feedback-row[data-key="sketch:s"] .feedback-open`)
+	require(`document.querySelector('.feedback-readonly-text').textContent==='Final visible sketch s'&&!document.querySelector('.feedback-readonly').hidden`)
+	click(".feedback-readonly-close")
 	for _, corner := range [][2]int{{0, 0}, {319, 0}, {0, 479}, {319, 479}} {
 		eval(fmt.Sprintf(`(()=>{const off={sketch:'s',id:'off',width:4,at:{box:[0,0,320,480]},pts:[[-100,-100,.5]]};const visible={...off,id:'visible',pts:[[%d,%d,.5]]};showSketchControls([off,visible],[[0,0,320,480],[0,0,320,480]]);})()`, corner[0], corner[1]), nil)
 		require(reachable)
 	}
-	// Identical/partially overlapping/edge-clamped shapes share one entry
-	// target, while every latest identity stays independently selectable.
+	// Identical/partially overlapping/edge-clamped shapes share one Notes
+	// panel with annotations; every latest identity remains selectable.
 	eval(`(()=>{const paths=Array.from({length:24},(_,i)=>({sketch:'s'+i,id:'p',width:4,at:{box:[0,0,320,480]},pts:[[(i%3)*2,(i%4)*2,.5]]}));showSketchControls(paths,paths.map(()=>[0,0,320,480]));})()`, nil)
-	require(`document.querySelectorAll('.sketch-notes-summary').length===1&&document.querySelector('.sketch-notes-summary').textContent==='Sketch notes (24)'`)
+	require(`document.querySelectorAll('.feedback-panel').length===1&&document.querySelectorAll('.feedback-row').length===25&&document.querySelector('.floating-panel-drag').textContent==='Notes (25)'&&!!document.querySelector('.feedback-row[data-key="note:s0"]')&&!document.querySelector('.sketch-notes-summary,.sketch-note-control')`)
 	require(reachable)
 	for i := 0; i < 24; i++ {
-		click(".sketch-notes-summary")
-		eval(fmt.Sprintf(`document.querySelector('.sketch-note-control[data-sketch="s%d"]').scrollIntoView({block:'center'})`, i), nil)
-		selector := fmt.Sprintf(`.sketch-note-control[data-sketch="s%d"]`, i)
+		selector := fmt.Sprintf(`.feedback-row[data-key="sketch:s%d"] .feedback-open`, i)
+		eval(fmt.Sprintf(`document.querySelector(%q).scrollIntoView({block:'center'})`, selector), nil)
 		require(fmt.Sprintf(`(()=>{const e=document.querySelector(%q),r=e.getBoundingClientRect();return r.left>=0&&r.top>=0&&r.right<=innerWidth&&r.bottom<=innerHeight&&document.elementFromPoint(r.x+r.width/2,r.y+r.height/2)===e})()`, selector))
 		click(selector)
-		require(fmt.Sprintf(`document.querySelector('.sketch-note-text').textContent===%q&&!document.querySelector('.sketch-note-view').hidden`, fmt.Sprintf("Final visible sketch s%d", i)))
-		click(".sketch-note-close")
+		require(fmt.Sprintf(`document.querySelector('.feedback-readonly-text').textContent===%q&&!document.querySelector('.feedback-readonly').hidden`, fmt.Sprintf("Final visible sketch s%d", i)))
+		click(".feedback-readonly-close")
 	}
-	eval(`sketchControls.dispose();document.querySelector('#sketch-fixture').remove()`, nil)
+	eval(`panel.dispose();document.querySelector('#sketch-fixture').remove()`, nil)
 
 }

@@ -19,7 +19,7 @@
   let live = false;
   let controlRevision = -1;
   let driver = '';
-  let button = null;
+  let button = null, operatorUI = null;
   let banner = null;
   let host = null;
   let guarded = true; // a replacement document waits for its target's guard state
@@ -48,7 +48,7 @@
     if (!button) return;
     const text = driver ? `${driver} is driving` : '', label = live ? '❚❚ Pause' : '● Go live';
     if (banner.textContent !== text) banner.textContent = text;
-    if (banner.hidden !== !driver) banner.hidden = !driver;
+    if (banner.hidden !== (!driver || !!operatorUI)) banner.hidden = !driver || !!operatorUI;
     if (button.textContent !== label) button.textContent = label;
     const pressed = live ? 'true' : 'false', cls = live ? 'cast-button live' : 'cast-button';
     if (button.getAttribute('aria-pressed') !== pressed) button.setAttribute('aria-pressed', pressed);
@@ -84,7 +84,7 @@
     root.appendChild(button);
     document.documentElement.appendChild(host);
     if (globalThis.__couchcastMountOperator) {
-      globalThis.__couchcastMountOperator({ host, root, report });
+      operatorUI = globalThis.__couchcastMountOperator({ host, root, report, liveButton: button, banner });
       // The initial hello can precede DOMContentLoaded and the operator hook.
       report({ t: 'hello' });
     }

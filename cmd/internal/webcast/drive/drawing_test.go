@@ -389,11 +389,28 @@ func TestDrawingMetadataAuthorSurvivesHandoffWithoutDrawing(t *testing.T) {
 	}
 }
 
+type drawingCueTimer struct{ stopped bool }
+
+func (t *drawingCueTimer) Stop() bool { t.stopped = true; return true }
+
 func TestDrawingSeatExpiryRevokesCredentialsAndOnlyHolderTurn(t *testing.T) {
 	for _, driverLeaves := range []bool{false, true} {
 		t.Run(map[bool]string{false: "pending seat leaves", true: "driver leaves"}[driverLeaves], func(t *testing.T) {
 			sink := &drawingControlSink{}
 			c := drawingController(t, sink, nil)
+			var fire func()
+			c.afterFunc = func(budget time.Duration, expire func()) stoppableTimer {
+				if budget != c.grace {
+					t.Errorf("grace budget=%v, want %v", budget, c.grace)
+				}
+				timer := &drawingCueTimer{}
+				fire = func() {
+					if !timer.stopped {
+						expire()
+					}
+				}
+				return timer
+			}
 			a := drawingSeat(t, c, "Ana")
 			drawingGrant(t, c, a)
 			leaving := a
@@ -418,10 +435,13 @@ func TestDrawingSeatExpiryRevokesCredentialsAndOnlyHolderTurn(t *testing.T) {
 			changes, cancel := c.Subscribe()
 			defer cancel()
 			<-changes
-			c.mu.Lock()
-			c.grace = time.Nanosecond
-			c.mu.Unlock()
+			fire = nil
 			detach()
+			if fire == nil {
+				t.Fatal("detach did not arm grace timer")
+			}
+			settled := make(chan struct{})
+			go func() { fire(); close(settled) }()
 			drawingWait(t, sink.entered)
 			if _, err := c.AuthenticateDrawingAuthor(leaving.Key); !errors.Is(err, ErrNoSeat) {
 				t.Fatalf("expired metadata credential %v", err)
@@ -436,6 +456,7 @@ func TestDrawingSeatExpiryRevokesCredentialsAndOnlyHolderTurn(t *testing.T) {
 				}
 			}
 			close(sink.allow)
+			drawingWait(t, settled)
 			select {
 			case <-changes:
 			case <-time.After(time.Second):

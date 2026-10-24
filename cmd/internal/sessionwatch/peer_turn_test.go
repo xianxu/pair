@@ -59,7 +59,13 @@ func TestRunConfirmsCodexBindingFromARecordedPeerTurn(t *testing.T) {
 			runtime.modTimes[paths.AgentPID()] = runtime.now
 			runtime.identities["1234"] = "pair-identity"
 
-			if err := Run(Options{Agent: "codex", Tag: "work", ScopeKey: "scope", LaunchOrdinal: 1, Home: "/home", DataDir: dataDir, PIDWait: time.Second, Timeout: 20 * time.Millisecond, Poll: time.Millisecond}, runtime); err != nil {
+			// The unrelated round has been observed when the watcher first sleeps.
+			// End its owned process then; no wall-clock probation is needed.
+			if !tc.confirm {
+				runtime.onSleep = func() { runtime.identities["1234"] = "gone" }
+			}
+
+			if err := Run(Options{Agent: "codex", Tag: "work", ScopeKey: "scope", LaunchOrdinal: 1, Home: "/home", DataDir: dataDir}, runtime); err != nil {
 				t.Fatal(err)
 			}
 			confirmed := len(runtime.store.records) == 1 && runtime.store.records[0].RootNativeID == sid

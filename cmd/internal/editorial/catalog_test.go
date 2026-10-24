@@ -4,8 +4,6 @@ import (
 	"strings"
 	"testing"
 	"testing/fstest"
-
-	"github.com/xianxu/ariadne/pkg/vocab"
 )
 
 func TestCatalogProcessingPrefixes(t *testing.T) {
@@ -85,7 +83,7 @@ func TestCatalogMalformedMetadata(t *testing.T) {
 }
 
 func TestCatalogAxisResolvers(t *testing.T) {
-	for _, s := range vocab.CollaborationModes {
+	for _, s := range []string{"discussion", "collaboration", "chat"} {
 		if got, err := ResolveCollaboration(s); err != nil || got != s {
 			t.Fatalf("%s: %s %v", s, got, err)
 		}

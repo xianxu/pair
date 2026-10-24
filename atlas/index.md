@@ -104,12 +104,16 @@
   evidence. See [fixture writes and budgets](workbench-performance.md#fixture-writes-and-budgets).
 - `cmd/internal/testgit` — scoped empty Git templates and completed fixture-tree
   file/directory/logical-byte budgets; constructor audits precede test mutations.
+- `internal/jsonstrict` — shared structural JSON authority for boundary readers;
+  [policy and owner contracts](boundary-validation.md).
 - `cmd/internal/testwait` — how a Go test waits for an event: bounded by the
   test's own deadline minus a margin (`After` for a select guard, `Until`/`Wait`
   to poll, `Budget` for a hand-rolled loop or a helper's timeout), never by a guess at how fast the event comes, so a loaded `-race`
   run stays green and a lost event still fails naming what it waited for
   (pair#479). Where a test's subject is a bound, assert the outcome that proves
   it (the product's timeout error, a child's ending signal), not elapsed time.
+  `DeadlineOnCue` preserves the requested budget and parent cancellation while
+  tests expire their own deadline only after the intended readiness observation.
 - `probes/` — committed probe drivers that exercise real binaries end to end.
   `make test-smoke` runs **every** directory under `probes/`, so a new probe is
   covered by existing it rather than by remembering to add a line. A probe earns

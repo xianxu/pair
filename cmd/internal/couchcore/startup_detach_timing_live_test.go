@@ -77,6 +77,66 @@ type startupProcTiming struct {
 	phases *startupPhases
 }
 
+func setupStartupTimingSocketEnvironment(t *testing.T) {
+	t.Helper()
+	if os.Getenv("PAIR_STARTUP_PERF_ISOLATE_SOCKET") != "1" {
+		return
+	}
+	socketRoot := testpair.ShortRoot(t)
+	t.Setenv("TMPDIR", socketRoot)
+	t.Logf("isolated socket TMPDIR=%s; socket workload excludes co-tenant sessions", socketRoot)
+}
+
+func TestStartupTimingSocketEnvironmentPreservesInheritedTMPDIR(t *testing.T) {
+	longTemp := filepath.Join(t.TempDir(), strings.Repeat("long", 30))
+	if err := os.MkdirAll(longTemp, 0700); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("TMPDIR", longTemp)
+	for _, isolate := range []string{"", "1"} {
+		var owned string
+		t.Run("isolate="+isolate, func(t *testing.T) {
+			inheritedTemp := os.TempDir()
+			ordinary, err := os.MkdirTemp("", "ordinary-")
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() {
+				if err := os.RemoveAll(ordinary); err != nil {
+					t.Error(err)
+				}
+			})
+			testpair.ApplyEnvironment(t, ordinary, "TMPDIR="+inheritedTemp, "PAIR_STARTUP_PERF_ISOLATE_SOCKET="+isolate)
+			setupStartupTimingSocketEnvironment(t)
+			if !strings.HasPrefix(ordinary, longTemp+string(filepath.Separator)) {
+				t.Fatalf("ordinary fixture escaped inherited TMPDIR: %q", ordinary)
+			}
+			if isolate == "" {
+				if got := os.TempDir(); got != longTemp {
+					t.Fatalf("default TMPDIR=%q, want inherited %q", got, longTemp)
+				}
+				return
+			}
+			owned = os.TempDir()
+			physical, err := filepath.EvalSymlinks(owned)
+			if err != nil || physical != owned || len(owned) > 36 {
+				t.Fatalf("isolated root=%q physical=%q: %v", owned, physical, err)
+			}
+			if info, err := os.Stat(owned); err != nil || info.Mode().Perm() != 0700 {
+				t.Fatalf("isolated root is not private: %v %v", info, err)
+			}
+		})
+		if got := os.TempDir(); got != longTemp {
+			t.Fatalf("TMPDIR not restored: %q", got)
+		}
+		if owned != "" {
+			if _, err := os.Stat(owned); !os.IsNotExist(err) {
+				t.Fatalf("isolated root survived cleanup: %v", err)
+			}
+		}
+	}
+}
+
 func (p startupProcTiming) SignalGroup(pid int, signal os.Signal) error {
 	start := time.Now()
 	defer p.phases.add("proc.SignalGroup", start)
@@ -101,7 +161,7 @@ func TestStartupManagedAttachDetachTimingLive(t *testing.T) {
 	if os.Getenv("PAIR_LIVE_COUCH") != "1" || os.Getenv("PAIR_LIVE_STARTUP_PERF") != "1" {
 		t.Skip("set PAIR_LIVE_COUCH=1 PAIR_LIVE_STARTUP_PERF=1")
 	}
-	t.Setenv("TMPDIR", "/tmp")
+	inheritedTemp := os.TempDir()
 	base, err := filepath.EvalSymlinks(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
@@ -132,7 +192,7 @@ func TestStartupManagedAttachDetachTimingLive(t *testing.T) {
 		}
 		explicit = append(explicit, key+"="+dir)
 	}
-	explicit = append(explicit, "SHELL=/bin/sh", "TMPDIR=/tmp", "PAIR_STARTUP_TIMING=1")
+	explicit = append(explicit, "SHELL=/bin/sh", "TMPDIR="+inheritedTemp, "PAIR_STARTUP_TIMING=1")
 	testpair.ApplyEnvironment(t, home, explicit...)
 	root, err := filepath.Abs("../../..")
 	if err != nil {
@@ -152,23 +212,7 @@ func TestStartupManagedAttachDetachTimingLive(t *testing.T) {
 	}
 	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
 	t.Setenv("PAIR_HOME", root)
-	if os.Getenv("PAIR_STARTUP_PERF_ISOLATE_SOCKET") == "1" {
-		socketRoot, err := os.MkdirTemp("/private/tmp", "p218.")
-		if err != nil {
-			t.Fatal(err)
-		}
-		socketRoot, err = filepath.EvalSymlinks(socketRoot)
-		if err != nil {
-			t.Fatal(err)
-		}
-		t.Cleanup(func() {
-			if err := os.RemoveAll(socketRoot); err != nil {
-				t.Errorf("remove private socket root: %v", err)
-			}
-		})
-		t.Setenv("TMPDIR", socketRoot)
-		t.Logf("isolated socket TMPDIR=%s; socket workload excludes co-tenant sessions", socketRoot)
-	}
+	setupStartupTimingSocketEnvironment(t)
 	if os.Getenv("PAIR_STARTUP_PERF_DIAGNOSTICS") == "1" {
 		realZellij, err := exec.LookPath("zellij")
 		if err != nil {

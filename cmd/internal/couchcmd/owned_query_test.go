@@ -94,15 +94,7 @@ func TestCouchQueriesCollectOwnedDescendants(t *testing.T) {
 	} {
 		for _, mode := range []string{"success", "failure", "cancel", "pipe-holder"} {
 			t.Run(entry.name+"/"+mode, func(t *testing.T) {
-				root, err := os.MkdirTemp("", "pcq-")
-				if err != nil {
-					t.Fatal(err)
-				}
-				t.Cleanup(func() {
-					if err := os.RemoveAll(root); err != nil {
-						t.Error(err)
-					}
-				})
+				root := testpair.ShortRoot(t)
 				listener, err := net.Listen("unix", filepath.Join(root, "gate"))
 				if err != nil {
 					t.Fatal(err)

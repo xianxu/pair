@@ -85,13 +85,13 @@ test('console disabled Sketch explains readiness and distinguishes driving holde
  assert.equal(toolbar.hidden,false);
  assert.equal(button('Sketch').disabled,true);
  assert.equal(button('Done').disabled,true);
- assert.match(f.root.querySelector('.sketch-status').textContent,/getting ready.*Wait/);
+ assert.match(f.root.querySelector('.feedback-status').textContent,/getting ready.*Wait/);
  f.win.__couchcastSketchAuthority({revision:'3',epoch:1,holder:'driver',ready:true,active:true,generation:'1'});
- assert.match(f.root.querySelector('.sketch-status').textContent,/viewer.*driving.*release/i);
+ assert.match(f.root.querySelector('.feedback-status').textContent,/viewer.*driving.*release/i);
  f.win.__couchcastSketchAuthority({revision:'4',epoch:1,holder:'operator',ready:true,active:true,generation:'1'});
  assert.equal(button('Sketch').disabled,false);
  assert.equal(button('Done').disabled,true);
- assert.equal(f.root.querySelector('.sketch-status').textContent,'');
+ assert.equal(f.root.querySelector('.feedback-status').textContent,'');
  f.adapter.dispose();
 });
 
@@ -316,13 +316,13 @@ for(const exit of ['Done','Escape','point','note'])for(const released of [false,
 for(const kind of ['handoff','pause','clear','end'])test(`console ${kind} visibly retires pending-anchor finishing and fences late callback`,async()=>{
  const f=await drawingConsole({deferredAnchor:true});const leaving=f.adapter.tool.leave('point');
  await f.context(kind);await leaving;
- assert.match(f.root.children.find(n=>n.className==='sketch-status').textContent,/Couldn't save; accepted strokes kept/);
+ assert.match(f.root.querySelector('.feedback-status').textContent,/Couldn't save; accepted strokes kept/);
  f.resolveAnchor();await f.flush();assert.equal(f.sent.filter(r=>r.kind==='sketch-stroke-begin').length,0);assert.equal(f.adapter.tool.layer.hasPointerCapture(1),false);f.adapter.dispose();
 });
 test('console finishing deadline bounds anchor wait and retains explicit failure after late response',async()=>{
  const f=await drawingConsole({deferredAnchor:true});const leaving=f.adapter.tool.leave('watch');f.tick(5000);await leaving;await f.flush();
- assert.match(f.root.children.find(n=>n.className==='sketch-status').textContent,/Couldn't save; accepted strokes kept/);
- f.resolveAnchor();await f.flush();assert.equal(f.sent.filter(r=>r.kind==='sketch-stroke-begin').length,0);assert.match(f.root.children.find(n=>n.className==='sketch-status').textContent,/Couldn't save/);f.adapter.dispose();
+ assert.match(f.root.querySelector('.feedback-status').textContent,/Couldn't save; accepted strokes kept/);
+ f.resolveAnchor();await f.flush();assert.equal(f.sent.filter(r=>r.kind==='sketch-stroke-begin').length,0);assert.match(f.root.querySelector('.feedback-status').textContent,/Couldn't save/);f.adapter.dispose();
 });
 
 for(const ending of ['pointerup','pointercancel','lostpointercapture','buffer-limit'])
@@ -336,7 +336,7 @@ for(const ending of ['pointerup','pointercancel','lostpointercapture','buffer-li
    assert.equal(f.adapter.tool.layer.hasPointerCapture(1),false);let prevented=0,stopped=0;
    assert.doesNotThrow(()=>f.event('pointerdown',{pointerId:2,preventDefault(){prevented++;},stopPropagation(){stopped++;}}));
    assert.equal(prevented,1);assert.ok(stopped>0);assert.equal(f.adapter.tool.layer.hasPointerCapture(2),false);
-   assert.match(f.root.children.find(n=>n.className==='sketch-status').textContent,/previous stroke.*wait|wait.*previous stroke/i);
+   assert.match(f.root.querySelector('.feedback-status').textContent,/previous stroke.*wait|wait.*previous stroke/i);
    f.resolveAnchor();await f.flush();assert.doesNotThrow(()=>f.event('pointermove',{pointerId:2,clientX:80}));assert.doesNotThrow(()=>f.event('pointerup',{pointerId:2,buttons:0,clientX:80}));
    assert.equal(f.model.sketchProjection().sketches[0].strokes.length,1);
    f.event('pointerdown',{pointerId:3});f.event('pointerup',{pointerId:3,buttons:0});await f.flush();f.resolveAnchor();await f.flush();assert.equal(f.model.sketchProjection().sketches[0].strokes.length,2);
@@ -356,7 +356,7 @@ test('console rejected N/2N downs allocate no IDs capture hit-tests timers or po
  assert.equal(ids,beforeIDs);assert.equal(captures,0);assert.deepEqual(f.stats(),before);assert.equal(f.sent.length,sent);f.resolveAnchor();await f.flush();assert.deepEqual(f.model.sketchProjection().sketches[0].strokes[0].pts,[[20,20,.5]]);f.adapter.dispose();}}finally{globalThis.crypto.randomUUID=randomUUID;}
 });
 test('console ordinary anchor timeout releases logical owner and fences late callback',async()=>{
- const f=await drawingConsole({deferredAnchor:true});f.event('pointerup',{buttons:0});f.tick(5000);await f.flush();assert.match(f.root.children.find(n=>n.className==='sketch-status').textContent,/no usable anchor; accepted strokes kept/);f.resolveAnchor();await f.flush();assert.equal(f.model.sketchProjection().sketches[0].strokes.length,0);
+ const f=await drawingConsole({deferredAnchor:true});f.event('pointerup',{buttons:0});f.tick(5000);await f.flush();assert.match(f.root.querySelector('.feedback-status').textContent,/no usable anchor; accepted strokes kept/);f.resolveAnchor();await f.flush();assert.equal(f.model.sketchProjection().sketches[0].strokes.length,0);
  f.event('pointerdown',{pointerId:2});f.event('pointerup',{pointerId:2,buttons:0});await f.flush();f.resolveAnchor();await f.flush();assert.equal(f.model.sketchProjection().sketches[0].strokes.length,1);f.adapter.dispose();
 });
 
@@ -373,7 +373,7 @@ for(const completion of ['reject','timeout'])for(const released of [false,true])
  const f=await drawingConsole();let held=false,oldTerminal;
  f.setReply((request,value)=>{if(request.kind==='sketch-stroke-end'&&!held){held=true;oldTerminal=()=>f.adapter.transport.reply({request:request.request,ok:true,value});return false;}});
  f.event('pointerup',{buttons:0});await f.flush();f.tick(1000);f.deferAnchors();f.event('pointerdown',{pointerId:2});if(released)f.event('pointerup',{pointerId:2,buttons:0});await f.flush();const old=f.anchorCallbacks();
- f.tick(4000);await f.flush();assert.equal(f.adapter.tool.state().phase,'reconciling');assert.match(f.root.children.find(n=>n.className==='sketch-status').textContent,/Couldn't save this stroke; accepted strokes kept/);f.adapter.tool.retry();await f.flush();assert.equal(f.adapter.tool.state().phase,'drawing');
+ f.tick(4000);await f.flush();assert.equal(f.adapter.tool.state().phase,'reconciling');assert.match(f.root.querySelector('.feedback-status').textContent,/Couldn't save this stroke; accepted strokes kept/);f.adapter.tool.retry();await f.flush();assert.equal(f.adapter.tool.state().phase,'drawing');
  f.event('pointerdown',{pointerId:3});await f.flush();const fresh=f.anchorCallbacks();if(completion==='reject')old.reject();else f.tick(1000);await f.flush();assert.equal(f.adapter.tool.layer.hasPointerCapture(3),true);
  f.event('pointerup',{pointerId:3,buttons:0});fresh.resolve();await f.flush();assert.equal(f.model.sketchProjection().sketches[0].strokes.length,2);old.resolve();oldTerminal();await f.flush();assert.equal(f.model.sketchProjection().sketches[0].strokes.length,2);f.adapter.dispose();
 });

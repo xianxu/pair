@@ -60,6 +60,11 @@ Change:
 
 ### 2026-10-23
 
+### 2026-10-23 — Joint plan with #856
+
+Claimed alongside #856 at the hub's request. Recording already computes loader/root identity but does not persist it; top frame navigation currently updates loader without directly forcing resnapshot. DocSeg is an activation fence, so tab return cannot use it as the page-load identity. Plan derives note/sketch membership from additive segment metadata, preserving sketch request digests and unfiltered historical query. Pending or legacy-unknown scope excludes page feedback rather than borrowing a prior load. This policy and codec extension handling are explicitly proposed for approval, not implemented. #849 owns board/submission.go until landing; coordinate before edits. Next: joint design approval, then own main-based branch after #856 lands.
+
+
 ### 2026-10-24 — Independent data and recorder work
 
 TL receipt 8b5caf7d-587c-44ab-9f60-a0832c521a5a authorizes a separate branch from current main now, copying no #856 commits. Started from main 9c81052a1; #849 press-time selection is present, #856 UI integration waits for its landing. The approved joint design is carried into this issue's own durable plan before change-code. Read-only surveys show synchronous recorder snapshot IO requires the approved generation fence at ingress, not only when the actor later dequeues navigation. They also establish no individual CDP identifier cap; retain that contract and positive int64 backend roots, with exact string projection to JS.
@@ -98,9 +103,22 @@ After #856 lands: switch back here, merge landed main (bringing #856), finish th
 
 ## Revisions
 
+### 2026-10-23 — Dependent branch and submit behavior
+
+TL approved one joint plan with #856 and a separate #857 branch from landed main. No earlier-load UI drawer. #849's new atomic press selection is the membership seam; preview does not gate submission and an already admitted selection stays pinned through later navigation. Unknown current load contributes no page feedback while ordinary text and the unsaved-note guard retain #849 behavior; this conservative edge policy awaits joint plan approval.
+
+### 2026-10-23 — Operator's live cross-tab observation
+
+Authenticated TL feedback 96da76d2-2673-40a2-b1aa-38ef59fe0206 reports the live cast injected the echo tab's two notes into a newly opened mock tab as “not on this view.” This is direct motivating evidence for target plus load membership, not just reload handling. The synthetic native qualification must include a new tab at the same URL starting with no prior feedback, with tab return restoring only its matching original load; query still retains history. Private screenshots remain in ops assets, not copied into Pair. Mock viewing uses a non-cast Chrome window to separate proposed layout from the current production injection.
+
+
 ### 2026-10-24 — Parallel independent preparation
 
 The approved joint scope is unchanged. TL8b5caf7d permits data/recorder work before #856 lands, on a main-based branch with no copied #856 commits; its UI integration still waits for landed main. Pending/unknown scope contributes no page feedback, without adding a global text-submit refusal; the ordinary unsaved-note guard stays. Earlier-load feedback remains queryable history, entirely absent from live UI.
+
+### 2026-10-24 — Resume after #856 landing
+
+#856 landed as PR583; its integration suite passed12m49s and final CI cleared. Brought landed main into this independent branch, preserving both the earlier published joint-plan history and the newer implementation checkpoint. Recorder lifetime repair is next, then historical provenance and current-load UI integration. Normal measured actuals apply at close after ariadne#591. Morning stage is coordinated by pair:3 and includes #857 only if complete and green in time; it must not delay the combined stage.
 
 ## Estimate
 
