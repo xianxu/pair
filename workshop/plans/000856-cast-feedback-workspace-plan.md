@@ -121,13 +121,14 @@ UI-only panel/highlight state dies with mount teardown; observers, drag listener
 
 ### 2. Unified panel and column (#856, after #850/#849 land)
 
-- [ ] Add failing pure tests for `feedbackEntries` and `feedbackLayout` using the strategy table below; run Node tests and confirm the intended failures.
-- [ ] Implement projections/layout without IO; reuse the floating-panel reducer, painter and existing note/sketch IDs and commands.
-- [ ] Add the thin keyed panel adapter and connect it to annotate/sketch models. Remove #850's separate selector and its obsolete tests; retain its grouping/click/viewport regressions under the unified surface.
-- [ ] Move existing live/pause and sketch controls into one protected column; route status publication to the Notes header. Preserve control revisions, driver/off rules and UI-suppression gate.
-- [ ] Keep `noteDialog.unsaved` and `__couchcastNoteUnsaved` through editor mounting; keep sketch finished-label view read-only. Implement confirmed-anchor scroll/highlight with explicit unavailable result. Row hover and keyboard focus glow only the corresponding current-load sketch ink or annotation box, without scrolling or changing feedback selection.
-- [ ] Run focused Node and native operator tests, update `atlas/webcast-submission.md` and the relevant webcast atlas map, audit reader inventory, push, and run `sdlc local-check run --pre-close`.
+- [x] Add failing pure tests for `feedbackEntries` and `feedbackLayout` using the strategy table below; run Node tests and confirm the intended failures.
+- [x] Implement projections/layout without IO; reuse the floating-panel reducer, painter and existing note/sketch IDs and commands.
+- [x] Add the thin keyed panel adapter and connect it to annotate/sketch models. Remove #850's separate selector and its obsolete tests; retain its grouping/click/viewport regressions under the unified surface.
+- [x] Move existing live/pause and sketch controls into one protected column; route status publication to the Notes header. Preserve control revisions, driver/off rules and UI-suppression gate.
+- [x] Keep `noteDialog.unsaved` and `__couchcastNoteUnsaved` through editor mounting; keep sketch finished-label view read-only. Implement confirmed-anchor scroll/highlight with explicit unavailable result. Row hover and keyboard focus glow only the corresponding current-load sketch ink or annotation box, without scrolling or changing feedback selection.
+- [x] Run focused Node and native operator tests, update `atlas/webcast-submission.md` and the relevant webcast atlas map, audit reader inventory, push, and run `sdlc local-check run --pre-close`.
 - [ ] Close through SDLC's fresh review, fix findings on the tested source, and coordinate operator stage/live acceptance through the hub. Land #856 before starting #857's branch.
+
 
 ### 3. Page-load model and recorder fence (#857, independent branch)
 
@@ -205,3 +206,7 @@ TL receipt e378240d-75dd-498d-96e8-91b542182269 records the operator’s “yes,
 TL receipt 0ed24a81-0dcd-481a-a33b-9a6ee394b937 approves the one mock deviation: pen colours remain visible/selectable before starting, since the accepted begin fixes the colour and the existing adapter disables changes while active. No extra arming state is added. Undo/Redo/Done remain conditional. Morning stage steps must call this out.
 
 Actual Node command is `node --test tests/webcast/*.test.mjs`; tests reside there, not web/*.test.js. New IO helpers are tested by `feedback-glow.test.mjs`, `cast-tools.test.mjs` and `feedback-panel.test.mjs`; trusted reveal extends `annotation-placement.test.mjs`. Runtime assets are embedded/routed in server.go and imported by the actual operator bundle. Existing source-bound native fixtures are migrated to the unified panel and column, retaining privacy and lifecycle assertions.
+
+### 2026-10-24 — Landing and morning production-look sequencing
+
+TL66eb5fd0-b8a4-40d7-a896-3ba247374694 approves #856 landing after SHIP and exact-source checks on the accepted mock plus native evidence; the combined morning stage covers the production look, with subsequent operator changes as follow-ups. #857 then starts on its own branch from landed main. The stage is main plus #857 if ready plus #842, only after hub sequencing. This supersedes the earlier pre-landing production-look ordering for #856.

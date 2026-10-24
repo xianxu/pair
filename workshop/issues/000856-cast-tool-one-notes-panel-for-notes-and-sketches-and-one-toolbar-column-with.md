@@ -52,8 +52,10 @@ react to before code.
 Durable joint design: [Cast feedback workspace](../plans/000856-cast-feedback-workspace-plan.md). #857 remains a dependent issue on its own eventual main-based branch.
 
 - [x] Deliver the clickable layout mock and record operator approval.
-- [ ] Implement the unified panel and protected one-column toolbar after #850/#849 land.
-- [ ] Qualify, close, obtain the live look and land through SDLC.
+- [x] Implement the unified panel and protected one-column toolbar after #850/#849 land.
+- [x] Qualify the unified panel and column through Node and native browser tests; audit the reader inventory.
+
+Close and landing use their SDLC gates. The recorded exact-source pre-close check must pass before landing; see the approved production-look revision below.
 
 ## Log
 
@@ -136,3 +138,9 @@ Verification so far: all591 Node tests passed before the final header fix; the f
 Next: rerun complete Node and focused Go/native checks on this source, stage new files before auditing make test-affected-inventory, commit/push, then recorded pre-close and full close review. Production operator look remains outstanding; coordinate the combined #856/#857-if-ready/#842 stage with the hub before touching pair:0. #857 remains a separately claimed main-based dependent issue, not implemented here. The old mock server is stopped.
 
 Final checkpoint rerun: all592 Node tests passed (0 failures;1.928s), including the header regression. The concepts table now names actual module ownership and the retained pure painted-bounds helper.
+
+### 2026-10-24 — Production-look sequencing approved
+
+Authenticated TL66eb5fd0-b8a4-40d7-a896-3ba247374694 approves landing #856 after SHIP and checks: accepted mock plus native evidence suffices, with the morning combined stage covering the production look and later feedback filed separately. This revises Done-when's live-look timing, not its expected behavior. Then start #857 from landed main; morning stage is main plus #857 if ready plus #842. No stage action is authorized until the hub sequences pair:0.
+
+Post-checkpoint verification: make test-affected-inventory passed; native TestCastNotesPanelLive passed1.88s and all three operator module assembly/execution checks passed (combined package2.361s). Recorded pre-close on pushed2d79cedc resolved to affected, then correctly selected full fallback for the Node test inputs. Retained terminal28316 owns lease-2850435122, run018c9e9769db284d99ed1540a4998d34, detached snapshot /Volumes/TestScratch/local-checks/sdlc-local-2771889491; queued FIFO11 when reported. Do not start a second runner or restart while queued. Full close review may overlap under the fleet rule; landing waits for the exact-source result.
