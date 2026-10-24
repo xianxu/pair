@@ -96,6 +96,49 @@ rounds:
       recipe: milestone-review
       isolation: fenced
       blocked: true
+    - reviewer_runs:
+        - version: 1
+          intent:
+            disposable_root: true
+            id: e3613c05-525b-451c-b562-ab804901230c
+            repository: github.com/xianxu/pair
+            issue_id: "000844"
+            recipe: milestone-review
+            round: 3
+            attempt: 1
+            agent: codex
+            root: /Volumes/TestScratch/review-checkouts/474ca958dbc663fe
+            reviewed_head: d7a07ecba6348d1d1a9d9de3c3704c45926c19c6
+            slot: pair:1
+            requested_at: "2026-10-24T19:20:34.7575Z"
+          phase: finished
+          pid: 87997
+          started_at: "2026-10-24T19:20:34.930069Z"
+          finished_at: "2026-10-24T19:26:30.075655Z"
+          session_id: 01a16f5b-968f-7643-ad9e-c04f0a48b495
+          outcome: returned
+      "n": 3
+      timestamp: "2026-10-24T12:26:31-07:00"
+      dispatched: "2026-10-24T12:20:31-07:00"
+      agent: codex
+      reviewer: codex (openai; author openai)
+      dispose:
+        - id: BR-1
+          disposition: addressed
+          note: Owner generation is validated within its retained root. Pending owner loss and confirmed refusal receive unavailable-owner fallback; unknown readiness preserves the obligation, while admitted/uncertain sends never resend. Production-path regressions pass, and mutations removing scoped revocation or witness retention fail.
+          round: 3
+        - id: BR-2
+          disposition: addressed
+          note: README.md:1264 and :1536 replace unconditional warning/prompt eligibility with owning-hub routing, operator exceptions, unavailable-owner fallback, and connected-OFF suppression, consistent with couchcore/notice_route.go:73.
+          round: 3
+        - id: BR-3
+          disposition: addressed
+          note: Both package inventories use cmd/internal/testnotice/inventory.go:21 for analysis and its shared rejection fixtures, retaining package-specific projection and forwarding declarations.
+          round: 3
+      recipe: milestone-review
+      isolation: fenced
+      reviewed: d7a07ecba6348d1d1a9d9de3c3704c45926c19c6
+      blocked: false
 ---
 
 # Gate ledger — pair#844 (boundary-review)
@@ -122,6 +165,14 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - BR-2 — addressed — README.md:1264-1268 and :1536-1543 now describe owning-hub routing, operator-owned exceptions, unavailable-owner fallback and connected-OFF suppression/no replay. These passages match couchcore.RouteNotice and the condition projections in attention.go and message_service.go.
 - BR-3 — addressed — Both package inventories now delegate AST walking, receiver recognition and rejection fixtures to cmd/internal/testnotice/inventory.go, passing package-specific Projection and Forward configuration. The shared helper tests pass.
 
+## Round 3 — 2026-10-24T12:26:31-07:00 (codex) — passed
+
+### Disposed
+
+- BR-1 — addressed — Owner generation is validated within its retained root. Pending owner loss and confirmed refusal receive unavailable-owner fallback; unknown readiness preserves the obligation, while admitted/uncertain sends never resend. Production-path regressions pass, and mutations removing scoped revocation or witness retention fail.
+- BR-2 — addressed — README.md:1264 and :1536 replace unconditional warning/prompt eligibility with owning-hub routing, operator exceptions, unavailable-owner fallback, and connected-OFF suppression, consistent with couchcore/notice_route.go:73.
+- BR-3 — addressed — Both package inventories use cmd/internal/testnotice/inventory.go:21 for analysis and its shared rejection fixtures, retaining package-specific projection and forwarding declarations.
+
 ## Open findings
 
-- **BR-1** [Critical] `notice-owner-loss-fallback` (kind: defect) Losing the owning hub can silently retire undelivered diagnostics
+(none — every finding has been disposed)

@@ -216,3 +216,97 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000410
+
+---
+
+## Re-review — 2026-10-24T12:26:31-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 844 — Bell carries only what needs the operator (hub-requested, operator's own casts and drives, no hub able to act); the rest goes to the hub |
+| repo | pair |
+| issue file | workshop/issues/000844-bell-carries-only-what-needs-the-operator-hub-requested-operator-s-own-casts-and.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 5ebb6f2fb37088078c205242b11a1631422eb98c..d7a07ecba6348d1d1a9d9de3c3704c45926c19c6 |
+| command | sdlc close --issue 844 |
+| reviewer | codex (openai; author openai) |
+| isolation | fenced |
+| timestamp | 2026-10-24T12:26:31-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+The implementation matches the revised Spec and Plan. BR-1 is addressed across pending owner loss, confirmed refusal, cross-hub handoff, and unknown readiness. Regression tests exercise production transitions, and mutation checks turn them red when key corrections are removed. No additional findings.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      Owner generation is validated within its retained root. Pending owner loss and confirmed refusal receive unavailable-owner fallback; unknown readiness preserves the obligation, while admitted/uncertain sends never resend. Production-path regressions pass, and mutations removing scoped revocation or witness retention fail.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      README.md:1264 and :1536 replace unconditional warning/prompt eligibility with owning-hub routing, operator exceptions, unavailable-owner fallback, and connected-OFF suppression, consistent with couchcore/notice_route.go:73.
+  - id: BR-3
+    disposition: addressed
+    note: |
+      Both package inventories use cmd/internal/testnotice/inventory.go:21 for analysis and its shared rejection fixtures, retaining package-specific projection and forwarding declarations.
+```
+
+1. **Strengths**
+
+   - `couchcore/notice_route.go` centralizes eligibility without interpreting warning text.
+   - `couchcore/notice_delivery.go:199` distinguishes confirmed refusal from uncertain admission; `AwaitingDisposition` cannot admit again.
+   - `couchcmd/notice_delivery.go:237` fences stale observations by occurrence, owner, token, and phase.
+   - Stateful integration fixtures exercise real registry/broker admission for both Claude and Codex.
+
+2. **Critical findings:** None.
+
+3. **Important findings:** None.
+
+4. **Minor findings:** None.
+
+5. **Test coverage notes**
+
+   - Focused race suite passed across `couchcore`, `couchtty`, `couchcmd`, and `testnotice`.
+   - Broader routing/producer/startup race selection passed on rerun. Its first run failed at `TestFreshStartupRunSerializesLaunchThroughAdoption`; that test passed independently. A disposable base checkout separately failed the existing startup-cancellation assertion. These observations do not establish the same failure on base.
+   - Three temporary source mutations failed the expected regressions.
+   - Reader inventory and pinned-range whitespace checks passed. The reviewed checkout remains unchanged.
+   - Full recorded verification and coordinated live acceptance remain the Plan’s pre-landing postconditions.
+
+6. **Architectural notes**
+
+   | Principle | Result |
+   |---|---|
+   | ARCH-DRY | Pass — shared policy and inventory analysis. |
+   | ARCH-PURE | Pass — routing/reducer tests run without IO; backend effects remain behind the shell. |
+   | ARCH-PURPOSE | Pass — producer and bypass paths follow the documented routing contract. |
+   | ARCH-MOCK | Pass — stateful fixtures share production admission seams; existing external dependency seams remain intact. |
+   | ARCH-CONSTRAINTS | Pass — bounded entries, bodies, workers, admission contexts, and expiry are exercised. |
+   | ARCH-SECURE | Pass — verified ownership, guarded ingress, and body sanitization are preserved. |
+   | ARCH-ORDER | Pass — explicit phases, scoped generation witnesses, stale-event fencing, and controlled completion ordering. |
+   | ARCH-FUNERAL | Pass — local tracking expires or ends with Console; workers cancel and join. |
+   | ARCH-EVOLVE | Pass — new fields are ephemeral; no persisted-format change. |
+
+7. **Plan revision recommendations:** None. Existing revisions describe the delivered owner-scoped generation and refusal-disposition behavior.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"e3613c05-525b-451c-b562-ab804901230c","repository":"github.com/xianxu/pair","issue_id":"000844","recipe":"milestone-review","round":3,"attempt":1,"agent":"codex","root":"/Volumes/TestScratch/review-checkouts/474ca958dbc663fe","reviewed_head":"d7a07ecba6348d1d1a9d9de3c3704c45926c19c6","slot":"pair:1","requested_at":"2026-10-24T19:20:34.7575Z"},"phase":"finished","pid":87997,"started_at":"2026-10-24T19:20:34.930069Z","finished_at":"2026-10-24T19:26:30.075655Z","session_id":"01a16f5b-968f-7643-ad9e-c04f0a48b495","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 3.280794459s
+head: "d7a07ecba6348d1d1a9d9de3c3704c45926c19c6"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412
