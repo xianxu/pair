@@ -434,6 +434,10 @@ Authenticated submitted TL49e82968 announces the22:00–23:00 full Couch shutdow
 
 Exact next step after restart: read this Log and verify branch/HEAD, #722 card/completion and PR477 state, then follow the operator/TL's upgraded-toolchain rebuild instructions and verify resulting provenance. Wait for fresh TL GO for #722's stage after #753/#739; then run sdlc stage --build and send printed binary revisions. TL/operator must perform the fresh watched real-Claude/Codex drain/lift check, including partial delivery and harmless lift after missed notice, before any landing. Shutdown/restart or absence of transient flags does not authorize stage, drain, queue controls or merge. Do not start a replacement check or runner: none is outstanding. Do not chase main or rerun native acceptance without a new gate/dispatch requirement.
 
+### 2026-10-24 02:49 PDT — parked ready while dispatched #866 is planned
+
+Authenticated submitted TL ecddb994 dispatches independent #866 tonight and keeps #722's operator-watched rerun ready for the morning. #866 is claimed by pair:5; it will use its own main-based branch, never stack on #722. Preserve this branch and codecomplete/SHIP; no stage, drain or merge is authorized. Local pair:5 binaries were rebuilt on Go1.27.3 at8cb04883c21779456c4aee53d4b44c91c0c450bf, all four modified=false; this is build provenance only, not refreshed suite/native/live acceptance. Exact #722 next step stays: return to its branch when TL/operator gives GO, verify clean state and stage ownership, stage --build through SDLC, send printed revisions, then let TL/operator drive watched acceptance before landing.
+
 ## Revisions
 
 ### 2026-10-19 — authenticated acknowledgement and shared queue ownership
