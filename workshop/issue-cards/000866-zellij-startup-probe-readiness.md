@@ -18,10 +18,10 @@ actual_hours: N/A
 tracker:
     version: 1
     completion:
-        token: close-3f1c64baf49f
+        token: close-86cad0cc2f38
         repository: github.com/xianxu/pair
-        reviewed_head: bb896e034063c6891c3639ae7ee7ef1418eef261
-        evidence_commit: 1d536ed8b26fc1e23e9781770205519fc6e3d385
+        reviewed_head: 456228a42c042e58b6a068fce31a913526e93a00
+        evidence_commit: 489c6087275647ef3454c8e34ebfcbb88f81b6eb
 ---
 
 # Wait for Zellij readiness before startup probe clients
