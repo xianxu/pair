@@ -7,6 +7,7 @@ representative evidence, not an exhaustive index.
 
 ## Proof and verification
 
+- #869 BR-1: Publishing a complete payload is insufficient when cancellation can race its external helper. Reap that helper first, then publish a payload-free readiness marker with a leader builtin. Qualify held-write and held-after-publication intervals; enumerate every readiness consumer.
 - #869: A readiness filename must publish the completed value. Shell redirection creates a file before printf writes its PID; write an adjacent private temporary file and rename only after success. Hold the writer in a conformance control so early visibility fails deterministically.
 
 - #863 suite: when a result gains an ownership predicate, sweep existing positive fixtures for the required authority and retain separate empty/metadata-only negatives. A startup fixture must declare its history explicitly; an empty namespace is not evidence of a previous shutdown. Keep exact joined-diagnostic and declared-operation assertions current with the same approved contract.
