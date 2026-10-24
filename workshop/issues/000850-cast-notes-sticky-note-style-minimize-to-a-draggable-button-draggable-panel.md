@@ -79,6 +79,13 @@ The first complete native operator run exposed a real #850 regression: a View no
 
 Final verification: all Node webcast tests EXIT0; focused Go operator assembly/server checks EXIT0; WEBCAST_LIVE_CHROME=1 targeted panel plus full operator drawing checks passed non-skipped9.756s. Native panel proof includes1280x800,320x480 and shrinking mid-drag to180x130, actual capture/lost capture, wheel scrolling, keyboard, full chip hits and page reachability. The actual operator scenario retains completed-paint and stale/selected-version guards through masks, tab returns and SPA replacement. make test-affected-inventory EXIT0 after staging the new native test; no reader certificate repair requested. Remaining: pushed-head pre-close record, boundary close, hub-timed stage/operator look, and merge. No stage is held by this slot.
 
+
+### 2026-10-23 — close round1 REWORK; approved correction
+
+BR1 Critical: first-point controls scroll away despite later visible ink. BR2 Important: minimized count text can grow beyond the viewport. BR3 Important: direct mode assignment bypasses the transition owner. BR4 unverifiable: reviewer Chrome GPU startup failed before page execution; staged operator acceptance still pending. Native worker source previously passed9.756s; retain corrected-source raw evidence after fixes. No close finalized.
+
+TL f0df15c2 approved painter-returned bounds in the existing bounded per-path ink cache, visible bounds in one P pass, measured/clamped complete controls once per update; local count geometry and reducer corrections. Plan Revisions records the mechanism/cost. Supported cancel lease-2921208569 completed EXIT0 while it was queued, before its suite began; old source is superseded by known review defects and cannot supply final evidence. No duplicate check. Pair:6 owns combined stage6f0478a3a and sent restart/ask; per TL do not restage. Next: implement/pin corrections, retain native log, push and pre-close corrected head, then re-close after operator result. Stage acceptance remains pending.
+
 ## Revisions
 
 ### 2026-10-23 — TL approved design (19f42a37)

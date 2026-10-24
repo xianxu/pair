@@ -2845,3 +2845,5 @@ and external temporary roots rather than relying on the host's TMPDIR.
 - #802 BR-1: operator-facing notice wording is restated in the embedded `skills/couch/SKILL.md` and the atlas. When a producer string changes, grep the literal shape and reason labels repo-wide and update every live restatement; archived issues and comments that describe the condition are not copies. Updating the atlas alone is not the sweep.
 
 - #850: a discovery control placed at an ink sample intercepts later drawing at that same point. Keep affordances beside painted content and pin actual native hit targets before testing later labels or preview acknowledgments; a missing second sketch can look like a preview timeout.
+
+- #850 BR1–3: viewport reachability is a postcondition after every size/geometry source: scroll, transform, count text, mode and resize. Derive discovery from the existing painter's full cached bounds, clamp complete hit areas, and keep authoritative mode writes inside the transition owner; first samples and fixed-width fakes conceal these failures.

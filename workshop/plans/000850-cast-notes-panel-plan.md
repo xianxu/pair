@@ -148,3 +148,11 @@ The hub approved the exact proposed dimensions/shared anchor and final-label rea
 ### 2026-10-23 — PQ-1 test-strategy compression
 
 Replaced the case inventories in Tasks1–4 with one named-function strategy table giving adversarial input classes and mechanical oracles. Kept approved behavior, source ownership, commands, real-browser proof and counted cost bounds unchanged.
+
+### 2026-10-23 — BR1–3 corrections approved (TL f0df15c2)
+
+First-point discovery fails after scrolling when later ink remains on view. Reuse bounds returned from the painter's existing projection loop, accumulate them in its existing bounded per-path ink cache (same transform/repaint/retirement), and derive visible per-sketch bounds in one path pass. The thin adapter measures/clamps each complete button once per update; prefer the gap beside ink, with viewport-edge fallback. No second point-history walk, placement request or new cache owner. Cost is the existing O(points actually painted) plus O(P+S); update the counted oracle to reject repeated projection and test multipath/scroll/edge reachability. This supersedes the first-sample implementation, retaining the approved affordance and authority behavior.
+
+Minimized count updates also measure/reclamp when text size can change; pointer-move stays constant-cost. All mode changes route through the pure reducer, then DOM rendering, then a measured geometry event; the adapter must never directly assign authoritative mode. Add regressions for growing count at a viewport edge and reducer-owned mode sequencing.
+
+BR4: preserve the already-staged combined operator look per the TL (no restage requested); retain non-skipped native evidence on the corrected source. Reviewer Chrome failed at GPU startup before any page, despite the worker's prior9.756s complete pass; this is host execution evidence to reconcile, not a reason to bypass native acceptance.
