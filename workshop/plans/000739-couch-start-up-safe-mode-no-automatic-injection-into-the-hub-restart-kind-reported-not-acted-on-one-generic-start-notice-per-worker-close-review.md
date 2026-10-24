@@ -878,3 +878,75 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-23T19:31:59-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 739 — couch: start-up safe mode: no automatic injection into the hub, restart kind reported not acted on, one generic start notice per worker |
+| repo | pair |
+| issue file | workshop/issues/000739-couch-start-up-safe-mode-no-automatic-injection-into-the-hub-restart-kind-reported-not-acted-on-one-generic-start-notice-per-worker.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 34ed113061097fa8b9f2317b9a3e3245176fc873..2b4258f054885fab11ace33de705cb7f5f5cc053 |
+| command | sdlc close --issue 739 |
+| reviewer | codex (openai; author openai) |
+| isolation | fenced |
+| timestamp | 2026-10-23T19:31:59-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+The interdiff preserves startup safety while restoring failed-hub diagnostics and adapting the unknown-startup test to capped status rendering. The manifest conflict resolution matches the current reader. No new defects or scope changes found; no prior findings require reopening.
+
+```findings
+{}
+```
+
+1. **Strengths**
+   - `cmd/internal/couchcore/startup.go:116` adds canonical hub context while preserving the underlying error through `%w`.
+   - `cmd/internal/couchcmd/hubs_startup_test.go:646` checks capped rendering and verifies the complete retained diagnostic through the clipboard action.
+   - The resolved reader manifest retains `fixed_scanner`; its SHA-256 matches `run_test.go`, and both README readers remain registered.
+
+2. **Critical findings:** None.
+
+3. **Important findings:** None.
+
+4. **Minor findings:** None.
+
+5. **Test coverage notes**
+   - Affected-reader inventory and pinned-range whitespace checks passed.
+   - Both later-hub failure tests and the modified unknown-startup test passed.
+   - Removing the error wrapper through a temporary Go overlay made both failure tests fail, confirming regression sensitivity.
+   - Focused couchcore startup tests passed. The full suite was not rerun.
+
+6. **Architectural notes**
+   - **ARCH-DRY — pass:** reuses the existing status formatter and clipboard assertion.
+   - **ARCH-PURE — pass:** no business logic moves into IO; integration tests exercise real orchestration through injected boundaries.
+   - **ARCH-PURPOSE — pass:** preserves safe attachment and main’s diagnostic contract without expanding recovery authority.
+   - **ARCH-EVOLVE — pass:** no persisted-format change; the manifest resolution preserves its schema and disposition.
+
+   No new architectural or user-facing surface requires atlas or README changes.
+
+7. **Plan revision recommendations:** None. The Spec, acceptance contract, and implementation plan remain unchanged.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"6d90d2d5-cc65-409b-87b6-47d124310093","repository":"github.com/xianxu/pair","issue_id":"000739","recipe":"fix-review","round":10,"attempt":1,"agent":"codex","root":"/Volumes/TestScratch/review-checkouts/37b2846d843e8836","reviewed_head":"2b4258f054885fab11ace33de705cb7f5f5cc053","slot":"pair:7","requested_at":"2026-10-24T02:30:28.399216Z"},"phase":"finished","pid":61155,"started_at":"2026-10-24T02:30:28.588739Z","finished_at":"2026-10-24T02:31:58.107759Z","session_id":"01a16bbe-cdc3-78a0-8cc7-ddccdeb625b3","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 3.272816167s
+head: "2b4258f054885fab11ace33de705cb7f5f5cc053"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412
