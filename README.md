@@ -461,9 +461,13 @@ Recovery confirmations stay on their row until you select it to review them.
 
 Hub automation controls Couch's generated input and scheduled runs. It starts on
 for a positively surviving hub after a normal restart, and off for missing hubs
-or a full-shutdown/unknown start. After a cold start, hubs stay stopped by design:
+🤖~or a full-shutdown/unknown start. After a cold start, hubs stay stopped by design:
 choose **Resume from disk** on a retained switcher row, or **Ctrl+Space → Start**
-with the hub directory when no row exists. Normal warm reattachment is unchanged.
+with the hub directory when no row exists. Normal warm reattachment is unchanged.~{or a full-shutdown/unknown start. A proven first start with no retained history
+is `fresh`: configured hubs start normally, with automation off. After a known
+shutdown or an unknown start, missing hubs stay stopped: choose **Resume from
+disk** on a retained switcher row, or **Ctrl+Space → Start** when no row exists.
+Normal warm reattachment is unchanged.}
 The retained startup notice names missing hubs and says
 `hub automation off; say turn it on`. Automation status labels these hubs
 `missing at startup:`: that is startup history, not current liveness, and remains

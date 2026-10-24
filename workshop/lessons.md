@@ -2875,3 +2875,5 @@ and external temporary roots rather than relying on the host's TMPDIR.
 - #850 BR1–3: viewport reachability is a postcondition after every size/geometry source: scroll, transform, count text, mode and resize. Derive discovery from the existing painter's full cached bounds, clamp complete hit areas, and keep authoritative mode writes inside the transition owner; first samples and fixed-width fakes conceal these failures.
 
 - #850 BR5: independent viewport clamping is insufficient after composition. State the invariant for all eligible entities together: each must remain individually selectable with identical bounds, overlapping bounds and dense edge cases. A single bounded scrolling selector removes an impossible geometric packing problem; do not add a third positional heuristic.
+
+- #863: Target-dependent launch semantics need catalog-backed primary and numbered-slot tests. A legacy fake with no SlotCatalog bypassed validation and accepted Fresh on a primary, hiding the real refusal; fixture convenience must not bypass the production routing boundary. Hold review inputs unchanged while an SDLC judge is running, or its correct result becomes stale.
