@@ -57,8 +57,8 @@ Startup only: reuse one inventory/session observation and existing worker cap/se
 
 Files: startup_policy.go/startup_policy_test.go; ops.go and colocated adoption tests.
 
-- [ ] Add red table cases: empty readable history -> fresh; records absent -> full-shutdown; unreadable evidence -> unknown; survivors -> normal; contradictory/unresolved evidence never grants fresh.
-- [ ] Add red empty StartResult no-child and real-handle child tests; inspect sibling Started implementations to keep handle-based semantics consistent.
+- [ ] ClassifyStartup: generate incomplete and contradictory snapshot/presence combinations; an independent predicate forbids fresh whenever history or uncertainty exists, and permutation checks forbid input-order dependence. Confirm red on readable zero-history input before changing classification.
+- [ ] StartResult.Started: vary the record and handle independently, with handle possession as the independent adoption-authority oracle; confirm the empty result fails before the fix and inspect sibling Started implementations for the same contract.
 - [ ] Run targeted tests, confirm intended failures, implement minimal classifier and no-child correction; rerun startup/adoption tests.
 - [ ] Commit with #863 and model trailers.
 
@@ -66,7 +66,7 @@ Files: startup_policy.go/startup_policy_test.go; ops.go and colocated adoption t
 
 Files: couchcmd/run.go, hubs.go, automation.go consumers and hubs_startup_test.go; couchcore/operationdispatch.go.
 
-- [ ] Add stateful existing fake-boundary tests for fresh primary+extra hubs, known-shutdown no launch, mixed survival, empty no-child completion and cancellation. Assert original snapshot keeps automation off after fresh hubs become live.
+- [ ] runConsole/startExplicitHubs: use the existing stateful fake process/store boundary with held launch/adoption and cancellation; count effects against the immutable initial observation, independently forbidding cold effects without fresh evidence. startupAutomationOn: mutate subsequent live inventory while retaining the initial observation and require automation to stay off for fresh startup.
 - [ ] Observe before new launches; route permitted fresh primary/extra effects through existing explicit-open/lifecycle owners. Keep surviving-only paths conservative.
 - [ ] Update startup summary for fresh (not missing/resume-from-disk language for never-started hubs); keep real launch failure recovery advice.
 - [ ] Run core/cmd/tty startup and automation targeted tests; commit.
@@ -75,7 +75,7 @@ Files: couchcmd/run.go, hubs.go, automation.go consumers and hubs_startup_test.g
 
 Files: couchtty/menu start tests / console lifecycle tests; production reducer only if a failing test proves a gap.
 
-- [ ] Hold the real start effect before completion and submit two Enter events after an accepted preview. Assert one effect/launch and one reservation, also on late completion and failure. Current source synchronously closes admitted form; do not add redundant state if test passes.
+- [ ] reduceStartKey/dispatchMenuOperation: hold effect completion and generate repeated Enter plus duplicate/late result events; independently count start effects per form identity and require at most one. Current source synchronously closes admitted form; do not add redundant state if the invariant already holds.
 - [ ] Ask pair:6's corrected native run to retain whether a second actual launch occurred. If reproduced, fix in this issue with one consumed-form identity until outcome; no new retry. If it needs another mechanism, stop and report to hub before expanding.
 - [ ] Record production versus harness classification with evidence.
 
@@ -93,3 +93,5 @@ Files: shared testcouch Hubs option/tests; fresh_hub_registration_live_test.go; 
 ## Revisions
 
 2026-10-24 — Hub563a3e8a: zero-history is fresh and hubs start, automation off; no blanket relaxation after known shutdown. Hub c1133e63 authorizes only the small shared Hubs harness option before #830 lands. Hub bc2786cd requires duplicate Enter production qualification if the peer run proves two launches. Measurement currently reproduces empty adoption, not persistent registration failure; no registry fix planned.
+
+2026-10-24 — PQ-1: compress test inventories into named risky-function strategies, with generated contradictory evidence, independent adoption authority, held effects and at-most-one launch invariants. Architecture and selected behavior unchanged.

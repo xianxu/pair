@@ -95,3 +95,5 @@ Read-only independent audit: hub-effect gate is released when empty StartInterac
 ## Revisions
 
 2026-10-24 — Hub563a3e8a: the Spec's harness-only start-gesture repair is superseded by fresh-start policy: zero-history configured hubs start normally, automation off; known shutdowns stay parked. Preserve no automatic hub input. Hub c1133e63 authorizes matching #830 Hubs input for measurement without stacking. Hub bc2786cd adds conditional production duplicate-Enter correction if two launches are demonstrated. Durable plan records both proven defects and the still-unclassified peer observation; no speculative registry change.
+
+2026-10-24 — Hub7c48d75b approved the plan. Pinned full flow because startup policy crosses core/orchestration/native acceptance. Plan-quality PQ-1 asked for function-level adversarial strategies rather than prose case inventories; revised the whole test-strategy class, preserving design. No production implementation before the gate passes.
