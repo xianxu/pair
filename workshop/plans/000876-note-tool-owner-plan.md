@@ -22,9 +22,9 @@ Paths below are relative to `cmd/internal/webcast/` unless stated otherwise.
 
 | Pure entity | Lives in | Status |
 |---|---|---|
-| Annotation authority binding: viewer permit or trusted operator generation | `board/annotation_authority.go` | new |
+| Annotation authority binding: viewer permit or trusted operator generation | `board/annotation.go` | new private entity in modified existing file |
 | Admission and prepared authority binding | `board/annotation.go`, `board/prepared_note.go` | modified |
-| Existing annotation availability/mode policy | `web/annotation-policy.js` | reused unless a distinct reason projection is needed |
+| Existing annotation availability/mode policy | `web/annotation-policy.js` | reused unchanged |
 | Existing capability state/generation/cleanup transitions | `capability/state.go` | reused unchanged |
 
 The authority binding is a private comparable value, not a client field or a second registry. It binds the issuing Board, surface/role and original generation; PreparedNote carries and compares that binding rather than an ordinary viewer permit alone. Empty/zero admission remains invalid, while generation0 is valid when explicitly issued to the owner. A shared locked checker is used at every admission-consuming boundary. Preserve the existing operator-sketch admission's policy explicitly; do not accidentally widen viewer permits or silently change sketch cleanup semantics while generalizing the representation.
@@ -32,12 +32,12 @@ The authority binding is a private comparable value, not a client field or a sec
 | Integration point | Lives in | Status | Owns |
 |---|---|---|---|
 | Registered isolated-context proof and ordered operator dispatch | `recorder/operator.go`, `recorder/recorder.go` | modified | CDP identity, source generation and repeated writer checks |
-| Prepared capture/save handoff | `recorder/operator_notedraft.go`, `board/prepared_note.go`, existing `notedraft` service | modified / reused service | scoped preparation, token restoration and unchanged unknown-outcome recovery |
+| Prepared capture/save handoff | `board/prepared_note.go` (modified); `recorder/operator_notedraft.go` and existing `notedraft` service (reused unchanged) | modified Board binding; existing service/adapters unchanged, tests expanded | scoped preparation, token restoration and unchanged unknown-outcome recovery |
 | Direct operator session actions | `board/operator.go` | modified | server attribution, exact request ledger and trusted-surface action dispatch |
 | Permission delivery and terminal mode selection | `chrome_operator.go` | modified | active isolated-world delivery, revision fencing and SetAnnotationMode |
-| Mounted shared controls and viewer OFF explanation | `web/annotate.js`, `web/annotate.css` | modified | actual buttons, visible reason and existing cancellation paths |
+| Mounted shared controls and viewer OFF explanation | `web/annotate.js` (modified), `web/annotate.css` (reused unchanged) | reason projection modified; existing layout unchanged | actual buttons, visible reason and existing cancellation paths |
 | Viewer HTTP, session proof and capability publication | `server_board.go`, `server_notedraft.go`, `cast_capabilities.go` | reused unchanged; tests expanded | grant-based viewer admission; never report global ON for owner work |
-| Disposable native conformance | new `owner_annotation_live_test.go` using existing launch helpers | new | owner UI default operation and viewer HTTP denial at the same time |
+| Disposable native conformance | `operator_owner_live_test.go` using existing launch helpers | new | owner UI default operation and viewer HTTP denial at the same time |
 
 No new cast, permission registry, background worker, timer, storage record or lifecycle state is introduced.
 
@@ -117,3 +117,9 @@ TL4b0ceec1 approves the exact CDP owner proof, one binding through all preparati
 ### 2026-10-24 — Implementation qualification
 
 Change-code inferred quick; TL0edcd963 directs keeping it, with automatic boundary-review upgrade for the final diff. Implementation preserves the approved authority and CDP scope. All deliverable checks are implemented and targeted qualification passes: owner/viewer phase/generation/surface, recorder and held capture, actual signed capacity fallback restoration and unknown ACK, viewer guidance, exact-context4/8 counted deliveries, mounted native owner Note/Pointer, and the pre-existing native operator flow updated for owner semantics. Recorded verification, close and the hub-sequenced operator acceptance remain workflow postconditions, not completed claims.
+
+### 2026-10-24 — BR-1 delivery traceability and BR-2 pinned host evidence
+
+BR-1: reconcile every Core concepts table against the delivered diff. The private authority entity lives in existing board/annotation.go; there is no annotation_authority.go. Admission/prepared bindings change in the existing Board files, while recorder/operator_notedraft.go and the production notedraft service are reused unchanged. Viewer explanation changes annotate.js only; CSS and annotation-policy.js stay unchanged. Native qualification is operator_owner_live_test.go. These are traceability corrections, not design or production changes.
+
+BR-2: reran the reviewer's exact native test command on its pinned95f06244a39371e5d3ec8f68183ec22e4b6a2dcd, with tracked webcast source checked clean before running. Headless/private-profile host run with WEBCAST_LIVE_CHROME=1, Go1.27.3 darwin/arm64 PASS4.46s/package4.709s, exit0. Retain the exact head, argv, environment, host and result in evidence/pinned-owner-native-metadata.json and full output in evidence/pinned-owner-native.log. Reviewer-fenced Chrome GPU startup failure is retained as an environment limit, not product evidence. Operator acceptance remains outstanding.
