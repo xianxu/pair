@@ -805,25 +805,32 @@ export function mountSketch(doc, win, view, options) {
       const xy = transform.fromPage(x, y);
       return [xy[0] - rect.left, xy[1] - rect.top];
     };
-    noteControls.update(sketchNoteEntries(paths, targets, {
-      metadata: key => options.sketchMetadata ? options.sketchMetadata(key) : recordDisplay?.metadata(key),
-      editable: new Set(state().slots.filter(s => !s.retired && !s.finishing).map(s => s.sketch)),
-      toClient,
-    }));
     for (let i = 0; i < paths.length; i++) {
       const p = paths[i],
         key = pathKey(p),
         previous = ink.get(key),
         start = previous?.length || 0;
-      if (start < p.pts.length)
-        paintSketchPaths(g, [{ ...p, pts: p.pts.slice(Math.max(0, start - 1)) }], {
+      let bounds = previous?.bounds || null;
+      if (start < p.pts.length) {
+        const addedBounds = paintSketchPaths(g, [{ ...p, pts: p.pts.slice(Math.max(0, start - 1)) }], {
           project: () => paintTargets[i],
           toClient,
           scale,
         });
-      ink.set(key, { points: p.pts, length: p.pts.length, box: targets[i], width: p.width, color: p.color });
+        if(addedBounds) bounds = bounds ? {
+          left:Math.min(bounds.left,addedBounds.left),top:Math.min(bounds.top,addedBounds.top),
+          right:Math.max(bounds.right,addedBounds.right),bottom:Math.max(bounds.bottom,addedBounds.bottom),
+        } : addedBounds;
+      }
+      ink.set(key, { bounds, points: p.pts, length: p.pts.length, box: targets[i], width: p.width, color: p.color });
       seenInk.add(key);
     }
+    const viewport={width:rect.width,height:rect.height};
+    noteControls.update(sketchNoteEntries(paths, paths.map(p=>ink.get(pathKey(p))?.bounds), {
+      metadata: key => options.sketchMetadata ? options.sketchMetadata(key) : recordDisplay?.metadata(key),
+      editable: new Set(state().slots.filter(s => !s.retired && !s.finishing).map(s => s.sketch)),
+      viewport,
+    }), viewport);
     forceInk = false;
     inkTransform = transformKey;
     // Reconcile by accepted point prefix. Unconfirmed samples remain visibly

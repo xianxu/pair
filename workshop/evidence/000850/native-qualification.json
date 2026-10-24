@@ -1,0 +1,19 @@
+{
+  "command": "WEBCAST_LIVE_CHROME=1 go test ./cmd/internal/webcast -run 'TestCastNotesPanelLive|TestOperatorSketchLiveDrawing' -count=1 -timeout 5m -v",
+  "exit_code": 0,
+  "log_sha256": "7d1e290415a1a7d3d49bda03fcd8b67f9a8d00550be264ef6c9d9c2269f2a9f9",
+  "tested_source_git_blobs": {
+    "cmd/internal/webcast/cast_notes_panel_live_test.go": "41026e8fe17e83077a43c6c119760906fdaa08ec",
+    "cmd/internal/webcast/operator_sketch_live_test.go": "5d4ab7952b38968f55ea4b203aaa2df47a2dd1c0",
+    "cmd/internal/webcast/operator_script.go": "282d6f7a920ba0cf81011259fb08858b58286852",
+    "cmd/internal/webcast/server.go": "1fd5d0407f18dc56319c380337921fdef8efe586",
+    "cmd/internal/webcast/web/annotate.js": "e9c2c89a1481e0757b3f44dc3e9805c0dc9d6331",
+    "cmd/internal/webcast/web/annotate.css": "bc46a0fbe336e28448199580299083c4b62f7c22",
+    "cmd/internal/webcast/web/floating-panel.js": "9e4d9a9562bbc3104ed27353a8acb5ef476f4b01",
+    "cmd/internal/webcast/web/sketch.js": "ad14238abab542267c9fb66e2f92d7a234027568",
+    "cmd/internal/webcast/web/sketch.css": "43efd522b721d2189e992eccfd7fe75ee16c9207",
+    "cmd/internal/webcast/web/sketch-notes.js": "6472dc3cc3a06e60dbad2b7794529930c98c075c",
+    "cmd/internal/webcast/web/sketch-render.js": "889e3fb0629e1f730f5a30f31dde056063b2170d"
+  },
+  "note": "Source blobs identify the tested implementation before its commit; logs contain only disposable fixture data. No operator content is included."
+}

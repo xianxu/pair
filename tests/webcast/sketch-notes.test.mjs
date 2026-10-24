@@ -1,109 +1,63 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { Element } from './dom-fixture.mjs';
-const load = () => import('../../cmd/internal/webcast/web/sketch-notes.js');
-const path = (sketch) => ({sketch, pts:[[20,30,0.5]], at:{box:[0,0,100,100]}});
-test('entries are unique placed sketches with an existing final label or owned unfinished capability', async()=>{
-  const {sketchNoteEntries}=await load();
-  const meta=new Map([['a',{phase:'drawing'}],['b',{phase:'complete',label:'<b>final</b>'}],['c',{phase:'drawing'}]]);
-  const entries=sketchNoteEntries([path('a'),path('a'),path('b'),path('c')],[[0,0,100,100],[0,0,100,100],[100,100,100,100],null],{metadata:k=>meta.get(k),editable:new Set(['a'])});
-  assert.deepEqual(entries,[{sketch:'a',x:20,y:30,label:'',editable:true},{sketch:'b',x:120,y:130,label:'<b>final</b>',editable:false}]);
-  assert.deepEqual(sketchNoteEntries([path('a')],[[NaN,0,1,1]],{metadata:k=>meta.get(k),editable:new Set(['a'])}),[]);
+const load=()=>import('../../cmd/internal/webcast/web/sketch-notes.js');
+const options={metadata:()=>({phase:'complete',label:'final'}),editable:new Set(),viewport:{width:300,height:200}};
+test('visible painted bounds keep a control when the first sample scrolled away, union multiple paths',async()=>{
+ const {sketchNoteEntries}=await load();
+ const paths=[{sketch:'a',get pts(){throw Error('must reuse painted bounds');}},{sketch:'a'},{sketch:'hidden'}];
+ assert.deepEqual(sketchNoteEntries(paths,[{left:10,top:-400,right:60,bottom:50},{left:100,top:30,right:160,bottom:90},{left:400,top:1,right:420,bottom:8}],options),[
+ {sketch:'a',bounds:{left:10,top:0,right:160,bottom:90},label:'final',editable:false}]);
 });
-test('projection and membership visits grow linearly for P and 2P unique sketches', async()=>{
-  const {sketchNoteEntries}=await load(), costs=[];
-  for(const n of [128,256]) {
-    const cost={paths:0,identity:0,points:0,metadata:0,projection:0};
-    const history=Array.from({length:1024},()=>[20,30,.5]);
-    const raw=Array.from({length:n},(_,i)=>new Proxy({...path(String(i)),pts:history},{
-      get(target,key){
-        if(key==='sketch')cost.identity++;
-        if(key==='pts') {
-          cost.points++;
-          // The painter already visited every point. This projection may
-          // inspect only its first point, regardless of history length.
-          return new Proxy(target.pts,{get(points,k){
-            if(/^\d+$/.test(String(k)))assert.equal(k,'0','no repeated history walk');
-            return Reflect.get(points,k);
-          }});
-        }
-        return Reflect.get(target,key);
-      },
-    }));
-    const paths=new Proxy(raw,{get(target,key){if(/^\d+$/.test(String(key)))cost.paths++;return Reflect.get(target,key);}});
-    const entries=sketchNoteEntries(paths,raw.map(()=>[0,0,100,100]),{
-      metadata:()=>{cost.metadata++;return {phase:'complete',label:'done'};},editable:new Set(),
-      toClient:(x,y)=>{cost.projection++;return [x,y];},
-    });
-    assert.equal(entries.length,n);
-    assert.equal(cost.metadata,n);assert.equal(cost.projection,n);assert.equal(cost.points,n);
-    assert.ok(cost.paths<=2*n,'grouping cannot repeatedly scan paths');
-    assert.ok(cost.identity<=12*n,'grouping cannot repeatedly compare every identity');
-    costs.push(cost);
+test('bounds grouping visits P/2P unique identities linearly without walking points',async()=>{
+ const {sketchNoteEntries}=await load(),costs=[];
+ for(const n of [128,256]){
+  const cost={array:0,identity:0,bounds:0,metadata:0};
+  const raw=Array.from({length:n},(_,i)=>new Proxy({sketch:String(i)},{get(o,k){if(k==='pts')throw Error('point rescan');if(k==='sketch')cost.identity++;return o[k];}}));
+  const paths=new Proxy(raw,{get(o,k){if(/^\d+$/.test(String(k)))cost.array++;return o[k];}});
+  const bounds=new Proxy(raw.map(()=>({left:10,top:10,right:20,bottom:20})),{get(o,k){if(/^\d+$/.test(String(k)))cost.bounds++;return o[k];}});
+  const entries=sketchNoteEntries(paths,bounds,{...options,metadata:()=>{cost.metadata++;return {label:'final'};}});
+  assert.equal(entries.length,n);assert.equal(cost.metadata,n);assert.ok(cost.identity<=12*n);assert.ok(cost.array<=2*n);assert.ok(cost.bounds<=2*n);costs.push(cost);
+ }
+ for(const key of Object.keys(costs[0]))assert.ok(costs[1][key]<=2*costs[0][key],key);
+});
+test('generated malformed painted bounds and metadata follow independent visibility and identity oracle',async()=>{
+ const {sketchNoteEntries}=await load();
+ const samples=[null,{}, {left:NaN,top:1,right:2,bottom:3},{left:1,top:Infinity,right:2,bottom:3},{left:4,top:1,right:2,bottom:3},{left:1,top:4,right:2,bottom:3},{left:-20,top:-10,right:30,bottom:40},{left:290,top:190,right:340,bottom:210},{left:310,top:1,right:400,bottom:30},{left:10,top:20,right:30,bottom:40}];
+ const infos=[null,{}, {label:'done'}, {phase:'drawing',label:9}, {phase:'interrupted'}, {phase:'cleared',label:''}];
+ let seed=850;const next=n=>{seed=(1664525*seed+1013904223)>>>0;return seed%n;};
+ for(let round=0;round<12;round++){
+  const paths=[],bounds=[],meta=new Map(),editable=new Set(),expected=new Map();
+  for(let i=0;i<80;i++){const id=i%13===0?null:`s${i>>1}`;paths.push({sketch:id});bounds.push(samples[next(samples.length)]);if(typeof id==='string'){meta.set(id,infos[next(infos.length)]);if(next(2))editable.add(id);}}
+  for(let i=0;i<paths.length;i++){
+   const id=paths[i].sketch,b=bounds[i];if(typeof id!=='string'||!b||![b.left,b.top,b.right,b.bottom].every(Number.isFinite)||b.left>b.right||b.top>b.bottom)continue;
+   const clipped={left:Math.max(0,b.left),top:Math.max(0,b.top),right:Math.min(300,b.right),bottom:Math.min(200,b.bottom)};
+   if(clipped.left>=clipped.right||clipped.top>=clipped.bottom)continue;
+   const old=expected.get(id);if(old){for(const k of ['left','top'])old.bounds[k]=Math.min(old.bounds[k],clipped[k]);for(const k of ['right','bottom'])old.bounds[k]=Math.max(old.bounds[k],clipped[k]);continue;}
+   const info=meta.get(id),label=typeof info?.label==='string'?info.label:'',add=!label&&editable.has(id)&&['drawing','interrupted','label-required'].includes(info?.phase);if(!label&&!add)continue;
+   expected.set(id,{sketch:id,bounds:clipped,label,editable:add});
   }
-  for(const key of Object.keys(costs[0]))assert.ok(costs[1][key]<=2*costs[0][key],`${key} must scale linearly`);
+  assert.deepEqual(sketchNoteEntries(paths,bounds,{...options,metadata:k=>meta.get(k),editable}),[...expected.values()]);
+ }
 });
-
-test('generated malformed placement and metadata retain only finite positive unique identities',async()=>{
-  const {sketchNoteEntries}=await load();
-  const boxes=[null,[],[1,2,3],[0,0,0,1],[0,0,1,-1],[NaN,0,1,1],[0,Infinity,1,1],[0,0,100,100],[40,20,20,10],{box:[0,0,100,100]}];
-  const points=[[[20,30,.5]],[],[[NaN,1,.5]],[[1,2,2]],[[1,2]],[[Infinity,1,.5]]];
-  const infos=[null,{}, {phase:'complete',label:'final'}, {phase:'drawing',label:9}, {phase:'interrupted'}, {phase:'cleared',label:''}];
-  const validBox=b=>Array.isArray(b)&&b.length===4&&b.every(Number.isFinite)&&b[2]>0&&b[3]>0;
-  const validPoint=p=>Array.isArray(p)&&[2,3].includes(p.length)&&p.every(Number.isFinite)&&(p.length===2||(p[2]>=0&&p[2]<=1));
-  let seed=850;const next=n=>{seed=(1664525*seed+1013904223)>>>0;return seed%n;};
-  for(let round=0;round<12;round++) {
-    const paths=[],targets=[],meta=new Map(),editable=new Set(),expected=new Map();
-    for(let i=0;i<80;i++) {
-      const identity=i%13===0?null:`s${Math.floor(i/2)}`;
-      const p={sketch:identity,at:{box:boxes[next(boxes.length)]},pts:points[next(points.length)]};
-      paths.push(p);targets.push(boxes[next(boxes.length)]);
-      if(typeof identity==='string'){meta.set(identity,infos[next(infos.length)]);if(next(2))editable.add(identity);}
-    }
-    for(let i=0;i<paths.length;i++) {
-      const p=paths[i],box=targets[i]?.box||targets[i],point=p.pts[0],info=meta.get(p.sketch);
-      if(typeof p.sketch!=='string'||expected.has(p.sketch)||!validBox(box)||!validBox(p.at.box)||!validPoint(point))continue;
-      const label=typeof info?.label==='string'?info.label:'';
-      const add=!label&&editable.has(p.sketch)&&['drawing','interrupted','label-required'].includes(info?.phase);
-      if(!label&&!add)continue;
-      const x=box[0]+(point[0]-p.at.box[0])*box[2]/p.at.box[2];
-      const y=box[1]+(point[1]-p.at.box[1])*box[3]/p.at.box[3];
-      if(!Number.isFinite(x)||!Number.isFinite(y))continue;
-      expected.set(p.sketch,{sketch:p.sketch,x,y,label,editable:add});
-    }
-    assert.deepEqual(sketchNoteEntries(paths,targets,{metadata:k=>meta.get(k),editable}),[...expected.values()],`seeded round ${round}`);
-  }
-});
-
 function fixture(){
-  class E extends Element {appendChild(e){this.children.push(e);e.parentNode=this;return e;} remove(){if(this.parentNode)this.parentNode.children=this.parentNode.children.filter(x=>x!==this);}}
-  const root=new E('root'),doc={createElement:t=>new E(t)};
-  const click=e=>e.listeners.click[0]({stopPropagation(){},preventDefault(){}});
-  return {root,doc,click};
+ class E extends Element{appendChild(e){this.children.push(e);e.parentNode=this;return e;}remove(){if(this.parentNode)this.parentNode.children=this.parentNode.children.filter(x=>x!==this);}getBoundingClientRect(){return this.className==='sketch-note-control'?{width:80,height:44}:{left:0,top:0,width:300,height:200};}}
+ const root=new E('root'),doc={createElement:t=>new E(t)},click=e=>e.listeners.click[0]({stopPropagation(){},preventDefault(){}});return {root,doc,click};
 }
-test('keyed controls read current identity and final inspection sends no command',async()=>{
-  const {mountSketchNoteControls}=await load();const h=fixture(),sent=[];
-  const ui=mountSketchNoteControls(h.doc,{parent:h.root,onAdd:k=>sent.push(k)});
-  ui.update([{sketch:'a',x:1,y:2,label:'',editable:true}]);
-  const b=h.root.querySelector('.sketch-note-control');h.click(b);assert.deepEqual(sent,['a']);
-  ui.update([{sketch:'a',x:4,y:5,label:'<script>text</script>',editable:false}]);
-  assert.equal(h.root.querySelector('.sketch-note-control'),b);assert.equal(b.textContent,'View note');assert.equal(b.style.top,'13px','top-edge control sits below ink');h.click(b);
-  assert.equal(h.root.querySelector('.sketch-note-text').textContent,'<script>text</script>');assert.deepEqual(sent,['a']);
-  h.click(h.root.querySelector('.sketch-note-close'));assert.equal(h.root.querySelector('.sketch-note-view').hidden,true);
-  ui.update([{sketch:'a',x:4,y:140,label:'final',editable:false}]);assert.equal(b.style.top,'88px','44px control leaves an8px gap above ink');
-  ui.update([]);h.click(b);assert.deepEqual(sent,['a']);ui.dispose();assert.equal(h.root.children.length,0);
+test('keyed controls use latest identity and final view never mutates',async()=>{
+ const {mountSketchNoteControls}=await load(),h=fixture(),sent=[],ui=mountSketchNoteControls(h.doc,{parent:h.root,onAdd:k=>sent.push(k)});
+ ui.update([{sketch:'a',bounds:{left:10,top:140,right:130,bottom:150},label:'',editable:true}],options.viewport);
+ const b=h.root.querySelector('.sketch-note-control');h.click(b);assert.deepEqual(sent,['a']);
+ assert.ok(Number.parseFloat(b.style.top)+44<=132,'8px above ink; (110,140) remains reachable');
+ ui.update([{sketch:'a',bounds:{left:1,top:1,right:2,bottom:2},label:'<script>text</script>',editable:false}],options.viewport);
+ assert.equal(h.root.querySelector('.sketch-note-control'),b);h.click(b);assert.equal(h.root.querySelector('.sketch-note-text').textContent,'<script>text</script>');assert.deepEqual(sent,['a']);
+ h.click(h.root.querySelector('.sketch-note-close'));assert.equal(h.root.querySelector('.sketch-note-view').hidden,true);ui.update([],options.viewport);h.click(b);assert.deepEqual(sent,['a']);ui.dispose();assert.equal(h.root.children.length,0);
 });
-
-test('unowned unfinished sketches never acquire a label action and malformed geometry is skipped',async()=>{
-  const {sketchNoteEntries}=await load();
-  const paths=[path('other'),path('bad'),path('mine'),path('mine')];
-  assert.deepEqual(sketchNoteEntries(paths,[[0,0,10,10],[0,0,-1,10],null,[0,0,100,100]],{
-    metadata:()=>({phase:'interrupted'}),editable:new Set(['mine','bad']),
-  }),[{sketch:'mine',x:20,y:30,label:'',editable:true}]);
-});
-test('revoking a keyed Add note action makes its old click inert',async()=>{
-  const {mountSketchNoteControls}=await load(),h=fixture(),sent=[];
-  const ui=mountSketchNoteControls(h.doc,{parent:h.root,onAdd:k=>sent.push(k)});
-  ui.update([{sketch:'a',x:1,y:2,label:'',editable:true}]);const b=h.root.querySelector('.sketch-note-control');
-  ui.update([{sketch:'a',x:1,y:2,label:'',editable:false}]);h.click(b);assert.deepEqual(sent,[]);ui.dispose();h.click(b);assert.deepEqual(sent,[]);
+test('complete button remains inside all viewport edges and separated from ink where space permits',async()=>{
+ const {mountSketchNoteControls}=await load(),h=fixture(),ui=mountSketchNoteControls(h.doc,{parent:h.root,onAdd:()=>{}});
+ for(const bounds of [{left:0,top:0,right:10,bottom:10},{left:290,top:0,right:300,bottom:10},{left:0,top:190,right:10,bottom:200},{left:290,top:190,right:300,bottom:200}]){
+ ui.update([{sketch:'a',bounds,label:'done'}],options.viewport);const b=h.root.querySelector('.sketch-note-control'),x=Number.parseFloat(b.style.left),y=Number.parseFloat(b.style.top);
+ assert.ok(x>=0&&y>=0&&x+80<=300&&y+44<=200);assert.ok(y+44<=bounds.top-8||y>=bounds.bottom+8||x+80<=bounds.left-8||x>=bounds.right+8);
+ }
+ ui.dispose();
 });

@@ -29,14 +29,24 @@ func TestCastNotesPanelLive(t *testing.T) {
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		// The standalone panel fixture excludes the launcher control, which
 		// otherwise overlaps its controls at the deliberately tiny viewport.
-		fmt.Fprint(w, `<!doctype html><meta charset="utf-8"><link rel="stylesheet" href="/web/annotate.css">
+		fmt.Fprint(w, `<!doctype html><meta charset="utf-8"><link rel="stylesheet" href="/web/annotate.css"><link rel="stylesheet" href="/web/sketch.css">
 <style>couchcast-control{display:none!important}html,body{margin:0;width:100%;height:100%;overflow:hidden}#page{position:fixed;width:110px;height:44px}.note-row{display:block;width:100%;min-height:80px;white-space:normal;overflow-wrap:anywhere}</style>
 <button id="page">Previously covered page</button><script type="module">
 import {mountFloatingPanel} from '/web/floating-panel.js';
+import {paintSketchPaths} from '/web/sketch-render.js';
+import {sketchNoteEntries,mountSketchNoteControls} from '/web/sketch-notes.js';
 window.pageClicks=0;window.rowClicks=0;document.querySelector('#page').onclick=()=>pageClicks++;
 window.resetPanel=()=>{window.panel?.dispose();pageClicks=0;rowClicks=0;const body=document.createElement('div');
 for(let i=0;i<60;i++){const row=document.createElement('button');row.className='note-row';row.textContent='Note '+i+' '+('Long note text with wrapping. '.repeat(12));row.onclick=()=>rowClicks++;body.append(row);}
 window.panel=mountFloatingPanel(document,window,{parent:document.body,body});panel.setCount(60);window.ready=true;};resetPanel();
+window.showSketchControls=(paths,targets)=>{
+ window.sketchControls?.dispose();document.querySelector('#sketch-fixture')?.remove();
+ const root=document.createElement('div');root.id='sketch-fixture';root.style.cssText='position:fixed;inset:0;pointer-events:none';document.body.append(root);
+ const canvas=document.createElement('canvas');canvas.width=innerWidth;canvas.height=innerHeight;root.append(canvas);
+ const bounds=paths.map((p,i)=>paintSketchPaths(canvas.getContext('2d'),[p],{project:()=>targets[i]}));
+ window.sketchControls=mountSketchNoteControls(document,{parent:root,onAdd:()=>{throw Error('final labels cannot mutate')}});
+ sketchControls.update(sketchNoteEntries(paths,bounds,{metadata:()=>({phase:'complete',label:'Final visible sketch'}),editable:new Set(),viewport:{width:innerWidth,height:innerHeight}}),{width:innerWidth,height:innerHeight});
+};
 </script>`)
 	}))
 	defer srv.Close()
@@ -190,6 +200,8 @@ window.panel=mountFloatingPanel(document,window,{parent:document.body,body});pan
 		if math.Abs(small["left"]-moved["left"]) < 20 {
 			t.Fatalf("minimized drag did not move: before=%v after=%v", moved, small)
 		}
+		eval(`(()=>{const b=document.querySelector('.floating-panel-restore');for(let i=0;i<200;i++)b.dispatchEvent(new KeyboardEvent('keydown',{key:'ArrowRight',shiftKey:true,bubbles:true}));panel.setCount(999999);})()`, nil)
+		require(`(()=>{const r=panel.root.getBoundingClientRect();return panel.root.classList.contains('minimized')&&r.right<=innerWidth&&r.left>=0})()`)
 		click(".floating-panel-restore")
 		require(`!panel.root.classList.contains('minimized') && !panel.body.hidden`)
 		restored := rect(".floating-notes")
@@ -229,4 +241,18 @@ window.panel=mountFloatingPanel(document,window,{parent:document.body,body});pan
 		eval("panel.dispose()", nil)
 		require(`!document.querySelector('.floating-notes')`)
 	}
+	// Native scroll/multipath/edge proof uses bounds from the real painter.
+	resize(320, 480)
+	eval(`(()=>{const p={sketch:'s',id:'p',width:4,color:'#ff0000',at:{box:[0,0,100,800]},pts:[[30,100,.5],[60,700,.5]]};showSketchControls([p],[ [0,-500,100,800] ]);})()`, nil)
+	reachable := `(()=>{const e=document.querySelector('.sketch-note-control'),r=e?.getBoundingClientRect();return !!r&&r.width>0&&r.height>0&&r.left>=0&&r.top>=0&&r.right<=innerWidth&&r.bottom<=innerHeight&&e===document.elementFromPoint(r.x+r.width/2,r.y+r.height/2)})()`
+	require(reachable)
+	click(".sketch-note-control")
+	require(`document.querySelector('.sketch-note-text').textContent==='Final visible sketch'&&!document.querySelector('.sketch-note-view').hidden`)
+	click(".sketch-note-close")
+	for _, corner := range [][2]int{{0, 0}, {319, 0}, {0, 479}, {319, 479}} {
+		eval(fmt.Sprintf(`(()=>{const off={sketch:'s',id:'off',width:4,at:{box:[0,0,320,480]},pts:[[-100,-100,.5]]};const visible={...off,id:'visible',pts:[[%d,%d,.5]]};showSketchControls([off,visible],[[0,0,320,480],[0,0,320,480]]);})()`, corner[0], corner[1]), nil)
+		require(reachable)
+	}
+	eval(`sketchControls.dispose();document.querySelector('#sketch-fixture').remove()`, nil)
+
 }

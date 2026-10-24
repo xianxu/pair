@@ -88,3 +88,63 @@ test('header gestures stay local while body input and scrolling remain native',(
   const event=f.body.fire(type);assert.equal(event.prevented,undefined);assert.equal(event.stopped,undefined);
  }
 });
+
+test('count growth reclamps a minimized panel at the right edge and retires tentative drag',()=>{
+ const f=fixture(1);
+ // Intrinsic button width changes with its actual rendered count text.
+ f.root.getBoundingClientRect=()=>{
+  f.cost.geometry++;
+  return f.root.classList.contains('minimized')?{width:50+f.restore.textContent.length*8,height:32}:{width:300,height:320};
+ };
+ f.minimize.fire('click');
+ for(let i=0;i<50;i++)f.restore.fire('keydown',{key:'ArrowRight',shiftKey:true});
+ const left=()=>Number.parseFloat(f.root.style.inset.split(' ')[3]);
+ const smallLeft=left();
+ f.setCount(1000000);
+ assert.ok(left()<smallLeft,'growing intrinsic width must move the right-edge anchor left');
+ assert.equal(left()+f.root.getBoundingClientRect().width,788);
+ assert.equal(f.root.classList.contains('minimized'),true);
+ const rollback=left();
+ f.restore.fire('pointerdown');f.root.fire('pointermove',{clientX:-100,clientY:100});
+ assert.equal(f.restore.hasPointerCapture(1),true);
+ f.setCount(10000000);
+ assert.equal(f.restore.hasPointerCapture(1),false);
+ assert.equal(left(),rollback-8,'count update cancels to prior anchor, then clamps the wider button');
+ const after=f.root.style.inset;f.root.fire('pointermove',{clientX:500,clientY:300});f.root.fire('pointerup');
+ assert.equal(f.root.style.inset,after,'late gesture input cannot revive the canceled drag');
+ const measurements=f.cost.geometry;f.setCount(10000000);assert.equal(f.cost.geometry,measurements,'unchanged count does not remeasure');
+});
+
+test('mode rendering and measurement follow the pure transition sequence',async()=>{
+ // Instrument the reducer in an isolated module copy, leaving the production
+ // API unchanged. Observe calls from the real adapter, including state before
+ // each transition; direct adapter mode mutation cannot hide in a final snapshot.
+ const {readFile}=await import('node:fs/promises');
+ const source=await readFile(new URL('../../cmd/internal/webcast/web/floating-panel.js',import.meta.url),'utf8');
+ const instrumented=source.replace('export function floatingPanelTransition(', 'function panelTransitionImpl(')+`
+ export const panelTrace=[];
+ export function floatingPanelTransition(previous,event){
+  const next=panelTransitionImpl(previous,event);
+  panelTrace.push({event:event.type,previousMode:previous?.mode,nextMode:next.mode});
+  return next;
+ }`;
+ const {mountFloatingPanel:mount,panelTrace}=await import('data:text/javascript;base64,'+Buffer.from(instrumented).toString('base64'));
+ const cost={styles:0,geometry:0,capture:[]},doc={createElement:tag=>new Node(tag,cost)};
+ const win=new Node('window',cost);win.innerWidth=800;win.innerHeight=600;
+ const parent=doc.createElement('main'),body=doc.createElement('div'),f=mount(doc,win,{parent,body});f.setCount(1);
+ const measured=[];f.root.getBoundingClientRect=()=>{
+  const mode=f.root.classList.contains('minimized')?'minimized':'expanded';
+  measured.push({mode,last:panelTrace.at(-1)});
+  return mode==='minimized'?{width:90,height:32}:{width:300,height:320};
+ };
+ f.root.querySelector('.floating-panel-minimize').fire('click');
+ f.root.querySelector('.floating-panel-restore').fire('click');
+ assert.deepEqual(panelTrace.filter(e=>e.event==='mode'),[
+  {event:'mode',previousMode:'expanded',nextMode:'minimized'},
+  {event:'mode',previousMode:'minimized',nextMode:'expanded'}
+ ]);
+ assert.deepEqual(measured.map(e=>[e.mode,e.last.event,e.last.nextMode]),[
+  ['minimized','mode','minimized'],['expanded','mode','expanded']
+ ]);
+ assert.deepEqual(panelTrace.slice(-2).map(e=>e.event),['geometry','click']);
+});

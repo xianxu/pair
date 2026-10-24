@@ -100,9 +100,9 @@ export function mountFloatingPanel(doc, win, {parent, body, title = 'Notes', cla
   };
   const mode = value => {
     cancel();
-    // Change visibility before measuring the new form, then clamp its shared anchor.
-    state = {...state, mode: value}; presentation();
-    send({type: 'mode', mode: value, size: measure(), viewport: viewport()});
+    // The reducer owns the mode; render that state before measuring its form.
+    send({type: 'mode', mode: value}); presentation();
+    send({type: 'geometry', size: measure(), viewport: viewport()});
   };
   const stop = event => { event.preventDefault(); event.stopPropagation(); };
   const press = event => {
@@ -149,8 +149,15 @@ export function mountFloatingPanel(doc, win, {parent, body, title = 'Notes', cla
   return {root, body,
     setCount(value) {
       if (state.disposed) return;
-      count = Math.max(0, Math.floor(finite(value))); if (!count) cancel();
+      const nextCount = Math.max(0, Math.floor(finite(value)));
+      if (nextCount === count) return;
+      count = nextCount;
+      // The minimized button has intrinsic width. Retire any tentative drag
+      // before changing its text so rollback and clamping use one owned anchor.
+      const remeasure = count > 0 && state.mode === 'minimized';
+      if (!count || remeasure) cancel();
       root.hidden = count === 0; presentation();
+      if (remeasure) send({type: 'geometry', size: measure(), viewport: viewport()});
     },
     dispose() {
       if (state.disposed) return;

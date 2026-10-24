@@ -1,22 +1,20 @@
-import { projectSketchPoint } from './sketch-render.js';
-
-// Reuse the painter's accepted placement pass; inspecting one sample is enough
-// to position one private control without walking a sketch's point history.
-export function sketchNoteEntries(paths, targets, { metadata, editable, toClient = (x,y)=>[x,y] }) {
-  const entries = new Map();
-  for (let i=0; i<paths.length; i++) {
-    const p=paths[i];
-    if (!p || typeof p.sketch!=='string' || entries.has(p.sketch)) continue;
-    const target=targets[i]?.box || targets[i];
-    if (!Array.isArray(target) || target.length!==4 || !target.every(Number.isFinite) || target[2]<=0 || target[3]<=0) continue;
-    const point=p.pts?.[0], projected=point && projectSketchPoint(point,p.at?.box,target);
-    if (!projected) continue;
-    const xy=toClient(projected[0],projected[1]);
-    if (!Array.isArray(xy) || xy.length!==2 || !xy.every(Number.isFinite)) continue;
-    const info=metadata(p.sketch), label=typeof info?.label==='string' ? info.label : '';
-    const canAdd=!label && editable.has(p.sketch) && ['drawing','interrupted','label-required'].includes(info?.phase);
-    if (!label && !canAdd) continue;
-    entries.set(p.sketch,{sketch:p.sketch,x:xy[0],y:xy[1],label,editable:canAdd});
+// Bounds come from the existing painter/cache, never another point projection.
+export function sketchNoteEntries(paths, paintedBounds, {metadata,editable,viewport}) {
+  const entries=new Map();
+  for(let i=0;i<paths.length;i++) {
+    const id=paths[i]?.sketch,b=paintedBounds[i];
+    if(typeof id!=='string'||!b||![b.left,b.top,b.right,b.bottom].every(Number.isFinite)||b.left>b.right||b.top>b.bottom)continue;
+    const bounds={left:Math.max(0,b.left),top:Math.max(0,b.top),right:Math.min(viewport.width,b.right),bottom:Math.min(viewport.height,b.bottom)};
+    if(!(bounds.left<bounds.right&&bounds.top<bounds.bottom))continue;
+    const existing=entries.get(id);
+    if(existing) {
+      existing.bounds.left=Math.min(existing.bounds.left,bounds.left);existing.bounds.top=Math.min(existing.bounds.top,bounds.top);
+      existing.bounds.right=Math.max(existing.bounds.right,bounds.right);existing.bounds.bottom=Math.max(existing.bounds.bottom,bounds.bottom);
+      continue;
+    }
+    const info=metadata(id),label=typeof info?.label==='string'?info.label:'';
+    const canAdd=!label&&editable.has(id)&&['drawing','interrupted','label-required'].includes(info?.phase);
+    if(label||canAdd)entries.set(id,{sketch:id,bounds,label,editable:canAdd});
   }
   return [...entries.values()];
 }
@@ -33,7 +31,7 @@ export function mountSketchNoteControls(doc,{parent,onAdd}) {
     root.addEventListener(type,e=>e.stopPropagation());view.addEventListener(type,e=>e.stopPropagation());
   }
   return {
-    update(entries) {
+    update(entries, viewport) {
       if(disposed)return;
       current=new Map(entries.map(e=>[e.sketch,e]));
       for(const [key,b] of buttons) if(!current.has(key)){b.remove();buttons.delete(key);}
@@ -49,9 +47,20 @@ export function mountSketchNoteControls(doc,{parent,onAdd}) {
           });buttons.set(entry.sketch,b);
         }
         b.textContent=entry.label?'View note':'Add note';
-        b.style.left=`${entry.x}px`;// Keep the 44px control above the ink with an 8px gap. Near the
-        // top edge place it below instead, so the control stays reachable.
-        b.style.top=`${entry.y < 52 ? entry.y + 8 : entry.y - 52}px`;
+        // Measure the whole labeled target once. Prefer above/below/right/left
+        // with an 8px gap; clamp the complete button when space is exhausted.
+        const available=viewport || parent.getBoundingClientRect();
+        const width=Math.max(0,available.width),height=Math.max(0,available.height);
+        b.style.maxWidth=`${width}px`;b.style.maxHeight=`${height}px`;
+        const measured=b.getBoundingClientRect(),w=Math.min(width,measured.width),h=Math.min(height,measured.height),ink=entry.bounds;
+        const clamp=(value,max)=>Math.max(0,Math.min(Math.max(0,max),value));
+        let x=clamp(ink.left,width-w),y;
+        if(ink.top>=h+8)y=ink.top-h-8;
+        else if(ink.bottom+h+8<=height)y=ink.bottom+8;
+        else if(ink.right+w+8<=width){x=ink.right+8;y=clamp(ink.top,height-h);}
+        else if(ink.left>=w+8){x=ink.left-w-8;y=clamp(ink.top,height-h);}
+        else y=clamp(ink.top-h-8,height-h);
+        b.style.left=`${clamp(x,width-w)}px`;b.style.top=`${clamp(y,height-h)}px`;
       }
       if(selected) {
         const latest=current.get(selected);

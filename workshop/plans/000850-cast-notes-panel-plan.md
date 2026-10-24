@@ -156,3 +156,12 @@ First-point discovery fails after scrolling when later ink remains on view. Reus
 Minimized count updates also measure/reclamp when text size can change; pointer-move stays constant-cost. All mode changes route through the pure reducer, then DOM rendering, then a measured geometry event; the adapter must never directly assign authoritative mode. Add regressions for growing count at a viewport edge and reducer-owned mode sequencing.
 
 BR4: preserve the already-staged combined operator look per the TL (no restage requested); retain non-skipped native evidence on the corrected source. Reviewer Chrome failed at GPU startup before any page, despite the worker's prior9.756s complete pass; this is host execution evidence to reconcile, not a reason to bypass native acceptance.
+
+Additional concept changed by the approved BR1 correction:
+
+| Name | Kind | Lives in | Status |
+|---|---|---|---|
+| `paintSketchPaths` (returns bounds from its existing projection/paint pass) | INTEGRATION | `web/sketch-render.js` | modified |
+| Existing `mountSketch` per-path ink cache (retains incremental painted bounds) | INTEGRATION | `web/sketch.js` | modified |
+
+Native proof for the correction is retained in workshop/evidence/000850/native-qualification.log with source-blob manifest; full panel/operator pair passed11.242s. Operator look remains on the authorized combined stage, held by pair:6, without restaging per TL f0df15c2.

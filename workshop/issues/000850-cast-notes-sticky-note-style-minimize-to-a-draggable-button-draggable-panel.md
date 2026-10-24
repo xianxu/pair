@@ -86,6 +86,15 @@ BR1 Critical: first-point controls scroll away despite later visible ink. BR2 Im
 
 TL f0df15c2 approved painter-returned bounds in the existing bounded per-path ink cache, visible bounds in one P pass, measured/clamped complete controls once per update; local count geometry and reducer corrections. Plan Revisions records the mechanism/cost. Supported cancel lease-2921208569 completed EXIT0 while it was queued, before its suite began; old source is superseded by known review defects and cannot supply final evidence. No duplicate check. Pair:6 owns combined stage6f0478a3a and sent restart/ask; per TL do not restage. Next: implement/pin corrections, retain native log, push and pre-close corrected head, then re-close after operator result. Stage acceptance remains pending.
 
+
+### 2026-10-23 — BR1–3 fixed and verified; exact-source browser evidence
+
+Painter now returns pressure-expanded bounds during its existing projection/paint loop; existing per-path ink cache unions incremental bounds and resets under its existing transform/repaint owner. One path pass derives clipped visible per-sketch bounds, and complete controls are measured/clamped once per update. Tests first reproduced absent bounds and offscreen first-point/multipath/edge failure, then passed. New mounted scroll/cache regression confirms the first sample can leave the viewport while Add note stays reachable and unchanged refresh paints zero points. Counted unique P/2P cases reject repeated history projection and superlinear grouping. No new placement IO or cache owner.
+
+BR2 count-growth and BR3 mode-sequence regressions observed RED, then passed. Minimized size-changing count updates retire tentative drag, render/measure/reclamp; unchanged counts do nothing. Mode changes route reducer → render → measured geometry. Existing O(1) movement counts stay green. All webcast Node tests EXIT0; focused Go assembly/server tests PASS0.907s; inventory next before re-close.
+
+Corrected-source native pair passed non-skipped11.242s, complete operator scenario8.60s. Raw log workshop/evidence/000850/native-qualification.log and JSON manifest retain SHA256 plus exact tested source Git blobs, avoiding reliance on a prose claim after the review host GPU startup refusal. Extended native panel check uses the actual painter for scroll/multipath/all-edge controls, and real layout for count growth. These are no longer unverified browser scenarios; operator acceptance itself still awaits the combined staged look (TL explicitly says no restage).
+
 ## Revisions
 
 ### 2026-10-23 — TL approved design (19f42a37)
