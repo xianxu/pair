@@ -88,37 +88,48 @@ The DOM adapter owns effects; pure transitions return next state and effects. Re
 - Explicit tagged interaction transitions handle cancellation, late pointer events and disposal. Existing async note/label owners keep their epochs and partial-outcome policy; no new waiter or optimistic success (ARCH-ORDER).
 - The screenshot's blocking UI and discovery request are both covered, including mobile input and operator stage; no submit-loop workaround is smuggled in (ARCH-PURPOSE). Keep pure state independent of browser effects (ARCH-PURE).
 
+## Verification strategies
+
+| Production function/seam | Adversarial input class and mechanical guard |
+|---|---|
+| `floatingPanelTransition` | Generate arbitrary bounded event sequences; assert independent finite/clamped geometry, single-pointer ownership and terminal-disposal invariants after each transition. |
+| `mountFloatingPanel` | Drive reordered browser events through a stateful capture/viewport fake; compare effect logs with the pure model, rejecting page propagation and resource retention. Count geometry and style operations independently of list size. |
+| `sketchNoteEntries` | Generate malformed metadata/placement collections; reject unavailable/nonfinite geometry, preserve unique identity/capability, and count projection visits at P/2P. |
+| `noteList` panel integration | Replace keyed records with generated newer snapshots; compare click targets against the latest source map while preserving local panel state and DOM identity. |
+| `mountSketchNoteControls` | Invoke stale keyed handlers against changing accepted metadata; require the authoritative identity and existing command route, and assert final-text inspection produces zero mutations. |
+| Visibility/preview integration | Interleave presentation transitions and real source mutations against the existing stateful selection/acknowledgment harness; presentation cannot change selection/stamps, while mismatched actual feedback must refuse. |
+| Native browser layout | Exercise the real mounted modules over a viewport/input matrix; use computed geometry and actual hit targets as independent oracles, preserving page reachability and bounded scrolling. |
+
 ## Implementation tasks (one atomic close, no Mx boundaries)
 
 ### Task 1 — pure panel state and owned browser effects
 
 Files: create `web/floating-panel.js`, `tests/webcast/floating-panel.test.mjs`; extend the existing DOM fixture only as real pointer/viewport behavior requires.
 
-- [ ] Write table/sequence tests for expanded/minimized anchors, threshold click versus drag, pointer identity, cancel/lost capture, resize clamping, keyboard movement, late events after dispose and no-data hiding. Run `node --test tests/webcast/floating-panel.test.mjs`; observe semantic RED.
-- [ ] Implement deterministic transition and minimal adapter. Use pointer capture and scoped listeners; clear state before releasing capture to ignore resulting lost-capture events. Assert no underlying page action from drag, while inputs/scrollbar remain ordinary. Run tests GREEN and the counted N/2N no-list-scan pin. Commit.
+- [ ] Implement the transition/adapter strategies above as failing tests. Run `node --test tests/webcast/floating-panel.test.mjs`; observe semantic RED.
+- [ ] Implement deterministic transition and minimal owned adapter, with model-controlled capture and listener disposal. Run the tests and counted N/2N cost pin GREEN. Commit.
 
 ### Task 2 — annotation panel styling and integration
 
 Files: modify `web/annotate.js`, `web/annotate.css`, `server.go`, `operator_script.go`; extend `tests/webcast/annotation-list.test.mjs`, `tests/webcast/annotate.test.mjs`, relevant operator module/server tests.
 
-- [ ] Add failing integration tests around real keyed `noteList`: count changes/edits preserve collapsed mode, anchor, scroll and row identity; restore opens latest text; hidden/off/driver behavior applies to both forms; empty/repopulated lists preserve the chosen mode. Existing remote/late-result editor guards stay intact.
-- [ ] Wrap existing list body with the owned panel. Apply sticky colors and bounded fixed dimensions; header controls stay outside overflow. Update both explicit embedding paths/import maps. Run Node tests and focused module assembly/asset-serving Go tests GREEN. Commit.
+- [ ] Implement the `noteList` integration strategy above as failing tests against the real keyed rows and guarded editor.
+- [ ] Wrap the list body with the owned panel and approved CSS geometry; update both explicit embedding/import paths. Run Node tests and focused module assembly/asset-serving Go tests GREEN. Commit.
 
 ### Task 3 — sketch note discovery without command changes
 
 Files: create `web/sketch-notes.js`, `tests/webcast/sketch-notes.test.mjs`; modify `web/sketch.js`, `web/sketch.css`, embedding maps and `tests/webcast/sketch.test.mjs`.
 
-- [ ] Add failing pure tests for unique per-sketch entries, valid-placement filtering, owned unfinished Add note, final read-only View note, interrupted/pending labels and unavailable/retired sketches. Count visits at P and2P.
-- [ ] Add keyed DOM controls from the existing placement pass. Route Add note to current leave/openLabel; show final accepted text read-only, with no send/edit capability. Test labels using metacharacters, stale callbacks, handoff, final-label immutability and control removal/dispose. Do not change witness commits, preview publish or feedback visibility. Keep pair:6 informed before shared-file edits; reconcile any newly landed #849 implementation via main, never its unlanded branch. Commit GREEN.
+- [ ] Implement the entry/controls strategies above as failing tests with independent identity and mutation oracles.
+- [ ] Add keyed controls from the existing placement pass; use current leave/openLabel and a read-only final-text view. Keep label commit/witness and preview/visibility owners unchanged. Coordinate shared-file edits with pair:6 and reconcile landed #849 through main, never its unlanded branch. Run strategy tests GREEN and commit.
 
 ### Task 4 — browser and protected-submission verification
 
 Files: new `cmd/internal/webcast/cast_notes_panel_live_test.go` and/or extend existing operator/viewer Chrome fixtures; update `tests/webcast/operator-submission-preview.test.mjs` only for integration assumptions, atlas/webcast.md, atlas/webcast-submission.md and README's existing cast-note instructions.
 
-- [ ] Add real headless Chrome cases for sticky computed colors, fixed scrolling height with long notes, mouse/touch drag of both forms, click versus drag, pointer cancellation, resize recovery and click-through to the formerly covered note/page. Verify visible sketch controls enter the existing draft path and final View note cannot mutate a record.
-- [ ] Prove presentation-only moves/minimize do not alter visible scene selection, stamps, receiver cursor or shown acknowledgment; actual note edits/label/save/hide/undo still invalidate and refuse stale prepare. Run retained tests with #849 fixes when they land; coordinate the exact shared seams before implementation. No bypass if submission still fails.
-- [ ] Commands: `node --test tests/webcast/*.test.mjs`; targeted `go test ./cmd/internal/webcast/... -run 'TestOperatorScript|TestServer|TestCastNotesPanel' -count=1`; headless `WEBCAST_LIVE_CHROME=1 go test ./cmd/internal/webcast -run 'TestCastNotesPanelLive|TestOperatorSketchLiveDrawing' -count=1 -timeout 5m`. Tests must prove non-skipped cases. Audit each named reader before individual certificate repair; run `make test-affected-inventory`.
-- [ ] Commit/push final candidate, use `sdlc local-check run --pre-close` and retain its exact record. Required inventory immediately before close; SDLC supplies fresh review. At TL stage go after #849's diagnostic lease clears, `sdlc stage --build` and give the operator the short look below. Land only after SHIP, pre-close proof and acceptance; clear stage, notify hub. No new suite beside the train's full suite unless explicitly required by a gate.
+- [ ] Implement the native layout and visibility/preview strategies above as regression tests. Retain #849's exact authority invariants when its fix lands; no bypass if submission still fails.
+- [ ] Run `node --test tests/webcast/*.test.mjs`; targeted `go test ./cmd/internal/webcast/... -run 'TestOperatorScript|TestServer|TestCastNotesPanel' -count=1`; headless `WEBCAST_LIVE_CHROME=1 go test ./cmd/internal/webcast -run 'TestCastNotesPanelLive|TestOperatorSketchLiveDrawing' -count=1 -timeout 5m`. Verify non-skipped execution. Audit named readers before individual certificate repair and run `make test-affected-inventory`.
+- [ ] Commit/push final candidate and use `sdlc local-check run --pre-close`. Run required inventory immediately before SDLC close; its fresh review is the boundary. At TL stage go after #849 releases its diagnostic lease, stage/build for the operator look below. Land after SHIP, recorded proof and acceptance, clear stage, notify hub. Use the train's full suite unless an explicit gate requires another.
 
 ## Operator look
 
@@ -133,3 +144,7 @@ Confirm the proposed 300x320 panel size and shared anchor behavior. Confirm fina
 ### 2026-10-23 — approved (TL19f42a37)
 
 The hub approved the exact proposed dimensions/shared anchor and final-label read-only behavior, keyboard and pointer lifecycle, protected submission invariants and staged look. Approval questions above are resolved. No mutable label or multiple-note recording change is authorized. Proceed to implementation after full-flow gates.
+
+### 2026-10-23 — PQ-1 test-strategy compression
+
+Replaced the case inventories in Tasks1–4 with one named-function strategy table giving adversarial input classes and mechanical oracles. Kept approved behavior, source ownership, commands, real-browser proof and counted cost bounds unchanged.

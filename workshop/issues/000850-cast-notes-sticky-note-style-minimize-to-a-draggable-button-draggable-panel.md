@@ -67,3 +67,7 @@ Pair:6 messages15fa9f8e and06588197 confirm #849 root cause is still under opera
 ### 2026-10-23 — TL approved design (19f42a37)
 
 Approved yellow300x320 within viewport, fixed header/scroll body, draggable header and minimized Notes(N) sharing one local position, keyboard move and cancel/resize cleanup. Anchored feedback/selection/stamps and849 invariants stay protected. Approved existing unfinished-label Add note and read-only completed View note; finished edits only if the operator later asks. Proceed through the full-flow design gate; live operator look at end. Added explicit Done-when coverage of these accepted semantics. No new permission pending.
+
+### 2026-10-23 — plan-quality PQ-1
+
+First full-flow gate refused before implementation solely for prose test-case inventories. Compressed all task test descriptions to named production-function strategies with adversarial input classes and mechanical invariants. Commands, independent native/browser proof and cost bounds remain. No product/design change or estimate yet; rerun gate next.
