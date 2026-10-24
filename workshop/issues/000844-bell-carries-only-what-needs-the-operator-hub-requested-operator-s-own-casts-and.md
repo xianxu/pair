@@ -186,6 +186,16 @@ Main final integrated race run x3 PASS: core 14.412s, tty 3.952s, cmd 17.884s, t
 
 NEXT ACTION: commit/push repaired head; finish plan bookkeeping, recorded pre-close check and close round3 (overlap allowed). Any fourth design delta stops for TL scope cut. Once review and recorded check pass, send pair:4 exact head and short operator steps for combined stage; live acceptance precedes PR/merge/landing report.
 
+### 2026-10-24 — close SHIP; recorded verification pending
+
+Close round3 SHIP, confidence high, all BR-1/2/3 addressed and zero open findings. Reviewer independently mutation-verified scoped revocation, witness retention and refused disposition; architecture checks pass. Card codecomplete bound to evidence c0214f319186f78bce7337300719c49fa5d7f203; close mirror HEAD b3e5ae728c12befc397151eb5434d4972414036e. No fourth design delta. Numeric actuals remain N/A under the exact authorized measurement refusal recorded above.
+
+Recorded pre-close selected full suite because a reader certificate changed, on code d7a07ecba6348d1d1a9d9de3c3704c45926c19c6. Retained terminal session 91413, run lease-1632073207, disposable checkout /Volumes/TestScratch/local-checks/sdlc-local-994618917; queued, not passed. Do not cancel/restart merely for waiting. Close commits are bookkeeping only; code unchanged. PR #593 opened for CI overlap: https://github.com/xianxu/pair/pull/593. No merge runner or landing ticket entered before the required recorded pass/live look. Hub report 2a65b2d0-0a34-42a8-ab43-e77989cb9c51 verified submitted.
+
+Reviewer noted intermittent existing TestFreshStartupRunSerializesLaunchThroughAdoption in its broader startup selection (isolated/repeated pass); checking existing flake registration rather than attributing an unrelated base cancellation failure to it. No recorded failure has occurred on this run.
+
+NEXT ACTION: monitor retained suite to completion and classify every failure; use registered-flake resume only when its conditions hold. On green, send pair:4 current Git head and three short operator steps for the combined stage (routine restart/feed, explicit hub --notify, expected cast start/stop remaining quiet); no unilateral pair:0 change. Record live verdict, then enter sdlc merge --yes for PR593 and verify tracker done/archive/runner exit before hub outcome. If further design is required, stop for TL scope cut.
+
 ## Estimate
 
 Produced via brain/data/life/42shots/velocity/estimate-logic-v3.1.md against baseline-v3.1.md. Method A only. Calibration is flagged stale by estimate-source, so these are provisional ship-wall-clock hours. Read v2/v2.1 procedure and table: retain issue/spec design cost; use x0.2 design discount for approved module/integration/refactor decisions, 40% implementation conversion, familiarity 1.0 and 15% design buffer.

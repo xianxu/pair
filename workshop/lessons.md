@@ -2915,3 +2915,5 @@ and external temporary roots rather than relying on the host's TMPDIR.
 
 - #844 BR-1: unavailable recipient and revoked automation are different facts. Keep the resolved owner's generation even across disconnect, and test queued, pre-admission-refused and uncertain outcomes independently. Only a confirmed unadmitted occurrence with a current generation may fall back; no uncertain replay.
 - #844 BR-2: an attention-policy change must update README's warning summary and bell interaction description alongside the atlas. Search live descriptions by the old promised behavior before close; documentation parity is a source audit, not a wording-presence test.
+
+- #844 BR-1 round2: a generation counter has authority only inside its root. Validate the retained root separately from observing a handoff; accepting a destination adopts its own generation. Unknown readiness cannot erase that witness, and confirmed refusal needs an explicit non-admitting disposition state if readiness is deferred. Test old-root revocation before/after handoff as different orderings.
