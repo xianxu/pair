@@ -93,6 +93,10 @@ navigation fencing precedes snapshot IO; historical writes drain in FIFO order,
 but only the newest matching scope confirms UI/admission. Queries keep all
 loads, including legacy unknowns.
 
+A legacy active segment without load identity refuses fresh notes with
+“The page changed. Try again.” Reload the page to establish a modern segment
+before adding feedback; earlier feedback remains in recording history.
+
 ## Node ids
 
 Each node in a recording has an integer `id`, assigned by the recorder. CDP's own node ids are scoped to a CDP session and are reassigned

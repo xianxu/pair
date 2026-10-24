@@ -1,0 +1,9 @@
+=== RUN   TestWebNotesInCouch
+--- PASS: TestWebNotesInCouch (0.14s)
+=== RUN   TestWebNotesMenuOutlivesTheScreenBroadcast
+--- PASS: TestWebNotesMenuOutlivesTheScreenBroadcast (2.19s)
+=== RUN   TestWebNotesMenuSourceAndStableIDs
+--- PASS: TestWebNotesMenuSourceAndStableIDs (2.15s)
+PASS
+write budget couchtty: bytes=16384 cap=67108864 repeats=1
+ok  	github.com/xianxu/pair/cmd/internal/couchtty	5.923s

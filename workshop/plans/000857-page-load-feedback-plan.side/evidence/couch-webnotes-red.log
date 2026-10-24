@@ -1,0 +1,13 @@
+=== RUN   TestWebNotesInCouch
+    console_webnotes_test.go:129: note: 409
+--- FAIL: TestWebNotesInCouch (0.05s)
+=== RUN   TestWebNotesMenuOutlivesTheScreenBroadcast
+    console_webnotes_test.go:173: note: 409
+--- FAIL: TestWebNotesMenuOutlivesTheScreenBroadcast (0.07s)
+=== RUN   TestWebNotesMenuSourceAndStableIDs
+    console_webnotes_test.go:204: note: 409
+--- FAIL: TestWebNotesMenuSourceAndStableIDs (0.04s)
+FAIL
+write budget couchtty: bytes=8192 cap=67108864 repeats=1
+FAIL	github.com/xianxu/pair/cmd/internal/couchtty	0.577s
+FAIL

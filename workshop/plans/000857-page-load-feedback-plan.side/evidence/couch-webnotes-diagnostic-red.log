@@ -1,0 +1,7 @@
+=== RUN   TestWebNotesInCouch
+    console_webnotes_test.go:134: note: 409: The page changed. Try again.
+--- FAIL: TestWebNotesInCouch (0.05s)
+FAIL
+write budget couchtty: bytes=0 cap=67108864 repeats=1
+FAIL	github.com/xianxu/pair/cmd/internal/couchtty	0.395s
+FAIL

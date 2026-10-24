@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/base64"
 	"fmt"
+	"io"
 	"net/http"
 	"strings"
 	"testing"
@@ -63,6 +64,9 @@ func newWebNotesCast(t *testing.T, screen bool) *webNotesCast {
 	b := recording.NewBuilder("rec")
 	c.p = b.El("p", []string{"id", "p"}, b.Txt("Hello"))
 	b.Page(recording.SegLive, "http://app/", c.p)
+	// The real recorder supplies CDP load authority before admitting viewer
+	// notes. This reference-writer fixture bypasses it, so state that evidence.
+	b.Recs[1].(*recording.Seg).PageLoad = &recording.PageLoad{Target: "tab1", Loader: "web-notes-load", Root: 1}
 	for _, rec := range b.Recs {
 		if err := rf.w.Put(rec); err != nil {
 			t.Fatal(err)
@@ -103,9 +107,13 @@ func (c *webNotesCast) note(t *testing.T, name, text string) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	answer, readErr := io.ReadAll(resp.Body)
 	resp.Body.Close()
+	if readErr != nil {
+		t.Fatal(readErr)
+	}
 	if resp.StatusCode != http.StatusNoContent {
-		t.Fatalf("note: %d", resp.StatusCode)
+		t.Fatalf("note: %d: %s", resp.StatusCode, answer)
 	}
 }
 

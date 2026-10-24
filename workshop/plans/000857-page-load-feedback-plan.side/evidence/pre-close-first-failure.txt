@@ -1,0 +1,8 @@
+Recorded run 038e2d7242509a4c265fba93db469635 on f5ffa47e6942019bc54a639630cfa1c8fe37a75b. Full suite unknown-failure, exit2,13m29s. Full retained log SHA256653c88759dab67140507cfdb80695854cb9028e079092970eb197f414adaa6ea at .git/sdlc/test-stats/failed/038e2d7242509a4c265fba93db469635.log. All other tests completed, only these three failures:
+
+--- FAIL: TestWebNotesInCouch (0.03s)
+    console_webnotes_test.go:129: note: 409
+--- FAIL: TestWebNotesMenuOutlivesTheScreenBroadcast (0.03s)
+    console_webnotes_test.go:173: note: 409
+--- FAIL: TestWebNotesMenuSourceAndStableIDs (0.03s)
+    console_webnotes_test.go:204: note: 409
