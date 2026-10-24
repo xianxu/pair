@@ -89,58 +89,6 @@ func TestSelectVisibleFeedbackCountsHiddenDeliveredAndOverflow(t *testing.T) {
 	}
 }
 
-func TestPreviewPrepareRefreshesOnlyCurrentPrefix(t *testing.T) {
-	c, n, v := visibleFixture()
-	selection, err := SelectVisibleFeedback(c, n, DeliveredFeedback{}, PreviewStamp{Board: 7}, v)
-	if err != nil {
-		t.Fatal(err)
-	}
-	host := PreviewHost{ID: "console", Generation: 1}
-	state, _ := NextPreview(PreviewState{}, PreviewHostChanged{Host: host})
-	state, _ = NextPreview(state, PreviewCandidatesChanged{Selection: selection})
-	state, fx := NextPreview(state, PreviewRefresh{})
-	pub := fx[0].(PreviewPublish).Publication
-	state, _ = NextPreview(state, PreviewPublishAccepted{Publication: pub})
-	for _, tc := range []struct {
-		name   string
-		mutate func(*PreviewSelection)
-		accept bool
-	}{
-		{"fresh prefix", func(s *PreviewSelection) {
-			s.Visibility.Revision++
-			s.Visibility.Scene.T++
-			s.Visibility.Scene.RecordIndex++
-			s.Page = &s.Visibility.Scene
-		}, true},
-		{"changed geometry", func(s *PreviewSelection) { s.Visibility.Sketches[0].Paths[0].Box[0]++ }, false},
-		{"changed mask", func(s *PreviewSelection) { s.Visibility.MaskRevision++ }, false},
-		{"changed selection", func(s *PreviewSelection) { s.Notes = nil }, false},
-		{"changed view", func(s *PreviewSelection) { s.Visibility.Scene.Scroll[1]++ }, false},
-		{"backward revision", func(s *PreviewSelection) { s.Visibility.Revision = 0 }, false},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			fresh := clonePreviewSelection(selection)
-			tc.mutate(&fresh)
-			_, effects := NextPreview(state, PreviewPrepare{Host: host, Stamp: selection.Stamp, Fresh: &fresh})
-			proposal, ok := effects[0].(PreviewFreezeProposal)
-			if ok != tc.accept {
-				t.Fatalf("effects=%#v", effects)
-			}
-			if ok {
-				original := fresh.Visibility.Scene
-				fresh.Visibility.Scene.Doc = 999
-				if proposal.Publication.Selection().Visibility.Scene != original {
-					t.Fatal("proposal aliases fresh")
-				}
-			}
-		})
-	}
-	_, effects := NextPreview(state, PreviewPrepare{Host: host, Stamp: selection.Stamp})
-	if _, ok := effects[0].(PreviewRefuse); !ok {
-		t.Fatal("witnessed publication accepted without fresh paint")
-	}
-}
-
 // The counted selection traversal must remain linear in authoritative and
 // painted metadata; path geometry validation has its own fixed per-shape cap.
 func TestVisibleSelectionMetadataTraversalScalesLinearly(t *testing.T) {

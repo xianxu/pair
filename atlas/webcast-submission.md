@@ -1,14 +1,16 @@
 # Send cast notes and sketches to the agent (#483, #753)
 
 Press **Shift+Ctrl+Alt+Return** in the draft Neovim, in normal or insert mode,
-to send the draft text and eligible saved notes and completed sketches actually
-visible on the current console to the agent in that view. Each selected note
+to send the draft text and the board's open notes and finished sketches to the
+agent in that view. Each selected note
 carries focused recorded context, a replay link, draw-time box text, and its
 saved PNG crop when available. Overlapping notes retain separate captures;
-submission never recaptures a changed page for those crops. Off-view notes stay
-reachable as **not on this view** and wait for a later visible selection.
-The acknowledged visible selection is frozen when Couch admits the request;
-new or deferred feedback waits for the next submission.
+submission never recaptures a changed page for those crops. The press takes the
+board's feedback as it is at that moment (pair#849): every open note at its current
+revision and every finished, labelled sketch at its current version that no
+earlier submission delivered, offscreen ones included. What the page is doing
+never refuses it; a live page that changes many times a second submits like a
+quiet one. New feedback after the press waits for the next submission.
 
 Confirmed submissions resolve their selected note revisions: acknowledgment
 transfers ownership of those notes to the agent; whatever follows (a pensive, an issue, a fix) is the agent's.
@@ -26,19 +28,27 @@ strokes. Labeled interrupted sketches retain their interruption/truncation
 facts. Unfinished, cleared and entirely undone sketches remain queryable but
 are not automatically submitted.
 
-The private operator Chrome UI shows **Pending feedback**, with both the sketch
-and annotation counts. Indexed pressure-ink thumbnails and attached sketch notes
-show the chosen shapes before the existing draft chord freezes the acknowledged
-selection. Only actually painted, finished unsent sketches and placed open-note
-revisions are eligible. At most eight sketches are selected in creation order;
-other feedback remains visible as **N more sketches** and **N more annotations**.
-The eight limit applies only to sketches. Annotation crop cards in this mixed
-panel are the separate #805 follow-up.
+At most eight sketches go per submission, oldest first; the rest wait and are
+counted as remaining. The eight limit applies only to sketches. A sketch without
+its accepted witnesses (not labelled yet) is left out, never refused.
 
-A stale visible selection, changed note revision, sketch version, mask or private
-host refuses preparation and refreshes the preview; draft and ink remain intact.
-A held drawing scene, open editor, incomplete paint or partial shape placement
-cannot establish a visible selection. There is no browser
+The one refusal is a note the operator is still writing: a new note not yet
+saved, or an existing note whose text was changed and not saved. The chord says
+which ("note \"…\" has unsaved edits; save or cancel it, then submit again").
+Resolving after dispatch uses each note's captured revision, so a note edited
+after the press stays open.
+
+The private operator Chrome UI shows **Pending feedback**, with the sketch and
+annotation counts of what is painted on the console, indexed pressure-ink
+thumbnails and attached sketch notes. It is information, never a gate: a
+preview that cannot refresh marks it **Pending feedback is out of date: …** in
+place of its old counts, and the press submits regardless. Annotation crop
+cards in this mixed panel are the separate #805 follow-up.
+
+A caret or text selection changes nothing the console shows: the recorder sends
+a selection only when it differs from the last one, and the board pushes the
+operator page no fresh view for it, so a page that keeps re-setting its caret
+does not keep the panel repainting. There is no browser
 send button or viewer agent-dispatch route. Remaining shapes wait for the next
 explicit submission.
 
@@ -55,17 +65,16 @@ bundle envelope, with atomic refusal rather than truncation. Historical notes
 are not limited by the per-page admission count.
 
 New version-3 manifests retain two typed lists, `notes` and `sketches`, and add
-one `sketch_page` referencing **sketch-page.png** with provenance
-**replay-rendered-current-view**. At the submission chord, the current recorded
-prefix and completed console paint are pinned together. The image reconstructs
-that viewport with the selected ink and numbered badges matching preview cards
-and sketch `index` values. `sketch_page.current` retains the current projections:
-actual painted target locators, boxes and clips. Pointer and private tool UI are
-absent. Missing, ambiguous, hidden or partially unprojectable selected paths
-refuse the whole batch. Unsupported clipping refuses preparation; ordinary
+one `sketch_page` referencing **sketch-page.png**. A press renders it from the
+recording with provenance **replay-rendered** (pair#849): the viewport where the
+newest selected sketch finished, with the selected ink at its recorded anchors
+and numbered badges matching sketch `index` values; it never reads the live
+painter, so the page changing meanwhile cannot refuse or alter it. Pointer and
+private tool UI are absent. Unsupported clipping refuses preparation; ordinary
 pressure fringe clipped at the viewport edge is declared explicitly. The replay
 image can still differ from live browser pixels in uncaptured visuals and
-animation phase.
+animation phase. Bundles from before pair#849 may carry **replay-rendered-current-view**
+with `sketch_page.current` projections; they stay readable.
 
 Each sketch retains its original URL/title and `recorded-dom` begin source,
 author/color, note, accepted sequence/digest, phase/reason, bounded literal

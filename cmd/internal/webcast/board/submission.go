@@ -55,9 +55,10 @@ func (b *Board) selectionLocked() (Selection, error) {
 	for _, candidate := range b.st.Sketches.SubmissionCandidates() {
 		witness, ok := b.feedback.sketches[candidate.ID]
 		if !ok || !witness.finished {
-			// An eligible version without its exact accepted witnesses cannot be
-			// published as a partial selection.
-			return Selection{}, ErrBroken
+			// Without its exact accepted witnesses (not labelled yet, or past
+			// the witness bound) the sketch cannot be packaged; leave it out
+			// rather than refuse the notes and sketches that can (pair#849).
+			continue
 		}
 		out.Sketches = append(out.Sketches, SelectedSketch{ID: candidate.ID, NextSequence: candidate.NextSequence, Digest: candidate.Digest, Source: witness.source, Finish: witness.finish})
 	}
@@ -67,6 +68,31 @@ func (b *Board) selectionLocked() (Selection, error) {
 		}
 	}
 	return out, nil
+}
+
+// PressSelection is what a press submits (pair#849): the selection's open notes
+// and finished sketches that delivered does not already hold, the oldest
+// MaxSubmissionSketches sketches first. What the page shows plays no part.
+func (s Selection) PressSelection(delivered core.DeliveredFeedback) Selection {
+	out := s
+	out.Notes, out.Sketches, out.SketchRemaining, out.NoteRemaining = nil, nil, 0, 0
+	out.CurrentPage, out.Current = nil, nil
+	for _, n := range s.Notes {
+		if _, sent := delivered.Notes[core.PreviewNote{ID: n.ID, Revision: n.Revision}]; !sent {
+			out.Notes = append(out.Notes, n)
+		}
+	}
+	for _, v := range s.Sketches {
+		if _, sent := delivered.Sketches[core.PreviewItem{RecordingID: delivered.RecordingID, SketchID: v.ID, Sequence: v.NextSequence, Digest: v.Digest}]; sent {
+			continue
+		}
+		if len(out.Sketches) == core.MaxSubmissionSketches {
+			out.SketchRemaining++
+			continue
+		}
+		out.Sketches = append(out.Sketches, v)
+	}
+	return out
 }
 
 // FreezeSubmissionSelection must be called while the manager owns its preview
