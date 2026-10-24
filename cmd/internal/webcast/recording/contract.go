@@ -306,6 +306,8 @@ func CheckCatchUp(recs []Record, t int64) error {
 		return fmt.Errorf("the asset table differs")
 	case all.DocSeg != cu.DocSeg:
 		return fmt.Errorf("the document began in segment %d, the catch-up says %d", all.DocSeg, cu.DocSeg)
+	case !samePageLoadIndex(all, cu):
+		return fmt.Errorf("page-load provenance differs")
 	case retainedNotes(all) != retainedNotes(cu):
 		return fmt.Errorf("retained notes %q, the catch-up has %q", retainedNotes(all), retainedNotes(cu))
 	case all.Hover != cu.Hover || !samePtr(all.Ptr, cu.Ptr):
@@ -315,6 +317,27 @@ func CheckCatchUp(recs []Record, t int64) error {
 			all.Control.Driving(), ids(all.Control.Pending), cu.Control.Driving(), ids(cu.Control.Pending))
 	}
 	return nil
+}
+
+func samePageLoadIndex(a, b *State) bool {
+	if len(a.pageLoads) != len(b.pageLoads) {
+		return false
+	}
+	for seg, load := range a.pageLoads {
+		other := b.pageLoads[seg]
+		if !SamePageLoad(load, other) {
+			return false
+		}
+		x, err := load.MarshalJSON()
+		if err != nil {
+			return false
+		}
+		y, err := other.MarshalJSON()
+		if err != nil || !bytes.Equal(x, y) {
+			return false
+		}
+	}
+	return true
 }
 
 func samePtr(a, b *[2]float64) bool {

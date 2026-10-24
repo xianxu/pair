@@ -129,10 +129,12 @@ type (
 	// Seg starts a live segment. Why: SegLive, SegResume, SegNavigate, SegTab.
 	Seg struct {
 		Header
-		Seg int      `json:"seg"`
-		Why string   `json:"why"`
-		Tab Tab      `json:"tab"`
-		VP  Viewport `json:"vp"`
+		Seg      int       `json:"seg"`
+		Why      string    `json:"why"`
+		Tab      Tab       `json:"tab"`
+		VP       Viewport  `json:"vp"`
+		PageLoad *PageLoad `json:"page_load,omitempty"`
+		wire     *segmentWire
 	}
 	// Stop ends a segment. Why: StopPause, StopEnd.
 	Stop struct {
@@ -496,6 +498,14 @@ func (r *Head) check() error {
 	return errors.Join(need(r.Format == Format, "format "+Format), need(r.V > 0, "v"), need(r.ID != "", "id"), need(r.Started != "", "started"))
 }
 func (r *Seg) check() error {
+	if r.PageLoad != nil {
+		if err := r.PageLoad.Validate(); err != nil {
+			return err
+		}
+		if r.PageLoad.Target != r.Tab.ID {
+			return errors.New("page load target differs from tab")
+		}
+	}
 	return errors.Join(need(r.Seg > 0, "seg"), need(oneOf(r.Why, SegLive, SegResume, SegNavigate, SegTab), "why"),
 		need(r.VP.W > 0 && r.VP.H > 0, "vp"))
 }
