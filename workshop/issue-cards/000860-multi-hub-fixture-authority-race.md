@@ -1,6 +1,6 @@
 ---
 id: 000860
-status: codecomplete
+status: done
 created: 2026-10-23
 updated: 2026-10-24
 estimate_hours:
@@ -21,6 +21,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: 67a53ea2b4d26e3ed053150decb566c473e45068
         evidence_commit: 06f0f98cf8ce79ba58a3ceb87af395754959a4a8
+        landed_commit: 191600e0210290d02cfe5ba91350d0888b35bcfc
 ---
 
 # Multi-hub test fixture mutates authority after message readers start
