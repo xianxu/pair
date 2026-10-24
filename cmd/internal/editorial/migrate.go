@@ -3,60 +3,10 @@ package editorial
 import (
 	"bytes"
 	"fmt"
-	"sort"
 	"strings"
 
 	"go.yaml.in/yaml/v3"
 )
-
-// FillCanonical adds missing effective components without rewriting any existing setting.
-// A refusal always returns nil candidate bytes.
-func FillCanonical(src []byte, c *Catalog) ([]byte, error) {
-	d, e := Compile(src, c)
-	if e != nil {
-		return nil, e
-	}
-	if d.multiple {
-		return nil, fmt.Errorf("multiple legacy processing modes: choose one canonical processing-mode before fill")
-	}
-	p := d.parsed
-	nl := p.newline
-	var add strings.Builder
-	for _, kv := range [][2]string{{"collaboration-mode", d.Defaults.Collaboration}, {"presentation-mode", d.Defaults.Presentation}, {"processing-mode", d.Defaults.Processing}} {
-		if _, ok := p.fields[kv[0]]; !ok {
-			add.WriteString(kv[0] + ": " + kv[1] + nl)
-		}
-	}
-	if _, ok := p.fields["processing-instruction"]; !ok && d.Defaults.Instruction != "" {
-		var n yaml.Node
-		n.Kind = yaml.ScalarNode
-		n.Tag = "!!str"
-		n.Value = d.Defaults.Instruction
-		v, err := yaml.Marshal(&n)
-		if err != nil {
-			return nil, err
-		}
-		add.WriteString("processing-instruction: " + strings.ReplaceAll(strings.TrimRight(string(v), "\n"), "\n", nl) + nl)
-	}
-	if add.Len() == 0 {
-		return bytes.Clone(src), nil
-	}
-	if p.front.End == 0 {
-		return []byte("---" + nl + add.String() + "---" + nl + nl + string(src)), nil
-	}
-	closeStart := p.closeStart
-	if p.indent > 0 {
-		text := strings.ReplaceAll(add.String(), nl, nl+strings.Repeat(" ", p.indent))
-		text = strings.TrimSuffix(text, strings.Repeat(" ", p.indent))
-		add.Reset()
-		add.WriteString(strings.Repeat(" ", p.indent) + text)
-	}
-	out := make([]byte, 0, len(src)+add.Len())
-	out = append(out, src[:closeStart]...)
-	out = append(out, add.String()...)
-	out = append(out, src[closeStart:]...)
-	return out, nil
-}
 
 // Migration contains the verified candidate bytes and the base snapshot digest.
 type Migration struct {
@@ -69,118 +19,153 @@ type sourceReplacement struct {
 	after []byte
 }
 
-// PlanMigration is the sole explicit legacy-map transform. It preserves routing
-// at every heading occurrence and validates the resulting canonical document.
-func PlanMigration(src []byte, c *Catalog) (*Migration, error) {
-	d, err := Compile(src, c)
+// PlanMigration replaces only a legacy collaboration map with explicit tags.
+// Shared scan facts select headings; the compiled eligible-item projection must
+// survive exactly. Refusals return no candidate and never renumber asks.
+func PlanMigration(src []byte) (*Migration, error) {
+	d, err := Compile(src)
 	if err != nil {
 		return nil, err
 	}
-	if d.multiple {
-		return nil, fmt.Errorf("multiple legacy processing modes prevent migration")
+	result := &Migration{BeforeHash: d.SourceHash, After: bytes.Clone(src), Diagnostics: d.Diagnostics}
+	field, ok := d.parsed.fields["collaboration-mode"]
+	if !ok || field.value.Kind != yaml.MappingNode {
+		return result, nil
 	}
-	candidate := bytes.Clone(src)
-	if d.legacyField != nil {
-		names := map[string]bool{}
+	for _, notice := range d.scan.Notices {
+		if strings.HasPrefix(notice, "collaboration-mode map name ") && strings.HasSuffix(notice, " matches no heading") {
+			return nil, fmt.Errorf("migration refused: %s", notice)
+		}
+	}
+	reps := []sourceReplacement{{r: field.Range}}
+	selected := make(map[int]bool)
+	whole := false
+	for _, section := range d.scan.Sections {
+		if section.Heading == 0 {
+			whole = true
+			continue
+		}
+		if section.Source == "legacy-map" {
+			selected[section.Heading] = true
+		}
+	}
+	// A whole-document legacy default can be expressed by tags on root
+	// headings only; the item proof below rejects unrepresentable preamble asks.
+	if whole {
+		for i, h := range d.Headings {
+			if h.Parent < 0 {
+				selected[d.scan.Headings[i].Line] = true
+			}
+		}
+	}
+	tags := make(map[int]bool, len(d.scan.Tags))
+	for _, line := range d.scan.Tags {
+		tags[line+1] = true
+	}
+	lines := sourceLines(src)
+	for i, h := range d.scan.Headings {
+		if !selected[h.Line] || tags[h.Line] {
+			continue
+		}
+		at := d.Headings[i].Range.Start
+		reps = append(reps, sourceReplacement{r: Range{at, at}, after: []byte("@@chat@@" + d.parsed.newline)})
+	}
+	// The frontmatter removal precedes source-ordered heading insertions.
+	var out bytes.Buffer
+	pos := 0
+	for _, r := range reps {
+		out.Write(src[pos:r.r.Start])
+		out.Write(r.after)
+		pos = r.r.End
+	}
+	out.Write(src[pos:])
+	candidate := out.Bytes()
+	after, err := Compile(candidate)
+	if err != nil {
+		return nil, err
+	}
+	// Each proof walks source offsets monotonically. A fresh cursor per
+	// projection avoids rescanning every insertion for every source line.
+	translator := func() func(int, bool) int {
+		cursor, delta := 0, 0
+		return func(offset int, end bool) int {
+			for cursor < len(reps) {
+				r := reps[cursor]
+				if offset < r.r.End || (end && r.r.Start == r.r.End && offset == r.r.Start) {
+					break
+				}
+				delta += len(r.after) - (r.r.End - r.r.Start)
+				cursor++
+			}
+			return offset + delta
+		}
+	}
+	sectionName := func(offset int) string {
+		name := "preamble"
 		for _, h := range d.Headings {
-			names[NormalizeHeading(h.Name)] = true
-		}
-		for name := range d.legacy {
-			if !names[name] {
-				return nil, fmt.Errorf("legacy map name %q matches no heading", name)
+			if h.Range.Start > offset {
+				break
 			}
+			name = strings.TrimSpace(h.Name)
 		}
-		reps := []sourceReplacement{{d.legacyField.Range, []byte(strings.Repeat(" ", d.parsed.indent) + "collaboration-mode: " + d.Defaults.Collaboration + d.parsed.newline)}}
-		for headingIndex, h := range d.Headings {
-			mode, ok := d.legacy[NormalizeHeading(h.Name)]
-			if !ok {
-				continue
-			}
-			if d.Regions[headingIndex+1].Effective.Collaboration != mode {
-				return nil, fmt.Errorf("heading %q: map conflicts with applicable heading collaboration-mode", h.Name)
-			}
-			if h.Directive != nil {
-				if v, ok := h.Overrides["collaboration-mode"]; ok {
-					if v != mode {
-						return nil, fmt.Errorf("heading %q: map conflicts with heading collaboration-mode", h.Name)
-					}
-					continue
-				}
-				raw := h.Directive.Raw
-				line := strings.TrimRight(string(raw), "\r\n")
-				line = strings.TrimSuffix(line, " -->") + "; collaboration-mode: " + mode + " -->"
-				suffix := raw[len(strings.TrimRight(string(raw), "\r\n")):]
-				reps = append(reps, sourceReplacement{h.Directive.Range, append([]byte(line), suffix...)})
-			} else {
-				prefix := ""
-				if h.Range.End > 0 && src[h.Range.End-1] != '\n' {
-					prefix = d.parsed.newline
-				}
-				reps = append(reps, sourceReplacement{Range{h.Range.End, h.Range.End}, []byte(prefix + "<!-- collaboration-mode: " + mode + " -->" + d.parsed.newline)})
-			}
-		}
-		sort.Slice(reps, func(i, j int) bool { return reps[i].r.Start < reps[j].r.Start })
-		var out bytes.Buffer
-		pos := 0
-		for _, r := range reps {
-			out.Write(src[pos:r.r.Start])
-			out.Write(r.after)
-			pos = r.r.End
-		}
-		out.Write(src[pos:])
-		candidate = out.Bytes()
+		return name
 	}
-	candidate, err = FillCanonical(candidate, c)
-	if err != nil {
-		return nil, err
+	refuse := func(offset int, reason string) (*Migration, error) {
+		return nil, fmt.Errorf("migration refused in section %q: %s", sectionName(offset), reason)
 	}
-	after, err := Compile(candidate, c)
-	if err != nil {
-		return nil, err
+	// Compare real heading identity and source placement rather than parsing a
+	// second set of legacy routing rules. Setext-to-tag attempts fail this proof.
+	if len(d.scan.Headings) != len(after.scan.Headings) {
+		return nil, fmt.Errorf("migration refused: heading structure changed")
 	}
-	// An independent stack projection validates routing rather than trusting the
-	// compiler's effective-region comparison alone.
-	beforeRoutes := routingProjection(d)
-	afterRoutes := routingProjection(after)
-	if len(beforeRoutes) != len(afterRoutes) {
-		return nil, fmt.Errorf("migration changed heading structure")
-	}
-	for i := range beforeRoutes {
-		if beforeRoutes[i] != afterRoutes[i] {
-			return nil, fmt.Errorf("migration changed routing at heading %d", i)
+	translate := translator()
+	for i, h := range d.Headings {
+		next := after.Headings[i]
+		if h.Name != next.Name || h.Level != next.Level || translate(h.Range.Start, false) != next.Range.Start {
+			return refuse(h.Range.Start, "tag cannot preserve this heading")
 		}
 	}
-	return &Migration{BeforeHash: d.SourceHash, After: candidate, Diagnostics: d.Diagnostics}, nil
-}
-func routingProjection(d *DocumentPolicy) []string {
-	routes := []string{d.Defaults.Collaboration}
-	type ancestor struct {
-		level   int
-		mode    string
-		comment string
+	// Preserve chat coverage on original body lines under real headings. The
+	// preamble has no tag attachment; eligible asks there are checked below.
+	region, nextRegion := 0, 0
+	headingLines := make(map[int]bool, len(d.scan.Headings))
+	for _, h := range d.scan.Headings {
+		headingLines[h.Line] = true
 	}
-	stack := []ancestor{}
-	for _, h := range d.Headings {
-		for len(stack) > 0 && stack[len(stack)-1].level >= h.Level {
-			stack = stack[:len(stack)-1]
-		}
-		mode := d.Defaults.Collaboration
-		comment := ""
-		if len(stack) > 0 {
-			comment = stack[len(stack)-1].comment
-			mode = stack[len(stack)-1].mode
-		}
-		if mapped, ok := d.legacy[NormalizeHeading(h.Name)]; ok {
-			mode = mapped
-		}
-		if override, ok := h.Overrides["collaboration-mode"]; ok {
-			comment = override
-		}
-		if comment != "" {
-			mode = comment
-		}
-		routes = append(routes, mode)
-		stack = append(stack, ancestor{h.Level, mode, comment})
+	tagLines := make(map[int]bool, len(d.scan.Tags))
+	for _, line := range d.scan.Tags {
+		tagLines[line] = true
 	}
-	return routes
+	translate = translator()
+	for i, line := range lines {
+		if line.Start < d.parsed.body || len(d.Headings) == 0 || line.Start < d.Headings[0].Range.Start || headingLines[i+1] || tagLines[i+1] {
+			continue
+		}
+		for region+1 < len(d.Regions) && d.Regions[region].Range.End <= line.Start {
+			region++
+		}
+		at := translate(line.Start, false)
+		for nextRegion+1 < len(after.Regions) && after.Regions[nextRegion].Range.End <= at {
+			nextRegion++
+		}
+		if (d.Regions[region].Effective.Collaboration == "chat") != (after.Regions[nextRegion].Effective.Collaboration == "chat") {
+			return refuse(line.Start, "chat section extent would change")
+		}
+	}
+	translate = translator()
+	beforeItems, afterItems := d.items, after.items
+	for i, item := range beforeItems {
+		if i >= len(afterItems) {
+			return refuse(item.Range.Start, "eligible chat ask would be lost; keep legacy settings or intentionally edit the ask")
+		}
+		next := afterItems[i]
+		if translate(item.Range.Start, false) != next.Range.Start || translate(item.AppendAt, false) != next.AppendAt || translate(item.Range.End, true) != next.Range.End || item.Linked != next.Linked || !bytes.Equal(src[item.Range.Start:item.Range.End], candidate[next.Range.Start:next.Range.End]) {
+			return refuse(item.Range.Start, "eligible chat asks would change; keep legacy settings or intentionally edit the asks")
+		}
+	}
+	if len(afterItems) > len(beforeItems) {
+		return nil, fmt.Errorf("migration refused: eligible chat asks would be added")
+	}
+	result.After = bytes.Clone(candidate)
+	return result, nil
 }
