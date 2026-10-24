@@ -1,12 +1,20 @@
 ---
 id: 000856
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-10-23
 updated: 2026-10-23
 estimate_hours:
-card_mirror: 'b415e1f86bf0ea88eec5f29f9c5833810a944bde' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: 'a7e5c077af7623ef075ad9433c25a9e636d90c09' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-23T21:35:40-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: Xian’s MacBook Pro
+    workspace: pair:4
+    worktree: /Users/xianxu/workspace/worktree/pair-slot4/pair
+    repository: github.com/xianxu/pair
 ---
 
 # Cast tool: one Notes panel for notes and sketches, and one toolbar column with tools revealed on toggle
@@ -37,8 +45,22 @@ react to before code.
 
 ## Plan
 
-- [ ]
+Durable joint design: [Cast feedback workspace](../plans/000856-cast-feedback-workspace-plan.md). #857 remains a dependent issue on its own eventual main-based branch.
+
+- [ ] Deliver the clickable layout mock and record operator approval.
+- [ ] Implement the unified panel and protected one-column toolbar after #850/#849 land.
+- [ ] Qualify, close, obtain the live look and land through SDLC.
 
 ## Log
 
 ### 2026-10-23
+
+### 2026-10-23 — Joint design checkpoint
+
+Claimed #856 and #857; started #856 from main while #850's final-source recorded check runs from its own detached snapshot. No #850 runner holds this checkout. #857 remains dependent and will get its own branch from landed main. Read the recorder/Board/UI seams and a bounded page-load survey; the durable plan records the state table, counted growth guards and codec/digest compatibility risk. No production changes yet. Next: commit the plan, send it to the hub tonight, then build the synthetic clickable layout mock for operator feedback. Preserve #850's retained check lease-3551124609 and return for merge when it passes.
+
+## Revisions
+
+### 2026-10-23 — TL's morning scope and #849 seam
+
+Finished sketch labels are read-only for this delivery; unfinished labels keep Add note. Show on page scrolls/highlights only a confirmed current-load anchor and reports unavailable without guessing, navigation or reload. #857 is designed here but lands separately. Keep #849's noteDialog.unsaved getter and press-time saved selection; the preview stays informational. These decisions supersede the original sketch add/edit wording for finished labels. Exact panel placement is still subject to operator review of the mock before implementation.
