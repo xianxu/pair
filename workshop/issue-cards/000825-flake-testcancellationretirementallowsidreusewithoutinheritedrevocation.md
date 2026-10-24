@@ -1,6 +1,6 @@
 ---
 id: 000825
-status: working
+status: codecomplete
 created: 2026-10-22
 updated: 2026-10-23
 estimate_hours:
@@ -14,6 +14,14 @@ claimant:
     workspace: pair:9
     worktree: /Users/xianxu/workspace/worktree/pair-slot9/pair
     repository: github.com/xianxu/pair
+actual_hours: 0.20
+tracker:
+    version: 1
+    completion:
+        token: close-41caed068bc5
+        repository: github.com/xianxu/pair
+        reviewed_head: 917c97e6a4bda90ecfac2f11e879e685539fdc40
+        evidence_commit: 7a467e337f1d8fdeee7f05b2978c84c6c93effe5
 ---
 
 # flake: TestCancellationRetirementAllowsIDReuseWithoutInheritedRevocation
