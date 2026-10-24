@@ -7,6 +7,8 @@ representative evidence, not an exhaustive index.
 
 ## Proof and verification
 
+- #852: Retry-count fixtures with synchronous fake completion must drive injected completion and whole-operation deadlines explicitly. A real deadline can expire during coordinated store finalization after proof is already present, adding spurious recovery drives. Pair a tiny-budget positive with withheld-proof, cancellation and whole-budget controls; keep production budgets unchanged.
+
 - #833: A failed component's later refusal must wrap its retained cause, not replace it with a generic unavailable error or join a new synthetic leaf. Publish the failed state and first cause together under the same mutex; pin queued, later and owner-completion paths plus the real shutdown caller, including physical errors joined with cancellation.
 
 - #827 PQ-1: joining dispatch callers does not join their asynchronous producers. When cancellation can return from Await early, retain the exact admitted future and defer gate/capacity release and final reporting until producer completion; pin ordinary caller behavior when adding an opt-in joined path.
