@@ -761,7 +761,12 @@ func TestLifecycleOrdinaryFactExpires(t *testing.T) {
 
 func lifecycleManualPublisher(t *testing.T, endpoints ...couchmessage.DeliveryEndpoint) (*serviceRig, *lifecyclePublisher) {
 	t.Helper()
-	r := newServiceRig(t)
+	return lifecycleManualPublisherWithAuthority(t, nil, endpoints...)
+}
+
+func lifecycleManualPublisherWithAuthority(t *testing.T, decorate func(messageAuthority) messageAuthority, endpoints ...couchmessage.DeliveryEndpoint) (*serviceRig, *lifecyclePublisher) {
+	t.Helper()
+	r := newServiceRig(t, decorate)
 	r.world.hub = "/repo1"
 	r.restart(nil)
 	hub := r.world.add(1)
@@ -864,13 +869,15 @@ func TestLifecyclePublisherAutomationEpochRetiresReadyBacklog(t *testing.T) {
 
 func TestLifecyclePublisherAutomationEpochFencesDelayedAdmission(t *testing.T) {
 	ep := newControlledEndpoint()
-	r, p := lifecycleManualPublisher(t, ep)
 	ownership, err := couchcore.NewHubOwnership([]couchcore.HubDefinition{{Root: "/repo1", Workspace: "/", Slot: couchcore.HubSlot{Repository: "/repo1"}}})
 	if err != nil {
 		t.Fatal(err)
 	}
 	h := &hubRuntime{state: ownership}
-	r.s.authority.hubs = h
+	r, p := lifecycleManualPublisherWithAuthority(t, func(a messageAuthority) messageAuthority {
+		a.hubs = h
+		return a
+	}, ep)
 	release, err := holdHubEffect(t.Context(), h)
 	if err != nil {
 		t.Fatal(err)

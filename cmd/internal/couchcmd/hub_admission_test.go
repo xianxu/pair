@@ -26,7 +26,10 @@ type hubAdmissionRig struct {
 
 func newHubAdmissionRig(t *testing.T) *hubAdmissionRig {
 	t.Helper()
-	r, runner, _ := slotRig(t)
+	r, runner, _ := slotRig(t, func(a messageAuthority) messageAuthority {
+		a.hubs = guardHubState(t)
+		return a
+	})
 	h := &hubAdmissionRig{serviceRig: r, runner: runner}
 	h.caller = r.connect(3) // a hub CLI request comes from the connected hub slot
 	r.world.set(h.caller, func(s *worldSlot) { n := 3; s.workspace.PrimaryRoot = "/repo"; s.workspace.Slot = &n })
@@ -36,7 +39,6 @@ func newHubAdmissionRig(t *testing.T) *hubAdmissionRig {
 	r.slotOps.names = func(context.Context) ([]couchcore.RepositoryName, error) {
 		return []couchcore.RepositoryName{{Key: "/repo", Dir: "pair"}}, nil
 	}
-	r.s.authority.hubs = guardHubState(t)
 	workspace := r.s.authority.workspace
 	r.s.authority.workspace = func(ctx context.Context, root string) (couchcore.WorkspaceIdentity, error) {
 		h.spawns.Add(1)

@@ -322,8 +322,8 @@ type waitRig struct {
 }
 
 // newWaitRig runs hub pair:1 and a hello-v2 worker pair:2 showing screen.
-func newWaitRig(t *testing.T, settled, resting bool, screen []string) *waitRig {
-	w := &waitRig{serviceRig: newServiceRig(t), screen: screen, admitted: map[string]bool{}}
+func newWaitRig(t *testing.T, settled, resting bool, screen []string, decorate ...func(messageAuthority) messageAuthority) *waitRig {
+	w := &waitRig{serviceRig: newServiceRig(t, decorate...), screen: screen, admitted: map[string]bool{}}
 	w.world.hub = "/repo1"
 	w.restart(nil)
 	w.hub = w.world.add(1)

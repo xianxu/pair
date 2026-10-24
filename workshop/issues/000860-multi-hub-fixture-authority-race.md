@@ -58,8 +58,8 @@ The approved same-class sweep moves hub/hubs configuration in already-connected 
 
 ## Plan
 
-- [ ] Add the deterministic startup-policy regression and observe RED; the existing exact notification race count20 is already RED.
-- [ ] Forward the existing authority decorator through the necessary fixture constructors; build final ownership before initialization and remove the enumerated live-service hub/hubs assignments.
+- [x] Add the deterministic startup-policy regression and observe RED; the existing exact notification race count20 is already RED.
+- [x] Forward the existing authority decorator through the necessary fixture constructors; build final ownership before initialization and remove the enumerated live-service hub/hubs assignments.
 - [ ] Run exact and consumer repeated races plus the relevant guard/recovery/archive/lifecycle controls, then full couchcmd race qualification. Add the lesson and audit each changed reader certificate individually.
 - [ ] Push, run recorded pre-close, close through the mandatory fresh review, and land; no passing result is claimed before its run completes.
 
@@ -78,6 +78,14 @@ The service publishes its connected snapshot before execute finishes reading aut
 The same audit enumerated analogous already-connected fixture assignments in hub_admission_test, hub_guards_test, hub_mutation_payload_test, recovery_confirmation_test, archive_notify_test and lifecycle_notices_test. Quiescent pre-wrapper assignments and local authority/service literals are distinct. Scope and enforcement are being included in the plan to the hub before code; no production lock, timing sleep, retry or assertion weakening is proposed (ARCH-ORDER, ARCH-DRY, ARCH-PURPOSE).
 
 TL approval276ef60c-ef11-4c6c-b912-fe14febc2767 (submitted): same-class sweep through decorateAuthority, keep locked state tests, RED-first regression and repeated races, then land. Behavioral regression plus lesson is enough; no catalog follow-up unless a second recurrence appears. The generic lint alternative cannot infer publication/reader lifetime without rejecting legitimate local composition or cold-fixture setup.
+
+### 2026-10-24 — Pre-start composition and repeated controls
+
+The deterministic startup-policy regression failed0.407s before the fix: /repo3 was not configured in automation. It now checks both hubs at initial startup and after restart. The focused regression plus all original multiHubWaitRig consumers passed0.592s without race, then20 race repetitions passed4.208s. The audited live-wrapper guard/admission/payload/recovery/archive/lifecycle cases passed20 race repetitions9.189s. Existing assertions remain unchanged; four live ownership transitions now take the existing hubRuntime mutex rather than racing readers.
+
+Forwarded decorateAuthority through wait, switch and slot constructors; the hub-message and manual-lifecycle helpers apply their override before construction too. Direct hub/hubs assignments remaining in the tree are the local pre-construction authority, the no-loop service literal, the pre-wrapper lifecycle setup, and the explicit cold-start acceptance fixture. No production files changed.
+
+Inventory named only wait_notice_test.go. Audited its existing modelConfirmationTail reads: captured Claude2.1.299 and Codex0.162.1 session-status.screen files under wrapcmd/testdata/drive, plus private t.TempDir mute-list IO. No reader path, input set or fallback owner changed, and every test in that fixed-scanner file remains registered in SOURCE_GUARDS. Recorded only the printed exact-file fixed_scanner command. Full couchcmd race and repository lint qualification are running; their passes and the recorded pre-close are not yet claimed.
 
 ## Revisions
 

@@ -42,14 +42,16 @@ func TestHubMutationPayloadLegacyUnchanged(t *testing.T) {
 func TestHubPreparedSwitchRechecksOwnershipAndSourceAtEffect(t *testing.T) {
 	for _, fault := range []string{"ownership", "source"} {
 		t.Run(fault, func(t *testing.T) {
-			r, q, hub, worker, _ := leanSwitchRig(t)
 			h := guardHubState(t)
 			var err error
 			h.state, err = h.state.Apply(couchcore.HubMove{Caller: "/repo1", Target: "/repo0", Revision: h.state.Revision(), Slots: []couchcore.HubSlot{{Repository: "/repo", Number: 2}}})
 			if err != nil {
 				t.Fatal(err)
 			}
-			r.s.authority.hubs = h
+			r, q, hub, worker, _ := leanSwitchRig(t, func(a messageAuthority) messageAuthority {
+				a.hubs = h
+				return a
+			})
 			for _, b := range []couchmessage.Binding{hub, worker} {
 				n := 0
 				if b == worker {

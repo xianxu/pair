@@ -50,13 +50,16 @@ func TestArchiveWarningPrimaryHub(t *testing.T) {
 func TestArchiveWarningUnavailableOwner(t *testing.T) {
 	for _, fault := range []string{"missing", "disconnected"} {
 		t.Run(fault, func(t *testing.T) {
-			r, slots := hubMessageRig(t)
+			r, slots := hubMessageRig(t, func(a messageAuthority) messageAuthority {
+				if fault == "missing" {
+					a.hub = ""
+				}
+				return a
+			})
 			for _, b := range slots {
 				r.waitWorkspace(b)
 			}
-			if fault == "missing" {
-				r.s.authority.hub = ""
-			} else {
+			if fault == "disconnected" {
 				r.disconnect(slots[0])
 			}
 			var facts int

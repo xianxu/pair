@@ -69,10 +69,13 @@ func (f *fakeSlotRunner) job(i int) fakeSlotJob {
 
 // slotRig is a serviceRig whose slot operations run on a fakeSlotRunner, over
 // the enrolled repository "pair" (alias "pa").
-func slotRig(t *testing.T) (*serviceRig, *fakeSlotRunner, *fakeClock) {
+func slotRig(t *testing.T, decorate ...func(messageAuthority) messageAuthority) (*serviceRig, *fakeSlotRunner, *fakeClock) {
 	t.Helper()
 	runner, clock := &fakeSlotRunner{}, &fakeClock{now: time.Unix(10000, 0)}
 	r := &serviceRig{t: t, world: newMessageWorld(), slotGit: map[string]couchcore.SlotGitStatus{}}
+	if len(decorate) > 0 {
+		r.decorateAuthority = decorate[0]
+	}
 	r.slotOps = newSlotOperations(runner.run, func(context.Context) ([]couchcore.RepositoryName, error) {
 		return []couchcore.RepositoryName{{Key: "/src/pair", Dir: "pair", Alias: "pa"}, {Key: "/src/brain", Dir: "brain"}}, nil
 	}, clock.Now)
