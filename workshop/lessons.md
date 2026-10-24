@@ -8,6 +8,8 @@ representative evidence, not an exhaustive index.
 ## Proof and verification
 
 - #841 BR-1/BR-2/BR-3: For a conservative visual aid, match final fitted display words and permit false negatives. Exclude generated metadata and ambiguous path/link/bracket chunks; skip wrapped row edges that may be fragments. Source-substring projection fails when fitting removes zero-width characters. Use fixed-clock grammar boundaries and exact clipped-row accents, not a test satisfied by any earlier colored label.
+- #825: A final file made visible by a hard link can be consumed before its publisher removes the temporary name. Retirement/capacity assertions must count mailbox records with the shared counter, not raw directory entries. Hold publication scratch in regression tests and retain negative controls for genuine records; never remove another producer's scratch to satisfy the oracle.
+
 - #852: Retry-count fixtures with synchronous fake completion must drive injected completion and whole-operation deadlines explicitly. A real deadline can expire during coordinated store finalization after proof is already present, adding spurious recovery drives. Pair a tiny-budget positive with withheld-proof, cancellation and whole-budget controls; keep production budgets unchanged.
 - #679 BR-1: A source census must classify each relevant IPC contract from its actual producer/consumer behavior. A list of Mkfifo paths does not justify calling every remaining use metadata validation; payload barriers and held lifetimes are distinct, valid patterns.
 
@@ -2869,3 +2871,8 @@ and external temporary roots rather than relying on the host's TMPDIR.
 - #849 BR-1/BR-2: a submission contract is restated for agents in `submission.ReadingGuide` (stored in every bundle), the embedded couch `SKILL.md` and README, besides the atlas. When the contract changes (what is selected, what refuses, a provenance value), grep its key phrases across `cmd/` and README before close and move the tests that pin them; the atlas alone is not the sweep (same class as #802 BR-1).
 
 - #861: A dependency pin must qualify every imported API and the activated policy catalog before a long recorded suite. Compile the catalog, inspect all new findings, and run each source-qualification mode; imported fixture dependencies and retired vocabulary exports can fail outside the feature's packages. Preserve independent differential oracles and standalone module boundaries when a syntactic lint rule overmatches their role.
+- #850: a discovery control placed at an ink sample intercepts later drawing at that same point. Keep affordances beside painted content and pin actual native hit targets before testing later labels or preview acknowledgments; a missing second sketch can look like a preview timeout.
+
+- #850 BR1–3: viewport reachability is a postcondition after every size/geometry source: scroll, transform, count text, mode and resize. Derive discovery from the existing painter's full cached bounds, clamp complete hit areas, and keep authoritative mode writes inside the transition owner; first samples and fixed-width fakes conceal these failures.
+
+- #850 BR5: independent viewport clamping is insufficient after composition. State the invariant for all eligible entities together: each must remain individually selectable with identical bounds, overlapping bounds and dense edge cases. A single bounded scrolling selector removes an impossible geometric packing problem; do not add a third positional heuristic.

@@ -191,7 +191,7 @@ function feedbackRoundtrip(text,{actualSketch=false}={}) {
   const flush=()=>{let budget=30;while(frames.length){assert.ok(budget-->0,'annotation redraw did not settle');frames.shift()();}};
   const snapshot=(revision,document,url,notes)=>{win.location.href=url;win.__couchcastOperatorView({revision,doc:document,seg:document,t:revision,notes,strokes:[],feedback_mask:structuredClone(mask),
     ...(actualSketch?{feedback_context:{recording_id:'rec',t:revision,record_index:revision*10,doc:document,tab:url.endsWith('/a')?'A':'B',url,title:'Page',vp:{w:800,h:600,dpr:1},scroll:[0,0]},note_revisions:Object.fromEntries(notes.map(n=>[n.id,'0']))}:{})});flush();};
-  const rows=()=>root.querySelector('.annotation-notes').children;
+  const rows=()=>root.querySelector('.annotation-note-list').children;
   const pin=()=>root.querySelector('.pins').children[0];
   const settle=async()=>{for(let i=0;i<20;i++){flush();await Promise.resolve();}};
   return {win,root,anchor,note,ui,view,receiver,preview,snapshot,flush,settle,rows,pin,sent,digest,events,visibilityNotices};
