@@ -1,45 +1,74 @@
 package recorder
 
 import (
-	"math"
-	"unicode/utf8"
-
 	"github.com/xianxu/pair/cmd/internal/webcast/recording"
+	"math"
 )
 
-type loadPhase uint8
-
-const (
-	loadUnknown loadPhase = iota
-	loadPending
-	loadCommitting
-	loadConfirmed
-	loadUnavailable
-	loadClosed
-)
-
-// Selection contains synchronized ingress facts, never actor-owned map reads.
-// Frame may be unknown until the initial snapshot supplies its top-frame proof.
 type loadSelection struct{ Session, Target, Frame string }
+type loadCell struct {
+	id, epoch uint64
+	selection loadSelection
+	attached  bool
+	loader    string
+	replySeq  uint64
+}
+type loadCellChange struct {
+	frame, loader      string
+	replySeq           uint64
+	invalidate, detach bool
+}
 
+// nextLoadCell changes one supplied cell only; lookup and lifetime belong to
+// loadOwner. No pure transition scans or copies the owner's session map.
+func nextLoadCell(cell loadCell, change loadCellChange) loadCell {
+	if change.detach {
+		cell.attached = false
+	}
+	if change.invalidate {
+		if cell.epoch == math.MaxUint64 {
+			cell.attached = false
+		} else {
+			cell.epoch++
+		}
+	}
+	if change.frame != "" {
+		cell.selection.Frame = change.frame
+	}
+	if change.loader != "" {
+		cell.loader = change.loader
+	}
+	if change.replySeq > cell.replySeq {
+		cell.replySeq = change.replySeq
+	}
+	return cell
+}
+
+type snapshotIntent struct {
+	serial, activation uint64
+	cell               *loadCell
+	activationStart    bool
+	retired            bool // written only by the owner's typed settlement effect
+}
+type loadAttempt struct {
+	intent            *snapshotIntent
+	epoch, generation uint64
+	selection         loadSelection
+}
 type loadEvidence struct {
 	Selection loadSelection
 	Load      *recording.PageLoad
 }
-
-type loadState struct {
-	phase       loadPhase
-	generation  uint64
-	selection   loadSelection
-	reservation *loadReservation
-	load        *recording.PageLoad
-}
-
-// Only the Pending -> Committing transition grants this token. Identity of
-// the token, rather than equality of its contents, authorizes completion.
 type loadReservation struct {
-	generation uint64
-	evidence   loadEvidence
+	attempt  *loadAttempt
+	evidence loadEvidence
+}
+type loadState struct {
+	generation                       uint64
+	selectedCell, selectedActivation uint64
+	intendedLive, closing            bool
+	active                           *loadAttempt
+	reservation                      *loadReservation
 }
 
 func ownedLoadIdentity(load *recording.PageLoad) *recording.PageLoad {
@@ -48,106 +77,160 @@ func ownedLoadIdentity(load *recording.PageLoad) *recording.PageLoad {
 	}
 	return &recording.PageLoad{Target: load.Target, Loader: load.Loader, Root: load.Root}
 }
-
-func (reservation *loadReservation) evidenceCopy() loadEvidence {
-	if reservation == nil {
-		return loadEvidence{}
-	}
-	return loadEvidence{Selection: reservation.evidence.Selection, Load: ownedLoadIdentity(reservation.evidence.Load)}
+func (r *loadReservation) evidenceCopy() loadEvidence {
+	return loadEvidence{Selection: r.evidence.Selection, Load: ownedLoadIdentity(r.evidence.Load)}
 }
 
 type loadEvent interface{ loadEvent() }
-type loadInvalidate struct{ Selection loadSelection }
+type loadLive struct{ cellID, activation uint64 }
+type loadPause struct{}
+type loadChanged struct{ cellID uint64 }
+type loadStart struct{ intent *snapshotIntent }
 type loadSnapshotReady struct {
-	Generation uint64
-	Evidence   loadEvidence
+	attempt  *loadAttempt
+	evidence loadEvidence
 }
 type loadCommitDone struct {
-	Reservation *loadReservation
-	Success     bool
+	reservation *loadReservation
+	success     bool
 }
-type loadSnapshotFailed struct{ Generation uint64 }
+type loadSnapshotFailed struct{ attempt *loadAttempt }
 type loadClose struct{}
 
-func (loadInvalidate) loadEvent()     {}
+func (loadLive) loadEvent()           {}
+func (loadPause) loadEvent()          {}
+func (loadChanged) loadEvent()        {}
+func (loadStart) loadEvent()          {}
 func (loadSnapshotReady) loadEvent()  {}
 func (loadCommitDone) loadEvent()     {}
 func (loadSnapshotFailed) loadEvent() {}
 func (loadClose) loadEvent()          {}
 
 type loadEffect interface{ loadEffect() }
-type loadCancelSnapshot struct{ Generation uint64 }
-type loadPublishPending struct{ Generation uint64 }
-type loadCommitSnapshot struct{ Reservation *loadReservation }
+type loadCancelSnapshot struct{ attempt *loadAttempt }
+type loadPublishPending struct{ generation uint64 }
 type loadPublishConfirmed struct {
-	Generation uint64
-	Load       *recording.PageLoad
+	generation uint64
+	load       *recording.PageLoad
 }
-type loadPublishUnavailable struct{ Generation uint64 }
+type loadPublishUnavailable struct{ generation uint64 }
+type loadBeginSnapshot struct{ attempt *loadAttempt }
+type loadCommitSnapshot struct{ reservation *loadReservation }
+type loadRetireIntent struct{ intent *snapshotIntent }
 
 func (loadCancelSnapshot) loadEffect()     {}
 func (loadPublishPending) loadEffect()     {}
-func (loadCommitSnapshot) loadEffect()     {}
 func (loadPublishConfirmed) loadEffect()   {}
 func (loadPublishUnavailable) loadEffect() {}
+func (loadBeginSnapshot) loadEffect()      {}
+func (loadCommitSnapshot) loadEffect()     {}
+func (loadRetireIntent) loadEffect()       {}
 
-// nextLoadScope owns authority transitions only. The owner applies publication
-// effects under its mutex; the sole recorder actor executes reserved history
-// writes outside that mutex. Superseding a reservation never retracts history.
-func nextLoadScope(state loadState, event loadEvent) (loadState, []loadEffect) {
-	if state.phase == loadClosed {
-		return state, nil
-	}
-	closeScope := func() (loadState, []loadEffect) {
-		next := state
-		next.phase, next.load, next.reservation = loadClosed, nil, nil
-		return next, []loadEffect{loadCancelSnapshot{Generation: state.generation}, loadPublishUnavailable{Generation: state.generation}}
-	}
-	unavailable := func() (loadState, []loadEffect) {
-		next := state
-		next.phase, next.load, next.reservation = loadUnavailable, nil, nil
-		return next, []loadEffect{loadPublishUnavailable{Generation: state.generation}}
-	}
-	switch event := event.(type) {
-	case loadInvalidate:
-		// Never wrap into a generation that stale evidence could already own.
+// nextLoadScope grants capture and historical commit authority. A later live
+// selection fences UI publication, not earlier ordered activation history.
+// The relevant cell is an immutable value supplied by the owner lookup.
+func nextLoadScope(state loadState, cell loadCell, event loadEvent) (loadState, []loadEffect) {
+	pending := func() (loadState, []loadEffect) {
+		if state.closing {
+			return state, nil
+		}
 		if state.generation == math.MaxUint64 {
-			return closeScope()
+			state.closing = true
+			return state, []loadEffect{loadPublishUnavailable{state.generation}}
 		}
-		next := loadState{phase: loadPending, generation: state.generation + 1, selection: event.Selection}
-		return next, []loadEffect{loadCancelSnapshot{Generation: state.generation}, loadPublishPending{Generation: next.generation}}
+		state.generation++
+		return state, []loadEffect{loadPublishPending{state.generation}}
+	}
+	selected := func(a *loadAttempt) bool {
+		return a != nil && a.generation != 0 && a.generation == state.generation && a.intent.activation == state.selectedActivation && a.intent.cell.id == state.selectedCell && !state.closing
+	}
+	switch e := event.(type) {
+	case loadLive:
+		if state.closing {
+			return state, nil
+		}
+		state.selectedCell = e.cellID
+		state.selectedActivation = e.activation
+		state.intendedLive = true
+		return pending()
+	case loadPause:
+		state.intendedLive = false
+	case loadChanged:
+		var effects []loadEffect
+		if state.active != nil && state.active.intent.cell.id == e.cellID {
+			effects = append(effects, loadCancelSnapshot{state.active})
+		}
+		if e.cellID == state.selectedCell {
+			var p []loadEffect
+			state, p = pending()
+			effects = append(effects, p...)
+		}
+		return state, effects
+	case loadStart:
+		if e.intent == nil || e.intent.retired || !cell.attached || state.active != nil || state.reservation != nil {
+			return state, nil
+		}
+		generation := uint64(0)
+		if e.intent.activation == state.selectedActivation && cell.id == state.selectedCell && !state.closing {
+			generation = state.generation
+		}
+		attempt := &loadAttempt{intent: e.intent, epoch: cell.epoch, generation: generation, selection: cell.selection}
+		state.active = attempt
+		return state, []loadEffect{loadBeginSnapshot{attempt}}
 	case loadSnapshotReady:
-		if state.phase != loadPending || event.Generation != state.generation {
+		a := e.attempt
+		if a == nil || state.active != a {
 			return state, nil
 		}
-		evidence := event.Evidence
-		facts := evidence.Selection
-		if facts.Session == "" || !utf8.ValidString(facts.Session) || facts.Frame == "" || !utf8.ValidString(facts.Frame) ||
-			facts.Session != state.selection.Session || facts.Target != state.selection.Target ||
-			(state.selection.Frame != "" && facts.Frame != state.selection.Frame) ||
-			evidence.Load.Validate() != nil || evidence.Load.Target != facts.Target {
-			return unavailable()
-		}
-		reservation := &loadReservation{generation: state.generation, evidence: loadEvidence{Selection: facts, Load: ownedLoadIdentity(evidence.Load)}}
-		next := state
-		next.phase, next.selection, next.reservation = loadCommitting, facts, reservation
-		return next, []loadEffect{loadCommitSnapshot{Reservation: reservation}}
-	case loadCommitDone:
-		if state.phase != loadCommitting || event.Reservation == nil || event.Reservation != state.reservation || event.Reservation.generation != state.generation {
+		state.active = nil
+		if !cell.attached || cell.epoch != a.epoch {
 			return state, nil
 		}
-		if !event.Success {
-			return unavailable()
+		facts := e.evidence.Selection
+		if facts.Session != a.selection.Session || facts.Target != a.selection.Target || facts.Frame == "" || (a.selection.Frame != "" && facts.Frame != a.selection.Frame) || e.evidence.Load.Validate() != nil || e.evidence.Load.Target != facts.Target {
+			effects := []loadEffect{loadRetireIntent{a.intent}}
+			if selected(a) {
+				effects = append(effects, loadPublishUnavailable{state.generation})
+			}
+			return state, effects
 		}
-		next := state
-		next.phase, next.reservation, next.load = loadConfirmed, nil, ownedLoadIdentity(state.reservation.evidence.Load)
-		return next, []loadEffect{loadPublishConfirmed{Generation: state.generation, Load: ownedLoadIdentity(next.load)}}
+		reservation := &loadReservation{attempt: a, evidence: loadEvidence{Selection: facts, Load: ownedLoadIdentity(e.evidence.Load)}}
+		state.reservation = reservation
+		return state, []loadEffect{loadCommitSnapshot{reservation}}
 	case loadSnapshotFailed:
-		if state.phase == loadPending && event.Generation == state.generation {
-			return unavailable()
+		a := e.attempt
+		if a == nil || state.active != a {
+			return state, nil
 		}
+		state.active = nil
+		if cell.attached && cell.epoch != a.epoch {
+			return state, nil
+		}
+		effects := []loadEffect{loadRetireIntent{a.intent}}
+		if selected(a) {
+			effects = append(effects, loadPublishUnavailable{state.generation})
+		}
+		return state, effects
+	case loadCommitDone:
+		r := e.reservation
+		if r == nil || state.reservation != r {
+			return state, nil
+		}
+		state.reservation = nil
+		effects := []loadEffect{loadRetireIntent{r.attempt.intent}}
+		if selected(r.attempt) && cell.attached && cell.epoch == r.attempt.epoch {
+			if e.success {
+				effects = append(effects, loadPublishConfirmed{state.generation, ownedLoadIdentity(r.evidence.Load)})
+			} else {
+				effects = append(effects, loadPublishUnavailable{state.generation})
+			}
+		}
+		return state, effects
 	case loadClose:
-		return closeScope()
+		if !state.closing {
+			state.closing = true
+			return state, []loadEffect{loadPublishUnavailable{state.generation}}
+		}
 	}
 	return state, nil
 }

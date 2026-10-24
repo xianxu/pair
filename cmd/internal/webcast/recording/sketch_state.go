@@ -63,7 +63,9 @@ type SketchState struct {
 	anchorRevision uint64
 }
 
-func sketchID(r Record) string {
+// SketchID returns a record's owning sketch identity, or empty for other kinds.
+// Live admission and receipt reconciliation share this projection.
+func SketchID(r Record) string {
 	switch r := r.(type) {
 	case *SketchBegin:
 		return r.ID
@@ -84,6 +86,8 @@ func sketchID(r Record) string {
 	}
 	return ""
 }
+
+func sketchID(r Record) string { return SketchID(r) }
 
 // Reconcile is read-only. Producers call it before stamping or writing, so
 // an exact retry cannot emit another JSONL line or consume another byte.

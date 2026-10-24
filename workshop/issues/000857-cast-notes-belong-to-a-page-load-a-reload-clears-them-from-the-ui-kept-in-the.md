@@ -84,6 +84,18 @@ The recorder audit exposed a conflict before production edits: latest-generation
 
 Data component verification: full recording package PASS2.240s; targeted recording/Board/recorder PageLoad/Segment/LoadScope tests PASS. Board selection, pending/failure authority and accepted-resolution recovery are green in focused tests; shared legacy-free modern test fixtures are being migrated without changing UI expectations. Initial recorder navigation/load regressions remain red as expected. #856 retained run remains queued, FIFO-protected; no duplicate runner or cancellation.
 
+### 2026-10-24 — Checkpoint to return immediately to #856 landing
+
+#856 retained exact-source suite completed exit0 in12m4s on087631062be649f7578cab38fe75ddc6c3044ed1; saved log /Users/xianxu/workspace/pair/.git/sdlc/local-checks/087631062be649f7578cab38fe75ddc6c3044ed1/suite.log (reported SHA256 prefixf1acfbeac0ab). Following TL8b5caf7d, paused all #857 agents, checkpointed/pushed this branch and returned to #856 PR583 for merge. No #857 code is claimed ready to land.
+
+#857 data/Board: full recording PASS2.240s; full Board PASS2.878s after modern fixture/contract migration; focused PageLoad race tests PASS1.197s. Current-load selection, monotonic pending/confirmation/failure, fresh note edit/state membership, fresh sketch gating after exact receipt recovery and final shared PageFeedbackReady checks are implemented. Previously admitted conditional historical resolution remains valid. UI still unmodified, awaiting #856 landing.
+
+Recorder: revised owner plan-quality CLEAN, change-code exit0. Full recorder PASS4.924s before the final four regressions; latest run passes pending-detach diagnostic, duplicate/frame isolation and fresh pending creation versus historical recovery. **Outstanding failing fixture:** TestRecorderPageLoadCloseDrains waits for a nonexistent initial SubscribeSubmissionCandidates notification, so its held snapshot reaches the existing5s call deadline before Close starts. First next step after returning: remove that initial subscription read, start Close and wait for the actual unavailable publication. Then complete owner.finish cleanup after actor/side join so cells/cancel references retire. Agent is paused, no running targeted tests. TL2eb592a8 approved fakeChrome refusing all calls after detach; active-detach test now settles initial capture and retains exact A-then-B assertion, with pending-detach separately proving no invented snapshot and existing failure diagnostic. All edits are deliberately checkpointed WIP; do not treat the latest partial fixture failure as passing evidence.
+
+Historical query proposal, read-only only: comparable scalar query.PageLoadFacts{Target,Loader,Root string}, zero unknown and page_load,omitzero to preserve legacy JSON omission; shared CurrentSourceFacts / SketchBeginSourceFacts populate query, Board scalar witnesses and sketchimage producers without pointer-equality traps or mutable aliases. Keep independent test oracles and unfiltered history. Implement after recorder lifetime repair; no query code started.
+
+After #856 lands: switch back here, merge landed main (bringing #856), finish the recorder lifetime regression, implement historical provenance and current-load UI integration, then native reload/pause/tab/app/new-tab qualification, inventory, pre-close, fresh close review and hub-sequenced combined morning stage with #842. Preserve #856 merge runner once entered; no duplicate runner.
+
 ## Revisions
 
 ### 2026-10-24 — Parallel independent preparation

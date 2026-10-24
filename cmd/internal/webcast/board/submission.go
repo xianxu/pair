@@ -12,7 +12,8 @@ import (
 	"slices"
 )
 
-// Selection is a frozen set of open notes, across recorded documents.
+// Selection pins the current load's open notes and finished sketches. Its
+// admitted versions remain valid for delivery recovery after navigation.
 type Selection struct {
 	Document         int
 	TabID            string
@@ -52,9 +53,15 @@ func (b *Board) selectionLocked() (Selection, error) {
 		return Selection{}, ErrNotLive
 	}
 	out := Selection{Document: b.st.DocSeg, TabID: b.st.Tab.ID, SketchGeneration: b.submissionGeneration}
+	load := b.currentPageLoadLocked()
+	if load == nil {
+		// An unidentified or pending page contributes no page feedback. This
+		// does not add a refusal to ordinary text submission (pair#857).
+		return out, nil
+	}
 	for _, candidate := range b.st.Sketches.SubmissionCandidates() {
 		witness, ok := b.feedback.sketches[candidate.ID]
-		if !ok || !witness.finished {
+		if !ok || !witness.finished || !b.st.OnPageLoad(witness.source.Doc, load) {
 			// Without its exact accepted witnesses (not labelled yet, or past
 			// the witness bound) the sketch cannot be packaged; leave it out
 			// rather than refuse the notes and sketches that can (pair#849).
@@ -63,7 +70,7 @@ func (b *Board) selectionLocked() (Selection, error) {
 		out.Sketches = append(out.Sketches, SelectedSketch{ID: candidate.ID, NextSequence: candidate.NextSequence, Digest: candidate.Digest, Source: witness.source, Finish: witness.finish})
 	}
 	for _, n := range b.st.Notes {
-		if n.State == recording.NoteOpen && !b.noteFeedbackHiddenLocked(n.ID, n.Revision) {
+		if n.State == recording.NoteOpen && b.st.OnPageLoad(n.Seg, load) && !b.noteFeedbackHiddenLocked(n.ID, n.Revision) {
 			out.Notes = append(out.Notes, SelectedNote{n.ID, n.Revision})
 		}
 	}

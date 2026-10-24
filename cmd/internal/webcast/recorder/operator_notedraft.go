@@ -38,6 +38,10 @@ func (r *Recorder) handleDraftOperation(session string, contextID int64, req boa
 		r.operatorRefusal(session, contextID, req.Request, err)
 		return true
 	}
+	if req.Op == "prepare-note" && !r.opts.Operator.PageLoadReady() {
+		r.operatorRefusal(session, contextID, req.Request, board.ErrStale)
+		return true
+	}
 	doc, seg := r.m.st.DocSeg, r.m.st.Seg
 	hash := sha256.Sum256([]byte(fmt.Sprintf("operator\x00%s\x00%d\x00%d", session, contextID, doc)))
 	owner := notedraft.Owner{Identity: broadcast.OperatorNoteOwner, Scope: hex.EncodeToString(hash[:]), Generation: req.Generation}

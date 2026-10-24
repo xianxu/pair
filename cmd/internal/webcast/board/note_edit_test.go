@@ -157,7 +157,7 @@ func TestOperatorEditHasNoOverrideOrFalseUnknownProof(t *testing.T) {
 	}
 }
 
-func TestHistoricalNoteEditPreservesCaptureAndCurrentAdmission(t *testing.T) {
+func TestSameLoadNoteEditPreservesCaptureAndRejectsEarlierLoad(t *testing.T) {
 	r := newRig(t).page(recording.SegLive)
 	a, _ := r.bd.AdmitAnnotation()
 	p, err := a.PrepareNote(PrepareNoteIn{Seg: r.seg(), Node: r.p1.ID, Box: recording.Box{1, 2, 3, 4}, Region: recording.Box{1, 2, 30, 40}}, false)
@@ -173,18 +173,28 @@ func TestHistoricalNoteEditPreservesCaptureAndCurrentAdmission(t *testing.T) {
 		t.Fatal(err)
 	}
 	old := r.seg()
-	r.page(recording.SegNavigate)
-	if err = r.bd.Edit(EditIn{Seg: old, ID: n.Note.ID, Owner: "one", Text: "stale"}); !errors.Is(err, ErrStale) {
-		t.Fatal(err)
-	}
 	if err = r.bd.Edit(EditIn{Seg: r.seg(), ID: n.Note.ID, Owner: "other", Text: "stolen"}); !errors.Is(err, ErrOwner) {
-		t.Fatal(err)
+		t.Fatalf("current load owner guard: %v", err)
 	}
+	r.add(&recording.Stop{Why: recording.StopPause}).page(recording.SegResume)
 	if err = r.bd.Edit(EditIn{Seg: r.seg(), ID: n.Note.ID, Owner: "one", Text: "updated"}); err != nil {
 		t.Fatal(err)
 	}
 	got := r.bd.st.Notes[0]
 	if got.Text != "updated" || got.Capture != n.Note.Capture || got.At.Node != n.Note.At.Node || *got.Region != *n.Note.Region || got.Revision != 1 {
 		t.Fatalf("lost original capture: %+v", got)
+	}
+	r.page(recording.SegNavigate)
+	for _, in := range []EditIn{
+		{Seg: old, ID: n.Note.ID, Owner: "one", Text: "stale document"},
+		{Seg: r.seg(), ID: n.Note.ID, Owner: "other", Text: "stolen"},
+		{Seg: r.seg(), ID: n.Note.ID, Owner: "one", Text: "earlier load"},
+	} {
+		if err = r.bd.Edit(in); !errors.Is(err, ErrStale) {
+			t.Fatalf("earlier-load edit %+v: %v", in, err)
+		}
+	}
+	if len(r.kinds("note-edit")) != 1 || r.bd.st.Notes[0].Text != "updated" || r.bd.st.Notes[0].Revision != 1 {
+		t.Fatal("refused edit changed retained history")
 	}
 }

@@ -91,7 +91,7 @@ func TestRecorderOutOfProcessFrame(t *testing.T) {
 		t.Fatal("the frame's change is not in the recording")
 	}
 	// The frame goes: its later events are ignored, nothing breaks.
-	h.r.Send(Detached{Session: "F"})
+	h.detach("F")
 	f.insert(f.body(), nil, f.el("b"))
 	h.events("F", f)
 	h.settle()
@@ -290,7 +290,8 @@ func TestRecorderActivePageDetach(t *testing.T) {
 	h.page("A", "http://a/", "L1")
 	h.page("B", "http://b/", "L2")
 	h.r.Send(Live{Tab: rec.Tab{ID: "T-A"}, Session: "A"})
-	h.r.Send(Detached{Session: "A"})
+	h.settle() // Establish an active captured page before detaching its CDP session.
+	h.detach("A")
 	h.r.Send(Live{Tab: rec.Tab{ID: "T-B"}, Session: "B"})
 	h.settle()
 	h.r.Close()

@@ -213,6 +213,10 @@ func (r *Recorder) handleOperator(session string, ctx int64, req board.OperatorR
 	}
 	switch req.Op {
 	case "prepare-note":
+		if !r.opts.Operator.PageLoadReady() {
+			r.operatorRefusal(session, ctx, req.Request, board.ErrStale)
+			return
+		}
 		p := req.Prepare
 		if p.Seg < o.doc || p.Seg > r.m.st.Seg {
 			r.operatorRefusal(session, ctx, req.Request, board.ErrStale)
@@ -326,6 +330,10 @@ func (r *Recorder) writeOperator(at time.Time, in operatorWrite) {
 		return
 	}
 	if state, ok := in.record.(*rec.NoteState); ok && state.IfRevision != nil && !r.m.State().NoteUnchanged(state.ID, *state.IfRevision) {
+		in.settle(board.OperatorRefused, board.ErrStale)
+		return
+	}
+	if !r.pageFeedbackReady(in.record, in.doc) {
 		in.settle(board.OperatorRefused, board.ErrStale)
 		return
 	}

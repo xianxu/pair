@@ -16,12 +16,13 @@ import (
 // one message counter for events and replies (cdp.Conn's Seq), and the
 // loader id of each session's current document.
 type fakeChrome struct {
-	ui     *fakeControlUI
-	mu     sync.Mutex
-	seq    uint64
-	pages  map[string]*fakePage
-	loader map[string]string
-	calls  []string
+	ui       *fakeControlUI
+	mu       sync.Mutex
+	seq      uint64
+	pages    map[string]*fakePage
+	loader   map[string]string
+	detached map[string]bool
+	calls    []string
 	// more answers the methods a test needs beyond these (nil, false: the
 	// default empty reply).
 	more         func(session, method string, params map[string]any, p *fakePage) (any, error, bool)
@@ -29,7 +30,27 @@ type fakeChrome struct {
 }
 
 func newFakeChrome() *fakeChrome {
-	return &fakeChrome{pages: map[string]*fakePage{}, loader: map[string]string{}}
+	return &fakeChrome{pages: map[string]*fakePage{}, loader: map[string]string{}, detached: map[string]bool{}}
+}
+
+// detach retires the CDP session, including default-success methods and probes.
+func (f *fakeChrome) detach(session string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if session == "" || f.detached[session] {
+		return fmt.Errorf("invalid duplicate detach %q", session)
+	}
+	f.detached[session] = true
+	delete(f.pages, session)
+	delete(f.loader, session)
+	return nil
+}
+func (h *harness) detach(session string) {
+	h.t.Helper()
+	if err := h.fc.detach(session); err != nil {
+		h.t.Fatal(err)
+	}
+	h.r.Send(Detached{Session: session})
 }
 
 func (f *fakeChrome) next() uint64 {
@@ -45,7 +66,11 @@ func (f *fakeChrome) CallSeq(ctx context.Context, session, method string, params
 	p := f.pages[session]
 	loader := f.loader[session]
 	ui := f.ui
+	detached := f.detached[session]
 	f.mu.Unlock()
+	if detached {
+		return f.next(), fmt.Errorf("detached session %s", session)
+	}
 	var reply any = map[string]any{}
 	var pm map[string]any
 	data, _ := json.Marshal(params)
@@ -162,6 +187,7 @@ func (h *harness) page(session, url, loader string) *fakePage {
 	p.frameID = "T-" + session
 	h.fc.mu.Lock()
 	h.fc.pages[session], h.fc.loader[session] = p, loader
+	delete(h.fc.detached, session)
 	h.fc.mu.Unlock()
 	return p
 }
@@ -398,7 +424,11 @@ func (g *gatedCaller) CallSeq(ctx context.Context, session, method string, param
 		default:
 		}
 	}
-	<-gate
+	select {
+	case <-gate:
+	case <-ctx.Done():
+		return 0, ctx.Err()
+	}
 	return g.fakeChrome.CallSeq(ctx, session, method, params, result)
 }
 

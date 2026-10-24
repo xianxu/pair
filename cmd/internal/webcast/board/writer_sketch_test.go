@@ -15,6 +15,7 @@ func sketchWriterFixture(t *testing.T, sink rec.Sink) *Writer {
 	w := NewWriter(sink, func() int64 { return 2 })
 	b := rec.NewBuilder("sketch ordering")
 	b.At(2).Page(rec.SegLive, "http://x/")
+	b.Recs[1].(*rec.Seg).PageLoad = &rec.PageLoad{Target: "tab1", Loader: "writer-load", Root: 1}
 	for _, r := range b.Recs {
 		if err := w.Put(r); err != nil {
 			t.Fatal(err)

@@ -3,6 +3,7 @@ package board
 import (
 	"context"
 	"errors"
+	"fmt"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -59,6 +60,15 @@ func (r *rig) add(rec recording.Record) *rig {
 func (r *rig) flush() *rig {
 	r.t.Helper()
 	for ; r.fed < len(r.b.Recs); r.fed++ {
+		if seg, ok := r.b.Recs[r.fed].(*recording.Seg); ok && seg.PageLoad == nil {
+			// This rig models current recorder output. A resume reactivates
+			// the same load; navigation and tab changes create distinct loads.
+			if seg.Why == recording.SegResume && seg.Tab.ID == r.bd.st.Tab.ID {
+				seg.PageLoad = r.bd.st.CurrentPageLoad()
+			} else {
+				seg.PageLoad = &recording.PageLoad{Target: seg.Tab.ID, Loader: fmt.Sprintf("fixture-load-%d", seg.Seg), Root: int64(seg.Seg)}
+			}
+		}
 		if err := r.w.Put(r.b.Recs[r.fed]); err != nil {
 			r.t.Fatalf("writer refused %s: %v", r.b.Recs[r.fed].Kind(), err)
 		}
@@ -352,13 +362,25 @@ func TestSubscribeFollowsTheOpenNotes(t *testing.T) {
 	if got := <-ch; len(got) != 1 || got[0].ID != id {
 		t.Errorf("after a note %v", got)
 	}
+	admitted, err := r.bd.Selection()
+	if err != nil || len(admitted.Notes) != 1 {
+		t.Fatalf("selection: %+v, %v", admitted, err)
+	}
 	r.page(recording.SegNavigate)
 	select {
 	case got := <-ch:
 		t.Errorf("unchanged notes should not publish after navigation: %v", got)
 	default:
 	}
-	if err := r.bd.SetState(StateIn{Viewer: ana, ID: id, State: recording.NoteResolved}); err != nil {
+	if err := r.bd.SetState(StateIn{Viewer: ana, ID: id, State: recording.NoteResolved}); !errors.Is(err, ErrStale) {
+		t.Fatalf("fresh earlier-load resolve: %v", err)
+	}
+	select {
+	case got := <-ch:
+		t.Fatalf("refused resolve published: %+v", got)
+	default:
+	}
+	if err := r.bd.ResolveSelection(context.Background(), admitted); err != nil {
 		t.Fatal(err)
 	}
 	if got := <-ch; len(got) != 0 {
@@ -499,5 +521,32 @@ func TestWriterRefusesARecordDuringAPause(t *testing.T) {
 	}
 	if n := len(r.kinds("stroke")); n != 0 {
 		t.Errorf("%d strokes written", n)
+	}
+}
+
+func TestRigPageLoadFixturesDistinguishResumeNavigationAndExplicitIdentity(t *testing.T) {
+	r := newRig(t).page(recording.SegLive)
+	first := r.bd.st.CurrentPageLoad()
+	if first == nil {
+		t.Fatal("modern fixture omitted page-load metadata")
+	}
+	r.add(&recording.Stop{Why: recording.StopPause}).page(recording.SegResume)
+	if !recording.SamePageLoad(first, r.bd.st.CurrentPageLoad()) {
+		t.Fatal("resume invented a new load")
+	}
+	r.page(recording.SegNavigate)
+	if recording.SamePageLoad(first, r.bd.st.CurrentPageLoad()) {
+		t.Fatal("navigation reused prior load")
+	}
+	explicit := &recording.PageLoad{Target: "tab1", Loader: "explicit-loader", Root: 99}
+	r.b.Page(recording.SegTab, "http://app/", r.b.El("p", nil))
+	for _, record := range r.b.Recs[r.fed:] {
+		if seg, ok := record.(*recording.Seg); ok {
+			seg.PageLoad = explicit
+		}
+	}
+	r.flush()
+	if !recording.SamePageLoad(explicit, r.bd.st.CurrentPageLoad()) {
+		t.Fatal("fixture replaced explicit load")
 	}
 }

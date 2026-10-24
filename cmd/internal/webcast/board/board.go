@@ -109,6 +109,7 @@ type Board struct {
 	feedback             feedbackContexts
 	feedbackDisplay      feedbackDisplay
 	submissionSubs       map[chan struct{}]struct{}
+	pageLoad             pageLoadScope
 }
 
 // New makes a board that anchors notes with model and writes through emit.
@@ -362,8 +363,13 @@ func (b *Board) setState(in StateIn, seg int, operator bool, emit Emit) error {
 		return err
 	}
 	var cur *recording.NoteView
+	load := b.currentPageLoadLocked()
 	for _, n := range b.st.Notes {
 		if n.ID == in.ID {
+			if !b.st.OnPageLoad(n.Seg, load) {
+				b.mu.Unlock()
+				return ErrStale
+			}
 			copy := *n
 			cur = &copy
 		}
@@ -430,6 +436,8 @@ func (b *Board) pageLocked(seg int) (int, error) {
 		return 0, ErrNotLive
 	case b.st.Paused():
 		return 0, ErrPaused
+	case b.pageLoad.managed && b.currentPageLoadLocked() == nil:
+		return 0, ErrStale
 	case seg < b.st.DocSeg || seg > b.st.Seg:
 		return 0, ErrStale
 	}
