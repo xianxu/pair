@@ -176,8 +176,9 @@ The following names are the production API to implement; unit tests call these f
 
 - [ ] Document policy-table anchor, operator eligibility, ownership, automation-off and bounded delivery semantics at map level.
 - [ ] Run `git diff --check`, targeted verification above and inventory; push final head, run `sdlc local-check run --pre-close` and await its recorded result.
-- [ ] Run `make test-affected-inventory` immediately before `sdlc close --issue 844 --verified '<exact evidence>'`; use measured actuals and the mandatory binary-owned boundary review.
-- [ ] Address review findings through their existing ledger, land through sdlc PR/merge, and report verified PR/archive/runner completion to hub. Stage only if TL requests a live check.
+- [ ] Finish the pre-close reader inventory and verification evidence in the issue Log.
+
+Workflow postconditions: use measured actuals and the binary-owned close review; address its findings through the ledger, then land through sdlc PR/merge and report verified PR/archive/runner completion to hub. Stage only if TL requests a live check.
 
 ## Approval request / remaining decisions
 
@@ -191,3 +192,5 @@ Approve the typed table, four-worker/128-entry dispatcher and the single aggrega
 - 2026-10-24: PQ-1 test-contract refinement names production functions and one adversarial strategy/mechanical guard per risky function; compressed procedural scenario inventories. Generated event sequences exercise the production reducer with independent effect-count, epoch and resource invariants, and controlled shell completion ordering. Approved behavior and bounds unchanged.
 
 - 2026-10-24: implementation retained the existing wait-watcher ownership for picker/question messages, including timing/mute/deduplication; HubHandled describes canonical effect ownership, not a submitted receipt. No immediate duplicate picker send was added. Publication freezes memory-only readiness/epoch before asynchronous work, tested against OFF/ON ordering.
+
+- 2026-10-24: moved future close/landing/report actions out of implementation checkboxes; those are workflow postconditions, not deliverables that can truthfully be ticked before the close gate itself (lesson #871).

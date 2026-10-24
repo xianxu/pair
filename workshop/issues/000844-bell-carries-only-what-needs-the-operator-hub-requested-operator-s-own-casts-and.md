@@ -52,8 +52,10 @@ Durable plan: [human attention routing](../plans/000844-human-attention-routing-
 
 - [x] Implement the pure typed routing table and bounded delivery reducer after TL approval.
 - [x] Integrate Console startup/shutdown and existing guarded system-message delivery.
-- [ ] Sweep every producer, direct prompt/question/archive/stall path and duplicate-effect case.
-- [ ] Update atlas, audit reader certificates, run recorded pre-close, close and land.
+- [x] Sweep every producer, direct prompt/question/archive/stall path and duplicate-effect case.
+- [ ] Complete atlas, audited reader inventory and recorded pre-close verification.
+
+Workflow postconditions: binary-owned close review, PR/merge, then verify landing/archive/runner and report to hub.
 
 ## Log
 
@@ -93,6 +95,20 @@ Verified focused race aggregate: go test -race ./cmd/internal/couchcore ./cmd/in
 Reader audit: wait_notice_test.go still reads the same Claude/Codex wrapper screen fixtures and retains its registered fixed-scanner guard; only fixture cleanup/expected routing changed. New notice_class_inventory_test.go files and tty notice_producer_inventory_test.go scan only their own Go package's tracked source or literal AST fixtures, so normal package ownership covers their inputs; each is explicitly local_or_literal_fixture. Individually recorded those four named certificates; make test-affected-inventory and git diff --check PASS. No selector or local-gates configuration changes.
 
 NEXT ACTION: read the retained three-package test result, fix/classify failures, complete atlas/plan verification, push and run recorded --pre-close, inventory then close. The full recorded check has not started.
+
+
+### 2026-10-24 — broad-check diagnosis and supervision fixture correction
+
+The three-package broad run was explicitly stopped with SIGQUIT for diagnosis at about six minutes, not counted as passing. The cmd stack was waiting in TestSupervisionWarningCompositionRaisesAttention -> openWarningAttention for the old raw supervision.notice callback, which is now routine/feed-only in production. Updated that existing test to invoke the typed supervision.warn path for its no-connected-hub fixture; class-3 fallback passes (standalone 1.897s). Retained its original registered test name. Its only inputs remain disposable fixture directories, so individually refreshed its existing local_or_literal_fixture certificate.
+
+The core stack was inside existing TestFreshStartupPostClaimPreparationFailuresRollBack -> startupCleanupFixture -> OSSlotCatalog.Discover/ProvisionFixture.Run. Those files are byte-identical to this branch's main base; isolated current-head run passed 7.083s. This is an interrupted broad observation, not a registered flake or claimed baseline suite execution. A prior targeted run compiled before startup fixture barrier correction was also terminated diagnostically; current startup integration has the passing race evidence above. No recorded pre-close run has been canceled or started.
+
+A new complete couchcmd run is in progress with JSON events retained at /Volumes/TestScratch/tmp/pair-slot1/pair844-targeted-7nn8ata4/couchcmd.jsonl, so progress/failure can be inspected without assuming that silence means a hang. The final recorded check remains necessary.
+
+
+### 2026-10-24 — final focused verification before recording
+
+Final repeated race check PASS: go test -race ./cmd/internal/couchcore ./cmd/internal/couchtty ./cmd/internal/couchcmd -run 'TestNotice(Route|Delivery|Owner|Class)|TestConsoleNotice|TestSupervisionWarningCompositionRaisesAttention' -count=3 -timeout=90s (core 2.794s, tty 2.572s, cmd 6.920s). make test-affected-inventory and git diff --check PASS after the supervision fixture correction. Complete couchcmd JSON run remains active; next inspect its exact result, then record pre-close on the pushed final head.
 
 ## Estimate
 
