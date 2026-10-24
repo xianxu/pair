@@ -72,6 +72,11 @@ Reader inventory audit: changed workbenchshortcut/shortcut_test.go retains its o
 
 Added an actual active-pane replacement negative control (in addition to stale witness fields); the full StatusSend test under -race passed14.759s. Production unchanged from087446b70. Pre-close resolved affected correctly, then selected the full suite because nvim/init.lua is a declared full-fallback input; its older-head lease3817618192 was still queued, not running, and was cancelled through the owned SDLC lease before queuing this final test head. No completed suite is discarded, no parallel duplicate runner, no flake retry. Hub7d702e30 assigns acceptance to pair:4's combined morning #856/#857/#842 stage after a recorded pass and SHIP; pair:0 remains #851's. Do not stage alone.
 
+
+### 2026-10-24 — recorded-check checkpoint
+
+Final pushed executable/test head c6ec05d934e5dcddf003c10c9f25c123d4bf3a21. One owned pre-close runner remains: lease-3817920737, attempt3571627d7f82767774fde43939990c2f, log /Users/xianxu/workspace/pair/.git/sdlc/test-stats/inflight/3571627d7f82767774fde43939990c2f/run.log; tool session25514 at allocation, FIFO position8. It selected affected, then the declared nvim/init.lua full-suite fallback. Do not launch a duplicate. Next: read this run's terminal result; on pass run make test-affected-inventory and close's mandatory review (full review expected from actual diff; no-project since the hub owns projects). Hand pair:4 the verified SHIP head and smoke steps for the combined morning stage. No independent pair:0 stage or landing before that authorized acceptance. This checkpoint adds documentation only, no runtime/test changes after c6ec05d9.
+
 ## Revisions
 
 ### 2026-10-23 — scope clarification before design
