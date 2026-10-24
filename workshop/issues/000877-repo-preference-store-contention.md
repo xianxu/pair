@@ -57,6 +57,8 @@ Composition with #854 (PR 590, unlanded): there the inner wait is capped at the 
 
 ## Log
 
+
+- 2026-10-24: closed — RED first: RetriesTypedContention and RefusesBusyAtTheDeadline failed with thread store busy; retry, RefusesAnUnboundedCaller failed (caller waited on the store). After the fix all four contention tests pass (-count=3); targeted store/retention/preference/edited-restart set passes; TestRepoPreferenceConcurrentInstancesPreserveOtherRepositoriesAndAgents -count=20 green (32.4 s; pair:9 measured 17/20 failures before). make test-affected-inventory clean. Pre-close: sdlc-local/affected pass on 4e87d68f (25 packages + lua/review/shell groups; known flake #873 rerun passed, attempt 237737ab). --no-actual under TL standing authorization: measurement refused with "measurement snapshot does not serialize: json: error calling MarshalJSON for type *gatestate.MeasurementInputs: measurement exceeds 65536 bytes" (ariadne#593); no window printed.; review verdict: SHIP
 Filed unclaimed from #866; no fix made in that branch. Reported exact isolated reproduction exit1 and full-set failure. No flake classification claimed.
 
 pair:9 evidence (TL relayed; registration does not persist it): suite attempt 65d6f942 on 912ce21e failed in full (27m32s); targeted runs of TestRepoPreferenceConcurrentInstancesPreserveOtherRepositoriesAndAgents failed 17 of 20 in 22.5 s.
