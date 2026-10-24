@@ -5,8 +5,8 @@ deps: []
 github_issue:
 created: 2026-10-24
 updated: 2026-10-24
-estimate_hours:
-card_mirror: '378445042606522f14fb39aecea914f19f537c2c' # card fields mirrored from issue-cards; edit via sdlc
+estimate_hours: 0.804
+card_mirror: 'c5060faa71f5f8e26a8a66f9cc60a37dbfdb782d' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-24T08:26:21-07:00
 claimant:
     operator: Xian Xu
@@ -15,7 +15,7 @@ claimant:
     workspace: pair:7
     worktree: /Users/xianxu/workspace/worktree/pair-slot7/pair
     repository: github.com/xianxu/pair
-flow: {kind: quick, provenance: inferred, spec: "73245055", done: "70de31b1"}
+flow: {kind: full, provenance: operator}
 ---
 
 # Land the opt-in launch-only Couch profiler independently
@@ -55,3 +55,23 @@ Claimed in pair:7 and start-plan created this branch from fresh main3470debf43a8
 ### 2026-10-24 — approved full-flow extraction
 
 TLbb7d18ab approved the finite extraction boundary and added the two-line operator handoff. The initial no-code change-code inferred quick because code is not imported yet; pin full for the approved >100production-line extraction so plan-quality and estimate gates run before implementation. Renamed the durable plan to the canonical issue stem; no design delta.
+
+## Estimate
+
+Produced via brain/data/life/42shots/velocity/estimate-logic-v3.1.md against baseline-v3.1.md. Method A only; calibration is reported stale/provisional by estimate-source. Three smaller-go-module primitives cover pure reducer extraction, effect adapter/fault tests, and launch/env integration. Existing source and approved plan resolve design: v2 design picks0.15/0.30/0.15hr x0.2; implementation picks0.30/0.50/0.30hr x0.40. Docs and one close boundary use0.10design x0.2, implementation0.10/0.35 x0.40. Go stdlib runtime/pprof and existing adapters supply the implementation; no novel library discovery. Familiarity1.0, thorough-plan design buffer15%, no cross-repo propagation. Design subtotal0.16 x1.15 + scaled implementation0.62 =0.804hr. Queue idle is not implementation effort.
+
+```estimate
+model: estimate-logic-v3.1
+familiarity: 1.0
+item: smaller-go-module design=0.03 impl=0.12
+item: smaller-go-module design=0.06 impl=0.20
+item: smaller-go-module design=0.03 impl=0.12
+item: atlas-docs design=0.02 impl=0.04
+item: milestone-review design=0.02 impl=0.14
+design-buffer: 0.15
+total: 0.804
+```
+
+### 2026-10-24 — plan-quality cleared
+
+PQ-1 addressed by function-level adversarial strategies, no behavioral design delta; round2 CLEAN. Derived the estimate only after that result. TL confirmed no native/scaled consumers and requested two operator lines; supplied exact COUCH_PROFILE_DIR invocation/new private destination and fixed output names, receipt59fe53b3 submitted.
