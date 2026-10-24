@@ -406,6 +406,39 @@ fixtures. Then send the verified revision and checklist to the hub for its
 possibly coordinated #838/#419 stage. No :0 mutation before that coordination.
 Whole issue close/review and landing follow actual operator acceptance.
 
+### 2026-10-23 21:18 — native PASS; recorded fixture dependency failure repaired
+
+Exact-head native run on 8e92803f80a2fef84918d40adc7b35baaac83d70 passed
+34.999s (Claude and Codex, seven authored cases each). Both disposable fleet
+owners proved every generation absent and joined child/IO cleanup. This proves
+the real CLI path using synthetic personalities; semantic real-agent acceptance
+remains the operator's stage check. Raw evidence: native-8e92803f-passed.log,
+SHA256 1237dc29fcc08cb288051e83383819179c181d922369a9b43cd26cc03137f2f0.
+
+Pre-close attempt f933ba7bdbd58992b61fba928e9c6c8e waited normally, selected
+affected then the expected cmd/couch full fallback (hub tracks policy in #853),
+and exited failed before the Go suite. Its source fixture copied affected and
+jsonstrict only, but the pinned planner now imports processgroup, which imports
+pkg/procgroup and x/sys. Targeted repeat reproduced the exact compile failure;
+this is a deterministic fixture assembly defect, never flake or infrastructure
+acceptance. Retained pre-close-8e92803f-qualification-failed.log SHA256
+107ee33a30b1eb4c2ada26ce2e9446861419cd825acd9b73338ceb75861b23ed.
+
+Repair b3da4973e copies all four unmodified provider packages plus that same
+snapshot's go.mod/go.sum into a disposable root module. No planner fork, fake
+process implementation, gate configuration change, retry or timeout change
+(ARCH-DRY). Sibling qualification PASS18.146s, installed #581 module PASS20.091s,
+exact #581 Git-ref PASS22.022s; each checked778 distinct group/file inputs.
+Affected inventory and diff whitespace checks PASS. Hub and pair:2 were informed;
+#851 holds the :0 stage lease. No stage mutation was made.
+
+Next: push the repaired checkpoint and run one new recorded --pre-close check.
+After PASS, coordinate with pair:2 for the authorized staging-only combined
+main+#851+#838 build, not pair:6's superseded stage. Operator checklist is
+workshop/evidence/000838/operator-check.md. Actual live acceptance, whole-issue
+close/review and landing remain outstanding. Never restart while the new own
+recorded check is queued/running; retain its runner and FIFO.
+
 ## Revisions
 
 ### 2026-10-23 — initial implementation design
