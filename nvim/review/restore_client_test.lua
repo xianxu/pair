@@ -1,6 +1,38 @@
 package.path = './nvim/?.lua;' .. package.path
 local ok, module = pcall(require, 'review.restore_client')
 assert(ok, 'draft restoration client must exist')
+-- Native adapter resolution belongs only to native commands. Identity and
+-- existing-pane RPC must not consult the launcher or open a replacement pane.
+do
+  local calls, lookups = {}, 0
+  local client = module.new({
+    pair_bin=function() lookups=lookups+1; error('non-native command resolved native launcher') end,
+    run=function(argv, opts, callback)
+      calls[#calls+1]=argv
+      callback({code=0,stdout='',stderr=''})
+      return {}
+    end,
+  })
+  for _, argv in ipairs({
+    {'/existing/pair','review','readiness','--resolve','/repo'},
+    {vim.v.progpath,'--server','/existing/editor','--remote-expr','constant expression'},
+  }) do
+    local finished=false
+    client.busy=true
+    client:run(argv,nil,function() finished=true end)
+    assert(vim.wait(1000,function() return finished end,5),'non-native command did not finish')
+    assert(calls[#calls]==argv,'non-native argv was rewritten')
+  end
+  assert(lookups==0 and #calls==2,'identity/RPC consulted native launcher')
+  client.opts.pair_bin=function() lookups=lookups+1; return 'pair' end
+  local finished=false
+  client.busy=true
+  client:run({'zellij','action','list-panes','--json'},nil,function() finished=true end)
+  assert(vim.wait(1000,function() return finished end,5),'native command did not finish')
+  assert(lookups==1 and vim.deep_equal(calls[3],
+    {'pair','internal','zellij-command','--','action','list-panes','--json'}),
+    'native command did not cross guarded helper exactly once')
+end
 local root = vim.fn.tempname(); vim.fn.mkdir(root, 'p')
 local identity = { status='resolved', repo='/repo', branch='review/a', head='sha-a', file="a's.md" }
 local context = { repo=identity.repo, branch=identity.branch, file=identity.file, activation='active-a' }

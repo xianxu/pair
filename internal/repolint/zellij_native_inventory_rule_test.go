@@ -365,7 +365,7 @@ func zellijNativeSourceFindings(filename string, source []byte) []locatedFinding
 		}
 		if filename == "nvim/review/restore_client.lua" {
 			start := strings.Index(text, "function C:run(cmd,opts,callback)")
-			if start >= 0 && !strings.HasPrefix(strings.TrimSpace(text[start+len("function C:run(cmd,opts,callback)"):]), "cmd=zellij_trace.command(cmd,self.opts.pair_bin())") {
+			if start >= 0 && !strings.HasPrefix(strings.TrimSpace(text[start+len("function C:run(cmd,opts,callback)"):]), "if cmd[1]=='zellij' then cmd=zellij_trace.command(cmd,self.opts.pair_bin()) end") {
 				add(start)
 			}
 		}

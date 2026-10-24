@@ -6,12 +6,28 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 export PAIR_TEST_ZELLIJ_REPLIES="$ROOT/tests/lib/zellij_fixture_replies.py"
 . "$ROOT/tests/lib/run-headless.sh"
-tmp="$(mktemp -d "${TMPDIR:-/tmp}/pair-nvim-route.XXXXXX")"
-trap 'rm -rf "$tmp"' EXIT
+tmp="$(mktemp -d "${TMPDIR:-/tmp}/pair-nvim-route.XXXXXX")" || exit 1
+trap 'rm -rf "${tmp:?}"' EXIT
 
 mkdir -p "$tmp/bin"
 export PAIR_RETENTION_PROTOCOL=''
-export PAIR_TEST_REAL_BIN="$ROOT/bin/pair"
+# Every guarded native call must execute this checkout's shared test image.
+# The selective wrapper retains the fullscreen failure fixture below while
+# delegating internal zellij-command argv to the actual Pair adapter.
+export PAIR_TEST_REAL_BIN="$tmp/pair-real"
+bash "$ROOT/tests/lib/pair-test-binary.sh" "$PAIR_TEST_REAL_BIN"
+export ZELLIJ_SOCKET_DIR="$tmp/native"
+cat > "$tmp/bin/pair" <<'SH'
+#!/bin/sh
+if [ "$*" != 'layout toggle-focused' ]; then
+  exec "$PAIR_TEST_REAL_BIN" "$@"
+fi
+printf '%s:%s\n' "$ZELLIJ_PANE_ID" "$*" >> "$PAIR_TEST_DIRECT_LOG"
+printf 'captured stdout\n'
+printf 'captured stderr\n' >&2
+exit 17
+SH
+chmod +x "$tmp/bin/pair"
 cat > "$tmp/bin/zellij" <<EOF
 #!/bin/sh
 printf '%s\n' "\$*" >> "$tmp/all-actions"
@@ -138,17 +154,7 @@ done
 
 # Fullscreen executes from the invoking editor, even without a draft locator.
 # A failing CLI owns diagnostics; neither stdout/stderr nor vim.notify may leak.
-cat > "$tmp/bin/pair" <<'SH'
-#!/bin/sh
-if [ "$*" != 'layout toggle-focused' ]; then
-  exec "$PAIR_TEST_REAL_BIN" "$@"
-fi
-printf '%s:%s\n' "$ZELLIJ_PANE_ID" "$*" >> "$PAIR_TEST_DIRECT_LOG"
-printf 'captured stdout\n'
-printf 'captured stderr\n' >&2
-exit 17
-SH
-chmod +x "$tmp/bin/pair"
+
 cat > "$tmp/fullscreen-driver.lua" <<'LUA'
 vim.notify = function() error('fullscreen must not notify') end
 for _, key in ipairs({ '<M-Up>', '<M-Down>' }) do
@@ -171,7 +177,7 @@ for init in init review scrollback changelog; do
   PATH="$tmp/bin:$PATH" PAIR_HOME='' PAIR_DATA_DIR="$tmp/data" PAIR_TAG=t \
     PAIR_DRAFT_PANE_PATH='' PAIR_LAYOUT_MODE_PATH="$tmp/layout-mode-$init" \
     ZELLIJ_PANE_ID=81 TEST_INIT="$init" \
-    PAIR_TEST_DIRECT_LOG="$tmp/direct-log" PAIR_TEST_REAL_BIN="$ROOT/bin/pair" \
+    PAIR_TEST_DIRECT_LOG="$tmp/direct-log" \
     run_headless -- nvim --headless -u "$ROOT/nvim/$init.lua" \
       "$tmp/view-$init.md" -l "$tmp/fullscreen-driver.lua" > "$tmp/direct-output" 2>&1 || {
         cat "$tmp/direct-output"

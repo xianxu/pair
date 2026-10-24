@@ -96,6 +96,7 @@ func TestZellijAdmissionProductionMutationControls(t *testing.T) {
 		{"native adapter admission removed", "cmd/internal/zellijquery/command.go", "return withNativeAdmission(ctx, snapshot, nativeCommandReads(args),", "return unguarded(ctx, snapshot, nativeCommandReads(args),"},
 		{"lua adapter bypass", "nvim/zellij_trace.lua", "vim.system(M.command(argv),", "vim.system(argv,"},
 		{"restore adapter bypass", "nvim/review/restore_client.lua", "cmd=zellij_trace.command(cmd,self.opts.pair_bin())", "cmd=cmd"},
+		{"restore eager launcher lookup", "nvim/review/restore_client.lua", "if cmd[1]=='zellij' then cmd=zellij_trace.command(cmd,self.opts.pair_bin()) end", "cmd=zellij_trace.command(cmd,self.opts.pair_bin())"},
 		{"layout bypass", "zellij/layouts/main-2.kdl", "pair internal zellij-command -- action rename-pane", "zellij action rename-pane"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

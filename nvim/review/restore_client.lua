@@ -21,7 +21,7 @@ function C:finish(message)
   if message then (self.opts.notify or vim.notify)('PairReview: '..message,vim.log.levels.WARN) end
 end
 function C:run(cmd,opts,callback)
-  cmd=zellij_trace.command(cmd,self.opts.pair_bin())
+  if cmd[1]=='zellij' then cmd=zellij_trace.command(cmd,self.opts.pair_bin()) end
   opts=vim.tbl_extend('force',{text=true,timeout=5000},opts or {})
   local ok,err=pcall(self.opts.run or vim.system,cmd,opts,function(result)
     vim.schedule(function()

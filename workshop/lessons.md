@@ -2881,3 +2881,7 @@ and external temporary roots rather than relying on the host's TMPDIR.
 - #850 BR5: independent viewport clamping is insufficient after composition. State the invariant for all eligible entities together: each must remain individually selectable with identical bounds, overlapping bounds and dense edge cases. A single bounded scrolling selector removes an impossible geometric packing problem; do not add a third positional heuristic.
 
 - #866 BR-5: At implementation reconciliation, audit every governing core-concept file and status against Git name-status, including newly split resolver files and unchanged policy seams; append an explicit replacement row for each mismatch.
+
+- #866 post-close Lua regression: Classify argv before evaluating adapter-specific providers. Cover non-native identity/RPC through the same run method with a provider that fails if consulted; native integration fixtures must execute the migrated helper seam.
+
+- #866 helper migration fixtures: Native CLI integration owns both the exact candidate Pair executable and a private native socket namespace. PATH must not resolve an older installed helper, and injected tracing executors must retain the guarded helper rather than invoke raw native commands.

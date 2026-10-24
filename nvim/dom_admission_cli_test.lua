@@ -3,7 +3,7 @@ local root=vim.fn.getcwd()
 local transport=dofile(root..'/nvim/dom_transport.lua')
 local delivery=dofile(root..'/nvim/draft_send.lua')
 local trace=dofile(root..'/nvim/zellij_trace.lua')
-local dir=vim.fn.system({'mktemp','-d','/tmp/p647-dom-cli.XXXXXX'}):gsub('%s+$','')
+local dir=vim.fn.system({'mktemp','-d',(vim.env.TMPDIR or '/tmp')..'/p647-dom-cli.XXXXXX'}):gsub('%s+$','')
 assert(vim.v.shell_error==0 and dir~='','private fixture root')
 local old={}
 for _,key in ipairs({'PATH','PAIR_FAKE_ZELLIJ_STATE','ZELLIJ_SESSION_NAME','PAIR_ZELLIJ_TRACE','HOME','ZELLIJ_SOCKET_DIR'}) do old[key]=vim.env[key] end
@@ -19,6 +19,8 @@ local function save(value)vim.fn.writefile({vim.json.encode(value)},dir..'/state
 local function load()return vim.json.decode(table.concat(vim.fn.readfile(dir..'/state.json'),'\n'))end
 local ok,err=xpcall(function()
  vim.fn.mkdir(dir..'/bin','p')
+ local built=vim.system({'bash',root..'/tests/lib/pair-test-binary.sh',dir..'/bin/pair'},{text=true}):wait()
+ assert(built.code==0,'Pair helper build failed: '..(built.stderr or ''))
  vim.fn.writefile({'#!/bin/sh','exec '..vim.fn.shellescape(vim.fn.exepath('python3'))..' '..vim.fn.shellescape(root..'/tests/lib/fake-zellij.py')..' "$@"'},dir..'/bin/zellij')
  assert(vim.fn.setfperm(dir..'/bin/zellij','rwx------')==1)
  vim.env.PATH=dir..'/bin:'..old.PATH
