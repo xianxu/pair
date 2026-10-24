@@ -127,45 +127,57 @@ ARCH-CONSTRAINTS: asynchronous path, no UI blocking; bounded memory/parallelism 
 
 ARCH-FUNERAL: the lifetime owner removes pending/tracking records on terminal result/expiry/shutdown; state dies with Console, no restart replay. Existing AttentionList capacity 50 and 12-hour age remain, and feed stays bounded. ARCH-EVOLVE: no wire or durable record format changes planned; added fields are ephemeral Go values. If implementation needs persisted/protocol fields, stop and revise before widening schema. ARCH-MOCK: reuse persisted fixture workspaces and real local broker/registry with stateful endpoints. ARCH-PURPOSE: qualify all producers and bypasses in this table, not only the previously edited Warn calls.
 
+## Executable test contract
+
+The following names are the production API to implement; unit tests call these functions, not a second model. Scenario details belong in executable fixtures rather than a prose case inventory.
+
+| Production function | Adversarial input and mechanical guard |
+|---|---|
+| couchcore.RouteNotice(NoticeRouteInput) NoticeRoute | Exhaust the typed class/origin/owner domains and fuzz unknown enum values; assert independently specified human-eligibility and feed-once invariants. |
+| couchcore.AdvanceNoticeDelivery(NoticeDeliveryState, NoticeDeliveryEvent) (NoticeDeliveryState, []NoticeDeliveryEffect) | Generate bounded event sequences with duplicate/reordered completions and ownership epochs; assert at-most-one admission ID per occurrence, no resend on uncertainty, disabled-hub non-replay and resource caps after every transition. |
+| couchcmd.resolveNoticeOwner(event) noticeOwner | Stateful multi-hub authority fixtures vary source lifetime and ownership while controlled barriers pause admission; assert exact-owner provenance and unchanged binding/epoch guards, never focused-slot or alternate-hub substitution. |
+| couchcmd.runNoticeDelivery(ctx) | Controlled stateful broker endpoints release or fail effects in arbitrary order; count active admissions, queue bytes, IDs and retained records against independent bounds at N and 2N, and prove cancellation joins all local workers. |
+| couchtty.publishWarningLocked(Notice) bool | Race-enabled fake Console host drives concurrent publication/close and locked callers; assert feed-once, memory-only handoff and existing lock order with delayed external effects. |
+| couchtty.applyNoticeRoute(result) | Fake host/real presenter drives route completions after source replacement; assert exact target identity, bounded attention projection and no feed republish or post-shutdown paint. |
+| couchcmd.publishBlocked and waitWatcher.publishQuestions | Statefully vary readiness/ownership independently of a fixed condition set; assert blocked-view independence, condition reconciliation and one canonical hub effect per episode. |
+| couchcmd.handleNotify, notifyArchiveWarning and handleAutomaticInputStall | Existing authenticated service fixtures observe all effect sinks; assert each class uses the table and at most one existing canonical hub delivery, without broadening caller privileges or unconditional desktop output. |
+| Each typed producer in the routing table | Production-path fixture plus source inventory contract proves the producer emits its declared class/origin/source; a newly introduced unclassified actionable producer fails the inventory. |
+
 ## Implementation tasks (after detailed approval and change-code)
 
-### Task 1: pure policy and routing state, red then green
+### Task 1: pure policy and delivery state
 
-**Files:** create couchcore/notice_route.go, notice_route_test.go, notice_delivery.go, notice_delivery_test.go (under cmd/internal/); modify couchtty/notice.go.
+**Files:** create cmd/internal/couchcore/notice_route.go, notice_route_test.go, notice_delivery.go, notice_delivery_test.go; modify cmd/internal/couchtty/notice.go.
 
-- [ ] Write exhaustive table tests: every listed class across four owner states, operator versus remote origin, explicit notify admission, prior delivery known/unknown, routine and unknown. Assert feed once, bell deny-by-default and exact hub routing effects.
-- [ ] Run `go test ./cmd/internal/couchcore -run 'TestNotice(Route|Delivery)' -count=1`; observe red before adding production code.
-- [ ] Implement minimal typed values/table and reducer. Test sequences: boot-ready, disabled-off/on, owner replacement, no-hub restoration, duplicate/late result, cancellation and uncertainty. N/2N asserts bounded lookups/retained entries.
-- [ ] Run the same tests green; commit policy/reducer with issue and agent trailers.
+- [ ] Write failing tests for RouteNotice and AdvanceNoticeDelivery using the executable test contract.
+- [ ] Run `go test ./cmd/internal/couchcore -run 'TestNotice(Route|Delivery)' -count=1` and verify the missing-feature failure.
+- [ ] Implement the typed table and pure transition API; run the same tests green, then commit with issue and agent trailers.
 
-### Task 2: Console and message service integration
+### Task 2: Console and service integration
 
-**Files:** create couchtty/console_notice_route.go and tests; create couchcmd/notice_delivery.go and tests; modify couchtty/console.go, couchcmd/run.go, message_service.go and automation.go only if the existing ingress seam needs exposure.
+**Files:** create cmd/internal/couchtty/console_notice_route.go and tests; create cmd/internal/couchcmd/notice_delivery.go and tests; modify couchtty/console.go, couchcmd/run.go, message_service.go and automation.go only if the existing ingress seam needs exposure.
 
-- [ ] Write controlled integration red cases: buffered startup warning followed by live owner gives zero bell + exactly one hub message; unavailable owner gives one bell; disabled owner gives only feed; UI stays responsive while admissions block.
-- [ ] Use cached ownership snapshots and existing exact-binding guarded ingress; wire lifecycle startup/close and bounded dispatcher workers. Project feed once and bell without republishing.
-- [ ] Test four concurrent admission cap, queue bound/overflow aggregation, expiry, abrupt service stop, source deletion, owner move before versus after effect start, uncertain admission with one ID, and no late notification after shutdown.
+- [ ] Write failing tests for resolveNoticeOwner, runNoticeDelivery, publishWarningLocked and applyNoticeRoute using stateful fixtures and controlled effect barriers.
+- [ ] Implement their IO shell and lifecycle integration according to the bounds and state table; preserve the existing guarded broker ingress.
 - [ ] Run `go test -race ./cmd/internal/couchcore ./cmd/internal/couchtty ./cmd/internal/couchcmd -run 'TestNotice(Route|Delivery)|TestConsoleNotice' -count=3`; green then commit.
 
-### Task 3: sweep producers and direct condition/desktop paths
+### Task 3: producer and bypass integration
 
-**Files:** every producer anchor in the routing table, couchcmd/attention.go, wait_notice.go, notify_service.go, archive_notify.go, automatic_input_stall.go; associated existing tests.
+**Files:** producer anchors in the routing table, couchcmd/attention.go, wait_notice.go, notify_service.go, archive_notify.go, automatic_input_stall.go; associated tests.
 
-- [ ] Add failing production-path coverage for every class, including the two publishWarningLocked calls, direct Prompt/Question, archive desktop and automatic-stall callback/send/desktop paths. Make a source audit contract flag a new unclassified actionable producer rather than silently permitting bell output.
-- [ ] Carry origin and owner identities through erased func(string) callbacks; no English matching or focused-slot fallback. Keep routine success, freshness-skip, borrowed-attach and expected normal stops feed-only.
-- [ ] Preserve the original wait/lifecycle/automatic-stall canonical delivery; route their local projection without a second hub send. Add exact-count assertions for feed, hub, bell and desktop.
-- [ ] Exercise two hubs, missing owner with another hub live, no hubs, disabled hub, picker/question unchanged while owner changes, condition clearing, prior crash and hub-start failure. Verify global/detached opens switcher and attached targets exact source.
-- [ ] Run targeted existing suites: `go test -race ./cmd/internal/couchtty ./cmd/internal/couchcmd -run 'Test.*(Notice|Attention|Warning|Picker|Question|Notify|AutomaticInputStall|Startup)' -count=1`. Split if an unrelated baseline failure needs classification, retain exact evidence; do not bless a failed broad run.
-- [ ] Audit each changed reader and refresh only named certificates using the inventory's exact repair command; run `make test-affected-inventory`. Commit the integrated routing sweep.
+- [ ] Add failing producer-inventory and production-function tests from the executable test contract before rewiring their effects.
+- [ ] Wire the typed sources and existing canonical delivery provenance into the one routing policy, keeping source identity through callbacks.
+- [ ] Run `go test -race ./cmd/internal/couchtty ./cmd/internal/couchcmd -run 'Test.*(Notice|Attention|Warning|Picker|Question|Notify|AutomaticInputStall|Startup)' -count=1`; classify unrelated baseline failures with exact evidence.
+- [ ] Audit each changed reader, refresh only its named certificate via the inventory's exact repair command, run `make test-affected-inventory`, then commit the integrated sweep.
 
 ### Task 4: documentation and close
 
-**Files:** update atlas/couch attention documentation and atlas/index.md; this issue/plan.
+**Files:** relevant atlas/couch attention documentation and atlas/index.md; this issue/plan.
 
-- [ ] Document the single table's anchor, operator eligibility, owning/global routing, automation-off behavior, bounded dispatch and overload/uncertainty semantics. Keep atlas map-level; table authority remains code.
-- [ ] Run `git diff --check`, targeted tests above and inventory; push final head, then `sdlc local-check run --pre-close` and await recorded result.
-- [ ] Run `make test-affected-inventory` immediately before `sdlc close --issue 844 --verified '<exact evidence>'`; use measured actuals, mandatory binary-owned review, fix important findings and rerun changed gates.
-- [ ] Land through sdlc PR/merge; report verified PR/archive/runner completion to hub. If a live check is requested, stage only with TL authorization and provide simple checks; deterministic multi-hub/no-hub tests are required regardless.
+- [ ] Document policy-table anchor, operator eligibility, ownership, automation-off and bounded delivery semantics at map level.
+- [ ] Run `git diff --check`, targeted verification above and inventory; push final head, run `sdlc local-check run --pre-close` and await its recorded result.
+- [ ] Run `make test-affected-inventory` immediately before `sdlc close --issue 844 --verified '<exact evidence>'`; use measured actuals and the mandatory binary-owned boundary review.
+- [ ] Address review findings through their existing ledger, land through sdlc PR/merge, and report verified PR/archive/runner completion to hub. Stage only if TL requests a live check.
 
 ## Approval request / remaining decisions
 
@@ -175,3 +187,5 @@ Approve the typed table, four-worker/128-entry dispatcher and the single aggrega
 ## Revisions
 
 - 2026-10-24: ops:0 approved the entire design in authenticated delivery 12d7cfb1-b715-4546-b159-69f6c8cde4bb, including all 39 classes, dispatch bounds, global primary ownership, aggregated capacity-loss bell and connected-hub picker rule. This supersedes the proposed/awaiting-approval status and approval-request wording above. Implementation is authorized after the change-code gate. Use the full flow because the planned reducer, dispatcher and producer sweep exceed the 100-added-code-line quick shell.
+
+- 2026-10-24: PQ-1 test-contract refinement names production functions and one adversarial strategy/mechanical guard per risky function; compressed procedural scenario inventories. Generated event sequences exercise the production reducer with independent effect-count, epoch and resource invariants, and controlled shell completion ordering. Approved behavior and bounds unchanged.

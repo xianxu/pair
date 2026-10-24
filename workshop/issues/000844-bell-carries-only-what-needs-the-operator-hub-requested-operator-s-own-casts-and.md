@@ -73,3 +73,8 @@ TL approved policy in delivery 84c76ec1-c90f-40f0-885d-bfeafba9b898: automation 
 Ops:0 delivery 12d7cfb1-b715-4546-b159-69f6c8cde4bb authenticated as submitted from the bound hub: detailed plan approved, including one table, startup buffer/reducer, 128 x 4 KiB/four admissions/two-second contexts/two-minute expiry, no uncertain resend, primary global ownership, one aggregated capacity-loss bell, and connected-hub picker rule. Proceed to change-code. Initial invocation waited on #838's live close lock and was canceled before acquiring it to record the approval and select the full flow; no implementation/gate bypass occurred.
 
 NEXT ACTION: run change-code --issue 844 --flow full; address plan-quality findings, derive the estimate only after that review passes, then execute the test-first tasks.
+
+
+### 2026-10-24 — plan gate round 1
+
+Full-flow plan review returned one Important finding PQ-1 (executable-test-strategy): name the production functions under test and compress prose scenario inventories. Revised the entire test contract and task section to name RouteNotice, AdvanceNoticeDelivery, resolveNoticeOwner, runNoticeDelivery, publishWarningLocked, applyNoticeRoute and the existing condition/notification functions, with one adversarial strategy each. State sequences call the production reducer and check independent no-duplicate, epoch-fencing and resource-bound invariants; stateful shell fixtures control effect completion ordering. No policy change, implementation or estimate yet. Existing Attention unit baseline passed (go test ./cmd/internal/couchcore -run TestAttention -count=1, 0.350s).
