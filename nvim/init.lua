@@ -3707,9 +3707,6 @@ end
 -- keymaps
 -- ---------------------------------------------------------------------------
 
-vim.keymap.set({ 'n', 'i' }, '<C-S-M-CR>', function() _G.PairSendDOM() end,
-  { silent = true, desc = 'pair: send draft and open DOM notes with crops' })
-
 vim.keymap.set({ 'n', 'i' }, '<M-CR>', send_and_clear,
   { silent = true, desc = 'pair: send buffer + clear' })
 

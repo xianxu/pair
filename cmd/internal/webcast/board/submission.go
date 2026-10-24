@@ -41,6 +41,29 @@ func (b *Board) Selection() (Selection, error) {
 	return b.selectionLocked()
 }
 
+// HasSubmissionFeedback is the in-memory availability projection for a send
+// control. Selection owns note revisions and finished sketch witnesses; the
+// live delivery mask hides only the exact versions already confirmed sent.
+// This is advisory: a press still freezes its own authoritative selection.
+func (b *Board) HasSubmissionFeedback() (bool, error) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	selection, err := b.selectionLocked()
+	if err != nil {
+		return false, err
+	}
+	if len(selection.Notes) > 0 {
+		return true, nil
+	}
+	for _, sketch := range selection.Sketches {
+		hidden, ok := b.feedbackDisplay.sketches[sketch.ID]
+		if !ok || hidden.NextSequence != sketch.NextSequence || hidden.Digest != sketch.Digest {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
 func (b *Board) selectionLocked() (Selection, error) {
 	if b.closed {
 		return Selection{}, ErrClosed

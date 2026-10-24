@@ -13,6 +13,8 @@ func (c *Console) statusModelLocked() StatusModel {
 		model.CapabilityNotice = capabilityNotice(caps)
 	}
 
+	p := c.panes[c.active]
+	model.WebSend = c.wcast.phase == webcastRunning && c.wcast.sendPending && !c.focus.IsPanel() && p != nil && !p.child.Endpoint().InputEnded()
 	c.attentionStatusLocked(&model)
 
 	driver, asking := c.webDriveLabels()

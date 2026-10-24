@@ -10,6 +10,7 @@ import (
 
 // RenderedStatusBar contains the rows and row-relative hit spans drawn together.
 type RenderedStatusBar struct {
+	send        sendStatusTarget
 	Rows        []RenderedStatusRow
 	Chips       []ChipSpan
 	GroupCounts []GroupCountSpan

@@ -9,6 +9,20 @@ import (
 	"github.com/xianxu/pair/cmd/internal/webcast/board"
 )
 
+// HasSubmissionFeedback reads only this cast's live Board projection. It does
+// not inspect the submission store, browser paint or recording files.
+func (c *Cast) HasSubmissionFeedback() (bool, error) {
+	if c.board == nil || c.recDir == "" {
+		return false, ErrNotRecording
+	}
+	select {
+	case <-c.done:
+		return false, ErrEnded
+	default:
+	}
+	return c.board.HasSubmissionFeedback()
+}
+
 func (c *Cast) SubmissionCandidateUpdates() (<-chan struct{}, func()) {
 	if c.board == nil {
 		ch := make(chan struct{})

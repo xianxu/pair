@@ -91,8 +91,11 @@ func (c *Console) terminalError(err error) {
 func (c *Console) chrome() (RenderedStatusBar, []terminal.Cell, error) {
 	c.mu.Lock()
 	size, model := c.size, c.statusModelLocked()
+	target := c.sendStatusTargetLocked(c.panes[c.active])
 	c.mu.Unlock()
-	return renderChrome(size, model)
+	bar, cells, err := renderChrome(size, model)
+	bar.send = target
+	return bar, cells, err
 }
 
 func (c *Console) commitChrome(bar RenderedStatusBar) {
@@ -114,6 +117,7 @@ func (c *Console) commitChrome(bar RenderedStatusBar) {
 	c.statusWebcast, c.statusWebFocus, c.statusWebNotes, c.statusWebDrive = row.Webcast, row.WebFocus, row.WebNotes, row.WebDrive
 	c.statusWebPointerLink, c.statusWebDriveLink = row.WebPointerLink, row.WebDriveLink
 	c.statusAttention = row.Attention
+	c.statusWebSend, c.statusSendTarget = row.WebSend, bar.send
 	first := !c.framePainted
 	c.framePainted = true
 	var shown couchcore.ThreadAddress
@@ -131,11 +135,13 @@ func (c *Console) commitChrome(bar RenderedStatusBar) {
 func (c *Console) publishSelectionPublishing(ctx context.Context, pane *pane) error {
 	c.mu.Lock()
 	size, model := c.size, c.statusModelLocked()
+	target := c.sendStatusTargetLocked(pane)
 	c.mu.Unlock()
 	for i := range model.Actors {
 		model.Actors[i].Active = model.Actors[i].Thread == pane.thread
 	}
 	bar, cells, err := renderChrome(size, model)
+	bar.send = target
 	if err != nil {
 		return err
 	}

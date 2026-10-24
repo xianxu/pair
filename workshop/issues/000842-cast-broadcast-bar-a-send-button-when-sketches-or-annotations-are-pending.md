@@ -41,9 +41,9 @@ makes the action visible. It disappears when nothing is pending.
 
 Durable design: [Cast Send Button](../plans/000842-cast-send-button-plan.md).
 
-- [ ] Declare the existing send chord once and qualify pane/fullscreen routing without changing payload semantics.
-- [ ] Derive acknowledged pending-feedback eligibility and render independently clipped status Send spans.
-- [ ] Bind status clicks to the exact accepted actor endpoint and existing PairSendDOM transaction; prove stale/refusal controls.
+- [x] Declare the existing send chord once and qualify pane/fullscreen routing without changing payload semantics.
+- [x] Derive press-selection pending-feedback eligibility (per Revisions) and render independently clipped status Send spans.
+- [x] Bind status clicks to the exact accepted actor endpoint and existing PairSendDOM transaction; prove stale/refusal controls.
 - [ ] Update help/atlas, run inventory and recorded pre-close, obtain the hub-coordinated live look, close and land.
 
 ## Log
@@ -55,6 +55,17 @@ Claimed in pair:7 and ran bare sdlc start-plan; branch is based on main, no #739
 Read-only worker audits traced Shift+Ctrl+Alt+Return to nvim PairSendDOM -> existing DOM state/transport -> submissionManager/Board press-time selection. It does not submit terminal NoteBoard sticky notes; no terminal sketch-submission counterpart exists in current source. No new terminal-sketch gap is filed from a hypothetical feature. Existing draft transaction owns snapshot, busy suppression, request IDs, uncertain delivery, ack and clearing; a status control must enter that action rather than duplicate payload construction or read a draft file.
 
 Read #856 joint plan and mock HTML/CSS, then viewed its actual synthetic1280x900 rendering via a disposable headless Chrome profile (exit0, no visible window/live profile). Pair:4 confirms browser-column layout ownership and no send/tooltip behavior assigned to #856. Source surfaces differ: #842's LIVE/Chrome groups are Couch status rows; #856's protected column belongs to the browser page. Hubddb54395 resolves the ambiguity: #842 owns only the two Couch groups and exactly the existing hotkey behavior/eligible feedback; no terminal-note transaction extension and no browser-column button. Terminal-only notes therefore cannot make a submission-eligible Send appear in this issue. #843 remains next, #850 is pair:4's item.
+
+
+### 2026-10-24 — first implementation and targeted proof
+
+Change-code admitted the inferred quick flow; the binary will upgrade the close review if the real diff leaves the shell. Shared chord red failed because ESC[13;8u was undeclared, then workbenchshortcut/keyhelp tests passed after declaration, generated mapping, exact reservation-policy updates and removal of the duplicate manual map. make test-submission-transaction passed all existing real headless draft/DOM transaction tests. Focused wrapcmd/termcmd chord tests passed after updating the old four-reserved-chord expectation for the explicitly approved fifth chord.
+
+Bounded Board/Cast subagent observed missing-API red, then green for HasSubmissionFeedback and related feedback/selection tests. It reuses selectionLocked and exact delivered sketch mask; no filesystem/browser/preview read. Render subagent observed absent-field red, then green for presence and width0–100 clipping/Unicode/non-overlap tests and all TestRenderStatus cases. Console red likewise exposed absent Send state; first integration wait identified a wrong visibility predicate (messaging registration/process proof rather than the existing live endpoint input capability). Corrected that predicate; no messaging authority is relaxed. Focused StatusSend now passes without any submission manager/preview, shows after a note and disappears on exact delivered mask wake; actual mouse path admits exactly one chord for plain left press and none for right/modifiers/release/drag/wheel/stale pane, thread, endpoint, cast or panel. One diagnostic run was stopped with SIGQUIT after46s to inspect the initial missing-span wait; not passing evidence or a flake.
+
+Latest combined targeted command: go test ./cmd/internal/couchtty ./cmd/internal/wrapcmd ./cmd/internal/termcmd -run 'StatusSend|RenderStatusSend|Workbench|Chord|Shortcut|PassesThrough' -count=1 passed (couchtty4.016s, wrapcmd1.261s, termcmd1.980s). No visible window, stage or real-cast acceptance yet. Existing cast update worker observes candidate wakes and caches one bool; repeated paint consumes no Board/Store projection. Board calls happen outside Console.mu; accepted frame binds exact endpoint/cast and input FIFO admission is bounded.
+
+Reader inventory audit: changed workbenchshortcut/shortcut_test.go retains its one repository input nvim/workbench_actions.lua plus local t.TempDir sidecars. No new path or scanner; nvim/** is already a non-Go full fallback input. Refreshed only its fixed_scanner certificate after inspection. Final inventory, recorded pre-close and mandatory close review remain.
 
 ## Revisions
 

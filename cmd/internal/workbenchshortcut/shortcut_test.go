@@ -722,7 +722,7 @@ func TestRightTerminalTUIChordPassesThroughOnlyExplicitPairControls(t *testing.T
 			t.Fatalf("%q did not decode to a chord", chord)
 		}
 		want := decoded != ChordAltShiftEnter && decoded != ChordAltShiftT &&
-			decoded != ChordAltShiftLeft && decoded != ChordAltShiftRight && decoded != ChordAltK
+			decoded != ChordAltShiftLeft && decoded != ChordAltShiftRight && decoded != ChordAltK && decoded != ChordCtrlAltShiftEnter
 		if got := RightTerminalTUIChordPassesThrough(decoded); got != want {
 			t.Errorf("%v pass-through = %v, want %v", ChordName(decoded), got, want)
 		}
@@ -771,12 +771,15 @@ func TestTabChordForDeliversGlobalChords(t *testing.T) {
 }
 
 func TestAgentReservationPolicyMatrix(t *testing.T) {
-	reserved := map[Chord]ShortcutAction{ChordAltShiftEnter: ActionToggleFocusedLayout, ChordAltShiftT: ActionTerminalNewTab, ChordAltShiftLeft: ActionTerminalPrevTab, ChordAltShiftRight: ActionTerminalNextTab}
+	reserved := map[Chord]ShortcutAction{ChordCtrlAltShiftEnter: ActionSendDOM, ChordAltShiftEnter: ActionToggleFocusedLayout, ChordAltShiftT: ActionTerminalNewTab, ChordAltShiftLeft: ActionTerminalPrevTab, ChordAltShiftRight: ActionTerminalNextTab}
 	for chord := ChordUnknown; chord < ChordMax(); chord++ {
 		got := Decide(ShortcutInput{Role: PaneRoleLeftAgent, Chord: chord})
 		want := ShortcutDecision{Disposition: DispositionPass}
 		if action, ok := reserved[chord]; ok {
 			want = ShortcutDecision{Disposition: DispositionHandle, Action: action}
+			if chord == ChordCtrlAltShiftEnter {
+				want.DraftLuaFunction = "PairSendDOM"
+			}
 		}
 		if got != want {
 			t.Errorf("agent %s: got %+v, want %+v", ChordName(chord), got, want)
@@ -805,7 +808,7 @@ func TestRoleLocalHelpAndChangelog(t *testing.T) {
 }
 
 func TestAgentReservationMetadataIsExact(t *testing.T) {
-	want := map[Chord]bool{ChordAltShiftEnter: true, ChordAltShiftT: true, ChordAltShiftLeft: true, ChordAltShiftRight: true}
+	want := map[Chord]bool{ChordCtrlAltShiftEnter: true, ChordAltShiftEnter: true, ChordAltShiftT: true, ChordAltShiftLeft: true, ChordAltShiftRight: true}
 	got := map[Chord]bool{}
 	for _, b := range GlobalBindings() {
 		if b.AgentReserved {

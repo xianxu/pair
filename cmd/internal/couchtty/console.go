@@ -188,8 +188,10 @@ type Console struct {
 	// statusWebNotes is the web cast's 💭N span (#470).
 	statusWebNotes ColumnSpan
 	// statusAttention is the 🔔N span (pair#673); attn owns the list.
-	statusAttention ColumnSpan
-	attn            attentionState
+	statusWebSend    ColumnSpan
+	statusSendTarget sendStatusTarget
+	statusAttention  ColumnSpan
+	attn             attentionState
 	// statusWebFocus, statusWebPointerLink and statusWebDriveLink are the
 	// Chrome group's ↗ 👆 👽 spans (#501).
 	statusWebFocus, statusWebPointerLink, statusWebDriveLink ColumnSpan

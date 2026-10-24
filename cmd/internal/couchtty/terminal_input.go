@@ -170,6 +170,9 @@ func (c *Console) routeMouseEvent(event terminal.InputEvent) {
 		return
 	}
 	hit, _, _, ok := mouseinput.ParsePrefix(event.Raw)
+	if ok && c.routeSendStatusClick(hit) {
+		return
+	}
 	// The cast row's rule (pair#495): a left click acts or toggles, a
 	// right-click copies that control's link, and Alt+click opens the Codes
 	// menu on LIVE ⏸ and Chrome ⏸ only (routeCastCodes, above). The Chrome
