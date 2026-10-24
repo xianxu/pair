@@ -204,6 +204,10 @@ Complete local fresh-candidate Go set finished exit1, capture /Volumes/TestScrat
 
 Unclaimed #877 successfully filed on origin under workshop/issues/000877-repo-preference-store-contention.md for the unrelated preference typed-busy contour, per TL266b90f8; creation wrote nothing to this checkout. #854/#873 explicitly do not cover it. Reported filing and complete local-Go log/hash to hubf523f035 (submitted). All41 non-Go target evidence remains PASS on the same runtime source; no new recorded suite queued and no stage-ready claim.
 
+### 2026-10-24 — wrapper-title diagnostic reproduction pending
+
+All three title-process cases PASS unchanged targeted. Repeating under the exact shared-candidate command PASS3.439s; matching RAM TMPDIR and GOFLAGS -p=3 -trimpath with count3 PASS9 cases10.565s. Wrapper startup changes are absent from the production866 diff (only workbench action calls migrated); the agent starts before title admission. No root cause or flake classification is inferred from these passes. Test-only helper-entry and delayed goroutine-stack diagnostics are retained for the next complete local Go run; no timeout, assertion or production behavior changed. The title fixture still reads only its own PID/log/capture paths; its reader certificate was individually audited and recorded.
+
 ## Revisions
 
 ### 2026-10-24 — final plan bookkeeping and source ownership
