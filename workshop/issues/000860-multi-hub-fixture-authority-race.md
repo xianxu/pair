@@ -15,6 +15,7 @@ claimant:
     workspace: pair:9
     worktree: /Users/xianxu/workspace/worktree/pair-slot9/pair
     repository: github.com/xianxu/pair
+flow: {kind: quick, provenance: inferred, spec: "6553758b", done: "0e308a0d"}
 ---
 
 # Multi-hub test fixture mutates authority after message readers start
