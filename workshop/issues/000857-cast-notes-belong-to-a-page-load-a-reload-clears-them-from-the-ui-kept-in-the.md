@@ -155,6 +155,10 @@ The approved joint scope is unchanged. TL8b5caf7d permits data/recorder work bef
 
 #856 landed as PR583; its integration suite passed12m49s and final CI cleared. Brought landed main into this independent branch, preserving both the earlier published joint-plan history and the newer implementation checkpoint. Recorder lifetime repair is next, then historical provenance and current-load UI integration. Normal measured actuals apply at close after ariadne#591. Morning stage is coordinated by pair:3 and includes #857 only if complete and green in time; it must not delay the combined stage.
 
+### 2026-10-24 — Close round 1
+
+Review returned REWORK with BR-1 ownership-table drift, BR-2 native startup unverifiable (Chrome GPU exit6), and BR-3 stale atlas predicate. No runtime defect was established; independent core/race and615 browser tests passed. Reconciled the table and task paths across the class, including unchanged catch-up and generic #856 adapters and the actual new native fixture; corrected atlas membership. Native rerun on exact reviewed f5ffa47e passed5.460s, zero skips; complete output/hash and dispositions are in the plan Revisions and canonical side evidence. Measured actuals refused on the authorized ariadne#59365536-byte snapshot limit; no guessed hours. The existing recorded check lease-1008140854 remains queued, no duplicate or cancellation. Stage/merge are still outstanding, so the composite checklist remains unchecked. Hub sequences #857+#866 after the morning stage, no pair:0 touch before go.
+
 ## Estimate
 
 Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md` against `baseline-v3.1.md`. Method A only. The calibration source is marked stale by estimate-source, so the result is provisional.

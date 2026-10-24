@@ -1,0 +1,13 @@
+=== RUN   TestPageLoadLiveFeedbackLifecycle
+    page_load_live_test.go:63: initial accepted load: target=5541D0C128CADDEB0FC9A129D91400C3 loader=0F1F02A49EDE87F364DA7C3BB71D5722 root=4 doc=1
+    page_load_live_test.go:67: fixture accepted load: target=5541D0C128CADDEB0FC9A129D91400C3 loader=D08357B54B24026B5DEB8E7F1F656096 root=209 doc=2
+    page_load_live_test.go:83: different target accepted: target=40BAF21703981B0B3404FE7FB4F352AD loader=4DB0EFCE43087A59A8F21A642F082D9D root=1 doc=3
+    page_load_live_test.go:89: note-only original target return: target=5541D0C128CADDEB0FC9A129D91400C3 loader=D08357B54B24026B5DEB8E7F1F656096 root=209 doc=4
+    page_load_live_test.go:116: same-load resume: target=5541D0C128CADDEB0FC9A129D91400C3 loader=D08357B54B24026B5DEB8E7F1F656096 root=209 doc=4
+    page_load_live_test.go:131: same document after app update: target=5541D0C128CADDEB0FC9A129D91400C3 loader=D08357B54B24026B5DEB8E7F1F656096 root=209 doc=4
+    page_load_live_test.go:138: new target at exact same URL: target=FF80B2E8035BD38AB26289AA1A2B8326 loader=5101477159CF665686BD2E9CB79A22CA root=5 doc=6
+    page_load_live_test.go:144: original load restored after same-URL target: target=5541D0C128CADDEB0FC9A129D91400C3 loader=D08357B54B24026B5DEB8E7F1F656096 root=209 doc=7
+    page_load_live_test.go:155: reloaded native identity: target=5541D0C128CADDEB0FC9A129D91400C3 loader=D5DF533B0004A8B4E70B8E7C0CE4C423 root=661 doc=8
+--- PASS: TestPageLoadLiveFeedbackLifecycle (5.28s)
+PASS
+ok  	github.com/xianxu/pair/cmd/internal/webcast	5.460s

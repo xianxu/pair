@@ -225,8 +225,11 @@ generated once per browser and a name it asked for once, with the color of the s
 viewers, TL 10-12). Remote driving (#467) swaps in seat identity. The id `operator` is reserved for Couch.
 
 Notes stay open in the recording after navigation until resolved. The live open-note list contains only the confirmed current load;
-a pin appears only when its anchor is confidently placed on that load. Historical replay's `liveNotes`
-filter uses `State.DocSeg`, retaining notes across pause/resume while limiting its historical page's pins. The shape is shared with the terminal's notes (#455, #488). `author`
+a pin appears only when its anchor is confidently placed on that load. `liveNotes` on recording Models
+compares each note's creation-segment load with the selected segment's confirmed load. Pause/resume
+and returning to the same tab/load retain those notes; another target or a reload excludes them.
+Standalone presentation adapters without load metadata keep their existing document fence.
+The shape is shared with the terminal's notes (#455, #488). `author`
 and `text` stay the same. Both carry a box, in their own units: page px here, cells on the terminal. Both carry an
 anchor read as `{kind, path, text}`: here `kind: element` and the containers' path; on the terminal, Couch's layout
 path, which #488 M3 adds (atlas/broadcast.md).

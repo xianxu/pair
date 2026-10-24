@@ -45,10 +45,12 @@ Historical query is unfiltered and exposes additive provenance. Live consumers u
 | Recorder ingress load owner | `recorder/page_load.go`, `recorder/recorder.go` | new / modified | queue ingress, selected session/top-frame facts, generation and snapshot cancellation |
 | Snapshot acceptance | `recorder/recorder.go`, `recorder/mirror.go` | modified | frame-tree and document CDP IO, accepted segment/snapshot writes |
 | Board live scope | `board/page_load.go`, `board/board.go`, `board/operator_view.go`, `board/sketch_delivery.go` | new / modified | pending/confirmed scope, draft admission and subscriber publication |
-| Catch-up and rewrite | `recording/catchup.go`, `recording/contract.go` | modified | persisted replay and compaction |
-| Browser live projection | `operator.js`, `web/annotate.js`, `web/sketch-render.js`, #856's `web/feedback-entries.js` and panel adapters | modified after #856 lands | rows, pins, ink, labels, hover and confirmed anchor actions |
+| Catch-up and rewrite | `recording/catchup.go` (existing consumer), `recording/contract.go` (modified), `recording/page_load_test.go` (new qualification) | reused / modified / new | persisted replay and compaction |
+| Browser live projection | `operator.js`, `operator-sketch.js`, `web/annotate.js`, `web/sketch-render.js`, `web/sketch.js` | modified | current rows, pins, ink, labels, hover and confirmed anchor actions |
+| Generic panel and entry adapters | #856's `web/feedback-entries.js` and panel/glow adapters | reused unchanged | already consume the filtered note/sketch projections and existing lifecycle callbacks |
+| Durable submission provenance | `../submission/codec.go`, `../submission/sketch.go`, `../submission/sketch_page.go`, `../submission/page_load_test.go` | modified / new qualification | typed page-load facts at sketch source, finish and shared scene boundaries |
 | Recorder fake Chrome | `recorder/recorder_test.go` | modified | targets, loaders, roots, event/reply ordering, held/failing snapshot IO |
-| Native lifecycle fixture | existing `chrome_live_test.go` / `operator_live_test.go` and recorder live fixtures | modified | disposable browser/profile/recording, real reload and tab lifecycle |
+| Native lifecycle fixture | `page_load_live_test.go` | new | existing disposable browser/profile helpers, real reload and tab lifecycle; `operator_live_test.go` reused unchanged |
 
 The recorder owns a small mutex-protected ingress token containing generation, selected session/target and known top-frame identity. It does not read loop-owned maps unsafely. The recorder actor still serializes all snapshot execution; no new worker or polling loop is introduced. The Board remains a leaf lock, with no callback into recorder while held. Cancellation and close join existing owned work.
 
@@ -153,7 +155,7 @@ Reuse current queue bounds (100,000 DOM and non-DOM events), CDP call timeout (5
 
 ### 1. Recording identity and replay
 
-Files: create `recording/page_load.go`, `recording/page_load_test.go`, `recording/segment_codec.go`, `recording/segment_codec_test.go`; modify `recording/record.go`, `recording/codec.go`, `recording/reduce.go`, `recording/catchup.go`, `recording/contract.go` and their tests.
+Files: create `recording/page_load.go`, `recording/page_load_test.go`, `recording/segment_codec.go`, `recording/segment_codec_test.go`; modify `recording/record.go`, `recording/codec.go`, `recording/reduce.go`, `recording/contract.go` and their tests. Reuse `recording/catchup.go` unchanged: its existing complete-segment retention carries the new preserving metadata.
 
 - [x] Write failing PageLoad and segment-codec tests using the function strategies below. Run `go test ./cmd/internal/webcast/recording -run 'Test(PageLoad|Segment)'` and inspect intended red failures.
 - [x] Implement optional segment metadata and strict preserving segment codec. Add segment index and pure membership helpers without changing sketch request/digest fields.
@@ -171,7 +173,7 @@ Files: create `recorder/page_load.go`, `recorder/page_load_test.go`, `board/page
 
 ### 3. Live consumers, after #856 lands
 
-Files: `web/model.js`, `web/annotate.js`, `web/sketch-render.js`, `operator.js`, #856's panel/entry/glow adapters as actually landed, `board/feedback_context.go`, `query/querier.go`, `query/sketch.go`; tests in `tests/webcast/*.test.mjs` and colocated Go tests.
+Files: `web/model.js`, `web/annotate.js`, `web/sketch-render.js`, `web/sketch.js`, `operator.js`, `operator-sketch.js`, `board/feedback_context.go`, `query/querier.go`, `query/sketch.go`; tests in `tests/webcast/*.test.mjs` and colocated Go tests. Reuse #856's generic panel/entry/glow adapters unchanged through the filtered projections and lifecycle owners.
 
 - [x] Merge landed main only after #856's landing; reconcile the actual entity table/file ownership before editing. Do not import its unlanded commits.
 - [x] Add failing reducer/operator parity tests using the membership and lifecycle strategies below. Assert no old rows, pins, ink, labels or controls survive scope departure.
@@ -241,3 +243,12 @@ TL2eb592a8 approves ARCH-MOCK parity: fakeChrome refuses every method for a deta
 ### 2026-10-24 — Integration ownership and edge qualification
 
 The scalar load provenance also crosses submission's preserving codec: optional page_load on source, finish and shared scene is owned there, typed-decoded canonically and validated against its source tab, with raw nested extensions retained. This completes the existing additive provenance design rather than changing selection. Initial managed pending scope returns an empty successful selection even before the first snapshot; unknown scope rejects fresh notes/pointers while history remains readable. Same-load return uses load membership for the existing per-color quota, and natural counter exhaustion refuses authority. Modern private fixtures now state identities; legacy wire histories remain unknown. All are qualifications of the approved model, not new visible states or recorder-ordering mechanisms.
+
+
+### 2026-10-24 — Close round 1 ownership reconciliation and native recovery
+
+BR-1 (ARCH-PURPOSE): reconciled the complete integration table and affected task file lists against the pinned Git diff. Catch-up already retains complete Seg records, so `recording/catchup.go` needs no edit; its unchanged path is qualified by the new load replay/compaction tests. #856's generic entry/panel/glow adapters already consume the filtered projections and lifecycle callbacks, so they remain unchanged. `operator_live_test.go` is reused, no `chrome_live_test.go` exists, and the new native scenario lives in `page_load_live_test.go`. Added the delivered durable submission codec/source/scene ownership omitted from the original table. This corrects traceability without inventing code changes to reused consumers.
+
+BR-2 (ARCH-MOCK): the reviewer's disposable Chrome failed before page creation with GPU exit_code=6. On the exact reviewed head f5ffa47e6942019bc54a639630cfa1c8fe37a75b, reran `WEBCAST_LIVE_CHROME=1 go test ./cmd/internal/webcast -run '^TestPageLoadLiveFeedbackLifecycle$' -count=1 -v -timeout=150s`: PASS5.460s, scenario5.28s, zero skips. Complete returned output is `000857-page-load-feedback-plan.side/evidence/native-close-r1-rerun.log`, SHA-256 cbaf43fc5b38aedb2cf2ccd2b49ba471966343020b4576c834c994b6ae9ba9a6. This is environmental startup recovery, not a production fix; next review should qualify it independently. BR-3 corrects atlas liveNotes load membership and unchanged adapter fallback.
+
+Close measured actuals normally first, but refused because MeasurementBranchEvidence exceeds65536 bytes (ariadne#593); the hub's precise existing --no-actual authorization applies. The unchecked composite checklist includes pending stage and merge, so --no-plan-check records that sequencing without claiming acceptance. The retained recorded check remains lease-1008140854 on f5ffa47e; only documentation/evidence changes in this round. Operator staging waits for hub authorization and combines #857 with #866 after the existing morning stage frees pair:0.
