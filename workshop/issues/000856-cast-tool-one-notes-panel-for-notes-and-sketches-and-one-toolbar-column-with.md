@@ -59,6 +59,11 @@ Close and landing use their SDLC gates. The recorded exact-source pre-close chec
 
 ## Log
 
+### 2026-10-24 — Actual attribution refusal; authorized N/A recovery
+
+The third close stopped before dispatching review: branch attribution for062e2184-2117-4c26-b929-ceec3b5a8030 in pair-slot4 had concurrent claims with unknown/resting/ambiguous active branch during2026-10-23T21:35:40-07:00 to2026-10-24T04:36:48Z. The earlier rounds measured2.72h and3.33h under the previous engine. TLfab98e9b-8864-49ce-b36c-1dc135ebac80 identifies ariadne#580 (landed01:26) and concurrent #850/#856 claims as the cause; ariadne:3 owns the workflow fix. TL explicitly authorizes close with --no-actual, recording both earlier measurements and the exact refusal in verified. Do not transplant old numeric hours or fabricate new attribution. This close will use N/A/exclude calibration while preserving code verification. Retained suite lease-306801268 stays queued with its grant.
+
+
 ### 2026-10-24 — Final-source native set and recorded-check lease
 
 One current-source run on087631062be649f7578cab38fe75ddc6c3044ed1 passed all8 named native/module tests in32.750s, no skips, including the final16-state composed geometry oracle and captureddrag. Output is retained in [native-final-source.log](../plans/000856-cast-feedback-workspace-plan.side/evidence/native-final-source.log). This supersedes mixing earlier interaction output with later geometry output: one source now supplies the complete qualification. All604 Node tests and reader inventory pass.
