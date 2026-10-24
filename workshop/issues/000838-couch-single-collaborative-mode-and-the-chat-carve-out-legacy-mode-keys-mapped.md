@@ -567,6 +567,26 @@ Authenticated hub f0056229 grants the precise --no-actual exception for the
 close's --verified. Next: push this fix, run --pre-close, and submit the whole
 close again (round1 was REWORK and did not finalize a close generation).
 
+### 2026-10-24 — SHIP, final-code recorded check retained before boarding
+
+Whole close round2 finalized SHIP with BR-1 addressed. Reviewer independently
+removed the owner comparison in a Go overlay and reproduced the pure and
+public-path failures; the pinned fix passed. No blocking finding remains.
+BR-2 is a Minor advisory: CLI help still says resolved briefs/every mode.
+It is retained in the close ledger; no post-close executable change is claimed.
+
+PR584 is ready. The first merge runner exited1 at the train boarding gate:
+“PR #584 needs recorded local checks on its head: affected or its full-suite
+fallback”. Its explicit recovery says retain a queued/running affected or suite
+check, then retry merge after it passes. The fresh final-code full fallback is
+already queued on dfdfb47c55bd4655d9401712bec710e1b7593b6f,
+attempt 0badb8a5914ae357e677a0deecab0ed7, lease-2996623973,
+retained terminal55443 (normal FIFO, last observed position7). No duplicate
+check or merge was started. Close/evidence descendants are documentation-only.
+Next: read that retained result; on PASS update the record and re-enter one
+sdlc merge --yes. On failure classify it before any repeat. The combined stage
+is cleared and operator acceptance remains recorded. No landing yet.
+
 ## Revisions
 
 ### 2026-10-23 — initial implementation design
