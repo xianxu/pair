@@ -1,4 +1,24 @@
 ---
+reviewer_runs:
+    - version: 1
+      intent:
+        id: 352787f6-4274-438b-9d7c-dbf57dd912a4
+        repository: github.com/xianxu/pair
+        issue_id: "000857"
+        recipe: estimate-quality
+        round: 1
+        attempt: 1
+        agent: codex
+        root: /Users/xianxu/workspace/worktree/pair-slot4/pair
+        reviewed_head: b9638fb30b3ac8c90ebb987ad6287b15e618315f
+        slot: pair:4
+        requested_at: "2026-10-24T09:27:28.727361Z"
+      phase: finished
+      pid: 76013
+      started_at: "2026-10-24T09:27:28.896126Z"
+      finished_at: "2026-10-24T09:28:03.622615Z"
+      session_id: 01a16d3c-9528-7f22-8d97-fe4f2697db31
+      outcome: returned
 gate: plan-quality
 issue: 857
 id_prefix: PQ
@@ -109,7 +129,41 @@ rounds:
           note: Named production functions have adversarial strategies and mechanical invariants; executable case inventories remain in tests.
           round: 3
       blocked: false
-content_hash: 094fc3471f6ba0c96284dfb2747239a595ae214b97a98f77a3a151c838bcb425
+    - reviewer_runs:
+        - version: 1
+          intent:
+            id: 9f366f91-27b8-4624-b130-2253a16ec0aa
+            repository: github.com/xianxu/pair
+            issue_id: "000857"
+            recipe: plan-quality
+            round: 4
+            attempt: 1
+            agent: codex
+            root: /Users/xianxu/workspace/worktree/pair-slot4/pair
+            reviewed_head: b9638fb30b3ac8c90ebb987ad6287b15e618315f
+            slot: pair:4
+            requested_at: "2026-10-24T09:26:44.290937Z"
+          phase: finished
+          pid: 47974
+          started_at: "2026-10-24T09:26:44.452662Z"
+          finished_at: "2026-10-24T09:27:24.319901Z"
+          session_id: 01a16d3b-e796-7e13-9deb-fa2b8a68164e
+          outcome: returned
+      "n": 4
+      timestamp: "2026-10-24T02:27:24-07:00"
+      agent: codex
+      reviewer: codex (openai; author openai)
+      dispose:
+        - id: PQ-1
+          disposition: addressed
+          note: Private transition authority, reservation linearization and stale-completion rules remain explicit and mechanically testable.
+          round: 4
+        - id: PQ-2
+          disposition: addressed
+          note: Named production functions have adversarial input classes and mechanical guards; executable case inventories remain in tests.
+          round: 4
+      blocked: false
+content_hash: 5b220605d7908ef2a23dce5ad18702c77c793a4f968f723b3088538c2e6f42d6
 ---
 
 # Gate ledger — pair#857 (plan-quality)
@@ -139,6 +193,13 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 
 - PQ-1 — addressed — Private transition authority and one-use reservations define acceptance, supersession and confirmation ordering.
 - PQ-2 — addressed — Named production functions have adversarial strategies and mechanical invariants; executable case inventories remain in tests.
+
+## Round 4 — 2026-10-24T02:27:24-07:00 (codex) — passed
+
+### Disposed
+
+- PQ-1 — addressed — Private transition authority, reservation linearization and stale-completion rules remain explicit and mechanically testable.
+- PQ-2 — addressed — Named production functions have adversarial input classes and mechanical guards; executable case inventories remain in tests.
 
 ## Open findings
 
