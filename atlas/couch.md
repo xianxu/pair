@@ -818,7 +818,14 @@ starts with no remembered events or suppressions and re-derives live state.
 The legacy `NAMESPACE/attention/list.json` is neither read nor written; no saver
 worker remains. Count and in-memory payload byte bounds still evict oldest
 notifications first. The badge stays red while a visible prompt is outstanding;
-the panel is operator-only. The hub's Needs-you section is the durable record.
+the panel is operator-only. Standalone slot (`repo:N`) and issue (`repo#N`, `#N`)
+references use the existing actionable-link blue. Matching uses fitted display
+rows and plain punctuation boundaries; generated timestamps and words touching
+paths, URLs, brackets or Markdown links stay plain. Wrapped row edge words may
+be fragments and conservatively stay plain too. This is a visual aid: ambiguous
+or split references can be uncolored. Notification text, Ctrl+Y's full-notice
+payload, selection, chip colors and other notes menus are unchanged (#841).
+The hub's Needs-you section is the durable record.
 See `couchcore/attention_list.go`, `attention_store.go` (byte-size encoding only),
 `couchcmd/attention.go`, and `couchtty/console_attention.go`.
 
