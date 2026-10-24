@@ -54,13 +54,13 @@ The recorder owns a small mutex-protected ingress token containing generation, s
 
 ## Persisted contract and evolution
 
-New segment example: `"page_load":{"target":"TARGET","loader":"LOADER","root":123}`.
+New segment example: `"page_load":{"target":"TARGET","loader":"LOADER","root":"123"}`.
 
 Absence is legacy unknown; explicit null, missing owned members, wrong types, empty strings, malformed Unicode, duplicate keys and nonpositive/noninteger/overflow roots refuse. Require target to equal segment tab ID. Preserve legacy acceptance for unrelated existing fields rather than tightening the whole recording schema accidentally. Target and loader are opaque: no trimming, case folding or invented syntax.
 
 Route segments through a dedicated codec using strictjson recursive split/encode and raw extension storage at segment, tab, viewport and load depths. Preserve arbitrary valid unknown JSON numeric tokens without float64 conversion. Exact owned discriminator names must not be selected through encoding/json's case-insensitive aliases. Encoding a typed edit preserves unknown raw values and never mutates shared records. Keep existing sketch decode/admission and canonical bytes unchanged.
 
-There is no existing individual CDP identifier limit: CDP's entire message is capped at 16 MiB, while recording codec/writer have no generic line cap. Do not borrow SketchMaxIDBytes=128 or add a lower identity cap. Root uses positive int64 on disk; project it as an exact opaque string to JavaScript rather than rounding through Number. This corrects the joint plan's ungrounded reference to bounded individual CDP IDs without adding a new policy.
+There is no existing individual CDP identifier limit: CDP's entire message is capped at 16 MiB, while recording codec/writer have no generic line cap. Do not borrow SketchMaxIDBytes=128 or add a lower identity cap. Root is encoded as a canonical positive decimal string everywhere, with Go validating the value is in 1..MaxInt64 on read. Refuse leading zeros, signs, whitespace, fractions, exponent notation and numeric JSON values; do not round through JavaScript Number or maintain a secondary identity key. This corrects the joint plan's ungrounded reference to bounded individual CDP IDs without adding a new policy.
 
 Catch-up retains complete segment records, including inactive creation segments, before dependent feedback and the sketch semantic snapshot. Do not carry identity through sketch clones: those intentionally clear their original wire extensions. Compare full replay, every-prefix catch-up and repeated compaction for both membership and historical metadata.
 
@@ -155,7 +155,7 @@ Files: `web/model.js`, `web/annotate.js`, `web/sketch-render.js`, `operator.js`,
 - [ ] Merge landed main only after #856's landing; reconcile the actual entity table/file ownership before editing. Do not import its unlanded commits.
 - [ ] Add failing reducer/operator parity tests using the membership and lifecycle strategies below. Assert no old rows, pins, ink, labels or controls survive scope departure.
 - [ ] Filter all live feedback from the same derived current-load source, preserving selection/delivery/privacy stamps and #849's getter/unsaved guard. Clear transient hover/editor state through existing lifecycle owners; no new feedback store.
-- [ ] Add unfiltered query provenance assertions and exact root string projection. Run `node --test tests/webcast/*.test.mjs` and `go test ./cmd/internal/webcast/query ./cmd/internal/webcast/board`; require PASS. Commit.
+- [ ] Add unfiltered query provenance assertions and exact root-string round trips. Run `node --test tests/webcast/*.test.mjs` and `go test ./cmd/internal/webcast/query ./cmd/internal/webcast/board`; require PASS. Commit.
 
 ### 4. Native qualification and landing
 
@@ -202,3 +202,7 @@ Receipt 8b5caf7d-587c-44ab-9f60-a0832c521a5a supersedes only the joint plan's wa
 ### 2026-10-24 — Plan-quality authority refinement
 
 PQ-1 is addressed by the pure nextLoadScope transition table, private owner/reservation, shared selected-top commit function and explicit acceptance/confirmation linearization. TL96c958be approves reservation under the mutex followed by sole-actor IO outside it, and requires the held-write navigation regression. This preserves responsive ingress instead of holding its mutex across sink IO. PQ-2 is addressed by replacing procedural test-case lists with named production functions, adversarial classes and mechanical invariants; verification commands and counted budgets remain.
+
+### 2026-10-24 — One exact wire identity
+
+TL02693d4d-10fd-4b7f-a3fb-96d20a116b78 approves canonical positive decimal-string root in page_load, validated as int64 in Go, refusing leading zeros and signs. This supersedes the drafted numeric root plus special JavaScript projection. One representation spans disk, live transport, catch-up and browser membership, preventing lossy parsing without a second key. Round2 accepted PQ-1/PQ-2 with no new findings; implementation still waits for this final contract and estimate to clear change-code.

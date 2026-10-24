@@ -41,6 +41,41 @@ rounds:
           family: function-level-test-strategy
           round: 1
       blocked: true
+    - reviewer_runs:
+        - version: 1
+          intent:
+            id: a17cbef6-6b7e-4d47-ac2e-b554bf44fd36
+            repository: github.com/xianxu/pair
+            issue_id: "000857"
+            recipe: plan-quality
+            round: 2
+            attempt: 1
+            agent: codex
+            root: /Users/xianxu/workspace/worktree/pair-slot4/pair
+            reviewed_head: e6504ca8b137c6d407cea15f87e194b52453e2cc
+            slot: pair:4
+            requested_at: "2026-10-24T09:22:33.912982Z"
+          phase: finished
+          pid: 72939
+          started_at: "2026-10-24T09:22:34.044372Z"
+          finished_at: "2026-10-24T09:23:04.663399Z"
+          session_id: 01a16d38-1561-7032-977b-34c3003273f6
+          outcome: returned
+      "n": 2
+      timestamp: "2026-10-24T02:23:04-07:00"
+      agent: codex
+      reviewer: codex (openai; author openai)
+      dispose:
+        - id: PQ-1
+          disposition: addressed
+          note: Pure transitions, private reservations and explicit acceptance/confirmation linearization resolve the ordering authority finding.
+          round: 2
+        - id: PQ-2
+          disposition: addressed
+          note: Function-level strategies name adversarial classes and mechanical invariants while retaining resource guards and native acceptance criteria.
+          round: 2
+      blocked: false
+content_hash: 2e63a85fd372c0a1e6e4c4da7efaef232b6eee8de3d881e8a453a820b5f1153a
 ---
 
 # Gate ledger — pair#857 (plan-quality)
@@ -57,7 +92,13 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **PQ-2** [Important] `function-level-test-strategy` Replace prose case inventories with named functions and adversarial strategies
   Implementation tasks 1–3 enumerate malformed-field, lifecycle, selection and UI test cases, but mostly name entities or files rather than the production functions that will be unit-tested. Compress those inventories into one strategy line per risky function, naming the adversarial input or event-sequence class and mechanical invariant; retain verification commands, native acceptance criteria and counted resource guards.
 
+## Round 2 — 2026-10-24T02:23:04-07:00 (codex) — passed
+
+### Disposed
+
+- PQ-1 — addressed — Pure transitions, private reservations and explicit acceptance/confirmation linearization resolve the ordering authority finding.
+- PQ-2 — addressed — Function-level strategies name adversarial classes and mechanical invariants while retaining resource guards and native acceptance criteria.
+
 ## Open findings
 
-- **PQ-1** [Important] `explicit-state-transition-authority` Specify the enforced load-scope transition model and acceptance linearization
-- **PQ-2** [Important] `function-level-test-strategy` Replace prose case inventories with named functions and adversarial strategies
+(none — every finding has been disposed)
