@@ -128,3 +128,7 @@ Retained run cfb07485d03d337d82c60275ecc8c0a9 on27f192b8930fe672722112a425c97ca2
 Resumed this branch after #863's native owners joined. Audited console_send.go: it caches an in-memory Cast/Board non-empty projection and routes the existing workbench shortcut through an accepted terminal endpoint; no filesystem access, Pair artifact path construction or artifact filename vocabulary. Added exactly this source to NonArtifactSources in artifactpath/manifest.go. Targeted inventory red repeated the exact omission, then PASS3.727s after the one-file classification; make test-affected-inventory PASS. Production send behavior is unchanged. No bulk inventory hash update.
 
 Next: push and record pre-close on corrected head, narrow re-close for the inventory fix, then hand verified SHIP/pass head and smoke steps to pair:4 for the already-approved combined stage. No independent stage or pre-acceptance merge.
+
+### 2026-10-24 corrected inventory verification queued
+
+Pushed dc8e129e3db665c6f8e1c4a5b78b93c9cb050dff. Pre-close selected affected, then the nvim/init.lua reader required the full suite. Retained run lease-4211780212, attempt 4d31f5b161cfb46c10ae38aed56ed74d, tool session 88851; normal FIFO position 5 at admission. Log: /Users/xianxu/workspace/pair/.git/sdlc/test-stats/inflight/4d31f5b161cfb46c10ae38aed56ed74d/run.log. No passing result claimed. Narrow re-close may overlap this queued check; final recorded pass and combined cast acceptance still precede landing.
