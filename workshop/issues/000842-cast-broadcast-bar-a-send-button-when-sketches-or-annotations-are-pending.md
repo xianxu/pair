@@ -1,13 +1,13 @@
 ---
 id: 000842
-status: working
+status: codecomplete
 deps: [pair#849]
 github_issue:
 created: 2026-10-23
-updated: 2026-10-23
+updated: 2026-10-24
 estimate_hours:
 collaboration-mode: collaboration
-card_mirror: '7fa2d1a578fcca44f477dac7b9681b350f7eaa23' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '1ea07666e4b3d6bddc27ed6483f8b9d9e8cc2248' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-23T22:15:11-07:00
 claimant:
     operator: Xian Xu
@@ -17,6 +17,7 @@ claimant:
     worktree: /Users/xianxu/workspace/worktree/pair-slot7/pair
     repository: github.com/xianxu/pair
 flow: {kind: full, provenance: inferred}
+actual_hours: 1.23
 ---
 
 # Cast broadcast bar: a ⏎ send button when sketches or annotations are pending
