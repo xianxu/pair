@@ -344,3 +344,15 @@ can't auto-compute (branch attribution for 026445ed-4c22-46f5-b0ff-a2ba708a122a 
 ```
 
 The named session interval is25seconds at the claim boundary (12:02:21Z equals05:02:21-07:00). Earlier actual generations are historical measurements, not substitutes for the refused candidate. Sent exact refusal to TL. Follow the binary's precise --no-actual recovery with the refusal in --verified; no invented hours or telemetry edits. This records N/A rather than transplanting the earlier6.53h measurement. Code is unchanged since passing1cc31f4a; this is evidence-only bookkeeping, no new suite warranted. Next: narrow re-close with precise measurement flag, immediate merge re-entry.
+
+
+Reflog capture requested by ariadne:3 for ariadne#591 confirms the interval was witnessed rest, not unknown/detached. Raw HEAD and resting-branch queries preserved with commands at /Volumes/TestScratch/tmp/pair812-actual-refusal-jc3muv7r; essential raw lines retained durably here:
+
+```text
+651e30092e7ca245e5537ba1450b7ea7eb36ddae HEAD@{2026-10-23T03:01:09-07:00} checkout: moving from 000791-couch-admit-idle-claude-slot-refused-as-busy-auto-mode-footer-update-banner-name-which-busy-condition-fired to main-slot1
+c0dbb32decc052500172ded01ff36e3fa8e49cc9 HEAD@{2026-10-23T05:01:59-07:00} merge c0dbb32decc052500172ded01ff36e3fa8e49cc9: Fast-forward
+c0dbb32decc052500172ded01ff36e3fa8e49cc9 main-slot1@{2026-10-23T05:01:59-07:00} merge c0dbb32decc052500172ded01ff36e3fa8e49cc9: Fast-forward
+c0dbb32decc052500172ded01ff36e3fa8e49cc9 HEAD@{2026-10-23T05:02:21-07:00} checkout: moving from main-slot1 to 000812-couch-tab-bar-drop-the-trailing-last-lifecycle-error-message-switcher-keeps-it
+```
+
+Sent capture and transition to ariadne:3 receipt8db363b6; no HEAD history or actual metadata edited. PR publication then resumed after #863's legitimate repo-lock release. Proceeding with precise N/A recovery, unless repaired measurement evidence arrives first.
