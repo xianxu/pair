@@ -1,12 +1,12 @@
 ---
 id: 000872
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-10-24
 updated: 2026-10-24
 estimate_hours:
-card_mirror: 'a0ae1aa1aa7fdc9bfae2779b246362d6a1612101' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '3d6b95be8e864105849a770a783e67984304eab5' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-24T16:04:42-07:00
 claimant:
     operator: Xian Xu
@@ -16,6 +16,7 @@ claimant:
     worktree: /Users/xianxu/workspace/worktree/pair-slot2/pair
     repository: github.com/xianxu/pair
 flow: {kind: full, provenance: inferred}
+actual_hours: N/A
 ---
 
 # Admitted worker reboot loses steward positive-list authentication during receipt polling
