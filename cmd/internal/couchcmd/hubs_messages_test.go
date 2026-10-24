@@ -23,14 +23,14 @@ func (e hubQuietEndpoint) Observe(ctx context.Context) (couchmessage.Observation
 
 // Construct the service with its real ownership callback installed, then admit
 // wrappers over the existing registry/session sockets. No process-global stores.
-func hubMessageRig(t *testing.T) (*serviceRig, []couchmessage.Binding) {
+func hubMessageRig(t *testing.T, decorate ...func(messageAuthority) messageAuthority) (*serviceRig, []couchmessage.Binding) {
 	t.Helper()
-	return hubMessageRigWithWorkerEndpoint(t, nil)
+	return hubMessageRigWithWorkerEndpoint(t, nil, decorate...)
 }
 
-func hubMessageRigWithWorkerEndpoint(t *testing.T, endpoint couchmessage.DeliveryEndpoint) (*serviceRig, []couchmessage.Binding) {
+func hubMessageRigWithWorkerEndpoint(t *testing.T, endpoint couchmessage.DeliveryEndpoint, decorate ...func(messageAuthority) messageAuthority) (*serviceRig, []couchmessage.Binding) {
 	t.Helper()
-	r := newServiceRig(t)
+	r := newServiceRig(t, decorate...)
 	r.s.Close()
 	r.world.hub = "/repo0"
 	authority := r.world.authority()
@@ -43,6 +43,9 @@ func hubMessageRigWithWorkerEndpoint(t *testing.T, endpoint couchmessage.Deliver
 	var clock atomic.Int64
 	clock.Store(time.Now().UnixNano())
 	authority.now = func() time.Time { return time.Unix(0, clock.Load()) }
+	if r.decorateAuthority != nil {
+		authority = r.decorateAuthority(authority)
+	}
 	var err error
 	r.s, err = newMessageService(context.Background(), r.brokerSock, r.regSock, authority, r.panes, func(string) (couchcore.SlotGitStatus, bool) { return couchcore.SlotGitStatus{}, false }, nil)
 	if err != nil {

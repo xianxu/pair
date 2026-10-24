@@ -7,6 +7,9 @@ representative evidence, not an exhaustive index.
 
 ## Proof and verification
 
+- #860 BR-1/BR-2: A passing package race run can miss another live-fixture authority write. Enumerate the complete field family mechanically, allow only exact no-wrapper controls, and update Done-when whenever scope grows; extend the pre-start child-proof composition to native-exit fixtures too.
+- #860: Configure immutable service authority through the fixture's pre-start decorator. A connected snapshot may be published before admission effects finish reading authority, so waitConnected is not a mutation barrier. Keep actual ownership moves under hubRuntime's mutex, and pair race qualification with a deterministic check of constructor-derived policy for every configured hub, including after restart.
+
 - #841 BR-1/BR-2/BR-3: For a conservative visual aid, match final fitted display words and permit false negatives. Exclude generated metadata and ambiguous path/link/bracket chunks; skip wrapped row edges that may be fragments. Source-substring projection fails when fitting removes zero-width characters. Use fixed-clock grammar boundaries and exact clipped-row accents, not a test satisfied by any earlier colored label.
 - #825: A final file made visible by a hard link can be consumed before its publisher removes the temporary name. Retirement/capacity assertions must count mailbox records with the shared counter, not raw directory entries. Hold publication scratch in regression tests and retain negative controls for genuine records; never remove another producer's scratch to satisfy the oracle.
 
