@@ -83,3 +83,9 @@ Hub9c9abb53 reports #842 live failure and requests its fix/re-look. The retained
 ### 2026-10-24 — landing priority corrected
 
 Hub63f445fe clarified #873 must land before the non-urgent #842 re-look. The previous waiting runner had already joined exit130 when this arrived; returned immediately to #873 and re-entering merge, without cancelling/restarting its recorded check. #842 read-only trace found its outer client endpoint does not address the inner draft; no code or test edits made there. This supersedes the prior park instruction; next action is finish #873 landing first.
+
+### 2026-10-24 — pre-close sole #869 failure and authorized recovery
+
+Recorded affected lease-1096961115/attempt9b1291dfa24852860d0188feb71beb0f completed all selected checks in14m2s, FAIL solely on agentfixture.TestCLILiveLeaderCancellationJoinsBeforeCompletion: cli_group_test.go83 parses an empty PID marker. Core/startup and all other packages passed. Saved failed log .git/sdlc/test-stats/failed/9b1291dfa24852860d0188feb71beb0f.log, SHA prefix38851f52d435. Existing #869 is precisely this publication race, with no diff in its package from this source. No new issue or production change.
+
+Hubc8becfbf authorized exact-head targeted evidence, register under869, then resume the saved attempt. A temporary git archive of exact failed head c6644e8d0ef6b81e7920e902d5cd7b592ad6c200 passed the unchanged top-level test (0.325s, exit0), log869-same-head-focused.log; private archive removed. This is explicitly a focused pass, not a full check pass. PR594 opened through sdlc. Previous merge runner joined exit1 on pending CI and missing recorded pass; no runner remains to duplicate. Registration/recovery is next, then CI and merge; no SHIP or gate bypass is implied by the focused test.
