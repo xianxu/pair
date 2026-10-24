@@ -19,6 +19,25 @@ reviewer_runs:
       finished_at: "2026-10-24T08:11:29.515719Z"
       session_id: 01a16cf6-8d34-7433-a2af-11e10a99466e
       outcome: returned
+    - version: 1
+      intent:
+        id: ba60fbe4-2598-4f9e-87da-42b6e7ca3edb
+        repository: github.com/xianxu/pair
+        issue_id: "000863"
+        recipe: estimate-quality
+        round: 1
+        attempt: 1
+        agent: codex
+        root: /Users/xianxu/workspace/worktree/pair-slot7/pair
+        reviewed_head: 49824dcfd46b168d76789780a991199fc36bd354
+        slot: pair:7
+        requested_at: "2026-10-24T09:19:35.747041Z"
+      phase: finished
+      pid: 30000
+      started_at: "2026-10-24T09:19:35.886466Z"
+      finished_at: "2026-10-24T09:20:18.774451Z"
+      session_id: 01a16d35-5d76-7660-87d0-35b6cddef505
+      outcome: returned
 gate: plan-quality
 issue: 863
 id_prefix: PQ
@@ -110,7 +129,32 @@ rounds:
       agent: codex
       reviewer: codex (openai; author openai)
       blocked: false
-content_hash: a2b22a6ef469669fdcd0d2b4366e680109bef56743906160a2286697c84d83a8
+    - reviewer_runs:
+        - version: 1
+          intent:
+            id: 340e6b6e-1453-43cb-8e78-1949f926575b
+            repository: github.com/xianxu/pair
+            issue_id: "000863"
+            recipe: plan-quality
+            round: 4
+            attempt: 1
+            agent: codex
+            root: /Users/xianxu/workspace/worktree/pair-slot7/pair
+            reviewed_head: 49824dcfd46b168d76789780a991199fc36bd354
+            slot: pair:7
+            requested_at: "2026-10-24T09:18:48.572918Z"
+          phase: finished
+          pid: 97330
+          started_at: "2026-10-24T09:18:48.740758Z"
+          finished_at: "2026-10-24T09:19:31.910529Z"
+          session_id: 01a16d34-a548-74d1-99bc-21eec85d99c1
+          outcome: returned
+      "n": 4
+      timestamp: "2026-10-24T02:19:32-07:00"
+      agent: codex
+      reviewer: codex (openai; author openai)
+      blocked: false
+content_hash: 7c6fecfdef1a5ad39c3f5a30d2612f0f6d3db389e83f7380c4477264577c77f5
 ---
 
 # Gate ledger — pair#863 (plan-quality)
@@ -132,6 +176,8 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - PQ-1 — addressed — Tasks 1–3 replace prose case inventories with named function-level adversarial strategies, controlled completion ordering, and independent invariants across the cited test surfaces.
 
 ## Round 3 — 2026-10-24T01:10:07-07:00 (codex) — passed
+
+## Round 4 — 2026-10-24T02:19:32-07:00 (codex) — passed
 
 ## Open findings
 
