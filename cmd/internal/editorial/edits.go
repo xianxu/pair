@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	"github.com/xianxu/ariadne/pkg/sidedoc"
 	"regexp"
 )
 
@@ -149,7 +150,7 @@ func validateEdits(base []byte, p *DocumentPolicy, changes []Change, c *Catalog)
 		}
 	}
 	for i, h := range p.Headings {
-		if h.Directive == nil {
+		if !h.Protected {
 			continue
 		}
 		j := mappedHeadings[i]
@@ -272,25 +273,7 @@ func validateEdits(base []byte, p *DocumentPolicy, changes []Change, c *Catalog)
 		stats.ItemJoinVisits = work
 	}
 
-	domain := processingDomains(p)
-	frontiers := map[int]int{}
-	markerRegion := 0
-	readyIndex := 0
-	for _, m := range markers {
-		if !m.Ready {
-			continue
-		}
-		for markerRegion+1 < len(p.Regions) && p.Regions[markerRegion].Range.End <= m.Range.Start {
-			markerRegion++
-		}
-		id := domain[markerRegion]
-		start := readyStarts[readyIndex]
-		readyIndex++
-		if old, ok := frontiers[id]; !ok || start < old {
-			frontiers[id] = start
-		}
-	}
-	pendingIndex, refIndex, chatIndex, editRegion := 0, 0, 0, 0
+	pendingIndex, refIndex, chatIndex := 0, 0, 0
 	for i, ch := range changes {
 		r := Range{ch.Start, ch.End}
 		for pendingIndex < len(pending) && pending[pendingIndex].End <= ch.Start {
@@ -306,7 +289,6 @@ func validateEdits(base []byte, p *DocumentPolicy, changes []Change, c *Catalog)
 		for chatIndex < len(chatItems) && chatItems[chatIndex].Range.End <= ch.Start {
 			chatIndex++
 		}
-		chatAnswer := false
 		if chatIndex < len(chatItems) {
 			item := chatItems[chatIndex]
 			stats.ChatComparisons++
@@ -315,22 +297,10 @@ func validateEdits(base []byte, p *DocumentPolicy, changes []Change, c *Catalog)
 					if ch.Start != ch.End || ch.Start != item.AppendAt || item.Linked || !answerAppend.MatchString(ch.New) || !safeAnswers[i] {
 						return fail("editorial-chat", "preserve each chat ask; only append its answer link", r)
 					}
-					chatAnswer = true
 				}
 			}
 		}
-		editRegion = advanceChangeRegion(p.Regions, editRegion, ch)
-		effective := result[i].Effective
-		if !chatAnswer && !inReference {
-			if effective.Scope == MarkersOnly {
-				return fail("editorial-scope", "this processing mode permits changes only to ready marker referrals", r)
-			}
-			if effective.Frontier {
-				if frontier, ok := frontiers[domain[editRegion]]; ok && ch.Start < frontier {
-					return fail("editorial-scope", "text above the first ready marker's referral is settled", r)
-				}
-			}
-		}
+
 	}
 	return result, stats, nil
 }
@@ -414,23 +384,6 @@ func mergeRanges(in []Range) []Range {
 	}
 	return out
 }
-func processingDomains(p *DocumentPolicy) []int {
-	ids := make([]int, len(p.Regions))
-	for i, r := range p.Regions {
-		ids[i] = -1
-		if r.Heading < 0 {
-			continue
-		}
-		h := p.Headings[r.Heading]
-		if h.Parent >= 0 {
-			ids[i] = ids[h.Parent+1]
-		}
-		if _, ok := h.Overrides["processing-mode"]; ok {
-			ids[i] = r.Heading
-		}
-	}
-	return ids
-}
 
 var existingAnswerLine = regexp.MustCompile(`(?m)(?:^|[ \t])→ (?:\[answer\]\([^\s()]+\)|done: [^\r\n]+)[ \t]*\r?$`)
 
@@ -443,52 +396,66 @@ type chatItem struct {
 }
 
 func selectChatItems(base []byte, p *DocumentPolicy) []chatItem {
-	items := []chatItem{}
-	type listFact struct {
-		r              Range
-		region, indent int
-	}
-	facts := make([]listFact, 0, len(p.ListItems))
-	minimum := make([]int, len(p.Regions))
-	for i := range minimum {
-		minimum[i] = -1
-	}
-	region := 0
-	for _, r := range p.ListItems {
-		for region+1 < len(p.Regions) && p.Regions[region].Range.End <= r.Start {
-			region++
-		}
-		if p.Regions[region].Effective.Collaboration != "chat" {
-			continue
-		}
-		column := 0
-		for pos := r.Start; pos < r.End; pos++ {
-			if base[pos] == ' ' {
-				column++
-			} else if base[pos] == '\t' {
-				column = (column/4 + 1) * 4
-			} else {
-				break
-			}
-		}
-		facts = append(facts, listFact{r, region, column})
-		if minimum[region] < 0 || column < minimum[region] {
-			minimum[region] = column
-		}
-	}
-	for _, fact := range facts {
-		if fact.indent != minimum[fact.region] {
-			continue
-		}
-		r := fact.r
+	return append([]chatItem(nil), p.items...)
+}
 
-		end := r.End
-		for end > r.Start && (base[end-1] == '\n' || base[end-1] == '\r') {
-			end--
-		}
-		items = append(items, chatItem{Range: r, AppendAt: end, Linked: false})
+// compileChatItems visits disjoint governing ranges, with one global minimum
+// indent per original section. No overlapping parent range is reparsed.
+func compileChatItems(base []byte, p *DocumentPolicy) []chatItem {
+	type fact struct {
+		item          chatItem
+		owner, indent int
 	}
-	return items
+	var facts []fact
+	minimum := make(map[int]int)
+	for i := 0; i < len(p.Regions); {
+		first := p.Regions[i]
+		end := first.Range.End
+		j := i + 1
+		for j < len(p.Regions) && p.Regions[j].chat == first.chat {
+			end = p.Regions[j].Range.End
+			j++
+		}
+		i = j
+		if first.chat < 0 {
+			continue
+		}
+		begin := max(first.Range.Start, p.parsed.body)
+		if begin >= end {
+			continue
+		}
+		chunk := base[begin:end]
+		p.Stats.ItemSourceBytes += len(chunk)
+		lines := sourceLines(chunk)
+		for _, shared := range sidedoc.ChatItems(string(chunk), first.Effective.Legacy) {
+			p.Stats.ItemJoins++
+			if shared.Start < 0 || shared.Start >= len(lines) || len(shared.Lines) == 0 {
+				continue
+			}
+			last := shared.Start + len(shared.Lines) - 1
+			if last >= len(lines) {
+				continue
+			}
+			r := Range{begin + lines[shared.Start].Start, begin + lines[last].End}
+			appendAt := r.End
+			for appendAt > r.Start && (base[appendAt-1] == '\n' || base[appendAt-1] == '\r') {
+				appendAt--
+			}
+			indent := sidedoc.IndentOf(shared.Lines[0])
+			if old, ok := minimum[first.chat]; !ok || indent < old {
+				minimum[first.chat] = indent
+			}
+			facts = append(facts, fact{chatItem{Range: r, AppendAt: appendAt, Linked: shared.Answered}, first.chat, indent})
+		}
+	}
+	var out []chatItem
+	for _, f := range facts {
+		p.Stats.ItemJoins++
+		if f.indent == minimum[f.owner] {
+			out = append(out, f.item)
+		}
+	}
+	return out
 }
 
 func indexBlocks(base []byte, p *DocumentPolicy, markers []Marker) ([]Range, []chatItem) {

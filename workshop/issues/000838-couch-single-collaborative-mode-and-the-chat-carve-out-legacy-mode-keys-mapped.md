@@ -238,6 +238,24 @@ local feature evidence. Exact next step is still #576 landing verification,
 normal module/substrate update, final API/fixture reconciliation and required
 change-code refresh before core implementation. No active runner or stage.
 
+### 2026-10-23 17:34 — landed shared API and first core GREEN
+
+Verified ariadne#576 landed; normal weave substrate refresh contains its merge,
+and go.mod pins v0.0.0-20261024002258-354e5fac5c96 without replacement.
+Final API change-code passed (plan round 4 CLEAN, estimate INFO). The three
+previously behavioral-RED collaborative regressions now PASS through the first
+shared scanner adapter: tags route chat, retired values are nonfatal, and tags
+remain owned under whole-document legacy. This is partial implementation,
+not whole-package acceptance. Full editorial tests expose both retired-axis
+expectations and live chat-item integrity cases that must be resolved before
+close. Runtime catalog/API deletion, transaction wiring, migration and broader
+qualification remain outstanding. No recorded suite or stage is active.
+
+Exact next step: preserve the item/structural guards while replacing retired
+axis tests with shared-grammar oracles; delete Catalog arguments and wire the
+existing transaction owner. Bounded migration and new-round tasks are delegated
+in disjoint files. Fixture pin and docs edits are checkpointed here for recovery.
+
 ## Revisions
 
 ### 2026-10-23 — initial implementation design

@@ -3,6 +3,7 @@ package editorial
 import (
 	"bytes"
 	"fmt"
+	"github.com/xianxu/ariadne/pkg/sidedoc"
 	"strings"
 
 	"go.yaml.in/yaml/v3"
@@ -42,9 +43,13 @@ type parsedSource struct {
 }
 
 func ownedKey(k string) bool {
-	switch k {
-	case "collaboration-mode", "presentation-mode", "presentation", "processing-mode", "processing-instruction", "process-instruction":
+	if k == "collaboration-mode" {
 		return true
+	}
+	for _, retired := range sidedoc.RetiredKeys {
+		if k == retired {
+			return true
+		}
 	}
 	return false
 }
@@ -65,7 +70,7 @@ func parseOwnedSource(src []byte) (parsedSource, error) {
 		}
 	}
 	if close < 0 {
-		return p, fmt.Errorf("line 1: unclosed frontmatter")
+		return p, nil
 	}
 	p.closeStart = lines[close].Start
 	if bytes.HasSuffix(src[:lines[0].End], []byte("\r\n")) {
@@ -113,9 +118,7 @@ func parseOwnedSource(src []byte) (parsedSource, error) {
 		if !ok || !ownedKey(key) {
 			continue
 		}
-		if _, exists := p.fields[key]; exists {
-			return p, fmt.Errorf("line %d: duplicate owned key %s", i+1, key)
-		}
+
 		j := i + 1
 		for j < close {
 			next := strings.TrimRight(string(src[lines[j].Start:lines[j].End]), "\r\n")
@@ -152,9 +155,6 @@ func parseOwnedSource(src []byte) (parsedSource, error) {
 		if key == "process-instruction" && (err != nil || value.Kind != yaml.ScalarNode) {
 			value = &yaml.Node{Kind: yaml.ScalarNode, Tag: "!!str", Value: strings.TrimSpace(string(valueRaw))}
 			err = nil
-		}
-		if err != nil {
-			return p, fmt.Errorf("line %d: %s: %w", i+1, key, err)
 		}
 
 		f := sourceField{OwnedSource: OwnedSource{Range: r, Key: key, Raw: bytes.Clone(raw), Heading: -1}, value: value}

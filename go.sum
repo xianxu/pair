@@ -30,6 +30,8 @@ github.com/xianxu/ariadne v0.0.0-20261018104241-81c832d5e000 h1:KBvqxe/tnYCSKIlK
 github.com/xianxu/ariadne v0.0.0-20261018104241-81c832d5e000/go.mod h1:bZMCuAfnA1yopMAXxsQF4BofGy7gP7TYFlgRM0aKR94=
 github.com/xianxu/ariadne v0.0.0-20261023212235-df49c55b9c76 h1:8yKEmxHSjedXahNVscriPdGYIR/Vgny+NlYThW9YOTU=
 github.com/xianxu/ariadne v0.0.0-20261023212235-df49c55b9c76/go.mod h1:bZMCuAfnA1yopMAXxsQF4BofGy7gP7TYFlgRM0aKR94=
+github.com/xianxu/ariadne v0.0.0-20261024002258-354e5fac5c96 h1:DNKIaz9JKXufdm6t7pzjtShEg5Jjs9pu7gYkBPctRVk=
+github.com/xianxu/ariadne v0.0.0-20261024002258-354e5fac5c96/go.mod h1:bZMCuAfnA1yopMAXxsQF4BofGy7gP7TYFlgRM0aKR94=
 github.com/xo/terminfo v0.0.0-20220910002029-abceb7e1c41e h1:JVG44RsyaB9T2KIHavMF/ppJZNG9ZpyihvCd0w101no=
 github.com/xo/terminfo v0.0.0-20220910002029-abceb7e1c41e/go.mod h1:RbqR21r5mrJuqunuUZ/Dhy/avygyECGrLceyNeo4LiM=
 github.com/yuin/goldmark v1.7.13 h1:GPddIs617DnBLFFVJFgpo1aBfe/4xcvMc3SB5t/D0pA=

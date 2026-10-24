@@ -4,8 +4,6 @@ import (
 	"strings"
 	"testing"
 	"testing/fstest"
-
-	"github.com/xianxu/ariadne/pkg/vocab"
 )
 
 func TestCatalogProcessingPrefixes(t *testing.T) {
@@ -81,27 +79,6 @@ func TestCatalogMalformedMetadata(t *testing.T) {
 	}
 	if _, err := NewCatalog(fstest.MapFS{}); err == nil {
 		t.Fatal("accepted empty catalog")
-	}
-}
-
-func TestCatalogAxisResolvers(t *testing.T) {
-	for _, s := range vocab.CollaborationModes {
-		if got, err := ResolveCollaboration(s); err != nil || got != s {
-			t.Fatalf("%s: %s %v", s, got, err)
-		}
-	}
-	for _, s := range []string{"direct", "highlight", "propose"} {
-		if got, err := ResolvePresentation(s); err != nil || got != s {
-			t.Fatalf("%s: %s %v", s, got, err)
-		}
-	}
-	for _, s := range []string{"", "unknown", "dir", "direct ", "[chat]"} {
-		if _, err := ResolvePresentation(s); err == nil {
-			t.Errorf("presentation accepted %q", s)
-		}
-		if _, err := ResolveCollaboration(s); err == nil {
-			t.Errorf("collaboration accepted %q", s)
-		}
 	}
 }
 

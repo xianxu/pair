@@ -8,8 +8,6 @@ import (
 	"sort"
 	"strconv"
 	"strings"
-
-	"github.com/xianxu/ariadne/pkg/vocab"
 )
 
 // Scope names the portion of a document a processing brief may change.
@@ -168,17 +166,6 @@ func (c *Catalog) ResolveProcessing(selector string) (Mode, error) {
 		return Mode{}, fmt.Errorf("ambiguous processing mode %q; valid choices: %s", selector, choices)
 	}
 	return Mode{}, fmt.Errorf("unknown processing mode %q; valid choices: %s", selector, choices)
-}
-
-// ResolveCollaboration validates an exact collaboration value against its
-// vocabulary owner. It supplies no document default.
-func ResolveCollaboration(value string) (string, error) {
-	for _, name := range vocab.CollaborationModes {
-		if name == value {
-			return name, nil
-		}
-	}
-	return "", fmt.Errorf("unknown collaboration mode %q", value)
 }
 
 // ResolvePresentation validates an exact presentation value. Document fallback
