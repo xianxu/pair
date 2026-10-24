@@ -108,3 +108,65 @@ Risky-function test strategy: ReduceStartup gets a direct event-sequence table; 
 ## Architecture lenses
 
 ARCH-DRY: existing readiness, lease, shared query and retirement seams. ARCH-PURE: one reducer owns the permission transition. ARCH-PURPOSE: exclude global concurrent probes as well as the creator's local query. ARCH-MOCK: portable fake records legal dependency states; real qualification uses shared native fleet. ARCH-CONSTRAINTS: existing deadlines, one creator per namespace, bounded state/work. ARCH-SECURE: exact launch identity and strict external metadata, no ambient bypass/ownership weakening. ARCH-ORDER: state table, explicit uncertainty and old-outcome fencing. ARCH-FUNERAL: bounded intent/lock family, named resolution/cleanup, joined operations. ARCH-EVOLVE: additive unknown-preserving new intent, refusal for unsafe formats.
+
+
+## Revisions
+
+### 2026-10-24 03:20 PDT — marker-first comparison; initial mechanism not approved
+
+Submitted TL e242a4dc rejects approval of the initial namespace lease plus durable unfinished-intent contour and asks for the simplest creator-published per-session readiness marker first. **This Revision governs; the initial proposal above is retained as history, not permission to implement.** No change-code or production edit has occurred. In particular, the proposed separate unfinished-intent artifact and its repair lifecycle are withdrawn from the next design.
+
+#### Marker authority
+
+The creator publishes one ready marker only after the existing exact scope/tag/session/nonce AgentReady check, which demonstrates that a real layout pane ran after Zellij initialized session_data. Invalidate the prior matching marker before a new native create; publish atomically after validation. A missing, stale, foreign, malformed or partially written marker is unknown/starting, never native absence or permission to attach. A creator that dies without publishing produces no ready permission. Existing launch identity and lifecycle resolve stale markers; no socket-connect, successful listing, cache metadata, arbitrary delay or process census is promoted to a readiness witness.
+
+The marker concept is useful and is the baseline. **What is not expressible with the current native CLI is skipping only unmarked sockets inside its enumeration.**
+
+#### Complete CLI comparison (tagged source; no live socket/process inspection)
+
+| Prober or command | Can Pair select a marked endpoint without an internal global scan? | Evidence at efd8fd5a |
+|---|---|---|
+| ListingPoller / full list-sessions | No | sessions.rs19–35 read_dir plus assert_socket for every socket |
+| Helper reads, including -s NAME action list-clients/list-panes/dump-layout | No | commands.rs409 get_active_session -> sessions.rs283–284 get_sessions; requested name used only at415/433 |
+| Action with ZELLIJ_SESSION_NAME | No | fallback commands.rs444 occurs after the initial scan, and another scan428 in Many |
+| run/plugin/edit/pipe/layout actions | No | main.rs102/156/228/285 call send_action_to_session |
+| subscribe, exact target | No | commands.rs459 get_active_session,478 get_sessions |
+| attach, exact target/create/background/index | No | commands.rs763–766 session_exists;568 match_session_name;537 sorted scan; sessions.rs129 probes sockets |
+| watch, exact target | No | commands.rs988 match_session_name -> sessions.rs412–413 get_sessions |
+| public kill-session / delete-session | No | commands.rs127 assert_session -> sessions.rs474–475,435–436,412–413; delete checks session_exists499–500 |
+| First-pane/AgentReady marker read, local projection and cached inventory | Yes, no native client | existing Pair evidence/readiness and cache APIs |
+| Internal Rust start_cli_client / kill_session(target) primitives | Yes in Rust, but no public local CLI switch exposes them | cli_client.rs24–32; sessions.rs295–321; not a proposed new Pair IPC adapter |
+| Hidden --server PATH | Not a prober; starts a listener | no safe readiness/query primitive; abandoned diagnostic is not reused |
+
+ZELLIJ_SOCKET_DIR changes the entire lookup namespace; it does not filter selected endpoints. -s and ZELLIJ_PANE_ID do not suppress the preflight scan. A newly created filtered socket view, raw IPC client, hard links or proxy would be another mechanism; none is proposed as a small marker fix.
+
+Consequently, simply iterating marked names in Pair and invoking the standard CLI for each still exposes every unmarked native session. A marker-only precheck of all currently visible names also has a check/use race: a cooperating creator can publish a new unready endpoint after the check and before the native read_dir/assert_socket iteration.
+
+#### Revised narrow coordination proposal
+
+1. Marker-only for direct readiness reads and projections: no lease or native client. Unknown/starting sessions remain represented through existing conservative launch/observation results; missing markers never synthesize an authoritative empty inventory.
+2. Only **native CLI calls that perform the unavoidable global scans above** require an admission lease for the effective namespace. Hold it from complete marker qualification through the joined native command. Cooperating native creates must take the corresponding exclusion before publishing an unready session and keep it through their exact ready-marker publication. The initial creator/preflight has an explicit owned permit; its post-ready query runs after publication/release, preventing self-deadlock. Local marker reads and cached reads never take this global-scan lease. Internal direct-endpoint primitives are not added.
+3. If any enumerated session has no qualifying marker, do not launch the scanning native CLI at all: retain cached/unknown/starting observations and retry only through existing bounded operation/poller policy. Do not change namespace views or claim that other ready targets can be probed independently through this CLI. This is the concrete limitation imposed by the dependency, not a need to probe sessions Pair did not create.
+4. Do not add the initial proposal's separate durable unfinished-intent record. Markers are positive evidence, never a pending-operation journal. Use existing current-launch lifecycle evidence where it already records an incomplete create; do not invent a second record of the same fact.
+5. **Unresolved edge before implementation:** the lease owner can die while its daemonizing child has not yet published a discoverable endpoint. No ready marker exists, but an observation of no visible candidate cannot prove that the delayed creator cannot publish during a subsequent native scan. Establish whether the existing owned create/client join and launch-intent lifecycle close that gap without new state. If not, report that exact limit to TL rather than silently restore the withdrawn durable mechanism. No prototype claims this case solved. Likewise, no claim covers foreign/older non-cooperating creators or a stale marker reused by an external same-name server; exact current-generation binding must be qualified through existing launch authority before code.
+
+This comparison retains a lease **only where the public CLI unavoidably scans all sessions**. It does not establish that marker-only admission works through that CLI, nor approve the remaining coordination design. The simplest alternative is marker checks alone; it fails both hidden enumeration and check/use ordering. An upstream scan-free/readiness-safe API could remove the need for this cooperation, but changing Zellij remains outside this issue and needs separate approval.
+
+#### Revised visible state/recovery table
+
+| Evidence/state | Native probe behavior | Existing visible result | Recovery |
+|---|---|---|---|
+| exact marker/current generation and no unqualified namespace candidates | allow the qualified CLI under its scan lease | ordinary observation | ordinary operation |
+| missing/invalid marker for a visible candidate | do not invoke native CLI | starting/unknown observation, preserve cache age | wait or existing explicit recovery |
+| creator dies without ready marker | never infer readiness from owner death | unknown; no fabricated absence | existing supported recovery |
+| waiting scan lease reaches caller deadline | no new native effect | no-answer/context cause | retry existing operation |
+| exact ready marker arrives for this creator | publish before releasing creator exclusion | normal admission can continue | ordinary operation |
+| late/foreign ready outcome | ignore for current launch | unknown remains | wait/recovery |
+| creator death before delayed endpoint publication | unresolved until existing lifecycle proof is inspected | no success claim | bring precise gap to TL before code |
+
+#### Next plan tasks, superseding initial implementation tasks
+
+- [ ] Review this marker/CLI comparison with TL; resolve the explicitly named crash/publication and current-generation identity gaps using existing lifecycle authority, or report why another mechanism is necessary.
+- [ ] Only after approval, define the small pure marker-qualification model and portable stateful fake. Independently count zero native probe admissions before exact readiness, including two sessions where only one is marked and the named command internally scans both.
+- [ ] Put the optional scan lease only at unavoidable native enumeration boundaries and creator publication; do not add a pending intent store. Mechanically enumerate/guard bypass callers. Preserve caller deadlines, conservative unknown results and joined ownership.
+- [ ] Retain the original bounded shared-fleet Claude/Codex qualification, normal catalog/inventory guards and recorded pre-close/full review requirements; no new standalone server/process probe. Preserve all three failing native captures and distinguish conformance from historical trigger attribution.

@@ -71,3 +71,10 @@ A private direct-server diagnostic started under /Volumes/TestScratch/p866-kmgx1
 ### 2026-10-24 — proposed shared readiness exclusion
 
 The existing local wait alone cannot protect a newly created session from global observers. The proposed plan adds a namespace-level creator/probe lease and bounded retained uncertainty, using exact existing pane readiness and explicit supported retirement. This is a scope/coordination proposal, not implementation authorization; alternatives and state/recovery table are in the durable plan. Await TL decision, then change-code before production edits.
+
+
+### 2026-10-24 03:20 PDT — TL comparison request; marker-first revision pending
+
+Submitted TL e242a4dc does not approve the initial shared-lease/unfinished-intent proposal. The durable plan now appends a governing marker-first comparison and withdraws the separate unfinished-intent store. Source-only enumeration confirms that global listing AND named helper actions call get_active_session/get_sessions and assert_socket across the whole namespace before honoring -s or ZELLIJ_SESSION_NAME. Public named attach/watch/kill/delete do likewise; only internal Rust primitives bypass enumeration, with no public local CLI switch found. Thus a marker-qualified target does not stop its CLI from probing an unready neighbor. A precheck also races endpoint publication without exclusion.
+
+The revised proposal uses positive exact-launch ready markers, retains conservative starting/unknown projections for unmarked sessions, and keeps a lease only around the native calls that cannot avoid global scanning. It names the still-unresolved crash-before-delayed-endpoint-publication and stale/external-generation cases: inspect existing launch lifecycle authority before code, report a concrete gap rather than invent a replacement journal. No marker, lease, scanner or production change is implemented. Await TL review of the revised comparison; original initial-plan implementation steps are superseded.
