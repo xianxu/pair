@@ -1,6 +1,6 @@
 ---
 id: 000830
-status: codecomplete
+status: done
 created: 2026-10-22
 updated: 2026-10-24
 estimate_hours:
@@ -21,6 +21,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: 6fbb5568d24833bd4ae5c0d965845e5a38adfaab
         evidence_commit: cb17a8a0318eee88562ead66b6488717b751578c
+        landed_commit: 19c67151e51bb353a445a4da1d147f387df65860
 ---
 
 # Global Alt+x marks parked slots 'asleep'; one 'wake all' brings back exactly those
