@@ -34,6 +34,8 @@ type submissionPreviewFake struct {
 	resolvePreview func()
 	publishErr     error
 	stale          chan string
+	unsaved        string
+	readUnsaved    func()
 }
 
 func previewFakeSketch(id string) board.SelectedSketch {
@@ -94,6 +96,14 @@ func (f *submissionPreviewFake) ResolveSubmissionPreview(ctx context.Context, ho
 		}
 	}
 	return selection, ctx.Err()
+}
+func (f *submissionPreviewFake) SubmissionUnsavedNote(context.Context) (string, error) {
+	if f.readUnsaved != nil {
+		f.readUnsaved()
+	}
+	f.muPreview.Lock()
+	defer f.muPreview.Unlock()
+	return f.unsaved, nil
 }
 func (f *submissionPreviewFake) SubmissionSelection() (board.Selection, error) {
 	f.muPreview.Lock()
@@ -166,50 +176,18 @@ func (f *submissionPreviewFake) PublishSubmissionPreview(ctx context.Context, p 
 	return nil
 }
 
-func TestSubmissionRequiresAcknowledgedPreviewAndAtomicFreeze(t *testing.T) {
+// pair#849: a press takes the board's feedback as it is; no preview needs to
+// have been shown, and nothing the page does refuses it.
+func TestSubmissionPressNeedsNoPreview(t *testing.T) {
 	m, base, target := newSubmissionManagerTest(t)
 	f := newSubmissionPreviewFake(base)
+	f.selection.Notes = []board.SelectedNote{{ID: "note", Revision: 1}}
 	m.current = func() (submissionCast, error) { return f, nil }
-	if _, err := m.request(context.Background(), "prepare", "before", target); err == nil {
-		t.Fatal("unseen shapes admitted")
+	status, err := m.request(context.Background(), "prepare", "unseen", target)
+	if err != nil || status.State != "preparing" || status.Sketches != 1 {
+		t.Fatalf("press refused without a preview: %+v %v", status, err)
 	}
-	ctx, cancel := context.WithCancel(m.ctx)
-	defer cancel()
-	done := make(chan struct{})
-	go func() { defer close(done); watchSubmissionPreview(m, ctx, f) }()
-	p := <-f.published
-	m.mu.Lock() // Worker must acquire this lock after its publication result.
-	m.mu.Unlock()
-	// Synchronize with explicit worker barrier rather than sleeps.
-	_ = p
-	deadline := time.After(2 * time.Second)
-	for {
-		m.mu.Lock()
-		shown := m.previewState.Phase() == core.PreviewShown
-		m.mu.Unlock()
-		if shown {
-			break
-		}
-		select {
-		case <-deadline:
-			t.Fatal("preview not acknowledged")
-		case <-time.After(time.Millisecond):
-		}
-	}
-	f.muPreview.Lock()
-	f.freeze = func() { f.selection.SketchGeneration++ }
-	f.muPreview.Unlock()
-	if _, err := m.request(context.Background(), "prepare", "stale", target); err == nil {
-		t.Fatal("changed version admitted after shown ACK")
-	}
-	base.mu.Lock()
-	prepared := base.prepared
-	base.mu.Unlock()
-	if prepared != 0 {
-		t.Fatal("stale preview started effects")
-	}
-	cancel()
-	<-done
+	submissionWait(t, m, "unseen", target, "prepared")
 }
 
 func waitSubmissionPreviewShown(t *testing.T, m *submissionManager) {
@@ -230,7 +208,7 @@ func waitSubmissionPreviewShown(t *testing.T, m *submissionManager) {
 	}
 }
 func TestSubmissionPreviewHostReplacementAndDispose(t *testing.T) {
-	m, base, target := newSubmissionManagerTest(t)
+	m, base, _ := newSubmissionManagerTest(t)
 	f := newSubmissionPreviewFake(base)
 	m.current = func() (submissionCast, error) { return f, nil }
 	ctx, cancel := context.WithCancel(m.ctx)
@@ -238,14 +216,6 @@ func TestSubmissionPreviewHostReplacementAndDispose(t *testing.T) {
 	go func() { defer close(done); watchSubmissionPreview(m, ctx, f) }()
 	<-f.published
 	waitSubmissionPreviewShown(t, m)
-	f.muPreview.Lock()
-	f.host.Generation++
-	f.muPreview.Unlock()
-	// The host change has not yet reached the manager. Atomic host+board freeze
-	// must still reject it; a separate pre-check would leave this gap open.
-	if _, err := m.request(context.Background(), "prepare", "replaced", target); err == nil {
-		t.Fatal("retired host enabled preparation")
-	}
 	cancel()
 	<-done
 	m.mu.Lock()
@@ -389,24 +359,12 @@ func TestSubmissionPreviewSettlesCanceledOperationBeforeUnchangedRefresh(t *test
 				}
 				m.mu.Lock()
 				phase := m.previewState.Phase()
-				selected, _ := f.SubmissionSelection()
-				_, freezeErr := m.freezeSubmissionPreview(f, selected)
 				m.mu.Unlock()
-				if phase != core.PreviewPublishing || freezeErr == nil {
-					t.Fatal("late canceled ACK enabled preparation")
+				if phase != core.PreviewPublishing {
+					t.Fatal("late canceled ACK showed a retired publication")
 				}
-				// freeze refusal requests an explicit refresh. Consume it through the same
-				// cancellation path and acknowledge only the final exact operation.
-				synctest.Wait()
-				select {
-				case <-second.canceled:
-				default:
-					t.Fatal("refused prepare did not request refresh")
-				}
+				// Acknowledge only the exact replacement operation.
 				close(second.release)
-				synctest.Wait()
-				final := controlledPreviewCall(t, f)
-				close(final.release)
 				synctest.Wait()
 				m.mu.Lock()
 				phase = m.previewState.Phase()
@@ -592,42 +550,44 @@ func TestSubmissionRetryOfVisibleAckInvalidatesDeliveredPreview(t *testing.T) {
 	}
 }
 
-func TestSubmissionNoteOnlyRequiresAcknowledgedFeedback(t *testing.T) {
+// pair#849: the press captures each note's revision; an edit after it is a
+// new revision the submission does not carry (resolving is by that revision).
+func TestSubmissionPressCapturesNoteRevisions(t *testing.T) {
 	m, base, target := newSubmissionManagerTest(t)
 	f := newSubmissionPreviewFake(base)
 	f.selection.Sketches = nil
 	f.selection.Notes = []board.SelectedNote{{ID: "note", Revision: 1}}
 	m.current = func() (submissionCast, error) { return f, nil }
-	if _, err := m.request(context.Background(), "prepare", "unseen-note", target); err == nil {
-		t.Fatal("unseen note-only feedback admitted")
+	var got board.Selection
+	base.onSelection = func(s board.Selection) {
+		f.muPreview.Lock()
+		f.selection.Notes[0].Revision++ // edited after the press
+		f.muPreview.Unlock()
+		got = s
 	}
-	base.mu.Lock()
-	prepared := base.prepared
-	base.mu.Unlock()
-	if prepared != 0 {
-		t.Fatal("unseen note-only feedback started preparation")
+	if _, err := m.request(context.Background(), "prepare", "captured", target); err != nil {
+		t.Fatal(err)
+	}
+	submissionWait(t, m, "captured", target, "prepared")
+	if len(got.Notes) != 1 || got.Notes[0] != (board.SelectedNote{ID: "note", Revision: 1}) {
+		t.Fatalf("prepared notes %+v", got.Notes)
 	}
 }
 
-func TestSubmissionFeedbackPublishesExactNotesAndRejectsLaterEdit(t *testing.T) {
+// pair#849: the one refusal is a note the operator is still writing.
+func TestSubmissionRefusesAnUnsavedNote(t *testing.T) {
 	m, base, target := newSubmissionManagerTest(t)
 	f := newSubmissionPreviewFake(base)
-	f.selection.Notes = []board.SelectedNote{{ID: "note", Revision: 1}}
+	f.unsaved = `note "fix the header" has unsaved edits`
 	m.current = func() (submissionCast, error) { return f, nil }
-	ctx, cancel := context.WithCancel(m.ctx)
-	done := make(chan struct{})
-	go func() { defer close(done); watchSubmissionPreview(m, ctx, f) }()
-	defer func() { cancel(); <-done }()
-	p := <-f.published
-	waitSubmissionPreviewShown(t, m)
-	if len(p.Selection().Notes) != 1 || p.Selection().Notes[0].Revision != 1 {
-		t.Fatal("shown selection omitted exact note revision")
+	_, err := m.request(context.Background(), "prepare", "unsaved", target)
+	if err == nil || err.Error() != `note "fix the header" has unsaved edits; save or cancel it, then submit again` {
+		t.Fatalf("unsaved note: %v", err)
 	}
-	f.muPreview.Lock()
-	f.freeze = func() { f.selection.Notes[0].Revision++ }
-	f.muPreview.Unlock()
-	if _, err := m.request(context.Background(), "prepare", "edited-note", target); err == nil {
-		t.Fatal("note edit admitted between shown preview and freeze")
+	base.mu.Lock()
+	defer base.mu.Unlock()
+	if base.prepared != 0 {
+		t.Fatal("unsaved note started preparation")
 	}
 }
 
@@ -653,43 +613,19 @@ func TestSubmissionPreviewUsesCurrentVisibleSubset(t *testing.T) {
 	}
 }
 
-func TestSubmissionPreviewFreshWitnessOutsideLockAndGeometryFence(t *testing.T) {
+// pair#849: the press reads outside the manager lock, and a page whose paint
+// keeps changing -- geometry, revision, ordinals -- never refuses it.
+func TestSubmissionPressReadsOutsideLockAndIgnoresPageChanges(t *testing.T) {
 	m, base, target := newSubmissionManagerTest(t)
 	f := newSubmissionPreviewFake(base)
 	m.current = func() (submissionCast, error) { return f, nil }
-	checkUnlocked := func() {
+	f.readUnsaved = func() {
 		if !m.mu.TryLock() {
-			t.Error("browser/recorder IO ran under manager lock")
+			t.Error("browser IO ran under manager lock")
 			return
 		}
 		m.mu.Unlock()
 	}
-	f.readVisibility = checkUnlocked
-	f.resolvePreview = checkUnlocked
-	ctx, cancel := context.WithCancel(m.ctx)
-	done := make(chan struct{})
-	go func() { defer close(done); watchSubmissionPreview(m, ctx, f) }()
-	defer func() { cancel(); <-done }()
-	<-f.published
-	waitSubmissionPreviewShown(t, m)
-	f.muPreview.Lock()
-	f.visibility.Revision++
-	f.visibility.Sketches[0].Paths[0].Box[0]++
-	f.muPreview.Unlock()
-	if _, err := m.request(context.Background(), "prepare", "moved", target); err == nil {
-		t.Fatal("changed current paint admitted after ACK")
-	}
-	base.mu.Lock()
-	defer base.mu.Unlock()
-	if base.prepared != 0 {
-		t.Fatal("changed paint started capture")
-	}
-}
-
-func TestSubmissionPreviewFreshOrdinalDoesNotInvalidateSamePaint(t *testing.T) {
-	m, base, target := newSubmissionManagerTest(t)
-	f := newSubmissionPreviewFake(base)
-	m.current = func() (submissionCast, error) { return f, nil }
 	ctx, cancel := context.WithCancel(m.ctx)
 	done := make(chan struct{})
 	go func() { defer close(done); watchSubmissionPreview(m, ctx, f) }()
@@ -700,12 +636,13 @@ func TestSubmissionPreviewFreshOrdinalDoesNotInvalidateSamePaint(t *testing.T) {
 	f.visibility.Revision++
 	f.visibility.Scene.T++
 	f.visibility.Scene.RecordIndex++
+	f.visibility.Sketches[0].Paths[0].Box[0]++
 	f.muPreview.Unlock()
-	status, err := m.request(context.Background(), "prepare", "samepaint", target)
+	status, err := m.request(context.Background(), "prepare", "moved", target)
 	if err != nil || status.State != "preparing" {
-		t.Fatalf("unchanged newer paint refused: %+v %v", status, err)
+		t.Fatalf("changed page refused: %+v %v", status, err)
 	}
-	submissionWait(t, m, "samepaint", target, "prepared")
+	submissionWait(t, m, "moved", target, "prepared")
 }
 
 func TestSubmissionPreviewUnavailablePaintDoesNotUseSavedCandidates(t *testing.T) {
@@ -732,12 +669,12 @@ func TestSubmissionPreviewUnavailablePaintDoesNotUseSavedCandidates(t *testing.T
 	})
 }
 
-func TestSubmissionPreviewFreshReadRechecksDeliveryGeneration(t *testing.T) {
+func TestSubmissionPressRechecksDeliveryGeneration(t *testing.T) {
 	m, base, target := newSubmissionManagerTest(t)
 	acknowledgeSubmissionFeedback(t, m, base)
-	base.feedback.readVisibility = func() { m.mu.Lock(); m.submissionDeliveredLocked(); m.mu.Unlock() }
+	base.feedback.readUnsaved = func() { m.mu.Lock(); m.submissionDeliveredLocked(); m.mu.Unlock() }
 	if _, err := m.request(context.Background(), "prepare", "delivery-race", target); err == nil {
-		t.Fatal("delivery changed during fresh read but prepare proceeded")
+		t.Fatal("delivery changed during the press's read but prepare proceeded")
 	}
 	base.mu.Lock()
 	defer base.mu.Unlock()
@@ -747,9 +684,9 @@ func TestSubmissionPreviewFreshReadRechecksDeliveryGeneration(t *testing.T) {
 }
 
 // pair#849: the operator's shape. Notes were shown, then a labeled sketch the
-// panel could not show: the panel says it is out of date, the refusal says why,
-// and once the panel shows it the next press is admitted.
-func TestSubmissionRefusalNamesWhyThePreviewCouldNotRefresh(t *testing.T) {
+// panel could not show: the panel says it is out of date, and the press
+// submits both anyway; the panel is information, never a gate.
+func TestSubmissionPanelOutOfDateNeverGates(t *testing.T) {
 	m, base, target := newSubmissionManagerTest(t)
 	f := newSubmissionPreviewFake(base)
 	f.selection.Sketches = nil
@@ -780,17 +717,8 @@ func TestSubmissionRefusalNamesWhyThePreviewCouldNotRefresh(t *testing.T) {
 	case <-time.After(2 * time.Second):
 		t.Fatal("panel not marked out of date")
 	}
-	_, err := m.request(context.Background(), "prepare", "press-1", target)
-	if !errors.Is(err, errSubmissionPreview) || !strings.Contains(err.Error(), "the current feedback has not been shown yet") || !strings.Contains(err.Error(), "the preview could not refresh: "+why) {
-		t.Fatalf("refusal = %v", err)
-	}
-
-	f.muPreview.Lock()
-	f.publishErr = nil
-	f.muPreview.Unlock()
-	f.candidates <- struct{}{}
-	waitSubmissionPreviewShown(t, m)
-	if _, err := m.request(context.Background(), "prepare", "press-2", target); err != nil {
-		t.Fatalf("shown feedback refused: %v", err)
+	status, err := m.request(context.Background(), "prepare", "press", target)
+	if err != nil || status.State != "preparing" || status.Sketches != 1 {
+		t.Fatalf("out-of-date panel gated the press: %+v %v", status, err)
 	}
 }

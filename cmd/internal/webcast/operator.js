@@ -174,6 +174,7 @@ export function mountOperator({ host, root, report }, { annotate, palette, css, 
 	win.__couchcastOperatorSketch = mounted.tool;
   }
   win.__couchcastCaptureBusy = () => ui.dialog.open || !!sketchMount?.captureBusy();
+  win.__couchcastNoteUnsaved = () => ui.dialog.unsaved;
   // #523 supplies this capability input through CDP in the isolated world.
   // Keep it independent of view snapshots; no switch or authority is added here.
   win.__couchcastAnnotationAllowed = (allowed, generation) => {

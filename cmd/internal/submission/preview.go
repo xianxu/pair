@@ -1,7 +1,6 @@
 package submission
 
 import (
-	"fmt"
 	"github.com/xianxu/pair/cmd/internal/webcast/query"
 	"github.com/xianxu/pair/cmd/internal/webcast/recording"
 	"github.com/xianxu/pair/cmd/internal/webcast/sketchimage"
@@ -93,21 +92,6 @@ type PreviewState struct {
 	next    uint64
 }
 
-func (p PreviewPhase) String() string {
-	switch p {
-	case PreviewDirty:
-		return "the preview is waiting to refresh"
-	case PreviewPublishing:
-		return "the preview is being shown"
-	case PreviewShown:
-		return "the preview is shown"
-	case PreviewStopped:
-		return "the preview stopped"
-	default:
-		return "no preview is shown"
-	}
-}
-
 func (s PreviewState) Phase() PreviewPhase {
 	switch s.payload.(type) {
 	case previewDirty:
@@ -173,19 +157,6 @@ type PreviewPublishFailed struct{ Publication PreviewPublication }
 
 func (PreviewPublishFailed) previewEvent() {}
 
-type PreviewPrepare struct {
-	Host  PreviewHost
-	Stamp PreviewStamp
-	Fresh *PreviewSelection
-}
-
-func (PreviewPrepare) previewEvent() {}
-
-// PreviewFreezeRejected reports the atomic board freeze refusing this proposal.
-type PreviewFreezeRejected struct{ Publication PreviewPublication }
-
-func (PreviewFreezeRejected) previewEvent() {}
-
 type PreviewDispose struct{}
 
 func (PreviewDispose) previewEvent() {}
@@ -203,11 +174,6 @@ type PreviewRefreshNeeded struct{}
 
 func (PreviewRefreshNeeded) previewEffect() {}
 
-// PreviewRefuse names the condition that refused, for the operator's message.
-type PreviewRefuse struct{ Reason string }
-
-func (PreviewRefuse) previewEffect() {}
-
 // PreviewStop requires the wrapper to cancel and join its sole owned worker.
 type PreviewStop struct{}
 
@@ -216,12 +182,6 @@ func (PreviewStop) previewEffect() {}
 type PreviewUnavailable struct{}
 
 func (PreviewUnavailable) previewEffect() {}
-
-// PreviewFreezeProposal is permission to TRY freezing under the manager/board lock
-// order. It is not a FrozenPreview, preparation job, or permission to do IO.
-type PreviewFreezeProposal struct{ Publication PreviewPublication }
-
-func (PreviewFreezeProposal) previewEffect() {}
 
 func NextPreview(state PreviewState, event PreviewEvent) (PreviewState, []PreviewEffect) {
 	if state.Phase() == PreviewStopped {
@@ -284,38 +244,8 @@ func NextPreview(state PreviewState, event PreviewEvent) (PreviewState, []Previe
 	case PreviewPublishFailed:
 		if p, ok := state.payload.(previewPublishing); ok && samePreviewPublication(p.publication, e.Publication) {
 			state.payload = previewDirty{snapshot}
-			// Explicit Refresh/Prepare or a source event retries; failure never spins.
+			// An explicit Refresh or a source event retries; failure never spins.
 			return state, []PreviewEffect{PreviewUnavailable{}}
-		}
-	case PreviewPrepare:
-		if p, ok := state.payload.(previewShown); ok {
-			if p.publication.host == e.Host && p.publication.selection.Stamp == e.Stamp {
-				publication := p.publication
-				if publication.selection.Visibility != nil {
-					if e.Fresh == nil || !samePreparedFeedback(publication.selection, *e.Fresh) {
-						effects := invalidate()
-						return state, append([]PreviewEffect{PreviewRefuse{Reason: "the visible feedback differs from the shown preview"}}, effects...)
-					}
-					publication.selection = clonePreviewSelection(*e.Fresh)
-				}
-				return state, []PreviewEffect{PreviewFreezeProposal{Publication: publication}}
-			}
-			reason := "the private console host changed since the preview was shown"
-			if shown := p.publication.selection.Stamp; shown != e.Stamp {
-				reason = fmt.Sprintf("the feedback changed since the preview was shown (board %d→%d, delivered %d→%d)", shown.Board, e.Stamp.Board, shown.Delivered, e.Stamp.Delivered)
-			}
-			effects := invalidate()
-			return state, append([]PreviewEffect{PreviewRefuse{Reason: reason}}, effects...)
-		}
-		effects := []PreviewEffect{PreviewRefuse{Reason: "the current feedback has not been shown yet (" + state.Phase().String() + ")"}}
-		if state.Phase() == PreviewDirty {
-			effects = append(effects, PreviewRefreshNeeded{})
-		}
-		return state, effects
-	case PreviewFreezeRejected:
-		if p, ok := state.payload.(previewShown); ok && samePreviewPublication(p.publication, e.Publication) {
-			effects := invalidate()
-			return state, append([]PreviewEffect{PreviewRefuse{Reason: "the board refused to freeze the shown preview"}}, effects...)
 		}
 	}
 	return state, nil
@@ -343,30 +273,4 @@ func samePreviewPublication(a, b PreviewPublication) bool {
 // producer accidentally reused a generation stamp.
 func samePreviewSelection(a, b PreviewSelection) bool {
 	return a.Stamp == b.Stamp && a.Remaining == b.Remaining && a.NoteRemaining == b.NoteRemaining && reflect.DeepEqual(a.Visibility, b.Visibility) && slices.Equal(a.Items, b.Items) && slices.Equal(a.Candidates, b.Candidates) && slices.Equal(a.Notes, b.Notes) && (a.Page == nil && b.Page == nil || a.Page != nil && b.Page != nil && *a.Page == *b.Page)
-}
-
-// samePreparedFeedback permits a fresh recorded prefix while keeping the exact
-// visible feedback and geometry that the operator reviewed. Browser/Board
-// admission separately fences the fresh witness against its private host.
-func samePreparedFeedback(shown, fresh PreviewSelection) bool {
-	if shown.Visibility == nil || fresh.Visibility == nil || ValidateFeedbackVisibility(*fresh.Visibility) != nil || fresh.Visibility.Revision < shown.Visibility.Revision {
-		return false
-	}
-	shown = clonePreviewSelection(shown)
-	fresh = clonePreviewSelection(fresh)
-	normalize := func(s *PreviewSelection) {
-		s.ResolvedNodes = nil
-		s.Visibility.Revision = 0
-		s.Visibility.Scene.T = 0
-		s.Visibility.Scene.RecordIndex = 0
-		s.Visibility.Scene.Title = ""
-		if s.Page != nil {
-			s.Page.T = 0
-			s.Page.RecordIndex = 0
-			s.Page.Title = ""
-		}
-	}
-	normalize(&shown)
-	normalize(&fresh)
-	return samePreviewSelection(shown, fresh)
 }

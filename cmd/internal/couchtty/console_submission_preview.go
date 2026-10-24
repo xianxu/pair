@@ -38,30 +38,10 @@ type submissionStaleCast interface {
 	MarkSubmissionPreviewStale(context.Context, core.PreviewHost, string) error
 }
 
-var errSubmissionPreview = errors.New("Feedback changed; review Pending feedback and submit again")
-
-// previewRefusal is errSubmissionPreview naming the condition that refused
-// (pair#849): one message for a dozen conditions left the cause unknowable.
-type previewRefusal struct{ why string }
-
-func (e previewRefusal) Error() string {
-	return "Feedback changed (" + e.why + "); review Pending feedback and submit again"
-}
-func (e previewRefusal) Is(target error) bool { return target == errSubmissionPreview }
-
-// refusePreviewLocked adds why the preview worker could not refresh when the
-// operator was refused because nothing current is shown.
-func (m *submissionManager) refusePreviewLocked(why string) error {
-	if m.previewState.Phase() != core.PreviewShown && m.previewProblem != "" {
-		why += "; the preview could not refresh: " + m.previewProblem
-	}
-	return previewRefusal{why}
-}
-
 var errPreviewHostRetired = errors.New("the private console host was replaced")
 
 // previewProblem is the worker's one-line account of a refresh it could not
-// complete, shown on the panel and in the next refusal.
+// complete, shown on the panel.
 func previewProblem(host, selection, latest, delivery error, delivered, board bool) string {
 	switch {
 	case host != nil:
@@ -282,45 +262,6 @@ func (m *submissionManager) runSubmissionPreview(ctx context.Context, run *submi
 		case <-run.wake:
 		}
 	}
-}
-
-// Called with manager.mu held; Board's generation fence is the atomic boundary.
-func (m *submissionManager) freezeSubmissionPreview(cast submissionCast, selected board.Selection, fresh ...*core.PreviewSelection) (board.Selection, error) {
-	if len(selected.Sketches) == 0 && len(selected.Notes) == 0 {
-		return selected, nil
-	}
-	run := m.previewRun
-	if run == nil || run.cast != cast {
-		return board.Selection{}, m.refusePreviewLocked("no preview is running for this cast")
-	}
-	var proposal *core.PreviewSelection
-	if len(fresh) > 0 {
-		proposal = fresh[0]
-	}
-	var effects []core.PreviewEffect
-	// Read before Prepare, which invalidates a refused preview.
-	why := "the preview refused"
-	m.previewState, effects = core.NextPreview(m.previewState, core.PreviewPrepare{Fresh: proposal, Host: run.host, Stamp: core.PreviewStamp{Board: selected.SketchGeneration, Delivered: m.deliveredGeneration}})
-	for _, effect := range effects {
-		if r, ok := effect.(core.PreviewRefuse); ok && r.Reason != "" {
-			why = r.Reason
-		}
-		if p, ok := effect.(core.PreviewFreezeProposal); ok {
-			frozen, err := run.cast.FreezeSubmissionPreview(p.Publication.Host(), p.Publication.Selection())
-			if err == nil {
-				frozen.SketchRemaining = p.Publication.Selection().Remaining
-				frozen.NoteRemaining = p.Publication.Selection().NoteRemaining
-				return frozen, nil
-			}
-			why = "the board refused to freeze the shown preview: " + err.Error()
-			m.previewState, _ = core.NextPreview(m.previewState, core.PreviewFreezeRejected{Publication: p.Publication})
-		}
-	}
-	select {
-	case run.wake <- struct{}{}:
-	default:
-	}
-	return board.Selection{}, m.refusePreviewLocked(why)
 }
 
 // markPreviewStale is bounded display IO outside manager.mu. A host that is

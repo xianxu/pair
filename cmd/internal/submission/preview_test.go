@@ -2,7 +2,7 @@ package submission
 
 import "testing"
 
-func TestPreviewNeedsExactAcknowledgementBeforeFreeze(t *testing.T) {
+func TestPreviewShownOnlyAfterAcknowledgement(t *testing.T) {
 	host := PreviewHost{ID: "console", Generation: 1}
 	selection := PreviewSelection{Stamp: PreviewStamp{Board: 1, Delivered: 1}, Items: []PreviewItem{{RecordingID: "r", SketchID: "s", Sequence: 3, Digest: "d"}}}
 	state, _ := NextPreview(PreviewState{}, PreviewHostChanged{Host: host})
@@ -11,21 +11,9 @@ func TestPreviewNeedsExactAcknowledgementBeforeFreeze(t *testing.T) {
 	if state.Phase() != PreviewPublishing {
 		t.Fatalf("phase=%v", state.Phase())
 	}
-	publication := effects[0].(PreviewPublish).Publication
-	_, effects = NextPreview(state, PreviewPrepare{Host: host, Stamp: selection.Stamp})
-	if len(effects) != 1 {
-		t.Fatalf("prepare effects=%#v", effects)
-	}
-	if _, ok := effects[0].(PreviewRefuse); !ok {
-		t.Fatalf("unacknowledged prepare=%#v", effects)
-	}
-	state, _ = NextPreview(state, PreviewPublishAccepted{Publication: publication})
-	_, effects = NextPreview(state, PreviewPrepare{Host: host, Stamp: selection.Stamp})
-	if len(effects) != 1 {
-		t.Fatalf("freeze effects=%#v", effects)
-	}
-	if _, ok := effects[0].(PreviewFreezeProposal); !ok {
-		t.Fatalf("acknowledged prepare=%#v", effects)
+	state, _ = NextPreview(state, PreviewPublishAccepted{Publication: effects[0].(PreviewPublish).Publication})
+	if state.Phase() != PreviewShown {
+		t.Fatalf("acknowledged phase=%v", state.Phase())
 	}
 }
 
@@ -56,7 +44,7 @@ func TestPreviewRetiredPublicationCannotEnableReplacement(t *testing.T) {
 		if fresh.Operation() <= old.Operation() || fresh.Revision() <= old.Revision() {
 			t.Fatal("publication identity reused")
 		}
-		for _, late := range []PreviewEvent{PreviewPublishAccepted{old}, PreviewPublishFailed{old}, PreviewFreezeRejected{old}} {
+		for _, late := range []PreviewEvent{PreviewPublishAccepted{old}, PreviewPublishFailed{old}} {
 			var effects []PreviewEffect
 			s, effects = NextPreview(s, late)
 			if s.Phase() != PreviewPublishing || len(effects) != 0 {
@@ -83,40 +71,9 @@ func TestPreviewFailureRetriesOnlyOnExplicitTrigger(t *testing.T) {
 	if s.Phase() != PreviewDirty || len(fx) != 0 {
 		t.Fatal("late success revived failed publication")
 	}
-	s, fx = NextPreview(s, PreviewPrepare{Host: p.Host(), Stamp: p.Stamp()})
-	if len(fx) != 2 {
-		t.Fatalf("prepare should refuse and request refresh: %#v", fx)
-	}
 	s, fx = NextPreview(s, PreviewRefresh{})
 	if s.Phase() != PreviewPublishing || len(fx) != 1 {
 		t.Fatal("explicit retry failed")
-	}
-}
-
-func TestPreviewPrepareAndFreezeRejectStaleSelection(t *testing.T) {
-	for _, prepare := range []PreviewPrepare{
-		{Host: PreviewHost{ID: "other", Generation: 1}, Stamp: PreviewStamp{Board: 4, Delivered: 2}},
-		{Host: PreviewHost{ID: "c", Generation: 2}, Stamp: PreviewStamp{Board: 4, Delivered: 2}},
-		{Host: PreviewHost{ID: "c", Generation: 1}, Stamp: PreviewStamp{Board: 5, Delivered: 2}},
-		{Host: PreviewHost{ID: "c", Generation: 1}, Stamp: PreviewStamp{Board: 4, Delivered: 3}},
-	} {
-		s, p := previewFixture(t)
-		s, _ = NextPreview(s, PreviewPublishAccepted{p})
-		s, fx := NextPreview(s, prepare)
-		if s.Phase() != PreviewDirty || len(fx) != 2 {
-			t.Fatalf("mismatch failed to invalidate: %v %#v", s.Phase(), fx)
-		}
-		for _, effect := range fx {
-			if _, ok := effect.(PreviewFreezeProposal); ok {
-				t.Fatal("stale freeze")
-			}
-		}
-	}
-	s, p := previewFixture(t)
-	s, _ = NextPreview(s, PreviewPublishAccepted{p})
-	s, fx := NextPreview(s, PreviewFreezeRejected{p})
-	if s.Phase() != PreviewDirty || len(fx) != 2 {
-		t.Fatalf("atomic freeze rejection=%v %#v", s.Phase(), fx)
 	}
 }
 
@@ -131,12 +88,6 @@ func TestPreviewSelectionCannotBeMutatedByCaller(t *testing.T) {
 	exposed.Items[0].SketchID = "getter mutation"
 	if p.Selection().Items[0].SketchID != "original" {
 		t.Fatal("publication aliases caller's data")
-	}
-	s, _ = NextPreview(s, PreviewPublishAccepted{p})
-	_, fx = NextPreview(s, PreviewPrepare{Host: p.Host(), Stamp: p.Stamp()})
-	frozen := fx[0].(PreviewFreezeProposal).Publication.Selection()
-	if frozen.Items[0].SketchID != "original" {
-		t.Fatal("effect changed authoritative selection")
 	}
 }
 
@@ -155,7 +106,7 @@ func TestPreviewHostRemovalAndTerminalDisposal(t *testing.T) {
 	if s.Phase() != PreviewStopped || len(fx) != 2 {
 		t.Fatalf("dispose=%v %#v", s.Phase(), fx)
 	}
-	for _, event := range []PreviewEvent{PreviewHostChanged{Host: p.Host()}, PreviewCandidatesChanged{}, PreviewRefresh{}, PreviewPrepare{}, PreviewPublishAccepted{p}, PreviewPublishFailed{p}, PreviewFreezeRejected{p}, PreviewDispose{}} {
+	for _, event := range []PreviewEvent{PreviewHostChanged{Host: p.Host()}, PreviewCandidatesChanged{}, PreviewRefresh{}, PreviewPublishAccepted{p}, PreviewPublishFailed{p}, PreviewDispose{}} {
 		s, fx = NextPreview(s, event)
 		if s.Phase() != PreviewStopped || len(fx) != 0 {
 			t.Fatalf("stopped revived by %#v", event)
@@ -182,9 +133,9 @@ func checkPreviewControlOrder(t *testing.T, data []byte) {
 		var event PreviewEvent
 		var result PreviewPublication
 		if len(issued) > 0 {
-			result = issued[(int(b)/11)%len(issued)]
+			result = issued[(int(b)/8)%len(issued)]
 		}
-		switch b % 11 {
+		switch b % 8 {
 		case 0:
 			host = PreviewHost{ID: "c", Generation: uint64(step + 1)}
 			event = PreviewHostChanged{host}
@@ -216,21 +167,11 @@ func checkPreviewControlOrder(t *testing.T, data []byte) {
 				shown = nil
 			}
 		case 6:
-			event = PreviewPrepare{Host: host, Stamp: stamp}
-		case 7:
-			event = PreviewPrepare{Host: PreviewHost{ID: "retired"}, Stamp: stamp}
-			shown = nil
-		case 8:
 			host = PreviewHost{}
 			event = PreviewHostChanged{}
 			pending = nil
 			shown = nil
-		case 9:
-			event = PreviewFreezeRejected{result}
-			if shown != nil && shown.Operation() == result.Operation() {
-				shown = nil
-			}
-		case 10:
+		case 7:
 			event = PreviewDispose{}
 			stopped = true
 			pending = nil
@@ -262,10 +203,6 @@ func checkPreviewControlOrder(t *testing.T, data []byte) {
 				issued = append(issued, p)
 				pending = &p
 				shown = nil
-			case PreviewFreezeProposal:
-				if shown == nil || shown.Operation() != e.Publication.Operation() || e.Publication.Host() != host || e.Publication.Stamp() != stamp {
-					t.Fatalf("step%d: freeze without current acknowledged projection", step)
-				}
 			}
 		}
 		if state.Phase() == PreviewShown && shown == nil {
@@ -282,19 +219,19 @@ func TestPreviewGeneratedControlOrder(t *testing.T) {
 		for i := range data[:500] {
 			x = x*6364136223846793005 + 1442695040888963407
 			b := byte(x >> 32)
-			if b%11 == 10 {
+			if b%8 == 7 {
 				b--
 			}
 			data[i] = b
 		}
-		data[500] = 10
+		data[500] = 7
 		checkPreviewControlOrder(t, data)
 	}
 }
 
 func FuzzPreviewControlOrder(f *testing.F) {
-	f.Add([]byte{0, 1, 3, 4, 6, 2, 3, 4, 5, 6, 0, 3, 4, 6, 10})
-	f.Add([]byte{1, 0, 3, 0, 3, 15, 4, 6, 7, 3, 4, 9, 3, 5, 6})
+	f.Add([]byte{0, 1, 3, 4, 2, 3, 4, 5, 0, 3, 4, 6, 7})
+	f.Add([]byte{1, 0, 3, 0, 3, 11, 4, 6, 3, 4, 3, 5, 7})
 	f.Fuzz(func(t *testing.T, data []byte) { checkPreviewControlOrder(t, data) })
 }
 
@@ -343,35 +280,5 @@ func TestPreviewSameStampWithChangedContentsInvalidates(t *testing.T) {
 		if state.Phase() != PreviewDirty || len(effects) != 1 {
 			t.Fatalf("changed contents ignored: phase=%v effects=%#v", state.Phase(), effects)
 		}
-	}
-}
-
-// pair#849: a refused prepare says which condition refused.
-func TestPreviewRefusalNamesItsCondition(t *testing.T) {
-	host := PreviewHost{ID: "console", Generation: 1}
-	stamp := PreviewStamp{Board: 5, Delivered: 1}
-	refusal := func(state PreviewState, e PreviewPrepare) string {
-		t.Helper()
-		_, effects := NextPreview(state, e)
-		for _, effect := range effects {
-			if r, ok := effect.(PreviewRefuse); ok {
-				return r.Reason
-			}
-		}
-		t.Fatalf("not refused: %#v", effects)
-		return ""
-	}
-	if got := refusal(PreviewState{}, PreviewPrepare{Host: host, Stamp: stamp}); got != "the current feedback has not been shown yet (no preview is shown)" {
-		t.Fatalf("unshown: %q", got)
-	}
-	state, _ := NextPreview(PreviewState{}, PreviewHostChanged{Host: host})
-	state, _ = NextPreview(state, PreviewCandidatesChanged{Selection: PreviewSelection{Stamp: stamp}})
-	state, effects := NextPreview(state, PreviewRefresh{})
-	state, _ = NextPreview(state, PreviewPublishAccepted{Publication: effects[0].(PreviewPublish).Publication})
-	if got := refusal(state, PreviewPrepare{Host: host, Stamp: PreviewStamp{Board: 6, Delivered: 1}}); got != "the feedback changed since the preview was shown (board 5→6, delivered 1→1)" {
-		t.Fatalf("moved board: %q", got)
-	}
-	if got := refusal(state, PreviewPrepare{Host: PreviewHost{ID: "console", Generation: 2}, Stamp: stamp}); got != "the private console host changed since the preview was shown" {
-		t.Fatalf("moved host: %q", got)
 	}
 }

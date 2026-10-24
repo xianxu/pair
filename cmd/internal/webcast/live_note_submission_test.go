@@ -269,27 +269,26 @@ func TestOperatorFeedbackLivePrepareAndStalePanel(t *testing.T) {
 		t.Fatalf("restored heading %q", got)
 	}
 
-	// The chord's prepare: a fresh read of the unchanged page, then the freeze.
-	fresh, generation, err := visible(host)
+	// The press (pair#849): the board's feedback, whatever the panel shows.
+	selected, err := cast.board.Selection()
 	if err != nil {
-		t.Fatalf("prepare's fresh read of unchanged feedback: %v", err)
+		t.Fatal(err)
 	}
-	var effects []core.PreviewEffect
-	state, effects = core.NextPreview(state, core.PreviewPrepare{Fresh: &fresh, Host: host, Stamp: core.PreviewStamp{Board: generation}})
-	var proposal *core.PreviewFreezeProposal
-	for _, effect := range effects {
-		if p, ok := effect.(core.PreviewFreezeProposal); ok {
-			proposal = &p
-		}
+	if press := selected.PressSelection(delivered); len(press.Sketches) != 1 || len(press.Notes) != notes {
+		t.Fatalf("press took %d sketches, %d notes", len(press.Sketches), len(press.Notes))
 	}
-	if proposal == nil {
-		t.Fatalf("unchanged feedback refused at prepare: effects %#v", effects)
+	if got, err := cast.SubmissionUnsavedNote(ctx); err != nil || got != "" {
+		t.Fatalf("nothing unsaved, yet: %q %v", got, err)
 	}
-	frozen, err := cast.FreezeSubmissionPreview(proposal.Publication.Host(), proposal.Publication.Selection())
-	if err != nil {
-		t.Fatalf("freeze of unchanged feedback: %v", err)
+	// A note still being written is the one thing a press refuses.
+	if string(eval(world, `[...__couchcastOperatorSketch.labelInput.getRootNode().querySelectorAll('.annotate-rail .mode')].find(b=>b.textContent==='💭')?.getAttribute('aria-pressed')`)) != `"true"` {
+		clickRoot(".annotate-rail .mode", "💭")
 	}
-	if len(frozen.Sketches) != 1 || len(frozen.Notes) != notes {
-		t.Fatalf("frozen %d sketches, %d notes", len(frozen.Sketches), len(frozen.Notes))
-	}
+	mouse("mousePressed", 100, 470, 1)
+	mouse("mouseMoved", 400, 540, 1)
+	mouse("mouseReleased", 400, 540, 0)
+	wait("an unsaved draft reported", func() bool {
+		got, err := cast.SubmissionUnsavedNote(ctx)
+		return err == nil && got == "a new note is not saved yet"
+	})
 }

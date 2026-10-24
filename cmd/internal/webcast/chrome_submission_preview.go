@@ -11,6 +11,7 @@ import (
 	"reflect"
 	"slices"
 	"strconv"
+	"strings"
 	"sync"
 )
 
@@ -327,6 +328,53 @@ func (c *Chrome) MarkSubmissionPreviewStale(ctx context.Context, host core.Previ
 	return c.conn.Call(bounded, scope.scope.ParentSession, "Runtime.evaluate", map[string]any{"contextId": scope.scope.ParentContext, "returnByValue": true, "expression": "globalThis.__couchcastSketchSubmissionPreviewStale&&globalThis.__couchcastSketchSubmissionPreviewStale(" + string(data) + ")"}, nil)
 }
 
+// SubmissionUnsavedNote names a note the operator is still writing in the cast's
+// page -- an unsaved draft, or an edit not yet saved -- or returns "" (pair#849).
+// One bounded evaluation; a page without the operator UI has nothing unsaved.
+func (c *Chrome) SubmissionUnsavedNote(ctx context.Context) (string, error) {
+	p := &c.submissionPreview
+	p.mu.Lock()
+	scope := p.scope
+	p.mu.Unlock()
+	if scope == nil || c.conn == nil {
+		return "", nil
+	}
+	var result struct {
+		Result struct {
+			Value *struct {
+				Draft bool   `json:"draft"`
+				ID    string `json:"id"`
+				Text  string `json:"text"`
+			} `json:"value"`
+		} `json:"result"`
+		Exception json.RawMessage `json:"exceptionDetails"`
+	}
+	bounded, cancel := context.WithTimeout(ctx, callTimeout)
+	defer cancel()
+	if err := c.conn.Call(bounded, scope.scope.ParentSession, "Runtime.evaluate", map[string]any{"contextId": scope.scope.ParentContext, "returnByValue": true, "expression": "globalThis.__couchcastNoteUnsaved?.()??null"}, &result); err != nil {
+		return "", err
+	}
+	if len(result.Exception) > 0 {
+		return "", errors.New("the page could not report unsaved notes")
+	}
+	switch v := result.Result.Value; {
+	case v == nil:
+		return "", nil
+	case v.Draft:
+		return "a new note is not saved yet", nil
+	default:
+		return fmt.Sprintf("note %q has unsaved edits", excerpt(v.Text, 40)), nil
+	}
+}
+
+func excerpt(s string, n int) string {
+	r := []rune(strings.Join(strings.Fields(s), " "))
+	if len(r) <= n {
+		return string(r)
+	}
+	return string(r[:n]) + "…"
+}
+
 // Awaiting is one owned publication, never per-point state. Delivery progress
 // only wakes the manager when it can unblock a previously unavailable preview.
 func (c *Chrome) awaitSubmissionPreviewDelivery(host core.PreviewHost, operation uint64) bool {
@@ -418,6 +466,14 @@ func (c *Cast) MarkSubmissionPreviewStale(ctx context.Context, host core.Preview
 		return browser.MarkSubmissionPreviewStale(ctx, host, reason)
 	}
 	return ErrNotRecording
+}
+func (c *Cast) SubmissionUnsavedNote(ctx context.Context) (string, error) {
+	if browser, ok := c.browser.(interface {
+		SubmissionUnsavedNote(context.Context) (string, error)
+	}); ok {
+		return browser.SubmissionUnsavedNote(ctx)
+	}
+	return "", nil
 }
 func (c *Cast) PublishSubmissionPreview(ctx context.Context, p core.PreviewPublication) error {
 	if browser, ok := c.browser.(interface {

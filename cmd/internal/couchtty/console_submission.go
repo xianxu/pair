@@ -21,6 +21,12 @@ type submissionCast interface {
 	ResolveSubmission(context.Context, core.Submission) error
 }
 
+// submissionUnsavedCast names a note the operator is still writing, which a
+// press must not take from under them (pair#849).
+type submissionUnsavedCast interface {
+	SubmissionUnsavedNote(context.Context) (string, error)
+}
+
 // The manager owns one bounded background operation. Files are the authority;
 // the one volatile receipt only describes work not yet published to the store.
 type submissionManager struct {
@@ -73,26 +79,6 @@ func (c *Console) submissionCast() (submissionCast, error) {
 	return c.wcast.cast, nil
 }
 
-// prepareMoved names what changed while prepare read outside the lock.
-func prepareMoved(ended, restarted, host, delivered, job, cast, board bool) string {
-	switch {
-	case ended:
-		return "the request ended"
-	case restarted:
-		return "the preview restarted"
-	case host:
-		return "the private console host changed"
-	case delivered:
-		return "a delivery completed"
-	case job:
-		return "another submission started"
-	case cast:
-		return "the cast changed"
-	case board:
-		return "the feedback changed while it was read"
-	}
-	return ""
-}
 func (c *Console) submissionReplay(ctx context.Context, id string) (string, error) {
 	if err := ctx.Err(); err != nil {
 		return "", err
@@ -184,54 +170,56 @@ func (m *submissionManager) request(ctx context.Context, op, id string, target c
 			m.job = job
 			return job.status, nil
 		}
+		// The press takes the board's feedback as it is now (pair#849): the
+		// preview is display only, and a page that keeps changing never
+		// refuses. Release ownership for the bounded reads; everything they
+		// could invalidate is checked again below.
+		priorJob, deliveryGeneration := m.job, m.deliveredGeneration
+		m.mu.Unlock()
+		delivered, readErr := m.store.DeliveredFeedbackVersions(filepath.Base(cast.RecordingPath()))
+		var unsaved string
+		if readErr == nil {
+			if notes, ok := cast.(submissionUnsavedCast); ok {
+				unsaved, readErr = notes.SubmissionUnsavedNote(ctx)
+			}
+		}
+		m.mu.Lock()
+		if readErr != nil {
+			return couchmessage.SubmissionStatus{}, fmt.Errorf("the feedback could not be read: %w", readErr)
+		}
+		if unsaved != "" {
+			return couchmessage.SubmissionStatus{}, fmt.Errorf("%s; save or cancel it, then submit again", unsaved)
+		}
+		if err := errors.Join(m.ctx.Err(), ctx.Err()); err != nil {
+			return couchmessage.SubmissionStatus{}, err
+		}
+		if m.job != priorJob || (m.job != nil && m.job.busy) {
+			return couchmessage.SubmissionStatus{}, errors.New("a submission is already being prepared or resolved")
+		}
+		if current, err := m.current(); err != nil || current != cast {
+			return couchmessage.SubmissionStatus{}, errors.New("the cast changed; submit again")
+		}
+		if m.deliveredGeneration != deliveryGeneration {
+			return couchmessage.SubmissionStatus{}, errors.New("a delivery completed meanwhile; submit again")
+		}
+		if err := m.guard(target); err != nil {
+			return couchmessage.SubmissionStatus{}, err
+		}
+		// Another caller may have prepared this identity while IO was outside
+		// the lock, even when its background operation has already finished.
+		if existing, readErr := m.store.ReadMetadata(id); readErr == nil {
+			if existing.Target != target {
+				return couchmessage.SubmissionStatus{}, errors.New("submission belongs to another target")
+			}
+			return m.status(existing), nil
+		} else if !errors.Is(readErr, os.ErrNotExist) {
+			return couchmessage.SubmissionStatus{}, readErr
+		}
 		selected, e := cast.SubmissionSelection()
 		if e != nil {
 			return couchmessage.SubmissionStatus{}, e
 		}
-		var fresh *core.PreviewSelection
-		if len(selected.Sketches) > 0 || len(selected.Notes) > 0 {
-			run := m.previewRun
-			if run == nil || run.cast != cast {
-				return couchmessage.SubmissionStatus{}, m.refusePreviewLocked("no preview is running for this cast")
-			}
-			host, deliveryGeneration := run.host, m.deliveredGeneration
-			// Release ownership only for bounded external reads. Every state used
-			// below is checked again before the atomic Board freeze.
-			priorJob := m.job
-			m.mu.Unlock()
-			delivered, readErr := m.store.DeliveredFeedbackVersions(filepath.Base(cast.RecordingPath()))
-			var proposal core.PreviewSelection
-			if readErr == nil {
-				proposal, readErr = readVisibleSubmissionPreview(ctx, run.cast, host, selected, delivered, deliveryGeneration)
-			}
-			m.mu.Lock()
-			if readErr != nil {
-				return couchmessage.SubmissionStatus{}, m.refusePreviewLocked("the feedback could not be read again: " + readErr.Error())
-			}
-			current, currentErr := m.current()
-			latest, latestErr := cast.SubmissionSelection()
-			if why := prepareMoved(m.ctx.Err() != nil || ctx.Err() != nil, m.previewRun != run, run.host != host, m.deliveredGeneration != deliveryGeneration, m.job != priorJob || (m.job != nil && m.job.busy), currentErr != nil || current != cast, latestErr != nil || latest.SketchGeneration != selected.SketchGeneration); why != "" {
-				return couchmessage.SubmissionStatus{}, m.refusePreviewLocked(why)
-			}
-			if err := m.guard(target); err != nil {
-				return couchmessage.SubmissionStatus{}, err
-			}
-			// Another caller may have prepared this identity while IO was outside
-			// the lock, even when its background operation has already finished.
-			if existing, readErr := m.store.ReadMetadata(id); readErr == nil {
-				if existing.Target != target {
-					return couchmessage.SubmissionStatus{}, errors.New("submission belongs to another target")
-				}
-				return m.status(existing), nil
-			} else if !errors.Is(readErr, os.ErrNotExist) {
-				return couchmessage.SubmissionStatus{}, readErr
-			}
-			fresh = &proposal
-		}
-		selected, e = m.freezeSubmissionPreview(cast, selected, fresh)
-		if e != nil {
-			return couchmessage.SubmissionStatus{}, e
-		}
+		selected = selected.PressSelection(delivered)
 		if len(selected.Notes) == 0 && len(selected.Sketches) == 0 {
 			m.job = job
 			return job.status, nil
