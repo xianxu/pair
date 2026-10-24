@@ -214,6 +214,12 @@ TL127c9333 directs a main comparison before further title diagnostics: run main 
 
 Main fetched and detached scratch checkout created at /Volumes/TestScratch/pair866-main-go-buzlps33/repo, exact Git head e2f58424b124c38b4340acee459f21fa009394f2 (latest issue877 filing; clean before run). Running bash tests/lib/with-pair-test-binary.sh go test ./... -count=1 -timeout20m, GOFLAGS -p=3 -trimpath, TMPDIR and GOTMPDIR /Volumes/TestScratch/tmp/pair-slot5, matching the full local candidate command. Metadata /Volumes/TestScratch/pair866-main-go-buzlps33/metadata.json; complete output retained at go.log and result/hash written at completion. No edits to main source or any peer checkout. Retain/watch owned terminal3028 for actual result; source issue branch remains in pair:5.
 
+### 2026-10-24 — main comparison outcome; title cases remain866-owned
+
+Main comparison completed exactly once, exit1, source still clean at e2f58424b124c38b4340acee459f21fa009394f2. Complete log /Volumes/TestScratch/pair866-main-go-buzlps33/go.log SHA2569cfce92fe2f6bc9ca95f7e03b478728ddbdff02d0027734b7e08e349f6ec59b9; metadata/result retained beside it. wrapcmd PASS117.037s (all three title cases pass), couchcore PASS947.531s (including877 in this sample). Only main failures: agentfixture.TestCLILiveLeaderCancellationJoinsBeforeCompletion, already869 per TL, and TestRunStopAfterOrdinaryRequestQuotaExhausted (observation deadline, failed cleanup join and actor/results nonempty). Detached scratch source worktree removed after completed result and exact-head/clean verification; captures remain.
+
+Outcome reported hub96e1c20c. TL233cf35e confirms title diagnosis stays with866 and directs separate unclaimed quota-cleanup filing unless one exists. Exact-test/contour search of current origin/main active issues finds no duplicate;794 concerns build/provision wrapper descendants, a different test/package contour. Creation is in progress. No title flake registration, because main did not reproduce those failures. Continue corrected866 full Go with the staged helper-entry/stack diagnostics, without overlapping another local target sweep; all41 non-Go targets already passed on unchanged runtime source.
+
 ## Revisions
 
 ### 2026-10-24 — final plan bookkeeping and source ownership
