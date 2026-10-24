@@ -39,7 +39,7 @@ Seam: profiling_model.go/model_test.go from a40b597e; profiling.go/profiling_tes
 
 ## Plan
 
-- [ ] Execute [the extraction plan](../plans/000871-couch-opt-in-launch-profiler-plan.md): preserve the approved finite lifecycle and launch/env ownership, exclude scaled/native harness consumers.
+- [x] Execute [the extraction plan](../plans/000871-couch-opt-in-launch-profiler-plan.md): preserve the approved finite lifecycle and launch/env ownership, exclude scaled/native harness consumers.
 - [ ] Qualify deterministic ownership/fault/disabled controls, counted output bounds, real pprof parsing, inventory and pre-close; close, land and report the invocation for the operator's later restart decision.
 
 ## Log
@@ -75,3 +75,13 @@ total: 0.804
 ### 2026-10-24 — plan-quality cleared
 
 PQ-1 addressed by function-level adversarial strategies, no behavioral design delta; round2 CLEAN. Derived the estimate only after that result. TL confirmed no native/scaled consumers and requested two operator lines; supplied exact COUCH_PROFILE_DIR invocation/new private destination and fixed output names, receipt59fe53b3 submitted.
+
+### 2026-10-24 — selective extraction and verification
+
+Change-code full flow passed plan-quality (PQ-1 addressed) and estimate-quality INFO. The adapter primitive includes controlled/race/runtime qualification; launch integration includes reader audits and merge adaptation, and the review primitive includes active pre-close/landing checks. Queue idle alone is excluded; no check/reviewer execution is excluded from actuals.
+
+Imported exactly the four profiler/model source and test files from the named commits, unchanged (git diff against88c6b328 empty for all four). Main reconciled the selected finisher, child env, README, original atlas, index and two manifest exclusions. No native or scaled consumer, workload.go or Fleet change. Initial focused compile RED on missing profiler types; after source import, child-env regression RED1.321s demonstrated leaked opt-in. Environment clearing GREEN in original focused cohort1.867s, including real CPU and both alloc profiles parsed by go tool pprof against os.Executable.
+
+Added profiling_faults_test.go through a bounded test-only subagent: partial reservation closure, after-snapshot failure retention, short-progress handling, pre-cancel zero effects and counted N16/2N32 output saturation. Combined race qualification of all profile/parser/child-env tests PASS2.908s; earlier original ownership race PASS1.689s. Counted sink permits35bytes/5calls/1close independent of N/2N; bypass negative control exposes all calls/bytes. A compiler overlay removing only the production truncation guard makes both N/2N cases fail on8bytes versus3 at saturation (package0.382s, exit1); actual source untouched, retained writer-bound-negative-control.log. Artifact classification PASS3.259s.
+
+Reader audit: singleton_runtime_test.go reads only its disposable roots/child-env file, same local_or_literal_fixture ownership; updated only its named certificate. New profiler/model/fault tests read private output paths or use the current test executable and Go tool, with no repository path scan or native-owner helper; the inventory does not classify them as repository readers. No stale #865 certificate copied. Current make test-affected-inventory passed. Profiling is still opt-in, no real fleet/window/restart/stage or workload cost claim.

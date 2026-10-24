@@ -62,10 +62,10 @@ There is no retry, network listener, agent-system message or automation-gate dep
 
 ## Implementation and verification
 
-- [ ] Import the pure/model and adapter tests first; run the focused command to establish missing-profiler RED on main-based #871. Import the selected implementation and reconcile only named current-main launch/env/docs/artifact seams.
-- [ ] Qualify the production functions through the adversarial strategies below, keeping individual fault cases in executable tests. No new profiling mechanism is introduced.
-- [ ] Run `go test ./cmd/internal/couchcmd -run '^(TestProfile|TestParseProfileRequest|TestSingletonChildUsesSelectedRoots)' -count=1`. It includes actual CPU/alloc runtime files and three real `go tool pprof -top` reads against os.Executable. Run the model/window/launch cohort with `-race` after deterministic tests pass.
-- [ ] Audit launch-only integration on current main, preserve the existing Console finisher and child environment ownership. Validate artifact manifest and changed reader inventory; run make test-affected-inventory and git diff --check. No scaled harness or native conformance file should appear in the final diff.
+- [x] Import the pure/model and adapter tests first; run the focused command to establish missing-profiler RED on main-based #871. Import the selected implementation and reconcile only named current-main launch/env/docs/artifact seams.
+- [x] Qualify the production functions through the adversarial strategies below, keeping individual fault cases in executable tests. No new profiling mechanism is introduced.
+- [x] Run `go test ./cmd/internal/couchcmd -run '^(TestProfile|TestParseProfileRequest|TestSingletonChildUsesSelectedRoots)' -count=1`. It includes actual CPU/alloc runtime files and three real `go tool pprof -top` reads against os.Executable. Run the model/window/launch cohort with `-race` after deterministic tests pass.
+- [x] Audit launch-only integration on current main, preserve the existing Console finisher and child environment ownership. Validate artifact manifest and changed reader inventory; run make test-affected-inventory and git diff --check. No scaled harness or native conformance file should appear in the final diff.
 - [ ] Update issue Log with source provenance, red/green/fault/runtime results, and limits. Commit/push, run `sdlc local-check run --pre-close`, close with the binary-owned review, then promptly enter `sdlc merge --yes` on SHIP. The merge turn owns any later main integration and full suite. No manual chase of main after branch verification.
 - [ ] Verify PR, merge ancestry, tracker done/archive, clean retained workspace; send TL the actual pin and invocation `COUCH_PROFILE_DIR="$HOME/new-profile-dir" couch`. The TL/operator separately decides when to restart. Stop after landing.
 
