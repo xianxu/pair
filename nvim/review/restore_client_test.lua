@@ -45,6 +45,9 @@ local function scenario(config)
     prompt=function() effects[#effects+1]='prompt' end,
     notify=function(msg) notifications[#notifications+1]=msg end,
     run=function(cmd, opts, cb)
+      if vim.tbl_contains(cmd,'list-panes') or vim.tbl_contains(cmd,'are-floating-panes-visible') or vim.tbl_contains(cmd,'show-floating-panes') then
+        assert(vim.deep_equal(vim.list_slice(cmd,1,4),{'/pair','internal','zellij-command','--'}), 'native action must cross guarded Pair helper')
+      end
       calls[#calls+1]=cmd
       local result={code=0,stdout='',stderr=''}
       if vim.tbl_contains(cmd,'--resolve') then

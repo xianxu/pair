@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	"github.com/xianxu/pair/cmd/internal/zellijexec"
+	"github.com/xianxu/pair/cmd/internal/zellijquery"
 )
 
 // Exact native 0.45.1 rows from the #761 three-session capture (186 bytes).
@@ -81,6 +82,29 @@ func nativeSocketFixtureRoot(t *testing.T, relativeSocket string) string {
 	return root
 }
 
+// qualifyLookupSocketFixture uses the production creator path to mark the
+// selected private endpoint. This admits fake observations without relaxing
+// readiness policy or certifying any unrelated cleaned spelling of its root.
+func qualifyLookupSocketFixture(t *testing.T, session string) {
+	t.Helper()
+	namespace, err := zellijquery.ReadinessNamespace(nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	identity := zellijquery.ReadyIdentity{Namespace: namespace, Scope: "fixture-scope", Tag: "fixture", Agent: "claude", Session: session, Nonce: "lookup-fixture-start"}
+	creator, err := zellijquery.AcquireCreator(t.Context(), nil, identity)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer creator.Close()
+	if err := creator.Prepare(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	if err := creator.PublishReady(t.Context(), identity); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func lookupMissSocketFixture(t *testing.T, name string) string {
 	t.Helper()
 	root := nativeSocketFixtureRoot(t, filepath.Join("contract_version_1", name))
@@ -99,6 +123,7 @@ func lookupMissSocketFixture(t *testing.T, name string) string {
 			t.Error(err)
 		}
 	})
+	qualifyLookupSocketFixture(t, name)
 	return path
 }
 

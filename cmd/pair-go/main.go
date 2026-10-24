@@ -7,7 +7,10 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
+	"os/signal"
 	"path/filepath"
+	"syscall"
 	"time"
 
 	"github.com/xianxu/pair/cmd/internal/archivecmd"
@@ -30,6 +33,7 @@ import (
 	"github.com/xianxu/pair/cmd/internal/titlepoller"
 	"github.com/xianxu/pair/cmd/internal/vmcmd"
 	"github.com/xianxu/pair/cmd/internal/wrapcmd"
+	"github.com/xianxu/pair/cmd/internal/zellijquery"
 )
 
 var defaultPairHome string
@@ -55,13 +59,29 @@ type legacyRuntime interface {
 }
 
 func runWithLegacyRuntime(args []string, stdout, stderr io.Writer, rt legacyRuntime) int {
+	if len(args) >= 2 && args[0] == "internal" && args[1] == "zellij-command" {
+		if len(args) < 4 || args[2] != "--" || !zellijquery.IsBoundedNativeCommand(args[3:]) {
+			fmt.Fprintln(stderr, "pair zellij-command: expected -- followed by bounded native argv")
+			return 2
+		}
+		ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGTERM, syscall.SIGINT, syscall.SIGHUP)
+		defer stop()
+		if err := zellijquery.RunNativeCommand(ctx, args[3:], nil, os.Stdin, stdout, stderr); err != nil {
+			if exit, ok := err.(*exec.ExitError); ok && exit.ExitCode() > 0 {
+				return exit.ExitCode()
+			}
+			fmt.Fprintln(stderr, "pair zellij-command:", err)
+			return 1
+		}
+		return 0
+	}
 	if len(args) >= 2 && args[0] == "internal" && args[1] == "pane-ready" {
 		if len(args) != 2 {
-			fmt.Fprintln(stderr, "pair pane-ready: unexpected arguments")
+			fmt.Fprintf(stderr, "pair pane-ready: unexpected arguments\n")
 			return 2
 		}
 		if err := launcher.PublishPaneReady(context.Background(), os.Environ()); err != nil {
-			fmt.Fprintln(stderr, "pair pane-ready:", err)
+			fmt.Fprintf(stderr, "pair pane-ready: %v\n", err)
 			return 2
 		}
 		return 0

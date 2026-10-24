@@ -60,6 +60,7 @@ import (
 	"github.com/xianxu/pair/cmd/internal/ansi"
 	"github.com/xianxu/pair/cmd/internal/diagnosticlog"
 	"github.com/xianxu/pair/cmd/internal/lifetimelease"
+	"github.com/xianxu/pair/cmd/internal/zellijquery"
 	"golang.org/x/term"
 
 	"github.com/xianxu/pair/cmd/internal/adapt"
@@ -1957,10 +1958,10 @@ func (p *proxy) executeWorkbenchDecision(decision workbenchshortcut.ShortcutDeci
 		_ = layoutcmd.FocusRightTerminal(layoutcmd.OSRuntime{})
 		return true
 	case workbenchshortcut.ActionOpenScrollback:
-		_ = exec.Command("zellij", "run",
+		_ = zellijquery.RunNativeCommand(context.Background(), []string{"run",
 			"--floating", "--close-on-exit", "--name", "scrollback",
 			"--width", "100%", "--height", "100%", "--x", "0", "--y", "0",
-			"--", "pair", "scrollback", "open").Run()
+			"--", "pair", "scrollback", "open"}, nil, nil, nil, nil)
 		return true
 	case workbenchshortcut.ActionConfirmCompact:
 		_ = runZellijAction("move-focus", "down")
@@ -1985,7 +1986,7 @@ func (p *proxy) handleWorkbenchShortcut(name string) bool {
 
 func runZellijAction(args ...string) error {
 	cmdArgs := append([]string{"action"}, args...)
-	return exec.Command("zellij", cmdArgs...).Run()
+	return zellijquery.RunNativeCommand(context.Background(), cmdArgs, nil, nil, nil, nil)
 }
 
 type osDraftRouteRuntime struct{}

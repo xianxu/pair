@@ -33,6 +33,9 @@ var errSessionNameTooLong = errors.New("session name too long")
 // ZellijSource reads zellij session state through the zellij CLI.
 type ZellijSource struct {
 	Path string
+	// explicitRecovery preserves authorized recovery on unmarked endpoints;
+	// automatic observers always retain positive readiness qualification.
+	explicitRecovery bool
 	// queryRun is the synchronous process-ownership boundary. Nil uses the OS collector.
 	queryRun func(*exec.Cmd) error
 	// Listings, when set, answers the full list-sessions reply from a poller's
@@ -173,7 +176,7 @@ func WithZellijQueryObserver(ctx context.Context, observe func(ZellijQueryObserv
 }
 
 func (s ZellijSource) runContext(ctx context.Context, args ...string) ([]byte, error) {
-	result, err := (zellijquery.Source{Path: s.Path, Run: s.queryRun}).ReadContext(ctx, args...)
+	result, err := (zellijquery.Source{Path: s.Path, Run: s.queryRun, ExplicitRecovery: s.explicitRecovery}).ReadContext(ctx, args...)
 	// Preserve the launcher's historical refusal for an unanswered unsupported
 	// request; screen-reading consumers use the shared source directly.
 	if err == nil && result.ProcessErr == nil && zellijReadKind(args) == zellijUnknownReply && len(bytes.TrimSpace(result.Stdout)) == 0 {

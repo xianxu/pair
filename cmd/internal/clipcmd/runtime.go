@@ -189,7 +189,7 @@ func nativePaneID(id string) string {
 	return "terminal_" + id
 }
 func (OSRuntime) SetPaneColor(id, bg string) error {
-	return exec.Command("zellij", "action", "set-pane-color", "--pane-id", nativePaneID(id), "--bg", bg).Run()
+	return zellijquery.RunNativeCommand(context.Background(), []string{"action", "set-pane-color", "--pane-id", nativePaneID(id), "--bg", bg}, nil, nil, nil, nil)
 }
 
 // startDetached launches cmd in its own session (setsid) with /dev/null stdio and
@@ -220,8 +220,8 @@ func (OSRuntime) ResetPaneColorAfter(id string, d time.Duration) error {
 	// Pass secs + id as positional args to sh so nothing is interpolated into
 	// the script text (injection-safe, though ids come from zellij's own output).
 	return startDetached(exec.Command("sh", "-c",
-		`sleep "$1"; zellij action set-pane-color --pane-id "$2" --reset`,
-		"sh", secs, id))
+		`sleep "$1"; exec "$3" internal zellij-command -- action set-pane-color --pane-id "$2" --reset`,
+		"sh", secs, id, siblingPairExe(os.Getenv("PAIR_HOME"))))
 }
 
 // SpawnDetached starts path in its own session (setsid) with /dev/null stdio,
@@ -239,7 +239,7 @@ func (OSRuntime) FocusPaneContext(ctx context.Context, id string) error {
 		return err
 	}
 	target := "terminal_" + strings.TrimPrefix(id, "terminal_")
-	err := (layoutcmd.OSRuntime{}).RunZellijAction("focus-pane-id", target)
+	err := (layoutcmd.OSRuntime{}).RunZellijActionContext(ctx, "focus-pane-id", target)
 	if layoutcmd.IsAlreadyFocused(err, target) {
 		return nil
 	}
@@ -249,7 +249,7 @@ func (OSRuntime) WritePaneKeyContext(ctx context.Context, id string, b byte) err
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	return exec.Command("zellij", "action", "write", "--pane-id", "terminal_"+strings.TrimPrefix(id, "terminal_"), strconv.Itoa(int(b))).Run()
+	return zellijquery.RunNativeCommand(ctx, []string{"action", "write", "--pane-id", "terminal_" + strings.TrimPrefix(id, "terminal_"), strconv.Itoa(int(b))}, nil, nil, nil, nil)
 }
 
 // Log appends a line to the clipboard-debug.log diagnostic

@@ -23,10 +23,16 @@ set -eu
 
 REPO=$(cd "$(dirname "$0")/.." && pwd)
 export PAIR_TEST_ZELLIJ_REPLIES="$REPO/tests/lib/zellij_fixture_replies.py"
-tmp=$(mktemp -d "${TMPDIR:-/tmp}/pair-copyonselect.XXXXXX"); trap 'rm -rf "$tmp"' EXIT
+tmp=$(mktemp -d "${TMPDIR:-/tmp}/pair-copyonselect.XXXXXX") || exit 1
+trap 'status=$?
+  if [ "$status" -ne 0 ]; then
+    cat "$tmp/cache/pair/clipboard-debug.log" "$tmp/orchestrator.stderr" >&2 2>/dev/null || :
+  fi
+  rm -rf "${tmp:?}"' EXIT
 
 # The hook self-execs its `pair` sibling. Alias the shared image beside the
 # completion wrapper; copying it would trigger a new AMFI assessment (#749).
+export ZELLIJ_SOCKET_DIR="$tmp/native"
 export PAIR_HOME="$tmp/home"
 export PAIR_DATA_DIR="$tmp/data"
 export PAIR_TAG=t
@@ -41,10 +47,11 @@ PY
 fi
 export PAIR_TEST_COPY_BINARY="$PAIR_HOME/bin/pair-real"
 export PAIR_TEST_COPY_DONE="$tmp/done"
+export PAIR_TEST_COPY_LOG="$tmp/orchestrator.stderr"
 mkfifo "$PAIR_TEST_COPY_DONE"
 cat > "$PAIR_HOME/bin/pair" <<'SH'
 #!/bin/sh
-"$PAIR_TEST_COPY_BINARY" "$@"
+"$PAIR_TEST_COPY_BINARY" "$@" 2>>"$PAIR_TEST_COPY_LOG"
 result=$?
 printf '%s\n' "$result" > "$PAIR_TEST_COPY_DONE"
 exit "$result"

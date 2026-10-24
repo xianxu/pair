@@ -20,8 +20,12 @@ var ErrNoReply = errors.New("zellij query returned no reply")
 // Source configures one read boundary. Nil Env inherits the caller environment;
 // disposable fixtures supply their complete environment explicitly.
 type Source struct {
-	Path string
-	Env  []string
+	// ExplicitRecovery preserves an explicitly authorized lifecycle operation's
+	// access to unmarked sessions. It still waits for live creator exclusion.
+	// Automatic/background observations must leave this false.
+	ExplicitRecovery bool
+	Path             string
+	Env              []string
 	// Run defaults to zellijexec.Run, which owns and joins a private query
 	// group. A CLI already owning its whole group must select InheritedGroup
 	// so queries remain inside that owner's EOF/shutdown cleanup boundary.
@@ -136,7 +140,11 @@ func (s Source) readAttempt(ctx context.Context, callerDeadline time.Time, args 
 			})
 		}()
 	}
-	lease, err := AcquireProbe(ctx, cmd.Env)
+	acquire := AcquireProbe
+	if s.ExplicitRecovery {
+		acquire = AcquireExplicitCommand
+	}
+	lease, err := acquire(ctx, cmd.Env)
 	if err != nil {
 		result.ProcessErr = err
 		return result, err

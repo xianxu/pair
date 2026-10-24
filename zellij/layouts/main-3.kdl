@@ -42,7 +42,9 @@ layout {
                 // are exported by bin/pair before zellij launches, so the
                 // sh -c form below resolves them at exec time.
                 //
-                // The leading `zellij action rename-pane` overrides the
+                // Publish exact pane birth before guarded native commands: the creator
+                // releases namespace admission on this record, before agent readiness.
+                // The guarded rename overrides the
                 // layout's literal pane name ("agent") with the agent's
                 // binary name (PAIR_PANE_TITLE — claude / codex / agy),
                 // so the pane frame reads as that instead of the generic
@@ -52,7 +54,7 @@ layout {
                 // explicit targeting, this would silently rename draft.
                 // Errors swallowed: if the IPC call fails we still launch
                 // the agent.
-                args "-c" "printf '{\"pane_id\":\"%s\",\"cwd\":\"%s\"}\\n' \"$ZELLIJ_PANE_ID\" \"$PWD\" > \"$PAIR_AGENT_PANE_PATH\" 2>/dev/null; zellij action rename-pane --pane-id \"$ZELLIJ_PANE_ID\" \"${PAIR_PANE_TITLE:-agent}\" 2>/dev/null; exec pair wrap --scrollback-log \"$PAIR_SCROLLBACK_RAW_PATH\" --from-launch-env"
+                args "-c" "pair internal pane-ready; pair internal zellij-command -- action rename-pane --pane-id \"$ZELLIJ_PANE_ID\" \"${PAIR_PANE_TITLE:-agent}\" 2>/dev/null; exec pair wrap --scrollback-log \"$PAIR_SCROLLBACK_RAW_PATH\" --from-launch-env"
             }
             // Pane name "draft" appears in zellij's OSC 0 terminal title
             // ("<session>: draft") and propagates to the user's terminal /
@@ -86,7 +88,7 @@ layout {
         // for the base layout).
         pane name="terminal" borderless=true {
             command "sh"
-            args "-c" "zellij action rename-pane --pane-id \"$ZELLIJ_PANE_ID\" terminal 2>/dev/null; exec pair term"
+            args "-c" "pair internal zellij-command -- action rename-pane --pane-id \"$ZELLIJ_PANE_ID\" terminal 2>/dev/null; exec pair term"
         }
     }
 

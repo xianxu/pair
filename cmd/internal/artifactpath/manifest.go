@@ -60,6 +60,10 @@ var ResolvedBindings = append([]ResolvedBinding{
 	{Name: "editor-endpoint-state", Family: "editor-endpoint", Resolver: "EditorEndpoints", Member: "State"},
 	{Name: "editor-endpoint-stage", Family: "editor-endpoint", Resolver: "EditorEndpoints", Member: "Stage"},
 	{Name: "cache-session-lock", Family: "session-lock", Resolver: "ResolvePairCache", Member: "TerminalLease"},
+	// #866 readinessStore retains the resolved PairCachePaths as a typed field.
+	{Name: "cache-zellij-namespace-lease", Family: "zellij-namespace-lease", Resolver: "ResolvePairCache"},
+	{Name: "cache-zellij-ready-marker", Family: "zellij-ready-marker", Resolver: "ResolvePairCache"},
+	{Name: "composite-pane-checked", Family: "pane", Resolver: "Resolve", Member: "PaneChecked"},
 	{Name: "matched-changelog-family", Family: "changelog", Resolver: "MatchArtifact"},
 	{Name: "parsed-parked-capture", Family: "parked", Resolver: "ParseParkedCapture"},
 	{Name: "cache-native-lock", Family: "native-lock", Resolver: "ResolvePairCache", Member: "NativeLock"},
@@ -187,6 +191,8 @@ type SourceClassification struct {
 var Families = []Family{
 	{Name: "editor-endpoint", Token: "editor-endpoints"},
 	{Name: "session-lock", Token: "session-locks"},
+	{Name: "zellij-namespace-lease", Token: "zellij-scan-locks-v1"},
+	{Name: "zellij-ready-marker", Token: "zellij-ready-v1"},
 	{Name: "fullscreen-return", Token: "fullscreen-return-"},
 	{Name: "fullscreen-lock", Token: "fullscreen-lock-"},
 	{Name: "fullscreen-diagnostics", Token: "fullscreen-diagnostics-"},
@@ -274,6 +280,18 @@ var SourceClassifications = []SourceClassification{
 	{Path: "cmd/internal/nativelock/lock.go", Kind: ResolvedConsumer, Families: []string{"native-lock"}, BindingNames: []string{"cache-native-lock"}},
 	{Path: "cmd/internal/launcher/recovery_terminal_confirmed_owner.go", Kind: ResolvedConsumer},
 	{Path: "cmd/internal/artifactpath/session_lock.go", Kind: Constructor, Families: []string{"session-lock"}},
+	// #866 native readiness has one constructor authority and one bounded store.
+	{Path: "cmd/internal/artifactpath/zellij_readiness.go", Kind: Constructor, Families: []string{"zellij-namespace-lease", "zellij-ready-marker"}},
+	{Path: "cmd/internal/zellijquery/readiness_os.go", Kind: ResolvedConsumer, Families: []string{"zellij-namespace-lease", "zellij-ready-marker"}, BindingNames: []string{"cache-zellij-namespace-lease", "cache-zellij-ready-marker"}},
+	// Matching retirement consumes the store's resolved paths, never filename literals.
+	{Path: "cmd/internal/zellijquery/readiness_retirement.go", Kind: ResolvedConsumer},
+	{Path: "cmd/internal/launcher/pane_ready.go", Kind: ResolvedConsumer, Families: []string{"pane"}, BindingNames: []string{"scoped-pane"}},
+	{Path: "cmd/internal/panebirth/record.go", Kind: ResolvedConsumer, Families: []string{"pane"}, BindingNames: []string{"composite-pane-checked"}},
+	{Path: "cmd/pair-go/main.go", Kind: VocabularyConsumer, Families: []string{"pane"}, Vocabulary: []VocabularyAllowance{
+		goComparisonVocabulary("pane", "pane-ready", "runWithLegacyRuntime", 1),
+		goCallVocabulary("pane", "pair pane-ready: unexpected arguments\n", "fmt.Fprintf", 1, 1),
+		goCallVocabulary("pane", "pair pane-ready: %v\n", "fmt.Fprintf", 1, 1),
+	}},
 	{Path: "cmd/internal/launcher/session_handoff_os.go", Kind: ResolvedConsumer, Families: []string{"session-lock"}, BindingNames: []string{"cache-session-lock"}},
 	{Path: "cmd/internal/couchcmd/run.go", Kind: ResolvedConsumer},
 	{Path: "cmd/internal/scrollbackcmd/bounded.go", Kind: ResolvedConsumer},
@@ -511,7 +529,7 @@ var SourceClassifications = []SourceClassification{
 		goStructVocabulary("native-session", `json:"session_id"`, "SessionID", 1),
 	}},
 	{Path: "cmd/internal/titlepoller/runtime.go", Kind: ResolvedConsumer, Families: []string{"pane"}, BindingNames: []string{"scoped-pane-glob"}, Vocabulary: []VocabularyAllowance{
-		goCallVocabulary("pane", "--pane-id", "os/exec.Command", 5, 1),
+		goCallVocabulary("pane", "--pane-id", "os/exec.CommandContext", 6, 1),
 	}},
 	{Path: "cmd/internal/launcher/legacy_live.go", Kind: ResolvedConsumer, Families: []string{"pane"}, BindingNames: []string{"legacy-pane"}},
 	{Path: "cmd/internal/launcher/lifecycle.go", Kind: ResolvedConsumer,
@@ -676,6 +694,11 @@ var SourceClassifications = []SourceClassification{
 // the artifact namespace requires an explicit SourceClassification.
 // pair:m5-concept pure
 var NonArtifactSources = []string{
+	// #866 audited individually: native argv admission, generic file leases,
+	// and pure readiness qualification carry no artifact filename authority.
+	"cmd/internal/zellijquery/command.go",
+	"cmd/internal/zellijquery/lease.go",
+	"cmd/internal/zellijquery/readiness.go",
 	// #739 startup/automation/cue policy delegates to existing stores and
 	// transports; none constructs or names Pair artifact filenames.
 	"cmd/internal/couchcmd/automation.go",
@@ -1997,7 +2020,6 @@ var NonArtifactSources = []string{
 	"cmd/internal/zellijsession/zellijsession.go",
 	"cmd/internal/zellijtest/fake.go",
 	"cmd/internal/zellijtest/replies.go",
-	"cmd/pair-go/main.go",
 	"cmd/pair-launch-helper/main.go",
 	"cmd/probes/couchnestedrows/layout.kdl",
 	"cmd/probes/couchnestedrows/main.go",
@@ -2159,6 +2181,8 @@ type GCClassification struct {
 var GCClassifications = map[string]GCClassification{
 	"editor-endpoint":           {SessionRetention, GCProtected, "Couch EndpointOwner: exact process-incarnation collection; reusable stage after validated reopen"},
 	"session-lock":              {SessionRetention, GCProtected, "PairCachePaths.TerminalLease; stable coordination inode, never unlinked"},
+	"zellij-namespace-lease":    {SessionRetention, GCProtected, "PairCachePaths.ZellijNamespaceLease; fixed256 stable coordination inodes, never unlinked"},
+	"zellij-ready-marker":       {SessionRetention, GCProtected, "PairCachePaths.ZellijReadyMarker; at most128 current positive markers per namespace; exact-generation lifecycle retirement under namespace exclusion, never generic tag-age GC"},
 	"agent-default":             {SessionRetention, GCShared, "ScopePaths.AgentDefault"},
 	"native-lock":               {SessionRetention, GCProtected, "Permanent conversation flock inodes; never unlink online; operator-approved quiescent reclamation only"},
 	"native-session":            {SessionRetention, GCProtected, "LifecyclePaths.Request (embedded metadata only)"},

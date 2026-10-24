@@ -67,7 +67,10 @@ func TestEmbeddedMainLayoutsConsumeExactArtifactBindings(t *testing.T) {
 		if err != nil {
 			t.Fatalf("EmbeddedAsset(%s): %v", path, err)
 		}
-		for _, binding := range []string{"$PAIR_DRAFT_PATH", "$PAIR_NVIM_DRAFT_PID_PATH", "$PAIR_AGENT_PANE_PATH", "$PAIR_SCROLLBACK_RAW_PATH"} {
+		if !strings.Contains(string(data), "pair internal pane-ready;") {
+			t.Fatalf("%s must delegate scoped pane publication before native commands", path)
+		}
+		for _, binding := range []string{"$PAIR_DRAFT_PATH", "$PAIR_NVIM_DRAFT_PID_PATH", "$PAIR_SCROLLBACK_RAW_PATH"} {
 			if !strings.Contains(string(data), binding) {
 				t.Fatalf("%s must consume exact binding %s", path, binding)
 			}

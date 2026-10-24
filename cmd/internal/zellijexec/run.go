@@ -1,4 +1,4 @@
-// Package zellijexec owns synchronous read-only Zellij query processes.
+// Package zellijexec owns synchronous bounded Zellij command processes.
 package zellijexec
 
 import (
@@ -14,7 +14,8 @@ import (
 // Run joins a caller-configured exec.CommandContext and stops its private
 // process group on every completion path. The caller owns its context budget,
 // arguments, environment, and output observers. Use only for synchronous
-// read-only queries, never server creation, attach, or native mutations.
+// bounded commands, never server creation or interactive attach. Callers own
+// mutation authority and namespace admission separately.
 // With successful collection it returns the original subprocess error unchanged.
 // Cancellation/collection failures are joined; callers normalizing an exit
 // diagnostic must require a direct *exec.ExitError, never search a joined error.

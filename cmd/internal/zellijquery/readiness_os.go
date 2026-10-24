@@ -60,6 +60,13 @@ func newReadinessStore(env []string) (readinessStore, error) {
 // Canonicalize the existing ancestor without creating native directories. The
 // transport spelling is separately preserved for Unix pathname length limits.
 func canonicalNamespace(path string) (string, error) {
+	return canonicalNamespaceDepth(path, 0)
+}
+
+func canonicalNamespaceDepth(path string, links int) (string, error) {
+	if links > 255 {
+		return "", errors.New("native namespace contains too many symbolic links")
+	}
 	resolved, err := filepath.EvalSymlinks(path)
 	if err == nil {
 		return resolved, nil
@@ -67,15 +74,40 @@ func canonicalNamespace(path string) (string, error) {
 	if !errors.Is(err, os.ErrNotExist) {
 		return "", err
 	}
-	parent := filepath.Dir(path)
-	if parent == path {
-		return "", err
+	// Walk components in kernel order even when a later target is missing.
+	// Cleaning a symlink target first would change jump/../missing whenever
+	// jump names a directory elsewhere.
+	resolved = string(filepath.Separator)
+	components := strings.Split(path, string(filepath.Separator))
+	for index, component := range components {
+		if component == "" || component == "." {
+			continue
+		}
+		if component == ".." {
+			resolved = filepath.Dir(resolved)
+			continue
+		}
+		candidate := filepath.Join(resolved, component)
+		info, statErr := os.Lstat(candidate)
+		if statErr != nil && !errors.Is(statErr, os.ErrNotExist) {
+			return "", statErr
+		}
+		if statErr == nil && info.Mode()&os.ModeSymlink != 0 {
+			target, readErr := os.Readlink(candidate)
+			if readErr != nil {
+				return "", readErr
+			}
+			if !filepath.IsAbs(target) {
+				target = AppendNativeSocketPath(resolved, target)
+			}
+			if remainder := strings.Join(components[index+1:], string(filepath.Separator)); remainder != "" {
+				target = AppendNativeSocketPath(target, remainder)
+			}
+			return canonicalNamespaceDepth(target, links+1)
+		}
+		resolved = candidate
 	}
-	resolved, err = canonicalNamespace(parent)
-	if err != nil {
-		return "", err
-	}
-	return filepath.Join(resolved, filepath.Base(path)), nil
+	return resolved, nil
 }
 
 func ReadinessNamespace(env []string) (string, error) {
@@ -122,37 +154,72 @@ func (s readinessStore) marker(ctx context.Context, session string) (ReadyMarker
 	return DecodeReadyMarker(raw)
 }
 
-func (s readinessStore) qualify(ctx context.Context) error {
+func (s readinessStore) candidates() ([]string, error) {
 	entries, err := boundedDirectory(AppendNativeSocketPath(s.transport, "contract_version_1"), MaxReadySessions)
+	if err != nil {
+		return nil, err
+	}
+	candidates := make([]string, 0, len(entries))
+	for _, entry := range entries {
+		info, err := entry.Info()
+		if err != nil {
+			return nil, err
+		}
+		if info.Mode()&os.ModeSocket == 0 {
+			return nil, fmt.Errorf("unexpected native endpoint %s", entry.Name())
+		}
+		candidates = append(candidates, entry.Name())
+	}
+	return candidates, nil
+}
+
+func (s readinessStore) qualify(ctx context.Context) error {
+	return qualifyCandidates(ctx, s.namespace, s.candidates, s.marker)
+}
+
+// qualifyCandidates is the production admission pass, with passive filesystem
+// effects supplied explicitly so bounded work can be measured independently.
+func qualifyCandidates(ctx context.Context, namespace string, enumerate func() ([]string, error), readMarker func(context.Context, string) (ReadyMarker, error)) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	candidates, err := enumerate()
 	if err != nil {
 		return fmt.Errorf("%w: %v", ErrReadinessUnknown, err)
 	}
-	markers := make(map[string]ReadyMarker, len(entries))
-	candidates := make([]string, 0, len(entries))
-	for _, entry := range entries {
+	if len(candidates) > MaxReadySessions {
+		return fmt.Errorf("%w: readiness candidate limit exceeded", ErrReadinessUnknown)
+	}
+	for _, session := range candidates {
 		if err := ctx.Err(); err != nil {
 			return err
 		}
-		info, err := entry.Info()
+		marker, err := readMarker(ctx, session)
 		if err != nil {
-			return fmt.Errorf("%w: %v", ErrReadinessUnknown, err)
+			return fmt.Errorf("%w: %s: %v", ErrReadinessUnknown, session, err)
 		}
-		if info.Mode()&os.ModeSocket == 0 {
-			return fmt.Errorf("%w: unexpected native endpoint %s", ErrReadinessUnknown, entry.Name())
+		if err := QualifyReadyMarker(marker, namespace, session); err != nil {
+			return err
 		}
-		marker, err := s.marker(ctx, entry.Name())
-		if err != nil {
-			return fmt.Errorf("%w: %s: %v", ErrReadinessUnknown, entry.Name(), err)
-		}
-		candidates = append(candidates, entry.Name())
-		markers[entry.Name()] = marker
 	}
-	return PlanProbeAdmission(s.namespace, candidates, markers)
+	return nil
 }
 
 // AcquireProbe owns exclusion through the joined native invocation. A caller
 // holding a creator's explicit permit must not recursively call this function.
 func AcquireProbe(ctx context.Context, env []string) (io.Closer, error) {
+	return acquireNative(ctx, env, true)
+}
+
+// AcquireExplicitCommand serializes an explicitly authorized lifecycle command
+// with live creators without requiring positive readiness markers. This keeps
+// existing recovery available for legacy/unmarked endpoints; it grants no
+// retirement authority. Automatic background probes must use AcquireProbe.
+func AcquireExplicitCommand(ctx context.Context, env []string) (io.Closer, error) {
+	return acquireNative(ctx, env, false)
+}
+
+func acquireNative(ctx context.Context, env []string, requireReady bool) (io.Closer, error) {
 	s, err := newReadinessStore(env)
 	if err != nil {
 		return nil, err
@@ -161,8 +228,10 @@ func AcquireProbe(ctx context.Context, env []string) (io.Closer, error) {
 		if !permit.active.Load() || permit.namespace != s.namespace {
 			return nil, fmt.Errorf("%w: expired or foreign creator preflight permit", ErrReadinessUnknown)
 		}
-		if err := s.qualify(ctx); err != nil {
-			return nil, err
+		if requireReady {
+			if err := s.qualify(ctx); err != nil {
+				return nil, err
+			}
 		}
 		if err := ctx.Err(); err != nil {
 			return nil, err
@@ -173,8 +242,10 @@ func AcquireProbe(ctx context.Context, env []string) (io.Closer, error) {
 	if err != nil {
 		return nil, err
 	}
-	if err := s.qualify(ctx); err != nil {
-		return nil, errors.Join(err, lease.Close())
+	if requireReady {
+		if err := s.qualify(ctx); err != nil {
+			return nil, errors.Join(err, lease.Close())
+		}
 	}
 	if err := ctx.Err(); err != nil {
 		return nil, errors.Join(err, lease.Close())

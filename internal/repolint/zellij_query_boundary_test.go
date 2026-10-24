@@ -47,6 +47,13 @@ func read() { Command("zellij", "list-sessions") }`, 1},
 			repository := newFakeRepository()
 			repository.index[tc.path] = source
 			findings, _, count, err := scanTrackedWithRepository(repository, "repo", func(string) ([]byte, error) { return source, nil })
+			var boundary []locatedFinding
+			for _, finding := range findings {
+				if finding.Finding.Rule == "zellij-query-boundary" {
+					boundary = append(boundary, finding)
+				}
+			}
+			findings = boundary // other catalog rules have their own positive/negative controls
 			if err != nil || count != 1 || len(findings) != tc.want {
 				t.Fatalf("count=%d err=%v findings=%+v want=%d", count, err, findings, tc.want)
 			}
