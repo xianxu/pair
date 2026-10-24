@@ -48,12 +48,15 @@ A caller with more budget than the wait still gets a genuine busy after 1 s. No 
 
 ## Plan
 
-- [ ] `storeLockBound` in couchcore. `withUpdateLockContext` computes the bound inside the coordinator callback,
+- [x] `storeLockBound` in couchcore. `withUpdateLockContext` computes the bound inside the coordinator callback,
   maps a capped busy (or a cap already at zero) to `context.DeadlineExceeded`, and leaves an uncapped busy as it is.
-- [ ] Tests: a held `store.lock` with a check blind to the deadline returns `DeadlineExceeded` at the caller's
+- [x] Tests: a held `store.lock` with a check blind to the deadline returns `DeadlineExceeded` at the caller's
   deadline, not busy at 1 s (it shows busy on the old composition); with more budget than the wait, busy as before;
   `TestRepoConfigurationPublicationBoundsCompetingWriter` repeated under load.
 
 ## Log
 
 ### 2026-10-23
+
+- Implemented in c088041de. `storeWait{d, deadline}` carries the deadline mark into `acquireThreadStoreLockWithin`, so a genuine busy from inside the locked work (a nested preview lock) is never relabelled. `withStoreLockChecked` keeps its signature for the literal-0 callers; `withUpdateLockContext` uses `withStoreLockBounded`, computing the bound inside the coordinator callback, after the coordinator wait has spent budget.
+- Tests: `TestStoreLockWaitEndsAtTheCallerDeadline`. With a check blind to the deadline (the race), the fixed wait reports busy; the bounded wait reports `DeadlineExceeded` within the caller's budget, and a spent budget still reports the deadline. Mutation check: never capping fails it with "thread store busy; retry", the issue's symptom. `TestStoreLockWaitWithinBudgetStaysBusy` covers a caller with more budget. `TestRepoConfigurationPublicationBoundsCompetingWriter` passed 5/5 under load (the full couchcore package running beside it). The full couchcore package passes alone in 333 s. Two concurrent full runs each passed go test's default 10-minute timeout; the dump showed a test that had started 0 s before, not a hang.
