@@ -13,6 +13,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/xianxu/pair/cmd/internal/testpair"
 )
 
 func TestNamespaceCanonicalAliasesBeforeSocketDirectoryExists(t *testing.T) {
@@ -300,11 +302,7 @@ func TestNamespaceCanonicalDanglingAliasKeepsSymlinkParentTraversal(t *testing.T
 
 func TestExplicitRecoveryPreservesUnmarkedEndpointAccess(t *testing.T) {
 	env, identity := privateReadinessEnv(t)
-	shortRoot, err := os.MkdirTemp("", "q-")
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { _ = os.RemoveAll(shortRoot) })
+	shortRoot := testpair.ShortRoot(t)
 	identity.Namespace = shortRoot
 	env = append(env, "ZELLIJ_SOCKET_DIR="+shortRoot)
 	if err := os.MkdirAll(filepath.Join(shortRoot, "contract_version_1"), 0700); err != nil {
@@ -430,5 +428,17 @@ func TestBlockedAdmissionsAtEightAndSixteenNeverRunNative(t *testing.T) {
 				t.Fatalf("blocked native scans=%d", calls)
 			}
 		})
+	}
+}
+
+func TestExplicitRecoveryPreservesUnmarkedEndpointAccessWithLongTMPDIR(t *testing.T) {
+	longRoot := filepath.Join(t.TempDir(), strings.Repeat("long", 40))
+	if err := os.MkdirAll(longRoot, 0700); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("TMPDIR", longRoot)
+	t.Run("socket-safe-regression", TestExplicitRecoveryPreservesUnmarkedEndpointAccess)
+	if os.Getenv("TMPDIR") != longRoot {
+		t.Fatal("socket fixture changed inherited temporary directory")
 	}
 }

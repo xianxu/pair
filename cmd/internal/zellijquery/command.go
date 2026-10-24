@@ -87,7 +87,25 @@ func nativeCommandReads(args []string) bool {
 	if len(args) > 1 && (args[0] == "--session" || args[0] == "-s") {
 		args = args[2:]
 	}
-	return len(args) > 0 && (args[0] == "list-sessions" || len(args) > 1 && args[0] == "action" && len(args[1]) >= 5 && args[1][:5] == "list-")
+	if len(args) == 0 {
+		return false
+	}
+	if args[0] == "list-sessions" {
+		return true
+	}
+	if len(args) < 2 || args[0] != "action" {
+		return false
+	}
+	// Complete read-only CliAction class in supported Zellij0.45.1 (cli.rs at
+	// efd8fd5a). Readiness policy is independent of reply retry eligibility:
+	// visibility, tab names and dumps also open globally scanning clients.
+	switch args[1] {
+	case "list-clients", "list-panes", "list-tabs", "current-tab-info",
+		"are-floating-panes-visible", "dump-screen", "dump-layout", "query-tab-names":
+		return true
+	default:
+		return false
+	}
 }
 
 // RunNativeCommand is the shared shell/Lua/exec-helper argv seam. It accepts

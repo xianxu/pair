@@ -881,6 +881,21 @@ admitted, a working interactive client is independent of the startup deadline.
 Inspect an unconfirmed attempt with its existing recovery action before starting
 another one; expiration alone does not prove that the native agent is absent.
 
+Automatic observations refuse to probe a Zellij namespace containing an unknown
+or unmarked legacy session; they retain unknown state. When upgrading, rebuild
+Pair/Couch and relaunch the cooperating clients with the updated binaries.
+Running processes keep their old behavior. Use the existing recovery workflow to
+inspect and relaunch affected legacy threads. Explicit authorized recovery can
+still inspect unmarked endpoints after the live creator releases exclusion; it
+keeps its existing authorization checks. Unknown state or a readiness marker does
+not authorize stopping a session.
+
+Startup exclusion protects bounded native commands from cooperating clients
+while the creator is alive. Interactive attach/reconnect, creator death, and
+foreign or older clients remain outside that protection. See
+[Startup readiness and native exclusion](atlas/zellij-reply-safety.md#startup-readiness-and-native-exclusion-866)
+for the scope and limits.
+
 `couch --resume repo:N` and `couch --reboot repo:N --confirm` run one slot's step
 through the running Couch. Only an agent in a live Couch slot may call them: Couch
 checks its own records (the calling thread has a live pane, and its recorded launch

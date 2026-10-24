@@ -7,6 +7,8 @@ representative evidence, not an exhaustive index.
 
 ## Proof and verification
 
+- #866 BR-1/BR-2: Command names do not define read semantics: enumerate the supported native read class, including visibility, dumps and tab queries, and test the actual adapter against an unmarked endpoint. Unix-socket fixtures must use the shared short-root allocator even when an inherited temporary directory appears short locally; retain a long-TMPDIR control.
+
 - #866: Freeze the effective child environment before observing metadata and invoking a callback. Re-reading it when acquiring cleanup exclusion can lock a different namespace while removing the original namespace's evidence. Test environment changes during the callback and exact successor preservation.
 
 - #841 BR-1/BR-2/BR-3: For a conservative visual aid, match final fitted display words and permit false negatives. Exclude generated metadata and ambiguous path/link/bracket chunks; skip wrapped row edges that may be fragments. Source-substring projection fails when fitting removes zero-width characters. Use fixed-clock grammar boundaries and exact clipped-row accents, not a test satisfied by any earlier colored label.

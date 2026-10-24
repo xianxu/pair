@@ -117,6 +117,16 @@ Authenticated submitted TL a48aa40a directs pre-close/close now and defers the o
 
 Close stopped before fresh-context review: measured actual unavailable because `measurement branch proof: measurement snapshot does not serialize: json: error calling MarshalJSON for type *gatestate.MeasurementInputs: measurement exceeds 65536 bytes`. The gate directs TL/hub recovery of measurement evidence, then `sdlc actual --issue 866` and a normal close retry. Reported to hub; no guessed hours, no no-actual waiver, no review or codecomplete claim. Recorded full suite lease-1599648425 remains live/queued, advancing to position3. Preserve the runner/session and wait for canonical recovery while it proceeds.
 
+### 2026-10-24 — close review REWORK and bounded corrections
+
+Authenticated TL e1758d0c authorizes close with --no-actual for ariadne#593, retaining the exact refusal: `measurement branch proof: measurement snapshot does not serialize: json: error calling MarshalJSON for type *gatestate.MeasurementInputs: measurement exceeds 65536 bytes`. No typed hours. Normal close with that waiver dispatched the binary-owned review at50db793d; round1 returned REWORK (BR-1 through BR-4), not codecomplete.
+
+BR-1 reproduced non-list helper reads reaching an unmarked endpoint, then corrected the complete supported native read class in the existing admission seam. Actual CLI tests include refusal across four adapter spellings, positive-marker success and explicit rename/kill controls. BR-2 reproduced the Unix socket bind failure under long TMPDIR; the fixture now uses existing ShortRoot with a long-TMPDIR regression. BR-3 adds README rollout/relaunch and explicit recovery limits. BR-4 removes the unused pure prediction helper so production qualification remains the single policy. The durable plan appends this correction; lessons record the class-level regression controls.
+
+Complete corrected-head race packages passed: zellijquery22.776s, panebirth1.165s, pair-go29.732s, repolint59.915s and artifactpath47.773s. The sole changed reader was audited as private literals/self-subprocess, its individual certificate refreshed, and inventory passed.
+
+The old recorded run lease-1599648425 was cancelled through local-check after code-changing review; its runner confirmed suite-lock interruption and exit1. It supplies no pass. Complete targeted verification and corrected-head native qualification precede a new pushed-head recorded check and normal close retry. No operator staging or landing is claimed.
+
 ## Revisions
 
 ### 2026-10-24 — final plan bookkeeping and source ownership

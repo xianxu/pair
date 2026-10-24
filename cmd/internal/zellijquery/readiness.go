@@ -60,18 +60,3 @@ func QualifyReadyMarker(m ReadyMarker, namespace, session string) error {
 	}
 	return nil
 }
-
-// PlanProbeAdmission makes one pass over the complete passive namespace set.
-// A missing marker never becomes an empty native listing.
-func PlanProbeAdmission(namespace string, candidates []string, markers map[string]ReadyMarker) error {
-	for _, session := range candidates {
-		marker, ok := markers[session]
-		if !ok {
-			return fmt.Errorf("%w: %s has no exact-launch marker", ErrReadinessUnknown, session)
-		}
-		if err := QualifyReadyMarker(marker, namespace, session); err != nil {
-			return err
-		}
-	}
-	return nil
-}
