@@ -54,6 +54,48 @@ rounds:
       recipe: milestone-review
       isolation: fenced
       blocked: true
+    - reviewer_runs:
+        - version: 1
+          intent:
+            disposable_root: true
+            id: 3146359b-b465-48ce-a838-aba546717993
+            repository: github.com/xianxu/pair
+            issue_id: "000844"
+            recipe: milestone-review
+            round: 2
+            attempt: 1
+            agent: codex
+            root: /Volumes/TestScratch/review-checkouts/091905e0529f6c0e
+            reviewed_head: 0d4186bad3b010c4985057fd932cc61f2e056f56
+            slot: pair:1
+            requested_at: "2026-10-24T19:02:06.902029Z"
+          phase: finished
+          pid: 72536
+          started_at: "2026-10-24T19:02:07.00413Z"
+          finished_at: "2026-10-24T19:05:57.039641Z"
+          session_id: 01a16f4a-acce-77b2-8017-7f7d68907ce3
+          outcome: returned
+      "n": 2
+      timestamp: "2026-10-24T12:06:02-07:00"
+      dispatched: "2026-10-24T12:02:04-07:00"
+      agent: codex
+      reviewer: codex (openai; author openai)
+      dispose:
+        - id: BR-1
+          disposition: not-addressed
+          note: 'Original disconnect orderings are repaired; restoring pre-fix production code through a temporary Go overlay makes their regressions fail. The same clearance rule remains incomplete at cmd/internal/couchcmd/notice_delivery.go:247: epochs are scoped per hub root, but reconciliation compares counters across different owners. A deterministic real-service fixture holding four admissions, queuing a fifth notice under /repo1 at epoch 2, then moving its source to /repo0 at epoch 0 deletes the notice. Disconnecting /repo0 after the move also produces zero fallback projections. Preserve scoped generation provenance and distinguish owner handoff from automation revocation across pending and confirmed-refused paths.'
+          round: 2
+        - id: BR-2
+          disposition: addressed
+          note: README.md:1264-1268 and :1536-1543 now describe owning-hub routing, operator-owned exceptions, unavailable-owner fallback and connected-OFF suppression/no replay. These passages match couchcore.RouteNotice and the condition projections in attention.go and message_service.go.
+          round: 2
+        - id: BR-3
+          disposition: addressed
+          note: Both package inventories now delegate AST walking, receiver recognition and rejection fixtures to cmd/internal/testnotice/inventory.go, passing package-specific Projection and Forward configuration. The shared helper tests pass.
+          round: 2
+      recipe: milestone-review
+      isolation: fenced
+      blocked: true
 ---
 
 # Gate ledger — pair#844 (boundary-review)
@@ -72,8 +114,14 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-3** [Minor] `shared-analysis-single-source` (kind: defect) Producer inventory analysis is duplicated across packages
   cmd/internal/couchcmd/notice_class_inventory_test.go:44 and cmd/internal/couchtty/notice_class_inventory_test.go:44 contain near-identical AST walkers, receiver recognition, and rejection fixtures. ARCH-DRY: extract the common analysis into a shared test helper, passing package-specific audited projections and forwarders as configuration.
 
+## Round 2 — 2026-10-24T12:06:02-07:00 (codex) — BLOCKED
+
+### Disposed
+
+- BR-1 — not-addressed — Original disconnect orderings are repaired; restoring pre-fix production code through a temporary Go overlay makes their regressions fail. The same clearance rule remains incomplete at cmd/internal/couchcmd/notice_delivery.go:247: epochs are scoped per hub root, but reconciliation compares counters across different owners. A deterministic real-service fixture holding four admissions, queuing a fifth notice under /repo1 at epoch 2, then moving its source to /repo0 at epoch 0 deletes the notice. Disconnecting /repo0 after the move also produces zero fallback projections. Preserve scoped generation provenance and distinguish owner handoff from automation revocation across pending and confirmed-refused paths.
+- BR-2 — addressed — README.md:1264-1268 and :1536-1543 now describe owning-hub routing, operator-owned exceptions, unavailable-owner fallback and connected-OFF suppression/no replay. These passages match couchcore.RouteNotice and the condition projections in attention.go and message_service.go.
+- BR-3 — addressed — Both package inventories now delegate AST walking, receiver recognition and rejection fixtures to cmd/internal/testnotice/inventory.go, passing package-specific Projection and Forward configuration. The shared helper tests pass.
+
 ## Open findings
 
 - **BR-1** [Critical] `notice-owner-loss-fallback` (kind: defect) Losing the owning hub can silently retire undelivered diagnostics
-- **BR-2** [Important] `user-docs-behavior-parity` (kind: defect) README still promises the previous bell contents
-- **BR-3** [Minor] `shared-analysis-single-source` (kind: defect) Producer inventory analysis is duplicated across packages

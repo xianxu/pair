@@ -55,6 +55,8 @@ Durable plan: [human attention routing](../plans/000844-human-attention-routing-
 - [x] Sweep every producer, direct prompt/question/archive/stall path and duplicate-effect case.
 - [x] Complete atlas, audited reader inventory and start recorded pre-close verification.
 
+- [ ] Repair owner-scoped generation and refused-disposition transitions under the approved revised contract, then rerun verification.
+
 Workflow postconditions: binary-owned close review, PR/merge, then verify landing/archive/runner and report to hub.
 
 ## Log
@@ -153,6 +155,16 @@ Observed deterministic REDs: reducer confirmed-owner-loss produced no effect; ba
 Agent final broad race x3 passed (core 1.786s, cmd 3.842s). Main independently reran integrated race selection across core/tty/cmd/testnotice (TestNotice, ConsoleNotice, Condition, Picker, WaitNotice, WaitAutomation, Archive, AutomaticInputStall, Findings): PASS core 4.117s, tty 2.042s, cmd 5.112s, helper 1.146s. Main repolint catalog PASS 4.871s after the three fixed sleeps were removed. make test-affected-inventory and git diff --check PASS. README/architecture map and shared analyzer corrections are committed separately. No recorded check pass or live acceptance yet.
 
 NEXT ACTION: commit/push this verified fix, rerun the binary close review with the authorized precise actual waiver; satisfy any noon freshness refusal before queuing a new final-head recorded pre-close check. After review and recorded pass, send pair:4 head plus short operator checklist for the combined stage; do not touch pair:0 independently.
+
+### 2026-10-24 — round 2 REWORK; stop and re-plan
+
+Round 2 marked BR-2/BR-3 addressed, retained BR-1 Critical: pending source handoff from /repo1 epoch2 to /repo0 epoch0 wrongly compares different root-scoped counters and clears the notice; destination loss then gets zero fallback. Existing disconnect regressions were independently verified red against pre-fix overlays. No full check queued.
+
+Independent scratch audit while review ran (no shared source edits) also reproduced unknown-readiness losses: a pending identity witness returns Booting epoch0 and clears known-epoch pending work; retaining epoch alone lets a later OFF/ON overwrite the generation because Booting is exempted; a confirmed guarded refusal during unknown readiness retires without later fallback. Main independently reproduced TestNoticeOverlayUnknownReadinessPreservesPending RED via scratch overlay. Scratch-only two-part pending correction passes race x3, but guarded-refusal case remains RED and is deliberately not patched incrementally.
+
+Stopped under the worker third-delta rule and appended a revised owner-scoped/disposition transition contract to the durable plan. Alternatives reject freezing the old owner forever or silently retiring unknown work, because both violate existing approved policy. Proposal adds only one phase in the existing bounded reducer for confirmed-refused local disposition, plus memory-only root-scoped generation observation. Awaiting TL approval before production changes and change-code re-admission. Hub stop report 5b0d9e91-f370-4824-bdf5-5674e7ad26ba sent; receipt must be checked.
+
+NEXT ACTION: present the committed revised plan to hub and await approval. No source changes, suite, stage or new close until approval; afterward change-code, deterministic red/green transition matrix, final pushed recorded check, close review and combined live look.
 
 ## Estimate
 

@@ -201,3 +201,54 @@ Approve the typed table, four-worker/128-entry dispatcher and the single aggrega
 - 2026-10-24: BR-2 user-documentation sweep includes both README warning/list descriptions as well as the atlas; state owning-hub routing, operator-owned exceptions, unavailable fallback and connected-OFF no replay consistently. BR-3 requests consolidating the duplicated inventory analyzer with package-specific projection/forwarder configuration.
 
 - 2026-10-24: ops:0 approved BR-1's bounded identity retention in authenticated submitted delivery 600b1333-b9a6-46a5-8dc8-ce8f929e811c: one Root string on NoticeDeliveryOwner, resolved from existing authority and copied at publication into existing occurrence.OwnerRoot. Current verified source ownership still wins; after source removal its retained exact root preserves the original automation generation, never arbitrary primary. No queue, retry, wire or durable-state change. Regressions remove both source and owner around pending/guarded admission boundaries.
+
+## Revisions — 2026-10-24: owner-scoped generation and refused disposition re-plan (awaiting TL)
+
+Round 2 disposed BR-2/BR-3 addressed but retained BR-1: epochs are scoped by hub root, so comparing old-owner epoch 2 to destination epoch 0 is not revocation evidence. Independent scratch overlays also prove unknown readiness currently erases pending obligations and confirmed refusals. Stop incremental fixes. This section supersedes the earlier epoch-comparison and refusal-retirement details; approved product policy, bounds and canonical ingress remain unchanged. No implementation of this revision before TL approval and change-code admission.
+
+### Alternatives and decision
+
+1. Freeze the original recipient forever: simplest state, but violates the existing pending-handoff rule and current verified ownership taking precedence.
+2. Retire every unknown/refused/handoff case feed-only: smallest patch, but violates unavailable-owner fallback; readiness uncertainty is not permission to forget an obligation.
+3. Recommended: retain owner-scoped generation facts and add one explicit AwaitingDisposition phase for confirmed refusal. It can wait for local bell/feed disposition without ever admitting again. This preserves the original product policy with one new phase in the existing bounded state, not another queue, retry or worker.
+
+### Core concepts delta
+
+| Entity | Kind | Location | Change |
+|---|---|---|---|
+| NoticeDeliveryOwner (Root, Epoch) | PURE | cmd/internal/couchcore/notice_delivery.go | existing owner identity; counters comparable only within Root |
+| AdvanceNoticeDelivery / NoticeDeliveryEvent | PURE | cmd/internal/couchcore/notice_delivery.go | explicit Revoked observation and AwaitingDisposition phase; all routing/retirement decisions in reducer |
+| NoticeDeliveryBackend generation witness | INTEGRATION | cmd/internal/couchtty/console_notice_route.go; couchcmd/notice_delivery_backend.go | memory-only NoticeOwnerCurrent(owner) checks the retained root's current automation epoch, not a different recipient's counter |
+| noticeDelivery reconciliation | INTEGRATION | cmd/internal/couchcmd/notice_delivery.go | observe original-root validity separately from current ownership/readiness; pass facts into reducer |
+
+One entry retains its current owner fact. Before a pending handoff, validate that fact within its Root; a different current Root is a handoff, never a counter comparison. If accepted, the destination owner fact becomes the generation witness for subsequent observations. No additional persistent root lineage, map or journal. Revocation after an accepted handoff concerns the new owner, not a hub that no longer owns the source. AwaitingDisposition follows the same ownership observations but has no Admit transition.
+
+### State/event and visible recovery contract
+
+Actions remain the existing view feed, open/dismiss bell, and hub/operator action; no retry control is added. All local tracking still expires at two minutes or Console shutdown. Feed was published once before these transitions.
+
+| Prior state / observation | Result / visible state | Recovery / possible loss |
+|---|---|---|
+| Pending; prior rooted generation revoked | retire feed-only, even if ownership moved or OFF/ON returned | inspect feed; no automatic replay |
+| Pending; current same/moved owner enabled, prior generation valid | adopt current Root/epoch, request one guarded Admit when a slot is free | owning hub acts; binding/epoch still revalidated at ingress |
+| Pending; current owner disabled, prior generation valid | retire feed-only | inspect feed; enabling does not replay |
+| Pending; current owner unavailable, prior generation valid | Bell once, retire | operator opens/dismisses; no hub send |
+| Pending; readiness unknown, prior generation valid | retain Pending, no effect | wait bounded; expiry may lose routing beyond retained feed |
+| Sending; result confirmed Refused | enter AwaitingDisposition, then observe current owner and retained generation | never send again; feed remains |
+| AwaitingDisposition; prior generation revoked OR current connected enabled/disabled | retire feed-only | current hub can act; no replay |
+| AwaitingDisposition; owner unavailable and prior generation valid | Bell once, retire | operator opens/dismisses |
+| AwaitingDisposition; readiness unknown and generation not revoked | retain phase with no admission eligibility | wait bounded; expiry preserves feed only |
+| Sending; admitted or uncertain | AwaitingReceipt, canonical ID only | existing receipt observation/expiry; never local fallback or resend |
+| Any; stale token/result, cleared condition, expiry, shutdown | ignore stale result / retire / join workers | no resurrection |
+
+Booting with a verified Root retains that root's automation epoch. Truly pre-bind/rootless readiness has no generation witness yet; its first verified owner supplies it. Unknown readiness alone must never revoke or erase a known generation. Current verified source identity always wins over the retained occurrence.OwnerRoot; after metadata removal that exact retained root remains the fallback identity.
+
+### Implementation and executable verification
+
+- [ ] Add production-function regressions for AdvanceNoticeDelivery: scoped owner handoff, confirmed refusal-to-disposition, unknown readiness and late results, with admitted/uncertain no-resend invariants. RED on current code.
+- [ ] Extend the existing stateful backend seam with memory-only NoticeOwnerCurrent(owner), implemented using the cached root-keyed automation permit. Add direct backend tests proving counters on another root are irrelevant and OFF/ON on the retained root revokes.
+- [ ] Wire reconciliation/worker result facts to the reducer. Use one optional Revoked event fact, no implicit zero-epoch inference. Retain cached epoch for known-root Booting observations. Add AwaitingDisposition only to the existing phase enum; it is never counted/admitted as an unsent pending message.
+- [ ] Sweep deterministic service sequences: four held admissions and a fifth pending; same/moved owner with destination enabled/disabled/unavailable/unknown; retained generation valid/revoked; confirmed refusal at guard; source plus owner removal; initially rootless boot buffer. Use existing hub move fixture for handoffs and scratch-overlay reproductions for readiness cases. Each behavior-changing correction must fail without its production fix.
+- [ ] Run go test -race ./cmd/internal/couchcore ./cmd/internal/couchtty ./cmd/internal/couchcmd ./cmd/internal/testnotice -run 'TestNotice|TestConsoleNotice|TestCondition|TestPicker|TestWaitNotice|TestWaitAutomation|TestArchive|TestAutomaticInputStall|TestFindings' -count=3; run repolint and individually audited reader inventory, update atlas for the phase, then commit/push. No new IO under Console/delivery locks; fixed4 workers,128 entries,4KiB bodies,2s admission,2m expiry unchanged. Count at N/2N that each reconciliation does at most two cached ownership/generation observations per active entry and never additional scans/workers from transition history.
+
+After TL approval, run change-code on this revised design; no new milestone/review-cap reset. Existing BR-1 remains the ledger identity. Recorded final-code pass, close convergence and the coordinated live check still precede landing.
