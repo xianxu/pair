@@ -237,6 +237,12 @@ Reported complete result cab776d6. Authenticated TL80e6373c accepts every target
 
 Round7 narrow close returned REWORK (BR-7, post-close-scope-control): the missing-first-pane phase/session diagnostic is executable behavior outside BR-1–BR-6. Focused tests and regression overlays passed; the review identified no correctness defect. Preserve the TL-approved diagnostic and request the full issue close review, as the finding and close contract require. The recorded pre-close suite lease-809461547 remains queued on pushed abd991c4; no source change, cancellation or duplicate suite. Append-only plan revision records the boundary change; do not claim stage readiness until the recorded result and full review return.
 
+### 2026-10-24 — recorded pre-close suite PASS; full close SHIP
+
+Retained recorded check lease-809461547 / attempt33b662572eb78ce3c68225873e207861 completed exit0 in11m58s after3016s queue wait. Exact tested source abd991c4b2486fc9fafad261550ad79de9d614e6; saved log /Users/xianxu/workspace/pair/.git/sdlc/local-checks/abd991c4b2486fc9fafad261550ad79de9d614e6/suite.log SHA2560224fe53773fc9866a0d01ef1927ca0c95fc1593c7ab9a6caaa6c7e8462906d2, recorded as sdlc-local/suite. All non-Go prerequisites and complete Go set passed: couchcore210.952s, historyarchive32.433s, launcher62.314s, wrapcmd56.838s, zellijquery10.713s and zellijtest14.638s. Loaded local package alarms did not repeat; no further timeout or fixture changes were needed.
+
+Full whole-issue close returned SHIP at round8, all BR1–7 addressed and no new findings. Reviewed f443e10748b4febc409571bd29ace9835dec3369; evidence commit fb62e6d27ce19964ebd5e422c1c492bbf47a9808, mirrored pushed head22624e032ed071806dd0003d115fcfee53998f42. Git confirms only issue/plan/review/lesson documentation changed after the tested source. Ready for TL/pair:4 coordinated operator startup stage with857; do not touch pair:0 or land before that stage is authorized and complete. Operator steps already delivered include the old-layout explanation for the new first-pane error. PR588 remains open.
+
 ## Revisions
 
 ### 2026-10-24 — final plan bookkeeping and source ownership
