@@ -208,6 +208,12 @@ Unclaimed #877 successfully filed on origin under workshop/issues/000877-repo-pr
 
 All three title-process cases PASS unchanged targeted. Repeating under the exact shared-candidate command PASS3.439s; matching RAM TMPDIR and GOFLAGS -p=3 -trimpath with count3 PASS9 cases10.565s. Wrapper startup changes are absent from the production866 diff (only workbench action calls migrated); the agent starts before title admission. No root cause or flake classification is inferred from these passes. Test-only helper-entry and delayed goroutine-stack diagnostics are retained for the next complete local Go run; no timeout, assertion or production behavior changed. The title fixture still reads only its own PID/log/capture paths; its reader certificate was individually audited and recorded.
 
+### 2026-10-24 — main full-Go comparison requested
+
+TL127c9333 directs a main comparison before further title diagnostics: run main full Go once with the same candidate owner/flags; if the title cases also fail there, file/register their pre-existing load-sensitive contour, otherwise continue investigation under866. Corrected866 rerun /Volumes/TestScratch/pair866-full-go-corrected-ymf2k37z/go.log had just started; interrupted through its owned terminal with Ctrl-C, exit130. Its partial signal:interrupt output is cancellation evidence, not a failure attribution or pass. No recorded suite was involved.
+
+Main fetched and detached scratch checkout created at /Volumes/TestScratch/pair866-main-go-buzlps33/repo, exact Git head e2f58424b124c38b4340acee459f21fa009394f2 (latest issue877 filing; clean before run). Running bash tests/lib/with-pair-test-binary.sh go test ./... -count=1 -timeout20m, GOFLAGS -p=3 -trimpath, TMPDIR and GOTMPDIR /Volumes/TestScratch/tmp/pair-slot5, matching the full local candidate command. Metadata /Volumes/TestScratch/pair866-main-go-buzlps33/metadata.json; complete output retained at go.log and result/hash written at completion. No edits to main source or any peer checkout. Retain/watch owned terminal3028 for actual result; source issue branch remains in pair:5.
+
 ## Revisions
 
 ### 2026-10-24 — final plan bookkeeping and source ownership
