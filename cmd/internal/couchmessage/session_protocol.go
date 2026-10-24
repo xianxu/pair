@@ -23,7 +23,9 @@ const (
 	// hello, the same way.
 	FrameHelloV3 = "hello-v3"
 	// FrameHelloV4 is hello-v3 plus nullable BackgroundWork evidence (pair#632).
-	FrameHelloV4  = "hello-v4"
+	FrameHelloV4 = "hello-v4"
+	// FrameHelloV5 adds the wrapper-owned per-launch worker cue witness.
+	FrameHelloV5  = "hello-v5"
 	FrameAck      = "ack"      // broker → wrapper, once, answers hello
 	FrameActivity = "activity" // wrapper → broker, coalesced observation change
 	FrameSubmit   = "submit"   // wrapper → broker, a genuine operator submission
@@ -47,8 +49,10 @@ type SessionFrame struct {
 	// Picker rides activity and submit frames on hello-v3 and newer sessions:
 	// whether an input-holding picker is up (pair#465).
 	Picker *bool `json:",omitempty"`
-	// BackgroundWork rides activity and submit on hello-v4 only. Nil is unknown.
+	// BackgroundWork rides activity and submit on hello-v4 and newer. Nil is unknown.
 	BackgroundWork *bool `json:",omitempty"`
+	// WorkerCue rides hello, activity and submit on hello-v5. Nil is unknown.
+	WorkerCue *WorkerCueReport `json:",omitempty"`
 }
 
 // BuildIdentity names the executable a wrapper runs: its content hash is the
@@ -75,14 +79,19 @@ func (b BuildIdentity) Validate() error {
 }
 
 func (f SessionFrame) Validate() error {
+	if f.WorkerCue != nil {
+		if err := f.WorkerCue.Validate(); err != nil {
+			return err
+		}
+	}
 	switch f.Op {
 	case FrameHello:
-		if f.Binding == nil || f.Observation != nil || f.Build != nil || f.Settled != nil || f.Picker != nil || f.BackgroundWork != nil {
+		if f.Binding == nil || f.Observation != nil || f.Build != nil || f.Settled != nil || f.Picker != nil || f.BackgroundWork != nil || f.WorkerCue != nil {
 			return errors.New("hello carries exactly a binding")
 		}
 		return f.Binding.Validate()
-	case FrameHelloV2, FrameHelloV3, FrameHelloV4:
-		if f.Binding == nil || f.Build == nil || f.Observation != nil || f.Settled != nil || f.Picker != nil || f.BackgroundWork != nil {
+	case FrameHelloV2, FrameHelloV3, FrameHelloV4, FrameHelloV5:
+		if f.Binding == nil || f.Build == nil || f.Observation != nil || f.Settled != nil || f.Picker != nil || f.BackgroundWork != nil || (f.Op != FrameHelloV5 && f.WorkerCue != nil) {
 			return errors.New(f.Op + " carries exactly a binding and a build")
 		}
 		if err := f.Build.Validate(); err != nil {
@@ -90,7 +99,7 @@ func (f SessionFrame) Validate() error {
 		}
 		return f.Binding.Validate()
 	case FrameAck:
-		if f.Code == "" || f.Binding != nil || f.Observation != nil || f.Build != nil || f.Settled != nil || f.Picker != nil || f.BackgroundWork != nil {
+		if f.Code == "" || f.Binding != nil || f.Observation != nil || f.Build != nil || f.Settled != nil || f.Picker != nil || f.BackgroundWork != nil || f.WorkerCue != nil {
 			return errors.New("ack carries only a code")
 		}
 	case FrameActivity, FrameSubmit:

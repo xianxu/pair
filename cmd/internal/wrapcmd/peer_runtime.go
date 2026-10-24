@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -221,6 +222,9 @@ func (p *proxy) startPeerRuntime(executable string) (*peerRuntime, error) {
 	}
 	lifetime, stop := context.WithCancel(context.Background())
 	d := newPeerDelivery(binding, time.Now)
+	if ordinal, err := strconv.ParseUint(os.Getenv("PAIR_LAUNCH_ORDINAL"), 10, 64); err == nil {
+		d.initWorkerCue(ordinal)
+	}
 	r := &peerRuntime{cancel: stop, delivery: d, binding: binding, namespace: namespace}
 	server, err := couchmessage.StartServer(lifetime, socket, d.handleEndpoint)
 	if err != nil {
@@ -253,6 +257,7 @@ func (p *proxy) startPeerRuntime(executable string) (*peerRuntime, error) {
 	d.armSettleLocked()
 	initial := d.observationLocked()
 	d.mu.Unlock()
+	session.WorkerCue(d.workerCueReport())
 	session.Update(initial)
 	p.startAutomaticInputReporter(lifetime, binding, namespace, &r.workers)
 	p.peer = d

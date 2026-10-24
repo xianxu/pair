@@ -14,21 +14,27 @@ import (
 // Alerts are advisory and live only as long as this supervisor. Pending sends
 // reuse their effect ID; the existing broker owns within-run deduplication.
 type resourceAlertDispatcher struct {
+	permit  func(couchcore.WorkspaceIdentity) hubInputPermit
 	resolve func(couchcore.WorkspaceIdentity) (couchmessage.Binding, bool)
-	send    func(context.Context, couchmessage.Binding, string, string) (couchmessage.Receipt, error)
+	send    func(context.Context, couchmessage.Binding, string, string, hubInputPermit) (couchmessage.Receipt, error)
 }
 
 func newResourceAlertDispatcher(s *messageService) resourceAlertDispatcher {
 	return resourceAlertDispatcher{
+		permit: func(id couchcore.WorkspaceIdentity) hubInputPermit {
+			root := s.authority.owner(id)
+			on, epoch := s.hubAutomationPermit(root)
+			return hubInputPermit{root: root, enabled: on, epoch: epoch}
+		},
 		resolve: func(id couchcore.WorkspaceIdentity) (couchmessage.Binding, bool) {
 			return s.hubBindingAt(s.authority.owner(id))
 		},
-		send: func(ctx context.Context, hub couchmessage.Binding, id, body string) (couchmessage.Receipt, error) {
+		send: func(ctx context.Context, hub couchmessage.Binding, id, body string, permit hubInputPermit) (couchmessage.Receipt, error) {
 			c := s.supervision.Load()
 			if c == nil {
 				return couchmessage.Receipt{}, couchmessage.ErrUnavailable
 			}
-			return c.sendGenerated(ctx, hub, hub, id, body, false)
+			return c.sendGenerated(ctx, hub, hub, id, body, false, permit)
 		},
 	}
 }
@@ -43,13 +49,28 @@ func (d resourceAlertDispatcher) dispatch(ctx context.Context, state *couchcore.
 			return err
 		}
 		effect := e.Effect
+		permit := hubInputPermit{}
+		if d.permit != nil {
+			permit = d.permit(effect.Workspace)
+			if !permit.enabled || e.AutomationEpoch != nil && (*e.AutomationEpoch != permit.epoch || e.AutomationHub != permit.root) {
+				*e, _ = couchcore.AdvanceResourceEpisode(*e, couchcore.ResourceEpisodeEvent{Delivery: couchcore.ResourceDeliverySuppressed, EffectID: effect.ID})
+				continue
+			}
+			if e.AutomationEpoch == nil {
+				epoch := permit.epoch
+				e.AutomationEpoch = &epoch
+				e.AutomationHub = permit.root
+			}
+		}
 		outcome := couchcore.ResourceDeliveryUnknown
 		hub, available := d.resolve(effect.Workspace)
 		if available {
 			body := resourceAlertBody(effect)
-			receipt, err := d.send(ctx, hub, effect.ID, body)
+			receipt, err := d.send(ctx, hub, effect.ID, body, permit)
 			if err == nil && receipt.Message.ID == effect.ID && receipt.Message.From == hub && receipt.Message.To == hub && receipt.Message.Body == body {
 				outcome = couchcore.ResourceDeliveryAdmitted
+			} else if errors.Is(err, errHubAutomationOff) {
+				outcome = couchcore.ResourceDeliverySuppressed
 			} else if errors.Is(err, couchmessage.ErrRecipientBusy) || errors.Is(err, couchmessage.ErrBudgetExhausted) || errors.Is(err, couchmessage.ErrUnavailable) || errors.Is(err, couchmessage.ErrUnsupported) {
 				outcome = couchcore.ResourceDeliveryRefused
 			}
