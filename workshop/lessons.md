@@ -2889,3 +2889,7 @@ and external temporary roots rather than relying on the host's TMPDIR.
 - #866 second pre-close: Put the exact candidate binary on PATH at Lua/native recipe entry, preserve it across fixture bootstrap, and prove an incompatible installed Pair cannot win. Run both complete review and Lua targets before requeuing after a helper migration failure; update caller assets and helper binary together.
 
 - #866 BR-6: Exact executable ownership is stronger than directory ownership. Normalize an arbitrary supplied test candidate to a private pair alias via the shared builder; test a differently named candidate beside a wrong sibling pair.
+
+- #866 dry-run follow-up: GNU Make executes recipe lines containing a direct MAKE reference even under -n. Keep graph inspection from entering wrapper setup, and audit the scripts behind explicit recipe wrappers rather than dropping ownership checks.
+- #866 all-target sweep: Qualify a supplier with its own module metadata and bounded source dependency closure from one checkout/ref; optional new dependencies must not disqualify valid older suppliers.
+- #866 copy completion: Attribute fixture completion to exact operation argv. A shared executable can also run background helpers; their successful exit must never satisfy another operation's completion channel.

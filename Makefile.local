@@ -323,9 +323,12 @@ test-runtimebundle: runtimebundle-generate
 # The shared builder supplies a temporary pair alias to the exact executable,
 # even when the supplied candidate has another filename. Bootstrap keeps PATH.
 .PHONY: test-review-recipes test-lua-recipes
+# Keep dry-run/database inspection side-effect free: a direct MAKE reference
+# forces execution under -n. The wrapper still receives the selected Make.
+TEST_RECIPE_MAKE = $(MAKE)
 test-review test-lua: export PAIR_TEST_BINARY := $(if $(PAIR_TEST_BINARY),$(PAIR_TEST_BINARY),$(abspath $(BIN_DIR)/pair))
 test-review: $(BIN_DIR)/pair
-	bash tests/lib/with-pair-test-binary.sh $(MAKE) test-review-recipes
+	bash tests/lib/with-pair-test-binary.sh $(TEST_RECIPE_MAKE) test-review-recipes
 
 test-review-recipes:
 	bash tests/review-docflow-test.sh
@@ -368,7 +371,7 @@ test-run-headless:
 # runs a Lua script in nvim's interpreter with the full vim.api available, so
 # pure logic AND buffer-manipulation can be asserted without a UI.
 test-lua: $(BIN_DIR)/pair
-	bash tests/lib/with-pair-test-binary.sh $(MAKE) test-lua-recipes
+	bash tests/lib/with-pair-test-binary.sh $(TEST_RECIPE_MAKE) test-lua-recipes
 
 test-lua-recipes:
 	nvim -l tests/zellij-observation_test.lua

@@ -12,11 +12,15 @@ from pathlib import Path
 import subprocess
 import tempfile
 import unittest
+from unittest import mock
 
 
 ROOT = Path(__file__).resolve().parents[1]
 PACKAGES = ("affected", "jsonstrict")
 PREFIX = "cmd/sdlc/internal/"
+# Same-provider closure of current affected/golist.go. These packages are
+# optional because supported older planners do not import processgroup.
+SUPPORTING_PACKAGES = (PREFIX + "processgroup", "pkg/procgroup")
 
 
 def provider_sources():
@@ -35,8 +39,7 @@ def provider_sources():
             candidates.append(Path(installed.stdout.strip()))
     for candidate in candidates:
         result = {}
-        for package in PACKAGES:
-            directory = PREFIX + package
+        for directory in tuple(PREFIX + package for package in PACKAGES) + SUPPORTING_PACKAGES:
             if ref:
                 listing = subprocess.run(
                     ["git", "-C", str(candidate), "ls-tree", "-r", "--name-only", ref, directory],
@@ -57,6 +60,22 @@ def provider_sources():
             # to compile against an API that predates graph_prepare.
             if b"GraphPrepare" not in result.get(PREFIX + "affected/config.go", b""):
                 continue
+            # Keep module identity and dependency versions byte-for-byte from
+            # this provider/ref, including processgroup's Darwin x/sys import.
+            for name in ("go.mod", "go.sum"):
+                if ref:
+                    metadata = subprocess.run(
+                        ["git", "-C", str(candidate), "show", f"{ref}:{name}"],
+                        stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False,
+                    )
+                    if metadata.returncode == 0:
+                        result[name] = metadata.stdout
+                    elif name == "go.mod":
+                        raise RuntimeError(f"provider {candidate} @ {ref} has no go.mod")
+                elif (candidate / name).is_file():
+                    result[name] = (candidate / name).read_bytes()
+                elif name == "go.mod":
+                    raise RuntimeError(f"provider {candidate} has no go.mod")
             return candidate, ref, result
     message = ("upstream ariadne#517 affected/jsonstrict source unavailable; install it or set "
                "ARIADNE_AFFECTED_SOURCE (and optional ARIADNE_AFFECTED_REF) to qualify its candidate")
@@ -372,6 +391,69 @@ func TestActualFileConsumerCoverage(t *testing.T) {
 '''
 
 
+class ProviderSourceTest(unittest.TestCase):
+    def provider(self, root, supporting=True):
+        sources = {
+            "go.mod": b"module github.com/xianxu/ariadne\n\ngo 1.26.3\n",
+            "go.sum": b"// source-acquisition metadata fixture\n",
+            PREFIX + "affected/config.go": b"package affected\n// GraphPrepare source-acquisition fixture\n",
+            PREFIX + "jsonstrict/jsonstrict.go": b"package jsonstrict\n",
+        }
+        if supporting:
+            sources.update({
+                PREFIX + "processgroup/process_unix.go": b"package processgroup\n// pinned support fixture\n",
+                "pkg/procgroup/procgroup.go": b"package procgroup\n// pinned support fixture\n",
+            })
+        for name, data in sources.items():
+            path = root / name
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_bytes(data)
+        return sources
+
+    def acquire(self, root, ref=None):
+        with mock.patch.dict(os.environ, {"ARIADNE_AFFECTED_SOURCE": str(root)}):
+            if ref is None:
+                os.environ.pop("ARIADNE_AFFECTED_REF", None)
+            else:
+                os.environ["ARIADNE_AFFECTED_REF"] = ref
+            return provider_sources()
+
+    def test_checkout_copies_module_and_supporting_sources(self):
+        with tempfile.TemporaryDirectory(prefix="pair-provider-source-") as scratch:
+            root = Path(scratch)
+            expected = self.provider(root)
+            ignored = root / (PREFIX + "processgroup/process_test.go")
+            ignored.write_bytes(b"package processgroup\n")
+            candidate, ref, sources = self.acquire(root)
+            self.assertEqual((candidate, ref, sources), (root, None, expected))
+
+    def test_pinned_ref_never_mixes_checkout_metadata_or_support(self):
+        with tempfile.TemporaryDirectory(prefix="pair-provider-ref-") as scratch:
+            root = Path(scratch)
+            expected = self.provider(root)
+            subprocess.run(["git", "-c", "init.templateDir=", "init", "-q", str(root)], check=True)
+            subprocess.run(["git", "-C", str(root), "add", "."], check=True)
+            subprocess.run(["git", "-C", str(root), "-c", "user.name=Fixture", "-c",
+                            "user.email=fixture@example.test", "-c", "core.hooksPath=/dev/null",
+                            "commit", "-qm", "pinned provider"], check=True)
+            pin = subprocess.check_output(["git", "-C", str(root), "rev-parse", "HEAD"], text=True).strip()
+            for name in expected:
+                (root / name).write_bytes(b"worktree changes must not enter pinned source\n")
+            (root / "pkg/procgroup/checkout_only.go").write_bytes(b"package procgroup\n")
+            candidate, ref, sources = self.acquire(root, pin)
+            self.assertEqual((candidate, ref, sources), (root, pin, expected))
+
+    def test_older_supported_source_needs_no_optional_package(self):
+        with tempfile.TemporaryDirectory(prefix="pair-provider-older-") as scratch:
+            root = Path(scratch)
+            expected = self.provider(root, supporting=False)
+            # A dependency-free older module may also have no checksum file.
+            expected.pop("go.sum")
+            (root / "go.sum").unlink()
+            candidate, ref, sources = self.acquire(root)
+            self.assertEqual((candidate, ref, sources), (root, None, expected))
+
+
 class AffectedConfigTest(unittest.TestCase):
     def test_check_config(self):
         self.assertTrue((ROOT / ".sdlc/affected.json").is_file(), "missing .sdlc/affected.json")
@@ -379,16 +461,15 @@ class AffectedConfigTest(unittest.TestCase):
         print(f"Qualifying upstream affected source: {candidate}" + (f" @ {ref}" if ref else ""), flush=True)
         with tempfile.TemporaryDirectory(prefix="pair-affected-config-") as scratch:
             root = Path(scratch)
-            (root / "go.mod").write_text("module github.com/xianxu/ariadne/cmd/sdlc\n\ngo 1.26.3\n")
             for name, data in sources.items():
-                path = root / name.removeprefix("cmd/sdlc/")
+                path = root / name
                 path.parent.mkdir(parents=True, exist_ok=True)
                 path.write_bytes(data)
-            fixture = root / "fixture"
-            fixture.mkdir()
+            fixture = root / "cmd/sdlc/fixture"
+            fixture.mkdir(parents=True)
             (fixture / "config_test.go").write_text(GO_TEST)
             result = subprocess.run(
-                ["go", "test", "./fixture", "-count=1", "-v", "-timeout", "3m"],
+                ["go", "test", "./cmd/sdlc/fixture", "-count=1", "-v", "-timeout", "3m"],
                 cwd=root, env={**os.environ, "GOWORK": "off", "PAIR_AFFECTED_ROOT": str(ROOT)},
                 text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
             )
