@@ -1,6 +1,6 @@
 ---
 id: 000852
-status: working
+status: codecomplete
 created: 2026-10-23
 updated: 2026-10-23
 estimate_hours:
@@ -14,6 +14,14 @@ claimant:
     workspace: pair:9
     worktree: /Users/xianxu/workspace/worktree/pair-slot9/pair
     repository: github.com/xianxu/pair
+actual_hours: 0.13
+tracker:
+    version: 1
+    completion:
+        token: close-8ee98f17d821
+        repository: github.com/xianxu/pair
+        reviewed_head: 44cde4961c6e9a3856a578254eac887cecdafaf6
+        evidence_commit: f63feb798c3ab1ac3b967fae4239b0a66f9b93de
 ---
 
 # Park rollback retries fail on main
