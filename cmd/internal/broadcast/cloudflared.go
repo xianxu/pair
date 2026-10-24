@@ -67,6 +67,7 @@ type Cloudflared struct {
 	// the named-tunnel lock.
 	Records     string
 	OpenTimeout time.Duration
+	after       func(time.Duration) (<-chan time.Time, func() bool)
 }
 
 // privateListener is a listener in its own 0700 directory; closing it
@@ -185,8 +186,15 @@ func (c Cloudflared) Open(ctx context.Context, l net.Listener) (Handle, error) {
 	if timeout <= 0 {
 		timeout = defaultOpenTimeout
 	}
-	timer := time.NewTimer(timeout)
-	defer timer.Stop()
+	after := c.after
+	if after == nil {
+		after = func(budget time.Duration) (<-chan time.Time, func() bool) {
+			timer := time.NewTimer(budget)
+			return timer.C, timer.Stop
+		}
+	}
+	expired, stop := after(timeout)
+	defer stop()
 	select {
 	case u := <-found:
 		h.url = u
@@ -198,7 +206,7 @@ func (c Cloudflared) Open(ctx context.Context, l net.Listener) (Handle, error) {
 	case <-h.exited:
 		h.Close()
 		return nil, fmt.Errorf("broadcast: cloudflared exited while opening: %s", h.lastLine())
-	case <-timer.C:
+	case <-expired:
 		h.Close()
 		return nil, fmt.Errorf("broadcast: cloudflared opened no tunnel within %v: %s", timeout, h.lastLine())
 	case <-ctx.Done():

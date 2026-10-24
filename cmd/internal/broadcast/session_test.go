@@ -174,9 +174,11 @@ func TestSessionTunnelExitEndsSession(t *testing.T) {
 }
 
 func TestSessionEndsWhenIndicatorHidden(t *testing.T) {
-	s := startSession(t, &FakeTunnel{}, HubOptions{Grace: 20 * time.Millisecond})
+	clock := newManualClock()
+	s := startSession(t, &FakeTunnel{}, HubOptions{After: clock.after, Ticks: clock.ticks})
 	s.Offer(hidden(t, "no indicator"), terminal.FramePublic)
 	s.Activate()
+	clock.fireGrace(s.hub)
 	select {
 	case <-s.Done():
 	case <-time.After(5 * time.Second):

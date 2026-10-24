@@ -3,6 +3,7 @@ package vmcmd
 import (
 	"context"
 	"errors"
+	"github.com/xianxu/pair/cmd/internal/testwait"
 	"reflect"
 	"strings"
 	"testing"
@@ -121,11 +122,12 @@ func TestRunTimeoutRejectsLateSuccess(t *testing.T) {
 	gate := make(chan struct{})
 	f.gates[Execute] = gate
 	f.ignoreCancellation = true
-	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
+	ctx, expire, cancel := testwait.DeadlineOnCue(t.Context(), time.Minute)
 	defer cancel()
 	done := make(chan RunState, 1)
 	go func() { done <- Run(ctx, RunRequest{Timeout: time.Second}, f) }()
 	waitForEffect(t, f, Execute)
+	expire()
 	<-ctx.Done()
 	close(gate)
 	if s := resultOfRun(t, done); s.ExitCode() != 124 {
@@ -138,7 +140,24 @@ func TestRunRequestTimeoutAppliesThroughExecute(t *testing.T) {
 		t.Run(string(stage), func(t *testing.T) {
 			f := newFakeRuntime()
 			f.gates[stage] = make(chan struct{})
-			s := Run(context.Background(), RunRequest{Timeout: time.Millisecond}, f)
+			const requested = 45 * time.Second
+			armed := make(chan func(), 1)
+			deadline := func(parent context.Context, budget time.Duration) (context.Context, context.CancelFunc) {
+				if budget != requested {
+					t.Errorf("request budget=%v, want %v", budget, requested)
+				}
+				ctx, expire, cancel := testwait.DeadlineOnCue(parent, budget)
+				armed <- expire
+				return ctx, cancel
+			}
+			ctx, cancel := context.WithCancel(t.Context())
+			defer cancel()
+			done := make(chan RunState, 1)
+			go func() { done <- runWithDeadline(ctx, RunRequest{Timeout: requested}, f, deadline); close(done) }()
+			t.Cleanup(func() { cancel(); <-done })
+			waitForEffect(t, f, stage)
+			(<-armed)()
+			s := resultOfRun(t, done)
 			if !s.Done() || s.ExitCode() != 124 {
 				t.Fatalf("timeout: %+v", s)
 			}

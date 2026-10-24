@@ -37,7 +37,11 @@ const cleanupTimeout = 10 * time.Second
 // The request budget covers acquisition through command execution; all cleanup
 // shares a separate bounded budget, independent of the caller's cancellation.
 func Run(ctx context.Context, r RunRequest, rt Runtime) RunState {
-	runCtx, cancelRun := context.WithTimeout(ctx, r.Timeout)
+	return runWithDeadline(ctx, r, rt, context.WithTimeout)
+}
+
+func runWithDeadline(ctx context.Context, r RunRequest, rt Runtime, deadline func(context.Context, time.Duration) (context.Context, context.CancelFunc)) RunState {
+	runCtx, cancelRun := deadline(ctx, r.Timeout)
 	defer cancelRun()
 	scope := &cleanupScope{base: ctx}
 	runCtx = context.WithValue(runCtx, cleanupScopeKey{}, scope)

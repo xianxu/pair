@@ -13,14 +13,12 @@ import (
 
 	"github.com/xianxu/pair/cmd/internal/procutil"
 	"github.com/xianxu/pair/cmd/internal/testcouch/agentfixture"
+	"github.com/xianxu/pair/cmd/internal/testpair"
 )
 
 func startActorCLIFixture(t *testing.T, agents ...string) (*Fleet, string) {
 	t.Helper()
-	root, err := filepath.EvalSymlinks(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	root := testpair.ShortRoot(t)
 	for _, dir := range []string{"home", "codex", "control", "repo"} {
 		if err := os.Mkdir(filepath.Join(root, dir), 0700); err != nil {
 			t.Fatal(err)
