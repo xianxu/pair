@@ -16,6 +16,7 @@ claimant:
     workspace: pair:6
     worktree: /Users/xianxu/workspace/worktree/pair-slot6/pair
     repository: github.com/xianxu/pair
+flow: {kind: quick, provenance: inferred, spec: "a96fc805", done: "c2d1c028"}
 ---
 
 # Cast notes: DOM submission loops on 'Feedback changed' and never submits
@@ -44,7 +45,16 @@ before changing anything; no weakening of the "feedback changed" protection.
 
 ## Plan
 
-- [ ]
+Approved by the TL (10-23): diagnose first through the operator, no headed repro.
+
+- [x] Name the cause, protection unchanged: each prepare refusal names its condition (`PreviewRefuse.Reason`,
+  `previewRefusal` still `errors.Is` `errSubmissionPreview`); the preview worker keeps why it last could not
+  refresh and adds it to a refusal made while nothing current is shown; the panel reads "Pending feedback is out of
+  date: …" in place of stale counts. Tests: core reasons; the manager over the operator's shape (shown notes, then
+  a sketch the panel cannot show, refused with the reason, admitted once shown); live Chrome: the operator's sequence
+  prepares and freezes, the panel goes stale and recovers; the real manager over a real cast admits notes.
+- [ ] Stage on pair:0; the operator uses cast notes as usual and reports any refusal message.
+- [ ] Fix the cause the message names; test reproducing the loop first, and a genuine change still refused.
 
 ## Log
 
