@@ -16,6 +16,7 @@ claimant:
     workspace: pair:7
     worktree: /Users/xianxu/workspace/worktree/pair-slot7/pair
     repository: github.com/xianxu/pair
+flow: {kind: quick, provenance: inferred, spec: "fdec9e1a", done: "325e22f8"}
 ---
 
 # Cast broadcast bar: a ⏎ send button when sketches or annotations are pending
