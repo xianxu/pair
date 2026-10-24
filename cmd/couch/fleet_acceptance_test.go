@@ -319,10 +319,14 @@ func TestDisposableCouchFleetWake(t *testing.T) {
 			if err := fleet.WaitActors(ctx, 1); err != nil {
 				t.Fatalf("main hub registration: %v\n%s", err, fleet.Screen())
 			}
-			for n := 1; n <= 2; n++ {
-				if err := fleet.StartWorker(ctx, n); err != nil {
-					t.Fatal(err)
-				}
+			// fixture:1 is its own hub, so it is started the same way; the
+			// main hub launches the plain worker.
+			wakeFleetStartHub(t, ctx, fleet, fleet.Workspaces.Workers[1], agent)
+			if err := fleet.WaitAgent(ctx, 1); err != nil {
+				t.Fatalf("second hub start: %v\n%s", err, fleet.Screen())
+			}
+			if err := fleet.StartWorker(ctx, 2); err != nil {
+				t.Fatal(err)
 			}
 			if err := fleet.Resize(36, 132); err != nil {
 				t.Fatal(err)
@@ -374,8 +378,7 @@ func TestDisposableCouchFleetWake(t *testing.T) {
 				}
 			}
 			// The operator resumes the main hub from the switcher.
-			forceFleetPress(t, fleet, "\x00", 32, 5)
-			forceFleetWaitScreen(t, ctx, fleet, "Ctrl+Y copy last notice / selected error")
+			wakeFleetOpenSwitcher(t, ctx, fleet)
 			if err := fleet.Input([]byte("fixture:0")); err != nil {
 				t.Fatal(err)
 			}
@@ -425,50 +428,44 @@ func TestDisposableCouchFleetWake(t *testing.T) {
 }
 
 // wakeFleetStartHub is the operator's start gesture for a hub with no row:
-// the switcher's start form, its path, the agent, then Enter to resolve and
-// Enter to start.
+// the switcher's start form, its path, the agent, then Enter to start.
 func wakeFleetStartHub(t *testing.T, ctx context.Context, fleet *testcouch.Fleet, dir, agent string) {
 	t.Helper()
 	// The switcher may already be open (a cold start opens it); Ctrl+Space
 	// opens it, and Ctrl+Space in it opens the start form.
-	settle, stop := context.WithTimeout(ctx, 5*time.Second)
-	open := waitFleet(settle, func() (bool, error) {
-		screen := fleet.Screen()
-		return strings.Contains(screen, "Ctrl+Y copy last notice / selected error") || strings.Contains(screen, "start thread"), nil
-	}) == nil
-	stop()
-	if !open {
-		forceFleetPress(t, fleet, "\x00", 32, 5)
-		forceFleetWaitScreen(t, ctx, fleet, "Ctrl+Y copy last notice / selected error")
-	}
-	if !strings.Contains(fleet.Screen(), "start thread") {
-		forceFleetPress(t, fleet, "\x00", 32, 5)
-	}
+	wakeFleetOpenSwitcher(t, ctx, fleet)
+	forceFleetPress(t, fleet, "\x00", 32, 5)
 	forceFleetWaitScreen(t, ctx, fleet, "start thread")
 	if err := fleet.Input([]byte(dir)); err != nil {
 		t.Fatal(err)
 	}
+	// Down moves to the agent field and requests the preview; "args
+	// repo-default" shows it accepted, and one Enter then starts the hub
+	// (pair#863's measured gesture).
 	forceFleetPress(t, fleet, "\x1b[B", 57353, 1)
 	for i := 0; i < 8 && !strings.Contains(fleet.Screen(), "agent "+agent); i++ {
 		forceFleetPress(t, fleet, "\x1b[C", 57351, 1)
 		time.Sleep(100 * time.Millisecond)
 	}
 	forceFleetWaitScreen(t, ctx, fleet, "agent "+agent)
-	// Enter resolves the preview; once resolved, Enter starts it and the
-	// form closes.
-	if err := waitFleet(ctx, func() (bool, error) {
-		screen := fleet.Screen()
-		if !strings.Contains(screen, "start thread") {
-			return true, nil
-		}
-		if !strings.Contains(screen, "resolving") {
-			if err := fleet.Press("\r", 13, 1); err != nil {
-				return false, err
-			}
-		}
-		time.Sleep(400 * time.Millisecond)
-		return false, nil
-	}); err != nil {
-		t.Fatalf("start form for %s: %v\n%s", dir, err, fleet.Screen())
+	forceFleetWaitScreen(t, ctx, fleet, "args  repo-default")
+	forceFleetPress(t, fleet, "\r", 13, 1)
+	if err := waitFleet(ctx, func() (bool, error) { return !strings.Contains(fleet.Screen(), "start thread"), nil }); err != nil {
+		t.Fatalf("start form for %s stayed open: %v\n%s", dir, err, fleet.Screen())
+	}
+}
+
+// wakeFleetOpenSwitcher leaves the switcher open at its root. A cold start
+// opens it by itself, possibly after a delay; pressing Ctrl+Space then would
+// open the start form instead.
+func wakeFleetOpenSwitcher(t *testing.T, ctx context.Context, fleet *testcouch.Fleet) {
+	t.Helper()
+	const root = "Ctrl+Y copy last notice / selected error"
+	settle, stop := context.WithTimeout(ctx, 5*time.Second)
+	open := waitFleet(settle, func() (bool, error) { return strings.Contains(fleet.Screen(), root), nil }) == nil
+	stop()
+	if !open {
+		forceFleetPress(t, fleet, "\x00", 32, 5)
+		forceFleetWaitScreen(t, ctx, fleet, root)
 	}
 }
