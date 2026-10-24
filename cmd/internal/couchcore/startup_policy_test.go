@@ -204,3 +204,60 @@ func TestStartupUnknownSelectedSessionLeavesCallerUsable(t *testing.T) {
 		t.Fatal("unknown session mutated retained records")
 	}
 }
+
+// Fresh is a proof of no retained history, rather than a guess from absence.
+func TestStartupFreshRequiresReadableZeroHistory(t *testing.T) {
+	snapshot, _ := startupPolicySnapshot(t, 1)
+	for n := 0; n <= len(snapshot.Records); n++ {
+		for _, unreadable := range []bool{false, true} {
+			for _, slotUnknown := range []bool{false, true} {
+				for _, state := range []SessionState{SessionUnresolved, SessionAbsent, SessionOrphaned, SessionPresent} {
+					for _, blankName := range []bool{false, true} {
+						for _, sharedName := range []bool{false, true} {
+							name := fmt.Sprintf("records=%d/unreadable=%t/slot=%t/state=%v/blank=%t/shared=%t", n, unreadable, slotUnknown, state, blankName, sharedName)
+							t.Run(name, func(t *testing.T) {
+								input := ThreadSnapshot{Records: append([]ThreadRecord(nil), snapshot.Records[:n]...)}
+								if unreadable {
+									input.Unreadable = []ThreadAddress{{RepoScope: "unknown", Tag: "unreadable"}}
+								}
+								if slotUnknown {
+									input.Slots = []SlotInventoryObservation{{Err: errors.New("slot unavailable")}}
+								}
+								presence := map[ThreadAddress]SessionObservation{}
+								for i, record := range input.Records {
+									session := fmt.Sprintf("session-%d", i)
+									if sharedName {
+										session = "shared"
+									}
+									if blankName {
+										session = ""
+									}
+									presence[record.Address] = SessionObservation{State: state, Name: session}
+								}
+								got := ClassifyStartup(input, presence, []string{"/repo", "/other-00"})
+								// This independent authority predicate uses only absence of history
+								// and read failures: session names and order cannot create fresh proof.
+								fresh := n == 0 && !unreadable && !slotUnknown
+								if (got.Kind == StartupKind("fresh")) != fresh {
+									t.Fatalf("kind %q, fresh permitted=%t", got.Kind, fresh)
+								}
+								if fresh && (got.ParkedUnknown || got.ParkedCount != 0 || got.Diagnostic != nil) {
+									t.Fatalf("fresh carried uncertainty/history: %+v", got)
+								}
+								// Reordering retained evidence and the requested hubs may change only
+								// the display order of MissingHubs, never attribution or classification.
+								for i, j := 0, len(input.Records)-1; i < j; i, j = i+1, j-1 {
+									input.Records[i], input.Records[j] = input.Records[j], input.Records[i]
+								}
+								reversed := ClassifyStartup(input, presence, []string{"/other-00", "/repo"})
+								if got.Kind != reversed.Kind || got.ParkedUnknown != reversed.ParkedUnknown || got.ParkedCount != reversed.ParkedCount || !reflect.DeepEqual(got.Hubs, reversed.Hubs) {
+									t.Fatalf("input order changed classification: %+v vs %+v", got, reversed)
+								}
+							})
+						}
+					}
+				}
+			}
+		}
+	}
+}

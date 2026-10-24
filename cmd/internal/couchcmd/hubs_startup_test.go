@@ -199,7 +199,7 @@ func (r *hubStartupRig) assertFirstUsable(t *testing.T) {
 
 func TestHubStartupTwoHubsPreserveFirstFocus(t *testing.T) {
 	r := newHubStartupRig(t, false)
-	startExplicitHubs(r.console, r.hubs)
+	startExplicitHubs(r.console, r.hubs, r.startup)
 	r.run(t)
 	if call := r.await(t, "start-hub"); call.err != nil {
 		t.Fatal(call.err)
@@ -257,7 +257,7 @@ func testHubStartupLaterFailure(t *testing.T, warmFirst bool) {
 			return v, e
 		})
 	}
-	startExplicitHubs(r.console, r.hubs)
+	startExplicitHubs(r.console, r.hubs, r.startup)
 	r.run(t)
 	call := r.await(t, "start-hub")
 	if call.err == nil || !strings.Contains(call.err.Error(), "isolated second hub launch refusal") || !strings.Contains(call.err.Error(), r.paths[1]) || !strings.Contains(call.err.Error(), "diagnostics ") {
@@ -292,7 +292,7 @@ func TestHubStartupDetachedExtraLaunchesWithoutDuplicateWarmAttempt(t *testing.T
 		}
 		return actual(call)
 	})
-	startExplicitHubs(r.console, r.hubs)
+	startExplicitHubs(r.console, r.hubs, r.startup)
 	r.run(t)
 	// LIFO cleanup releases the test barrier before Run cleanup joins workers.
 	t.Cleanup(func() { once.Do(func() { close(release) }) })
@@ -360,7 +360,7 @@ func TestHubStartupSingleHubDoesNotEnqueueAnotherLaunch(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	startExplicitHubs(r.console, single)
+	startExplicitHubs(r.console, single, r.startup)
 	r.run(t)
 	r.assertFirstUsable(t)
 	if !r.console.ReattachPassArmed() {
@@ -388,7 +388,7 @@ func TestHubStartupMissingFirstKeepsSwitcherWhileExtraSurvives(t *testing.T) {
 	if !r.console.ReattachPassArmed() {
 		t.Fatal("missing first hub prevented warm pass")
 	}
-	startExplicitHubs(r.console, r.hubs)
+	startExplicitHubs(r.console, r.hubs, r.startup)
 	r.run(t)
 	if call := r.await(t, "start-hub"); call.err != nil {
 		t.Fatal(call.err)

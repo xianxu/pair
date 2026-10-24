@@ -155,6 +155,14 @@ func TestReduceMenuStartPreviewArmsOneGenerationBoundSubmit(t *testing.T) {
 	if len(effects) != 0 || state.CurrentFrame().SubmitGeneration != generation || state.Notice.Text != "resolving" {
 		t.Fatalf("pending submit = state %+v effects %+v", state, effects)
 	}
+	// The preview effect remains held while repeated Enter arms the same
+	// generation; none may enqueue another preview or an early start.
+	for repeat := 0; repeat < 32; repeat++ {
+		state, effects = reduceKey(state, PanelKey{Kind: KeyEnter})
+		if len(effects) != 0 || state.CurrentFrame().SubmitGeneration != generation {
+			t.Fatalf("Enter repeat %d while preview held: state=%+v effects=%+v", repeat, state, effects)
+		}
+	}
 	stale := couchcore.PreparedStart{Resolution: couchcore.StartResolution{Fingerprint: "stale", CanonicalPath: "/stale", Worktree: "/stale"}}
 	state, effects = ReduceMenu(state, MenuEvent{Kind: MenuEventPreviewResult, Generation: generation - 1, Prepared: &stale})
 	if len(effects) != 0 || state.CurrentFrame().SubmitGeneration != generation {
@@ -169,9 +177,15 @@ func TestReduceMenuStartPreviewArmsOneGenerationBoundSubmit(t *testing.T) {
 	if !reflect.DeepEqual(effects, want) || state.CurrentFrame().SubmitGeneration != 0 {
 		t.Fatalf("accepted preview did not submit once: state=%+v effects=%+v want=%+v", state, effects, want)
 	}
-	_, effects = ReduceMenu(state, MenuEvent{Kind: MenuEventPreviewResult, Generation: generation, Prepared: &prepared})
-	if len(effects) != 0 {
-		t.Fatalf("duplicate preview redispatched start: %+v", effects)
+	dispatched := append([]MenuEffect(nil), effects...)
+	for repeat := 0; repeat < 32; repeat++ {
+		state, effects = reduceKey(state, PanelKey{Kind: KeyEnter})
+		dispatched = append(dispatched, effects...)
+		state, effects = ReduceMenu(state, MenuEvent{Kind: MenuEventPreviewResult, Generation: generation, Prepared: &prepared})
+		dispatched = append(dispatched, effects...)
+		if err := oneStartDispatchForRepeatTest(dispatched); err != nil {
+			t.Fatalf("repeat %d while start completion held: %v", repeat, err)
+		}
 	}
 }
 
