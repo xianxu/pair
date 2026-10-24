@@ -26,7 +26,7 @@ func TestDisposableEditedRestart(t *testing.T) {
 	if os.Getenv("PAIR_NATIVE_COUCH_FLEET") != "1" {
 		t.Skip("set PAIR_NATIVE_COUCH_FLEET=1 to run disposable native acceptance")
 	}
-	binaries := testcouch.Build(t)
+	binaries, baselineSource := startupArgumentsBinaries(t)
 	for _, agent := range []string{"claude", "codex"} {
 		if !t.Run(agent, func(t *testing.T) {
 			fleet := testcouch.New(t, binaries, testcouch.Options{Workers: 1, ExplicitHub: true, AgentKind: agent, RuntimeBudget: 4 * time.Minute})
@@ -40,8 +40,15 @@ func TestDisposableEditedRestart(t *testing.T) {
 			startupArgumentsBaseline(t, fleet)
 			ctx, cancel := context.WithTimeout(t.Context(), 240*time.Second)
 			defer cancel()
-			if err := fleet.Start(ctx); err != nil {
+			start := fleet.Start
+			if baselineSource != "" {
+				start = fleet.StartCold
+			}
+			if err := start(ctx); err != nil {
 				t.Fatal(err)
+			}
+			if baselineSource != "" {
+				startupArgumentsStartHub(t, ctx, fleet)
 			}
 			if err := fleet.StartWorker(ctx, 1); err != nil {
 				t.Fatal(err)

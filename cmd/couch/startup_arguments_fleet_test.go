@@ -23,33 +23,7 @@ func TestDisposableStartupArguments(t *testing.T) {
 	if os.Getenv("PAIR_NATIVE_COUCH_FLEET") != "1" {
 		t.Skip("set PAIR_NATIVE_COUCH_FLEET=1 to run disposable native acceptance")
 	}
-	var binaries testcouch.Binaries
-	baselineSource := os.Getenv("PAIR_NATIVE_STARTUP_BASELINE_SOURCE")
-	if baselineSource != "" {
-		scratch, err := filepath.EvalSymlinks(os.TempDir())
-		if err != nil {
-			t.Fatal(err)
-		}
-		build, stop := context.WithTimeout(t.Context(), 180*time.Second)
-		owner, err := testcouch.BuildOwned(build, testcouch.BuildConfig{Source: baselineSource, ScratchParent: scratch})
-		stop()
-		if owner != nil {
-			t.Cleanup(func() {
-				ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
-				defer cancel()
-				if err := owner.Close(ctx); err != nil {
-					t.Error(err)
-				}
-			})
-		}
-		if err != nil {
-			t.Fatal(err)
-		}
-		binaries = owner.Binaries
-		t.Logf("main baseline source %s: explicit operator startup gesture; unchanged switch-agent steps", baselineSource)
-	} else {
-		binaries = testcouch.Build(t)
-	}
+	binaries, baselineSource := startupArgumentsBinaries(t)
 	for _, source := range []string{"claude", "codex"} {
 		if !t.Run(source, func(t *testing.T) {
 			other := "codex"
@@ -125,6 +99,40 @@ func TestDisposableStartupArguments(t *testing.T) {
 			break
 		}
 	}
+}
+
+// startupArgumentsBinaries selects a pinned baseline only for explicit opt-in
+// native comparison. The same switch steps run after its operator gesture.
+func startupArgumentsBinaries(t *testing.T) (testcouch.Binaries, string) {
+	t.Helper()
+	var binaries testcouch.Binaries
+	baselineSource := os.Getenv("PAIR_NATIVE_STARTUP_BASELINE_SOURCE")
+	if baselineSource != "" {
+		scratch, err := filepath.EvalSymlinks(os.TempDir())
+		if err != nil {
+			t.Fatal(err)
+		}
+		build, stop := context.WithTimeout(t.Context(), 180*time.Second)
+		owner, err := testcouch.BuildOwned(build, testcouch.BuildConfig{Source: baselineSource, ScratchParent: scratch})
+		stop()
+		if owner != nil {
+			t.Cleanup(func() {
+				ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+				defer cancel()
+				if err := owner.Close(ctx); err != nil {
+					t.Error(err)
+				}
+			})
+		}
+		if err != nil {
+			t.Fatal(err)
+		}
+		binaries = owner.Binaries
+		t.Logf("main baseline source %s: explicit operator startup gesture; unchanged switch-agent steps", baselineSource)
+	} else {
+		binaries = testcouch.Build(t)
+	}
+	return binaries, baselineSource
 }
 
 func startupArgumentsStartHub(t *testing.T, ctx context.Context, fleet *testcouch.Fleet) {
@@ -285,6 +293,7 @@ func startupArgumentsWaitIdle(t *testing.T, parent context.Context, fleet *testc
 		}
 		checkSource()
 		if startupArgumentsFreshIdle(last, binding, started) {
+			t.Logf("idle precondition sampled=%s observed=%s native_pid=%d native_generation=%s binding=%+v slots=%+v", last.SampledAt.Format(time.RFC3339Nano), time.Now().Format(time.RFC3339Nano), expected.PID, expected.Generation, binding, last.Slots)
 			return
 		}
 		select {
