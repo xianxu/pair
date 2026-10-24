@@ -1,6 +1,6 @@
 ---
 id: 000860
-status: working
+status: codecomplete
 created: 2026-10-23
 updated: 2026-10-24
 estimate_hours:
@@ -13,6 +13,14 @@ claimant:
     workspace: pair:9
     worktree: /Users/xianxu/workspace/worktree/pair-slot9/pair
     repository: github.com/xianxu/pair
+actual_hours: 0.59
+tracker:
+    version: 1
+    completion:
+        token: close-32c591cdab25
+        repository: github.com/xianxu/pair
+        reviewed_head: 67a53ea2b4d26e3ed053150decb566c473e45068
+        evidence_commit: 06f0f98cf8ce79ba58a3ceb87af395754959a4a8
 ---
 
 # Multi-hub test fixture mutates authority after message readers start
