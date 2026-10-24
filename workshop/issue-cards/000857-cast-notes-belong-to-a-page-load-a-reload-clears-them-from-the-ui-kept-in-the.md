@@ -17,10 +17,10 @@ actual_hours: N/A
 tracker:
     version: 1
     completion:
-        token: close-5da5f03006ac
+        token: close-c45755e39800
         repository: github.com/xianxu/pair
-        reviewed_head: 6100fb6a8fea05d1b5822677e999f17e1badd7d8
-        evidence_commit: 3c9d33778806027d5f18b8579282daedba95bb06
+        reviewed_head: 6615515753ca49f840209747317995d81913d24b
+        evidence_commit: 9616f3eb699e33a07264b970c04274da34b5afb5
 ---
 
 # Cast notes belong to a page load; a reload clears them from the UI (kept in the recording)
