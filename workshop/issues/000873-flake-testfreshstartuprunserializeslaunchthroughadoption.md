@@ -75,3 +75,7 @@ Changed only the two foreground policy arguments plus their explanatory comment.
 ### 2026-10-24 — recorded check and actuals checkpoint
 
 Pushed runtime head c6644e8d0ef6b81e7920e902d5cd7b592ad6c200. Pre-close selected affected, run lease-1096961115, attempt9b1291dfa24852860d0188feb71beb0f, currently in normal FIFO; preserve this runner. Normal close refused before review because measurement exceeds65536bytes (exact receipt in measurement-refusal.txt). Apply only --no-actual under standing TL authorization f039e10f / ariadne#593; no guessed hours or evidence rewrite. Next: join the current check, finish binary close review, then merge on SHIP; the train owns integration.
+
+### 2026-10-24 — park waiting merge for operator #842 correction
+
+Hub9c9abb53 reports #842 live failure and requests its fix/re-look. The retained #873 merge pid4139 was still waiting behind #869, not admitted; sent it SIGINT and joined tool session57819 exit130 before switching this sole checkout. Recorded affected lease-1096961115 (tool91503) remains alive in its detached checkout/FIFO and is not cancelled or duplicated. SHIP and runtime unchanged; after its pass and #842 correction handoff, return here and re-enter sdlc merge --yes. No landing is claimed.
