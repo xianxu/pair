@@ -522,6 +522,17 @@ The feature branch remains unchanged in code since the passing recorded
 Next: inventory, whole close with normal measured actuals and its mandatory
 review, then the authoritative merge runner after SHIP. No landing is claimed.
 
+### 2026-10-24 — whole close blocked before review by measurement snapshot cap
+
+The first whole close on pushed dbbc04e6a exited1 before dispatching its review:
+“measurement branch proof: measurement sources exceed snapshot limit 128”.
+The measured-actual gate could not compute evidence; no hours were typed and
+no gate was waived. The runner terminated and released the shared repo lock.
+Requested evidence recovery or a precise measurement-only exception from the
+hub in receipt 772d2c5f-4cf3-4405-a5fb-bac736872ffe. Operator acceptance and
+recorded verification remain intact. Next: follow the hub's measurement recovery
+decision, rerun inventory immediately before whole close, then land after SHIP.
+
 ## Revisions
 
 ### 2026-10-23 — initial implementation design
