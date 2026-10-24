@@ -29,7 +29,8 @@ The mapped process UUID differs from the current binary at its path. Do not assi
 | ProfileWindow | INTEGRATION | cmd/internal/couchcmd/profiling.go | new; own timer, runtime/pprof and local output files |
 | Couch launch lifetime | INTEGRATION | cmd/internal/couchcmd/run.go | modified; opt-in only on cliLaunch, join profile cleanup on exit |
 | Stateful profile backend double | INTEGRATION test | cmd/internal/couchcmd/profiling_test.go | new; enforce one active CPU profile, completion/failure/cancel ownership |
-| Controlled workload | INTEGRATION test | existing cmd/internal/testcouch and native agentfixture seams | reuse; exact measured hot-path test chosen after attribution |
+| Controlled workload | INTEGRATION test | cmd/couch/profiling_acceptance_test.go | new; reuse testcouch/native-agent owners for quiet/busy profile controls |
+| Child diagnostic environment | INTEGRATION | cmd/internal/couchcmd/singleton.go | modified; clear launch-only opt-in from descendants |
 
 There is no new business entity or persisted product format. Artifacts are local diagnostic outputs, never auto-published. Use existing runtime/Getenv and diagnostic ownership rather than another service supervisor (ARCH-DRY).
 
@@ -130,3 +131,5 @@ The model carries an optional first failure and explicit acquired ownership in r
 Applicable events: cancel revokes the pending/active window and releases acquired ownership; expiry completes the window through release; IO/acquisition failure cancels further profiling and preserves completed artifacts as incomplete; a late cancel/expiry after finished is ignored. There is no replacement request, automatic retry, queue, preemption or rollback in one launch. Only timer, context and synchronous IO completion ordering are nondeterministic; the controllable backend/clock drives those same boundaries in tests.
 
 - 2026-10-24 — implementation organization: pure lifecycle lives in dedicated profiling_model.go with colocated tests, leaving IO in profiling.go. Corrected the repolint command to its existing internal/repolint package.
+
+- 2026-10-24 — M1 adapter implementation uses compiled runtime build identity; the native evidence owner separately retains/hashes its exact selected executable, avoiding the initial live-process/on-disk replacement mismatch. Launch errors stay in the Console notice owner; profile-close errors return to run.go for reporting only after Console has restored the terminal. Existing singleton child-environment clearing also clears COUCH_PROFILE_DIR (RED before, GREEN after). No new transport or profiling service was added.

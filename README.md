@@ -2575,6 +2575,15 @@ Preserve or remove specific saved sessions to free their reservations. See the
 [live-capture runbook](atlas/couch-live-capture.md) for limits, legacy recordings,
 private-file handling, stop behavior and streaming extraction.
 
+### Finite Couch CPU profiles
+
+For a local CPU/allocation investigation, set `COUCH_PROFILE_DIR` to a new
+absolute directory under an existing parent when launching Couch. After a
+60-second warmup it records one 30-second CPU window and allocation snapshots,
+then stops. Profiling is off by default, opens no listener and never overwrites
+an existing destination. Keep the exact executable and remove the retained
+private files after the investigation. See [profiling and limits](atlas/couch-profiling.md).
+
 ### SQLite backup qualification
 
 Ordinary tests use disposable writers. Native backup acceptance is opt-in and
