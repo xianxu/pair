@@ -682,7 +682,12 @@ func TestBareCwdHubResolverFailureStaysUnknownAndUsable(t *testing.T) {
 			t.Error("unknown startup console did not stop")
 		}
 	})
-	waitWarmAcceptance(t, "unverified bare hub has visible unknown notice", func() bool { return strings.Contains(host.Written(), couchtty.ChromeStatusText(want)) })
+	screen := startupWarmScreen(t, 240, 30, host.Written)
+	waitWarmAcceptance(t, "unverified bare hub has visible unknown notice", func() bool {
+		// The switcher retains the full feed message at its natural width;
+		// the forty-cell capability-chrome projection does not apply here.
+		return strings.Contains(screen(), "startup: unknown; hub automation unavailable")
+	})
 	assertCopied(writer, want)
 	if _, err := console.Ops()(couchcore.OperationCall{Name: "list"}); err != nil {
 		t.Fatalf("unknown hub blocked switcher operations: %v", err)
