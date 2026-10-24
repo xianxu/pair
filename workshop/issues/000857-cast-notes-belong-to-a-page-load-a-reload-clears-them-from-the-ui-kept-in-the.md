@@ -66,6 +66,10 @@ TL receipt 8b5caf7d-587c-44ab-9f60-a0832c521a5a authorizes a separate branch fro
 
 #856 remains SHIP on its retained branch with PR583, its exact-source recorded check in terminal5418 / lease-306801268 / run2d195b5c900c7a2bf81b53c80416abe4, source087631062be649f7578cab38fe75ddc6c3044ed1, detached snapshot /Volumes/TestScratch/local-checks/sdlc-local-1248088162. It is still queued, now position4 behind the active ariadne:2 suite. Do not duplicate/cancel it. When it passes, checkpoint and push this branch and return immediately to #856's merge; then resume #857. No production edits before this issue's change-code gate.
 
+### 2026-10-24 — Plan review refinement
+
+Full plan-quality round1 returned PQ-1 (explicit transition/acceptance authority) and PQ-2 (function-level test strategy). The revised plan names the pure nextLoadScope model and private commit reservation; TL96c958be-4700-46a3-9713-e626ca914a9d approves reserved historical writes outside the ingress mutex, superseded completion unable to confirm Board, serialized actor caches, and unavailable after failed writes. Added the mandatory mid-write superseding-navigation regression strategy and compressed test inventories into named production-function/adversarial-invariant rows. No production code started.
+
 ## Revisions
 
 ### 2026-10-24 — Parallel independent preparation

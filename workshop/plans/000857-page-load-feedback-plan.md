@@ -27,6 +27,7 @@ Paths are relative to `cmd/internal/webcast/`.
 | PageLoad: exact browser load identity and equality | `recording/page_load.go` | new |
 | Segment codec with recursive raw extensions | `recording/segment_codec.go`, `recording/codec.go`, `recording/record.go` | new / modified |
 | Segment-to-load membership index | `recording/page_load.go`, `recording/reduce.go` | new / modified |
+| Load transition state/events/effects (`nextLoadScope`) | `recorder/load_scope.go` | new |
 | Current-load press selection | `board/submission.go` | modified |
 | Historical load provenance | `query/querier.go`, `query/sketch.go`, `board/feedback_context.go` | modified |
 | Browser reducer load membership | `web/model.js` | modified |
@@ -67,11 +68,29 @@ Pin additive evolution with a frozen preserving older segment schema: it decodes
 
 ## Recorder ordering and Board ownership
 
-`document()` currently performs synchronous CDP IO and mutates loader/snapshot sequence before acceptance. Return local `{root, loader, frameID, replySeq}` evidence instead. Frame-tree failure cannot reuse an old loader as authority. Only a matching ingress generation may install loader/frame/snapshot caches, mirror state, segment metadata and confirmed scope, after accepted document writes.
+`document()` currently performs synchronous CDP IO and mutates loader/snapshot sequence before acceptance (`recorder/recorder.go:802`). Return local `{root, loader, frameID, replySeq}` evidence instead. Frame-tree failure cannot reuse an old loader as authority. Reserve a matching generation before installing caches, mirror state or segment metadata; confirm Board scope only after successful accepted document writes and only if that generation still owns the scope.
 
 Selected top-frame navigation, target activation/change and detach invalidate the token and publish Board pending scope at ingress, before snapshot IO or queue delay can expose stale page feedback. Classify from synchronized selected-session/top-frame facts and event parent identity, never actor maps. Iframe/OOP-frame events do not replace top scope. Top Page.frameNavigated directly schedules the existing resnapshot path; DOM.documentUpdated shares it. Same-document navigation preserves identity. Duplicate notifications for an already confirmed exact identity do not create a new load or clear its feedback.
 
-Snapshot cancellation is owner-scoped. A superseded completion cannot mutate caches, confirm scope, clear a successor's pending state or mark the successor non-live. Keep execution serialized and cancellation-aware. Snapshot failure, missing root, detach or close leaves scope unavailable, recoverable through the existing explicit capture retry; never restore old scope optimistically.
+Snapshot cancellation is owner-scoped. An unreserved superseded reply cannot mutate caches; a previously reserved commit may finish its historical writes but cannot confirm scope, clear a successor's pending state or mark the successor non-live. Keep execution serialized and cancellation-aware. Snapshot failure, missing root, detach or close leaves scope unavailable, recoverable through the existing explicit capture retry; never restore old scope optimistically.
+
+### Enforced transition model and linearization
+
+`nextLoadScope(state, event)` is pure and returns the next state plus typed effects. The internal states are Unknown, Pending(g), Committing(g, immutable snapshot evidence), Confirmed(g, load), Unavailable(g), and Closed. Events are Invalidate(selected-session facts), SnapshotReady(g, evidence), CommitDone(g, result), SnapshotFailed(g), and Close. A private `loadOwner` holds this state under its mutex; callers cannot assign phase/generation fields or construct commit reservations. Only its transition wrapper runs effects; the selected-top snapshot paths share `commitTopSnapshot` rather than calling mirror.Seg/Resnapshot directly.
+
+| State / event | Next state | Effect / authority |
+|---------------|------------|--------------------|
+| Any nonclosed / Invalidate | Pending(g+1) | Cancel superseded snapshot IO; publish Board pending before enqueue/next capture |
+| Pending(g) / SnapshotReady(g, valid complete evidence) | Committing(g, evidence) | Return one opaque reservation to the sole recorder actor |
+| Any / SnapshotReady(other generation) | Unchanged | Discard evidence, no cache/mirror/sink effects |
+| Committing(g) / CommitDone(g, success), still current | Confirmed(g, load) | Publish complete accepted scope |
+| Committing(g) / write failure, or Pending(g) / SnapshotFailed(g) | Unavailable(g) | Keep Board unavailable; retain error and existing retry action |
+| Any newer state / completion for older generation | Unchanged | No Board confirmation, successor cancellation or live-state mutation |
+| Any / Close | Closed | Cancel owned work and publish unavailable; join existing actor/side workers |
+
+The reservation transition is snapshot acceptance's linearization point against ingress invalidation. Both use the same load-owner mutex. After a reservation, the actor writes that accepted historical snapshot outside the mutex, so Send never waits for sink IO. Invalidation can supersede a Committing generation immediately and publish pending while its write is held. Those already reserved records legitimately precede the queued navigation in recording order; they are not reclassified as the newer load. A reservation is consumed once. The sole actor's serialization ensures its cache/mirror installation cannot overwrite a newer actor installation; ingress modifies only scope authority. A pre-reservation stale reply has no effects. Post-write confirmation reacquires the owner, runs CommitDone, and confirms Board only while that generation remains current. Publish the pending/confirmed projection under the owner mutex into the leaf Board lock; release before queue lock or CDP/sink IO. Board never calls back into this owner.
+
+Any accepted write failure leaves scope unavailable; no rollback pretends the recording write was atomic. Already appended history remains history and existing sink-error handling remains authoritative. No new visible error/retry mode is added. A held sink regression proves navigation can supersede mid-write, old completion cannot confirm, and the queued successor can establish the correct scope. TL96c958be-4700-46a3-9713-e626ca914a9d approves this internal refinement.
 
 Board's scope transition accepts a monotonic generation and pending/confirmed value under its lock. Pending immediately invalidates live projections and page-feedback creation admission; confirmation succeeds only for the current generation and matching accepted state. Reducer metadata alone supplies replay facts; runtime pending overlays only the live owner. Preserve original DocSeg and annotation/control authority fences. Audit lock order across every caller before adding an acquirer.
 
@@ -115,18 +134,18 @@ Reuse current queue bounds (100,000 DOM and non-DOM events), CDP call timeout (5
 
 Files: create `recording/page_load.go`, `recording/page_load_test.go`, `recording/segment_codec.go`, `recording/segment_codec_test.go`; modify `recording/record.go`, `recording/codec.go`, `recording/reduce.go`, `recording/catchup.go`, `recording/contract.go` and their tests.
 
-- [ ] Write failing PageLoad equality/validation and segment codec tests. Exercise absent/null/malformed/duplicate Unicode/number fields, exact target match, opaque unknown nested numbers, typed edits, shared encoding and legacy acceptance. Run `go test ./cmd/internal/webcast/recording -run 'Test(PageLoad|Segment)'` and inspect intended red failures.
+- [ ] Write failing PageLoad and segment-codec tests using the function strategies below. Run `go test ./cmd/internal/webcast/recording -run 'Test(PageLoad|Segment)'` and inspect intended red failures.
 - [ ] Implement optional segment metadata and strict preserving segment codec. Add segment index and pure membership helpers without changing sketch request/digest fields.
-- [ ] Add frozen older-schema rewrite, every-prefix catch-up and repeated-compaction tests with inactive loads and immutable sketch digest/receipt controls. Run `go test ./cmd/internal/webcast/recording`; require PASS.
+- [ ] Add preservation/replay tests through the production functions below. Run `go test ./cmd/internal/webcast/recording`; require PASS.
 - [ ] Commit the model/codec checkpoint with issue and author trailers.
 
 ### 2. Recorder ingress fence and Board scope
 
 Files: create `recorder/page_load.go`, `recorder/page_load_test.go`, `board/page_load.go`, `board/page_load_test.go`; modify `recorder/recorder.go`, `recorder/mirror.go`, `recorder/recorder_test.go`, `board/board.go`, `board/submission.go`, `board/operator_view.go`, `board/sketch_delivery.go` and focused tests.
 
-- [ ] Add failing stateful fake-CDP gates at getFrameTree/getDocument with explicit entry/release barriers and cancellation join. Pin pending before IO, navigation during held IO, stale completion, failure, detach, close, iframe and same-document cases; retain established event-order and stale-draft tests.
+- [ ] Add failing stateful fake-CDP and sink gates with explicit entry/release barriers and cancellation join, using the ordering strategies below; retain established event-order and stale-draft tests.
 - [ ] Implement the ingress-owned token and Board generation transition. Keep snapshot return evidence local until generation acceptance; propagate complete identity on each segment including resume/tab-return.
-- [ ] Add atomic selection tests for current-only membership, pending empty page selection, unchanged unsaved guard, exact admitted versions after navigation, and same-load return. Add counted 8/16 and 32/64 guards from the cost table.
+- [ ] Add atomic selection and scope-publication tests through the named functions below. Add counted 8/16 and 32/64 guards from the cost table.
 - [ ] Run `go test ./cmd/internal/webcast/recorder ./cmd/internal/webcast/board` and focused `-race` ordering cases; require PASS and all fake work joined. Commit.
 
 ### 3. Live consumers, after #856 lands
@@ -134,7 +153,7 @@ Files: create `recorder/page_load.go`, `recorder/page_load_test.go`, `board/page
 Files: `web/model.js`, `web/annotate.js`, `web/sketch-render.js`, `operator.js`, #856's panel/entry/glow adapters as actually landed, `board/feedback_context.go`, `query/querier.go`, `query/sketch.go`; tests in `tests/webcast/*.test.mjs` and colocated Go tests.
 
 - [ ] Merge landed main only after #856's landing; reconcile the actual entity table/file ownership before editing. Do not import its unlanded commits.
-- [ ] Add failing reducer/operator parity tests: same URL distinct tabs, reload, same-document app update, A→B→A, pause/resume, unknown scope, held editor and delayed hover/anchor completion. Assert no old rows, pins, ink, labels or controls survive scope departure.
+- [ ] Add failing reducer/operator parity tests using the membership and lifecycle strategies below. Assert no old rows, pins, ink, labels or controls survive scope departure.
 - [ ] Filter all live feedback from the same derived current-load source, preserving selection/delivery/privacy stamps and #849's getter/unsaved guard. Clear transient hover/editor state through existing lifecycle owners; no new feedback store.
 - [ ] Add unfiltered query provenance assertions and exact root string projection. Run `node --test tests/webcast/*.test.mjs` and `go test ./cmd/internal/webcast/query ./cmd/internal/webcast/board`; require PASS. Commit.
 
@@ -145,6 +164,25 @@ Files: `web/model.js`, `web/annotate.js`, `web/sketch-render.js`, `operator.js`,
 - [ ] Update `atlas/webcast-submission.md` and relevant recording/recorder map/index for load versus activation, pending/unknown behavior, query provenance and old-reader limits. Reconcile concepts table against actual ownership.
 - [ ] Stage new tests, run `make test-affected-inventory`, audit every named reader individually, push and run `sdlc local-check run --pre-close`. Close through the mandatory fresh SDLC review; fix blockers on newly verified source.
 - [ ] Ask hub to sequence the morning combined stage and operator steps. After acceptance and checks, enter `sdlc merge --yes` promptly; report actual landed PR/train, clear any owned stage through SDLC and finish cleanup.
+
+## Function-level verification strategies
+
+Names introduced here are intended interfaces; reconcile names with implementation without changing ownership or test invariants.
+
+| Production function | Adversarial input/event class and mechanical guard |
+|---------------------|--------------------------------------------------|
+| `PageLoad.Validate`, `SamePageLoad` | Generated identity triples and malformed owned values: strict validation, exact equality, unknown never equals unknown, target/tab consistency |
+| `decodeSegment`, `encodeSegment`, `Decode`, `Encode` | Fuzz JSON object structure and Unicode/numeric boundaries; strict owned authority, recursive duplicate refusal and raw unknown-byte preservation after typed edits, no shared mutation |
+| `State.Apply`, `State.PageLoadAt`, `State.CurrentPageLoad` | Generated activation/feedback sequences: creation membership immutable, index survives DOM reset, one lookup per item, draft DocSeg unchanged |
+| `CatchUp`, `CheckCatchUp` | Every generated valid prefix and repeated compaction: full replay and catch-up agree on load facts and complete history, sketch canonical bytes/digests/receipts unchanged |
+| `nextLoadScope` | Generated state/event sequences: generation monotonicity, exactly one reservation, stale events have no effects, confirmed implies successful current reserved commit, Closed terminal |
+| `Recorder.enqueue`, `document`, `commitTopSnapshot`, `snapshotTop`, `resnapshot` | Stateful fake interleavings with held/failing CDP and sink boundaries: pending precedes IO, reservation linearizes acceptance, superseding navigation remains responsive mid-write, no stale confirmation, joined cancellation and one actor writer |
+| `Board.BeginPageLoad`, `Board.ConfirmPageLoad`, `selectionLocked`, `Selection.PressSelection` | Interleave scope transition and selection admission under barriers: one current scope, no unknown-page feedback, immutable admitted versions, existing delivered limits and unsaved guard preserved |
+| `operatorViewLocked`, `OperatorSketchSince`, `sketchDisplayProjection`, browser model application / `feedbackEntries` | Cross-language replay of generated load transitions: current-only rows/pins/ink/label eligibility agree, complete unfiltered query history remains |
+| `createFeedbackPanel`, annotation/sketch hover/reveal adapters as landed in #856 | Delayed placement and mount teardown sequences: departed-load replies cannot restore controls/highlights or target an earlier anchor; existing editor cleanup and stamp paths complete |
+| `Querier.Notes`, sketch source-facts projection | Mixed-load history: all retained items remain queryable with exact provenance, including roots outside JS safe-integer range projected without rounding |
+
+Frozen-schema rewrite and native reload/tab acceptance remain independent oracles rather than restating implementation output. Executable case inventories belong in tests, not in this plan.
 
 ## Architecture decisions
 
@@ -160,3 +198,7 @@ Files: `web/model.js`, `web/annotate.js`, `web/sketch-render.js`, `operator.js`,
 ### 2026-10-24 — Independent data/recorder sequencing
 
 Receipt 8b5caf7d-587c-44ab-9f60-a0832c521a5a supersedes only the joint plan's wait-before-branching order. Start from current main without #856 commits, work on data/recorder after this issue's change-code gate, wait for landed #856 before UI integration, and return to #856 merge as soon as its retained check passes. Read-only surveys locate the approved generation fence at ingress because the recorder loop blocks during snapshot IO. They also establish no individual CDP identifier cap; preserve the existing contract rather than invent one.
+
+### 2026-10-24 — Plan-quality authority refinement
+
+PQ-1 is addressed by the pure nextLoadScope transition table, private owner/reservation, shared selected-top commit function and explicit acceptance/confirmation linearization. TL96c958be approves reservation under the mutex followed by sole-actor IO outside it, and requires the held-write navigation regression. This preserves responsive ingress instead of holding its mutex across sink IO. PQ-2 is addressed by replacing procedural test-case lists with named production functions, adversarial classes and mechanical invariants; verification commands and counted budgets remain.
