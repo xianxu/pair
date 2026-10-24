@@ -198,6 +198,12 @@ The corrected complete41-target sweep PASS exit0, capture /Volumes/TestScratch/p
 
 The full-Go run also found TestRepoPreferenceConcurrentInstancesPreserveOtherRepositoriesAndAgents busy-store failure; isolated exact run reproduces exit1/package1.496s, and source/test are unchanged from main. pair:6 confirms854/873 do not cover it: Background keeps the fixed1s wait and typed ErrThreadStoreBusy escapes the preference loop. TL266b90f8 directs separate unclaimed filing. Creation is pending behind the common SDLC repo lock; no fix or flake classification is folded into866. No recorded suite queued. Full Go capture remains /Volumes/TestScratch/pair866-full-go-local-gr31bcx7/go.log; no full pass claimed.
 
+### 2026-10-24 — complete local Go result and separate contention issue
+
+Complete local fresh-candidate Go set finished exit1, capture /Volumes/TestScratch/pair866-full-go-local-gr31bcx7/go.log SHA256843fa5cfd377c2cb5f171ade11cbec65d394789e16533fb0d1f501758386bed5. Failures were confined to couchcore (shared inherited-namespace fixture class, since fixed with focused65.707s pass; independent preference contention) and wrapcmd (TestWrapperTitleLeaseSIGKILL, TestWrapperTitleLeaseNotInherited, TestWrapperTitleFixtureDoesNotTouchInheritedCapture: empty agent/title PID and log after3s). Every other package passed, including launcher, zellijreply and zellijtest. The three title fixture failures are under targeted investigation before another full local run or recorded suite; no timeout change or flake assumption.
+
+Unclaimed #877 successfully filed on origin under workshop/issues/000877-repo-preference-store-contention.md for the unrelated preference typed-busy contour, per TL266b90f8; creation wrote nothing to this checkout. #854/#873 explicitly do not cover it. Reported filing and complete local-Go log/hash to hubf523f035 (submitted). All41 non-Go target evidence remains PASS on the same runtime source; no new recorded suite queued and no stage-ready claim.
+
 ## Revisions
 
 ### 2026-10-24 — final plan bookkeeping and source ownership
