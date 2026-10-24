@@ -1361,6 +1361,7 @@ var NonArtifactSources = []string{
 	"cmd/internal/couchcmd/session_stale_model.go",
 	// #661 apply and rounds: pure resolution, diff and marker code, plus a
 	// round sidecar beside the shadow; no Pair artifact filenames.
+	"cmd/internal/sessionsync/apply_shadow.go", // #862 pure in-memory baseline projection
 	"cmd/internal/sessionsync/edits.go",
 	"cmd/internal/sessionsync/editorial_codec.go",
 	"cmd/internal/sessionsync/editorial.go",

@@ -24,7 +24,7 @@ The recommendation requires TL approval of the conservative outcome below. It fo
 - Compute unread runs from previous shadow to captured current content via the existing bounded changedRuns helper. Their complement gives ordered byte-equal spans with base/shadow coordinates.
 - Map each actual apply run only when its complete old range lies in one byte-equal span. Handle an insertion at a boundary conservatively: both neighboring coordinates must agree; a boundary containing unread insertion/deletion is unmappable. Verify the mapped old bytes and preserve order/nonoverlap.
 - Replay mapped runs on the old shadow using one ordered builder. Apply the existing generated Updated restamp behavior to the prospective shadow; never replace its surrounding unread content. Pin stamp presence/absence, Unicode and CRLF cases.
-- If any changed range is unmappable, or there is no prior baseline for a changing apply, keep the entire old shadow (empty when absent). Do not fall back to the new whole document. The document apply still succeeds with warning: baseline was retained; own edits may remain in diff; read the intended scope to acknowledge it. No raw document text in that warning.
+- If any changed range is unmappable, or there is no prior baseline for a changing apply, keep the entire old shadow (empty when absent). Do not fall back to the new whole document. The document apply still succeeds with warning: baseline was retained; own edits may remain in diff; review the remaining edits, then explicitly read --all to acknowledge them. No raw document text in that warning.
 - A no-op apply advances no unread content. Existing automatic stamp handling stays explicit in tests.
 - Preparation computes the complete prospective shadow, warning, encoded state and registered limits before any write. Existing publication failure behavior remains: document/shadow/state are separate effects, IO errors require inspection before retry. Do not add a retry or store.
 - Compose the baseline warning with round/late-lock warnings so none disappears.
@@ -43,12 +43,12 @@ The projection owns no mutable state or IO. Input is old shadow, captured source
 
 ## States, actions and recovery
 
-Actions: apply, inspect diff/status, read intended scope, recompute/retry.
+Actions: apply, inspect diff/status, read --all after reviewing remaining edits, recompute/retry.
 
 | Internal outcome | Visible result | Recovery | Possible loss |
 |---|---|---|---|
 | All changed runs map | apply succeeds; own changes absent from diff, other unread text remains | inspect diff | none |
-| Missing baseline or unmappable run | apply succeeds; baseline-retained warning, own changes may also remain in diff | inspect diff, read intended scope | no unread content silently acknowledged |
+| Missing baseline or unmappable run | apply succeeds; baseline-retained warning, own changes may also remain in diff | inspect diff, read --all after reviewing remaining edits | no unread content silently acknowledged |
 | Stale/lock/owner/invalid records/limits | existing refusal before effects | inspect/read/recompute | none |
 | Publication fails after document effect | existing IO error and retained artifacts | inspect document/diff/status before recompute/retry | partial metadata publication already possible today |
 
@@ -62,13 +62,13 @@ Count mapper span/run visits and copied bytes at N=8 and 2N=16 with proportional
 
 ## Execution and verification
 
-- [ ] Add pure fixture tests first in apply_shadow_test.go and testdata/apply-shadow: shifted offsets; frontmatter plus body batch; unread edits before/after and in the same line/section; repeated Old strings with changed occurrence counts; broad Old with narrow change; no-op; insert/delete/multiline/Unicode/CRLF; overlapping unread range; absent baseline; coarse diff fallback. Assert exact expected shadow, preserved unrelated bytes and mapping status. Observe red before implementation.
-- [ ] Implement the pure interval projection using changedRuns and ordered replay. Keep ambiguity conservative. Add the counted N/2N assertions and a generated invariant: every shadow modification is attributable to a mapped apply change or the existing stamp, and no unread outside range becomes acknowledged.
-- [ ] Integrate only req.edits != nil in prepareWrite, before effects/metadata limits. Carry any warning through preparedWrite and combine with existing warnings. No mutation of the captured baseline during preparation.
-- [ ] Public tests in apply_shadow_integration_test.go: registered and legacy files, frontmatter+body changes, unread Needs you edits elsewhere and inside the touched section, alias paths, current hash obtained without an acknowledging read. Assert exact document/shadow/state/round and diff. Pin mapped success, retained-baseline warning, no-op, stale/lock/fold guards and publication failures.
-- [ ] CLI regression in cmd/internal/couchcmd/session_sync_test.go uses the portable store/ledger and apply --json plus diff; verify warning JSON and stderr paths without changing wire shape. Standalone ApplyFile and explicit read/write baseline controls remain green.
-- [ ] Update README, atlas/couch.md, embedded Couch skill and CLI help to state range-scoped apply acknowledgment and conservative recovery. Audit reader inventory individually if fixtures add inputs.
-- [ ] Coordinate the Ariadne tl-lead fake through the hub: approved contract and portable cases go to its owning slot, independently based on Ariadne main, no Pair runtime import or stacking. Replace TestFakeApplyAdvancesBaseline with unread-preservation and mapping-fallback cases. File its update unclaimed with dependency pair#862; the hub assigns it after Pair lands. Pair closes on its own implementation and contract handoff. No conversion of instructions link is in scope.
+- [x] Add pure fixture tests first in apply_shadow_test.go and testdata/apply-shadow: shifted offsets; frontmatter plus body batch; unread edits before/after and in the same line/section; repeated Old strings with changed occurrence counts; broad Old with narrow change; no-op; insert/delete/multiline/Unicode/CRLF; overlapping unread range; absent baseline; coarse diff fallback. Assert exact expected shadow, preserved unrelated bytes and mapping status. Observe red before implementation.
+- [x] Implement the pure interval projection using changedRuns and ordered replay. Keep ambiguity conservative. Add the counted N/2N assertions and a generated invariant: every shadow modification is attributable to a mapped apply change or the existing stamp, and no unread outside range becomes acknowledged.
+- [x] Integrate only req.edits != nil in prepareWrite, before effects/metadata limits. Carry any warning through preparedWrite and combine with existing warnings. No mutation of the captured baseline during preparation.
+- [x] Public tests in apply_shadow_integration_test.go: registered and legacy files, frontmatter+body changes, unread Needs you edits elsewhere and inside the touched section, alias paths, current hash obtained without an acknowledging read. Assert exact document/shadow/state/round and diff. Pin mapped success, retained-baseline warning, no-op, stale/lock/fold guards and publication failures.
+- [x] CLI regression in cmd/internal/couchcmd/session_sync_test.go uses the portable store/ledger and apply --json plus diff; verify warning JSON and stderr paths without changing wire shape. Standalone ApplyFile and explicit read/write baseline controls remain green.
+- [x] Update README, atlas/couch.md, embedded Couch skill and CLI help to state range-scoped apply acknowledgment and conservative recovery. Audit reader inventory individually if fixtures add inputs.
+- [x] Coordinate the Ariadne tl-lead fake through the hub: approved contract and portable cases go to its owning slot, independently based on Ariadne main, no Pair runtime import or stacking. Replace TestFakeApplyAdvancesBaseline with unread-preservation and mapping-fallback cases. File its update unclaimed with dependency pair#862; the hub assigns it after Pair lands. Pair closes on its own implementation and contract handoff. No conversion of instructions link is in scope.
 - [ ] Run focused tests one at a time per slot, count <= 10, under the overload notice. Then inventory, pushed-head sdlc local-check run --pre-close, whole close, authorized stage/live reproduction if the hub requires it, and authoritative queued merge verification. No unqueued full suite/native matrix.
 
 ## Approval and boundaries
@@ -84,3 +84,12 @@ plan made the updated upstream fake a Pair close requirement; the hub instead
 requires an unclaimed dependent Ariadne issue, assigned after Pair lands.
 Pair's Done when is narrowed accordingly. Existing fake changes are deferred
 to that issue, with no cross-repo implementation on this branch.
+
+### 2026-10-24 — recovery corrected after executable counterexample
+
+Authenticated hub4f69397b approves recovery: inspect diff, review remaining
+edits, then explicitly read --all to acknowledge them. The earlier proposed
+scoped-read recovery was false: Read(section) never saves the shadow today
+(sync.go:295-320); four recovery tests exposed it. Do not change Read(section),
+introduce implicit acknowledgment or add state. This entry supersedes earlier
+scoped-read recovery wording; frontmatter/scoped writes retain their contracts.

@@ -55,7 +55,7 @@ map cleanly.
 - An apply whose records touch only one section leaves an operator's unread edit in another section in `diff`
   (test).
 - An apply's own edits don't show in `diff` afterwards (test).
-- Unmappable/missing-baseline apply succeeds with the previous baseline retained and a visible warning; scoped-read recovery is documented and tested.
+- Unmappable/missing-baseline apply succeeds with the previous baseline retained and a visible warning; explicit review-then-read-all recovery is documented and tested.
 - The dependent Ariadne fake update is filed unclaimed against pair#862, with the approved contract and fixture handoff.
 
 ## Plan
@@ -64,8 +64,8 @@ Draft: [apply shadow plan](../plans/000862-apply-shadow-plan.md).
 One atomic close boundary, no milestones. Await TL approval before code.
 
 - [x] Approve the mapped-range contract and conservative retained-baseline warning; separate the dependent Ariadne fake update.
-- [ ] Prove pure mapping and bounded growth, then integrate preparation/public warning handling.
-- [ ] Verify public registered/legacy/CLI paths, unread preservation and refusal/publication controls; update guidance.
+- [x] Prove pure mapping and bounded growth, then integrate preparation/public warning handling.
+- [x] Verify public registered/legacy/CLI paths, unread preservation and refusal/publication controls; update guidance.
 - [ ] File the dependent Ariadne fake update; pass inventory and recorded pre-close, then whole close and land.
 
 ## Log
@@ -103,6 +103,40 @@ after Pair lands. No code has been changed before approval.
 Filed ariadne#615 unclaimed with dependency pair#862; creation published card
 and complete details on origin without changing the peer checkout.
 
+### 2026-10-24 — implementation and targeted proof
+
+Before the fix, TestApplyPreservesUnreadEditsElsewhere failed for both legacy
+and registered documents: the saved shadow included operator unread text
+outside the apply target. The pure mapper now reuses changedRuns to map only
+actual changed intervals, retaining the whole old shadow on uncertainty.
+Preparation carries a nonpersistent warning; publication composes it with
+round and late-lock warnings. Existing Write/Read/ApplyFile scope contracts
+are unchanged. Core mapping remains free of IO; portable JSON has14 cases.
+New pure helper is classified NonArtifactSources in the exhaustive inventory.
+
+Targeted proof, one Go test process at a time under the overload policy:
+- New/public baseline tests and fuzz seeds PASS; explicit mapped projection,
+  no-op/broad records, same-line/section unread text, duplicate occurrences,
+  frontmatter+body, Unicode/CRLF, absent baseline and diff-cap fallback.
+- Targeted session-sync race including existing stale/lock/bad-batch and
+  source-ownership guards PASS16.342s. Alias/recovery/standalone controls
+  PASS3.688s; final new baseline subset race PASS1.466s.
+- Public CLI apply --json/diff and frontmatter controls PASS1.218s; warning
+  is visible on stderr without a JSON shape change. Artifact inventory
+  repaired by classifying the pure helper, then PASS2.941s. Catalog PASS6.904s.
+- Counted8/16 mapper span/run visits and actual builder bytes stay linear;
+  the existing bounded diff and conservative coarse-hunk fallback are reused.
+
+A legacy alias fixture initially assumed shared canonical metadata; corrected
+the fixture to seed its existing independent sidecar. Registered aliases use
+canonical metadata. No alias behavior changed. The only new repository read
+is testdata/apply-shadow/cases.json, a literal portable pure-test corpus;
+audited and recorded its reader as non_go_full_fallback, with no bulk hashes.
+Next: commit/push, queued --pre-close, inventory then whole close and merge.
+Ariadne#615 is unclaimed and depends on pair#862; its eventual model must use
+the final approved review-then-read-all recovery, superseding its early draft's
+scoped-read wording. No cross-repo code was changed.
+
 ## Revisions
 
 ### 2026-10-24 — separate dependent fake adoption, TL-approved
@@ -113,3 +147,12 @@ mapping, conservative warning and filed contract handoff only. The fake update
 waits on landed pair#862 in its own unclaimed Ariadne issue; #862 does not wait
 on its dependent. This removes a dependency cycle without dropping the fake
 adoption work. The approved uncertain outcome is now explicit in Done when.
+
+### 2026-10-24 — recovery corrected after executable counterexample
+
+Authenticated hub4f69397b approves recovery: inspect diff, review remaining
+edits, then explicitly read --all to acknowledge them. The earlier proposed
+scoped-read recovery was false: Read(section) never saves the shadow today
+(sync.go:295-320); four recovery tests exposed it. Do not change Read(section),
+introduce implicit acknowledgment or add state. This entry supersedes earlier
+scoped-read recovery wording; frontmatter/scoped writes retain their contracts.

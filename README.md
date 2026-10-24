@@ -554,6 +554,9 @@ couch --session-sync apply EDITS.json FILE --if-hash H [--fold ID] [--json]
                          a precise edit: {old, occurrence, new, explain} records applied all or none
                          (edits-invalid lists each bad record). New edits are clean text with highlight metadata;
                          agents preserve chat tags, their heading attachment, legacy settings and chat asks.
+                         Apply acknowledges only safely mapped changed ranges; unread edits elsewhere stay in diff.
+                         If the previous baseline is retained with a warning, inspect diff, review remaining edits,
+                         then explicitly read --all to acknowledge them. Section reads do not acknowledge edits.
 couch --session-sync migrate-editorial FILE [--json]
 couch --session-sync migrate-editorial FILE --confirm --if-hash H [--json]
                          operator-run exact map-to-tag preview, then confirmation using its full source SHA256.
