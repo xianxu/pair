@@ -38,6 +38,25 @@ reviewer_runs:
       finished_at: "2026-10-23T21:35:16.766242Z"
       session_id: 01a16ab0-1990-7aa0-a88a-9520cf75182d
       outcome: returned
+    - version: 1
+      intent:
+        id: ea12eb59-e66a-4127-a315-f5032adcdb08
+        repository: github.com/xianxu/pair
+        issue_id: "000838"
+        recipe: estimate-quality
+        round: 1
+        attempt: 1
+        agent: codex
+        root: /Users/xianxu/workspace/worktree/pair-slot3/pair
+        reviewed_head: ddd95c49acb969ea833f2f5067194c547bba80dd
+        slot: pair:3
+        requested_at: "2026-10-24T00:26:55.657875Z"
+      phase: finished
+      pid: 80220
+      started_at: "2026-10-24T00:26:55.848574Z"
+      finished_at: "2026-10-24T00:27:23.262726Z"
+      session_id: 01a16b4d-b19d-7653-8086-e53de5d69150
+      outcome: returned
 gate: plan-quality
 issue: 838
 id_prefix: PQ
@@ -148,7 +167,41 @@ rounds:
           note: Function-scoped strategies specify adversarial inputs and mechanical guards rather than prose test-case inventories.
           round: 3
       blocked: false
-content_hash: b61364ff31a6406bd5a5066430fa83e4febf201dd3a2edbf2f15cd535484e556
+    - reviewer_runs:
+        - version: 1
+          intent:
+            id: 18a7fd60-4ea2-4385-9cfa-88622b62d509
+            repository: github.com/xianxu/pair
+            issue_id: "000838"
+            recipe: plan-quality
+            round: 4
+            attempt: 1
+            agent: codex
+            root: /Users/xianxu/workspace/worktree/pair-slot3/pair
+            reviewed_head: ddd95c49acb969ea833f2f5067194c547bba80dd
+            slot: pair:3
+            requested_at: "2026-10-24T00:26:23.607941Z"
+          phase: finished
+          pid: 61853
+          started_at: "2026-10-24T00:26:23.790792Z"
+          finished_at: "2026-10-24T00:26:51.62202Z"
+          session_id: 01a16b4d-34db-7651-bbe6-0de332ddd2ab
+          outcome: returned
+      "n": 4
+      timestamp: "2026-10-23T17:26:51-07:00"
+      agent: codex
+      reviewer: codex (openai; author openai)
+      dispose:
+        - id: PQ-1
+          disposition: addressed
+          note: Landed shared APIs preserve independent legacy grammar, all protected tags and heading facts across the enumerated consumers.
+          round: 4
+        - id: PQ-2
+          disposition: addressed
+          note: Named production functions have adversarial-input strategies and mechanical guards; executable fixtures retain case inventories.
+          round: 4
+      blocked: false
+content_hash: 503d10021be743c1ddf59f1d15cc377f221a4373aa9bc53b8442c2419a447976
 ---
 
 # Gate ledger — pair#838 (plan-quality)
@@ -178,6 +231,13 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 
 - PQ-1 — addressed — Independent Legacy and Tags provenance covers routing, item grammar, ownership and migration; implementation waits for the landed shared API.
 - PQ-2 — addressed — Function-scoped strategies specify adversarial inputs and mechanical guards rather than prose test-case inventories.
+
+## Round 4 — 2026-10-23T17:26:51-07:00 (codex) — passed
+
+### Disposed
+
+- PQ-1 — addressed — Landed shared APIs preserve independent legacy grammar, all protected tags and heading facts across the enumerated consumers.
+- PQ-2 — addressed — Named production functions have adversarial-input strategies and mechanical guards; executable fixtures retain case inventories.
 
 ## Open findings
 

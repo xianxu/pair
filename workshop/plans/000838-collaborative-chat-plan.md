@@ -288,3 +288,22 @@ oracle must preserve actual source membership rather than the old toggle's
 incorrect expectation. Add CodeLines to the shared API provenance pin when
 #576 lands; no Pair fence scanner. The dependency wait and exact next step
 remain unchanged.
+
+### 2026-10-23 17:26 — final shared API landed
+
+Verified ariadne#576/PR420 MERGED at
+354e5fac5c96e0b2c26350ee712eb835746a6d67, present in the refreshed normal
+substrate. The ordinary versioned module requirement now pins that merge,
+not a worktree replace. This completes the upstream API gate.
+
+Final ChatScan also exposes Headings []ChatHeading{Line, Level, Name} and
+Heading(level, name); use those shared heading facts for byte-coordinate
+association rather than a second heading-name normalizer. Shared ChatItems,
+IndentOf and CodeLines are now landed with Legacy/Tags and the fence fix.
+Pin export-v4 source/fixtures at this same revision. The adapter keeps plain
+original byte offsets; Compile and ValidateEdits no longer accept a runtime
+processing Catalog. Existing transaction/round codec owners stay in place.
+
+Next: refresh change-code on this final API description; implement the already
+RED core tests, then finish all planned public-seam, native and operator
+acceptance before close. No further upstream API wait.
