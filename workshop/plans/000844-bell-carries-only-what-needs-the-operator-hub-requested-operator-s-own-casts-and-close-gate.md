@@ -189,6 +189,53 @@ rounds:
       recipe: fix-review
       isolation: fenced
       blocked: true
+    - reviewer_runs:
+        - version: 1
+          intent:
+            disposable_root: true
+            id: afa2bf74-06bd-49ad-a688-58ed564bd15b
+            repository: github.com/xianxu/pair
+            issue_id: "000844"
+            recipe: milestone-review
+            round: 5
+            attempt: 1
+            agent: codex
+            root: /Volumes/TestScratch/review-checkouts/8f2d8b34f788648e
+            reviewed_head: 6724410b13b26b54f352dff9d6f698ff57cb3835
+            slot: pair:1
+            requested_at: "2026-10-24T20:47:14.991932Z"
+          phase: finished
+          pid: 99051
+          started_at: "2026-10-24T20:47:15.119119Z"
+          finished_at: "2026-10-24T20:48:53.573724Z"
+          session_id: 01a16faa-ee40-7cf3-b558-5c5b9a826661
+          outcome: returned
+      "n": 5
+      timestamp: "2026-10-24T13:48:55-07:00"
+      dispatched: "2026-10-24T13:47:12-07:00"
+      agent: codex
+      reviewer: codex (openai; author openai)
+      dispose:
+        - id: BR-4
+          disposition: addressed
+          note: This review inspected the complete pinned range against Spec and Plan, including the executable checker extension. Plan lines 264–266 supersede narrow re-close; artifactpath tests, routing race tests and reader inventory pass.
+          round: 5
+        - id: BR-1
+          disposition: addressed
+          note: Retained-root generation checks and AwaitingDisposition preserve unavailable-owner fallback without re-admission. Owner-loss, unknown-readiness and controlled handoff regressions pass under race detection.
+          round: 5
+        - id: BR-2
+          disposition: addressed
+          note: README passages at lines 1264 and 1536 now describe owning-hub routing, operator exceptions, unavailable-owner fallback and automation-OFF behavior consistently with RouteNotice.
+          round: 5
+        - id: BR-3
+          disposition: addressed
+          note: Both package inventories consume testnotice.Findings and CheckRejections, retaining only package-specific projection and forwarder configuration. Shared analyzer and inventory tests pass.
+          round: 5
+      recipe: milestone-review
+      isolation: fenced
+      reviewed: 6724410b13b26b54f352dff9d6f698ff57cb3835
+      blocked: false
 ---
 
 # Gate ledger — pair#844 (boundary-review)
@@ -236,6 +283,15 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-4** [Critical] `close-review-scope-integrity` (kind: defect) Scope changed after close — run a full `sdlc close`
   workshop/plans/000844-human-attention-routing-plan.md:258-262 adds a checker-design revision beyond recording any prior finding's fix. cmd/internal/artifactpath/manifest.go:32 introduces GoTypedConstantVocabulary, and coverage_test.go:755-762 adds executable acceptance behavior for it. None of BR-1, BR-2 or BR-3 requested this behavior. Although the focused checks pass and the plan records approval, the supplied narrow-review rule requires a full sdlc close for this expanded scope.
 
+## Round 5 — 2026-10-24T13:48:55-07:00 (codex) — passed
+
+### Disposed
+
+- BR-4 — addressed — This review inspected the complete pinned range against Spec and Plan, including the executable checker extension. Plan lines 264–266 supersede narrow re-close; artifactpath tests, routing race tests and reader inventory pass.
+- BR-1 — addressed — Retained-root generation checks and AwaitingDisposition preserve unavailable-owner fallback without re-admission. Owner-loss, unknown-readiness and controlled handoff regressions pass under race detection.
+- BR-2 — addressed — README passages at lines 1264 and 1536 now describe owning-hub routing, operator exceptions, unavailable-owner fallback and automation-OFF behavior consistently with RouteNotice.
+- BR-3 — addressed — Both package inventories consume testnotice.Findings and CheckRejections, retaining only package-specific projection and forwarder configuration. Shared analyzer and inventory tests pass.
+
 ## Open findings
 
-- **BR-4** [Critical] `close-review-scope-integrity` (kind: defect) Scope changed after close — run a full `sdlc close`
+(none — every finding has been disposed)

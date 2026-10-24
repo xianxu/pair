@@ -405,3 +405,102 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-24T13:48:55-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 844 — Bell carries only what needs the operator (hub-requested, operator's own casts and drives, no hub able to act); the rest goes to the hub |
+| repo | pair |
+| issue file | workshop/issues/000844-bell-carries-only-what-needs-the-operator-hub-requested-operator-s-own-casts-and.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 5ebb6f2fb37088078c205242b11a1631422eb98c..6724410b13b26b54f352dff9d6f698ff57cb3835 |
+| command | sdlc close --issue 844 |
+| reviewer | codex (openai; author openai) |
+| isolation | fenced |
+| timestamp | 2026-10-24T13:48:55-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+The pinned range delivers the documented routing policy and bounded delivery model. This full-range review satisfies BR-4’s scope requirement, including inspection and testing of the typed-constant checker change. No blocking defects found. Recorded-suite completion and coordinated live acceptance remain separate pre-landing postconditions.
+
+```findings
+dispose:
+  - id: BR-4
+    disposition: addressed
+    note: |
+      This review inspected the complete pinned range against Spec and Plan, including the executable checker extension. Plan lines 264–266 supersede narrow re-close; artifactpath tests, routing race tests and reader inventory pass.
+  - id: BR-1
+    disposition: addressed
+    note: |
+      Retained-root generation checks and AwaitingDisposition preserve unavailable-owner fallback without re-admission. Owner-loss, unknown-readiness and controlled handoff regressions pass under race detection.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      README passages at lines 1264 and 1536 now describe owning-hub routing, operator exceptions, unavailable-owner fallback and automation-OFF behavior consistently with RouteNotice.
+  - id: BR-3
+    disposition: addressed
+    note: |
+      Both package inventories consume testnotice.Findings and CheckRejections, retaining only package-specific projection and forwarder configuration. Shared analyzer and inventory tests pass.
+```
+
+1. **Strengths**
+
+   - `couchcore/notice_route.go` centralizes eligibility independently of display text and feed kind.
+   - `couchcore/notice_delivery.go:199` distinguishes confirmed refusal from admitted or uncertain outcomes; refused entries cannot admit again.
+   - Controlled handoff fixtures exercise real guarded ingress with independently scoped owner epochs.
+   - README and atlas document routing, capacity loss, expiry and shutdown behavior.
+
+2. **Critical findings:** None.
+
+3. **Important findings:** None.
+
+4. **Minor findings:** None.
+
+5. **Test coverage notes**
+
+   Passed:
+
+   - Complete `artifactpath` and `testnotice` package tests.
+   - Race-enabled routing, delivery, startup, handoff, condition, picker, wait, archive and automatic-stall selections across core, tty and command packages.
+   - Additional race-enabled producer tests for lifecycle diagnostics, hub conflicts, renicer, scratch warnings and supervision.
+   - `make test-affected-inventory` and pinned-range `git diff --check`.
+
+   Pure routing/reducer tests use explicit inputs without IO. Integration tests use injected stateful backends and controlled completions. I did not rerun the complete repository suite or live acceptance.
+
+6. **Architectural notes**
+
+   - **ARCH-DRY — pass:** Shared policy and inventory analyzer; package-specific exceptions remain configuration.
+   - **ARCH-PURE — pass:** Deterministic routing/transitions remain separate from delivery IO.
+   - **ARCH-PURPOSE — pass:** Producer and bypass sweep covers conditions, archive, stalls, startup and direct warning paths.
+   - **ARCH-MOCK — pass:** Stateful doubles share the production backend seam; no new external dependency introduced.
+   - **ARCH-CONSTRAINTS — pass:** Entry/body limits, fixed workers, deadlines and observation bounds have executable coverage.
+   - **ARCH-SECURE — pass:** Exact recipient and automation generation are revalidated; broker-bound text remains sanitized.
+   - **ARCH-ORDER — pass:** Explicit phases preserve uncertainty; controlled tests exercise refusal, handoff and late completion.
+   - **ARCH-FUNERAL — pass:** Tracking expires or ends with Console; shutdown cancels and joins workers.
+   - **ARCH-EVOLVE — pass:** Routing facts are ephemeral; no persisted-format change found.
+
+7. **Plan revision recommendations:** None. The existing revisions cover the final implementation and expanded review scope.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"afa2bf74-06bd-49ad-a688-58ed564bd15b","repository":"github.com/xianxu/pair","issue_id":"000844","recipe":"milestone-review","round":5,"attempt":1,"agent":"codex","root":"/Volumes/TestScratch/review-checkouts/8f2d8b34f788648e","reviewed_head":"6724410b13b26b54f352dff9d6f698ff57cb3835","slot":"pair:1","requested_at":"2026-10-24T20:47:14.991932Z"},"phase":"finished","pid":99051,"started_at":"2026-10-24T20:47:15.119119Z","finished_at":"2026-10-24T20:48:53.573724Z","session_id":"01a16faa-ee40-7cf3-b558-5c5b9a826661","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 2.248733084s
+head: "6724410b13b26b54f352dff9d6f698ff57cb3835"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412
