@@ -1,8 +1,8 @@
 ---
 id: 000850
-status: codecomplete
+status: done
 created: 2026-10-23
-updated: 2026-10-23
+updated: 2026-10-24
 estimate_hours: 2.156
 github_issue:
 started: 2026-10-23T19:27:12-07:00
@@ -21,6 +21,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: 33b974d890c0e0a54cbf7bdc327c7a62b72ecc1c
         evidence_commit: 6fb27aa6b1db4277cdcde12ede8046d52069397c
+        landed_commit: b10663bd6fa672897f72816147282556f6626b26
 ---
 
 # Cast notes: sticky-note style, minimize to a draggable button, draggable panel, visible add-note on sketches
