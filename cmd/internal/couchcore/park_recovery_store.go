@@ -23,10 +23,11 @@ func (s *ThreadStore) withUpdateLockContext(ctx context.Context, run func() erro
 			if err := held.RegisterStore(s.namespace.Dir()); err != nil {
 				return err
 			}
-			return s.withStoreLockChecked(run, held.CheckContext, storeReadLockWait)
+			// Bounded inside the coordinator: its wait already spent budget.
+			return s.withStoreLockBounded(run, held.CheckContext, storeLockBound(ctx, storeReadLockWait))
 		})
 	}
-	return s.withStoreLockChecked(run, ctx.Err, storeReadLockWait)
+	return s.withStoreLockBounded(run, ctx.Err, storeLockBound(ctx, storeReadLockWait))
 }
 
 // RetireInterruptedPark closes failed bookkeeping and retires only the exact
