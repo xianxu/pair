@@ -43,9 +43,11 @@ func TestRecoveryConfirmationOutcomeRetainsExactOffer(t *testing.T) {
 }
 
 func TestRecoveryConfirmationHubTokenReplayUsesReceipt(t *testing.T) {
-	r, runner, _ := slotRig(t)
+	r, runner, _ := slotRig(t, func(a messageAuthority) messageAuthority {
+		a.hub = "/repo0"
+		return a
+	})
 	caller := r.connect(0)
-	r.s.authority.hub = "/repo0"
 	calls := 0
 	r.slotOps.reference = func(context.Context, string) (string, error) { calls++; return "pair:2", nil }
 	r.slotOps.recovery = func(key, actor string, req couchmessage.Request, guard func(context.Context) error, started func(), progress couchcore.OperationProgress, finished func(any, error)) error {
@@ -93,11 +95,13 @@ func TestRecoveryConfirmationCLIUsesTokenOnlyRequest(t *testing.T) {
 }
 
 func TestRecoveryConfirmationHubOwnershipAndGenerationRechecked(t *testing.T) {
-	r, runner, _ := slotRig(t)
+	h := guardHubState(t)
+	r, runner, _ := slotRig(t, func(a messageAuthority) messageAuthority {
+		a.hubs = h
+		return a
+	})
 	caller := r.connect(0)
 	r.waitWorkspace(caller)
-	h := guardHubState(t)
-	r.s.authority.hubs = h
 	wireGuardTestMemo(r, func(context.Context, string) (couchcore.HubSlot, error) {
 		return couchcore.HubSlot{Repository: "/repo", Number: 2}, nil
 	})
@@ -113,7 +117,9 @@ func TestRecoveryConfirmationHubOwnershipAndGenerationRechecked(t *testing.T) {
 		t.Fatalf("cross-hub accepted: %+v", got)
 	}
 	var err error
+	h.mu.Lock()
 	h.state, err = h.state.Apply(couchcore.HubMove{Slots: []couchcore.HubSlot{{Repository: "/repo", Number: 2}}, Caller: "/repo1", Target: "/repo0", Revision: h.state.Revision()})
+	h.mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -128,7 +134,9 @@ func TestRecoveryConfirmationHubOwnershipAndGenerationRechecked(t *testing.T) {
 		t.Fatal("replaced generation retained confirmation authority")
 	}
 	r.world.set(caller, func(s *worldSlot) { s.binding.Start = caller.Start })
+	h.mu.Lock()
 	h.state, err = h.state.Apply(couchcore.HubMove{Slots: []couchcore.HubSlot{{Repository: "/repo", Number: 2}}, Caller: "/repo0", Target: "/repo1", Revision: h.state.Revision()})
+	h.mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
 	}

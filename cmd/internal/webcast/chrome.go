@@ -59,6 +59,7 @@ type RecordOptions struct {
 	// recorder's default.
 	ShotEvery time.Duration
 	Logf      func(format string, args ...any)
+	Warnf     func(format string, args ...any)
 }
 
 const (
@@ -267,7 +268,7 @@ func start(conn *cdp.Conn, proc process, output *tail, opts LaunchOptions) *Chro
 	}
 	if opts.Record != nil {
 		c.rec = recorder.Start(recorder.Options{ID: opts.Record.ID, Call: conn, Out: opts.Record.Out,
-			ShotEvery: opts.Record.ShotEvery, Logf: opts.Record.Logf, Dialog: c.dialogs.signal, Operator: opts.Record.Operator, NoteDrafts: opts.Record.NoteDrafts, OperatorReply: c.operatorReply, UIGuard: c.uiGuard, SyncEvents: conn.SyncEvents})
+			ShotEvery: opts.Record.ShotEvery, Logf: opts.Record.Logf, Warnf: opts.Record.Warnf, Dialog: c.dialogs.signal, Operator: opts.Record.Operator, NoteDrafts: opts.Record.NoteDrafts, OperatorReply: c.operatorReply, UIGuard: c.uiGuard, SyncEvents: conn.SyncEvents})
 	}
 	if opts.Record != nil {
 		c.startOperator(opts.Record.Operator)

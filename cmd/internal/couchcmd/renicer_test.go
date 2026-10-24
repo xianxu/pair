@@ -110,7 +110,7 @@ func newTestRenicer(procs procSource, bindings []couchmessage.Binding, agent map
 			return pid, nil
 		}
 		return 0, os.ErrNotExist
-	}, 10, 100, func(s string) { notices = append(notices, s) })
+	}, 10, 100, func(_ couchmessage.Binding, s string) { notices = append(notices, s) })
 	return r, &notices
 }
 
@@ -197,7 +197,7 @@ func TestRenicerNoticesALowAgentOnceAndForgetsGoneSlots(t *testing.T) {
 	bindings := []couchmessage.Binding{slot3}
 	var notices []string
 	r := newRenicer(m, func() []couchmessage.Binding { return bindings }, func(couchmessage.Binding) (int, error) { return 300, nil }, 10, 100,
-		func(s string) { notices = append(notices, s) })
+		func(_ couchmessage.Binding, s string) { notices = append(notices, s) })
 	r.pass()
 	r.pass()
 	if len(notices) != 1 || !strings.Contains(notices[0], "pair:3") || !strings.Contains(notices[0], "relaunch the slot to restore its priority") {

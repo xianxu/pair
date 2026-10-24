@@ -55,23 +55,29 @@ type workerCueRig struct {
 	stopHub     func()
 }
 
-func newWorkerCueRig(t *testing.T, report *couchmessage.WorkerCueReport) *workerCueRig {
+func newWorkerCueRig(t *testing.T, report *couchmessage.WorkerCueReport, child ...func(*workerCueRig, context.Context, couchmessage.Binding) (uint64, string, error)) *workerCueRig {
 	t.Helper()
-	base := newServiceRig(t)
+	r := &workerCueRig{endpoint: &workerCueEndpoint{}}
+	r.ordinal.Store(7)
+	base := newServiceRig(t, func(a messageAuthority) messageAuthority {
+		a.child = func(ctx context.Context, b couchmessage.Binding) (uint64, string, error) {
+			if len(child) > 0 {
+				return child[0](r, ctx, b)
+			}
+			r.proofs.Add(1)
+			return r.ordinal.Load(), "native-child", nil
+		}
+		return a
+	})
 	base.world.hub = "/repo1"
 	base.restart(nil)
-	r := &workerCueRig{serviceRig: base, endpoint: &workerCueEndpoint{}}
+	r.serviceRig = base
 	r.hub = base.world.add(1)
 	r.worker = base.world.add(2)
 	base.world.endpoints[r.worker] = r.endpoint
 	base.attach(r.hub, "hub")
 	_, r.stopHub = base.wrapper(r.hub)
 	base.waitConnected(r.hub, true)
-	r.ordinal.Store(7)
-	base.s.authority.child = func(context.Context, couchmessage.Binding) (uint64, string, error) {
-		r.proofs.Add(1)
-		return r.ordinal.Load(), "native-child", nil
-	}
 	r.client = couchmessage.NewSessionClient()
 	r.client.SetBuild(couchmessage.BuildIdentity{SHA256: strings.Repeat("a", 64)})
 	r.client.WorkerCue(report)
@@ -215,8 +221,7 @@ func TestWorkerCueCoordinatorDefersWithoutOwnerAndRequiresCurrentChild(t *testin
 }
 
 func TestWorkerCueCoordinatorFencesRoleChangeDuringChildProof(t *testing.T) {
-	r := newWorkerCueRig(t, &couchmessage.WorkerCueReport{LaunchOrdinal: 7, State: couchmessage.WorkerCueNeeded})
-	r.s.authority.child = func(context.Context, couchmessage.Binding) (uint64, string, error) {
+	r := newWorkerCueRig(t, &couchmessage.WorkerCueReport{LaunchOrdinal: 7, State: couchmessage.WorkerCueNeeded}, func(r *workerCueRig, _ context.Context, _ couchmessage.Binding) (uint64, string, error) {
 		r.proofs.Add(1)
 		r.s.mu.Lock()
 		identity := r.s.workspaces[r.worker]
@@ -224,7 +229,7 @@ func TestWorkerCueCoordinatorFencesRoleChangeDuringChildProof(t *testing.T) {
 		r.s.workspaces[r.worker] = identity
 		r.s.mu.Unlock()
 		return 7, "native-child", nil
-	}
+	})
 	r.tick()
 	// Role changes fence both the generic cue and the separate startup resend.
 	r.coordinator.mu.Lock()
@@ -239,14 +244,13 @@ func TestWorkerCueCoordinatorFencesRoleChangeDuringChildProof(t *testing.T) {
 }
 
 func TestWorkerCueCoordinatorFencesCommittedReportDuringChildProof(t *testing.T) {
-	r := newWorkerCueRig(t, &couchmessage.WorkerCueReport{LaunchOrdinal: 7, State: couchmessage.WorkerCueNeeded})
-	r.s.authority.child = func(context.Context, couchmessage.Binding) (uint64, string, error) {
+	r := newWorkerCueRig(t, &couchmessage.WorkerCueReport{LaunchOrdinal: 7, State: couchmessage.WorkerCueNeeded}, func(r *workerCueRig, _ context.Context, _ couchmessage.Binding) (uint64, string, error) {
 		r.proofs.Add(1)
 		committed := &couchmessage.WorkerCueReport{LaunchOrdinal: 7, State: couchmessage.WorkerCueCommitted, ID: couchmessage.WorkerStartNoticeID(r.worker, 7)}
 		r.client.WorkerCue(committed)
 		r.awaitReport(t, committed)
 		return 7, "native-child", nil
-	}
+	})
 	r.tick()
 	r.awaitCounts(t, 0, 1)
 	if r.proofs.Load() != 1 {
@@ -255,12 +259,11 @@ func TestWorkerCueCoordinatorFencesCommittedReportDuringChildProof(t *testing.T)
 }
 
 func TestWorkerCueCoordinatorBoundsReadyRecordProof(t *testing.T) {
-	r := newWorkerCueRig(t, &couchmessage.WorkerCueReport{LaunchOrdinal: 7, State: couchmessage.WorkerCueNeeded})
 	bounded := false
-	r.s.authority.child = func(ctx context.Context, _ couchmessage.Binding) (uint64, string, error) {
+	r := newWorkerCueRig(t, &couchmessage.WorkerCueReport{LaunchOrdinal: 7, State: couchmessage.WorkerCueNeeded}, func(_ *workerCueRig, ctx context.Context, _ couchmessage.Binding) (uint64, string, error) {
 		_, bounded = ctx.Deadline()
 		return 0, "", errors.New("controlled unavailable proof")
-	}
+	})
 	r.tick()
 	if !bounded {
 		t.Fatal("ready-record proof has no admission deadline")

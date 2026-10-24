@@ -82,12 +82,14 @@ func TestAttentionServiceIgnoresLegacyListAndDoesNotPersistEvents(t *testing.T) 
 					return
 				}
 			case <-deadline:
-				t.Fatalf("missing %q in host output", text)
+				t.Fatalf("missing %q in host output: %s", text, host.Written())
 			}
 		}
 	}
 	_, _ = input.Write([]byte("\x1b[97;7u"))
-	await("Nothing is waiting on you.")
+	// Empty-list key feedback is feed-only. The first new event's exact badge
+	// count below proves that the legacy list was not restored, independently
+	// of the removed general tab-bar notice.
 	if strings.Contains(host.Written(), "OLD-LEGACY-NOTICE") {
 		t.Fatal("legacy event restored")
 	}

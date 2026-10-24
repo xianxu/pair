@@ -263,7 +263,24 @@ func TestCouchProductionSoak(t *testing.T) {
 		receipt(child, hex.EncodeToString([]byte(mode)), true)
 		// A chrome-origin gesture cannot acquire the child after crossing its edge.
 		size, _ := host.Size()
-		send(fmt.Sprintf("\x1b[<0;159;%dM\x1b[<32;2;2M\x1b[<0;2;2m", size.Rows))
+		// This fixed fixture has two short actor chips. The right edge can
+		// legitimately become the attention badge after attachment replacement;
+		// starting there would open a panel rather than exercise a neutral gap.
+		chromeColumn := int(size.Cols) / 2 // SGR coordinates are one-based.
+		con.mu.Lock()
+		gap := con.statusRows == 1
+		for _, span := range []ColumnSpan{con.statusAttention, con.statusControl, con.statusPointer, con.statusNotes, con.statusWebcast, con.statusWebNotes, con.statusWebFocus, con.statusWebPointerLink, con.statusWebDriveLink, con.statusWebDrive} {
+			gap = gap && !span.Contains(chromeColumn-1)
+		}
+		for _, chip := range con.statusChips {
+			gap = gap && !(chip.Start <= chromeColumn-1 && chromeColumn-1 < chip.End)
+		}
+		gap = gap && len(con.statusGroups) == 0
+		con.mu.Unlock()
+		if !gap {
+			t.Fatalf("fixture column %d is no longer a neutral chrome gap", chromeColumn)
+		}
+		send(fmt.Sprintf("\x1b[<0;%d;%dM\x1b[<32;2;2M\x1b[<0;2;2m", chromeColumn, size.Rows))
 		token := fmt.Sprintf("r%d", iterations)
 		sent := time.Now()
 		send(token + "\r")

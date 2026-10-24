@@ -1250,10 +1250,12 @@ does this, and it never resumes a parked thread.
 Resume does not allocate a temporary actor first or add a full native inventory
 scan. While a Pair pane is displayed, Alt+d reaches Pair, which detaches only
 its Zellij client; Couch's own detach is the switcher's Alt+d (#245).
-Messages on the reserved status row retire themselves: a momentary refusal
-("previous: nowhere to return to") goes after about twelve seconds, while an
-actor's exit stands until something replaces it -- one answers the keystroke you
-just pressed, the other explains why a pane disappeared.
+General messages no longer trail the tab bar, in either collapse or multiline
+mode. Open the switcher to see the latest retained message. Operation notices
+and clipboard feedback keep their own precedence there; a new feed message does
+not replace an operation error or progress notice. Actionable asynchronous
+warnings also appear in the attention list; routine progress, success and key
+feedback stay in the switcher.
 
 The first thread for a repository uses its primary checkout (`:0`). Starting
 another fills the lowest free number (`:1`, `:2`, …), under
@@ -1520,13 +1522,14 @@ history in place. With an empty list it stays put and says nothing is waiting.
 It no longer jumps to the newest page or accepts a switcher row. Ordinary
 `Enter` still selects a switcher row or the selected attention item.
 
-The **notification list (bell)** (pair#673) shows what is waiting on you, newest first. It holds three kinds of item: the hub's `couch --notify` messages,
+The **notification list (bell)** (pair#673) shows what is waiting on you, newest first. It holds the hub's `couch --notify` messages, actionable asynchronous Couch warnings,
 slots blocked on a permission prompt or picker, and slots whose turn ended with
 a question to you. While the list has items, the right end of the status row
 shows `🔔N`, red if a slot is blocked on a prompt; click it to open the list too.
 The list opens at the top right. `Up`/`Down` (or `k`/`j`) move, `Enter` or a
-click jumps to the item's slot and removes the item, `d` dismisses, and
-`Escape` closes. Choose **Clear all** or press `c` to empty the list. Opening,
+click jumps to the item's attached thread and removes the item. A global Couch
+warning or an item whose thread is no longer attached opens the switcher
+instead. `d` dismisses, and `Escape` closes. Choose **Clear all** or press `c` to empty the list. Opening,
 dismissing or clearing a prompt/question hides that occurrence until the slot
 stops waiting; a fresh occurrence shows again. Notification messages expire
 after 12 hours; an unresolved live prompt/question never expires. The list is
@@ -1878,12 +1881,14 @@ focus view explains how to tag a thread. The switcher remembers the last view us
 exits. Reopening clears search text but keeps the view. With text in the filter,
 Space is a literal search character; it does not toggle views.
 
-In the switcher, `Ctrl+Y` copies a selected operation diagnostic/error first,
-then the current capability diagnostic, then the full last retained status notice.
-Chrome shows at most 40 display cells of a status; copying includes clipped text,
-and retained feed notices remain copyable after expiry. Repeating the copy uses
-the current capability diagnostic while one is displayed, or the same feed notice
-until another arrives. A failed or unconfirmed attempt keeps its
+The switcher shows the latest retained feed message whenever no operation
+notice takes precedence. `Ctrl+Y` copies a selected operation diagnostic/error
+first, then the current capability diagnostic, then the full last retained feed
+notice, including clipped text and notices whose transient lifetime has expired.
+Chrome limits capability status text to 40 display cells; copying retains its
+full diagnostic. Repeating the copy uses the current capability diagnostic while
+one is displayed, or the same feed notice until another arrives. A failed or
+unconfirmed attempt keeps its
 original notice for **Ctrl+Y** retry even if a newer notice arrives; **Esc** dismisses
 the copy feedback without leaving the switcher. Navigation and background refreshes
 keep that feedback and ordinary operation errors independently visible.

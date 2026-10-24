@@ -36,7 +36,7 @@ func (s *messageService) installHubMoves(console *couchtty.Console, couches ...*
 	s.hubMoves.Store(&hubMoveService{enqueue: enqueue, publish: console.SetHubOwnership})
 	console.SetHubOwnership(s.authority.hubs.snapshot())
 	for _, warning := range hubConflictWarnings(s.authority.hubs.snapshot()) {
-		console.Notify(couchtty.Notice{Kind: "status", Body: warning})
+		console.Warn(couchtty.Notice{Kind: "status", Body: warning})
 	}
 }
 func (s *messageService) handleHubMove(ctx context.Context, r couchmessage.Request) couchmessage.Response {

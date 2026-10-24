@@ -14,7 +14,7 @@ type lifecycleRemoteQueue struct {
 	couch    *couchcore.Couch
 	rows     func() []couchcore.ActionableThreadSummary
 	enqueue  func(string, string, func(context.Context) (couchcore.OperationCall, error), func(), func(any, error)) error
-	notify   func(string)
+	notify   func(couchcore.ThreadAddress, string)
 	lifetime context.Context
 }
 
@@ -25,8 +25,8 @@ func newLifecycleRemoteQueue(console *couchtty.Console, c *couchcore.Couch) *lif
 			return nil
 		}
 		return snapshot.Rows
-	}, enqueue: console.EnqueueRemoteOperation, notify: func(text string) {
-		console.Notify(couchtty.Notice{Kind: "status", Body: text})
+	}, enqueue: console.EnqueueRemoteOperation, notify: func(thread couchcore.ThreadAddress, text string) {
+		console.Warn(couchtty.Notice{Kind: "status", Thread: thread, Body: text})
 	}}
 }
 
@@ -51,7 +51,7 @@ func (q *lifecycleRemoteQueue) EnqueueForReference(key, op, reference string, pr
 			warning := attempt.DiagnosticWarning()
 			if warning != "" {
 				if q.notify != nil {
-					q.notify(warning)
+					q.notify(target.Address, warning)
 				}
 				value = lifecycleRecordedOutcome{value: value, nonce: attempt.RecordedFailureNonce(), warning: warning}
 			}
