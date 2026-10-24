@@ -6,7 +6,6 @@ import (
 	"os"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/creack/pty"
 )
@@ -129,8 +128,7 @@ func TestHarnessTTYCaptureCustomGeometry(t *testing.T) {
 		out, err := captureHarnessTTY(harnessTTYCaptureRequest{
 			Executable: os.Args[0], Args: []string{"-test.run=^TestHarnessTTYControlledChild$", "--", "geometry"},
 			Env: append(os.Environ(), "PAIR_HARNESS_TTY_CHILD=1"), Size: &size,
-			Startup:        func(out []byte) bool { return bytes.Contains(out, []byte("READY")) },
-			StartupTimeout: time.Second, ShutdownGrace: 100 * time.Millisecond,
+			Startup: func(out []byte) bool { return bytes.Contains(out, []byte("READY")) },
 		})
 		if err != nil {
 			t.Fatalf("geometry capture: %v", err)

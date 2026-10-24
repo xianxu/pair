@@ -37,10 +37,13 @@ type harnessTTYCaptureRequest struct {
 	Size           *pty.Winsize
 	Startup        func([]byte) bool
 	StartupTimeout time.Duration
-	ShutdownGrace  time.Duration
-	OnStart        func(*exec.Cmd)
-	Classify       func(chunk, retained []byte) harnessTTYConformanceState
-	Input          func(retained []byte) []byte
+	// StartupExpiry lets controlled fixtures expire startup after readiness.
+	// The normal timeout remains a safety bound if the fixture never reports ready.
+	StartupExpiry <-chan time.Time
+	ShutdownGrace time.Duration
+	OnStart       func(*exec.Cmd)
+	Classify      func(chunk, retained []byte) harnessTTYConformanceState
+	Input         func(retained []byte) []byte
 }
 
 func captureHarnessTTY(req harnessTTYCaptureRequest) (out []byte, err error) {
@@ -150,6 +153,12 @@ func captureHarnessTTYClassified(req harnessTTYCaptureRequest) (out []byte, stat
 	primaryErr := func() error {
 		timer := time.NewTimer(timeout)
 		defer timer.Stop()
+		timedOut := func() error {
+			if req.Classify != nil {
+				state = harnessTTYRecognizerDrift
+			}
+			return fmt.Errorf("%q startup timed out after %s (%d output bytes)", req.Executable, timeout, len(out))
+		}
 		for {
 			select {
 			case chunk, ok := <-chunks:
@@ -181,10 +190,9 @@ func captureHarnessTTYClassified(req harnessTTYCaptureRequest) (out []byte, stat
 					}
 				}
 			case <-timer.C:
-				if req.Classify != nil {
-					state = harnessTTYRecognizerDrift
-				}
-				return fmt.Errorf("%q startup timed out after %s (%d output bytes)", req.Executable, timeout, len(out))
+				return timedOut()
+			case <-req.StartupExpiry:
+				return timedOut()
 			}
 		}
 	}()
@@ -317,12 +325,10 @@ func joinHarnessTTYErrors(primaryErr, cleanupErr error) error {
 
 func TestHarnessTTYCaptureNormal(t *testing.T) {
 	out, err := captureHarnessTTY(harnessTTYCaptureRequest{
-		Executable:     os.Args[0],
-		Args:           []string{"-test.run=^TestHarnessTTYControlledChild$", "--", "normal"},
-		Env:            append(os.Environ(), "PAIR_HARNESS_TTY_CHILD=1"),
-		Startup:        func(out []byte) bool { return bytes.Contains(out, []byte("READY")) },
-		StartupTimeout: 500 * time.Millisecond,
-		ShutdownGrace:  100 * time.Millisecond,
+		Executable: os.Args[0],
+		Args:       []string{"-test.run=^TestHarnessTTYControlledChild$", "--", "normal"},
+		Env:        append(os.Environ(), "PAIR_HARNESS_TTY_CHILD=1"),
+		Startup:    func(out []byte) bool { return bytes.Contains(out, []byte("READY")) },
 	})
 	if err != nil {
 		t.Fatalf("captureHarnessTTY: %v", err)
@@ -334,12 +340,10 @@ func TestHarnessTTYCaptureNormal(t *testing.T) {
 
 func TestHarnessTTYCaptureAnswersCursorPositionQuery(t *testing.T) {
 	out, err := captureHarnessTTY(harnessTTYCaptureRequest{
-		Executable:     os.Args[0],
-		Args:           []string{"-test.run=^TestHarnessTTYControlledChild$", "--", "cursor-query"},
-		Env:            append(os.Environ(), "PAIR_HARNESS_TTY_CHILD=1"),
-		Startup:        func(out []byte) bool { return bytes.Contains(out, []byte("READY")) },
-		StartupTimeout: 500 * time.Millisecond,
-		ShutdownGrace:  100 * time.Millisecond,
+		Executable: os.Args[0],
+		Args:       []string{"-test.run=^TestHarnessTTYControlledChild$", "--", "cursor-query"},
+		Env:        append(os.Environ(), "PAIR_HARNESS_TTY_CHILD=1"),
+		Startup:    func(out []byte) bool { return bytes.Contains(out, []byte("READY")) },
 	})
 	if err != nil {
 		t.Fatalf("captureHarnessTTY: %v (output %q)", err, out)
@@ -358,15 +362,37 @@ func TestHarnessTTYCaptureMissingExecutable(t *testing.T) {
 
 func TestHarnessTTYCaptureStartupTimeoutKillsAndReapsChild(t *testing.T) {
 	var pid int
+	expiry := make(chan time.Time, 1)
+	ready := false
+	startupAccepted := false
 	out, err := captureHarnessTTY(harnessTTYCaptureRequest{
-		Executable:     os.Args[0],
-		Args:           []string{"-test.run=^TestHarnessTTYControlledChild$", "--", "ignore-signals"},
-		Env:            append(os.Environ(), "PAIR_HARNESS_TTY_CHILD=1"),
-		Startup:        func(out []byte) bool { return bytes.Contains(out, []byte("NEVER")) },
-		StartupTimeout: 50 * time.Millisecond,
-		ShutdownGrace:  50 * time.Millisecond,
-		OnStart:        func(cmd *exec.Cmd) { pid = cmd.Process.Pid },
+		Executable: os.Args[0],
+		Args:       []string{"-test.run=^TestHarnessTTYControlledChild$", "--", "ignore-signals"},
+		Env:        append(os.Environ(), "PAIR_HARNESS_TTY_CHILD=1"),
+		Startup: func(out []byte) bool {
+			startupAccepted = bytes.Contains(out, []byte("NEVER"))
+			return startupAccepted
+		},
+		StartupExpiry: expiry,
+		Input: func(out []byte) []byte {
+			if !ready && bytes.Contains(out, []byte("SIGNALS_IGNORED_READY")) {
+				ready = true
+				expiry <- time.Now()
+			}
+			return nil
+		},
+		OnStart: func(cmd *exec.Cmd) {
+			pid = cmd.Process.Pid
+			select {
+			case <-expiry:
+				t.Error("startup timer fired before fixture readiness")
+			default:
+			}
+		},
 	})
+	if !ready || startupAccepted {
+		t.Fatalf("timeout must follow ignored-signal readiness without accepting startup: ready=%t accepted=%t output=%q", ready, startupAccepted, out)
+	}
 	if err == nil || !strings.Contains(err.Error(), "startup timed out") {
 		t.Fatalf("error = %v, want startup timeout (output %q)", err, out)
 	}
@@ -385,10 +411,8 @@ func TestHarnessTTYCaptureCleanupInterruptsAndReapsChild(t *testing.T) {
 			"PAIR_HARNESS_TTY_CHILD=1",
 			"PAIR_HARNESS_TTY_MARKER="+marker,
 		),
-		Startup:        func(out []byte) bool { return bytes.Contains(out, []byte("READY")) },
-		StartupTimeout: 500 * time.Millisecond,
-		ShutdownGrace:  500 * time.Millisecond,
-		OnStart:        func(cmd *exec.Cmd) { pid = cmd.Process.Pid },
+		Startup: func(out []byte) bool { return bytes.Contains(out, []byte("READY")) },
+		OnStart: func(cmd *exec.Cmd) { pid = cmd.Process.Pid },
 	})
 	if err != nil {
 		t.Fatalf("captureHarnessTTY: %v", err)
@@ -413,15 +437,21 @@ func TestHarnessTTYTeardownSignalFailureStillWaitsAndJoinsReader(t *testing.T) {
 			t.Fatal("kill called after bounded wait observed reap")
 			return nil
 		},
-		waitBounded: func(time.Duration) (error, bool) {
+		waitBounded: func(grace time.Duration) (error, bool) {
+			if grace != harnessTTYShutdownGrace {
+				t.Errorf("wait grace=%s, want %s", grace, harnessTTYShutdownGrace)
+			}
 			order = append(order, "wait")
 			return waitErr, true
 		},
-		joinReader: func(time.Duration) bool {
+		joinReader: func(grace time.Duration) bool {
+			if grace != harnessTTYShutdownGrace {
+				t.Errorf("reader grace=%s, want %s", grace, harnessTTYShutdownGrace)
+			}
 			order = append(order, "join-reader")
 			return true
 		},
-		grace: time.Millisecond,
+		grace: harnessTTYShutdownGrace,
 	})
 	if !errors.Is(err, signalErr) || !errors.Is(err, waitErr) {
 		t.Fatalf("teardown error = %v, want joined signal and wait failures", err)
@@ -440,16 +470,22 @@ func TestHarnessTTYTeardownKillFailureStillObservesReapAndJoinsReader(t *testing
 		closePTY: func() error { order = append(order, "close"); return nil },
 		signal:   func() error { order = append(order, "signal"); return nil },
 		kill:     func() error { order = append(order, "kill"); return killErr },
-		waitBounded: func(time.Duration) (error, bool) {
+		waitBounded: func(grace time.Duration) (error, bool) {
+			if grace != harnessTTYShutdownGrace {
+				t.Errorf("wait grace=%s, want %s", grace, harnessTTYShutdownGrace)
+			}
 			waits++
 			order = append(order, fmt.Sprintf("wait-%d", waits))
 			return nil, waits == 2
 		},
-		joinReader: func(time.Duration) bool {
+		joinReader: func(grace time.Duration) bool {
+			if grace != harnessTTYShutdownGrace {
+				t.Errorf("reader grace=%s, want %s", grace, harnessTTYShutdownGrace)
+			}
 			order = append(order, "join-reader")
 			return true
 		},
-		grace: time.Millisecond,
+		grace: harnessTTYShutdownGrace,
 	})
 	if !errors.Is(err, killErr) {
 		t.Fatalf("teardown error = %v, want kill failure", err)
@@ -467,15 +503,21 @@ func TestHarnessTTYTeardownPTYCloseFailureStillJoinsReader(t *testing.T) {
 		closePTY: func() error { order = append(order, "close"); return closeErr },
 		signal:   func() error { order = append(order, "signal"); return nil },
 		kill:     func() error { t.Fatal("unexpected kill"); return nil },
-		waitBounded: func(time.Duration) (error, bool) {
+		waitBounded: func(grace time.Duration) (error, bool) {
+			if grace != harnessTTYShutdownGrace {
+				t.Errorf("wait grace=%s, want %s", grace, harnessTTYShutdownGrace)
+			}
 			order = append(order, "wait")
 			return nil, true
 		},
-		joinReader: func(time.Duration) bool {
+		joinReader: func(grace time.Duration) bool {
+			if grace != harnessTTYShutdownGrace {
+				t.Errorf("reader grace=%s, want %s", grace, harnessTTYShutdownGrace)
+			}
 			order = append(order, "join-reader")
 			return true
 		},
-		grace: time.Millisecond,
+		grace: harnessTTYShutdownGrace,
 	})
 	if !errors.Is(err, closeErr) {
 		t.Fatalf("teardown error = %v, want PTY close failure", err)
@@ -496,12 +538,10 @@ func TestHarnessTTYCaptureJoinsPrimaryAndCleanupErrors(t *testing.T) {
 
 func TestHarnessTTYCaptureBoundsRetainedOutput(t *testing.T) {
 	out, err := captureHarnessTTY(harnessTTYCaptureRequest{
-		Executable:     os.Args[0],
-		Args:           []string{"-test.run=^TestHarnessTTYControlledChild$", "--", "flood"},
-		Env:            append(os.Environ(), "PAIR_HARNESS_TTY_CHILD=1"),
-		Startup:        func(out []byte) bool { return len(out) == harnessTTYRetentionLimit },
-		StartupTimeout: 2 * time.Second,
-		ShutdownGrace:  50 * time.Millisecond,
+		Executable: os.Args[0],
+		Args:       []string{"-test.run=^TestHarnessTTYControlledChild$", "--", "flood"},
+		Env:        append(os.Environ(), "PAIR_HARNESS_TTY_CHILD=1"),
+		Startup:    func(out []byte) bool { return len(out) == harnessTTYRetentionLimit },
 	})
 	if err != nil {
 		t.Fatalf("captureHarnessTTY: %v", err)
@@ -528,11 +568,9 @@ func TestHarnessTTYCaptureClassifiesControlledChildStates(t *testing.T) {
 			classifier := newHarnessTTYLiveClassifier(t, "agy")
 			defer classifier.Close()
 			out, state, err := captureHarnessTTYConformance(harnessTTYCaptureRequest{
-				Executable:     os.Args[0],
-				Args:           []string{"-test.run=^TestHarnessTTYControlledChild$", "--", tc.mode},
-				Env:            append(os.Environ(), "PAIR_HARNESS_TTY_CHILD=1"),
-				StartupTimeout: 500 * time.Millisecond,
-				ShutdownGrace:  100 * time.Millisecond,
+				Executable: os.Args[0],
+				Args:       []string{"-test.run=^TestHarnessTTYControlledChild$", "--", tc.mode},
+				Env:        append(os.Environ(), "PAIR_HARNESS_TTY_CHILD=1"),
 			}, classifier.Observe)
 			if state != tc.wantState {
 				t.Fatalf("state = %q, want %q (output bytes=%d, error=%v)", state, tc.wantState, len(out), err)
@@ -1179,6 +1217,7 @@ func TestHarnessTTYControlledChild(t *testing.T) {
 				}
 			case "ignore-signals":
 				signal.Ignore(os.Interrupt, syscall.SIGHUP)
+				fmt.Fprintln(os.Stdout, "SIGNALS_IGNORED_READY")
 				for {
 					time.Sleep(time.Hour)
 				}

@@ -40,9 +40,9 @@ Adopt the newer Ariadne substrate on its own main-based issue branch. Preserve t
 Durable source-qualified plan: workshop/plans/000861-ariadne-pin-lint-adoption-plan.md.
 
 - [ ] Adopt normal pin and contextual catalog boundary; qualify real upstream planner fixture.
-- [ ] Consolidate three JSON readers with preserved owner contracts; retain two authorized independent-role exceptions pending ariadne#590.
-- [ ] Reuse canonical ShortRoot; preserve ordinary inherited TMPDIR and optional startup socket isolation.
-- [ ] Replace virtual budget shortcuts and native expiry races with explicit observed transitions and cue-owned deadlines/timers.
+- [x] Consolidate three JSON readers with preserved owner contracts; retain two authorized independent-role exceptions pending ariadne#590.
+- [x] Reuse canonical ShortRoot; preserve ordinary inherited TMPDIR and optional startup socket isolation.
+- [x] Replace virtual budget shortcuts and native expiry races with explicit observed transitions and cue-owned deadlines/timers.
 - [ ] Audit readers, pass catalog/targeted/pre-close, update atlas, close and land; then return #838.
 
 ## Estimate
@@ -155,3 +155,17 @@ Hub a942ac93 assigned this slot to land adoption first. Source qualification spl
 ### 2026-10-24 — plan approved; PQ-1 refined
 
 Authenticated hub d3628148 approves the durable plan. First change-code review found only PQ-1 function-scoped-test-strategy; durable plan now names each risky function, the cue API, independent adversarial oracle and mechanical assertions. Re-running plan-quality before implementation.
+
+### 2026-10-24 00:30 — implementation and targeted qualification checkpoint
+
+Normal module pin now581, no replace. Contextual Match adapters preserve all main-based local rules including the newly landed FIFO rule; debt consumes the shared root scanner. New pin also removed vocab.CollaborationModes: main's legacy resolver now preserves its exact three historical strings locally, and resolver tests PASS. #838 deletes this old catalog later. No new mode or vocabulary model was introduced. Qualified fixture-only source repair reused from #838 without importing its branch/history.
+
+All51 baseline observations qualified:40 deadline sites now use virtual events, selected normal budgets or readiness-owned expiry;5 socket fixtures reuse ShortRoot;1 hardcoded temp override preserves ordinary inherited TMPDIR plus optional isolated socket root. Three JSON consumers share the promoted existing parser while exact/folded key, numbers, depth and privacy visitor contracts stay explicit. Exactly2 ariadne#590 per-site allows preserve the independent oracle and standalone materializer. Raw before/after catalog logs retained in workshop/evidence/000861. Fresh staged-source catalog PASS10.399s:3483 Go sources,34 rules,100 exact sleep-debt sites.
+
+Targeted evidence: shared scanner and strictjson whole packages/race PASS; independent fuzz5s202977 executions and3s57828 executions PASS; historyarchive JSON/receipt/label/extensibility PASS5.75s; submission privacy/manifest/codec PASS2.76s; standalone sample contract/catalogue PASS. Full sessionwatch race PASS15.833s; focused Couch selection/context race PASS28.525s; testwait race10 repeats and launcher race3 repeats PASS. Native own-request readiness expiry repeated under race: provision10 repeats PASS24.036s, VM10 repeats PASS1.343s, broadcast10 repeats PASS38.501s, drawing10 repeats PASS1.237s, agentfixture5 repeats PASS8.516s. Harness capture/teardown race3 repeats PASS13.099s. Long-TMPDIR ShortRoot/socket/actor/CLI cases PASS; startup non-live environment regression PASS0.534s; owned-query retry PASS2.455s.
+
+Artifact inventory initially correctly rejected two new helper sources. Both are pure/non-artifact (context notification ownership; byte-only JSON validation); added exact NonArtifactSources entries. The previously running builds had compiled the old manifest, so their later identical failures are superseded by fresh post-fix TestProductionArtifactReferencesAreExactlyClassified PASS4.078s. No ignored violations or aliases were added.
+
+Individually re-audited14 changed readers before exact certificate commands. Cloudflared/session roots and generated config, owned-query/synthetic child fixtures, historyarchive inline JSON, fake launcher observation, layout reply fixture, actor/CLI mailbox markers remain local/literal; no new repository input populations. Startup and harness retain existing non-Go full fallback for real build/runtime/TTY inputs. Catalog remains a fixed scanner over tracked Go sources, native fixture roots and sleep-debt.json; new imported Go scanner participates in the normal graph. Filename-sensitive Zellij/FIFO callbacks add no IO. Inventory PASS after all commands completed. New helper tests staged before final catalog/inventory scan.
+
+Atlas and lesson updated. Next: commit this qualified implementation; run clean-head planner fixture in all source modes and inventory, push; one recorded --pre-close and ask hub for offered priority on queue. Keep runner/FIFO. Close's mandatory review and landing remain outstanding; then #838 integrates this landed main and reruns its own pre-close before the joint operator stage.

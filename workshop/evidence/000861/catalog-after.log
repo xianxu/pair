@@ -1,0 +1,5 @@
+=== RUN   TestTrackedGoFilesPassCatalog
+    catalog_test.go:426: checked 3483 tracked Go sources, 34 catalog rules plus Pair native-fixture-roots; 100 exact sleep debt sites
+--- PASS: TestTrackedGoFilesPassCatalog (10.26s)
+PASS
+ok  	github.com/xianxu/pair/internal/repolint	10.399s

@@ -11,6 +11,7 @@ import (
 
 	"github.com/xianxu/pair/cmd/internal/artifactpath"
 	"github.com/xianxu/pair/cmd/internal/procutil"
+	"github.com/xianxu/pair/cmd/internal/testwait"
 )
 
 type recoveryTerminalWorld struct {
@@ -21,6 +22,7 @@ type recoveryTerminalWorld struct {
 	onKill        func()
 	onPresent     func()
 	onProcessKill func(int)
+	onObserve     func(recoveryTerminalSnapshot)
 	signals       []string
 	keepProcesses bool
 	cascadeServer bool
@@ -42,6 +44,9 @@ func (w *recoveryTerminalWorld) Observe(ctx context.Context, session string) (re
 	}
 	if err := ctx.Err(); err != nil {
 		return recoveryTerminalSnapshot{}, err
+	}
+	if w.onObserve != nil {
+		w.onObserve(w.snapshot)
 	}
 	return w.snapshot, nil
 }
@@ -242,10 +247,25 @@ func TestRecoveryTerminalStrictDoesNotMistakeServerExitForOwnerAbsence(t *testin
 	if err != nil {
 		t.Fatal(err)
 	}
-	d.timeout = 10 * time.Millisecond
-	d.poll = time.Millisecond
-	if err = d.retire(context.Background(), p); err == nil {
-		t.Fatal("strict retirement succeeded with surviving accepted editor")
+	ctx, expire, cancel := testwait.DeadlineOnCue(context.Background(), d.timeout)
+	defer cancel()
+	observedSurvivor := false
+	w.onObserve = func(snapshot recoveryTerminalSnapshot) {
+		if len(w.signals) != 1 || w.signals[0] != "10" {
+			return
+		}
+		for _, process := range snapshot.Processes {
+			if process.PID == 11 {
+				observedSurvivor = true
+				expire()
+			}
+		}
+	}
+	if err = d.retire(ctx, p); !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("strict retirement with surviving accepted editor: %v", err)
+	}
+	if !observedSurvivor {
+		t.Fatal("deadline preceded independent surviving-owner observation")
 	}
 	if len(w.signals) != 1 || w.signals[0] != "10" {
 		t.Fatalf("strict path expanded authority: %v", w.signals)
