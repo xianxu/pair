@@ -12,13 +12,17 @@ the pty console, actor panel, notices, and complete local lifecycle shipped in
 
 ## What exists today
 
-### Startup and hub automation (#739)
+### Startup and hub automation (#739, #863)
 
 `couchcore/startup_policy.go` classifies one read-only bulk session observation.
-Implicit startup only warm-attaches surviving hubs; missing or unknown hubs stay
-in the switcher. After a cold start, no hub is launched automatically by design:
-choose Resume from disk on its retained row, or Ctrl+Space → Start with its hub
-directory if no row exists. Normal warm reattachment is unchanged. The retained
+A proven zero-history namespace is `fresh`: configured hubs start normally,
+with the launch hub selected and extra hubs queued serially; automation stays
+off. The initial observation is retained through those launches, so the new
+sessions cannot turn their own automation on. Known prior history whose sessions
+are absent is `full-shutdown`; unreadable/unresolved evidence is `unknown`.
+Those states keep missing hubs in the switcher: choose Resume from disk on a
+retained row, or Ctrl+Space → Start if no row exists. Normal warm reattachment is
+unchanged. An empty surviving-only start result has no child and is never adopted. The retained
 startup notice names this recovery path. The `missing at startup:` field in
 automation status is the initial observation, not a live inventory; manually
 attaching a hub does not erase that startup history. Explicit lifecycle operations
@@ -3894,9 +3898,11 @@ Interactive `couch [<repo>]` startup uses `ObserveStartupContext` and
 `StartInteractive` selects only a positively surviving session for the exact
 primary or numbered hub. It ranks surviving candidates by recency and
 revalidates the selected session before attachment. Parked, missing
-or unknown sessions never authorize implicit cold resume or Fresh. Without a
-surviving launch hub, the switcher stays focused; extra surviving hubs attach in
-the background. Configured empty hubs have display-only entries naming the
+or unknown sessions never authorize implicit cold resume or Fresh. Only a
+separately proven zero-history startup authorizes opening configured hubs, after
+the observation is captured and with automation off. For a known shutdown or
+unknown startup without a surviving launch hub, the switcher stays focused;
+extra surviving hubs attach in the background. Configured empty hubs have display-only entries naming the
 existing Ctrl+Space Start form. Explicit Resume/Start retain their own guards.
 This replaces the earlier warm-before-cold startup ranking (#739).
 

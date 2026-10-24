@@ -134,7 +134,7 @@ func queueExplicitHubs(hubs []couchcore.HubDefinition, enqueue func(string, stri
 		err := enqueue("hub-start:"+root, "start-hub", func(ctx context.Context) (couchcore.OperationCall, error) {
 			args := map[string]string{"path": root}
 			if len(startup) > 0 && startup[0].Kind == couchcore.StartupFresh {
-				args["action"] = string(couchcore.StartOpen)
+				args["action"] = string(couchcore.StartFresh)
 			}
 			return couchcore.OperationCall{Name: "start-hub", Args: args}, ctx.Err()
 		}, func() {}, finish)

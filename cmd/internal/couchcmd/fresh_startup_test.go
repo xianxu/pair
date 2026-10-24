@@ -33,7 +33,7 @@ func TestFreshPrimaryUsesInitialEvidenceOnly(t *testing.T) {
 	}
 }
 
-func TestFreshExtraHubsCarryOpenIntentOncePerAdoption(t *testing.T) {
+func TestFreshExtraHubsCarryFreshIntentOncePerAdoption(t *testing.T) {
 	_, defs, _ := moveFixture(t)
 	for _, kind := range []couchcore.StartupKind{"fresh", couchcore.StartupNormal, couchcore.StartupFullShutdown, couchcore.StartupUnknown} {
 		var calls []couchcore.OperationCall
@@ -52,7 +52,7 @@ func TestFreshExtraHubsCarryOpenIntentOncePerAdoption(t *testing.T) {
 		}
 		want := ""
 		if kind == "fresh" {
-			want = string(couchcore.StartOpen)
+			want = string(couchcore.StartFresh)
 		}
 		if calls[0].Args["action"] != want {
 			t.Fatalf("kind%s action%q want%q", kind, calls[0].Args["action"], want)

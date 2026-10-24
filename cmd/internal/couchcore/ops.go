@@ -249,7 +249,7 @@ func Operations() []Operation {
 			Name: "start-hub", Summary: "Open an explicitly selected hub using normal startup continuity",
 			Execution: ExecuteLiveOwner, Effect: EffectProcess, Confirmation: ConfirmNone, Result: ResultStart,
 			Presentation: PresentationTUI,
-			Args:         []ArgSpec{{Name: "path", Summary: "canonical hub directory", Required: true, Implicit: true}, {Name: "action", Summary: "initial fresh-start open permission", Implicit: true}},
+			Args:         []ArgSpec{{Name: "path", Summary: "canonical hub directory", Required: true, Implicit: true}, {Name: "action", Summary: "initial zero-history fresh permission", Implicit: true}},
 		},
 		{
 			Name: "start", Summary: "Start an agent on a peer repo (or a subdirectory of one)",

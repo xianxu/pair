@@ -11,5 +11,5 @@ func startFreshPrimary(ctx context.Context, c *couchcore.Couch, startup couchcor
 	if startup.Kind != couchcore.StartupFresh || root == "" || start.Handle != nil {
 		return start, nil
 	}
-	return c.StartInteractive(ctx, couchcore.StartArgs{Cwd: root, Action: couchcore.StartOpen})
+	return c.StartInteractive(ctx, couchcore.StartArgs{Cwd: root, Action: couchcore.StartFresh})
 }
