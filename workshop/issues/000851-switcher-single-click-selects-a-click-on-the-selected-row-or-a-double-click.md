@@ -146,3 +146,9 @@ Pair:3 confirmed combined stage BUILT (Submitted470c6612-bee3-4b6d-bdac-1a75e91a
 ### 2026-10-24 — Operator acceptance PASS, closing
 
 Authenticated Submitted ops:0 delivery51719893-1354-48dd-b33a-a4c70d7d94b4 reports operator switcher-click PASS ("works") on verified combined3d0135b0021209730956929c8926e30f9799ba79 and directs close/landing. No851 code changed since recorded full-suite PASS13m54s on402b6b1d8d111dac5c27abcad67b8a0e56faafe9 (30e6ba7b0c61); branch descendants are issue Log only. Fresh make test-affected-inventory passes with no repairs. Atlas, targeted/race/real SGR tests, exact-count and keyboard proofs plus native operator acceptance satisfy the plan; ticked final verification row. Normal measurement and binary-owned boundary review next, then SDLC merge. Pair:3 owns combined stage clear; coordination3fb502d1-828f-4573-a1f2-8ee75eed7e48 is Submitted. Do not touch another issue's lease.
+
+### 2026-10-24 — Exact measurement refusal authorized; preserve shared stage
+
+Normal close attempt terminal3575 ended before review with: "can't auto-compute (measurement branch proof: measurement sources exceed snapshot limit 128)". Attempted measurement window2026-10-23T20:43:25-07:00 through2026-10-24T10:40:39-07:00. No actuals were fabricated or review dispatched. Submitted hub818613af-945d-4b2c-ba4b-ced126499fa8 explicitly authorizes precise --no-actual with this source-count refusal and window in --verified; the long multi-session window is intentionally refused by the source cap. Re-run inventory, then close with that exact acknowledgment.
+
+Hub correction a1f718e7-b5b6-4074-aa67-d6d74dd875b8 supersedes stage-clear coordination for851 landing: land independently; preserve838's combined stage while editorial operator check continues. Pair:3 received a16e8e21-871b-430a-9c56-5ecc296c8beb as Submitted.851 does not clear or wait for that stage. No code changes since passing suite/operator candidate.
