@@ -5,9 +5,9 @@ deps: []
 github_issue:
 created: 2026-10-23
 updated: 2026-10-24
-estimate_hours:
+estimate_hours: 3.24
 collaboration-mode: collaboration
-card_mirror: '830c90aaaec9940181ff7be99db3735ffaac4728' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: 'c446c605ef046f6d5aedf081f511de06c1e5b06b' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-24T10:30:06-07:00
 claimant:
     operator: Xian Xu
@@ -16,6 +16,7 @@ claimant:
     workspace: pair:1
     worktree: /Users/xianxu/workspace/worktree/pair-slot1/pair
     repository: github.com/xianxu/pair
+flow: {kind: full, provenance: operator}
 ---
 
 # Bell carries only what needs the operator (hub-requested, operator's own casts and drives, no hub able to act); the rest goes to the hub
@@ -78,3 +79,28 @@ NEXT ACTION: run change-code --issue 844 --flow full; address plan-quality findi
 ### 2026-10-24 — plan gate round 1
 
 Full-flow plan review returned one Important finding PQ-1 (executable-test-strategy): name the production functions under test and compress prose scenario inventories. Revised the entire test contract and task section to name RouteNotice, AdvanceNoticeDelivery, resolveNoticeOwner, runNoticeDelivery, publishWarningLocked, applyNoticeRoute and the existing condition/notification functions, with one adversarial strategy each. State sequences call the production reducer and check independent no-duplicate, epoch-fencing and resource-bound invariants; stateful shell fixtures control effect completion ordering. No policy change, implementation or estimate yet. Existing Attention unit baseline passed (go test ./cmd/internal/couchcore -run TestAttention -count=1, 0.350s).
+
+
+## Estimate
+
+Produced via brain/data/life/42shots/velocity/estimate-logic-v3.1.md against baseline-v3.1.md. Method A only. Calibration is flagged stale by estimate-source, so these are provisional ship-wall-clock hours. Read v2/v2.1 procedure and table: retain issue/spec design cost; use x0.2 design discount for approved module/integration/refactor decisions, 40% implementation conversion, familiarity 1.0 and 15% design buffer.
+
+Reuse check: existing AttentionList/feed, cached authority, guarded sendAutomaticSystem, canonical receipts and stateful fixtures cover the stack; no novel external library/API discovery is needed. Policy is one small extension, delivery reducer one single-concern greenfield module, dispatcher an integration over the existing broker, producer migrations two bounded cross-cutting surfaces (TTY and service), and condition projection one existing TUI seam. No double-counted new screen or transport.
+
+```estimate
+model: estimate-logic-v3.1
+familiarity: 1.0
+item: issue-spec design=0.5 impl=0.04
+item: smaller-go-module design=0.04 impl=0.16
+item: greenfield-go-module design=0.2 impl=0.32
+item: api-integration design=0.2 impl=0.4
+item: cross-cutting-refactor design=0.1 impl=0.2
+item: cross-cutting-refactor design=0.1 impl=0.2
+item: tui-screen design=0.1 impl=0.2
+item: atlas-docs design=0.05 impl=0.04
+item: milestone-review design=0.0 impl=0.2
+design-buffer: 0.15
+total: 3.24
+```
+
+Design subtotal 1.29 x 1.15 + implementation subtotal 1.76 = 3.2435, rounded 3.24 h. One final boundary review is included; no extra milestone review. Implementation includes focused and recorded verification, exact-count effect tests and inventory audit.
