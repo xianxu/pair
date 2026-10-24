@@ -113,3 +113,116 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000410
+
+---
+
+## Re-review — 2026-10-23T20:48:34-07:00 (REWORK)
+
+| field | value |
+|-------|-------|
+| issue | 850 — Cast notes: sticky-note style, minimize to a draggable button, draggable panel, visible add-note on sketches |
+| repo | pair |
+| issue file | workshop/issues/000850-cast-notes-sticky-note-style-minimize-to-a-draggable-button-draggable-panel.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 221a833b2dc8504a9498d2f5b4b944b99ea7907d..db56f5f94d9966026d5e8a51da8e33718a01095b |
+| command | sdlc close --issue 850 |
+| reviewer | codex (openai; author openai) |
+| isolation | fenced |
+| timestamp | 2026-10-23T20:48:34-07:00 |
+| verdict | REWORK |
+
+## Review
+
+```verdict
+verdict: REWORK
+confidence: high
+```
+
+The panel behavior, documentation, and BR-1–3 corrections are supported by passing tests and regression checks. Retained source-matched browser evidence and recorded operator acceptance answer BR-4. One correctness gap remains: overlapping sketch controls can conceal one another, defeating discovery of individual saved notes.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      Painted bounds now flow through the existing cache into viewport-clamped controls. Scroll, multipath, edge, and cache regressions pass; substituting the pre-fix module makes the bounds regression fail.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      Size-changing minimized counts retire the gesture, render, measure, and reclamp. The count-growth regression passes and fails with the old setCount implementation.
+  - id: BR-3
+    disposition: addressed
+    note: |
+      Mode changes now follow reducer → render → measured geometry. The production-adapter sequence regression passes and fails when the direct mode assignment is restored.
+  - id: BR-4
+    disposition: addressed
+    note: |
+      The retained native log records both tests passing non-skipped in 11.242s; its SHA256 and every listed source blob match the pinned head. The plan records operator acceptance under TL receipt a7dcd3bb. This host still fails before page creation with GPU exit_code=6, but the supplied source-bound host evidence answers the prior verification gap.
+findings:
+  - id: new
+    severity: Critical
+    kind: defect
+    family: viewport-reachability
+    title: |
+      Overlapping sketch controls conceal individual notes.
+    detail: |
+      cmd/internal/webcast/web/sketch-notes.js:38–63 positions each button independently without accounting for other controls. A production-function reproduction with two completed sketches sharing bounds {left:100,top:100,right:200,bottom:150} in a 320×480 viewport places both 80×44 View note buttons at left:100px, top:48px. The later sibling covers the earlier button, preventing pointer access to its note. This is the 3rd finding in family viewport-reachability. Earlier rounds fixed instances; state and enforce the rule that every eligible sketch remains individually selectable after all controls are composed. Sweep identical bounds, partially overlapping targets, and edge-clamped collisions using collision-aware placement or an explicit grouped selector, while retaining bounded update costs. Add multi-sketch regression and native hit-target coverage. ARCH-PURPOSE, ARCH-CONSTRAINTS.
+```
+
+1. **Strengths**
+
+   - Bounds reuse the existing painter/cache, avoiding another point-history projection.
+   - Panel movement remains constant-cost; count changes preserve minimized mode.
+   - Final labels render through `textContent` and remain read-only.
+   - README and atlas updates cover the new controls, keyboard behavior, and ownership boundaries.
+
+2. **Critical findings**
+
+   - **Overlapping controls:** `cmd/internal/webcast/web/sketch-notes.js:38–63`. Make every sketch individually selectable when control positions collide, including after viewport clamping.
+
+3. **Important findings**
+
+   None newly raised.
+
+4. **Minor findings**
+
+   None.
+
+5. **Test coverage notes**
+
+   - All **550 Node tests passed**.
+   - Focused Go assembly, server, and panel checks passed.
+   - In-memory pre-fix substitutions made the BR-1–3 regressions fail; checkout files remained unchanged.
+   - Native tests locally failed before opening a page because Chrome’s GPU process exited. Retained passing evidence matches the pinned source.
+   - Current edge tests exercise one sketch identity at a time; they miss collisions between different sketches.
+
+6. **Architectural notes**
+
+   - **ARCH-DRY — pass:** existing note commands and paint cache are reused.
+   - **ARCH-PURE — pass:** geometry/projection logic is separated from DOM effects.
+   - **ARCH-PURPOSE — flag:** colliding controls prevent individual note discovery.
+   - **ARCH-MOCK — pass:** stateful DOM fixtures cover capture and viewport behavior, supplemented by retained native evidence.
+   - **ARCH-CONSTRAINTS — flag:** independent viewport clamping does not ensure reachability after controls are composed.
+   - **ARCH-SECURE — pass:** labels use text rendering; no new credential or persistence boundary.
+   - **ARCH-ORDER — pass:** authoritative panel transitions now pass through the reducer.
+   - **ARCH-FUNERAL — pass:** controls and capture resources have disposal paths; no new durable runtime artifacts.
+   - **ARCH-EVOLVE — pass:** persisted formats are unchanged.
+
+7. **Plan revision recommendations**
+
+   Add a `## Revisions` entry defining **individual sketch selectability after composition**. Enumerate identical bounds, partial overlap, and collisions caused by edge clamping; specify the placement/grouping policy, its cost bound, and multi-sketch hit-target verification.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"be30478e-2b1e-4f72-a780-b45a47c14320","repository":"github.com/xianxu/pair","issue_id":"000850","recipe":"milestone-review","round":2,"attempt":1,"agent":"codex","root":"/Volumes/TestScratch/review-checkouts/a106d736ce961fa5","reviewed_head":"db56f5f94d9966026d5e8a51da8e33718a01095b","slot":"pair:4","requested_at":"2026-10-24T03:45:56.403337Z"},"phase":"finished","pid":59328,"started_at":"2026-10-24T03:45:56.528735Z","finished_at":"2026-10-24T03:48:33.671369Z","session_id":"01a16c03-e495-7490-8511-ee652a45fc49","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 2.835931167s
+head: "db56f5f94d9966026d5e8a51da8e33718a01095b"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412

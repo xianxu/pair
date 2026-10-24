@@ -169,3 +169,23 @@ Native proof for the correction is retained in workshop/evidence/000850/native-q
 ### 2026-10-23 — operator acceptance (TL a7dcd3bb)
 
 The hub reports the combined-stage operator look passed (“works now”, about20:45) and directs full re-close and merge. The staged visual look plus corrected-source source-bound native11.242s evidence completes BR4's two distinct acceptance requirements. Retained corrected-source suite survived restart and is running; final recorded pass and SHIP still precede landing. The last task is orchestration, not an unimplemented product change.
+
+### 2026-10-23 — BR5 re-plan: individual selection after composition (TL36312a99)
+
+Third viewport delta stops positional patching. Independent per-sketch controls cannot guarantee every sketch remains selectable after identical, partially overlapping or edge-clamped placements. Replace them with exactly ONE clamped **Sketch notes (N)** button for all eligible on-view sketches. It opens one viewport-bounded scrolling keyed list: every sketch has an individually identified Add note or View note row. Existing Add note action and read-only final-label view are reused; no per-sketch control or collision packing remains. The earlier operator acceptance covers the annotation panel; the hub will tell them about this button change.
+
+The rejected alternative is collision-aware packing/grouping. It adds spatial state/packing cost yet has no solution for arbitrarily dense drawings in a finite viewport. One selector separates selection from geometric placement and guarantees that all S entries remain reachable through scrolling. Its single button is placed beside the union of visible cached painted bounds and clamped once; the list is a bounded viewport overlay, independent of those bounds. `sketchNoteEntries` and the painter/cache owner stay unchanged. Cost remains O(points newly painted)+O(P+S), one group measurement/update and O(S) keyed row work, no collision or repeated-history scans.
+
+Actions: open/close sketch list, select Add note, select View note, close final view, resize/receive membership update, dispose.
+
+| Internal state / failure mode | Visible state | Recovery action | Possible loss |
+|---|---|---|---|
+| No eligible visible sketches | Selector and list absent | Draw or bring a saved sketch on view | None |
+| Eligible sketches; list closed | One Sketch notes(N) button | Open list | None |
+| List open with arbitrary overlapping sketches | Bounded scrolling list; keyed identified rows | Select Add note or View note | None |
+| Selected unfinished owned sketch | Existing label flow; selector list closes | Existing save/cancel label action | Existing draft semantics only |
+| Selected final label | Read-only final view; selector list closes | Close final view | None |
+| Open list loses or changes members | Latest rows/count; vanished member handlers inert | Select an existing row, or Close | None |
+| No members remain / dispose | List and final view retire | Bring eligible feedback on view / remount | Local open-list state only |
+
+Compose-level invariant: every current eligible sketch has exactly one latest-identity row reachable by scrolling; there is only one geometric entry target, so other sketches cannot cover it. Its complete hit area, list Close and rows remain within viewport bounds. Regressions cover identical bounds, partial overlap and edge-clamped unions at multiple sketch counts; counted P/2P and S/2S operations reject superlinear work. Native Chrome opens the real summary button and selects each overlapping sketch row, including rows reached only by scrolling, with zero label commands from final inspection. Existing completed-paint/submission guards remain unchanged.

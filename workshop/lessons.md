@@ -2847,3 +2847,5 @@ and external temporary roots rather than relying on the host's TMPDIR.
 - #850: a discovery control placed at an ink sample intercepts later drawing at that same point. Keep affordances beside painted content and pin actual native hit targets before testing later labels or preview acknowledgments; a missing second sketch can look like a preview timeout.
 
 - #850 BR1–3: viewport reachability is a postcondition after every size/geometry source: scroll, transform, count text, mode and resize. Derive discovery from the existing painter's full cached bounds, clamp complete hit areas, and keep authoritative mode writes inside the transition owner; first samples and fixed-width fakes conceal these failures.
+
+- #850 BR5: independent viewport clamping is insufficient after composition. State the invariant for all eligible entities together: each must remain individually selectable with identical bounds, overlapping bounds and dense edge cases. A single bounded scrolling selector removes an impossible geometric packing problem; do not add a third positional heuristic.

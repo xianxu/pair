@@ -102,6 +102,11 @@ Authenticated TL receipt a7dcd3bb reports the combined-stage operator acceptance
 
 Polled retained terminal9613 after restart: lease-3061314793 survived, acquired the suite lock after2366s, and is now running make test from the independent bac53fc98 snapshot; no restart or duplicate check. Next: inventory and full re-close while this existing recorded suite finishes; finalize only after its pass, then sdlc merge on SHIP. The final orchestration Plan checkbox remains open until the recorded check and landing finish; review may overlap the already running check under tl-worker rules.
 
+
+### 2026-10-23 — close round2 REWORK; BR5 re-plan approved
+
+Full review disposed BR1–4 as addressed, including mutation-proved regressions, source-bound native evidence and authenticated acceptance. It raised BR5 Critical: two sketches with the same/overlapping/edge-clamped bounds produce controls that cover earlier notes. Stopped at the third viewport delta and proposed replacing geometric per-sketch controls rather than adding collision heuristics. TL36312a99 approved ONE clamped Sketch notes(N) button for all eligible on-view sketches, opening a bounded scrolling keyed list with individually labeled Add/View note rows. Existing actions/final read-only view stay unchanged; no per-sketch controls/packing. Plan Revisions records state, alternative, single-selection owner, cost and composition-level native oracle. Earlier operator acceptance covers the panel; report the button change for the hub to tell them. Running old-source suite continues, no new runner yet; corrected source requires its own pre-close proof and close.
+
 ## Revisions
 
 ### 2026-10-23 — TL approved design (19f42a37)
@@ -111,6 +116,10 @@ Approved yellow300x320 within viewport, fixed header/scroll body, draggable head
 ### 2026-10-23 — plan-quality PQ-1
 
 First full-flow gate refused before implementation solely for prose test-case inventories. Compressed all task test descriptions to named production-function strategies with adversarial input classes and mechanical invariants. Commands, independent native/browser proof and cost bounds remain. No product/design change or estimate yet; rerun gate next.
+
+### 2026-10-23 — BR5 selector replaces per-sketch controls (TL36312a99)
+
+The visible sketch-note discovery requirement is fulfilled by one clamped Sketch notes(N) selector opening a bounded keyed list, one Add note/View note row per eligible on-view sketch. This supersedes individual overlaid controls, whose collisions hid notes. Existing unfinished-label and final read-only semantics remain. Earlier operator acceptance covers the unchanged annotation panel; hub will communicate this approved button change.
 
 ## Estimate
 
