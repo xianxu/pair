@@ -1,6 +1,6 @@
 ---
 id: 000812
-status: codecomplete
+status: done
 created: 2026-10-22
 updated: 2026-10-24
 estimate_hours: 1.7435
@@ -21,6 +21,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: b9dd423e55fdea9f59ef7e6a454f04fc1284d0dc
         evidence_commit: 2eb1023ee957bc112a6eca39e4bdd6dbac2706f1
+        landed_commit: 3c927bb8cd12cc5e62e080b85d2687e61cff396c
 ---
 
 # Couch tab bar: drop the trailing last lifecycle/error message (switcher keeps it)
