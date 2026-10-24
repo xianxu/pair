@@ -119,3 +119,12 @@ SubscribeSubmissionCandidates supplies a coalesced wake for note create/edit/sta
 ### 2026-10-23 — dependency landed and integrated
 
 Verified PR578 MERGED at5d8fd7648caa64ecfcb6d9e2d20716a881d0397c and merged fresh origin/main into #842. Hubf896637c authorizes change-code. Plan Revision pins Board-owned nonempty selection plus exact live delivered-mask exclusion, observed through the existing cast update worker's candidate wake and cached in webcastState (no new worker, no per-paint IO/Board scan). No implementation before the gate.
+
+
+### 2026-10-24 — recorded failure fixed by exact artifact inventory classification
+
+Retained run cfb07485d03d337d82c60275ecc8c0a9 on27f192b8930fe672722112a425c97ca21a5d774e finished FAIL, log /Users/xianxu/workspace/pair/.git/sdlc/test-stats/failed/cfb07485d03d337d82c60275ecc8c0a9.log, SHA256 prefix dc9fb4d0b9b4. Sole failure: artifactpath.TestProductionArtifactReferencesAreExactlyClassified: console_send.go absent from exhaustive inventory. Remaining scripts and all other Go packages completed; no early termination or flake claim.
+
+Resumed this branch after #863's native owners joined. Audited console_send.go: it caches an in-memory Cast/Board non-empty projection and routes the existing workbench shortcut through an accepted terminal endpoint; no filesystem access, Pair artifact path construction or artifact filename vocabulary. Added exactly this source to NonArtifactSources in artifactpath/manifest.go. Targeted inventory red repeated the exact omission, then PASS3.727s after the one-file classification; make test-affected-inventory PASS. Production send behavior is unchanged. No bulk inventory hash update.
+
+Next: push and record pre-close on corrected head, narrow re-close for the inventory fix, then hand verified SHIP/pass head and smoke steps to pair:4 for the already-approved combined stage. No independent stage or pre-acceptance merge.
