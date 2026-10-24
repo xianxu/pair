@@ -3,11 +3,13 @@ package couchtty
 import (
 	"regexp"
 	"strings"
-	"unicode"
 
 	"github.com/xianxu/pair/cmd/internal/couchcore"
 	"github.com/xianxu/pair/cmd/internal/rowtext"
 )
+
+// Path/URL alternatives precede prose tokens and retain their internal brackets.
+var referenceTokens = regexp.MustCompile(`[^\s()\[\]{}<>,;!?"'\x60/\\]*[/\\][^\s<>,;"'\x60]+|[^\s()\[\]{}<>,;!?"'\x60]+`)
 
 var referencePattern = regexp.MustCompile(`^(?:[A-Za-z0-9][A-Za-z0-9_.-]*[:#][0-9]+|#[0-9]+)$`)
 
@@ -25,22 +27,14 @@ func referenceToken(token string) bool {
 // referenceAccents marks source tokens before wrapping can split paths or URLs.
 func referenceAccents(text string, match func(string) bool) []bool {
 	accents := make([]bool, len(text))
-	offset := 0
-	for _, chunk := range strings.FieldsFunc(text, unicode.IsSpace) {
-		start := offset + strings.Index(text[offset:], chunk)
-		offset = start + len(chunk)
-		if strings.ContainsAny(chunk, `/\\@`) {
+	for _, span := range referenceTokens.FindAllStringIndex(text, -1) {
+		token := strings.TrimRight(text[span[0]:span[1]], ".:")
+		if strings.ContainsAny(token, `/\\@`) {
 			continue
 		}
-		pos := start
-		for _, part := range strings.FieldsFunc(chunk, func(r rune) bool { return strings.ContainsRune("()[]{}<>,;!?\"'`“”‘’", r) }) {
-			at := pos + strings.Index(text[pos:offset], part)
-			pos = at + len(part)
-			token := strings.TrimRight(part, ".:")
-			if match(token) {
-				for i := at; i < at+len(token); i++ {
-					accents[i] = true
-				}
+		if match(token) {
+			for i := span[0]; i < span[0]+len(token); i++ {
+				accents[i] = true
 			}
 		}
 	}

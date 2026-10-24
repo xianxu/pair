@@ -62,12 +62,12 @@ type notesMenuLine struct {
 // menuItem is one entry of a titled menu, with its color chip or none. Bg,
 // when set, is the chip's color instead of the author palette's Color.
 type menuItem struct {
-	ID    int
-	Text  string
-	Color int
-	Chip  bool
-	Bg    color.Color
-	refs  bool // bell-only reference accents; Text remains plain
+	ID       int
+	Text     string
+	Color    int
+	Chip     bool
+	Bg       color.Color
+	refStart int // byte offset after generated metadata; zero disables accents
 }
 
 // Open reports whether there is a menu.
@@ -137,8 +137,8 @@ func renderMenuAt(title string, notes []menuItem, cols, rows int, top bool) Note
 		source := sanitizedNote(n.Text)
 		wrapped := wrapNote(source, textW)
 		var accents []bool
-		if n.refs {
-			accents = referenceAccents(source, referenceToken)
+		if n.refStart > 0 && n.refStart <= len(source) {
+			accents = append(make([]bool, n.refStart), referenceAccents(source[n.refStart:], referenceToken)...)
 		}
 		offset := 0
 		need := len(wrapped)

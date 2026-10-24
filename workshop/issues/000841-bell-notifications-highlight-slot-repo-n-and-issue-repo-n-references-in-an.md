@@ -63,8 +63,20 @@ Final exhaustive artifact guard PASS 4.005s after the one audited non-artifact c
 
 PR #571 opened on implementation f2257a6dc2532c77257969cd90e99851fee33f09. Recorded affected runner started on that pushed head; no passing recorded result claimed yet. Close may overlap verification under tl-worker rules, and landing remains gated on the pass. Asked TL to explicitly confirm proposed render-only/no-stage acceptance; no slot :0 or live fleet touched.
 
+Corrected final verification: targeted attention/notes/toggle/notification controls PASS 2.964s; targeted race PASS 6.408s; original reviewer timezone reproduction (TZ=Asia/Kolkata) with fixed boundary times PASS 0.591s; exhaustive artifact guard PASS 2.294s; lint/godoc PASS 4.779s/0.442s; reader inventory PASS and diff whitespace clean. Branch patch now adds 99 production lines, so it remains within the quick shell. No recorded pass yet on the corrected executable head; commit and push precede its fresh affected run and second close review.
+
 ## Revisions
 
 ### 2026-10-23 — Make release-gate sequencing explicit
 
 Split the final Plan checkbox into completed pre-close preparation and downstream release gates in prose. Close review and landing cannot truthfully be pre-ticked before running their own verbs; scope and Done when are unchanged.
+
+### 2026-10-23 — Boundary round 1 correction
+
+BR-1 and BR-2 verified, not disputed. The generated HH:MM prefix was incorrectly eligible as a numeric repository reference, and a whitespace-wide exclusion suppressed prose references beside URLs/paths/email. Their common boundary is source role, not the appearance of a substring. Regression matrix now fixes the clock at minutes 09, 10 and 59 for each notification kind and hover state; adds numeric repository content, all three reference forms as Markdown link labels, comma-adjacent slash/backslash/email siblings, and internal URL/path bracket exclusions. New controls RED before fixes (0.452s), with timestamps and missing references observed independently. BR-1-only prose/numeric controls GREEN 0.356s after excluding generated prefix. Complete reference/clipboard matrix GREEN 0.775s after ordered lexical spans replaced chunk rejection. Full tests follow below.
+
+TL confirmed no stage (submitted receipt 85abae89-0703-4e22-940a-ae634fdc02c9): cell-level rendering plus actual Ctrl+Y clipboard control are acceptance; operator sees the result after next restart. Queued affected lease-2367206354 on the obsolete executable head was explicitly canceled through SDLC, joined with cancellation, and recorded no pass; a fresh run on corrected pushed code is required.
+
+### 2026-10-23 — Correct source-role boundaries
+
+Supersedes the Plan's whitespace-chunk exclusion sentence: generated timestamp metadata is outside matching. Ordered lexical spans retain path/URL internal brackets while allowing separate punctuation-delimited prose references, including Markdown labels. Whole-token classifier, source masks, existing wrap/clip projection and cell-only styling remain the mechanism. Done when and feature scope are unchanged. No new state or IO.

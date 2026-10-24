@@ -18,6 +18,14 @@ func TestAttentionReferenceCells(t *testing.T) {
 		{"prose", "See pair:3 ariadne#575 and #841", "pair:0pair:3ariadne#575#841", 80},
 		{"punctuation", "(pair:3): [parley.nvim#419]; #841.", "pair:0pair:3parley.nvim#419#841", 80},
 		{"joined punctuation", "pair:3,#841!", "pair:0pair:3#841", 80},
+		{"numeric repo", "123:3 123#841", "pair:0123:3123#841", 80},
+		{"slot link", "[pair:3](https://x)", "pair:0pair:3", 80},
+		{"issue link", "[ariadne#575](https://x)", "pair:0ariadne#575", 80},
+		{"bare link", "[#841](https://x)", "pair:0#841", 80},
+		{"beside path", "pair:3,/tmp/a ariadne#575,C:\\a #841,mail@x", "pair:0pair:3ariadne#575#841", 80},
+		{"after path", "/tmp/a,(pair:3) C:\\a,[ariadne#575] mail@x,(#841)", "pair:0pair:3ariadne#575#841", 80},
+		{"path brackets", "/tmp/(pair:3) /tmp/[#841]", "pair:0", 80},
+		{"url brackets", "https://x/?(pair:3) https://x/[#841]", "pair:0", 80},
 		{"paths", "/tmp/pair:3 x/ariadne#575 C:\\x\\#841", "pair:0", 80},
 		{"urls", "https://x/pair:3 https://x/#841", "pair:0", 80},
 		{"words", "pair:3tail word#841tail #841tail", "pair:0", 80},
@@ -29,67 +37,72 @@ func TestAttentionReferenceCells(t *testing.T) {
 		{"clip", "#1 " + strings.Repeat("pair:3 ", 50), "", 38},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			for _, kind := range []couchcore.AttentionKind{couchcore.AttentionNotify, couchcore.AttentionPrompt, couchcore.AttentionQuestion} {
-				item := couchcore.AttentionItem{ID: "n", Kind: kind, Label: "pair:0", Title: tc.body, Since: time.Now()}
-				if kind == couchcore.AttentionNotify {
-					item.Title = ""
-					item.Body = tc.body
-				}
-				c := &Console{}
-				c.attn.open = true
-				if kind == couchcore.AttentionNotify {
-					c.attn.list = c.attn.list.Apply(couchcore.AttentionFact{Kind: kind, Notify: item}, item.Since)
-				} else {
-					c.attn.list = c.attn.list.Apply(couchcore.AttentionFact{Kind: kind, Live: map[couchcore.ThreadAddress]couchcore.AttentionCondition{{Tag: "t"}: {Label: item.Label, Title: item.Title}}}, item.Since)
-				}
-				c.layoutAttentionLocked(tc.cols, 24)
-				box := c.attn.box
-				for _, hover := range []int{0, 2} {
-					f := box.Draw(menuFrame(t, tc.cols, 24), hover, broadcast.NoteStyle{})
-					var colored strings.Builder
-					for _, cell := range f.Cells {
-						if cell.Style.Fg == notesMenuLink {
-							colored.WriteString(cell.Content)
-						}
+			for _, minute := range []int{9, 10, 59} {
+				for _, kind := range []couchcore.AttentionKind{couchcore.AttentionNotify, couchcore.AttentionPrompt, couchcore.AttentionQuestion} {
+					item := couchcore.AttentionItem{ID: "n", Kind: kind, Label: "pair:0", Title: tc.body, Since: time.Date(2026, 10, 23, 10, minute, 0, 0, time.Local)}
+					if kind == couchcore.AttentionNotify {
+						item.Title = ""
+						item.Body = tc.body
 					}
-					if tc.name != "clip" && colored.String() != tc.want {
-						t.Errorf("kind %v hover %d colored %q want %q", kind, hover, colored.String(), tc.want)
+					c := &Console{}
+					c.attn.open = true
+					if kind == couchcore.AttentionNotify {
+						c.attn.list = c.attn.list.Apply(couchcore.AttentionFact{Kind: kind, Notify: item}, item.Since)
+					} else {
+						c.attn.list = c.attn.list.Apply(couchcore.AttentionFact{Kind: kind, Live: map[couchcore.ThreadAddress]couchcore.AttentionCondition{{Tag: "t"}: {Label: item.Label, Title: item.Title}}}, item.Since)
 					}
-					if tc.name == "clip" && colored.Len() == 0 {
-						t.Error("clipped references lost color")
-					}
-					for _, line := range box.lines {
-						if strings.ContainsRune(line.text, 0x1b) {
-							t.Fatal("escape in stored text")
+					c.layoutAttentionLocked(tc.cols, 24)
+					box := c.attn.box
+					for _, hover := range []int{0, 2} {
+						f := box.Draw(menuFrame(t, tc.cols, 24), hover, broadcast.NoteStyle{})
+						var colored strings.Builder
+						for _, cell := range f.Cells {
+							if cell.Style.Fg == notesMenuLink {
+								if cell.Content == "…" {
+									t.Fatal("synthetic ellipsis accented")
+								}
+								colored.WriteString(cell.Content)
+							}
 						}
-					}
-					for y := box.items[1].Top; y < box.items[1].Bottom; y++ {
-						if box.ItemAt(box.X+5, y) != 2 {
-							t.Fatal("reference changed hit owner")
+						if tc.name != "clip" && colored.String() != tc.want {
+							t.Errorf("kind %v hover %d colored %q want %q", kind, hover, colored.String(), tc.want)
 						}
-						wantBG := notesMenuBg
-						if hover == 2 {
-							wantBG = notesMenuHover
+						if tc.name == "clip" && colored.Len() == 0 {
+							t.Error("clipped references lost color")
 						}
-						for x := box.X + 4; x < box.X+box.W; x++ {
-							if f.Cells[y*tc.cols+x].Style.Bg != wantBG {
-								t.Fatal("accent changed hover background")
+						for _, line := range box.lines {
+							if strings.ContainsRune(line.text, 0x1b) {
+								t.Fatal("escape in stored text")
+							}
+						}
+						for y := box.items[1].Top; y < box.items[1].Bottom; y++ {
+							if box.ItemAt(box.X+5, y) != 2 {
+								t.Fatal("reference changed hit owner")
+							}
+							wantBG := notesMenuBg
+							if hover == 2 {
+								wantBG = notesMenuHover
+							}
+							for x := box.X + 4; x < box.X+box.W; x++ {
+								if f.Cells[y*tc.cols+x].Style.Bg != wantBG {
+									t.Fatal("accent changed hover background")
+								}
 							}
 						}
 					}
-				}
-				// Shared notes do not opt in, and the source remains unchanged.
-				m := RenderNotesMenu([]broadcast.Note{{ID: 1, Text: c.attn.shown[0].text}}, tc.cols, 24)
-				for _, cell := range m.Draw(menuFrame(t, tc.cols, 24), 0, broadcast.NoteStyle{}).Cells {
-					if cell.Style.Fg == notesMenuLink {
-						t.Fatal("notes unexpectedly accented")
+					// Shared notes do not opt in, and the source remains unchanged.
+					m := RenderNotesMenu([]broadcast.Note{{ID: 1, Text: c.attn.shown[0].text}}, tc.cols, 24)
+					for _, cell := range m.Draw(menuFrame(t, tc.cols, 24), 0, broadcast.NoteStyle{}).Cells {
+						if cell.Style.Fg == notesMenuLink {
+							t.Fatal("notes unexpectedly accented")
+						}
 					}
-				}
-				if !strings.Contains(c.attn.shown[0].text, strings.TrimSpace(tc.body)) {
-					t.Fatal("source rewritten")
-				}
-				if !reflect.DeepEqual(box.items, c.attn.box.items) {
-					t.Fatal("draw mutated layout")
+					if !strings.Contains(c.attn.shown[0].text, strings.TrimSpace(tc.body)) {
+						t.Fatal("source rewritten")
+					}
+					if !reflect.DeepEqual(box.items, c.attn.box.items) {
+						t.Fatal("draw mutated layout")
+					}
 				}
 			}
 		})
