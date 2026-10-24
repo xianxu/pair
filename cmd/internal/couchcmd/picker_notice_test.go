@@ -199,11 +199,17 @@ func TestBlockedPromptsReachTheAttentionList(t *testing.T) {
 	}
 	thread := bindingThread(w.worker)
 	w.reportPicker(true)
-	if got := last(); len(got) != 1 || got[thread] != (couchcore.AttentionCondition{Label: w.worker.Slot, Title: attentionPromptTitle}) {
-		t.Fatalf("prompt set after the picker opened: %+v", got)
+	if got := last(); len(got) != 0 {
+		t.Fatalf("connected-owner picker reached attention: %+v", got)
+	}
+	w.s.blocked.Lock()
+	blocked := w.s.blocked.last[thread]
+	w.s.blocked.Unlock()
+	if !blocked {
+		t.Fatal("routing hid the blocked chip")
 	}
 	w.reportPicker(false)
-	if got := last(); got == nil || len(got) != 0 {
+	if got := last(); len(got) != 0 {
 		t.Fatalf("prompt set after the picker closed: %+v", got)
 	}
 }

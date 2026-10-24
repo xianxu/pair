@@ -3,6 +3,7 @@ package couchtty
 import (
 	"context"
 	"errors"
+	"github.com/xianxu/pair/cmd/internal/couchcore"
 	"strconv"
 
 	"github.com/xianxu/pair/cmd/internal/broadcast"
@@ -269,7 +270,7 @@ func (c *Console) driveResult(err error, done string) {
 		if expectedControlFailure(err) {
 			c.setNotice(driveFailure(err))
 		} else {
-			c.setWarning(driveFailure(err))
+			c.Warn(Notice{Class: couchcore.NoticeOperatorDriveFailed, Origin: couchcore.NoticeOperatorOrigin, Kind: "warning", Body: driveFailure(err)})
 		}
 	} else if done != "" {
 		c.setNotice(done)

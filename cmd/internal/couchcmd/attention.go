@@ -1,11 +1,13 @@
 package couchcmd
 
 import (
+	"fmt"
 	"maps"
 	"strings"
 
 	"github.com/xianxu/pair/cmd/internal/couchcore"
 	"github.com/xianxu/pair/cmd/internal/couchmessage"
+	"github.com/xianxu/pair/cmd/internal/couchtty"
 )
 
 // The attention list's sources (pair#673) report facts to the Console, which
@@ -41,12 +43,34 @@ func questionEpisode(ep waitEpisode) (string, bool) {
 	return summary, reason == string(waitQuestion)
 }
 
-// publishQuestions hands the Console the slots in a current question episode
-// when that set changed (or on the first tick, so a restart reconciles).
+// noticeCondition identifies an episode by its exact source, never its label.
+func noticeCondition(class couchcore.NoticeClass, thread couchcore.ThreadAddress) string {
+	return fmt.Sprintf("%s\x00%s\x00%s", class, thread.RepoScope, thread.Tag)
+}
+
+// publishQuestions reconciles human eligibility on every owner snapshot, even
+// while the judged episode itself is unchanged. The wait watcher remains the
+// sole owner of its canonical hub send.
 func (w *waitWatcher) publishQuestions(live map[couchcore.ThreadAddress]couchcore.AttentionCondition) {
-	if w.questions != nil && maps.Equal(live, w.questions) {
+	eligible := map[couchcore.ThreadAddress]couchcore.AttentionCondition{}
+	for thread, condition := range live {
+		owner := w.svc.NoticeOwner(couchcore.NoticeDeliveryOccurrence{Thread: thread})
+		if couchcore.RouteNotice(couchcore.NoticeRouteInput{Class: couchcore.NoticeJudgedQuestion, Owner: owner.State, HubHandled: true}).Bell {
+			eligible[thread] = condition
+		}
+		if previous, existed := w.questionConditions[thread]; !existed || previous != condition {
+			w.svc.publishSystemNotice(couchtty.Notice{Class: couchcore.NoticeJudgedQuestion, Kind: "status", Thread: thread, Label: condition.Label, Body: condition.Title, Condition: noticeCondition(couchcore.NoticeJudgedQuestion, thread), HubHandled: true})
+		}
+	}
+	for thread := range w.questionConditions {
+		if _, exists := live[thread]; !exists {
+			w.svc.publishSystemNotice(couchtty.Notice{Class: couchcore.NoticeJudgedQuestion, Thread: thread, Condition: noticeCondition(couchcore.NoticeJudgedQuestion, thread), Cleared: true})
+		}
+	}
+	w.questionConditions = live
+	if w.questions != nil && maps.Equal(eligible, w.questions) {
 		return
 	}
-	w.questions = live
-	w.svc.observeAttention(couchcore.AttentionFact{Kind: couchcore.AttentionQuestion, Live: live})
+	w.questions = eligible
+	w.svc.observeAttention(couchcore.AttentionFact{Kind: couchcore.AttentionQuestion, Live: eligible})
 }

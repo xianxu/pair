@@ -53,7 +53,7 @@ func TestSupervisionGeneratedHubInputOffLeavesWorkerInputIndependent(t *testing.
 	}
 }
 
-func TestWaitAutomationOffConsumesEpisodeWithoutReplayAndKeepsAttention(t *testing.T) {
+func TestWaitAutomationOffConsumesEpisodeWithoutReplayOrBell(t *testing.T) {
 	w := newWaitRig(t, true, true, claudeQuestionTail)
 	setTestAutomation(t, w.s, "/repo1", "off")
 	if got := w.tickAt(11 * time.Minute); len(got) != 0 {
@@ -63,8 +63,11 @@ func TestWaitAutomationOffConsumesEpisodeWithoutReplayAndKeepsAttention(t *testi
 	if !ok || !ep.notified {
 		t.Fatal("off episode was not retired")
 	}
-	if _, ok := w.watcher.questions[bindingThread(w.worker)]; !ok {
-		t.Fatal("off automation hid question attention")
+	if _, ok := w.watcher.questions[bindingThread(w.worker)]; ok {
+		t.Fatal("connected automation-off hub granted question attention")
+	}
+	if _, ok := w.watcher.questionConditions[bindingThread(w.worker)]; !ok {
+		t.Fatal("off automation lost the judged question episode")
 	}
 	setTestAutomation(t, w.s, "/repo1", "on")
 	if got := w.tickAt(12 * time.Minute); len(got) != 0 {
@@ -125,8 +128,11 @@ func TestWaitAutomationOffOnDuringTailCannotReviveOccurrence(t *testing.T) {
 	if got := w.tickAt(12 * time.Minute); len(got) != 0 {
 		t.Fatal("retired delayed wait replayed")
 	}
-	if _, ok := w.watcher.questions[bindingThread(w.worker)]; !ok {
-		t.Fatal("retired wait lost passive question attention")
+	if _, ok := w.watcher.questionConditions[bindingThread(w.worker)]; !ok {
+		t.Fatal("retired wait lost its judged question episode")
+	}
+	if _, ok := w.watcher.questions[bindingThread(w.worker)]; ok {
+		t.Fatal("connected owner retained question bell")
 	}
 }
 

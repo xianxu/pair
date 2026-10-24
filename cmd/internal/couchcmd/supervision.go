@@ -9,6 +9,7 @@ import (
 
 	"github.com/xianxu/pair/cmd/internal/couchcore"
 	"github.com/xianxu/pair/cmd/internal/couchmessage"
+	"github.com/xianxu/pair/cmd/internal/couchtty"
 )
 
 const startupResendPrompt = "Couch restarted and the hub is available. If your last report to the hub is still unanswered and relevant, resend it now. Otherwise do nothing."
@@ -40,6 +41,14 @@ type supervisionCoordinator struct {
 
 func newSupervisionCoordinator(s *messageService, notice func(string)) *supervisionCoordinator {
 	return &supervisionCoordinator{state: newSupervisionState(), sends: map[string]supervisionSend{}, service: s, now: time.Now, notice: notice}
+}
+
+func (c *supervisionCoordinator) warn(class couchcore.NoticeClass, source couchmessage.Binding, body string) {
+	if c.service.noticeOutput.Load() != nil {
+		c.service.publishSystemNotice(couchtty.Notice{Class: class, Kind: "status", Thread: bindingThread(source), Label: source.Slot, Body: body})
+	} else if c.notice != nil {
+		c.notice(body)
+	}
 }
 func (c *supervisionCoordinator) remember(id string, from couchmessage.Binding, now time.Time, system bool) bool {
 	if _, exists := c.sends[id]; exists {
@@ -163,7 +172,7 @@ func (c *supervisionCoordinator) reconcile() {
 					detail += ": " + receipt.Detail
 				}
 			}
-			c.notice(fmt.Sprintf("startup resend prompt to %s unconfirmed: %s; hub should request fresh status", v.prompt, detail))
+			c.warn(couchcore.NoticeStartupResendUnavailable, v.from, fmt.Sprintf("startup resend prompt to %s unconfirmed: %s; hub should request fresh status", v.prompt, detail))
 		}
 	}
 }
@@ -267,7 +276,7 @@ func (c *supervisionCoordinator) tick(ctx context.Context, now time.Time, muted 
 			}
 		}
 		if fx.kind == supervisionEscalate {
-			c.notice(fmt.Sprintf("slot %s: %d min with no later hub message or operator submission observed; inspect with couch --peek %s", fx.binding.Slot, int(fx.age/time.Minute), fx.binding.Slot))
+			c.warn(couchcore.NoticeSupervisionEscalation, fx.binding, fmt.Sprintf("slot %s: %d min with no later hub message or operator submission observed; inspect with couch --peek %s", fx.binding.Slot, int(fx.age/time.Minute), fx.binding.Slot))
 			continue
 		}
 		hub, available := c.service.hubBindingFor(fx.binding)
@@ -296,7 +305,7 @@ func (c *supervisionCoordinator) tick(ctx context.Context, now time.Time, muted 
 				c.waitNudged(fx.binding, fx.report)
 			}
 			if fx.kind == supervisionPrompt {
-				c.notice(fmt.Sprintf("startup resend prompt to %s unavailable: %v; hub should request fresh status", to.Slot, err))
+				c.warn(couchcore.NoticeStartupResendUnavailable, to, fmt.Sprintf("startup resend prompt to %s unavailable: %v; hub should request fresh status", to.Slot, err))
 			}
 			continue
 		}

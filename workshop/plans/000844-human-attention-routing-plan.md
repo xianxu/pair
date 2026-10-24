@@ -149,17 +149,17 @@ The following names are the production API to implement; unit tests call these f
 
 **Files:** create cmd/internal/couchcore/notice_route.go, notice_route_test.go, notice_delivery.go, notice_delivery_test.go; modify cmd/internal/couchtty/notice.go.
 
-- [ ] Write failing tests for RouteNotice and AdvanceNoticeDelivery using the executable test contract.
-- [ ] Run `go test ./cmd/internal/couchcore -run 'TestNotice(Route|Delivery)' -count=1` and verify the missing-feature failure.
-- [ ] Implement the typed table and pure transition API; run the same tests green, then commit with issue and agent trailers.
+- [x] Write failing tests for RouteNotice and AdvanceNoticeDelivery using the executable test contract.
+- [x] Run `go test ./cmd/internal/couchcore -run 'TestNotice(Route|Delivery)' -count=1` and verify the missing-feature failure.
+- [x] Implement the typed table and pure transition API; run the same tests green, then commit with issue and agent trailers.
 
 ### Task 2: Console and service integration
 
 **Files:** create cmd/internal/couchtty/console_notice_route.go and tests; create cmd/internal/couchcmd/notice_delivery.go and tests; modify couchtty/console.go, couchcmd/run.go, message_service.go and automation.go only if the existing ingress seam needs exposure.
 
-- [ ] Write failing tests for resolveNoticeOwner, runNoticeDelivery, publishWarningLocked and applyNoticeRoute using stateful fixtures and controlled effect barriers.
-- [ ] Implement their IO shell and lifecycle integration according to the bounds and state table; preserve the existing guarded broker ingress.
-- [ ] Run `go test -race ./cmd/internal/couchcore ./cmd/internal/couchtty ./cmd/internal/couchcmd -run 'TestNotice(Route|Delivery)|TestConsoleNotice' -count=3`; green then commit.
+- [x] Write failing tests for resolveNoticeOwner, runNoticeDelivery, publishWarningLocked and applyNoticeRoute using stateful fixtures and controlled effect barriers.
+- [x] Implement their IO shell and lifecycle integration according to the bounds and state table; preserve the existing guarded broker ingress.
+- [x] Run `go test -race ./cmd/internal/couchcore ./cmd/internal/couchtty ./cmd/internal/couchcmd -run 'TestNotice(Route|Delivery)|TestConsoleNotice' -count=3`; green then commit.
 
 ### Task 3: producer and bypass integration
 
@@ -189,3 +189,5 @@ Approve the typed table, four-worker/128-entry dispatcher and the single aggrega
 - 2026-10-24: ops:0 approved the entire design in authenticated delivery 12d7cfb1-b715-4546-b159-69f6c8cde4bb, including all 39 classes, dispatch bounds, global primary ownership, aggregated capacity-loss bell and connected-hub picker rule. This supersedes the proposed/awaiting-approval status and approval-request wording above. Implementation is authorized after the change-code gate. Use the full flow because the planned reducer, dispatcher and producer sweep exceed the 100-added-code-line quick shell.
 
 - 2026-10-24: PQ-1 test-contract refinement names production functions and one adversarial strategy/mechanical guard per risky function; compressed procedural scenario inventories. Generated event sequences exercise the production reducer with independent effect-count, epoch and resource invariants, and controlled shell completion ordering. Approved behavior and bounds unchanged.
+
+- 2026-10-24: implementation retained the existing wait-watcher ownership for picker/question messages, including timing/mute/deduplication; HubHandled describes canonical effect ownership, not a submitted receipt. No immediate duplicate picker send was added. Publication freezes memory-only readiness/epoch before asynchronous work, tested against OFF/ON ordering.

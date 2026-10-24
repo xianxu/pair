@@ -50,8 +50,8 @@ so adding a class back is a one-line change.
 
 Durable plan: [human attention routing](../plans/000844-human-attention-routing-plan.md).
 
-- [ ] Implement the pure typed routing table and bounded delivery reducer after TL approval.
-- [ ] Integrate Console startup/shutdown and existing guarded system-message delivery.
+- [x] Implement the pure typed routing table and bounded delivery reducer after TL approval.
+- [x] Integrate Console startup/shutdown and existing guarded system-message delivery.
 - [ ] Sweep every producer, direct prompt/question/archive/stall path and duplicate-effect case.
 - [ ] Update atlas, audit reader certificates, run recorded pre-close, close and land.
 
@@ -80,6 +80,19 @@ NEXT ACTION: run change-code --issue 844 --flow full; address plan-quality findi
 
 Full-flow plan review returned one Important finding PQ-1 (executable-test-strategy): name the production functions under test and compress prose scenario inventories. Revised the entire test contract and task section to name RouteNotice, AdvanceNoticeDelivery, resolveNoticeOwner, runNoticeDelivery, publishWarningLocked, applyNoticeRoute and the existing condition/notification functions, with one adversarial strategy each. State sequences call the production reducer and check independent no-duplicate, epoch-fencing and resource-bound invariants; stateful shell fixtures control effect completion ordering. No policy change, implementation or estimate yet. Existing Attention unit baseline passed (go test ./cmd/internal/couchcore -run TestAttention -count=1, 0.350s).
 
+
+
+### 2026-10-24 — implementation checkpoint, integration verification running
+
+change-code full flow passed: PQ-1 addressed, round 3 clean, estimate-quality INFO (producer/integration budgets optimistic). Implemented typed routing, bounded pure delivery state and four-worker shell, Console feed-once projection, startup/close binding, exact owner/epoch broker backend and the complete producer/condition/archive/stall sweep. Existing picker/question wait watcher retains canonical sends, thresholds, mute and deduplication; HubHandled denotes that effect ownership rather than proof of successful submission. This avoids introducing immediate duplicate picker traffic. Startup waits on surviving/explicitly attached wrappers, never treating a nil boot service as absence.
+
+Test-first failures covered missing APIs, typed producer facts, UTF-8 clipping, admitted receipt tracking, full-capacity condition coalescing, shutdown cancellation, and OFF/ON before async dispatch. Publication now captures cached owner readiness/epoch under the documented memory-only lock order; broker IO runs only outside Console/publication locks. Whole-package AST guards cover Warn, locked warnings and direct attention additions outside audited projections.
+
+Verified focused race aggregate: go test -race ./cmd/internal/couchcore ./cmd/internal/couchtty ./cmd/internal/couchcmd -run 'TestNotice|TestConsoleNotice|TestCondition|TestPicker|TestWaitNotice|TestWaitAutomation|TestArchive|TestAutomaticInputStall' -count=1 -timeout=120s PASS (core 20.671s, tty 3.021s, cmd 13.406s). Adapter race x3 PASS 4.092s; startup real-broker integration race PASS 1.920s; unknown-class fuzz PASS 10,811 executions. Full tests for those three packages are currently running; no full-package or recorded check pass claimed yet.
+
+Reader audit: wait_notice_test.go still reads the same Claude/Codex wrapper screen fixtures and retains its registered fixed-scanner guard; only fixture cleanup/expected routing changed. New notice_class_inventory_test.go files and tty notice_producer_inventory_test.go scan only their own Go package's tracked source or literal AST fixtures, so normal package ownership covers their inputs; each is explicitly local_or_literal_fixture. Individually recorded those four named certificates; make test-affected-inventory and git diff --check PASS. No selector or local-gates configuration changes.
+
+NEXT ACTION: read the retained three-package test result, fix/classify failures, complete atlas/plan verification, push and run recorded --pre-close, inventory then close. The full recorded check has not started.
 
 ## Estimate
 
