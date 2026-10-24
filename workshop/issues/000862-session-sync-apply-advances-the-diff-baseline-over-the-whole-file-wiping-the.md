@@ -150,6 +150,19 @@ A close review may overlap this queued check under the worker contract, but
 landing requires its pass on the final code. Next: inventory, close review,
 retain the check to its terminal result, then authoritative merge on SHIP.
 
+### 2026-10-24 — actuals snapshot cap before review
+
+The first close runner34729 exited1 before review with exact refusal:
+“measurement branch proof: measurement sources exceed snapshot limit 128”.
+Affected issue window starts 2026-10-24T15:58:12-07:00; refused candidate
+26fcc83e8b450df2fb03efa45d78c8078ed4754d committed16:13:45-07:00.
+No hours were typed. Authenticated standing hubf0056229, reaffirmed by
+hub0cd7a589 (64 KiB exception revoked, 128-source stays until ariadne#603),
+authorizes the precise --no-actual retry with this refusal/window retained.
+Inventory rerun passed; the original queued suite39827 is unchanged.
+GitHub conformance, merge-check and both local-gates checks were observed green.
+Next: retry whole close under that measurement-only exception.
+
 ## Revisions
 
 ### 2026-10-24 — separate dependent fake adoption, TL-approved
