@@ -1,12 +1,12 @@
 ---
 id: 000869
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-10-24
 updated: 2026-10-24
 estimate_hours:
-card_mirror: '0f6a21711083ed9eba135acca40ec1abeab69ea2' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '8c2ac40d0929be6b89fc2f39b7448fc8c439f54c' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-24T08:28:06-07:00
 claimant:
     operator: Xian Xu
@@ -16,6 +16,7 @@ claimant:
     worktree: /Users/xianxu/workspace/worktree/pair-slot9/pair
     repository: github.com/xianxu/pair
 flow: {kind: quick, provenance: inferred, spec: "ccb7b222", done: "55fd417f"}
+actual_hours: 0.27
 ---
 
 # Publish cancellation fixture PID readiness atomically
