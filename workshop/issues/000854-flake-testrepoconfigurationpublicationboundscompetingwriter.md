@@ -1,12 +1,21 @@
 ---
 id: 000854
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-10-23
-updated: 2026-10-23
+updated: 2026-10-24
 estimate_hours:
-card_mirror: '725c51f7c9b647a0740f59930187d5c45b4f2799' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: 'eaeb559acc74a51b52a214b81a07e138dcc161f7' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-24T05:56:34-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: Xian’s MacBook Pro
+    workspace: pair:6
+    worktree: /Users/xianxu/workspace/worktree/pair-slot6/pair
+    repository: github.com/xianxu/pair
+flake_tests: [github.com/xianxu/pair/cmd/internal/couchcore.TestRepoConfigurationPublicationBoundsCompetingWriter]
 ---
 
 # flake: TestRepoConfigurationPublicationBoundsCompetingWriter
@@ -19,13 +28,30 @@ Known flaky tests (#394), registered with same-head fail→pass evidence:
 
 ## Spec
 
+Root cause (pair:6, from the code): #827 made `withUpdateLockContext` (couchcore/park_recovery_store.go) poll
+`store.lock` for a fixed `storeReadLockWait` (1 s) through `acquireThreadStoreLockWithin`, independent of the
+caller's context deadline. Each poll runs `check()` (the context check), then tests its own wait deadline. When the
+caller has about as much budget left as the wait (the test leaves ~1 s of the migration budget), the two deadlines
+coincide. A deschedule between `check()` and the wait-deadline test then returns `ErrThreadStoreBusy` ("thread store
+busy; retry") instead of the deadline cause. The coordinator lock waits on `ctx.Done()` and is not affected.
+
+Fix: a store-lock wait never outlives the caller's deadline. `storeLockBound(ctx, wait)` caps the wait at the time
+the context has left. When that cap ends a busy wait, the store path reports `context.DeadlineExceeded`, not busy.
+A caller with more budget than the wait still gets a genuine busy after 1 s. No retry, and no longer timeout.
+
 ## Done when
 
 - The root cause is fixed (never a retry loop or a longer timeout); closing this issue unregisters the tests.
+- A store-lock wait is bounded by the caller's deadline and reports the deadline cause, even when the context check
+  cannot see it yet (deterministic test). A caller with more budget than the wait still gets busy (test).
 
 ## Plan
 
-- [ ]
+- [ ] `storeLockBound` in couchcore. `withUpdateLockContext` computes the bound inside the coordinator callback,
+  maps a capped busy (or a cap already at zero) to `context.DeadlineExceeded`, and leaves an uncapped busy as it is.
+- [ ] Tests: a held `store.lock` with a check blind to the deadline returns `DeadlineExceeded` at the caller's
+  deadline, not busy at 1 s (it shows busy on the old composition); with more budget than the wait, busy as before;
+  `TestRepoConfigurationPublicationBoundsCompetingWriter` repeated under load.
 
 ## Log
 
