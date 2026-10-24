@@ -1,13 +1,21 @@
 ---
 id: 000849
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-10-23
 updated: 2026-10-23
 estimate_hours:
 collaboration-mode: collaboration
-card_mirror: 'a693ff04b7a34dcb1d1d63d1ece31ef5ab44fd00' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '16b2df0542cff7dfc0e87a1fce8967bc62f1ec20' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-23T17:38:50-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: Xian’s MacBook Pro
+    workspace: pair:6
+    worktree: /Users/xianxu/workspace/worktree/pair-slot6/pair
+    repository: github.com/xianxu/pair
 ---
 
 # Cast notes: DOM submission loops on 'Feedback changed' and never submits
@@ -41,3 +49,22 @@ before changing anything; no weakening of the "feedback changed" protection.
 ## Log
 
 ### 2026-10-23
+
+Investigation (pair:6), from the operator's recording 20261023T165427-6f1f (17:07 presses ≈ t 700–755 s):
+
+- One message hides about a dozen refusals: the manager maps every prepare-time failure (no preview worker, fresh
+  read or resolve error, host/delivery/generation moved, `PreviewPrepare` refusal, freeze rejection) to
+  `errSubmissionPreview`, and the preview worker's own failures (read, resolve, publish ack) are never reported.
+- **Established:** replaying the recording through a real Board shows its selection held 1 sketch + 4 notes from the
+  sketch label at t=653 s (generation 6). The panel the operator saw, "Pending feedback: 0 sketches, 4 annotations"
+  with no "N more sketches", therefore predates the label: after it, the preview worker never completed another
+  acknowledged publication, so every press compared against a stale preview and was refused.
+- **Ruled out:** recorded-prefix drift (no records 700–780 s; live pointer moves pass); the live Couch's build
+  (3dedd7b6, the #812 branch: no submission changes); nil/empty slice equality; a publish livelock (no notifications
+  during publish).
+- **Not reproduced headless:** a live test of the manager's exact sequence on the operator's own page (rebuilt from the
+  recording's document + stylesheet), at their viewport (864×997 @2x), with their four notes, their sketch drawn from
+  the recorded pen points (first stroke undone), the long label saved by click, the panel shown before the sketch;
+  and the real `submissionManager` over a real cast with four notes. All admit on the first press.
+- Untested differences: a headed, unfocused or occluded window (rAF throttling), the recorder's periodic screenshots,
+  and a worker that ran for ten minutes across sketch-mode transitions.
