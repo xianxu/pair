@@ -16,7 +16,7 @@ claimant:
     workspace: pair:6
     worktree: /Users/xianxu/workspace/worktree/pair-slot6/pair
     repository: github.com/xianxu/pair
-flow: {kind: quick, provenance: inferred, spec: "d12da403", done: "f6148d87"}
+flow: {kind: full, provenance: inferred}
 ---
 
 # Global Alt+x marks parked slots 'asleep'; one 'wake all' brings back exactly those
@@ -82,6 +82,8 @@ Durable plan: `workshop/plans/000830-global-alt-x-marks-parked-slots-asleep-one-
 ## Log
 
 ### 2026-10-24
+- 2026-10-24: closed — Actual not measured (TL-authorized --no-actual): close refused with "concurrent claims have unknown, detached or ambiguous active branch during 2026-10-24T02:55:02Z to 02:57:54Z"; that window is the TL-authorized combined #849/#850 stage on local branch stage/000849-000850 while holding #849 and #830 (filed as ariadne#594). Evidence: rig tests couchcore asleep_test (TestThreadAsleepIsTheMarkOfTheParkInForce, TestAsleepSlotRowsAreTheSleepingSlots, TestOnlyTheMainHubWakesTheOtherHubs), recoverplan TestRecoverPlanCarriesTheAsleepMark, couchcmd wake_test (TestWakeResumesExactlyTheOtherAsleepHubs, new TestWakeEffectGateRefusesAHubNoLongerAsleep mutation-checked, CLI parse/summary/poll), Leave mark tests (mutation-checked); couchcmd full package passes. Round-1 findings: plan Revisions + ticked tasks, Done when reworded to what pair delivers, wake gate re-proves still-asleep; budget fan-out and production-chain composition are covered by the native T6 (TestDisposableCouchFleetWake), written and skipped until pair#863 per TL. Main (incl. #739) merged at 375adcb6c; repolint passes; make test-affected-inventory clean. Pre-close suite on a520f3a5a failed only the pre-#825-fix agentfixture test (head predates 917c97e6a); merge integrates the fix.; review verdict: SHIP
+- 2026-10-24: flow upgraded quick → full — 557 added lines in code files (limit 100); an earlier round of this close already ran the full review
 
 - T6 written (`TestDisposableCouchFleetWake`, in `make test-couch-fleet`). It drives the operator's flow: start Couch with two explicit hubs (the primary, and worker 1's worktree), start the main hub from the switcher's start form, launch the workers, full quit, check all three threads are asleep, start Couch cold (nothing comes back, #739), resume the main hub with "Resume from disk", run `couch --wake`, check that the second hub returns and the plain worker stays asleep, then repeat `couch --wake`. The harness gained an `Options.Hubs` setting (workers that are also configured hubs), `StartCold` (start without waiting for the hub agent) and `QuitConsole`.
 - Blocked by #739-era startup, filed as pair#863. Since #739, `Fleet.Start` cannot start an explicit-hub fleet: no hub launches, even in a fresh namespace. On clean main 54c4a59ca, `TestDisposableEditedRestart` fails the same way. A fresh two-hub start also logged `hub failed … attach record/handle process identity mismatch`. Driving the switcher start form brings the hub's agent up, but it never becomes a live broker caller: `couch --actors --json` from it returns `unavailable: caller lookup: recipient is not live` for more than 120 s (head 375adcb6c). So the main hub can neither run `couch --wake` nor launch workers.
