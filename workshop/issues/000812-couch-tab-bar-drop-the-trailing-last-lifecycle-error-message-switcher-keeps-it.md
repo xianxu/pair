@@ -65,6 +65,8 @@ Original checklist below is superseded by the TL live-evidence allocation in Rev
 
 ## Log
 
+
+- 2026-10-24: closed — Fourth integration combines #739 surviving startup/automation epochs with #812 typed attention and retained feed. Corrected sole full-run failure: bare unknown-startup assertion now reads current VT rather than removed clipped chrome, retaining fullcopy/no-launch/list invariants. Startup race x3 PASS15.724s, lifecycle/automation x3 PASS8.855s, UI race x3 PASS14.039s, corrected Bare/startup race x3 PASS37.684s; complete couchcmd PASS156.557s and inventory PASS. Independent pre-existing authority race filed unclaimed860. Precise no-actual recovery: engine refused concurrent-claim branch attribution for session026445ed-4c22-46f5-b0ff-a2ba708a122a during05:01:56-07:00→12:02:21Z on2026-10-23; explicitly prescribed --no-actual. Exact refusal and reflog committed; interval is witnessed resting main-slot1 until05:02:21 and supplied to ariadne:3 for591. N/A, no guessed/transplanted hours or telemetry edits. Prior conditional live acceptance fulfilled; no second live check per TL. Composite Plan row includes landing itself, no-plan-check acknowledges it only; stage released. (fixed-then-ship; full suite: Pre-close PASS on code head1cc31f4afeaacaff16fa0eacae1f5091795c754a: affected selector/full certificate fallback, full suite exit0 in13m56s, raw hash37f58616e02c, no failures or retries. Later commits contain only exact measurement-refusal/reflog evidence; code unchanged.); review verdict: SHIP
 ### 2026-10-22
 
 

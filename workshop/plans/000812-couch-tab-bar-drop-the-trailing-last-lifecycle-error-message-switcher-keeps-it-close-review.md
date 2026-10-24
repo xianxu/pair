@@ -975,3 +975,95 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-24T01:58:41-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 812 — Couch tab bar: drop the trailing last lifecycle/error message (switcher keeps it) |
+| repo | pair |
+| issue file | workshop/issues/000812-couch-tab-bar-drop-the-trailing-last-lifecycle-error-message-switcher-keeps-it.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 83bf5fba5a579262232c8655660386250fe784fc..b9dd423e55fdea9f59ef7e6a454f04fc1284d0dc |
+| command | sdlc close --issue 812 |
+| reviewer | codex (openai; author openai) |
+| isolation | fenced |
+| timestamp | 2026-10-24T01:58:41-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+The interdiff preserves both sides’ intent in all three conflict resolutions. Focused regressions pass under race detection across three repetitions, and inventory validation passes. No new blocking defect or scope change was found. A broader race run failed at unchanged sites outside this review window; that result is recorded below.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      Retained prior disposition; queue diagnostic routing is unchanged in this window.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      Retained prior disposition; Chrome success and actionable-warning classification is unchanged.
+  - id: BR-3
+    disposition: addressed
+    note: |
+      Retained prior disposition; background-agent warning routing is unchanged.
+  - id: BR-4
+    disposition: addressed
+    note: |
+      Updated startup fixtures preserve surviving-session and borrowed-ownership cases; focused regressions pass.
+  - id: BR-5
+    disposition: addressed
+    note: |
+      Metadata warning test retains actual publication acknowledgment and passes with the corrected operator-initiated fixture.
+  - id: BR-6
+    disposition: addressed
+    note: |
+      Retained prior disposition; unexpected-exit regression still joins warning publication and exercises both orderings.
+```
+
+1. **Strengths**
+   - Shared startup fixture preserves independent survival and ownership controls (`hubs_startup_test.go:58`).
+   - Lifecycle resolution retains the retirement guard and typed, feed-only uncertain diagnostic (`lifecycle_notices.go:546`).
+   - Startup visibility assertion reads current terminal cells while retaining full clipboard equality (`hubs_startup_test.go:685`).
+   - Both updated reader certificates match their source hashes.
+
+2. **Critical findings:** None.
+
+3. **Important findings:** None.
+
+4. **Minor findings:** None.
+
+5. **Test coverage notes:** Focused startup, borrowed-restart, lifecycle diagnostic, uncertain-admission, and publication-order tests passed with `-race -count=3`. Inventory and diff whitespace checks passed. The broader race run failed at `lifecycle_notices_test.go:873` versus `message_service.go:900`; both racing sites are unchanged from base. No full-suite pass is claimed.
+
+6. **Architectural notes**
+   - **ARCH-DRY — Pass:** Fixture variants share one implementation.
+   - **ARCH-PURE — Pass:** Changes retain existing integration seams without adding business logic to IO.
+   - **ARCH-PURPOSE — Pass:** Resolutions preserve actionable attention and routine feed-only behavior.
+   - **ARCH-EVOLVE — Pass:** No persisted-format contract changes.
+   - No new surface requires README or atlas updates.
+
+7. **Plan revision recommendations:** None; Spec, Done when, and implementation plan remain unchanged.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"7073fcc0-09d8-4371-908b-3e11ba966368","repository":"github.com/xianxu/pair","issue_id":"000812","recipe":"fix-review","round":11,"attempt":1,"agent":"codex","root":"/Volumes/TestScratch/review-checkouts/3bbc129ca4e4b30d","reviewed_head":"b9dd423e55fdea9f59ef7e6a454f04fc1284d0dc","slot":"pair:1","requested_at":"2026-10-24T08:56:06.798132Z"},"phase":"finished","pid":77988,"started_at":"2026-10-24T08:56:06.958148Z","finished_at":"2026-10-24T08:58:37.946093Z","session_id":"01a16d1f-ddde-7153-8361-d0ba0d22f960","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 3.234962333s
+head: "b9dd423e55fdea9f59ef7e6a454f04fc1284d0dc"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412

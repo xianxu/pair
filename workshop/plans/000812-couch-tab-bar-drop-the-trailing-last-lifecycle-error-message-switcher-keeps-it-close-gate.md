@@ -1853,6 +1853,61 @@ rounds:
       isolation: fenced
       reviewed: 185bfada2c36b073596d18adb3da02603e960f11
       blocked: false
+    - reviewer_runs:
+        - version: 1
+          intent:
+            disposable_root: true
+            id: 7073fcc0-09d8-4371-908b-3e11ba966368
+            repository: github.com/xianxu/pair
+            issue_id: "000812"
+            recipe: fix-review
+            round: 11
+            attempt: 1
+            agent: codex
+            root: /Volumes/TestScratch/review-checkouts/3bbc129ca4e4b30d
+            reviewed_head: b9dd423e55fdea9f59ef7e6a454f04fc1284d0dc
+            slot: pair:1
+            requested_at: "2026-10-24T08:56:06.798132Z"
+          phase: finished
+          pid: 77988
+          started_at: "2026-10-24T08:56:06.958148Z"
+          finished_at: "2026-10-24T08:58:37.946093Z"
+          session_id: 01a16d1f-ddde-7153-8361-d0ba0d22f960
+          outcome: returned
+      "n": 11
+      timestamp: "2026-10-24T01:58:41-07:00"
+      dispatched: "2026-10-24T01:56:03-07:00"
+      agent: codex
+      reviewer: codex (openai; author openai)
+      dispose:
+        - id: BR-1
+          disposition: addressed
+          note: Retained prior disposition; queue diagnostic routing is unchanged in this window.
+          round: 11
+        - id: BR-2
+          disposition: addressed
+          note: Retained prior disposition; Chrome success and actionable-warning classification is unchanged.
+          round: 11
+        - id: BR-3
+          disposition: addressed
+          note: Retained prior disposition; background-agent warning routing is unchanged.
+          round: 11
+        - id: BR-4
+          disposition: addressed
+          note: Updated startup fixtures preserve surviving-session and borrowed-ownership cases; focused regressions pass.
+          round: 11
+        - id: BR-5
+          disposition: addressed
+          note: Metadata warning test retains actual publication acknowledgment and passes with the corrected operator-initiated fixture.
+          round: 11
+        - id: BR-6
+          disposition: addressed
+          note: Retained prior disposition; unexpected-exit regression still joins warning publication and exercises both orderings.
+          round: 11
+      recipe: fix-review
+      isolation: fenced
+      reviewed: b9dd423e55fdea9f59ef7e6a454f04fc1284d0dc
+      blocked: false
 ---
 
 # Gate ledger — pair#812 (boundary-review)
@@ -1957,6 +2012,17 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - BR-4 — addressed — Retained prior disposition; corrected regression oracles and fixtures are unchanged.
 - BR-5 — addressed — Warning-publication acknowledgment remains intact; the metadata attention regression passes.
 - BR-6 — addressed — Retained prior disposition; unexpected-exit publication synchronization is unchanged.
+
+## Round 11 — 2026-10-24T01:58:41-07:00 (codex) — passed
+
+### Disposed
+
+- BR-1 — addressed — Retained prior disposition; queue diagnostic routing is unchanged in this window.
+- BR-2 — addressed — Retained prior disposition; Chrome success and actionable-warning classification is unchanged.
+- BR-3 — addressed — Retained prior disposition; background-agent warning routing is unchanged.
+- BR-4 — addressed — Updated startup fixtures preserve surviving-session and borrowed-ownership cases; focused regressions pass.
+- BR-5 — addressed — Metadata warning test retains actual publication acknowledgment and passes with the corrected operator-initiated fixture.
+- BR-6 — addressed — Retained prior disposition; unexpected-exit regression still joins warning publication and exercises both orderings.
 
 ## Open findings
 
