@@ -30,8 +30,8 @@ type Options struct {
 }
 
 func validateOptions(o Options) error {
-	if o.Workers < 1 || o.Workers > 8 {
-		return fmt.Errorf("native fleet requires 1–8 workers")
+	if err := validateWorkerCount(o.Workers); err != nil {
+		return err
 	}
 	if o.AgentKind != "" && o.AgentKind != "claude" && o.AgentKind != "codex" {
 		return fmt.Errorf("fixture personality must be claude or codex")
@@ -568,4 +568,35 @@ func (f *Fleet) consoleCommand() *exec.Cmd {
 	cmd.Dir = f.Workspaces.Primary
 	cmd.Env = append([]string(nil), f.Environment...)
 	return cmd
+}
+
+// validateWorkerCount bounds qualification fleets to one steward plus 0–19 workers.
+// It does not change production actor, mailbox, process, or output limits.
+func validateWorkerCount(workers int) error {
+	if workers < 0 || workers > 19 {
+		return fmt.Errorf("native fleet requires 0–19 workers (1–20 total agents)")
+	}
+	return nil
+}
+
+// SupervisorIdentity projects the currently owned console generation, rather
+// than historical resources retained for cleanup. It grants no new authority.
+func (f *Fleet) SupervisorIdentity(ctx context.Context) (Resource, error) {
+	_, done, err := f.begin(ctx)
+	if err != nil {
+		return Resource{}, err
+	}
+	defer done()
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	p := f.console
+	if p == nil || p.cmd == nil || p.cmd.Process == nil || p.cmd.Process.Pid <= 0 || p.generation == "" || p.done == nil {
+		return Resource{}, fmt.Errorf("no known active supervisor")
+	}
+	select {
+	case <-p.done:
+		return Resource{}, fmt.Errorf("supervisor is stopped")
+	default:
+	}
+	return Resource{ID: fmt.Sprint(p.cmd.Process.Pid), Generation: p.generation, Kind: "couch"}, nil
 }

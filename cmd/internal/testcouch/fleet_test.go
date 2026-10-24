@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"reflect"
 	"testing"
@@ -11,10 +12,24 @@ import (
 )
 
 func TestFleetOptionsRefuseBeforeAllocation(t *testing.T) {
-	for _, workers := range []int{-1, 0, 9, 1000000} {
+	for _, workers := range []int{-1, 20, 1000000} {
 		if err := validateOptions(Options{Workers: workers}); err == nil {
 			t.Fatalf("accepted workers=%d", workers)
 		}
+		parent := t.TempDir()
+		f, err := NewOwned(t.Context(), Binaries{}, Options{Workers: workers}, OwnerConfig{ScratchParent: parent})
+		entries, readErr := os.ReadDir(parent)
+		if err == nil || f != nil || readErr != nil || len(entries) != 0 {
+			t.Fatalf("invalid workers=%d allocated owner=%v files=%v err=%v read=%v", workers, f, entries, err, readErr)
+		}
+	}
+	for _, workers := range []int{0, 4, 9, 19} {
+		if err := validateOptions(Options{Workers: workers}); err != nil {
+			t.Fatalf("workers=%d: %v", workers, err)
+		}
+	}
+	if err := validateOptions(Options{Workers: 0, ExplicitHub: true}); err != nil {
+		t.Fatal(err)
 	}
 	if err := validateOptions(Options{Workers: 3, AgentKind: "claude"}); err != nil {
 		t.Fatal(err)
@@ -104,5 +119,43 @@ func TestFleetExtraHubsAreOrderedProvisionedWorkspaces(t *testing.T) {
 		if validateOptions(o) == nil {
 			t.Fatalf("accepted invalid options %+v", o)
 		}
+	}
+}
+
+func TestSupervisorIdentityUsesCurrentOwnerAndGate(t *testing.T) {
+	p := &terminalProcess{cmd: &exec.Cmd{Process: &os.Process{Pid: 123}}, generation: "current", done: make(chan struct{})}
+	f := &Fleet{ctx: t.Context(), console: p, model: OwnedRun{}}
+	f.model = ReduceRun(f.model, RunEvent{Kind: "own", Resource: Resource{ID: "456", Generation: "stale", Kind: "couch"}})
+	got, err := f.SupervisorIdentity(t.Context())
+	if err != nil || got != (Resource{ID: "123", Generation: "current", Kind: "couch"}) || f.active != 0 {
+		t.Fatalf("identity=%+v err=%v active=%d", got, err, f.active)
+	}
+	for _, scenario := range []string{"missing", "process", "generation", "stopped", "closing", "unknown", "cancelled"} {
+		t.Run(scenario, func(t *testing.T) {
+			p := &terminalProcess{cmd: &exec.Cmd{Process: &os.Process{Pid: 123}}, generation: "current", done: make(chan struct{})}
+			f := &Fleet{ctx: t.Context(), console: p}
+			ctx, cancel := context.WithCancel(t.Context())
+			defer cancel()
+			switch scenario {
+			case "missing":
+				f.console = nil
+			case "process":
+				p.cmd.Process = nil
+			case "generation":
+				p.generation = ""
+			case "stopped":
+				close(p.done)
+			case "closing":
+				f.closing = true
+			case "unknown":
+				f.model = ReduceRun(f.model, RunEvent{Kind: "unknown", Error: "unknown"})
+			case "cancelled":
+				cancel()
+			}
+			got, err := f.SupervisorIdentity(ctx)
+			if err == nil || got != (Resource{}) || f.active != 0 {
+				t.Fatalf("identity=%+v err=%v active=%d", got, err, f.active)
+			}
+		})
 	}
 }

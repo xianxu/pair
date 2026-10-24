@@ -91,3 +91,37 @@ func TestDisposableFixtureSlashReturnConformance(t *testing.T) {
 		}
 	}
 }
+
+func TestDisposableFixtureRedrawPreservesNativeAuthority(t *testing.T) {
+	for _, size := range []struct{ cols, rows int }{{120, 32}, {132, 36}, {20, 10}} {
+		for _, agent := range []string{"claude", "codex"} {
+			t.Run(fmt.Sprintf("%s/%dx%d", agent, size.cols, size.rows), func(t *testing.T) {
+				model, err := newTerminalModel(size.cols, size.rows)
+				if err != nil {
+					t.Fatal(err)
+				}
+				defer model.Close()
+				if err := model.Feed([]byte(agentfixture.Paint(agentfixture.AgentState{Agent: agent, Phase: agentfixture.Working, Draft: "ordinary input"}, size.cols, size.rows))); err != nil {
+					t.Fatal(err)
+				}
+				before := model.Snapshot()
+				if agent == "codex" && size.cols >= 40 && !RecognizeCodexWorking(before) {
+					t.Fatal("initial Working status not admitted")
+				}
+				for tick := uint64(0); tick < 8; tick++ {
+					if err := model.Feed([]byte(agentfixture.WorkloadPatch(tick))); err != nil {
+						t.Fatal(err)
+					}
+					current := model.Snapshot()
+					text, ok := qualifiedComposerText(agent, current)
+					if !ok || text != "ordinary input" || peerComposerState(agent, current) != PeerComposerOccupied || current.Cursor != before.Cursor {
+						t.Fatalf("tick%d changed composer authority: text=%q recognized=%t cursor=%+v before=%+v", tick, text, ok, current.Cursor, before.Cursor)
+					}
+					if agent == "codex" && size.cols >= 40 && !RecognizeCodexWorking(current) {
+						t.Fatalf("tick%d destroyed native Working authority", tick)
+					}
+				}
+			})
+		}
+	}
+}

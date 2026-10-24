@@ -32,8 +32,8 @@ func PrepareWorkspaces(ctx context.Context, b Binaries, p RootsPlan, env []strin
 
 func prepareWorkspaces(ctx context.Context, b Binaries, p RootsPlan, env []string, workers int, run provisionRunner) (Workspaces, error) {
 	w := Workspaces{Workers: map[int]string{}, Evidence: map[string]string{}}
-	if workers < 1 || workers > 8 {
-		return w, fmt.Errorf("native Couch requires 1–8 workers")
+	if err := validateWorkerCount(workers); err != nil {
+		return w, err
 	}
 	if err := ctx.Err(); err != nil {
 		return w, err

@@ -164,17 +164,17 @@ func TestPrepareWorkspacesRealGitTopologyAndValidatedEvidence(t *testing.T) {
 	}
 }
 func TestPrepareWorkspacesRefusesBeforeEffects(t *testing.T) {
-	for _, scenario := range []string{"zero", "too-many", "cancelled", "escape", "missing-fleet", "nil-env", "relative-tool"} {
+	for _, scenario := range []string{"negative", "too-many", "cancelled", "escape", "missing-fleet", "nil-env", "relative-tool"} {
 		t.Run(scenario, func(t *testing.T) {
 			f := newWorkspaceFixture(t)
 			workers := 1
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 			switch scenario {
-			case "zero":
-				workers = 0
+			case "negative":
+				workers = -1
 			case "too-many":
-				workers = 9
+				workers = 20
 			case "cancelled":
 				cancel()
 			case "escape":
@@ -310,5 +310,13 @@ func TestPrepareWorkspacesAdoptionFailureStartsNoSlots(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestPrepareWorkspacesStewardOnly(t *testing.T) {
+	f := newWorkspaceFixture(t)
+	w, err := prepareWorkspaces(t.Context(), f.b, f.p, f.env, 0, f.run)
+	if err != nil || w.Primary == "" || len(w.Workers) != 0 {
+		t.Fatalf("workspaces=%+v err=%v", w, err)
 	}
 }

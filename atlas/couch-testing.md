@@ -90,7 +90,7 @@ host crash cannot guarantee cleanup. There is no attach-arbitrary-root API or
 global sweeper in this helper.
 
 The initial qualification uses one steward plus three genuine workers, serially
-for each personality. The helper accepts 1–8 workers, bounded output and at most
+for each personality. The helper accepts 0–19 workers (1–20 total agents), bounded output and at most
 four concurrent fixture CLI children. Build/setup, scenario and cleanup budgets
 are separate. Preserve the complete native target log with source/tool/isolation
 evidence; a portable or skipped test is not native acceptance. The initial
@@ -236,3 +236,13 @@ The portable stateful tests exercise stops during each boundary, failed/late
 readiness, malformed authority and pipe cancellation. The opt-in native bridge
 check uses this same owner and actual service. Portable tests and a socket stat
 alone do not qualify native producer readiness.
+
+The optional fixture workload uses the existing SetState mailbox and Run stdout
+owner: fixed 100 ms spinner redraws, 0 or 2,000 primary scrollback lines, and a
+15-minute lifetime. Each prefill line has 118 printable columns plus CRLF; the
+240,000-byte prefill and Working repaint fit the 256 KiB initial bound. Tick
+patches are capped at 128 bytes and preserve native Working/composer recognition.
+Start and stop receipts copy actual completed tick/byte counts before retirement;
+ordinary state transitions and fixture shutdown stop the same owned timer.
+No per-tick request, file or transcript is created. Scaled profiling controls
+are described in [finite local profiles](couch-profiling.md).

@@ -48,3 +48,16 @@ A new launch requires a new directory; failed output is never overwritten.
 backend and output failures qualify ownership/cancellation; the real runtime
 conformance test checks all three profiles with `go tool pprof`. Native workload
 qualification uses the [shared disposable fleet](couch-testing.md).
+
+`TestDisposableCouchProfileScale` is an opt-in collection control selected by
+`PAIR_NATIVE_COUCH_PROFILE_SCALE=1`. It uses 1, 5, 10 and 20 fixture agents,
+then 20 with 2,000 scrollback lines per agent and a same-Couch age contrast.
+Select one personality initially and allow a 45-minute outer watchdog. The
+cohort starts unprofiled, detaches, then reattaches under a new profiled Couch;
+its native wrappers and agents must retain their exact generations. Workload
+acknowledgments must precede the CPU capture. Generation-fenced external CPU,
+RSS and physical-write windows run after profiling; the age case repeats that
+external window after five additional minutes on the same Couch generation.
+Those later windows are distinct from the earlier profile. Bounded manifests
+retain partial outcomes and cleanup proof. These controls have cast off, zero
+viewers and synthetic personalities; they set no performance acceptance budget.

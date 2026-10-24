@@ -676,6 +676,9 @@ var SourceClassifications = []SourceClassification{
 // the artifact namespace requires an explicit SourceClassification.
 // pair:m5-concept pure
 var NonArtifactSources = []string{
+	// #865 workload is pure state, bounded terminal bytes and a clock seam;
+	// it has no filesystem or Pair artifact paths.
+	"cmd/internal/testcouch/agentfixture/workload.go",
 	// #865 owns only explicit private diagnostic outputs and in-memory lifecycle;
 	// neither source reads or constructs a Pair artifact filename family.
 	"cmd/internal/couchcmd/profiling.go",

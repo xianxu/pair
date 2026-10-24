@@ -25,6 +25,7 @@ import (
 type Size struct{ Cols, Rows int }
 
 type Config struct {
+	WorkloadClock                                                WorkloadClock
 	Resizes                                                      <-chan Size
 	Root, ControlDir, Home, CodexHome, Agent, CouchBinary, RunID string
 	Args                                                         []string
@@ -207,9 +208,73 @@ func Run(parent context.Context, c Config, stdin io.Reader, stdout io.Writer) (r
 		}
 		return atomicJSON(filepath.Join(c.ControlDir, "state.json"), state, false)
 	}
+	clock := c.WorkloadClock
+	if clock == nil {
+		clock = realWorkloadClock{}
+	}
+	var workload WorkloadState
+	var redraw WorkloadTicker
+	var redrawTicks <-chan time.Time
+	stopRedraw := func() {
+		if redraw != nil {
+			redraw.Stop()
+			redraw = nil
+		}
+		redrawTicks = nil
+	}
+	defer stopRedraw()
+	transitionWorkload := func(event WorkloadEvent) (bool, error) {
+		next, emit, err := StepWorkload(workload, event)
+		if err == nil {
+			workload = next
+		}
+		return emit, err
+	}
+	endWorkload := func() error {
+		_, err := transitionWorkload(WorkloadEvent{Kind: WorkloadEnd, At: clock.Now()})
+		stopRedraw()
+		return err
+	}
+	writeWorkload := func(text string, tick bool) error {
+		limit := 256 << 10
+		if tick {
+			limit = 128
+		}
+		if len(text) > limit {
+			return errors.New("fixture workload output exceeds bound")
+		}
+		n, err := io.WriteString(stdout, text)
+		if err == nil && n != len(text) {
+			err = io.ErrShortWrite
+		}
+		if err != nil {
+			_, stepErr := transitionWorkload(WorkloadEvent{Kind: WorkloadFailed, At: clock.Now(), Err: err})
+			stopRedraw()
+			return errors.Join(err, stepErr)
+		}
+		_, err = transitionWorkload(WorkloadEvent{Kind: WorkloadWritten, Bytes: uint64(n), Tick: tick})
+		return err
+	}
 	sizes := c.Resizes
 	for {
 		select {
+		case <-redrawTicks:
+			if ctx.Err() != nil {
+				return nil
+			}
+			emit, err := transitionWorkload(WorkloadEvent{Kind: WorkloadTick, At: clock.Now()})
+			if err != nil {
+				return err
+			}
+			if !emit {
+				if workload.Observation.Status != WorkloadRunning {
+					stopRedraw()
+				}
+				continue
+			}
+			if err := writeWorkload(WorkloadPatch(workload.Observation.Ticks), true); err != nil {
+				return err
+			}
 		case size, open := <-sizes:
 			if !open {
 				sizes = nil
@@ -238,6 +303,11 @@ func Run(parent context.Context, c Config, stdin io.Reader, stdout io.Writer) (r
 				return e
 			}
 			state = next
+			if state.Phase != Working {
+				if err := endWorkload(); err != nil {
+					return err
+				}
+			}
 			for index, body := range bodies {
 				if e = cv.accept(body); e != nil {
 					return e
@@ -431,11 +501,45 @@ func Run(parent context.Context, c Config, stdin io.Reader, stdout io.Writer) (r
 						}
 					}(command)
 				case SetState:
-					state.Phase = command.State
-					if e = publishState(); e != nil {
-						return e
+					receipt := Result{ID: id}
+					if command.Workload != nil && command.Workload.Action == WorkloadStart {
+						_, e = transitionWorkload(WorkloadEvent{Kind: WorkloadBegin, At: clock.Now(), Request: *command.Workload})
+						if e != nil {
+							receipt.ExitCode = -1
+							receipt.Error = e.Error()
+						} else {
+							stopRedraw()
+							state.Phase = Working
+							text := ""
+							if command.Workload.ScrollbackLines != 0 {
+								text = fmt.Sprintf("\x1b[%d;1H", c.Height) + WorkloadPrefill(command.Workload.ScrollbackLines)
+							}
+							text += Paint(state, c.Width, c.Height)
+							if e = writeWorkload(text, false); e != nil {
+								return e
+							}
+							if e = atomicJSON(filepath.Join(c.ControlDir, "state.json"), state, false); e != nil {
+								return e
+							}
+							redraw = clock.NewTicker(WorkloadInterval)
+							redrawTicks = redraw.C()
+						}
+					} else {
+						if command.Workload != nil || command.State != Working {
+							if err := endWorkload(); err != nil {
+								return err
+							}
+						}
+						state.Phase = command.State
+						if e = publishState(); e != nil {
+							return e
+						}
 					}
-					if e = atomicJSON(filepath.Join(c.ControlDir, "results", id+".json"), Result{ID: id}, true); e != nil {
+					if command.Workload != nil {
+						snapshot := workload.Observation
+						receipt.Workload = &snapshot
+					}
+					if e = atomicJSON(filepath.Join(c.ControlDir, "results", id+".json"), receipt, true); e != nil {
 						return e
 					}
 					resultCount++

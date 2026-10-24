@@ -28,30 +28,48 @@ func (f *Fleet) Press(legacy string, code, modifier int) error {
 
 // SetState asks the existing fixture owner to change its screen. It pins the
 // current process generation and joins/retire its existing command receipt.
-func (f *Fleet) SetState(ctx context.Context, n int, phase agentfixture.Phase) (outcome error) {
+func (f *Fleet) SetState(ctx context.Context, n int, phase agentfixture.Phase) error {
+	_, err := f.setState(ctx, n, phase, nil)
+	return err
+}
+
+// ConfigureWorkload changes bounded redraw activity through the same correlated
+// request owner as SetState. Its observation is copied before receipt retirement.
+func (f *Fleet) ConfigureWorkload(ctx context.Context, n int, request agentfixture.WorkloadRequest) (agentfixture.WorkloadObservation, error) {
+	result, err := f.setState(ctx, n, agentfixture.Working, &request)
+	if err != nil {
+		return agentfixture.WorkloadObservation{}, err
+	}
+	if result.Workload == nil {
+		return agentfixture.WorkloadObservation{}, errors.New("fixture workload response lacks observation")
+	}
+	return *result.Workload, nil
+}
+
+func (f *Fleet) setState(ctx context.Context, n int, phase agentfixture.Phase, workload *agentfixture.WorkloadRequest) (result agentfixture.Result, outcome error) {
 	ctx, done, err := f.begin(ctx)
 	if err != nil {
-		return err
+		return result, err
 	}
 	defer done()
-	command := agentfixture.Command{ID: fmt.Sprintf("state-%d", nextCommand.Add(1)), Kind: agentfixture.SetState, State: phase}
+	command := agentfixture.Command{ID: fmt.Sprintf("state-%d", nextCommand.Add(1)), Kind: agentfixture.SetState, State: phase, Workload: workload}
 	if err := agentfixture.ValidateCommand(command); err != nil {
-		return err
+		return result, err
 	}
 	ready, err := f.Agent(n)
 	if err != nil {
-		return err
+		return result, err
 	}
 	command.PID, command.RunID, command.Generation = ready.PID, ready.RunID, ready.Generation
 	control, err := f.actorDirectory(n)
 	if err != nil {
-		return err
+		return result, err
 	}
 	if err := ctx.Err(); err != nil {
-		return err
+		return result, err
 	}
 	if err := agentfixture.WriteCommand(control, command); err != nil {
-		return err
+		return result, err
 	}
 	retired := false
 	defer func() {
@@ -60,12 +78,15 @@ func (f *Fleet) SetState(ctx context.Context, n int, phase agentfixture.Phase) (
 			f.record(RunEvent{Kind: "unknown", Error: outcome.Error()})
 		}
 	}()
-	var result agentfixture.Result
 	observe := func() (bool, error) {
 		var err error
 		result, err = agentfixture.ReadResult(control, command.ID)
 		if errors.Is(err, os.ErrNotExist) {
 			return false, nil
+		}
+		if err == nil && result.Workload != nil {
+			observation := *result.Workload
+			result.Workload = &observation
 		}
 		return err == nil, err
 	}
@@ -74,18 +95,18 @@ func (f *Fleet) SetState(ctx context.Context, n int, phase agentfixture.Phase) (
 		cleanup, cancel := context.WithTimeout(context.WithoutCancel(ctx), 15*time.Second)
 		defer cancel()
 		if err := agentfixture.CancelCommand(control, command.ID); err != nil {
-			return errors.Join(outcome, err)
+			return result, errors.Join(outcome, err)
 		}
 		if err := waitUntil(cleanup, observe); err != nil {
-			return errors.Join(outcome, err)
+			return result, errors.Join(outcome, err)
 		}
 	}
 	if err := agentfixture.RetireResult(control, command.ID); err != nil {
-		return errors.Join(outcome, err)
+		return result, errors.Join(outcome, err)
 	}
 	retired = true
 	if result.Error != "" || result.ExitCode != 0 {
-		return errors.Join(outcome, fmt.Errorf("fixture state refused: %s (exit %d)", result.Error, result.ExitCode))
+		return result, errors.Join(outcome, fmt.Errorf("fixture state refused: %s (exit %d)", result.Error, result.ExitCode))
 	}
-	return outcome
+	return result, outcome
 }

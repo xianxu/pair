@@ -48,24 +48,26 @@ const (
 )
 
 type Command struct {
-	Timeout          time.Duration `json:"timeout_ns,omitempty"`
-	DeadlineUnixNano int64         `json:"deadline_unix_nano,omitempty"`
-	PID              int           `json:"pid,omitempty"`
-	RunID            string        `json:"run_id,omitempty"`
-	Generation       string        `json:"generation,omitempty"`
-	ID               string        `json:"id"`
-	Kind             CommandKind   `json:"kind"`
-	Args             []string      `json:"args,omitempty"`
-	State            Phase         `json:"state,omitempty"`
+	Workload         *WorkloadRequest `json:"workload,omitempty"`
+	Timeout          time.Duration    `json:"timeout_ns,omitempty"`
+	DeadlineUnixNano int64            `json:"deadline_unix_nano,omitempty"`
+	PID              int              `json:"pid,omitempty"`
+	RunID            string           `json:"run_id,omitempty"`
+	Generation       string           `json:"generation,omitempty"`
+	ID               string           `json:"id"`
+	Kind             CommandKind      `json:"kind"`
+	Args             []string         `json:"args,omitempty"`
+	State            Phase            `json:"state,omitempty"`
 }
 type Result struct {
-	ID               string `json:"id"`
-	Stdout           string `json:"stdout,omitempty"`
-	Stderr           string `json:"stderr,omitempty"`
-	ExitCode         int    `json:"exit_code"`
-	Error            string `json:"error,omitempty"`
-	Truncated        bool   `json:"truncated,omitempty"`
-	CleanupUncertain bool   `json:"cleanup_uncertain,omitempty"`
+	Workload         *WorkloadObservation `json:"workload,omitempty"`
+	ID               string               `json:"id"`
+	Stdout           string               `json:"stdout,omitempty"`
+	Stderr           string               `json:"stderr,omitempty"`
+	ExitCode         int                  `json:"exit_code"`
+	Error            string               `json:"error,omitempty"`
+	Truncated        bool                 `json:"truncated,omitempty"`
+	CleanupUncertain bool                 `json:"cleanup_uncertain,omitempty"`
 }
 
 func (r Result) CleanupFailure() error {
@@ -78,6 +80,14 @@ func (r Result) CleanupFailure() error {
 var requestID = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_-]{0,79}$`)
 
 func ValidateCommand(c Command) error {
+	if c.Workload != nil {
+		if c.Kind != SetState || c.State != Working {
+			return errors.New("workload requires Working SetState")
+		}
+		if err := c.Workload.Validate(); err != nil {
+			return err
+		}
+	}
 	if c.DeadlineUnixNano < 0 || (c.DeadlineUnixNano != 0 && c.Kind != Exec) {
 		return errors.New("invalid fixture CLI admission deadline")
 	}
