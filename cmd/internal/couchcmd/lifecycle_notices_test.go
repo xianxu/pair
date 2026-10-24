@@ -73,7 +73,12 @@ func TestLifecyclePublisherUsesCanonicalSystemReceiptAndRestartBarrier(t *testin
 
 func lifecyclePublisherRig(t *testing.T, ep couchmessage.DeliveryEndpoint, notices ...func(string)) (*serviceRig, *lifecyclePublisher, couchmessage.Binding) {
 	t.Helper()
-	r := newServiceRig(t)
+	return lifecyclePublisherRigWithAuthority(t, ep, nil, notices...)
+}
+
+func lifecyclePublisherRigWithAuthority(t *testing.T, ep couchmessage.DeliveryEndpoint, decorate func(messageAuthority) messageAuthority, notices ...func(string)) (*serviceRig, *lifecyclePublisher, couchmessage.Binding) {
+	t.Helper()
+	r := newServiceRig(t, decorate)
 	r.world.hub = "/repo1"
 	r.restart(nil)
 	hub := r.world.add(1)

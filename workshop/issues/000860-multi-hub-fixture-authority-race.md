@@ -50,6 +50,9 @@ The approved same-class sweep moves hub/hubs configuration in already-connected 
 
 ## Done when
 
+- Connected worker-cue and native-exit fixtures compose child authority before construction. Repeated races preserve default proof, role-change, committed-report, bounded-proof, unsupported-evidence and lifecycle-notice controls.
+- A source enumeration check rejects direct child/hub/hubs writes outside the individually named no-wrapper controls, so rare race scheduling cannot hide a new connected-fixture assignment.
+
 - The captured writer/reader initialization race is prevented structurally.
 - The exact notification test and other users of multiHubWaitRig pass repeated race testing without weakening their assertions.
 - A bounded suggested repro is go test -race ./cmd/internal/couchcmd -run '^TestHubNotifyNamesExtraHubAndBoundsCustomTitle$' -count=20; this exact isolation has not yet been run by the filer.
@@ -91,6 +94,10 @@ Inventory named only wait_notice_test.go. Audited its existing modelConfirmation
 
 ## Revisions
 
+### 2026-10-24 — Complete child-proof family and mechanical enumeration
+
+Close review BR-1 reproduced all three native-exit child-authority assignments; BR-2 found the added child scope missing from Done-when. TL55cc757d-d197-44f7-b333-56e327bac073 approved their pre-construction composition, unchanged assertions, aligned acceptance criteria, and a small source enumeration check. That check rejects direct service authority.child/hub/hubs writes, with four exact one-write no-wrapper exceptions; a wrapper/connect call before an excepted write also refuses. Local composed authority values remain valid. This replaces reliance on a package race pass alone with mechanical enforcement.
+
 ### 2026-10-24 — Include measured child-proof publication
 
 Extend the approved same-class sweep to newWorkerCueRig authority.child and its custom child-proof controls after full package race exposed the identical publication bug. Use the existing pre-construction decorator, preserve proof controls, repeat the coordinator races and full package qualification. Approved by TL f28ac8d5-81f5-4bec-b5eb-4bea676489a3.
@@ -110,3 +117,11 @@ The corrected coordinator cases all pass20 race repetitions8.246s, including rol
 Full couchcmd race on the corrected source passed177.165s (exit0), raw log /tmp/pair860-full-race-final.log. Repository lint previously passed17.395s; repeated hub controls4.208s, analogous consumer controls9.189s and child-proof controls8.246s all passed20 race repetitions. No code changed after the corrected source was pushed.
 
 Pre-close on60e7b5c2fcac6590d65d37c2085f54fc9152868d resolved to affected, then correctly selected the full suite because the audited reader certificate changed. Retained run lease-1964064630 / attempt e517daf3cc672fe0fea983bcb14802c2 in detached checkout /Volumes/TestScratch/local-checks/sdlc-local-2276976659 is queued; no suite pass is claimed. Close review may overlap that queued check under tl-worker's explicit rule, and a recorded pass must precede landing. The final Plan row now records the completed push/check initiation, with close and landing kept as workflow gates rather than a falsely completed checkbox; this is a bookkeeping clarification, no scope change.
+
+### 2026-10-24 — Boundary round1 findings and RED controls
+
+Close returned REWORK: BR-1 Critical child-authority-before-readers and BR-2 Important acceptance-criteria-track-contract. Measured actual0.42h; no close finalized. Own exact native-exit race count20 reproduced RED11.256s; the new source enumeration test failed0.439s naming exactly the three native-exit writes. The previously passing full package run did not expose this schedule. Cancelled queued old-head lease-1964064630 through local-check cancel (exit0), per TL direction; no suite pass claimed.
+
+Addressed the entire connected child assignment inventory: native-exit default, unsupported and lifecycle variants now compose before construction, alongside the already repaired worker-cue helper and custom controls. The sole remaining direct child write is the counted no-wrapper injected-registry control. Extended Done-when and lesson for both findings. Mechanical enumeration reads only package *_test.go sources through os.ReadDir and parser.ParseFile; register its test in the existing SOURCE_GUARDS owner and audit its certificate separately.
+
+The full connected-child family plus mechanical enumeration passed20 race repetitions40.086s. Repository lint passed20.446s. The new reader's inputs were audited as only this package's *_test.go files (directory enumeration plus Go AST parsing); its exact test is registered in SOURCE_GUARDS and its individual certificate is fixed_scanner. The inventory suggested a conservative fallback because its source-reader heuristic did not recognize this scan shape; explicitly selecting fixed_scanner is supported by the audited inputs and registered fixed preflight. Inventory passes after recording only that new certificate. The replacement full package race remains running; no pass claimed yet.
