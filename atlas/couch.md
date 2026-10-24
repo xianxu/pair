@@ -1500,7 +1500,8 @@ report it. `waitWatcher` (`couchcmd/wait_notice.go`) ticks every 15s
   exact slot (`messageService.hubBinding`, the connected binding in
   `messageAuthority.hub`; the registry's newest incarnation of that slot),
   so the hub's breaker, delivery and ledger apply
-  unchanged. The body puts `slot repo:N waiting M min <reason>` first (pair#211).
+  unchanged. The body puts `slot repo:N waiting Mm <reason>` first (pair#211);
+  #789 caps the chrome row at 40 cells and #802 shortened the built-in notices.
 - **Not watched:** the hub itself (its operator is the one it would tell;
   the strict form of #441's self-addressed rule), and slots listed in
   `<store>/wait-notice-off` (one `repo:N` per line, `#` comments; the
@@ -1999,7 +2000,9 @@ by its leading position, reverse-video tab chip (pair#521), and underlined switc
   lines under it, sits one indent level (2 spaces) deeper. The hub main row
   is underlined; only the selected row uses reverse video. A selected hub keeps
   underline and adds bold beside the cursor arrow, preserving red
-  for a blocked hub. Attention detail lines keep their usual styling.
+  for a blocked hub. Owner focus does not dim switcher rows (#840); parked
+  age treatment and existing activity/status cues remain. The tab bar retains
+  inactive-owner dimming. Attention detail lines keep their usual styling.
 - **Data path:** couchcmd hands the root to `Console.SetHub` at startup. It is
   reduced as `MenuEventHub` into `MenuState.Hub`, which re-sorts the installed
   inventory (`reorderMenuInventory`). `PresentThreads(rows, git, hub)` puts the
