@@ -445,7 +445,9 @@ func wakeFleetStartHub(t *testing.T, ctx context.Context, fleet *testcouch.Fleet
 	forceFleetPress(t, fleet, "\x1b[B", 57353, 1)
 	for i := 0; i < 8 && !strings.Contains(fleet.Screen(), "agent "+agent); i++ {
 		forceFleetPress(t, fleet, "\x1b[C", 57351, 1)
-		time.Sleep(100 * time.Millisecond)
+		next, stop := context.WithTimeout(ctx, 2*time.Second)
+		_ = waitFleet(next, func() (bool, error) { return strings.Contains(fleet.Screen(), "agent "+agent), nil })
+		stop()
 	}
 	forceFleetWaitScreen(t, ctx, fleet, "agent "+agent)
 	forceFleetWaitScreen(t, ctx, fleet, "args  repo-default")
