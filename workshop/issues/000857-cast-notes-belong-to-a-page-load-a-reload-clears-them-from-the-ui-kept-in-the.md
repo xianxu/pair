@@ -74,6 +74,10 @@ Full plan-quality round1 returned PQ-1 (explicit transition/acceptance authority
 
 Round2 returned CLEAN, disposing PQ-1/PQ-2 with no new findings; change-code then stopped at the missing estimate as expected. TL02693d4d approves root as a canonical positive decimal string everywhere, Go-validated within int64, refusing leading zeros/signs. The plan records this replacement of numeric root plus special JS projection. No code started; next is final plan gate and derived estimate.
 
+### 2026-10-24 — Implementation gate and first regressions
+
+Full change-code passed with plan-quality CLEAN and estimate-quality INFO. The advisory calls3.29h optimistic for preserving codecs, ordering and native qualification; those tests/fixture repairs are included in their owning implementation items, inventory/integration/landing in the boundary item, and actuals will retain this caveat rather than retrofitting the estimate. TDD behavioral red: TestRecorderTopNavigationStartsSnapshot recorded1 segment instead of2; TestRecorderSegmentsPersistPageLoad showed no page_load; TestPageLoadSelectionPartitionsHistoryAndRestoresSameLoad selected another tab's old note. Bounded recording codec/replay implementation is delegated; parent owns recorder/Board, a pure transition helper is independently delegated. Admission survey keeps exact receipts, conditional historical resolution and delivery recovery outside the new fresh-page fence. UI integration remains deferred until #856 lands.
+
 ## Revisions
 
 ### 2026-10-24 — Parallel independent preparation
