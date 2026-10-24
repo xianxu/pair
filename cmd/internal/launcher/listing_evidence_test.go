@@ -60,3 +60,18 @@ func TestListingEvidenceUsesTheJudgedPollSnapshot(t *testing.T) {
 		})
 	}
 }
+
+func TestListingEvidenceTruncationDoesNotTruncateAuthority(t *testing.T) {
+	now := time.Unix(1000, 0)
+	var rows strings.Builder
+	for i := range 400 {
+		fmt.Fprintf(&rows, "pair-%04d [Created 1s ago]\n", i)
+	}
+	f := &fakeListings{raw: rows.String()}
+	p := testPoller(f, &now)
+	p.Refresh(t.Context())
+	sessions, evidence, err := (ZellijSource{Listings: p}).LivenessEvidenceContext(t.Context())
+	if err != nil || len(sessions) != 400 || !evidence.Truncated || len(evidence.Raw) != 8192 || strings.Contains(string(evidence.Raw), "pair-0399") || sessions[399].Name != "pair-0399" {
+		t.Fatalf("diagnostic prefix changed the parsed authority: rows=%d evidence=%+v err=%v", len(sessions), evidence, err)
+	}
+}
