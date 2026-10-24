@@ -53,6 +53,7 @@ Quick flow, test-only correction. ARCH-ORDER: producer owns temporary hard-link 
 ### 2026-10-22
 
 ### 2026-10-23 — Root-cause work with retained #841 check
+- 2026-10-23: closed — Test-only oracle correction, no architectural surface. Unchanged stress reproduced cycle127 leak42.148s; modeled held .publish-held made both raw-directory assertions RED0.439s, then shared mailbox count GREEN5.198s. Genuine-record and unexpected-entry negatives retained. Full agentfixture PASS13.794s, race PASS15.420s, held-scratch reuse count10 PASS35.054s, lint PASS5.078s, exact audited reader inventory PASS immediately before close, diff clean. Production publication/cancellation/ID fences/budgets unchanged. Recorded pre-close affected started on pushed917c97e6; required pass before landing. TL-authorized overlapping #841 detached check retained. (done-when: contract moved since change-code; judged by the close review); review verdict: SHIP
 
 Claimed and started from fresh main84d84dd0298c7b1cf2d02ed7b90d127fcc4952bb after #852 landed. Latest #852 integration suite reproduced this test at cycle66 with one leaked result, followed by managed same-head exact-test pass3.297s (parent82a29a2a767de75660985214b5feb1e8, child64235cd95e13c908ddccc3466535cc55); root-cause repair is required, never a retry or timeout bump.
 
