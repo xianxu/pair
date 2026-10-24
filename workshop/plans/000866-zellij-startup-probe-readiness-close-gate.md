@@ -255,6 +255,41 @@ rounds:
       isolation: fenced
       reviewed: bb896e034063c6891c3639ae7ee7ef1418eef261
       blocked: false
+    - reviewer_runs:
+        - version: 1
+          intent:
+            disposable_root: true
+            id: ef69f78a-f7e0-4d79-a720-280dd9334065
+            repository: github.com/xianxu/pair
+            issue_id: "000866"
+            recipe: fix-review
+            round: 6
+            attempt: 1
+            agent: codex
+            root: /Volumes/TestScratch/review-checkouts/3a3a88c83cff4ad0
+            reviewed_head: 456228a42c042e58b6a068fce31a913526e93a00
+            slot: pair:5
+            requested_at: "2026-10-24T16:17:48.701721Z"
+          phase: finished
+          pid: 99461
+          started_at: "2026-10-24T16:17:48.808862Z"
+          finished_at: "2026-10-24T16:19:39.63765Z"
+          session_id: 01a16eb4-425b-79c2-b605-d06a19c34953
+          outcome: returned
+      "n": 6
+      timestamp: "2026-10-24T09:19:42-07:00"
+      dispatched: "2026-10-24T09:17:46-07:00"
+      agent: codex
+      reviewer: codex (openai; author openai)
+      dispose:
+        - id: BR-6
+          disposition: addressed
+          note: Makefile.local:329 routes both targets through with-pair-test-binary.sh, which aliases the exact candidate and exports its PATH. The regression at tests/make-test-env-test.sh:79 passes; a directory-only mutation fails with ['wrong-sibling', 'wrong-sibling'].
+          round: 6
+      recipe: fix-review
+      isolation: fenced
+      reviewed: 456228a42c042e58b6a068fce31a913526e93a00
+      blocked: false
 ---
 
 # Gate ledger — pair#866 (boundary-review)
@@ -316,6 +351,12 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-6** [Important] `exact-test-candidate-ownership` (kind: defect) Make selects a candidate directory rather than the exact supplied executable
   Makefile.local:325 prefixes dirname(PAIR_TEST_BINARY), but native callers execute bare pair. The existing builder accepts any absolute executable filename, and README.md:2208 illustrates plain-pair. Running the new Make/bootstrap regression with shared/plain-pair as the candidate produces ['installed', 'installed'] for the two targets instead of ['shared', 'shared']; a sibling pair could likewise select a different build. ARCH-PURPOSE: create a suite-owned pair alias to the exact candidate using the existing builder, and extend the regression to cover candidate basenames other than pair.
 
+## Round 6 — 2026-10-24T09:19:42-07:00 (codex) — passed
+
+### Disposed
+
+- BR-6 — addressed — Makefile.local:329 routes both targets through with-pair-test-binary.sh, which aliases the exact candidate and exports its PATH. The regression at tests/make-test-env-test.sh:79 passes; a directory-only mutation fails with ['wrong-sibling', 'wrong-sibling'].
+
 ## Open findings
 
-- **BR-6** [Important] `exact-test-candidate-ownership` (kind: defect) Make selects a candidate directory rather than the exact supplied executable
+(none — every finding has been disposed)

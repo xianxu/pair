@@ -508,3 +508,78 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-24T09:19:42-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 866 — Wait for Zellij readiness before startup probe clients |
+| repo | pair |
+| issue file | workshop/issues/000866-zellij-startup-probe-readiness.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 29fc24fe76967b6495959485a1eed02a5377ca03..456228a42c042e58b6a068fce31a913526e93a00 |
+| command | sdlc close --issue 866 |
+| reviewer | codex (openai; author openai) |
+| isolation | fenced |
+| timestamp | 2026-10-24T09:19:42-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+BR-6 is addressed: both public test targets now alias the exact supplied executable through the existing builder. The regression passes with `plain-pair` beside a wrong sibling `pair`; restoring directory-only selection in a temporary fixture makes both targets select the wrong sibling and fails the test. No new blocking defect or scope expansion was found in the interdiff.
+
+```findings
+dispose:
+  - id: BR-6
+    disposition: addressed
+    note: |
+      Makefile.local:329 routes both targets through with-pair-test-binary.sh, which aliases the exact candidate and exports its PATH. The regression at tests/make-test-env-test.sh:79 passes; a directory-only mutation fails with ['wrong-sibling', 'wrong-sibling'].
+```
+
+1. **Strengths**
+
+   - Exact executable ownership reuses the shared builder and cleanup lifecycle (`tests/lib/with-pair-test-binary.sh:10`).
+   - The Make ownership audit follows the wrapped recipes and rejects an unclaimed inner script (`tests/test-affected-test.py:198`).
+   - Provider qualification preserves pinned source and module metadata together.
+   - Copy-on-select completion now belongs only to the orchestrator; the real reset-helper control exercises that distinction.
+
+2. **Critical findings:** None.
+
+3. **Important findings:** None.
+
+4. **Minor findings:** None.
+
+5. **Test coverage notes**
+
+   Passed `make-test-env-test.sh` under both outer Make configurations, all 14 affected-runner tests, all four provider qualification tests with the pinned dependency, `go test ./cmd/internal/testpair`, copy-on-select, and Zellij tracing. The candidate-selection mutation failed as expected. Diff whitespace checks passed; the checkout remained unchanged. Full native startup qualification was not repeated for this test-orchestration interdiff.
+
+6. **Architectural notes**
+
+   - **ARCH-DRY — pass:** candidate placement remains centralized in the existing builder.
+   - **ARCH-PURE — pass:** changes remain in test orchestration and IO fixtures; no production business logic moved into IO.
+   - **ARCH-PURPOSE — pass:** both affected targets enforce exact candidate ownership, including arbitrary executable basenames.
+   - **ARCH-EVOLVE — pass:** no persisted format or rewrite contract changes.
+
+7. **Plan revision recommendations:** None. The appended corrections accurately describe the implementation. This window introduces no new user-facing or architectural surface requiring additional README or atlas changes.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"ef69f78a-f7e0-4d79-a720-280dd9334065","repository":"github.com/xianxu/pair","issue_id":"000866","recipe":"fix-review","round":6,"attempt":1,"agent":"codex","root":"/Volumes/TestScratch/review-checkouts/3a3a88c83cff4ad0","reviewed_head":"456228a42c042e58b6a068fce31a913526e93a00","slot":"pair:5","requested_at":"2026-10-24T16:17:48.701721Z"},"phase":"finished","pid":99461,"started_at":"2026-10-24T16:17:48.808862Z","finished_at":"2026-10-24T16:19:39.63765Z","session_id":"01a16eb4-425b-79c2-b605-d06a19c34953","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 2.103957125s
+head: "456228a42c042e58b6a068fce31a913526e93a00"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412
