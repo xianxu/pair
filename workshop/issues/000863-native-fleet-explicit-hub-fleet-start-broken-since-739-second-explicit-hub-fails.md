@@ -68,3 +68,15 @@ Pair:6 f29ca79c reports second-hub error at375adcb6c with no gesture: fresh couc
 #830 has unlanded Hubs and StartCold helper options. Earlier no-cycle advice was corrected by9bfb9542: its T6 is blocked by caller registration; TL decides sequencing. Do not import/stack #830 source. Production-case experiment will reuse landed Fleet.Start in an owned goroutine, drive the real form through existing Input/Press, cancel/join only Start's observer after fixture readiness, then invoke real caller CLI from inherited fixture credentials. This measures current main without changing production or inventing a duplicate fleet owner. Save full bounded test output outside the cleanup root, and join cleanup.
 
 ### 2026-10-24
+
+
+### 2026-10-24 — first native production-case result: one hub registers
+
+No production changes. Landed shared Fleet owner plus real start-form gesture on main runtime99846a5015: native Pair-wrapped Claude fixture becomes ready, first inherited --actors returns not-live, second observation2s later returns Code ok with fixture:0 registered. PASS27.29s, exact owned generations absent/direct child and IO joined. This rules out a permanent caller failure only for this exact single explicit-hub scenario; the reported two-explicit-hub case remains unclassified. Fixture readiness is not broker readiness. A subsequent fresh read can legitimately succeed; do not cache its first refusal as permanent failure.
+
+Retained synthetic native captures (outside the removed owner roots):
+- [Final one-hub pass](../evidence/000863/pair863-main-fresh-hub-caller-observed.log), SHA25622439a0d75f7c50d43b0c591547fb9f063a27ab7449aad6d4abd64e1771d2d73.
+- [First probe setup error](../evidence/000863/pair863-main-fresh-hub-caller.log), SHA25653fc119a7c37a7b855c82bbfa76336a5f18027c45c2dffbae7a6f293b3b5685b: waited for parameters from a different form; actual start form had args repo-default, never launched an agent. Not production defect evidence.
+- [Second probe oracle error](../evidence/000863/pair863-main-fresh-hub-caller-corrected.log), SHA25649a5c34214ca97aa8304767772c96de779f18c16a1c161d66855b3a598b9e943: reached ready fixture and known exit1/not-live response, but mistook ActorCLI's known nonzero result error for cleanup uncertainty and stopped too early. CleanupUncertain was false. Not proof of persistent refusal.
+
+The final probe corrected those consumer predicates based on observed/source evidence, without deadline increase or production changes. Read-only audit independently traces same four inherited registration/caller fields and rules out generic ambient credential contamination. Full wrapper peer log is not represented by harness startup excerpts; absence of PEER-start-fail in those excerpts proves nothing. No fix selected yet; plan follows the exact two-hub measurement. Test file is diagnostic and currently opt-in.
