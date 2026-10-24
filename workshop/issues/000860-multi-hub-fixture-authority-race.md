@@ -45,15 +45,24 @@ The two test files and the entire execute function are byte-identical across bra
 
 Build the final multi-hub authority before starting its service readers, using the existing fixture/composition seam. Preserve the notification routing and bounded-title assertions; no production lock or timing sleep should be needed for fixture initialization.
 
+The approved same-class sweep moves hub/hubs configuration in already-connected wait, switch, slot-admission, recovery, archive-warning and lifecycle fixtures through serviceRig.decorateAuthority before newMessageService. Keep intentional mutex-protected hubRuntime.state transitions, local authority construction and in-memory service literals. Quiescent fixtures explicitly modeling cold startup remain separate from the demonstrated live-reader race. No production code, wire format, timeout or retry behavior changes.
+
 ## Done when
 
 - The captured writer/reader initialization race is prevented structurally.
 - The exact notification test and other users of multiHubWaitRig pass repeated race testing without weakening their assertions.
 - A bounded suggested repro is go test -race ./cmd/internal/couchcmd -run '^TestHubNotifyNamesExtraHubAndBoundsCustomTitle$' -count=20; this exact isolation has not yet been run by the filer.
+- A deterministic regression proves both configured hubs have startup automation policy; it fails before the fix and passes afterward.
+- Analogous already-connected fixture hub/hubs assignments are composed before service start, preserving their existing guard, ownership, generation and policy-epoch assertions.
 
 ## Plan
 
-- [ ]
+- [ ] Add the deterministic startup-policy regression and observe RED; the existing exact notification race count20 is already RED.
+- [ ] Forward the existing authority decorator through the necessary fixture constructors; build final ownership before initialization and remove the enumerated live-service hub/hubs assignments.
+- [ ] Run exact and consumer repeated races plus the relevant guard/recovery/archive/lifecycle controls, then full couchcmd race qualification. Add the lesson and audit each changed reader certificate individually.
+- [ ] Push, run recorded pre-close, close through the mandatory fresh review, and land; no passing result is claimed before its run completes.
+
+Quick flow, test-only. ARCH-DRY: reuse decorateAuthority, not a second service-start mechanism. ARCH-ORDER: ownership is final before the constructor launches readers; actual ownership moves still use the existing hubRuntime mutex. ARCH-PURPOSE: enumerate live-wrapper siblings in this round rather than repairing only the two captured lines. ARCH-PURE/MOCK: all changes stay in the existing stateful socket fixtures; production routing is unchanged. ARCH-CONSTRAINTS: no new workload, capacity, timing or cost driver; tests retain existing budgets and use bounded repetitions. ARCH-SECURE/EVOLVE: no new trust boundary, credentials or persisted formats. ARCH-FUNERAL: existing fixture cancellation, joins and private-directory cleanup remain the owners of their resources. Regression plus lesson is the approved enforcement; no catalog follow-up unless another recurrence appears.
 
 ## Log
 
@@ -66,3 +75,11 @@ Claimed by pair:9 after #825 and #841 landed, on fresh main99846a5015f753f05edaf
 The service publishes its connected snapshot before execute finishes reading authority, so waitConnected is not a completion barrier for changing immutable configuration. Existing serviceRig.decorateAuthority runs before newMessageService and survives restart. A read-only fixture audit recommends passing that decorator through newWaitRig and constructing multi-hub ownership before invoking it. A deterministic startup-policy regression can independently require automation status for both configured hubs: late replacement currently leaves /repo3 unknown because startup seeded only /repo1.
 
 The same audit enumerated analogous already-connected fixture assignments in hub_admission_test, hub_guards_test, hub_mutation_payload_test, recovery_confirmation_test, archive_notify_test and lifecycle_notices_test. Quiescent pre-wrapper assignments and local authority/service literals are distinct. Scope and enforcement are being included in the plan to the hub before code; no production lock, timing sleep, retry or assertion weakening is proposed (ARCH-ORDER, ARCH-DRY, ARCH-PURPOSE).
+
+TL approval276ef60c-ef11-4c6c-b912-fe14febc2767 (submitted): same-class sweep through decorateAuthority, keep locked state tests, RED-first regression and repeated races, then land. Behavioral regression plus lesson is enough; no catalog follow-up unless a second recurrence appears. The generic lint alternative cannot infer publication/reader lifetime without rejecting legitimate local composition or cold-fixture setup.
+
+## Revisions
+
+### 2026-10-24 — Sweep the demonstrated initialization class
+
+Extend the named multiHubWaitRig repair to analogous fixture assignments after wrappers are live, as approved by the TL. Add deterministic constructor-derived policy coverage alongside race qualification. Preserve the original no-lock/no-sleep and unchanged notification assertions; use one atomic close boundary, not separate milestones.
