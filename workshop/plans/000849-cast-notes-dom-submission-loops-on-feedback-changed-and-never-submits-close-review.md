@@ -234,3 +234,70 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-23T23:25:22-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 849 — Cast notes: DOM submission loops on 'Feedback changed' and never submits |
+| repo | pair |
+| issue file | workshop/issues/000849-cast-notes-dom-submission-loops-on-feedback-changed-and-never-submits.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 2db9843cb64a116c19245895c9a3120e0f1453c6..f18b57703a6a24792522ce52633687bcc97f7a04 |
+| command | sdlc close --issue 849 |
+| reviewer | claude (anthropic; author anthropic) |
+| isolation | fenced |
+| timestamp | 2026-10-23T23:25:22-07:00 |
+| verdict | SHIP |
+
+## Review
+
+Retrying the live Chrome tests without `timeout`, using go test's own timeout flag.
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+This window is only bookkeeping since the close review. There is no product code in it: two re-hashed affected-reader inventory records, one new `workshop/lessons.md` entry, the generated close-gate and close-review plan records, and issue frontmatter and Log updates. The issue's `## Spec`, `## Revisions` and `## Done when` are unchanged, so scope did not change after close. The inventory fix is correct, and I checked it as a class rather than just the two files: every record under `tests/affected-readers/` now matches the sha256 of its file at head. Both touched packages pass their non-live tests. The only open prior finding is BR-5 (Minor, live Chrome evidence). It is still unverifiable here: Chrome fails at launch with the same "GPU process isn't usable" error, and no dispute with host evidence was filed. It doesn't block.
+
+1. **Strengths**
+   - `tests/affected-readers/cmd/internal/submission/{model_test,sketch_page_test}.go.json` now hold the real head hashes (`93c1b100…`, `cbf919df…`). The test files changed in 04c96ae58, before the window, and their inventory records had gone stale. I re-hashed every inventory record against its file and found no other stale or missing ones.
+   - `workshop/lessons.md:2851` turns the BR-1/BR-2 family (`contract-consumers-not-swept`) into a rule rather than a fix for one site. It lists every agent-facing copy of the contract (`ReadingGuide`, `SKILL.md`, README, atlas), says to grep the key phrases before close, and links it to #802 BR-1. That is the class-level answer ARCH-PURPOSE asks for.
+   - The issue's Log entry names the specific tests and mutation checks behind the close, and records the flow upgrade from quick to full and why.
+
+2. **Critical:** none.
+3. **Important:** none.
+4. **Minor:** BR-5 stays open (see dispositions).
+5. **Test coverage notes:** `go test ./cmd/internal/submission ./cmd/internal/couchtty` passes at head. `WEBCAST_LIVE_CHROME=1 go test ./cmd/internal/couchtty -run TestSubmissionManagerLive` fails at Chrome launch because the sandbox has no GPU process. That is an environment limit, not a product failure.
+6. **Architectural notes**
+   - ARCH-DRY: pass, no duplicated logic in the window.
+   - ARCH-PURE: pass, no code.
+   - ARCH-PURPOSE: pass. The inventory sweep and the lessons rule cover the whole class, not one site.
+   - ARCH-EVOLVE: pass. The inventory records keep the same `version: 1` schema and change only the hash value.
+7. **Plan revision recommendations:** none.
+
+```findings
+dispose:
+  - id: BR-5
+    disposition: not-addressed
+    note: |
+      Still unverifiable here. Re-ran WEBCAST_LIVE_CHROME=1 go test ./cmd/internal/couchtty -run TestSubmissionManagerLive at f18b57703 and Chrome exited at launch ("GPU process isn't usable", exit_code=6). No dispute with host evidence was filed. The Log claims a host run but gives no captured output. Minor, does not block.
+```
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"1b66477f-a4fc-4491-8f96-e0ba34461036","repository":"github.com/xianxu/pair","issue_id":"000849","recipe":"fix-review","round":3,"attempt":1,"agent":"claude","root":"/Volumes/TestScratch/review-checkouts/4159f53a3b2c260e","reviewed_head":"f18b57703a6a24792522ce52633687bcc97f7a04","slot":"pair:6","requested_at":"2026-10-24T06:21:38.445141Z"},"phase":"finished","pid":2954,"started_at":"2026-10-24T06:21:38.660887Z","finished_at":"2026-10-24T06:25:14.661083Z","session_id":"2a5927e0-06bb-44a5-91e1-e1368d7da0b1","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 4.139515666s
+head: "f18b57703a6a24792522ce52633687bcc97f7a04"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412
