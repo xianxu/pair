@@ -1,17 +1,27 @@
 ---
 id: 000869
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-10-24
 updated: 2026-10-24
 estimate_hours:
-card_mirror: '395c3054431d9eed5064c621c1503cfd28d1082b' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '0f6a21711083ed9eba135acca40ec1abeab69ea2' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-24T08:28:06-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: Xian’s MacBook Pro
+    workspace: pair:9
+    worktree: /Users/xianxu/workspace/worktree/pair-slot9/pair
+    repository: github.com/xianxu/pair
 ---
 
 # Publish cancellation fixture PID readiness atomically
 
 ## Problem
+
+TestCLILiveLeaderCancellationJoinsBeforeCompletion observes final marker existence between shell redirection creation and printf PID write, then parses an empty value. This races the cancellation test oracle rather than production cancellation.
 
 TestCLILiveLeaderCancellationJoinsBeforeCompletion intermittently parses an empty PID marker. First observed in #863 recorded suite attempt0c7a9818a957d392fc43e9fb44889545 on d00c828e28d41b317b924f3bde4f2f0a622076f7 (2026-10-24; suite exit2 in18m38s). cli_group_test.go:84: strconv.Atoi: parsing "": invalid syntax. Package duration20.261s. Six other failures in that attempt are #863 stale fixtures, not this bug.
 
@@ -21,9 +31,15 @@ One unchanged focused repeat passed (package0.130s, exit0). That is a targeted r
 
 ## Spec
 
+Publish the complete fixture leader PID through one adjacent temporary file and rename before exec, shared by both live-leader cancellation fixtures. Keep production lifetime/group cleanup unchanged. A held-writer conformance control exposes the creation/write interval and requires final readiness absent until complete publication. ARCH-DRY shares the producer; ARCH-ORDER makes the final name the publication barrier. No runtime state or product surface changes.
+
 Publish the PID atomically or make the readiness observation require the complete valid expected PID before cancellation. Preserve the real leader-death/join assertions and the existing bounded timeout; never fix this by sleeping or increasing a budget. Add an injected hold between marker creation and content publication so the original test fails deterministically.
 
 ## Done when
+
+- A deterministic held-write control rejects early final-marker visibility and then observes a complete positive PID.
+- Both cancellation fixtures use the same complete PID producer and still prove child exit/join before acknowledgment.
+- Repeated targeted/race checks, audited reader inventory and required affected check pass; mandatory review and landing complete.
 
 - An injected marker-open/write gap cannot cause empty or partial PID parsing.
 - The test still cancels a genuinely live leader and proves joined completion.
@@ -31,8 +47,13 @@ Publish the PID atomically or make the readiness observation require the complet
 
 ## Plan
 
+- [ ] Qualify the creation/write gap with a held writer, fix atomic publication and repeat cancellation controls.
+- [ ] Audit readers, run recorded pre-close check, close/review and land.
+
 - [ ]
 
 ## Log
+
+2026-10-24: TL dispatch8443c3a7-e008-4e83-be76-433b6d4e37ff; #865 parked/claimed on separate branch. Claim/start-plan completed from main. Source census found the direct producer in cli_group_test.go and request_lifetime_test.go; sibling consumer already checks parseability. Quick plan posted to TL, proceeding unless objected. Asked TL for explicit exception to cross-repo generic lint growth for this test-only publication fix; existing held-write regression will guard the actual race.
 
 Failed full log: /Users/xianxu/workspace/pair/.git/sdlc/test-stats/failed/0c7a9818a957d392fc43e9fb44889545.log, SHA256 prefix13f839805c08. Exact failure: github.com/xianxu/pair/cmd/internal/testcouch/agentfixture.TestCLILiveLeaderCancellationJoinsBeforeCompletion. Focused repeat command: go test ./cmd/internal/testcouch/agentfixture -run '^TestCLILiveLeaderCancellationJoinsBeforeCompletion$' -count=1 -timeout=60s. Its log is retained in #863 evidence/independent-cli-marker-focused-repeat.log. No production or fixture change folded into #863; unclaimed follow-up.
