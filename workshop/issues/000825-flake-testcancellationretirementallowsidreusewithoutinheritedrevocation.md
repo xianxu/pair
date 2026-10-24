@@ -1,13 +1,13 @@
 ---
 id: 000825
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-10-22
 updated: 2026-10-23
 estimate_hours:
 collaboration-mode: collaboration
-card_mirror: '4791762c50f1085e7a427f9538712a95156867ae' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: 'af9daa45f66b329b55a058fe36e735523add0336' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-23T19:43:32-07:00
 claimant:
     operator: Xian Xu
@@ -18,6 +18,7 @@ claimant:
     repository: github.com/xianxu/pair
 flake_tests: [github.com/xianxu/pair/cmd/internal/testcouch/agentfixture.TestCancellationRetirementAllowsIDReuseWithoutInheritedRevocation]
 flow: {kind: quick, provenance: inferred, spec: "210d6aa8", done: "8753b161"}
+actual_hours: 0.20
 ---
 
 # flake: TestCancellationRetirementAllowsIDReuseWithoutInheritedRevocation
