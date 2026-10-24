@@ -1,6 +1,6 @@
 ---
 id: 000863
-status: working
+status: codecomplete
 created: 2026-10-24
 updated: 2026-10-24
 estimate_hours: 1.333
@@ -13,6 +13,14 @@ claimant:
     workspace: pair:7
     worktree: /Users/xianxu/workspace/worktree/pair-slot7/pair
     repository: github.com/xianxu/pair
+actual_hours: N/A
+tracker:
+    version: 1
+    completion:
+        token: close-03de6f18fbc2
+        repository: github.com/xianxu/pair
+        reviewed_head: 3a25379a588a7d6eff2fc7d4d918cea9e4e67de6
+        evidence_commit: 8b3031485002a81568863bb747fc17c94102bdb9
 ---
 
 # Native fleet: explicit-hub Fleet.Start broken since #739; second explicit hub fails attach at a fresh start
