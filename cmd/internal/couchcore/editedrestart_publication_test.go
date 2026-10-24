@@ -26,7 +26,7 @@ func startEditedRestartPublicationFixture(t *testing.T, agent string, missing bo
 	env.Couch.FreshRegistration = func(context.Context, ThreadAddress, string, string) (bool, error) { return true, nil }
 	source := createParkedThreadInCouch(t, env, LaunchProfile{Agent: agent, Argv: []string{"--model", "historical"}})
 	for _, savedAgent := range []string{"claude", "codex"} {
-		if err := env.Couch.Threads.rememberRepoConfigurationContext(context.Background(), "/repo/.git", LaunchProfile{Agent: savedAgent, Argv: []string{"--model", "previous-" + savedAgent}}, nil); err != nil {
+		if err := env.Couch.Threads.rememberRepoConfiguration("/repo/.git", LaunchProfile{Agent: savedAgent, Argv: []string{"--model", "previous-" + savedAgent}}, nil); err != nil {
 			t.Fatal(err)
 		}
 	}

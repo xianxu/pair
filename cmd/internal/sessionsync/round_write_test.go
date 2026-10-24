@@ -104,9 +104,8 @@ func TestApplyStaleAndLockedRefuseBeforeResolving(t *testing.T) {
 
 const proposeDoc = "---\ntype: session-sync\nowner: ops:0\npresentation: propose\n---\n\n_Updated 2026-10-10 23:43._\n\n## Needs you\n\nold\n\n## Trains\n\ntrains\n"
 
-// Under presentation: propose the file, shadow, hash and round all follow
-// the written marker bytes; the agent's own markers never read as edits.
-func TestProposeWritesMarkersThatTheShadowAndHashFollow(t *testing.T) {
+// Retired presentation settings do not change clean edits, shadow or hashes.
+func TestRetiredProposeWritesCleanTextThatTheShadowAndHashFollow(t *testing.T) {
 	r := newRig(t)
 	r.put(r.p.File, proposeDoc)
 	r.put(r.p.Shadow, proposeDoc)
@@ -114,16 +113,16 @@ func TestProposeWritesMarkersThatTheShadowAndHashFollow(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(r.read(r.p.File), "🤖~old~{new}") {
-		t.Fatalf("no marker in %q", r.read(r.p.File))
+	if !strings.Contains(r.read(r.p.File), "\nnew\n") || strings.Contains(r.read(r.p.File), "🤖") {
+		t.Fatalf("not clean text in %q", r.read(r.p.File))
 	}
 	if res.Hash != r.hash("Needs you") {
 		t.Fatal("the returned hash does not match the written section")
 	}
 	if d, err := r.sync.Diff(r.p.Shadow, r.p.File); err != nil || d != "" {
-		t.Fatalf("own markers show as unread edits: %q %v", d, err)
+		t.Fatalf("own edits show as unread edits: %q %v", d, err)
 	}
-	if round := r.round(r.p.Round); round == nil || round.Presentation != "propose" || round.ResultHash != Hash(r.read(r.p.File)) {
+	if round := r.round(r.p.Round); round == nil || round.Presentation != "highlight" || round.ResultHash != Hash(r.read(r.p.File)) {
 		t.Fatalf("round=%+v", round)
 	}
 	// A frontmatter write is never proposed and leaves no stamp span.
@@ -139,12 +138,10 @@ func TestProposeWritesMarkersThatTheShadowAndHashFollow(t *testing.T) {
 			t.Fatalf("stamp span %+v", s)
 		}
 	}
-	// A large change refuses with nothing written.
-	before := r.read(r.p.File)
+	// Clean highlight edits have no retired three-line proposal limit.
 	_, err = r.sync.Write(WriteRequest{File: r.p.File, Section: "Trains", Body: "a\nb\nc\nd\n", IfHash: r.hash("Trains")})
-	wantRefusal(t, err, ExitRefused, "propose-too-large")
-	if r.read(r.p.File) != before {
-		t.Fatal("a refused proposal wrote")
+	if err != nil || !strings.Contains(r.read(r.p.File), "a\nb\nc\nd\n") {
+		t.Fatalf("large clean edit failed: %v", err)
 	}
 }
 

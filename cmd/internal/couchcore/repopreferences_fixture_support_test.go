@@ -110,5 +110,7 @@ func (s *ThreadStore) previewRepoPreferences() (RepoPreferences, error) {
 // Test fixtures accept configuration directly; production publishes only through
 // final adoption with its shared migration/publication deadline.
 func (s *ThreadStore) rememberRepoConfiguration(repoIdentity string, profile LaunchProfile, sources []LegacyRepoPreference) error {
-	return s.rememberRepoConfigurationContext(context.Background(), repoIdentity, profile, sources)
+	ctx, cancel := context.WithTimeout(context.Background(), repoIdentityTimeout)
+	defer cancel()
+	return s.rememberRepoConfigurationContext(ctx, repoIdentity, profile, sources)
 }

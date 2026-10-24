@@ -40,33 +40,46 @@ New verb refusals exit 1 with `Code`/`Error`: `owner-conflict`, `target-conflict
 `registry-uncertain` where applicable. Ordinary IO errors also exit nonzero.
 Existing writes retain `operator-lock` (exit 3) and `stale` (exit 6).
 
-## Editorial snapshot (#823)
+## Collaborative snapshot (#838)
 
-`cmd/internal/editorial/` compiles a captured source into independent collaboration,
-presentation and processing settings. `read --all FILE --json` returns `Read.Editorial`:
-document defaults, ordered effective regions and processing briefs, heading ancestry,
-owned source ranges, source digest and warnings. `EditorialCoordinates` is
-`document-byte-offsets`; section reads use complete-document coordinates too.
-Run `diff` before the whole read, which acknowledges the snapshot. Malformed
-settings refuse before Shadow advances.
+`cmd/internal/editorial/` adapts the shared `pkg/sidedoc` chat scanner for one
+collaborative mode. `read --all FILE --json` returns `Read.Editorial` with chat
+regions, protected source ranges and the shared compatibility notices verbatim.
+`EditorialCoordinates` is `document-byte-offsets`; section reads also use
+complete-document coordinates. Run `diff` before the whole read, which
+acknowledges the snapshot. There is no runtime mode or processing-brief catalog.
 
-Each axis inherits from the nearest applicable adjacent ATX mode comment, then
-document settings, then discussion / highlight / free-form. Canonical presence
-beats readable aliases. Legacy maps remain readable and warn. Ordinary comments,
-detached comments and code examples remain text. Agent writes protect every
-owned setting and directive association in all presentation modes; operator
-editor changes remain available between rounds. The shared guard classifies
-narrowed edits from the base snapshot before file, Shadow or round publication.
-It enforces scope/frontier and chat-item preservation; interpreting briefs and
-routing questions remains the reviewing agent's responsibility.
-Chat answer links may append to a renderable final text block. A syntax-only or
-code ending refuses: the append must preserve Markdown structure and produce a
-real answer hyperlink, including when the ask contains earlier fenced code.
+The shared [collaborative editing contract](../.agents/skills/xx-universal-review/collaboration-modes.md)
+and [round instructions](../.agents/skills/xx-universal-review/round.md) own tag
+and item grammar, question/command routing, edit scope, briefs and side-doc
+handling. Direct operator edits are content. The reviewing agent interprets
+ready markers: questions and unclear commands branch to side docs; clear
+commands act within their scope. Couch does not enforce that semantic choice
+with a natural-language classifier. New writes produce clean text and highlight
+metadata, including in documents carrying retired presentation keys.
+
+A standalone `@@chat@@` line directly above an ATX heading marks its section,
+including descendants, as chat. Tagged sections use numbered asks. Legacy chat
+scalars, maps and adjacent heading comments remain readable with their old
+bullet/numbered grammar, including when a tag names the same heading. The
+innermost chat section governs its items. Misplaced tags remain ordinary text.
+Retired mode and instruction keys, including malformed or unknown values,
+produce nonfatal notices rather than selecting settings or failing a round.
+The agent reports the shared notices once per round, word for word.
+
+Normal writes never add, remove or rewrite legacy settings. The shared edit
+guard protects real chat tags, their heading attachment and legacy source bytes
+before file, Shadow or round publication. It also preserves chat-item text,
+allowing an appended answer link. A syntax-only or code ending refuses when an
+append cannot preserve Markdown structure and produce a real answer hyperlink.
+Agents pair side-doc links with `discussions:` entries under the shared contract;
+new side docs use the month layout without mode keys. Existing flat and `qa/`
+answer links and their metadata remain valid.
 
 Section hashes bind the body plus document and ancestor authority. They are
 opaque tokens returned by read/write; unrelated prose can change concurrently,
-while a policy change stales the token even when the section body is identical.
-Existing H2 section addressing remains unchanged.
+while a changed chat tag or protected legacy source can stale the token even
+when the section body is identical. Existing H2 addressing remains unchanged.
 
 Explicit operator migration uses:
 
@@ -75,21 +88,27 @@ couch --session-sync migrate-editorial FILE --json
 couch --session-sync migrate-editorial FILE --confirm --if-hash BEFORE_HASH --json
 ```
 
-The preview returns an exact candidate and complete source SHA256. Confirmation
-recompiles the constrained map-to-comments transform under the existing document
-transaction and operator-lock guard; it accepts no supplied replacement body.
-Stale source requires a new preview. Conflicting assignments, unmatched map names
-and multiple legacy processing selectors refuse without a candidate. Migration
-fills missing canonical defaults additively, retaining aliases and unrelated
-metadata; normal review never fills or migrates. Shadow/state stay unread so the
-operator change appears on the next round. This local confirmation is a workflow
-boundary, not human authentication against other code running as the same user.
+The preview returns an exact map-to-tag candidate and complete source SHA256.
+Confirmation recomputes that transform under the existing document transaction
+and operator-lock guard; it accepts no supplied replacement body. Stale source
+requires a new preview. Conversion must preserve heading routing and eligible
+asks. It refuses, naming the affected section, when numbered-only tags would
+lose legacy bullet asks or whole-document preamble asks. It never renumbers the
+operator's text, invents a compatibility flag or fills canonical mode defaults.
+Unmatched names or conflicting assignments that prevent lossless conversion
+also refuse. Keep the legacy source when conversion is unsafe; ordinary review
+continues to read it. Unrelated metadata and source bytes remain intact.
+Shadow/state stay unread so the operator change appears on the next round.
+This confirmation is a workflow boundary, not authentication against other
+code running as the same user.
 
-Per-span presentation and the shared fixture are mapped in
-[review-workbench.md](review-workbench.md). Actual Parley section UI and side-doc
-writers belong to parley.nvim#419; its mixed-span upgrade is required before
-claiming combined editor acceptance. New side docs use the month layout with
-three explicit defaults; existing flat and `qa/` answer links remain valid.
+Historical `Round`/`Span` presentation values retain their direct/highlight/propose
+meanings through readers, records, commits and resume; absent span values fall
+back to the round, then highlight. Known-field types and duplicate-key checks
+remain strict, and unknown nested extensions survive rewrites. Only newly
+written edits always use highlight. The persisted compatibility seam and shared
+fixture are mapped in [review-workbench.md](review-workbench.md); Parley's
+consumer acceptance remains independent of Pair's headless tests.
 
 For an unregistered typed session-sync file, first register OLD successfully
 while it and its legacy companions still exist. Registration imports its
