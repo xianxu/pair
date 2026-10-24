@@ -7,6 +7,9 @@ representative evidence, not an exhaustive index.
 
 ## Proof and verification
 
+- #863 suite: when a result gains an ownership predicate, sweep existing positive fixtures for the required authority and retain separate empty/metadata-only negatives. A startup fixture must declare its history explicitly; an empty namespace is not evidence of a previous shutdown. Keep exact joined-diagnostic and declared-operation assertions current with the same approved contract.
+
+- #863 BR-3: A published start claim needs one failure owner before launch ownership begins. Discovery/enrollment failures must roll back against the store that accepted the claim, independently of whether namespace routing is available; release native authority only after exact nonce/revision cleanup and positive absence. Pin post-publication failures and successful handoff, not only the later launch tail.
 - #860 BR-1/BR-2: A passing package race run can miss another live-fixture authority write. Enumerate the complete field family mechanically, allow only exact no-wrapper controls, and update Done-when whenever scope grows; extend the pre-start child-proof composition to native-exit fixtures too.
 - #860: Configure immutable service authority through the fixture's pre-start decorator. A connected snapshot may be published before admission effects finish reading authority, so waitConnected is not a mutation barrier. Keep actual ownership moves under hubRuntime's mutex, and pair race qualification with a deterministic check of constructor-derived policy for every configured hub, including after restart.
 
@@ -2898,6 +2901,7 @@ and external temporary roots rather than relying on the host's TMPDIR.
 
 - #850 BR5: independent viewport clamping is insufficient after composition. State the invariant for all eligible entities together: each must remain individually selectable with identical bounds, overlapping bounds and dense edge cases. A single bounded scrolling selector removes an impossible geometric packing problem; do not add a third positional heuristic.
 
+- #863: Target-dependent launch semantics need catalog-backed primary and numbered-slot tests. A legacy fake with no SlotCatalog bypassed validation and accepted Fresh on a primary, hiding the real refusal; fixture convenience must not bypass the production routing boundary. Hold review inputs unchanged while an SDLC judge is running, or its correct result becomes stale.
 - #856 BR-1–3: when consolidating discovery into one surface, derive membership from accepted entities, independent of viewport placement; unavailable geometry is a row state. Project both corners of boxes and clips into client space, including nonuniform scale and container offset. Minimized controls retain status and remeasure on label growth; adopted editors must expand their presentation owner before focus. Pin these through production handlers as well as pure helpers.
 
 - #856 native composition: fixed-position width:auto is shrink-to-fit and depends on the current left anchor. Measuring at an offscreen old anchor can understate the width before clamping. Preserve intrinsic max-content sizing under a maximum, and pin real browser rectangles across resize; standalone/fixed-width geometry fixtures cannot expose this feedback.

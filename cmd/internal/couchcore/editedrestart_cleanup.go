@@ -8,11 +8,18 @@ type startRollbackReceipt struct {
 }
 
 func (c *Couch) rollbackTrackedStartObserved(thread ThreadRecord, nonce string, receipt *startRollbackReceipt) error {
-	rolled, err := c.Threads.deleteStartResult(thread.Address, thread.Revision, nonce)
+	return c.rollbackTrackedStartFrom(c.Threads, thread, nonce, receipt)
+}
+
+// rollbackTrackedStartFrom also supports a published local claim whose
+// namespace enrollment failed. The store that accepted it owns both the exact
+// deletion and the positive absence needed before releasing its native claim.
+func (c *Couch) rollbackTrackedStartFrom(store *ThreadStore, thread ThreadRecord, nonce string, receipt *startRollbackReceipt) error {
+	rolled, err := store.deleteStartResult(thread.Address, thread.Revision, nonce)
 	if err != nil {
 		return err
 	}
-	if err := c.releaseClaimIfThreadAbsent(thread.Address); err != nil {
+	if err := c.releaseClaimIfStoreThreadAbsent(store, thread.Address); err != nil {
 		return err
 	}
 	if receipt != nil && rolled.Revision != 0 {

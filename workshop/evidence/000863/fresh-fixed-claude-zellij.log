@@ -1,0 +1,6 @@
+INFO   |zellij_client            | 2026-10-24 01:15:45.441 [main      ] zellij-client/src/lib.rs:953: Starting Zellij client! 
+INFO   |zellij_server            | 2026-10-24 01:15:45.537 [main      ] zellij-server/src/lib.rs:864: Starting Zellij server! 
+ERROR  |zellij_utils::errors::not| 2026-10-24 01:15:45.675 [main      ] zellij-utils/src/errors.rs:850: Panic occurred:
+             thread: main
+             location: At zellij-server/src/lib.rs:1462:26
+             message: called `Option::unwrap()` on a `None` value 

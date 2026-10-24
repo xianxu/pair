@@ -97,84 +97,89 @@ func (s *ThreadStore) replaceSlotCurrent(old slotCurrentObservation, next Thread
 	if err := s.validateLocalOrigin(next); err != nil {
 		return err
 	}
-	return s.withLock(func() error {
-		current, err := s.readSlotCurrentLocked()
-		if err != nil {
-			return err
-		}
-		if old.HostInfo == nil || old.EnvironmentInfo == nil || !os.SameFile(old.HostInfo, current.HostInfo) || !os.SameFile(old.EnvironmentInfo, current.EnvironmentInfo) {
-			return errors.New("slot physical directory changed during recovery")
-		}
-		if current.Exists != old.Exists || !bytes.Equal(current.Raw, old.Raw) {
-			return errors.New("slot current changed during recovery; inspect and retry")
-		}
-		if current.Unsupported {
-			return current.Err
-		}
-		if current.Exists {
-			retiring := next.Address
-			if current.Record != nil {
-				retiring = current.Record.Address
-			}
-			if err := authorizeRetire(authority, retiring, current.Record, current.Raw, &next); err != nil {
-				return err
-			}
-		}
-		var entries []storeJournalEntry
-		if old.Record != nil {
-			path := s.archivePath(old.Record.Address)
-			if err := provisionSafePath(path); err != nil {
-				return err
-			}
-			var archiveBefore, graceBefore *[]byte
-			if prior, err := s.readRetentionFile(path); err == nil {
-				archiveBefore = &prior
-				backup, err := s.slotRecoveryBackupLocked(prior)
-				if err != nil {
-					return err
-				}
-				if backup != nil {
-					entries = append(entries, *backup)
-				}
-			} else if !errors.Is(err, os.ErrNotExist) {
-				return err
-			}
-			if prior, err := s.readRetentionFile(s.archiveGracePath(old.Record.Address)); err == nil {
-				graceBefore = &prior
-			} else if !errors.Is(err, os.ErrNotExist) {
-				return err
-			}
-			kept, err := retiredBytes(authority, old.Record, old.Raw)
-			if err != nil {
-				return err
-			}
-			grace, err := s.archiveGraceBytes(old.Record.Address, kept)
-			if err != nil {
-				return err
-			}
-			entries = append(entries, storeJournalEntry{Path: relativeStorePath(s.root, path), Expected: archiveBefore, After: &kept}, storeJournalEntry{Path: relativeStorePath(s.root, s.archiveGracePath(old.Record.Address)), Expected: graceBefore, After: &grace})
-		} else if old.Exists {
-			entry, err := s.slotRecoveryBackupLocked(old.Raw)
-			if err != nil {
-				return err
-			}
-			if entry != nil {
-				entries = append(entries, *entry)
-			}
-		}
-		raw, err := encodeThreadRecord(next)
-		if err != nil {
-			return err
-		}
-		raw = append(raw, '\n')
-		var expected *[]byte
-		if old.Exists {
-			expected = &old.Raw
-		}
-		entries = append(entries, storeJournalEntry{Path: "thread.json", Expected: expected, After: &raw})
-		return s.commitJournalLocked(storeJournal{SchemaVersion: 1, Entries: entries})
-	})
+	return s.withLock(func() error { return s.replaceSlotCurrentLocked(old, next, authority) })
 }
+
+// replaceSlotCurrentLocked keeps the existing exact-current checks and journal
+// commit inside a lock already held by a combined startup admission.
+func (s *ThreadStore) replaceSlotCurrentLocked(old slotCurrentObservation, next ThreadRecord, authority RetireAuthority) error {
+	current, err := s.readSlotCurrentLocked()
+	if err != nil {
+		return err
+	}
+	if old.HostInfo == nil || old.EnvironmentInfo == nil || !os.SameFile(old.HostInfo, current.HostInfo) || !os.SameFile(old.EnvironmentInfo, current.EnvironmentInfo) {
+		return errors.New("slot physical directory changed during recovery")
+	}
+	if current.Exists != old.Exists || !bytes.Equal(current.Raw, old.Raw) {
+		return errors.New("slot current changed during recovery; inspect and retry")
+	}
+	if current.Unsupported {
+		return current.Err
+	}
+	if current.Exists {
+		retiring := next.Address
+		if current.Record != nil {
+			retiring = current.Record.Address
+		}
+		if err := authorizeRetire(authority, retiring, current.Record, current.Raw, &next); err != nil {
+			return err
+		}
+	}
+	var entries []storeJournalEntry
+	if old.Record != nil {
+		path := s.archivePath(old.Record.Address)
+		if err := provisionSafePath(path); err != nil {
+			return err
+		}
+		var archiveBefore, graceBefore *[]byte
+		if prior, err := s.readRetentionFile(path); err == nil {
+			archiveBefore = &prior
+			backup, err := s.slotRecoveryBackupLocked(prior)
+			if err != nil {
+				return err
+			}
+			if backup != nil {
+				entries = append(entries, *backup)
+			}
+		} else if !errors.Is(err, os.ErrNotExist) {
+			return err
+		}
+		if prior, err := s.readRetentionFile(s.archiveGracePath(old.Record.Address)); err == nil {
+			graceBefore = &prior
+		} else if !errors.Is(err, os.ErrNotExist) {
+			return err
+		}
+		kept, err := retiredBytes(authority, old.Record, old.Raw)
+		if err != nil {
+			return err
+		}
+		grace, err := s.archiveGraceBytes(old.Record.Address, kept)
+		if err != nil {
+			return err
+		}
+		entries = append(entries, storeJournalEntry{Path: relativeStorePath(s.root, path), Expected: archiveBefore, After: &kept}, storeJournalEntry{Path: relativeStorePath(s.root, s.archiveGracePath(old.Record.Address)), Expected: graceBefore, After: &grace})
+	} else if old.Exists {
+		entry, err := s.slotRecoveryBackupLocked(old.Raw)
+		if err != nil {
+			return err
+		}
+		if entry != nil {
+			entries = append(entries, *entry)
+		}
+	}
+	raw, err := encodeThreadRecord(next)
+	if err != nil {
+		return err
+	}
+	raw = append(raw, '\n')
+	var expected *[]byte
+	if old.Exists {
+		expected = &old.Raw
+	}
+	entries = append(entries, storeJournalEntry{Path: "thread.json", Expected: expected, After: &raw})
+	return s.commitJournalLocked(storeJournal{SchemaVersion: 1, Entries: entries})
+}
+
 func (s *ThreadStore) slotRecoveryBackupLocked(raw []byte) (*storeJournalEntry, error) {
 	root := filepath.Join(s.root, "recovery")
 	if err := checkSlotDirectory(root); err != nil {
@@ -348,6 +353,7 @@ type freshSlotMode uint8
 const (
 	freshSlotOrdinary freshSlotMode = iota
 	freshSlotRecordlessRecovery
+	freshSlotEmptyStartup
 )
 
 func (c *Couch) startFreshSlotWithRecovery(ctx context.Context, path, agent string, requireEmpty bool, accepted *StartResolution, preflight *LaunchProfileResolution, orient *threadrecord.RecoveryOrientation, mode freshSlotMode) (StartResult, error) {
@@ -358,6 +364,14 @@ func (c *Couch) startFreshSlotWithRecovery(ctx context.Context, path, agent stri
 	if mode == freshSlotRecordlessRecovery {
 		local, slot, readiness, err = c.selectRecordlessRecoverySlot(ctx, path)
 		requireEmpty = true
+	} else if mode == freshSlotEmptyStartup {
+		if accepted == nil || accepted.Target.Kind != ThreadTargetSlot {
+			return StartResult{}, ErrStartResolutionChanged
+		}
+		slot = accepted.Target.Slot
+		local = newSlotThreadStore(c.Namespace, slot)
+		local.coordinator = c.Threads.coordinator
+		requireEmpty = true
 	} else if mode == freshSlotOrdinary {
 		local, slot, err = c.selectedSlot(ctx, path)
 	} else {
@@ -366,7 +380,7 @@ func (c *Couch) startFreshSlotWithRecovery(ctx context.Context, path, agent stri
 	if err != nil {
 		return StartResult{}, err
 	}
-	family, err := c.slotFamily(ctx, slot, true)
+	family, err := c.slotFamily(ctx, slot, mode != freshSlotEmptyStartup)
 	if err != nil {
 		return StartResult{}, err
 	}
@@ -374,9 +388,28 @@ func (c *Couch) startFreshSlotWithRecovery(ctx context.Context, path, agent stri
 	if err != nil {
 		return StartResult{}, err
 	}
-	old, err := local.observeSlotCurrent()
+	observationStore := local
+	if mode == freshSlotEmptyStartup {
+		view := *local
+		view.readOnly = true
+		observationStore = &view
+	}
+	old, err := observationStore.observeSlotCurrentContext(ctx)
 	if err != nil {
 		return StartResult{}, err
+	}
+	if mode == freshSlotEmptyStartup && old.HostInfo == nil {
+		// A preview of an absent store deliberately skips its callback. Retain
+		// the verified host witnesses without creating that store; the commit
+		// rechecks these identities and current/history under both locks.
+		old.HostInfo, err = os.Stat(slot.WorktreeRoot)
+		if err != nil {
+			return StartResult{}, err
+		}
+		old.EnvironmentInfo, err = os.Stat(slot.EnvironmentRoot)
+		if err != nil {
+			return StartResult{}, err
+		}
 	}
 	if old.Unsupported {
 		return StartResult{}, old.Err
@@ -423,7 +456,7 @@ func (c *Couch) startFreshSlotWithRecovery(ctx context.Context, path, agent stri
 	}
 	var recoveryIntent threadrecord.RecoveryIntent
 	record, nonce, err := c.claimFreshRecord(ctx, freshClaimInput{
-		RememberConfiguration: mode == freshSlotOrdinary,
+		RememberConfiguration: mode == freshSlotOrdinary || mode == freshSlotEmptyStartup,
 		ScopeKey:              scope.Key, Cwd: cwd, RepoIdentity: slot.RepoIdentity, TagPrefix: filepath.Base(slot.PrimaryRoot),
 		Profile: profile, Used: used, Store: local,
 		Commit: func(record ThreadRecord) error {
@@ -440,11 +473,21 @@ func (c *Couch) startFreshSlotWithRecovery(ctx context.Context, path, agent stri
 				record.RecoveryIntent = threadrecord.CloneRecoveryIntent(&intent)
 				record.Incarnations[0].Start.RecoveryIntent = threadrecord.CloneRecoveryIntent(&intent)
 			}
+			if mode == freshSlotEmptyStartup {
+				return c.Threads.withEmptyStartupTarget(ctx, local, scope.Key, func() error {
+					return local.replaceSlotCurrentLocked(old, record, authority)
+				})
+			}
 			return local.replaceSlotCurrent(old, record, authority)
 		},
 	})
 	if err != nil {
 		return StartResult{}, err
+	}
+	if mode == freshSlotEmptyStartup {
+		if err := c.enrollFreshStartupClaim(ctx, local, slot, record, nonce); err != nil {
+			return StartResult{}, err
+		}
 	}
 	if mode == freshSlotRecordlessRecovery {
 		// The commit callback adds the authority; use its durable value, not
@@ -461,7 +504,7 @@ func (c *Couch) startFreshSlotWithRecovery(ctx context.Context, path, agent stri
 		Context: ctx, Thread: record, Nonce: nonce, StartedAt: c.Clock.Now(), Profile: profile, Readiness: readiness,
 		Args: StartArgs{Worktree: Worktree(slot.WorktreeRoot), Cwd: cwd},
 		AfterPrepare: func() error {
-			if mode == freshSlotOrdinary {
+			if mode == freshSlotOrdinary || mode == freshSlotEmptyStartup {
 				if err := c.verifyOtherSlotOwnersAbsent(ctx, slot, record.Address); err != nil {
 					return err
 				}
@@ -473,6 +516,28 @@ func (c *Couch) startFreshSlotWithRecovery(ctx context.Context, path, agent stri
 		},
 	})
 	return StartResult{Record: actor, Handle: handle}, err
+}
+
+// enrollFreshStartupClaim owns the published, never-launched claim until the
+// namespace can route it to launchClaimedThread. Failure must use the known
+// local store: namespace enrollment is precisely what may not have succeeded.
+func (c *Couch) enrollFreshStartupClaim(ctx context.Context, local *ThreadStore, slot SlotIdentity, record ThreadRecord, nonce string) (err error) {
+	defer func() {
+		if err != nil {
+			err = errors.Join(err, c.rollbackTrackedStartFrom(local, record, nonce, nil))
+		}
+	}()
+	repository, err := c.Slots.Discover(ctx, slot.PrimaryRoot)
+	if err != nil {
+		return err
+	}
+	if repository.Identity.RepoIdentity != slot.RepoIdentity {
+		return ErrStartResolutionChanged
+	}
+	if err := c.Threads.EnrollSlotRepository(ctx, repository); err != nil {
+		return err
+	}
+	return ctx.Err()
 }
 
 func (c *Couch) slotLaunchProfile(ctx context.Context, local *ThreadStore, slot SlotIdentity, cwd, agent string) (LaunchProfileResolution, error) {

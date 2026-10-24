@@ -91,3 +91,18 @@ func TestFleetStartupCommandSelectsExplicitPublicHubOnlyWhenRequested(t *testing
 		}
 	}
 }
+
+func TestFleetExtraHubsAreOrderedProvisionedWorkspaces(t *testing.T) {
+	f := &Fleet{Roots: RootsPlan{Mutable: map[string]string{"bin": "/owned/bin"}}, Workspaces: Workspaces{Primary: "/owned/main", Workers: map[int]string{1: "/owned/one", 2: "/owned/two"}}, Options: Options{ExplicitHub: true, Hubs: []int{2, 1}, Workers: 2}}
+	if err := validateOptions(f.Options); err != nil {
+		t.Fatal(err)
+	}
+	if got, want := f.consoleCommand().Args, []string{"/owned/bin/couch", "/owned/main", "/owned/two", "/owned/one"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("got %v want %v", got, want)
+	}
+	for _, o := range []Options{{Workers: 2, Hubs: []int{1}}, {ExplicitHub: true, Workers: 2, Hubs: []int{0}}, {ExplicitHub: true, Workers: 2, Hubs: []int{3}}, {ExplicitHub: true, Workers: 2, Hubs: []int{1, 1}}} {
+		if validateOptions(o) == nil {
+			t.Fatalf("accepted invalid options %+v", o)
+		}
+	}
+}

@@ -6,6 +6,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -26,10 +28,15 @@ func TestDisposableEditedRestart(t *testing.T) {
 	if os.Getenv("PAIR_NATIVE_COUCH_FLEET") != "1" {
 		t.Skip("set PAIR_NATIVE_COUCH_FLEET=1 to run disposable native acceptance")
 	}
-	binaries := testcouch.Build(t)
+	binaries, baselineSource := startupArgumentsBinaries(t)
 	for _, agent := range []string{"claude", "codex"} {
 		if !t.Run(agent, func(t *testing.T) {
 			fleet := testcouch.New(t, binaries, testcouch.Options{Workers: 1, ExplicitHub: true, AgentKind: agent, RuntimeBudget: 4 * time.Minute})
+			t.Cleanup(func() {
+				if t.Failed() {
+					startupRestartFailureEvidence(t, fleet)
+				}
+			})
 			fleet.Environment = append(fleet.Environment, "COUCH_RESOURCE_CADENCE=1s")
 			setup, cancelSetup := context.WithTimeout(t.Context(), 180*time.Second)
 			err := fleet.Prepare(setup)
@@ -40,8 +47,15 @@ func TestDisposableEditedRestart(t *testing.T) {
 			startupArgumentsBaseline(t, fleet)
 			ctx, cancel := context.WithTimeout(t.Context(), 240*time.Second)
 			defer cancel()
-			if err := fleet.Start(ctx); err != nil {
+			start := fleet.Start
+			if baselineSource != "" {
+				start = fleet.StartCold
+			}
+			if err := start(ctx); err != nil {
 				t.Fatal(err)
+			}
+			if baselineSource != "" {
+				startupArgumentsStartHub(t, ctx, fleet)
 			}
 			if err := fleet.StartWorker(ctx, 1); err != nil {
 				t.Fatal(err)
@@ -88,6 +102,67 @@ func TestDisposableEditedRestart(t *testing.T) {
 			break
 		}
 	}
+}
+
+// Read only this disposable owner's files before its registered cleanup removes
+// them. Observation does not submit, retry, resize or drive the source.
+func startupRestartFailureEvidence(t *testing.T, fleet *testcouch.Fleet) {
+	t.Helper()
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	for _, args := range [][]string{{"--resources", "--json"}, {"--peek", "fixture:1", "--json"}} {
+		result, err := fleet.ActorCLI(ctx, 0, args...)
+		t.Logf("failure read-only observation %v: %+v err=%v", args, result, err)
+	}
+	inputs, err := fleet.Accepted(1)
+	t.Logf("failure source accepted input count=%d err=%v", len(inputs), err)
+	for _, input := range inputs {
+		kind := "other"
+		if strings.Contains(input.Body, "establish edited-restart fixture conversation ") {
+			kind = "conversation-seed"
+		}
+		if strings.Contains(input.Body, couchmessage.WorkerStartNoticeBody) {
+			kind = "worker-start-cue"
+		}
+		t.Logf("failure accepted at=%s pid=%d sequence=%d kind=%s body_sha256=%x", input.At.Format(time.RFC3339Nano), input.PID, input.Sequence, kind, sha256.Sum256([]byte(input.Body)))
+	}
+	remaining, entries := int64(256*1024), 0
+	err = filepath.WalkDir(filepath.Join(fleet.Roots.Mutable["data"], "pair"), func(path string, entry fs.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		entries++
+		if entries > 4096 || ctx.Err() != nil {
+			return errors.New("failure evidence traversal bound reached")
+		}
+		if entry.Type()&os.ModeSymlink != 0 {
+			return errors.New("symlink in private failure evidence")
+		}
+		if entry.IsDir() || !strings.HasPrefix(entry.Name(), "wrap-events-") || filepath.Ext(entry.Name()) != ".jsonl" {
+			return nil
+		}
+		if remaining == 0 {
+			return fs.SkipAll
+		}
+		file, err := os.Open(path)
+		if err != nil {
+			return err
+		}
+		defer file.Close()
+		info, err := file.Stat()
+		if err != nil || !info.Mode().IsRegular() {
+			return errors.New("invalid private wrap evidence")
+		}
+		count := min(info.Size(), remaining, int64(64*1024))
+		raw, err := io.ReadAll(io.NewSectionReader(file, info.Size()-count, count))
+		if err != nil {
+			return err
+		}
+		remaining -= int64(len(raw))
+		t.Logf("failure wrapper event tail path=%s total_bytes=%d tail=%s", path, info.Size(), raw)
+		return nil
+	})
+	t.Logf("failure wrapper evidence entries=%d remaining_bytes=%d err=%v", entries, remaining, err)
 }
 
 func startupRestartEstablishConversation(t *testing.T, ctx context.Context, fleet *testcouch.Fleet, expected agentfixture.Ready) {

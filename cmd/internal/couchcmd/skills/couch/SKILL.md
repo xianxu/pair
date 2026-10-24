@@ -866,9 +866,15 @@ acceptance.
 
 ## Several hubs in one Couch
 
-Startup attaches surviving sessions only; a missing hub stays in the switcher
-until the operator chooses recovery. The retained startup line reports normal,
-full-shutdown or unknown and names missing hubs. Hub automation starts on for a
+Startup observes history once before launching new agents. A proven first start
+with no retained history in namespace or configured local stores (including
+archives and recovery backups, regardless of enrollment) is fresh. Creation
+rechecks the target is empty under its existing store locks; uncertain evidence
+keeps it parked. Configured fresh hubs start normally, with hub
+automation off and no automatic agent input. A known full shutdown or unknown
+startup attaches surviving sessions only; missing hubs stay in the switcher until
+the operator chooses recovery. The retained line reports fresh, normal,
+full-shutdown or unknown and names missing hubs when recovery is needed. Hub automation starts on for a
 positively surviving hub after a normal restart, otherwise off. When off, Couch
 drops its own generated hub input and skips due scheduled runs. Human input,
 worker reports and desktop/status output still work. Nothing replays on enable.

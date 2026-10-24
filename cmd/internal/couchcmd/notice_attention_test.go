@@ -154,7 +154,7 @@ func TestCrashCaptureFailureRaisesAttention(t *testing.T) {
 func TestHubStartupFailureRaisesAttention(t *testing.T) {
 	r := newHubStartupRig(t, false)
 	r.c.Runner = hubRefusingRunner{Runner: r.rt.runner, path: r.paths[1]}
-	startExplicitHubs(r.console, r.hubs)
+	startExplicitHubs(r.console, r.hubs, r.startup)
 	r.run(t)
 	if call := r.await(t, "start-hub"); call.err == nil {
 		t.Fatal("hub launch unexpectedly succeeded")
@@ -219,7 +219,7 @@ func TestHubStartupSuccessDoesNotRaiseAttention(t *testing.T) {
 			once.Do(func() { close(drained) })
 		}
 	})
-	startExplicitHubs(r.console, r.hubs)
+	startExplicitHubs(r.console, r.hubs, r.startup)
 	r.run(t)
 	if call := r.await(t, "start-hub"); call.err != nil {
 		t.Fatal(call.err)
@@ -295,7 +295,7 @@ func TestNormalMultiSlotBorrowedRestartHasNoAttention(t *testing.T) {
 		}
 		return result, err
 	})
-	startExplicitHubs(r.console, r.hubs)
+	startExplicitHubs(r.console, r.hubs, r.startup)
 	r.run(t)
 	select {
 	case <-drained:

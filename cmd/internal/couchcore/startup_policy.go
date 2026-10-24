@@ -8,10 +8,11 @@ import (
 	"github.com/xianxu/pair/cmd/internal/launcher"
 )
 
-// StartupKind describes the fleet observation, never permission to launch agents.
+// StartupKind describes the initial fleet evidence, before any startup effects.
 type StartupKind string
 
 const (
+	StartupFresh        StartupKind = "fresh"
 	StartupNormal       StartupKind = "normal"
 	StartupFullShutdown StartupKind = "full-shutdown"
 	StartupUnknown      StartupKind = "unknown"
@@ -162,6 +163,8 @@ func ClassifyStartup(snapshot ThreadSnapshot, presence map[ThreadAddress]Session
 		out.Kind = StartupNormal
 	} else if out.ParkedUnknown {
 		out.Kind = StartupUnknown
+	} else if len(snapshot.Records) == 0 {
+		out.Kind = StartupFresh
 	}
 	if out.ParkedUnknown {
 		out.Diagnostic = errors.New("startup includes unreadable or unresolved session evidence")
@@ -215,6 +218,17 @@ func (c *Couch) ObserveStartupContext(ctx context.Context, hubPaths []string) (S
 		return StartupObservation{}, diagnostic
 	}
 	out := ClassifyStartup(snapshot, presence, hubPaths)
+	if out.Kind == StartupFresh {
+		retained, historyErr := c.observeStartupHistory(ctx, hubPaths)
+		if historyErr != nil {
+			if ctx.Err() != nil {
+				return StartupObservation{}, ctx.Err()
+			}
+			out.Kind, out.ParkedUnknown, out.Diagnostic = StartupUnknown, true, historyErr
+		} else if retained {
+			out.Kind = StartupFullShutdown
+		}
+	}
 	if diagnostic != nil {
 		out.Diagnostic = diagnostic
 	}

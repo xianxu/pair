@@ -1,0 +1,161 @@
+=== RUN   TestDisposableFreshHubCaller
+    binaries.go:62: d23a25922b0070c64fe0d581a78fd3f6e75ff82a
+        
+    binaries.go:62: git version 2.54.0 (Apple Git-157)
+        
+    binaries.go:62: sdlc version path=/Users/xianxu/workspace/ariadne/bin/sdlc revision=b65c6b11a04999f6411a9889045646e24a0a791a modified=false
+        
+    binaries.go:62: weave version dev
+        
+    binaries.go:62: zellij 0.45.1
+        
+    binaries.go:62: NVIM v0.11.7
+        Build type: Release
+        LuaJIT 2.1.1741730670
+        Run "nvim -V1 -v" for more info
+        
+=== RUN   TestDisposableFreshHubCaller/claude
+    owner.go:218: native fleet isolation: root=/Volumes/TestScratch/pc-4200804256 run=0bcf055c16c49d4995b9068e00a8269f agent=claude workers=1
+    fresh_hub_registration_live_test.go:35: cold screen:
+        threads                                                                                                                 
+        Ctrl+Y copy last notice / selected error · Ctrl+G hub automation on/off                                                 
+          hub · Ctrl+Space: start /Volumes/TestScratch/pc-4200804256/fleet/fixture                                              
+          (no match)                                                                                                            
+                                                                                                                                
+                                                                                                                                
+                                                                                                                                
+                                                                                                                                
+                                                                                                                                
+                                                                                                                                
+                                                                                                                                
+                                                                                                                                
+                                                                                                                                
+                                                                                                                                
+                                                                                                                                
+                                                                                                                                
+                                                                                                                                
+                                                                                                                                
+                                                                                                                                
+                                                                                                                                
+                                                                                                                                
+                                                                                                                                
+                                                                                                                                
+                                                                                                                                
+                                                                                                                                
+                                                                                                                                
+                                                                                                                                
+                                                                                                                                
+                                                                                                                                
+                                                                                                                                
+                                                                                                                                
+        startup: full-shutdown; missing hubs: /…                                                                                
+    fresh_hub_registration_live_test.go:48: start form:
+        start thread                                                                                                            
+                                                                                                                                
+          path  /Volumes/TestScratch/pc-4200804256/fleet/fixture                                                                
+        ▸ agent claude (root)                                                                                                   
+          args  repo-default                                                                                                    
+                                                                                                                                
+                                                                                                                                
+                                                                                                                                
+                                                                                                                                
+                                                                                                                                
+                                                                                                                                
+                                                                                                                                
+                                                                                                                                
+                                                                                                                                
+                                                                                                                                
+                                                                                                                                
+                                                                                                                                
+                                                                                                                                
+                                                                                                                                
+                                                                                                                                
+                                                                                                                                
+                                                                                                                                
+                                                                                                                                
+                                                                                                                                
+                                                                                                                                
+                                                                                                                                
+                                                                                                                                
+                                                                                                                                
+                                                                                                                                
+                                                                                                                                
+                                                                                                                                
+        startup: full-shutdown; missing hubs: /…                                                                                
+    fresh_hub_registration_live_test.go:57: ready: {Argv:[--session-id db09da1f-ef01-4b79-8368-517dc29f76d4] RunID:0bcf055c16c49d4995b9068e00a8269f Agent:claude Version:2.1.237 (Claude Code) PID:74767 Generation:1792828481.836596 NativeID:db09da1f-ef01-4b79-8368-517dc29f76d4 Transcript:/Volumes/TestScratch/pc-4200804256/home/.claude/projects/-Volumes-TestScratch-pc-4200804256-fleet-fixture/db09da1f-ef01-4b79-8368-517dc29f76d4.jsonl CWD:/Volumes/TestScratch/pc-4200804256/fleet/fixture}
+    fresh_hub_registration_live_test.go:63: joined startup observer: steward registration: expected at least 1 registered actors: context canceled; last=context canceled; screen=┌ claude ──────────────────────────────────────────────────┐sh-3.2$                                                     
+        │ ⚙  pair-wrapped · Alt+h for help · Happy coding!         │                                                            
+        │                                                          │                                                            
+        │                                                          │                                                            
+        │                                                          │                                                            
+        │                                                          │                                                            
+        │                                                          │                                                            
+        │                                                          │                                                            
+        │                                                          │                                                            
+        │                                                          │                                                            
+        │                                                          │                                                            
+        │                                                          │                                                            
+        │                                                          │                                                            
+        │                                                          │                                                            
+        │                                                          │                                                            
+        │                                                          │                                                            
+        │                                                          │                                                            
+        │                                                          │                                                            
+        └──────────────────────────────────────────────────────────┘                                                            
+        1                                                                                                                       
+        ~                                                                                                                       
+        ~                                                                                                                       
+        ~                                                                                                                       
+        ~                                                                                                                       
+        ~                                                                                                                       
+        ~                                                                                                                       
+        ~                                                                                                                       
+        ~                                                                                                                       
+        ~                                                                                                                       
+        ~                                                                                                                       
+         Alt: <- history 0 < * [q=queue] > 0 queued ->              [terminal 1]                                                
+        scratch: normal temp (setup declaration…                                                                                
+    fresh_hub_registration_live_test.go:66: caller observation 0: result={ID:cli-2 Stdout:{"Code":"unavailable","Error":"caller lookup: recipient is not live","Receipt":null,"Actors":null}
+         Stderr: ExitCode:1 Error:exit status 1 Truncated:false CleanupUncertain:false} err=fixture CLI: exit status 1
+    fresh_hub_registration_live_test.go:66: caller observation 1: result={ID:cli-3 Stdout:{"Code":"ok","Error":"","Receipt":null,"Actors":[{"Binding":{"Slot":"fixture:0","Repository":"/Volumes/TestScratch/pc-4200804256/fleet/fixture/.git","Scope":"8ebf63d3a734b7f3","Tag":"9223682829278248961-fixture-1","Session":"📁9223682829278248961-1","Nonce":"f863ac5149169e1bd51abadc44d149eb","Agent":"claude","Version":"2.1.237 (Claude Code)","PID":74700,"Start":"1792828481.288648"},"Resting":true,"Known":true,"LastActivity":"2026-10-24T00:54:42.522496-07:00","Pending":false,"Remaining":64,"Capacity":64,"Supported":true}]}
+         Stderr: ExitCode:0 Error: Truncated:false CleanupUncertain:false} err=<nil>
+    fresh_hub_registration_live_test.go:68: fresh explicit hub is a live caller
+    fresh_hub_registration_live_test.go:33: initial Start observer: steward registration: expected at least 1 registered actors: context canceled; last=context canceled; screen=┌ claude ──────────────────────────────────────────────────┐sh-3.2$                                                     
+        │ ⚙  pair-wrapped · Alt+h for help · Happy coding!         │                                                            
+        │                                                          │                                                            
+        │                                                          │                                                            
+        │                                                          │                                                            
+        │                                                          │                                                            
+        │                                                          │                                                            
+        │                                                          │                                                            
+        │                                                          │                                                            
+        │                                                          │                                                            
+        │                                                          │                                                            
+        │                                                          │                                                            
+        │                                                          │                                                            
+        │                                                          │                                                            
+        │                                                          │                                                            
+        │                                                          │                                                            
+        │                                                          │                                                            
+        │                                                          │                                                            
+        └──────────────────────────────────────────────────────────┘                                                            
+        1                                                                                                                       
+        ~                                                                                                                       
+        ~                                                                                                                       
+        ~                                                                                                                       
+        ~                                                                                                                       
+        ~                                                                                                                       
+        ~                                                                                                                       
+        ~                                                                                                                       
+        ~                                                                                                                       
+        ~                                                                                                                       
+        ~                                                                                                                       
+         Alt: <- history 0 < * [q=queue] > 0 queued ->              [terminal 1]                                                
+        scratch: normal temp (setup declaration…                                                                                
+    fleet.go:432: native server evidence before teardown: zellij_server_log path="/Volumes/TestScratch/pc-4200804256/tmp/zellij-501/zellij-log/zellij.log" size=2793 offset=0 bytes=2793 truncated=false read_error=<nil> tail="INFO   |zellij_client            | 2026-10-24 00:54:41.163 [main      ] zellij-client/src/lib.rs:953: Starting Zellij client! \nINFO   |zellij_server            | 2026-10-24 00:54:41.179 [main      ] zellij-server/src/lib.rs:864: Starting Zellij server! \nWARN   |zellij_server::route     | 2026-10-24 00:54:41.247 [server_router] zellij-server/src/route.rs:2554: Server not ready, trying to place instruction in retry queue... \nWARN   |zellij_server::route     | 2026-10-24 00:54:41.253 [server_router] zellij-server/src/route.rs:2901: Server ready, retrying sending instruction. \nWARN   |zellij_server::route     | 2026-10-24 00:54:41.261 [server_router] zellij-server/src/route.rs:2554: Server not ready, trying to place instruction in retry queue... \nWARN   |zellij_server::route     | 2026-10-24 00:54:41.263 [server_router] zellij-server/src/route.rs:2901: Server ready, retrying sending instruction. \nINFO   |zellij_server            | 2026-10-24 00:54:41.269 [main      ] zellij-server/src/lib.rs:1032: FirstClientConnected: initializing session \nINFO   |zellij_server            | 2026-10-24 00:54:41.269 [main      ] zellij-server/src/lib.rs:2558: Loading plugins using Wasmi interpreter \nINFO   |zellij_server::plugins   | 2026-10-24 00:54:41.269 [wasm      ] zellij-server/src/plugins/mod.rs:313: Wasm main thread starts \nWARN   |zellij_server::route     | 2026-10-24 00:54:41.269 [server_router] zellij-server/src/route.rs:2554: Server not ready, trying to place instruction in retry queue... \nWARN   |zellij_server::route     | 2026-10-24 00:54:41.269 [server_router] zellij-server/src/route.rs:2901: Server ready, retrying sending instruction. \nINFO   |zellij_server            | 2026-10-24 00:54:41.271 [main      ] zellij-server/src/lib.rs:1044: FirstClientConnected: session initialized, spawning tabs \nWARN   |zellij_server::route     | 2026-10-24 00:54:41.276 [server_router] zellij-server/src/route.rs:2901: Server ready, retrying sending instruction. \nINFO   |zellij_server::plugins::p| 2026-10-24 00:54:41.280 [plugin-exec-0] zellij-server/src/plugins/plugin_loader.rs:151: Loaded plugin 'link' in 5.944041ms \nWARN   |zellij_server::route     | 2026-10-24 00:54:41.283 [server_router] zellij-server/src/route.rs:2901: Server ready, retrying sending instruction. \nINFO   |zellij_server::pty       | 2026-10-24 00:54:41.286 [pty       ] zellij-server/src/pty.rs:502: PtyInstruction::NewTab: spawning terminals for tab 0 \nINFO   |zellij_server::pty       | 2026-10-24 00:54:41.298 [pty       ] zellij-server/src/pty.rs:1307: spawn_terminals_for_layout: 3 tiled + 0 floating panes created, sending ApplyLayout \nINFO   |zellij_server::screen    | 2026-10-24 00:54:41.298 [screen    ] zellij-server/src/screen.rs:9814: ScreenInstruction::ApplyLayout: applying layout for tab 0 \n"
+    fleet.go:497: native server evidence after join: zellij_server_log path="/Volumes/TestScratch/pc-4200804256/tmp/zellij-501/zellij-log/zellij.log" size=3350 offset=0 bytes=3350 truncated=false read_error=<nil> tail="INFO   |zellij_client            | 2026-10-24 00:54:41.163 [main      ] zellij-client/src/lib.rs:953: Starting Zellij client! \nINFO   |zellij_server            | 2026-10-24 00:54:41.179 [main      ] zellij-server/src/lib.rs:864: Starting Zellij server! \nWARN   |zellij_server::route     | 2026-10-24 00:54:41.247 [server_router] zellij-server/src/route.rs:2554: Server not ready, trying to place instruction in retry queue... \nWARN   |zellij_server::route     | 2026-10-24 00:54:41.253 [server_router] zellij-server/src/route.rs:2901: Server ready, retrying sending instruction. \nWARN   |zellij_server::route     | 2026-10-24 00:54:41.261 [server_router] zellij-server/src/route.rs:2554: Server not ready, trying to place instruction in retry queue... \nWARN   |zellij_server::route     | 2026-10-24 00:54:41.263 [server_router] zellij-server/src/route.rs:2901: Server ready, retrying sending instruction. \nINFO   |zellij_server            | 2026-10-24 00:54:41.269 [main      ] zellij-server/src/lib.rs:1032: FirstClientConnected: initializing session \nINFO   |zellij_server            | 2026-10-24 00:54:41.269 [main      ] zellij-server/src/lib.rs:2558: Loading plugins using Wasmi interpreter \nINFO   |zellij_server::plugins   | 2026-10-24 00:54:41.269 [wasm      ] zellij-server/src/plugins/mod.rs:313: Wasm main thread starts \nWARN   |zellij_server::route     | 2026-10-24 00:54:41.269 [server_router] zellij-server/src/route.rs:2554: Server not ready, trying to place instruction in retry queue... \nWARN   |zellij_server::route     | 2026-10-24 00:54:41.269 [server_router] zellij-server/src/route.rs:2901: Server ready, retrying sending instruction. \nINFO   |zellij_server            | 2026-10-24 00:54:41.271 [main      ] zellij-server/src/lib.rs:1044: FirstClientConnected: session initialized, spawning tabs \nWARN   |zellij_server::route     | 2026-10-24 00:54:41.276 [server_router] zellij-server/src/route.rs:2901: Server ready, retrying sending instruction. \nINFO   |zellij_server::plugins::p| 2026-10-24 00:54:41.280 [plugin-exec-0] zellij-server/src/plugins/plugin_loader.rs:151: Loaded plugin 'link' in 5.944041ms \nWARN   |zellij_server::route     | 2026-10-24 00:54:41.283 [server_router] zellij-server/src/route.rs:2901: Server ready, retrying sending instruction. \nINFO   |zellij_server::pty       | 2026-10-24 00:54:41.286 [pty       ] zellij-server/src/pty.rs:502: PtyInstruction::NewTab: spawning terminals for tab 0 \nINFO   |zellij_server::pty       | 2026-10-24 00:54:41.298 [pty       ] zellij-server/src/pty.rs:1307: spawn_terminals_for_layout: 3 tiled + 0 floating panes created, sending ApplyLayout \nINFO   |zellij_server::screen    | 2026-10-24 00:54:41.298 [screen    ] zellij-server/src/screen.rs:9814: ScreenInstruction::ApplyLayout: applying layout for tab 0 \nERROR  |???                      | 2026-10-24 00:54:45.366 [main      ] zellij-client/src/lib.rs:1619: a non-fatal error occurred\n\nCaused by:\n    0: failed to disable mouse mode\n    1: Input/output error (os error 5) \nINFO   |zellij_client            | 2026-10-24 00:54:45.385 [main      ] zellij-client/src/lib.rs:1620: Bye from Zellij! \nERROR  |???                      | 2026-10-24 00:54:45.386 [main      ] zellij-client/src/lib.rs:1217: a non-fatal error occurred\n\nCaused by:\n    0: failed to disable mouse mode\n    1: Input/output error (os error 5) \n"
+    fleet.go:505: native fleet cleaned: root=/Volumes/TestScratch/pc-4200804256 all owned generations absent; direct child and IO joined
+--- PASS: TestDisposableFreshHubCaller (27.29s)
+    --- PASS: TestDisposableFreshHubCaller/claude (17.19s)
+PASS
+ok  	github.com/xianxu/pair/cmd/couch	27.481s
