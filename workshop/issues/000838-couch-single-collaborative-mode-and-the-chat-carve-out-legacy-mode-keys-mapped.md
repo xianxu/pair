@@ -439,6 +439,16 @@ workshop/evidence/000838/operator-check.md. Actual live acceptance, whole-issue
 close/review and landing remain outstanding. Never restart while the new own
 recorded check is queued/running; retain its runner and FIFO.
 
+### 2026-10-24 00:03 — pre-close pin-integration failure; adoption #861 first
+
+Retained pre-close attempt5966ebc327601a4b5febe2c1bdf4ed3f on8448a507ba579038d83eadf15ab70810bc8a030f finished FAILED11m41s. Qualification fixture repair passed. The complete named failure set was repolint build (Rule.Match now requires CheckContext) and artifactpath.TestProductionArtifactReferencesAreExactlyClassified (retired editorial/catalog.go still named in NonArtifactSources). Targeted tests reproduced both; removed only that stale inventory entry, artifactpath whole package then PASS34.182s. Suite log retained as pre-close-8448a507-pin-adoption-failed.log, SHA25669149fe9335d1b664e172bc0a7bcd1482b04a33bb54c68f828ab00d279f0d9c0.
+
+A minimal AST-only catalog adapter compiled, revealing51 newly active lint findings:40 test-shrunk-deadline,5 test-socket-fixture-root,5 json-recursive-scanner,1 tmp-literal. Raw capture retained as catalog-pin-findings.log. Adapter patch saved at /tmp/pair838-contextual-lint-adapter.patch, removed from this checkout for the independent main-based adoption. No rules were disabled, no waivers, no new suite or stage.
+
+Filed unclaimed #861 with exact evidence and findings. Authenticated hub dispatch a942ac93-44d3-441a-90c6-a627e3cd83ed assigns adoption to this slot, on its own branch from main, and approves adoption-first sequencing. #838 cannot use main's old81c832d5: production requires ChatSections and RetiredKeys (#575), Legacy/Tags/Headings/ChatItems provenance and linear CommonMark behavior (#576), and ValidAnswerTarget plus unread-header fixes (#581). Keep the normal required pin; never fork this shared authority.
+
+Next for #838: after #861 lands, integrate main, verify inventory and rerun --pre-close. On PASS coordinate main+#851+#838 staging-only combined build with pair:2 (owns :0 lease); parley.nvim#419 is separately staged. Actual operator acceptance, whole-close/review and landing remain pending. No own runner remains live now. Work resumes on #861 next.
+
 ## Revisions
 
 ### 2026-10-23 — initial implementation design
