@@ -19,6 +19,25 @@ reviewer_runs:
       finished_at: "2026-10-24T17:56:19.860053Z"
       session_id: 01a16f0e-0a27-7360-812b-235946341fe3
       outcome: returned
+    - version: 1
+      intent:
+        id: cb0aae1b-7490-4966-94d0-71bdffdee816
+        repository: github.com/xianxu/pair
+        issue_id: "000844"
+        recipe: estimate-quality
+        round: 1
+        attempt: 1
+        agent: codex
+        root: /Users/xianxu/workspace/worktree/pair-slot1/pair
+        reviewed_head: ae843656467079e092a6494becf59df2bfe69d75
+        slot: pair:1
+        requested_at: "2026-10-24T19:11:18.731347Z"
+      phase: finished
+      pid: 50800
+      started_at: "2026-10-24T19:11:18.899904Z"
+      finished_at: "2026-10-24T19:11:49.907051Z"
+      session_id: 01a16f53-1a1d-7920-8997-84d858c5c149
+      outcome: returned
 gate: plan-quality
 issue: 844
 id_prefix: PQ
@@ -115,7 +134,37 @@ rounds:
           note: Production functions and adversarial strategies are named; prose case inventories have been compressed into an executable test contract.
           round: 3
       blocked: false
-content_hash: 048a40244484461bb190458be507c69f2c8724968952b147f56279c5fef3b68f
+    - reviewer_runs:
+        - version: 1
+          intent:
+            id: 7f1c0c9e-feec-4c93-8084-8d1d431673b3
+            repository: github.com/xianxu/pair
+            issue_id: "000844"
+            recipe: plan-quality
+            round: 4
+            attempt: 1
+            agent: codex
+            root: /Users/xianxu/workspace/worktree/pair-slot1/pair
+            reviewed_head: ae843656467079e092a6494becf59df2bfe69d75
+            slot: pair:1
+            requested_at: "2026-10-24T19:10:51.831703Z"
+          phase: finished
+          pid: 31376
+          started_at: "2026-10-24T19:10:51.986498Z"
+          finished_at: "2026-10-24T19:11:14.182537Z"
+          session_id: 01a16f52-b0d9-7812-9bb8-076b7a131632
+          outcome: returned
+      "n": 4
+      timestamp: "2026-10-24T12:11:14-07:00"
+      agent: codex
+      reviewer: codex (openai; author openai)
+      dispose:
+        - id: PQ-1
+          disposition: addressed
+          note: Production functions and adversarial strategies are named; executable fixtures own detailed scenarios.
+          round: 4
+      blocked: false
+content_hash: 1158a3cfab3d8baae7a93237061d8de5dfa366fa3d932b259c6185dcd0cf108d
 ---
 
 # Gate ledger — pair#844 (plan-quality)
@@ -141,6 +190,12 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 ### Disposed
 
 - PQ-1 — addressed — Production functions and adversarial strategies are named; prose case inventories have been compressed into an executable test contract.
+
+## Round 4 — 2026-10-24T12:11:14-07:00 (codex) — passed
+
+### Disposed
+
+- PQ-1 — addressed — Production functions and adversarial strategies are named; executable fixtures own detailed scenarios.
 
 ## Open findings
 
