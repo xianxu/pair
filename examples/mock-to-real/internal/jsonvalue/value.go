@@ -25,6 +25,8 @@ func Decode(data []byte) (any, error) {
 	}
 	return v, nil
 }
+
+//lint:allow json-recursive-scanner — ariadne#590: standalone number-preserving DOM materializer; remove when upstream role correction lands.
 func value(d *json.Decoder, depth int) (any, error) {
 	if depth > 64 {
 		return nil, fmt.Errorf("JSON exceeds depth 64")

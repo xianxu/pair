@@ -15,8 +15,10 @@ import unittest
 
 
 ROOT = Path(__file__).resolve().parents[1]
-PACKAGES = ("affected", "jsonstrict")
 PREFIX = "cmd/sdlc/internal/"
+# Keep the planner's process ownership implementation intact too. Its public
+# helper and external dependencies use this same provider snapshot's module.
+PACKAGES = tuple(PREFIX + name for name in ("affected", "jsonstrict", "processgroup")) + ("pkg/procgroup",)
 
 
 def provider_sources():
@@ -35,8 +37,7 @@ def provider_sources():
             candidates.append(Path(installed.stdout.strip()))
     for candidate in candidates:
         result = {}
-        for package in PACKAGES:
-            directory = PREFIX + package
+        for directory in PACKAGES:
             if ref:
                 listing = subprocess.run(
                     ["git", "-C", str(candidate), "ls-tree", "-r", "--name-only", ref, directory],
@@ -51,14 +52,18 @@ def provider_sources():
                 for path in (candidate / directory).glob("*.go"):
                     if not path.name.endswith("_test.go"):
                         result[path.relative_to(candidate).as_posix()] = path.read_bytes()
-        if all(any(name.startswith(PREFIX + p + "/") for name in result) for p in PACKAGES):
+        if all(any(name.startswith(p + "/") for name in result) for p in PACKAGES):
             # This consumer requires #517, not merely the older planner. A stale
             # sibling/module is unavailable qualification evidence, not a reason
             # to compile against an API that predates graph_prepare.
             if b"GraphPrepare" not in result.get(PREFIX + "affected/config.go", b""):
                 continue
+            for name in ("go.mod", "go.sum"):
+                result[name] = (subprocess.check_output(
+                    ["git", "-C", str(candidate), "show", f"{ref}:{name}"]
+                ) if ref else (candidate / name).read_bytes())
             return candidate, ref, result
-    message = ("upstream ariadne#517 affected/jsonstrict source unavailable; install it or set "
+    message = ("upstream affected planner and dependency sources unavailable; install them or set "
                "ARIADNE_AFFECTED_SOURCE (and optional ARIADNE_AFFECTED_REF) to qualify its candidate")
     if explicit:
         raise RuntimeError(message)
@@ -379,16 +384,15 @@ class AffectedConfigTest(unittest.TestCase):
         print(f"Qualifying upstream affected source: {candidate}" + (f" @ {ref}" if ref else ""), flush=True)
         with tempfile.TemporaryDirectory(prefix="pair-affected-config-") as scratch:
             root = Path(scratch)
-            (root / "go.mod").write_text("module github.com/xianxu/ariadne/cmd/sdlc\n\ngo 1.26.3\n")
             for name, data in sources.items():
-                path = root / name.removeprefix("cmd/sdlc/")
+                path = root / name
                 path.parent.mkdir(parents=True, exist_ok=True)
                 path.write_bytes(data)
-            fixture = root / "fixture"
-            fixture.mkdir()
+            fixture = root / "cmd/sdlc/fixture"
+            fixture.mkdir(parents=True)
             (fixture / "config_test.go").write_text(GO_TEST)
             result = subprocess.run(
-                ["go", "test", "./fixture", "-count=1", "-v", "-timeout", "3m"],
+                ["go", "test", "./cmd/sdlc/fixture", "-count=1", "-v", "-timeout", "3m"],
                 cwd=root, env={**os.environ, "GOWORK": "off", "PAIR_AFFECTED_ROOT": str(ROOT)},
                 text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
             )

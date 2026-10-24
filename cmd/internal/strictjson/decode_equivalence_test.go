@@ -43,6 +43,7 @@ func legacyRejectDuplicateKeys(raw []byte) error {
 	return nil
 }
 
+//lint:allow json-recursive-scanner — ariadne#590: independent legacy-token fuzz oracle; remove when upstream role correction lands.
 func legacyScanValue(dec *json.Decoder) error {
 	token, err := dec.Token()
 	if err != nil {

@@ -9,6 +9,7 @@ import (
 
 	"github.com/xianxu/pair/cmd/internal/couchmessage"
 	"github.com/xianxu/pair/cmd/internal/testcouch/agentfixture"
+	"github.com/xianxu/pair/cmd/internal/testpair"
 )
 
 func TestDriveBindingUsesExactRegisteredIdentity(t *testing.T) {
@@ -57,10 +58,7 @@ func TestDriveBindingUsesExactRegisteredIdentity(t *testing.T) {
 }
 
 func TestObserveDriveReadinessFailureReleasesFleetAdmission(t *testing.T) {
-	root, err := filepath.EvalSymlinks(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	root := testpair.ShortRoot(t)
 	t.Setenv("COUCH_ISOLATED_ROOT", root)
 	fleet := &Fleet{Roots: RootsPlan{Root: root, Mutable: map[string]string{"store": filepath.Join(root, "store"), "control": filepath.Join(root, "control")}}, Workspaces: Workspaces{Primary: filepath.Join(root, "fixture")}, Options: Options{AgentKind: "claude"}, ctx: t.Context()}
 	// No readiness file exists. The observation must stop before discovering

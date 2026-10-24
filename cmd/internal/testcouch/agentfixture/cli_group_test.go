@@ -9,7 +9,6 @@ import (
 	"strings"
 	"syscall"
 	"testing"
-	"time"
 
 	"github.com/xianxu/pair/cmd/internal/procutil"
 )
@@ -21,7 +20,7 @@ func TestCLILeaderExitCannotAcknowledgeLiveDescendant(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			marker := filepath.Join(t.TempDir(), "descendant-pid")
-			result := runCLI(t.Context(), "/bin/sh", Command{ID: "leader-exited", Timeout: 200 * time.Millisecond, Args: []string{"-c", `sleep 30` + tc.redirect + ` & printf '%s' "$!" > "$1"; exit 0`, "fixture", marker}})
+			result := runCLI(t.Context(), "/bin/sh", Command{ID: "leader-exited", Args: []string{"-c", `sleep 30` + tc.redirect + ` & printf '%s' "$!" > "$1"; exit 0`, "fixture", marker}})
 			raw, err := os.ReadFile(marker)
 			if err != nil {
 				t.Fatal(err)
