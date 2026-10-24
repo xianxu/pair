@@ -125,13 +125,19 @@ func TestDistillerFIFOChildEarlyExitIsJoined(t *testing.T) {
 }
 
 func TestDistillerFIFOChildCancellationJoinsBlockedRead(t *testing.T) {
-	c, owner, _, modelDir := distillerFIFOFixture(t)
+	c, owner, fifo, modelDir := distillerFIFOFixture(t)
 	child := startDistillerChild(t, context.Background(), c.Root, "render")
 	if err := child.awaitLease(c, owner); err != nil {
 		t.Fatal(err)
 	}
-	// With no writer the real RunWithEnv is blocked opening/reading the FIFO.
-	// Cancellation must reap it rather than leave a syscall goroutine behind.
+	writer, err := child.openWriter(fifo)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer writer.Close()
+	// Writer admission proves the child opened its reader endpoint. Keep the
+	// writer empty and held, so neither payload nor EOF can complete ReadFile.
+	// Only cancellation can join this deliberately stalled command.
 	child.stop()
 	if err := child.wait(); err == nil {
 		t.Fatal("cancelled blocked reader succeeded")
