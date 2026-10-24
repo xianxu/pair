@@ -98,7 +98,10 @@ if [ "$package" = ./cmd/pair-go ]; then printf 'pair\n' >> "$base/calls"; fi
 printf '#!/bin/sh\nprintf "fixture Pair\\n"\n' > "$output"
 /bin/chmod 700 "$output"
 `)
-			write("git", "#!/bin/sh\nprintf 'selected-head\\n'\n")
+			write("git", `#!/bin/sh
+if [ "$1" = --exec-path ]; then printf '%s\n' "${0%/*}"; else printf 'selected-head\n'; fi
+`)
+			write("git-upload-pack", "#!/bin/sh\nexit 0\n")
 			for _, name := range []string{"sdlc", "weave", "zellij", "nvim", "cc", "c++", "clang", "clang++", "xcrun", "ld", "ar", "ranlib", "dsymutil"} {
 				write(name, "#!/bin/sh\nprintf 'fixture tool\\n'\n")
 			}
