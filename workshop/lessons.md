@@ -7,6 +7,7 @@ representative evidence, not an exhaustive index.
 
 ## Proof and verification
 
+- #841 BR-1/BR-2/BR-3: For a conservative visual aid, match final fitted display words and permit false negatives. Exclude generated metadata and ambiguous path/link/bracket chunks; skip wrapped row edges that may be fragments. Source-substring projection fails when fitting removes zero-width characters. Use fixed-clock grammar boundaries and exact clipped-row accents, not a test satisfied by any earlier colored label.
 - #852: Retry-count fixtures with synchronous fake completion must drive injected completion and whole-operation deadlines explicitly. A real deadline can expire during coordinated store finalization after proof is already present, adding spurious recovery drives. Pair a tiny-budget positive with withheld-proof, cancellation and whole-budget controls; keep production budgets unchanged.
 - #679 BR-1: A source census must classify each relevant IPC contract from its actual producer/consumer behavior. A list of Mkfifo paths does not justify calling every remaining use metadata validation; payload barriers and held lifetimes are distinct, valid patterns.
 
@@ -2865,3 +2866,4 @@ and external temporary roots rather than relying on the host's TMPDIR.
 
 - #845 review execution: a native harness watchdog must cover the test’s own startup/scenario context plus cleanup. A shorter go-test deadline aborts defers and creates unverifiable residue; inspect/reconcile that exact owner before starting another fleet, and do not call the watchdog a product failure.
 - #802 BR-1: operator-facing notice wording is restated in the embedded `skills/couch/SKILL.md` and the atlas. When a producer string changes, grep the literal shape and reason labels repo-wide and update every live restatement; archived issues and comments that describe the condition are not copies. Updating the atlas alone is not the sweep.
+- #849 BR-1/BR-2: a submission contract is restated for agents in `submission.ReadingGuide` (stored in every bundle), the embedded couch `SKILL.md` and README, besides the atlas. When the contract changes (what is selected, what refuses, a provenance value), grep its key phrases across `cmd/` and README before close and move the tests that pin them; the atlas alone is not the sweep (same class as #802 BR-1).

@@ -244,7 +244,7 @@ func TestReadingGuideExplainsHistoricalSketchEvidence(t *testing.T) {
 
 func TestReadingGuideExplainsCurrentConsoleSelectionAndLegacyEvidence(t *testing.T) {
 	guide := ReadingGuide("/recording")
-	for _, term := range []string{"actually visible on the current console", "at most eight sketches", "N more sketches", "N more annotations", "stale visible selection", "current recorded prefix", "replay-rendered-current-view", "current projections", "pointer", "legacy shared"} {
+	for _, term := range []string{"open notes at their current revisions", "at most eight sketches", "offscreen ones included", "still being written refuses", "replay-rendered reconstructs", "recorded anchors", "replay-rendered-current-view", "pointer", "legacy shared"} {
 		if !strings.Contains(guide, term) {
 			t.Errorf("reading guide omits current-view contract %q", term)
 		}

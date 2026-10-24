@@ -426,7 +426,7 @@ func TestSharedPageAcceptsExplicitZeroFalseAndEmptyFacts(t *testing.T) {
 
 func TestReadingGuideExplainsSharedPageIndicesAndPrivacy(t *testing.T) {
 	guide := ReadingGuide("/recording")
-	for _, want := range []string{"sketch-page.png", "sketch_page", "index", "finish", "full-page privacy", "replay-rendered-current-view", "current projections"} {
+	for _, want := range []string{"sketch-page.png", "sketch_page", "index", "finish", "full-page privacy", "replay-rendered reconstructs", "replay-rendered-current-view"} {
 		if !strings.Contains(guide, want) {
 			t.Errorf("reading guide missing %q", want)
 		}

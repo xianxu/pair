@@ -719,10 +719,11 @@ its attempt for inspection; peek/show before another recovery request.
 A DOM submission points to `submission.json`, relative `crop-N.png` note files
 and one `sketch-page.png` for a shared sketch batch (legacy bundles retain
 `sketch-N.png`). Match numbered image badges to each sketch's `index`, note and
-original `paths`. New `sketch_page.provenance: "replay-rendered-current-view"`
-images reconstruct the current recorded prefix pinned when the submission chord
-is admitted. Read `sketch_page.current` for current projections; each sketch's
-`source`, `finish` and element facts retain their original historical contexts.
+original `paths`. New `sketch_page.provenance: "replay-rendered"` images
+reconstruct, from the recording, the viewport where the newest selected sketch
+finished, with the ink at its recorded anchors; each sketch's `source`, `finish`
+and element facts retain their original historical contexts. Older bundles may
+carry `replay-rendered-current-view` with `sketch_page.current` projections.
 Read the root `sketch_page` privacy/limitations as well as each item's.
 Only selected unsent ink appears; pointer and private tool UI never enter it.
 The manifest includes recorded note context, draw-time box text/accessibility
@@ -754,11 +755,10 @@ Completed sketches join the same operator draft submission. One finished sketch
 may contain several strokes sharing one attached note. Read each sketch's
 `source.url`, `source.title`, `source.provenance: "recorded-dom"`, author, note,
 `elements`, and image transform/limitations. New bundles reference one
-`sketch-page.png` through `sketch_page`: a replay reconstruction of the current
-console viewport, with only selected ink and numbered badges matching each
-sketch's `index`. Its provenance is `replay-rendered-current-view`; current
-projections in `sketch_page.current` record the actually painted target locators,
-boxes and clipping. Original coordinates and pressure remain in each sketch's
+`sketch-page.png` through `sketch_page`: a replay reconstruction of the recorded
+viewport where the newest selected sketch finished, with only selected ink at
+its recorded anchors and numbered badges matching each sketch's `index`. Its
+provenance is `replay-rendered`. Original coordinates and pressure remain in each sketch's
 `paths`, with its exact `finish` context. Legacy bundles retain per-sketch
 `sketch-N.png` images and `image.plan.paths`; legacy shared pages keep their
 recorded finish-time context. These images reconstruct recorded content;
@@ -773,15 +773,15 @@ attributes for original anchors, ancestors and nearby recorded elements, with
 explicit bounds/truncation. Do not infer application meanings from these values.
 Ordinary notes also carry these facts at their recorded context/capture moment.
 
-The operator sees the next selection before the existing draft chord sends:
-only feedback actually visible on the current console is eligible, with at most
-eight unsent finished sketches. The Pending feedback panel shows annotation and
-sketch counts, plus deferred **N more sketches** and **N more annotations**.
-Off-view feedback stays pending. A stale visible selection refuses preparation;
-partial selected ink, unsupported clipping, an open editor or a held drawing
-scene also refuses preparation. The operator reviews a fresh completed paint
-before trying again. The chord pins its current recorded prefix; pointer
-gestures and private tool UI never enter the submission. Confirmed dispatched/resolved manifests acknowledge only their
+The draft chord takes the board's feedback as it is at the press: every open
+note at its current revision and every finished, labelled sketch at its current
+version that no earlier submission delivered, offscreen ones included, with at
+most eight sketches (oldest first); the rest wait for the next submission. What
+the page is doing never refuses it. Only a note still being written (a new note
+not saved, or an edit not saved) refuses the press, naming it. The Pending
+feedback panel shows what the console paints and is information, never a gate.
+Unsupported clipping still refuses preparation; pointer gestures and private
+tool UI never enter the submission. Confirmed dispatched/resolved manifests acknowledge only their
 exact sketch versions, across targets. Those exact sketch versions and note
 revisions disappear from live console/viewer painting after confirmation; unsent
 or newer feedback stays. Original ink and notes remain in recording history and

@@ -380,3 +380,19 @@ func TestCastSketchPageUsesFrozenSubmissionView(t *testing.T) {
 		t.Fatal("history changed or image not shared")
 	}
 }
+
+// pair#849: what a press submits carries no live view, so each sketch renders
+// from the recording at its own recorded finish, whatever the page shows now.
+func TestCastPressSelectionRendersFromTheRecording(t *testing.T) {
+	c, _, selected := castSketchSubmissionFixture(t, 1)
+	live := sketchimage.PageScene{RecordingID: "shapes", SketchSourceFacts: selected.Sketches[0].Finish}
+	selected.CurrentPage = &live
+	selected.Current = &sketchimage.CurrentView{}
+	sub, _, err := c.PrepareSubmission(context.Background(), "press", castSubmissionTarget(), selected.PressSelection(core.DeliveredFeedback{}), "", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if sub.SketchPage == nil || sub.SketchPage.Provenance != "replay-rendered" || sub.SketchPage.Current != nil || sub.SketchPage.Source.SketchSourceFacts != selected.Sketches[0].Finish {
+		t.Fatalf("page=%+v", sub.SketchPage)
+	}
+}

@@ -26,6 +26,7 @@ type submissionCastFake struct {
 	prepared, resolved int
 	path               string
 	onPrepare          func(func(core.SubmissionProgress))
+	onSelection        func(board.Selection)
 }
 
 func (f *submissionCastFake) RecordingPath() string { return f.path }
@@ -39,6 +40,9 @@ func (f *submissionCastFake) PrepareSubmission(ctx context.Context, id string, t
 	f.mu.Lock()
 	f.prepared++
 	f.mu.Unlock()
+	if f.onSelection != nil {
+		f.onSelection(s)
+	}
 	if f.onPrepare != nil {
 		f.onPrepare(progress)
 	}
