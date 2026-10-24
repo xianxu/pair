@@ -127,6 +127,12 @@ Complete corrected-head race packages passed: zellijquery22.776s, panebirth1.165
 
 The old recorded run lease-1599648425 was cancelled through local-check after code-changing review; its runner confirmed suite-lock interruption and exit1. It supplies no pass. Complete targeted verification and corrected-head native qualification precede a new pushed-head recorded check and normal close retry. No operator staging or landing is claimed.
 
+### 2026-10-24 — corrected-head native qualification and recorded check
+
+Corrected source c9d6f8ed4c3b642a8de48676f1cd9d90ccee4c67 passed the same disposable shared-harness qualification for both agents: TestDisposableZellijStartupReadiness145.19s, Claude63.62s/Codex49.83s, package145.393s. Both exact owned generations were absent after cleanup and direct child/IO joined. Complete native logs were retained without truncation; no panic appeared. Existing upstream retry-queue warnings and teardown mouse-mode IO errors remain in the capture; this bounded startup sample does not cover interactive reconnect or creator death. Capture [native-startup-readiness-review-c9d6f8ed4.log](../evidence/000866/native-startup-readiness-review-c9d6f8ed4.log), SHA256016720b0388837bb50cb1faa75a448d6a1033575005e6591885107ba3e2676e1.
+
+Fresh recorded pre-close on that pushed source escalated affected to the full suite for the repository-backed native qualification reader. Run lease-2764913252, log /Users/xianxu/workspace/pair/.git/sdlc/test-stats/inflight/e615446903a6493db61d51e33e739a57/run.log, is queued in the normal FIFO (initial position6). No recorded pass yet. The following evidence-only commit changes no code; retain this run through the normal close review. Landing and TL-sequenced operator smoke remain outstanding.
+
 ## Revisions
 
 ### 2026-10-24 — final plan bookkeeping and source ownership
