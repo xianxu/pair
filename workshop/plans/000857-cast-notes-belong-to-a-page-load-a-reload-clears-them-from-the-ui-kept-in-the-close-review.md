@@ -108,3 +108,91 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-24T04:47:27-07:00 (REWORK)
+
+| field | value |
+|-------|-------|
+| issue | 857 — Cast notes belong to a page load; a reload clears them from the UI (kept in the recording) |
+| repo | pair |
+| issue file | workshop/issues/000857-cast-notes-belong-to-a-page-load-a-reload-clears-them-from-the-ui-kept-in-the.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 7cb0b672ebb6aca081ae63f19c27b0aafc45270f..eadf97328b414bc627c434b9a561f3b181f21408 |
+| command | sdlc close --issue 857 |
+| reviewer | codex (openai; author openai) |
+| isolation | fenced |
+| timestamp | 2026-10-24T04:47:27-07:00 |
+| verdict | REWORK |
+
+## Review
+
+```verdict
+verdict: REWORK
+confidence: high
+```
+
+The implementation matches the page-load design in the inspected paths, and component, browser and focused race tests pass. BR-1 and BR-3 are addressed. BR-2 remains blocking: native Chrome again crashed before opening a page, preventing independent lifecycle qualification.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      Plan integration rows now distinguish reused consumers from changed files and identify page_load_live_test.go as the native fixture. The Revisions passage at workshop/plans/000857-page-load-feedback-plan.md:250 explains unchanged ownership. recording/catchup.go retains complete Seg records; passing replay/compaction tests qualify that reuse (ARCH-PURPOSE).
+  - id: BR-2
+    disposition: not-addressed
+    note: |
+      At pinned head eadf97328b414bc627c434b9a561f3b181f21408, WEBCAST_LIVE_CHROME=1 go test ./cmd/internal/webcast -run '^TestPageLoadLiveFeedbackLifecycle$' -count=1 -v -timeout=150s failed at page_load_live_test.go:53 before page creation: GPU process exit_code=6, “GPU process isn't usable.” Inspected the committed successful rerun log and confirmed subsequent changes are documentation/evidence only, but the implementor log alone does not resolve the required independent qualification. BR-2 remains kind: unverifiable; provide independently verifiable source-bound host evidence or rerun review with working native Chrome (ARCH-MOCK).
+  - id: BR-3
+    disposition: addressed
+    note: |
+      atlas/webcast-format.md:227–231 now describes creation-segment load membership, same-load restoration and the standalone adapter fallback, matching web/annotate.js:138 and web/page-load.js. This is a prose-only correction supported by the code and passing browser tests (ARCH-DRY).
+```
+
+1. **Strengths**
+
+   - Exact load identity is separate from activation segments, preserving same-load tab return.
+   - Recorder tests control snapshot and sink ordering, including supersession during reserved writes.
+   - Recursive unknown-field preservation and strict identity validation have substantive round-trip tests.
+   - README and atlas document current-load selection, pending scope and retained history.
+
+2. **Critical findings:** None remaining.
+
+3. **Important findings:** BR-2 remains open at `cmd/internal/webcast/page_load_live_test.go:53`. Restore native qualification and rerun the lifecycle scenario.
+
+4. **Minor findings:** None remaining.
+
+5. **Test coverage notes**
+
+   Passed recording, recorder, Board, query, sketchimage and submission package suites; all 615 browser tests; focused recorder/Board race tests; and targeted module assembly tests. Native lifecycle qualification failed during Chrome startup. No repository files were changed.
+
+6. **Architectural notes**
+
+   - **ARCH-DRY — pass:** shared membership and provenance helpers.
+   - **ARCH-PURE — pass:** identity, codecs and transitions are directly testable without IO.
+   - **ARCH-PURPOSE — pass:** UI and selection filter current-load feedback; queries retain history.
+   - **ARCH-MOCK — flag:** fake coverage passes; native conformance remains unverified under BR-2.
+   - **ARCH-CONSTRAINTS — pass:** bounded requests, counted work and existing deadlines retained.
+   - **ARCH-SECURE — pass:** strict owned identity validation; no URL-derived authority.
+   - **ARCH-ORDER — pass:** explicit transitions and controlled adverse-order tests.
+   - **ARCH-FUNERAL — pass:** owner cleanup joins work; metadata follows recording retention.
+   - **ARCH-EVOLVE — pass:** additive metadata and recursive extension preservation are tested.
+
+7. **Plan revision recommendations:** None additional. The ownership reconciliation is accurate; native acceptance remains pending verification.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"984e204a-0da9-451c-b6c7-bcbe4239e7f5","repository":"github.com/xianxu/pair","issue_id":"000857","recipe":"milestone-review","round":2,"attempt":1,"agent":"codex","root":"/Volumes/TestScratch/review-checkouts/5280461bc6ef126c","reviewed_head":"eadf97328b414bc627c434b9a561f3b181f21408","slot":"pair:4","requested_at":"2026-10-24T11:43:48.906502Z"},"phase":"finished","pid":72588,"started_at":"2026-10-24T11:43:49.040883Z","finished_at":"2026-10-24T11:46:20.428631Z","session_id":"01a16db9-66a3-79b1-a4cf-61b824a6deb7","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 3.091305208s
+head: "eadf97328b414bc627c434b9a561f3b181f21408"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412

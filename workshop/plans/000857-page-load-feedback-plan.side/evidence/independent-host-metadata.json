@@ -1,0 +1,29 @@
+{
+  "git_head": "eadf97328b414bc627c434b9a561f3b181f21408",
+  "pr": {
+    "headRefName": "000857-cast-notes-belong-to-a-page-load-a-reload-clears-them-from-the-ui-kept-in-the",
+    "headRefOid": "eadf97328b414bc627c434b9a561f3b181f21408",
+    "url": "https://github.com/xianxu/pair/pull/587"
+  },
+  "remote": "eadf97328b414bc627c434b9a561f3b181f21408\trefs/heads/000857-cast-notes-belong-to-a-page-load-a-reload-clears-them-from-the-ui-kept-in-the",
+  "command": "WEBCAST_LIVE_CHROME=1 go test ./cmd/internal/webcast -run '^TestPageLoadLiveFeedbackLifecycle$' -count=1 -v -timeout=150s",
+  "argv": [
+    "go",
+    "test",
+    "./cmd/internal/webcast",
+    "-run",
+    "^TestPageLoadLiveFeedbackLifecycle$",
+    "-count=1",
+    "-v",
+    "-timeout=150s"
+  ],
+  "worktree": "/Volumes/TestScratch/pair-857-independent.FcUolj/worktree",
+  "TMPDIR": "/Volumes/TestScratch/pair-857-independent.FcUolj/test-tmp",
+  "started_utc": "2026-10-24T11:50:50.556047+00:00",
+  "runs": 1,
+  "preflight": "Headless:true; ProfileDir:t.TempDir(); Launch uses --headless=new and --user-data-dir; desktop activateProcess guarded by !opts.Headless",
+  "exit_status": 0,
+  "elapsed_seconds": 11.953032459015958,
+  "finished_utc": "2026-10-24T11:51:02.513922+00:00",
+  "stdout_stderr_sha256": "fd63b1446d35513c95bfc31edc608061d6e5edf5101ccbdc96d7e0fac8b13c27"
+}

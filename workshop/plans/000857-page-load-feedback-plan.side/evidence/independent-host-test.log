@@ -1,0 +1,13 @@
+=== RUN   TestPageLoadLiveFeedbackLifecycle
+    page_load_live_test.go:63: initial accepted load: target=2AE4263610A8CF7726075652C4CB48CE loader=5AB25F7510A33E54507F481DDB9E8E8E root=4 doc=1
+    page_load_live_test.go:67: fixture accepted load: target=2AE4263610A8CF7726075652C4CB48CE loader=ED27A0B37BC98FDF1FB77626FA02D5AC root=203 doc=2
+    page_load_live_test.go:83: different target accepted: target=62AC31B5A419DF4CCFC9BAFC5D797B55 loader=CD07C4709C9E6F9E80382BB5C0C3088F root=1 doc=3
+    page_load_live_test.go:89: note-only original target return: target=2AE4263610A8CF7726075652C4CB48CE loader=ED27A0B37BC98FDF1FB77626FA02D5AC root=203 doc=4
+    page_load_live_test.go:116: same-load resume: target=2AE4263610A8CF7726075652C4CB48CE loader=ED27A0B37BC98FDF1FB77626FA02D5AC root=203 doc=4
+    page_load_live_test.go:131: same document after app update: target=2AE4263610A8CF7726075652C4CB48CE loader=ED27A0B37BC98FDF1FB77626FA02D5AC root=203 doc=4
+    page_load_live_test.go:138: new target at exact same URL: target=EE10EC8B4E6B3C07559028DD0DEFDC5B loader=F6061A6D5668DEC5635165C1C62259DC root=1 doc=6
+    page_load_live_test.go:144: original load restored after same-URL target: target=2AE4263610A8CF7726075652C4CB48CE loader=ED27A0B37BC98FDF1FB77626FA02D5AC root=203 doc=7
+    page_load_live_test.go:155: reloaded native identity: target=2AE4263610A8CF7726075652C4CB48CE loader=F90F172981D20D42F5EBB65ADC6E999A root=648 doc=8
+--- PASS: TestPageLoadLiveFeedbackLifecycle (4.37s)
+PASS
+ok  	github.com/xianxu/pair/cmd/internal/webcast	4.656s
