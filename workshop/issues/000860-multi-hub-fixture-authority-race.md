@@ -1,12 +1,20 @@
 ---
 id: 000860
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-10-23
-updated: 2026-10-23
+updated: 2026-10-24
 estimate_hours:
-card_mirror: 'c4b3214fb979a4f94ea871442ef28f4783171f8b' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '5a04c92d804322cec1434d02d8be35cc0e113b7c' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-24T00:22:54-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: Xian’s MacBook Pro
+    workspace: pair:9
+    worktree: /Users/xianxu/workspace/worktree/pair-slot9/pair
+    repository: github.com/xianxu/pair
 ---
 
 # Multi-hub test fixture mutates authority after message readers start
@@ -50,3 +58,11 @@ Build the final multi-hub authority before starting its service readers, using t
 ## Log
 
 Observed during #812 targeted integration checks. Full recorded #812 suite failure on70185310 was a different stale startup display oracle; this race was found only by the broader targeted race run. Unclaimed follow-up; not fixed under #812.
+
+### 2026-10-24 — Claimed and reproduced before implementation
+
+Claimed by pair:9 after #825 and #841 landed, on fresh main99846a5015f753f05edaf4778618849f377a2f71. Start-plan refreshed the substrate and created the issue branch; no generated vocabulary dirt remains. Ran runtimebundle-generate, then the exact notification test under race with count20 and timeout120s. It failed in1.012s with both multiHubWaitRig authority writes racing messageService.execute at896; raw evidence is /tmp/pair860-baseline-race.log. No implementation changes were made before this RED.
+
+The service publishes its connected snapshot before execute finishes reading authority, so waitConnected is not a completion barrier for changing immutable configuration. Existing serviceRig.decorateAuthority runs before newMessageService and survives restart. A read-only fixture audit recommends passing that decorator through newWaitRig and constructing multi-hub ownership before invoking it. A deterministic startup-policy regression can independently require automation status for both configured hubs: late replacement currently leaves /repo3 unknown because startup seeded only /repo1.
+
+The same audit enumerated analogous already-connected fixture assignments in hub_admission_test, hub_guards_test, hub_mutation_payload_test, recovery_confirmation_test, archive_notify_test and lifecycle_notices_test. Quiescent pre-wrapper assignments and local authority/service literals are distinct. Scope and enforcement are being included in the plan to the hub before code; no production lock, timing sleep, retry or assertion weakening is proposed (ARCH-ORDER, ARCH-DRY, ARCH-PURPOSE).
