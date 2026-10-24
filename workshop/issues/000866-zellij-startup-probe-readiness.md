@@ -1,13 +1,21 @@
 ---
 id: 000866
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-10-24
 updated: 2026-10-24
 estimate_hours:
 severity: high
-card_mirror: '4cefef838a25a9ab738c4ac9b26f2d1d875b2d45' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '05833eb514c1aae1546dffc8f037df94f84edf05' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-24T02:48:13-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: Xian’s MacBook Pro
+    workspace: pair:5
+    worktree: /Users/xianxu/workspace/worktree/pair-slot5/pair
+    repository: github.com/xianxu/pair
 ---
 
 # Wait for Zellij readiness before startup probe clients
@@ -39,8 +47,27 @@ Installed binary /opt/homebrew/Cellar/zellij/0.45.1/bin/zellij. Verified local t
 
 ## Plan
 
-- [ ]
+- [ ] Approve the readiness/coordination contour in [the durable plan](../plans/000866-zellij-startup-readiness-plan.md), then enter change-code; no estimate before its gate.
+- [ ] Implement one readiness authority and bounded shared admission with deterministic regression controls and normal bypass prevention.
+- [ ] Qualify shared disposable native startup, retain exact cleanup/failure evidence, record pre-close verification, then close/land through the gates.
 
 ## Log
 
 2026-10-24: Filed unclaimed at TL8029db79's direction, for pair:5; do not wait for #863 to land. Both native failures and source pointer retained above. No production workaround in #863.
+
+
+### 2026-10-24 — planning investigation and parked #722
+
+Claimed #866 and started its own main-based branch through SDLC; #722 was checkpointed/pushed separately and remains SHIP/codecomplete awaiting its watched morning rerun. start-plan catch-up deferred stale merge-check.yml rather than changing protected config. No production code or gate configuration changed.
+
+Inspected tagged Zellij source efd8fd5a via git show (checkout HEAD differs). listener accepts probe clients before metadata initialization; list-sessions ConnStatus does not certify readiness and removal reaches the None unwrap. Existing Pair create Admit already waits for exact agent readiness, but global ListingPoller and concurrent launcher observations are not excluded by that local wait. The exact historic probing process is still unattributed. First executed pane or actual server Render is a valid witness; no universal passive, current-generation readiness cache/CLI was found. Proposed shared namespace startup/probe exclusion and explicit retained uncertainty in the durable plan; needs TL approval before code.
+
+TL8db7cb72 supplied the third capture at workshop/evidence/000863/branch-required-native-7a71f335.log on #863's remote branch; inspected bytes/hash217ecb09534658cc33ca98bdc08f71ff87141e1305d0ca28b8ba42af424f0f11 and the same pre-initialization1462 panic. No flake-rate claim.
+
+A private direct-server diagnostic started under /Volumes/TestScratch/p866-kmgx1mqo, then its Python ps parser raised ValueError on an unrelated command's unmatched quotation, before the test query and cleanup. Reported gap to TL2d29a1aa (submitted); per TL78d1179c stopped direct socket/process probing. TL5ead059e (submitted) confirms exact private server21479 terminated and no other matches. No standalone reproduction result is claimed and no upstream issue filed. Further evidence comes from documented CLI/output and shared native harness only. Root cause research is source-supported, not proof that a specific old process sent the trigger.
+
+## Revisions
+
+### 2026-10-24 — proposed shared readiness exclusion
+
+The existing local wait alone cannot protect a newly created session from global observers. The proposed plan adds a namespace-level creator/probe lease and bounded retained uncertainty, using exact existing pane readiness and explicit supported retirement. This is a scope/coordination proposal, not implementation authorization; alternatives and state/recovery table are in the durable plan. Await TL decision, then change-code before production edits.
