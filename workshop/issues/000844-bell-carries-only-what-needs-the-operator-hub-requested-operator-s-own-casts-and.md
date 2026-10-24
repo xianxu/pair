@@ -130,6 +130,10 @@ Ops:0 delivery c7464d76-eef8-46c9-b642-0300e78316af authenticated submitted: the
 
 NEXT ACTION: inventory then binary-owned close review while the suite waits/runs; retain the check and classify its complete result. After both gates pass, send pair:4 the head/checklist for combined stage, obtain live acceptance, then PR/merge and outcome report. Do not restart this slot while its check is queued/running.
 
+### 2026-10-24 — authorized actual-measurement refusal
+
+Normal close on candidate 4e5772e3855d0126ad3a3fe943183181114eb319 refused before review: "can't auto-compute (measurement branch proof: measurement sources exceed snapshot limit 128)." It printed no measured window or sessions. Candidate window reconstructed from the authoritative card's started anchor and pinned last issue commit: 2026-10-24T10:30:06-07:00 through 2026-10-24T11:42:28-07:00 (tracker claim commit 2013428b9 at 10:30:07; no release). This identifies the failed candidate, not numeric actuals or a successful measurement. Using only --no-actual under ops:0's standing authorization 8ed4d3ff-1e37-4edf-9c60-5ecaf47edafe; no typed hours. The suite remains queued and live acceptance remains outstanding.
+
 ## Estimate
 
 Produced via brain/data/life/42shots/velocity/estimate-logic-v3.1.md against baseline-v3.1.md. Method A only. Calibration is flagged stale by estimate-source, so these are provisional ship-wall-clock hours. Read v2/v2.1 procedure and table: retain issue/spec design cost; use x0.2 design discount for approved module/integration/refactor decisions, 40% implementation conversion, familiarity 1.0 and 15% design buffer.
