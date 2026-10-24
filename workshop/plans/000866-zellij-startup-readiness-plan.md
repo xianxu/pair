@@ -328,3 +328,24 @@ Hot-path cost: for C passive namespace candidates, one complete candidate pass p
 - [ ] Update atlas/startup documentation and durable evidence; push final source; record sdlc local-check run --pre-close, run make test-affected-inventory and use the binary-owned close review/ordinary landing path. #722 remains separately parked for its operator-watched rerun.
 
 **Review disposition request:** PQ-1 is answered by explicit command-class ownership and the TL-authorized interactive limitation, not by inventing an unsupported release event. PQ-2 is answered by immutable same-generation publication plus explicit nested raw-member preservation and round-trip tests. TL should approve/reject this consolidated contour once; another substantive design correction means stop and re-scope per c8f6e5d4.
+### 2026-10-24 04:02 PDT — TL-approved recovery scope narrowing
+
+**Reason and authority:** integration exposed that marker-qualified `SessionPresent` runs before `KillServer` in `quiesceAuthorizedSession`, preventing existing explicit recovery of an unmarked endpoint. Authenticated submitted TL delivery e39af197-9300-46c9-8503-a328080ebb48 directs this narrowing and continuing implementation. This revision supersedes the third consolidation's universal marker qualification, not its one-lock ownership, joining, capacity, exact publication or retirement rules.
+
+**One resource, two admissions (ARCH-DRY):** every cooperating bounded native invocation still takes the same namespace lease. Automatic background probes (the ListingPoller and unattended helper reads) additionally require complete positive marker qualification. Explicit recovery (`quiesceAuthorizedSession`, exact `KillServer`, and its confirming `SessionPresent`) retains today's unmarked-endpoint behavior, taking exclusion without marker qualification. Explicit bounded mutations likewise use exclusion; helper reads retain qualification. No new lock, journal, recovery command, serialized bypass or cleanup authority is introduced. The distinction is caller policy carried by the existing in-process Source seam; it does not make a marker authority to kill.
+
+| Integration | Files | Delta | Proof |
+|---|---|---|---|
+| Shared guard admission | cmd/internal/zellijquery/readiness_os.go; query.go; command.go | factor the same lock into qualified automatic reads and exclusion-only explicit commands/recovery; `Source.ExplicitRecovery` is an explicit trusted caller choice | unmarked private endpoint rejects automatic runner but allows explicit runner; both wait behind live creator; cancellation starts no child |
+| Existing recovery observation | cmd/internal/launcher/session_quiescence.go; zellij.go | only explicit recovery's SessionPresent selects exclusion-only reads; default Source and ListingPoller remain qualified | private stateful recovery retires its exact authorized fake server while automatic probe remains refused |
+| Bounded helper lifetime | cmd/pair-go/main.go; cmd/internal/launcher/osruntime.go | early helper catches termination, cancels and joins native child; native kill replaces Pair with this helper | argv/exit, subprocess cancellation and helper exclusion through joined native lifetime; non-native override unchanged |
+
+| Internal condition | Visible result | Recovery action | Limit |
+|---|---|---|---|
+| automatic probe sees unmarked endpoint | unknown/starting; no native probe | wait, cancel current launch, or existing explicit recovery | no fabricated empty inventory |
+| explicit recovery sees unmarked endpoint, creator lease held | bounded wait | wait or cancel recovery | no recovery scan inside live cooperating creator window |
+| explicit recovery sees unmarked endpoint, creator lease free | existing exact-authorized recovery proceeds | existing recovery | **explicit recovery can still touch an unready server outside the creator window**, including after creator death; upstream panic risk remains accepted |
+
+- [ ] Add exclusion-only admission and Source policy tests RED/GREEN, preserving qualified default behavior and original budgets.
+- [ ] Wire existing explicit recovery observations and test authorized retirement plus the automatic-probe refusal control.
+- [ ] Complete bounded caller/helper integration, then the still-required third-consolidation inventory, marker retirement, native qualification and one close boundary. No native qualification or stage of an incomplete head.
