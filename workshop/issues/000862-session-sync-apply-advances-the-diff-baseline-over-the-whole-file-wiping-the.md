@@ -54,17 +54,18 @@ map cleanly.
 - An apply whose records touch only one section leaves an operator's unread edit in another section in `diff`
   (test).
 - An apply's own edits don't show in `diff` afterwards (test).
-- ariadne's tl-lead fake is updated to match, so its `instructions link` can move to one apply if wanted.
+- Unmappable/missing-baseline apply succeeds with the previous baseline retained and a visible warning; scoped-read recovery is documented and tested.
+- The dependent Ariadne fake update is filed unclaimed against pair#862, with the approved contract and fixture handoff.
 
 ## Plan
 
 Draft: [apply shadow plan](../plans/000862-apply-shadow-plan.md).
 One atomic close boundary, no milestones. Await TL approval before code.
 
-- [ ] Approve the mapped-range contract and conservative retained-baseline warning; coordinate Ariadne fake ownership.
+- [x] Approve the mapped-range contract and conservative retained-baseline warning; separate the dependent Ariadne fake update.
 - [ ] Prove pure mapping and bounded growth, then integrate preparation/public warning handling.
 - [ ] Verify public registered/legacy/CLI paths, unread preservation and refusal/publication controls; update guidance.
-- [ ] Qualify the updated Ariadne fake, inventory and recorded pre-close, then whole close and land.
+- [ ] File the dependent Ariadne fake update; pass inventory and recorded pre-close, then whole close and land.
 
 ## Log
 
@@ -88,3 +89,26 @@ apply success, old baseline retained, visible warning and scoped-read recovery;
 this policy goes to TL for explicit approval before code. No new persisted
 coverage state, parser, timeout or retry. Durable plan records pure/integration
 boundaries, failure states, counted growth, fixtures and public verification.
+
+### 2026-10-24 — approved scope and uncertainty policy
+
+Authenticated ops:0 approval 5ef6e854-e86a-48d7-b966-adec8c332ce2 accepts
+the plan, including successful document apply with whole old baseline retained
+and a visible scoped-read recovery warning when any mapping is uncertain or
+the baseline is absent. The hub explicitly directs the fake update to a
+separate unclaimed Ariadne issue depending on pair#862 and will assign it
+after Pair lands. No code has been changed before approval.
+
+Filed ariadne#615 unclaimed with dependency pair#862; creation published card
+and complete details on origin without changing the peer checkout.
+
+## Revisions
+
+### 2026-10-24 — separate dependent fake adoption, TL-approved
+
+Original Done when required “ariadne's tl-lead fake is updated to match”.
+Per authenticated hub5ef6e854, Pair's acceptance now covers Pair's range
+mapping, conservative warning and filed contract handoff only. The fake update
+waits on landed pair#862 in its own unclaimed Ariadne issue; #862 does not wait
+on its dependent. This removes a dependency cycle without dropping the fake
+adoption work. The approved uncertain outcome is now explicit in Done when.

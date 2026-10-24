@@ -68,9 +68,19 @@ Count mapper span/run visits and copied bytes at N=8 and 2N=16 with proportional
 - [ ] Public tests in apply_shadow_integration_test.go: registered and legacy files, frontmatter+body changes, unread Needs you edits elsewhere and inside the touched section, alias paths, current hash obtained without an acknowledging read. Assert exact document/shadow/state/round and diff. Pin mapped success, retained-baseline warning, no-op, stale/lock/fold guards and publication failures.
 - [ ] CLI regression in cmd/internal/couchcmd/session_sync_test.go uses the portable store/ledger and apply --json plus diff; verify warning JSON and stderr paths without changing wire shape. Standalone ApplyFile and explicit read/write baseline controls remain green.
 - [ ] Update README, atlas/couch.md, embedded Couch skill and CLI help to state range-scoped apply acknowledgment and conservative recovery. Audit reader inventory individually if fixtures add inputs.
-- [ ] Coordinate the Ariadne tl-lead fake through the hub: approved contract and portable cases go to its owning slot, independently based on Ariadne main, no Pair runtime import or stacking. Replace TestFakeApplyAdvancesBaseline with unread-preservation and mapping-fallback cases. Its passing updated fake is required by this issue's Done when; no conversion of instructions link is in scope.
+- [ ] Coordinate the Ariadne tl-lead fake through the hub: approved contract and portable cases go to its owning slot, independently based on Ariadne main, no Pair runtime import or stacking. Replace TestFakeApplyAdvancesBaseline with unread-preservation and mapping-fallback cases. File its update unclaimed with dependency pair#862; the hub assigns it after Pair lands. Pair closes on its own implementation and contract handoff. No conversion of instructions link is in scope.
 - [ ] Run focused tests one at a time per slot, count <= 10, under the overload notice. Then inventory, pushed-head sdlc local-check run --pre-close, whole close, authorized stage/live reproduction if the hub requires it, and authoritative queued merge verification. No unqueued full suite/native matrix.
 
 ## Approval and boundaries
 
 Plan goes to ops:0 before change-code or implementation. Ask the hub to confirm the successful-apply/retained-baseline warning outcome and assign/coordinate the Ariadne fake update. No guessed estimate before plan-quality. If the mapper cannot safely represent a necessary case, stop and bring a concrete counterexample rather than adding coverage state or widening acknowledgment.
+
+## Revisions
+
+### 2026-10-24 — TL approval and separate fake adoption
+
+Hub5ef6e854 approved the complete design and uncertainty behavior. The original
+plan made the updated upstream fake a Pair close requirement; the hub instead
+requires an unclaimed dependent Ariadne issue, assigned after Pair lands.
+Pair's Done when is narrowed accordingly. Existing fake changes are deferred
+to that issue, with no cross-repo implementation on this branch.
