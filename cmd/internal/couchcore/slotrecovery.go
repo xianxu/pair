@@ -485,17 +485,7 @@ func (c *Couch) startFreshSlotWithRecovery(ctx context.Context, path, agent stri
 		return StartResult{}, err
 	}
 	if mode == freshSlotEmptyStartup {
-		// The empty-only record is now committed. Enrollment makes that exact
-		// local record addressable through the namespace; no stopped record was
-		// admitted or retired by this startup attempt.
-		repository, err := c.Slots.Discover(ctx, slot.PrimaryRoot)
-		if err != nil {
-			return StartResult{}, err
-		}
-		if repository.Identity.RepoIdentity != slot.RepoIdentity {
-			return StartResult{}, ErrStartResolutionChanged
-		}
-		if err := c.Threads.EnrollSlotRepository(ctx, repository); err != nil {
+		if err := c.enrollFreshStartupClaim(ctx, local, slot, record, nonce); err != nil {
 			return StartResult{}, err
 		}
 	}
@@ -526,6 +516,28 @@ func (c *Couch) startFreshSlotWithRecovery(ctx context.Context, path, agent stri
 		},
 	})
 	return StartResult{Record: actor, Handle: handle}, err
+}
+
+// enrollFreshStartupClaim owns the published, never-launched claim until the
+// namespace can route it to launchClaimedThread. Failure must use the known
+// local store: namespace enrollment is precisely what may not have succeeded.
+func (c *Couch) enrollFreshStartupClaim(ctx context.Context, local *ThreadStore, slot SlotIdentity, record ThreadRecord, nonce string) (err error) {
+	defer func() {
+		if err != nil {
+			err = errors.Join(err, c.rollbackTrackedStartFrom(local, record, nonce, nil))
+		}
+	}()
+	repository, err := c.Slots.Discover(ctx, slot.PrimaryRoot)
+	if err != nil {
+		return err
+	}
+	if repository.Identity.RepoIdentity != slot.RepoIdentity {
+		return ErrStartResolutionChanged
+	}
+	if err := c.Threads.EnrollSlotRepository(ctx, repository); err != nil {
+		return err
+	}
+	return ctx.Err()
 }
 
 func (c *Couch) slotLaunchProfile(ctx context.Context, local *ThreadStore, slot SlotIdentity, cwd, agent string) (LaunchProfileResolution, error) {

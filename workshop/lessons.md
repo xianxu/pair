@@ -7,6 +7,8 @@ representative evidence, not an exhaustive index.
 
 ## Proof and verification
 
+- #863 BR-3: A published start claim needs one failure owner before launch ownership begins. Discovery/enrollment failures must roll back against the store that accepted the claim, independently of whether namespace routing is available; release native authority only after exact nonce/revision cleanup and positive absence. Pin post-publication failures and successful handoff, not only the later launch tail.
+
 - #841 BR-1/BR-2/BR-3: For a conservative visual aid, match final fitted display words and permit false negatives. Exclude generated metadata and ambiguous path/link/bracket chunks; skip wrapped row edges that may be fragments. Source-substring projection fails when fitting removes zero-width characters. Use fixed-clock grammar boundaries and exact clipped-row accents, not a test satisfied by any earlier colored label.
 - #825: A final file made visible by a hard link can be consumed before its publisher removes the temporary name. Retirement/capacity assertions must count mailbox records with the shared counter, not raw directory entries. Hold publication scratch in regression tests and retain negative controls for genuine records; never remove another producer's scratch to satisfy the oracle.
 

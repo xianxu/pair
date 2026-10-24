@@ -1,0 +1,8 @@
+=== RUN   TestFreshStartupPostClaimDiscoveryFailureRollsBack
+    fresh_startup_cleanup_test.go:99: failed startup retained creating/current record: <nil>
+    fresh_startup_cleanup_test.go:102: failed startup retained native marker: held=true releases=0
+--- FAIL: TestFreshStartupPostClaimDiscoveryFailureRollsBack (0.75s)
+FAIL
+write budget couchcore: bytes=8192 cap=134217728 repeats=1
+FAIL	github.com/xianxu/pair/cmd/internal/couchcore	1.020s
+FAIL

@@ -23,6 +23,11 @@ Missing, unsafe or uncertain evidence never grants creation authority. Each
 target is rechecked under the existing coordinator → global → local store lock
 order before its empty-only reservation is published. Startup cannot use general
 Open to cold-resume or Fresh to replace history that appeared after observation.
+A published numbered-hub claim stays owned through discovery and enrollment.
+Any failure before launch handoff rolls back its exact nonce/revision through
+the known local store, including when namespace enrollment failed; only positive
+record absence releases its native claim. Uncertain cleanup keeps authority
+occupied and reports the original failure together with its cleanup cause.
 The initial observation is retained through those launches, so the new
 sessions cannot turn their own automation on. Known prior history whose sessions
 are absent is `full-shutdown`; unreadable/unresolved evidence is `unknown`.

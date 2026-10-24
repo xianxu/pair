@@ -1,0 +1,21 @@
+--- FAIL: TestFreshStartupPostClaimDiscoveryFailureRollsBack (1.06s)
+    fresh_startup_cleanup_test.go:100: failed startup retained creating/current record: <nil>
+    fresh_startup_cleanup_test.go:103: failed startup retained native marker: held=true releases=0
+--- FAIL: TestFreshStartupPostClaimPreparationFailuresRollBack (2.94s)
+    --- FAIL: TestFreshStartupPostClaimPreparationFailuresRollBack/identity (0.95s)
+        fresh_startup_cleanup_test.go:144: preparation failure kept creating/current record: <nil>
+        fresh_startup_cleanup_test.go:147: preparation failure leaked native marker: held=true releases=0
+    --- FAIL: TestFreshStartupPostClaimPreparationFailuresRollBack/enrollment (1.04s)
+        fresh_startup_cleanup_test.go:144: preparation failure kept creating/current record: <nil>
+        fresh_startup_cleanup_test.go:147: preparation failure leaked native marker: held=true releases=0
+    --- FAIL: TestFreshStartupPostClaimPreparationFailuresRollBack/cancel-enrollment (0.95s)
+        fresh_startup_cleanup_test.go:144: preparation failure kept creating/current record: <nil>
+        fresh_startup_cleanup_test.go:147: preparation failure leaked native marker: held=true releases=0
+--- FAIL: TestFreshStartupPostClaimRollbackReleaseErrorIsSurfaced (0.84s)
+    fresh_startup_cleanup_test.go:216: cleanup error lost: {Configuration:<nil> Record:{configuration:<nil> AttachmentNotice: ID: Thread:{RepoScope: Tag:} Args:{Action: Worktree: Cwd: Stack: Issue: ExtraArgs:[] SameTree:false} StartedAt:0001-01-01 00:00:00 +0000 UTC PID:0 Identity: Shape:} Handle:<nil>} post-claim discovery failure effects=[]
+FAIL
+write budget couchcore: bytes=40960 cap=134217728 repeats=1
+FAIL	github.com/xianxu/pair/cmd/internal/couchcore	5.123s
+FAIL
+
+negative-control exit=1

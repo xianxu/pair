@@ -1292,7 +1292,11 @@ func observeExactProcess(proc ProcOps, expected ProcessIdentity) Liveness {
 }
 
 func (c *Couch) releaseClaimIfThreadAbsent(address ThreadAddress) error {
-	_, err := c.Threads.GetThread(address)
+	return c.releaseClaimIfStoreThreadAbsent(c.Threads, address)
+}
+
+func (c *Couch) releaseClaimIfStoreThreadAbsent(store *ThreadStore, address ThreadAddress) error {
+	_, err := store.GetThread(address)
 	if err == nil {
 		return nil
 	}
