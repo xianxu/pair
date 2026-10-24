@@ -97,3 +97,98 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-24T01:04:01-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 860 — Multi-hub test fixture mutates authority after message readers start |
+| repo | pair |
+| issue file | workshop/issues/000860-multi-hub-fixture-authority-race.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 99846a5015f753f05edaf4778618849f377a2f71..67a53ea2b4d26e3ed053150decb566c473e45068 |
+| command | sdlc close --issue 860 |
+| reviewer | codex (openai; author openai) |
+| isolation | fenced |
+| timestamp | 2026-10-24T01:04:01-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+Both prior findings are addressed. The fixtures now compose child and hub authority before publication, and the acceptance criteria cover the expanded contract. Regression controls fail against the unfixed sources. No new blocking findings were identified; the recorded pre-close suite remains a separate landing requirement.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      All three native-exit assignments now use pre-construction decorators (native_exit_test.go:38, :152, :166). Twenty race repetitions passed. The new source guard passes on head and fails against the prior native-exit source, identifying exactly the three original writes. The issue's Revisions section records the complete family.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      Done-when at workshop/issues/000860-multi-hub-fixture-authority-race.md:53-54 now requires pre-construction child authority, the named proof and native-exit controls, and mechanical enumeration. These requirements match the worker-cue/native-exit fixtures and authority_source_test.go; repeated race checks preserve their assertions.
+```
+
+1. **Strengths**
+
+   - Existing `decorateAuthority` composition is reused across the fixture constructors.
+   - `supervision_test.go:449` checks automation policy for both hubs, initially and after restart.
+   - `authority_source_test.go:14` rejects direct child/hub/hubs assignments outside four individually checked exceptions.
+   - Ownership transitions retain mutex protection; production code and existing behavioral assertions are unchanged.
+
+2. **Critical findings**
+
+   None.
+
+3. **Important findings**
+
+   None.
+
+4. **Minor findings**
+
+   None requiring action.
+
+5. **Test coverage notes**
+
+   - Child-proof, native-exit, notification, supervision and startup-policy controls passed 20 race repetitions.
+   - Changed guard, recovery, archive and lifecycle controls passed 20 race repetitions.
+   - Admission controls passed 20 race repetitions.
+   - The startup-policy regression fails with the original multi-hub helper: `/repo3` lacks automation policy.
+   - Affected-reader inventory and all 13 affected-selector tests passed.
+   - An expanded selection encountered an unchanged startup test’s visible-refusal timeout, then exhausted its 180-second budget. That startup test passed in isolation; the changed controls passed separately.
+   - Full package qualification was not rerun during this review. The checkout remains unchanged.
+
+6. **Architectural notes**
+
+   - **ARCH-DRY: pass** — existing composition and synchronization seams reused.
+   - **ARCH-PURE: pass** — changes remain in integration fixtures and source-checking glue.
+   - **ARCH-PURPOSE: pass** — the enumerated connected child/hub/hubs assignment family is covered.
+   - **ARCH-EVOLVE: pass** — no persisted-format changes.
+
+   No new user-facing or architectural surface requires README or atlas updates. No Core concepts table is present.
+
+7. **Plan revision recommendations**
+
+   None; the existing revisions cover the delivered scope.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"6cd55195-e21a-4508-a3fa-f2d9474724d6","repository":"github.com/xianxu/pair","issue_id":"000860","recipe":"small-diff-review","round":2,"attempt":1,"agent":"codex","root":"/Volumes/TestScratch/review-checkouts/b6dc7b87fc54ff65","reviewed_head":"67a53ea2b4d26e3ed053150decb566c473e45068","slot":"pair:9","requested_at":"2026-10-24T07:58:01.103807Z"},"phase":"finished","pid":20255,"started_at":"2026-10-24T07:58:01.283889Z","finished_at":"2026-10-24T08:03:13.892754Z","session_id":"01a16cea-adc5-78b3-9958-bc4742719fa7","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 3.043943583s
+head: "67a53ea2b4d26e3ed053150decb566c473e45068"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412
