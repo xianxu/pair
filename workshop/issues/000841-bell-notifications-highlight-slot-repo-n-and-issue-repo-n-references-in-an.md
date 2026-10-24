@@ -81,6 +81,12 @@ At TL direction, ran the identical focused command once on separate untouched di
 
 TL directive 295d506f-33e6-4f3b-a09a-89a60e9a0537 authorizes starting #825 from fresh main while retaining #841's queued check, then returning to board #841 on its pass. Both #841 (accepted SHIP, waiting for check/landing) and #825 (claimed, beginning root-cause work) remain owned by pair:9; ariadne#580 tracks overlapping-time attribution. Verified lease-1223841125's detached checkout HEAD954e3caea7078371c91c7523e86a70bdad751658 at /Volumes/TestScratch/local-checks/sdlc-local-1464763110; caller branch changes cannot alter that source. Dependency declarations, affected policy and Makefile.local match main. Retain runner81109, no restart/cancel or duplicate check. Scheduling only; no design revision.
 
+### 2026-10-23 — Competing-writer flake classification and fresh verification
+
+Repaired-head affected attempt01392f0a6d0a73ce07338d4fa6c68104 on954e3caea7078371c91c7523e86a70bdad751658 failed5m43s only in TestRepoConfigurationPublicationBoundsCompetingWriter/store (line417, busy-store warning instead of deadline cause); parser coarsened attribution to the whole top-level. Raw log SHA prefix37b0a76723f5. All other selected Go packages passed, including park, couchtty and agentfixture; build/doctor/Lua/review/shell groups did not run after Go failure. No passing status claimed.
+
+Focused whole-test count1 on an unchanged exact-head detached tree PASS10.562s, both store5.07s and coordinator5.22s. JSON evidence retained in /Volumes/TestScratch/pair841-leave-repro-gub_n4rh/841-repoprefs-repro.jsonl. Filed/registered independent unclaimed #854 at the whole top-level, matching proven attribution, under the established flake rule. This first intermittent failure on the repaired executable head is unrelated to bell rendering. No repopreferences/store source changed. SDLC resume with name affected explicitly refused: only suite is supported; original immutable failure remains. Advance only this Log and run one fresh pre-close check, retaining #825's independent full suite. Both open claims remain authorized by295d506f-33e6-4f3b-a09a-89a60e9a0537; #825 is SHIP/high waiting for its running suite, #841 remains SHIP/high waiting for a complete affected pass and boarding.
+
 ## Revisions
 
 ### 2026-10-23 — Resume landing after #852
