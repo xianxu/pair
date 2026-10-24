@@ -96,3 +96,96 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-24T10:55:23-07:00 (REWORK)
+
+| field | value |
+|-------|-------|
+| issue | 851 — Switcher: single click selects, a click on the selected row or a double click switches |
+| repo | pair |
+| issue file | workshop/issues/000851-switcher-single-click-selects-a-click-on-the-selected-row-or-a-double-click.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 715b1e199cf2368c46c7e43cb9a4d8c67c4624e3..7a8a64ffd9de577d689963a02abab36e2aaabcfd |
+| command | sdlc close --issue 851 |
+| reviewer | codex (openai; author openai) |
+| isolation | fenced |
+| timestamp | 2026-10-24T10:55:23-07:00 |
+| verdict | REWORK |
+
+## Review
+
+```verdict
+verdict: REWORK
+confidence: high
+```
+
+Both prior documentation findings are addressed. The implementation preserves shared activation checks and passes the existing tests, but a new regression probe confirms that revealing a chip can unnecessarily erase a valid filter, violating the selective-preservation contract.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      README.md:1226-1227 now qualifies warm retry by selection; README.md:1926-1937 distinguishes selection, activation, scoped chips, nested menus and manual activation. These prose corrections match terminal_input.go:278-289, menu_mouse.go:7-35 and the shared activation path; atlas/couch.md:194 also qualifies retry.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      The issue's Done-when:69-72 replaces the timing window with rapid/delayed timer-free presses and explicitly covers scoped chips, hidden/nested reveal, restriction preservation, external chips and keyboard behavior. These match Spec:38-44; existing mouse and reducer tests substantiate the documented gestures.
+findings:
+  - id: new
+    severity: Critical
+    kind: defect
+    family: preserve-effective-reveal-context
+    title: |
+      Chip reveal evaluates the filter outside its retained group and can erase valid context.
+    detail: |
+      cmd/internal/couchtty/menu_mouse.go:24-25 tests Filter using a frame without GroupScope. Filtering has exact-over-fuzzy precedence (menu.go:430-433), so results depend on the candidate group. Reproduced with a pair-group slot tagged foo-more, an outside brain-group slot tagged foo, Filter="foo", and Focus view hiding the summaryless target: the target matches the scoped filter, but clicking its chip clears both Focus view and Filter. Only Focus view should clear, per Done-when:70. A temporary overlay regression, TestReviewRevealPreservesScopedFuzzyFilter, failed with filter="" on pinned HEAD. ARCH-PURPOSE: preserve restrictions in their effective context. Evaluate the filter with the retained GroupScope after any necessary scope removal, then evaluate View. Family enumeration: the sole context-losing predicate is lines 24-25; scope membership at lines 21-22 is independent of filtering, and the final view check at lines 27-28 already uses the retained frame. Add regression coverage for this mixed-restriction case.
+```
+
+1. **Strengths**
+
+   - Canonical row keys preserve recordless-slot identity and resolve current inventory.
+   - Activation reuses the existing manual dispatch and operation vetoes.
+   - Real SGR tests cover rapid/delayed presses and non-activation reports.
+
+2. **Critical findings**
+
+   - The selective-reveal defect above requires correction and a retained regression test.
+
+3. **Important findings:** None.
+
+4. **Minor findings:** None.
+
+5. **Test coverage notes**
+
+   Independently passed full `couchtty` tests (61.528s), focused race tests (3.780s), artifact classification (4.814s), pinned affected-config qualification (51.082s), and diff whitespace checks. The temporary overlay probe exposed the missing combination; repository files remain unchanged.
+
+6. **Architectural notes**
+
+   - **ARCH-DRY: pass** — shared activation authority.
+   - **ARCH-PURE: pass** — deterministic reducer logic; thin Console routing with injected integration fixtures.
+   - **ARCH-PURPOSE: flag** — selective context preservation fails in the reproduced case.
+   - **ARCH-EVOLVE: pass** — no persisted-format change.
+
+   Core-concept locations and classifications match the code. README and atlas updates are present.
+
+7. **Plan revision recommendations**
+
+   Add a `## Revisions` entry requiring reveal predicates to retain applicable group context, with a regression combining scoped fuzzy matching, an outside exact match, and Focus-view hiding.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"0e1a5019-333b-444f-a40c-67d8a501a9cc","repository":"github.com/xianxu/pair","issue_id":"000851","recipe":"small-diff-review","round":2,"attempt":1,"agent":"codex","root":"/Volumes/TestScratch/review-checkouts/1cf5cd8101fa1ecc","reviewed_head":"7a8a64ffd9de577d689963a02abab36e2aaabcfd","slot":"pair:2","requested_at":"2026-10-24T17:51:57.736792Z"},"phase":"finished","pid":66720,"started_at":"2026-10-24T17:51:57.905696Z","finished_at":"2026-10-24T17:54:36.627601Z","session_id":"01a16f0a-73be-7e70-9383-bd0720daa837","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 11.1656505s
+head: "7a8a64ffd9de577d689963a02abab36e2aaabcfd"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000411

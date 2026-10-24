@@ -21,7 +21,7 @@ func reduceSwitcherRowClick(next MenuState, event MenuEvent) (MenuState, []MenuE
 		if !menuMouseRowVisible(next, MenuFrame{GroupScope: root.GroupScope}, thread) {
 			root.GroupScope = nil
 		}
-		if !menuMouseRowVisible(next, MenuFrame{Filter: root.Filter}, thread) {
+		if !menuMouseRowVisible(next, MenuFrame{Filter: root.Filter, GroupScope: root.GroupScope}, thread) {
 			root.Filter = ""
 		}
 		if !menuMouseRowVisible(next, *root, thread) {

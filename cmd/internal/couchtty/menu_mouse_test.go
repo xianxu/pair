@@ -207,3 +207,54 @@ func TestSwitcherSelectionClearsPriorNavigationFeedback(t *testing.T) {
 		t.Fatalf("selection retained old navigation feedback: %+v", next)
 	}
 }
+
+func TestSwitcherRevealPreservesEffectiveFilterContext(t *testing.T) {
+	target := groupedRow("/workspace/pair", 1, "foo-more")
+	outsideExact := groupedRow("/workspace/brain", 1, "foo")
+	insideExact := groupedRow("/workspace/pair", 2, "foo")
+	pairEntry := PresentThreads([]couchcore.ActionableThreadSummary{target}, nil, "")[0]
+	pairGroup := StatusGroupID{OwnerHub: pairEntry.OwnerHub, GroupKey: pairEntry.GroupKey}
+	brainEntry := PresentThreads([]couchcore.ActionableThreadSummary{outsideExact}, nil, "")[0]
+	brainGroup := StatusGroupID{OwnerHub: brainEntry.OwnerHub, GroupKey: brainEntry.GroupKey}
+	for _, tc := range []struct {
+		name       string
+		rows       []couchcore.ActionableThreadSummary
+		scope      StatusGroupID
+		wantFilter string
+		wantGroup  bool
+	}{
+		{"outside exact cannot shadow scoped fuzzy", []couchcore.ActionableThreadSummary{target, outsideExact}, pairGroup, "foo", true},
+		{"inside exact legitimately hides fuzzy", []couchcore.ActionableThreadSummary{target, outsideExact, insideExact}, pairGroup, "", true},
+		{"removed scope changes filter candidates", []couchcore.ActionableThreadSummary{target, outsideExact}, brainGroup, "", false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			state := NewMenuState(tc.rows, outsideExact.Address)
+			selectMenuRow(&state.Frames[0], outsideExact)
+			state.Frames[0].GroupScope = &tc.scope
+			state.Frames[0].Filter = "foo"
+			state.Frames[0].View = MenuViewFocus
+			if menuMouseRowVisible(state, state.Frames[0], target) {
+				t.Fatal("target must initially be hidden")
+			}
+			next, effects := ReduceMenu(state, switcherRowClick(target, true))
+			requireMouseSelection(t, next, target, effects)
+			frame := next.CurrentFrame()
+			if frame.Filter != tc.wantFilter || (frame.GroupScope != nil) != tc.wantGroup || frame.View != MenuViewNormal {
+				t.Fatalf("reveal lost effective context: filter=%q group=%v view=%v", frame.Filter, frame.GroupScope, frame.View)
+			}
+			if tc.wantGroup && *frame.GroupScope != pairGroup {
+				t.Fatalf("changed retained group: %v", frame.GroupScope)
+			}
+			if !menuMouseRowVisible(next, frame, target) {
+				t.Fatal("target remains hidden")
+			}
+			if state.Frames[0].Filter != "foo" || state.Frames[0].View != MenuViewFocus {
+				t.Fatal("retained prior frame mutated")
+			}
+			_, effects = ReduceMenu(next, switcherRowClick(target, true))
+			if len(effects) != 1 || effects[0].Operation != "switch" || effects[0].Args["tag"] != "foo-more" {
+				t.Fatalf("selected target activation: %+v", effects)
+			}
+		})
+	}
+}
