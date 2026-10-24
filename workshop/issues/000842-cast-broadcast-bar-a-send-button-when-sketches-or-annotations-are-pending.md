@@ -1,7 +1,7 @@
 ---
 id: 000842
 status: working
-deps: []
+deps: [pair#849]
 github_issue:
 created: 2026-10-23
 updated: 2026-10-23
@@ -64,3 +64,7 @@ Per hubddb54395, show Send only for feedback that the current hotkey would send,
 ### 2026-10-23 — approved routing and separate terminal gap
 
 Hub6491d0e0 approved the existing chord as the single routing owner, including wider agent/review/right-terminal availability and reservation of this one chord from fullscreen terminal apps; help and atlas must say so. Filed unclaimed #859 with source evidence for the missing terminal-sketch submission path, without claiming existing terminal sketches were lost. The durable plan keeps terminal NoteBoard notes ineligible, browser column untouched and payload authority in PairSendDOM. No implementation started; send the plan to the hub before change-code.
+
+### 2026-10-23 — hub approval conditioned on #849 press-selection seam
+
+Hub7dcaf909 approves the plan with a visibility correction: use #849's non-empty cast press selection (open notes at current revisions, finished labelled sketches), never acknowledged preview state. Preview may never complete on live pages. The durable plan's matching Revision supersedes all preview-based visibility/witness tasks; routing approval remains. Sent pair:6 receipt2270e3b0-cfcb-4260-9d26-b3d44009e271 requesting exact API, locking/invalidation and landing status. Wait for #849 on main before code; no stacking. No implementation started.

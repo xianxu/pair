@@ -104,3 +104,19 @@ Files: atlas/webcast-submission.md, atlas/broadcast.md, existing help/key catalo
 ## Cost and adversarial guards
 
 Feedback-size N never enters a paint/click scan: O(1) summary, fixed-size chord, existing bounded endpoint queue. Run generated preview-transition sequences to check stale-ack/disposal invariants and render-width sweeps to prove no invisible hit target. Hold writes and replace endpoint generations in stateful fakes; assert byte count and exact destination rather than just callback count. Any routing change beyond the explicitly approved single chord requires a revision before implementation.
+
+## Revisions
+
+### 2026-10-23 — use #849 press selection, not preview acknowledgement
+
+Hub7dcaf909 approves the plan with this required correction. The original preview-derived visibility design above is superseded wherever it appears (Architecture, pure/integration tables, operator projection, tasks2/3 and cost tests). #849 removes the preview gate because live pages can prevent preview completion indefinitely. An unpublished or failed preview must never hide otherwise eligible Send.
+
+The single eligibility owner is #849's cast-scoped press-selection rule: open notes at current revisions and finished labelled sketches. Show ⏎ when that selection is non-empty. Reuse its treatment of delivered/resolved/unfinished feedback; do not recreate a competing filter in #842. Terminal-only NoteBoard notes remain ineligible. Button visibility does not require preview publication, host paint or an acknowledgement of preview; actual submission remains subject to the existing transaction's guards as changed by #849.
+
+Replace the proposed PreviewState projection/publication with a small non-empty projection of that press-selection owner. Coordinate exact API, locking and cheap change notification with pair:6 before selecting implementation files. Preserve the no-per-paint IO rule and existing lock order; do not add an acknowledged-preview cache, host/publication witness or extra preview worker. Accepted-frame click authority still binds the original actor/thread/endpoint and exact cast lifetime; selection changes are handled by #849's press-time selection, not by a stale preview refusal introduced here.
+
+Task2's regressions now cover empty, open notes at current revisions, finished labelled sketches, mixed selection, resolved/delivered feedback and unfinished/unlabelled sketches according to #849; add a live-page control with preview publication permanently unavailable that MUST still show Send. Eligibility changes with note edit/resolve, sketch completion/label and delivery; cast end/replacement cannot leak the old availability into a successor. N/2N controls count the chosen seam's actual work; do not claim O(1) without a measured scalar/change-driven seam. Task3 replaces host/publication replacement tests with cast-lifetime replacement and press-time feedback revision tests. The remaining rendering, exact endpoint, shared chord, transaction-equivalence and negative input tests stand.
+
+Operator projection: eligible press selection plus a live actor shows ⏎ even when the preview never completes; empty selection hides it. The existing busy/refusal/uncertain transaction result and recovery actions stay unchanged. Document this corrected contract, not the superseded preview wording.
+
+Implementation waits for #849 on main. No stacking or copying its unlanded source. Once pair:6 names the final seam and provides a verified landing hash, integrate main, reconcile this plan's concrete file list and run change-code/plan-quality before code. Coordination sent to pair:6 as receipt2270e3b0-cfcb-4260-9d26-b3d44009e271; awaiting reply. This is a design checkpoint, not implementation evidence.
