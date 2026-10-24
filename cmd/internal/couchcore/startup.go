@@ -144,9 +144,10 @@ func (c *Couch) StartFreshHub(ctx context.Context, path string) (StartResult, er
 		return StartResult{}, err
 	}
 	if resolution.Target.Kind == ThreadTargetSlot {
-		return c.StartFreshSlot(ctx, resolution.Target.Slot.WorktreeRoot, resolution.RequestedAgent)
+		return c.startFreshSlotWithRecovery(ctx, resolution.Target.Slot.WorktreeRoot, resolution.RequestedAgent, true, &resolution, nil, nil, freshSlotEmptyStartup)
 	}
-	return c.startInteractiveResolution(ctx, resolution)
+	record, handle, err := c.spawnResolvedWithAdmission(ctx, resolution, nil, true)
+	return StartResult{Record: record, Handle: handle}, err
 }
 
 func (c *Couch) startInteractiveResolution(ctx context.Context, resolution StartResolution) (StartResult, error) {

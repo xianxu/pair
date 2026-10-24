@@ -218,6 +218,17 @@ func (c *Couch) ObserveStartupContext(ctx context.Context, hubPaths []string) (S
 		return StartupObservation{}, diagnostic
 	}
 	out := ClassifyStartup(snapshot, presence, hubPaths)
+	if out.Kind == StartupFresh {
+		retained, historyErr := c.observeStartupHistory(ctx, hubPaths)
+		if historyErr != nil {
+			if ctx.Err() != nil {
+				return StartupObservation{}, ctx.Err()
+			}
+			out.Kind, out.ParkedUnknown, out.Diagnostic = StartupUnknown, true, historyErr
+		} else if retained {
+			out.Kind = StartupFullShutdown
+		}
+	}
 	if diagnostic != nil {
 		out.Diagnostic = diagnostic
 	}
