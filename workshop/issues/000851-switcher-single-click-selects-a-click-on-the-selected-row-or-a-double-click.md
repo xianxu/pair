@@ -132,3 +132,9 @@ Refreshed own851 stage via sdlc stage --build: pair:0 HEADde20498a199cd6681fa9c6
 ### 2026-10-24 — Measurement exception revoked
 
 Authenticated Submitted hub delivery86d5fc90-bb04-4766-b4fd-6e67748b6f24: ariadne591 landed and tools rebuilt. Earlier concurrent-claims/resting-branch --no-actual authorization is revoked; measure normally at close. Only an actual separate64KiB snapshot refusal (ariadne593) retains --no-actual with exact evidence.851 still awaits838 combined stage and operator acceptance; no further check or close runner is active.
+
+### 2026-10-24 — Supported combined-stage handoff
+
+Hub morning plan b4122ce2-bf6b-4ced-a667-2c9b38c26959 assigns pair:3 one combined stage containing main856 plus851/838/842, with857 only if independently ready. Handed851 exact clean pushed d74a152d8b18978dbcda2c9961067678f5854069, recorded suite evidence and operator gestures; receipts72dce12c-d5bd-4541-9edc-83650252428c and b134b6cd-58c2-41d7-ab03-10744ea5cd7f are Submitted. Pair:3 confirms assembled/tested staging-only candidate3d0135b0021209730956929c8926e30f9799ba79 includes the851 pin and no857; coordinator owns combined validation/provenance reporting.
+
+At authenticated ready request59af07a4-0538-4fd6-ac5b-abe10cda0833, ran sdlc stage --clear from851. Completed exit0: pair:0 restored/fast-forwarded to main7cb0b672ebb6aca081ae63f19c27b0aafc45270f, all five binaries verified that vcs.revision and vcs.modified=false;851 lease released. Sent exact verified completion1bbd6f4f-a797-4575-8753-950f0cf2f7e7 to pair:3, who will acquire its own lease with sdlc stage --build. Do not clear or rebuild pair:0 again from851: coordinator now owns the next stage. This Log-only checkpoint does not alter handed-off851 code. Next wait for combined build and operator acceptance, then inventory and close normally; no own runner remains active.
