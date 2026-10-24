@@ -1,0 +1,41 @@
+ok  	github.com/xianxu/pair/cmd/internal/webcast	24.221s
+ok  	github.com/xianxu/pair/cmd/internal/webcast/assets	3.361s
+ok  	github.com/xianxu/pair/cmd/internal/webcast/board	5.073s
+ok  	github.com/xianxu/pair/cmd/internal/webcast/capability	0.150s
+ok  	github.com/xianxu/pair/cmd/internal/webcast/drive	0.355s
+ok  	github.com/xianxu/pair/cmd/internal/webcast/fidelity	0.216s
+--- FAIL: TestRecoveryAdmissionBoundReturnsSaveReadyToken (2.34s)
+    recovery_test.go:158: board: the page changed
+--- FAIL: TestRecoveryMalformedForeignMetadataDoesNotBlockNewNotes (0.07s)
+    recovery_test.go:450: board: the page changed
+--- FAIL: TestRecoveryUnmeasurableStoreStillOffersSaveReadyNote (0.05s)
+    recovery_test.go:479: board: the page changed
+--- FAIL: TestRecoveryCorruptNeighborDoesNotBlockExistingReadySave (0.10s)
+    recovery_test.go:488: board: the page changed
+--- FAIL: TestRevokeScopeRetiresOnlyUnsavedOwnedPreparations (0.02s)
+    recovery_test.go:530: board: the page changed
+--- FAIL: TestSaveUnavailableTokenDoesNotNeedStoreCapacity (0.01s)
+    save_test.go:26: board: the page changed
+--- FAIL: TestRefusedSaveReleasesTextAndClearsDurableIntent (0.01s)
+    save_test.go:72: board: the page changed
+--- FAIL: TestUnknownSavePreservesReasonAndEvidenceUntilWriterObservation (0.01s)
+    save_test.go:118: board: the page changed
+--- FAIL: TestServiceQueueBoundSavesUnavailablePreparation (0.02s)
+    service_test.go:62: board: the page changed
+--- FAIL: TestServiceCancelAndCloseBoundCapture (0.01s)
+    service_test.go:89: board: the page changed
+--- FAIL: TestCancelBeforePrepareAndUnavailableReply (0.01s)
+    service_test.go:118: board: the page changed
+FAIL
+FAIL	github.com/xianxu/pair/cmd/internal/webcast/notedraft	35.779s
+ok  	github.com/xianxu/pair/cmd/internal/webcast/notes	1.028s
+ok  	github.com/xianxu/pair/cmd/internal/webcast/query	8.938s
+ok  	github.com/xianxu/pair/cmd/internal/webcast/recorder	5.055s
+ok  	github.com/xianxu/pair/cmd/internal/webcast/recording	4.376s
+?   	github.com/xianxu/pair/cmd/internal/webcast/recording/internal/fixturegen	[no test files]
+ok  	github.com/xianxu/pair/cmd/internal/webcast/sketch	0.150s
+ok  	github.com/xianxu/pair/cmd/internal/webcast/sketchimage	0.574s
+ok  	github.com/xianxu/pair/cmd/internal/webcast/submission	0.420s
+ok  	github.com/xianxu/pair/cmd/internal/submission	25.530s
+ok  	github.com/xianxu/pair/cmd/internal/artifactpath	21.446s
+FAIL

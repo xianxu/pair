@@ -144,7 +144,7 @@ Covered: real top navigation, snapshot races/failure, tab identity, same-load re
 | S snapshot nodes | Existing one-pass O(S) document processing per admitted snapshot | Existing fake tree counter plus delayed/cancelled IO proves no extra scan or orphan work |
 | Q queued intents / D attached sessions | One constant ticket per existing queue input, one cell per tracked session; retire with settlement/detach/close, no new durable index | Queued lifecycle/close test counts issued/settled tickets and retained detached cells |
 | L activation segments | One O(1) index insertion each, O(L) retained metadata | 32/64 segments count index writes, full/catch-up parity |
-| H feedback items | O(H) projection with one O(1) membership lookup each | 32/64 mixed notes/sketches count lookup visits, reject nested segment scans |
+| H feedback items / I identity bytes | One O(1) segment lookup per item; exact validation/comparison is O(I), so O(H*(1+I)) with no segment rescan | 32/64 mixed notes/sketches count lookup visits, reject nested segment scans |
 | F displayed rows / P painted paths | Existing linear projection/painter; membership checked once per item | Node 32/64 fixture counts visits and clears noncurrent keyed state |
 
 Reuse current queue bounds (100,000 DOM and non-DOM events), CDP call timeout (5 seconds), CDP frame limit and recording retention; do not change production deadlines. Identity metadata adds once per existing segment, no separate disk index or service. Mounted UI caches discard departed keys; hover and late replies fence by exact scope/revision. Tests use disposable roots/profiles, cancellation-aware fake gates, and joined owned cleanup.
