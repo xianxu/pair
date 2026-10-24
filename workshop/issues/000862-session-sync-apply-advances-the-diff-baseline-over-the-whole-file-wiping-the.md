@@ -183,6 +183,27 @@ apply/fuzz seeds, public CLI and diff check. Runtime proof is unchanged;
 original recorded suite39827/lease-2922290125 remains queued. Resubmit close
 to dispose BR-1, retaining the precise authorized actuals exception.
 
+### 2026-10-24 — SHIP; retain original queued verification before boarding
+
+Whole close round2 finalized SHIP with BR-1 addressed and no remaining
+findings. Reviewer verified the receiving Ariadne ticket's before/after at
+91fc60bd and independently passed the full session-sync package25.573s and
+public CLI0.343s. Codecomplete is bound to evidencee865e2db32b7e70fd21b07f883407bd0138b49ca;
+the mirror is b5932f36b339a4681f385960a2e494039dc2856e.
+
+The first merge runner42330 exited1 before boarding: GitHub conformance and
+merge-check were pending on the close's pushed head, and PR599 still needs
+its recorded local check. Its named recovery explicitly says retain a queued
+or running affected/full-fallback check and retry merge after PASS. Retain
+original terminal39827, attempta7d4b27fdd25c235d58c12a6a549d612,
+lease-2922290125 on implementation6f6e6e216390727a39408ab588a2e1f078eaeeba
+(last observed normal FIFO3). No live merge runner or duplicate verification.
+All descendants of that implementation are prose/review/close evidence only.
+Next: read the original suite to its terminal result. On PASS verify CI and
+re-enter one sdlc merge --yes; on failure classify before any repeat. Preserve
+queue place and do not checkpoint/restart a continuation while it is active.
+No operator stage, native matrix or out-of-queue full run was started.
+
 ## Revisions
 
 ### 2026-10-24 — separate dependent fake adoption, TL-approved
