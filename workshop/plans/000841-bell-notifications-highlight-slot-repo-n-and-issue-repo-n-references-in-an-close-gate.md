@@ -156,6 +156,83 @@ rounds:
       recipe: small-diff-review
       isolation: fenced
       blocked: true
+    - reviewer_runs:
+        - version: 1
+          intent:
+            disposable_root: true
+            id: edf27a24-f45a-4b99-8740-6cedd93c2763
+            repository: github.com/xianxu/pair
+            issue_id: "000841"
+            recipe: small-diff-review
+            round: 3
+            attempt: 1
+            agent: codex
+            root: /Volumes/TestScratch/review-checkouts/91da7eb11ff49149
+            reviewed_head: d30f7c517f25996e15b8bf190d2ad6327e7bd4a5
+            slot: pair:9
+            requested_at: "2026-10-24T00:21:32.580264Z"
+          phase: finished
+          pid: 90932
+          started_at: "2026-10-24T00:21:32.808064Z"
+          finished_at: "2026-10-24T00:23:08.724842Z"
+          session_id: 01a16b48-c45c-7a63-9b1c-5e90d88e6d1d
+          outcome: returned
+      actual_inputs:
+        version: 1
+        method: active-time-v3-engagement-v1
+        repository: github.com/xianxu/pair
+        code_head: d30f7c517f25996e15b8bf190d2ad6327e7bd4a5
+        tracker_head: 89d2e6e55d772370119fde0f6d1dcab83680dec5
+        branch_point: 1ee96e9872ef195450d5c53f096f530ca7e95ee3
+        since: "2026-10-23T16:55:31-07:00"
+        until: "2026-10-23T17:20:30-07:00"
+        brain_root: /Users/xianxu/workspace/brain
+        gap_minutes: 15
+        commit_weight: 1
+        include_assistant: true
+        engagements:
+            - start: "2026-10-23T16:55:31-07:00"
+              end: "2026-10-23T17:20:30-07:00"
+              began: "2026-10-23T16:55:31-07:00"
+              roots:
+                - /Users/xianxu/workspace/worktree/pair-slot9/pair
+        sources:
+            - harness: codex
+              id: 01a16862-faa4-76e2-bce3-5bc33019d381
+              slot: pair:9
+              cwd: /Users/xianxu/workspace/worktree/pair-slot9/pair
+              digest: fe0ad555611d1fb6bca9fab76c07b793ff7dec62796f34eb766daac1ab01b70b
+              started: "2026-10-23T10:51:20.121Z"
+              spawned: false
+              bytes: 19180116
+              windows:
+                - start: "2026-10-23T16:55:31-07:00"
+                  end: "2026-10-23T17:20:30-07:00"
+        cuts:
+            - dispatched: "2026-10-23T17:04:32-07:00"
+              finalized: "2026-10-23T17:07:12-07:00"
+              finalizing: false
+            - dispatched: "2026-10-23T17:12:24-07:00"
+              finalized: "2026-10-23T17:15:06-07:00"
+              finalizing: false
+      "n": 3
+      timestamp: "2026-10-23T17:23:09-07:00"
+      dispatched: "2026-10-23T17:21:29-07:00"
+      agent: codex
+      reviewer: codex (openai; author openai)
+      dispose:
+        - id: BR-2
+          disposition: withdrawn
+          note: The issue's “TL narrows acceptance to a conservative visual aid” revision explicitly permits uncolored Markdown labels and references adjacent to paths/URLs. attention_references.go:25-44 implements that conservative whole-word rule; atlas/couch.md documents it. Bracket/link render controls pass at head and fail with the previous renderer restored in a disposable copy.
+          round: 3
+        - id: BR-3
+          disposition: addressed
+          note: 'notes_menu.go:155 matches final fitted rows, removing the source-substring projection dependency. TestAttentionReferenceClippedRow asserts exact clipped-row accents for pair:3, ariadne#575 and #841. All pass at head; restoring the previous renderer makes all three fail with empty accents.'
+          round: 3
+      recipe: small-diff-review
+      isolation: fenced
+      reviewed: d30f7c517f25996e15b8bf190d2ad6327e7bd4a5
+      blocked: false
 ---
 
 # Gate ledger — pair#841 (boundary-review)
@@ -184,7 +261,13 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-3** [Critical] `reference-projection-preserves-visible-spans` Clipping can remove every reference accent from the final visible row
   attention_references.go:59-62 requires each rendered line to be a contiguous source substring, but notes_menu.go:188 clips through rowtext.Fit, which can remove zero-width characters. With source "10:09  pair:0  first\nsecond\npair:3 \u200b plain\nend", the visible third row becomes "pair:3  plain…" and projection returns nil, leaving pair:3 plain. Supplemental render tests fail independently for pair:3, ariadne#575 and #841. The family has one projector and one layout caller in this window; it affects all bell kinds and hover states whenever clipping removes an interior zero-width character. Preserve source-to-display positions through fitting instead of relying on substring identity, and assert exact accents on the clipped row (ARCH-PURPOSE).
 
+## Round 3 — 2026-10-23T17:23:09-07:00 (codex) — passed
+
+### Disposed
+
+- BR-2 — withdrawn — The issue's “TL narrows acceptance to a conservative visual aid” revision explicitly permits uncolored Markdown labels and references adjacent to paths/URLs. attention_references.go:25-44 implements that conservative whole-word rule; atlas/couch.md documents it. Bracket/link render controls pass at head and fail with the previous renderer restored in a disposable copy.
+- BR-3 — addressed — notes_menu.go:155 matches final fitted rows, removing the source-substring projection dependency. TestAttentionReferenceClippedRow asserts exact clipped-row accents for pair:3, ariadne#575 and #841. All pass at head; restoring the previous renderer makes all three fail with empty accents.
+
 ## Open findings
 
-- **BR-2** [Critical] `reference-exclusion-respects-token-boundaries` Path and URL exclusion suppresses separate punctuation-delimited references
-- **BR-3** [Critical] `reference-projection-preserves-visible-spans` Clipping can remove every reference accent from the final visible row
+(none — every finding has been disposed)

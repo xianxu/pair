@@ -54,6 +54,7 @@ ARCH-DRY: reuse wrapNote, notesMenuLink, canonical slot validation, existing men
 ## Log
 
 ### 2026-10-23
+- 2026-10-23: closed — TL-approved conservative contract (submitted f36581c3-b946-416d-8e79-500a08ff5601, recorded in Revisions): false negatives allowed, no source projection; standalone final fitted-row words only, bracket/link/path/URL chunks and wrapped edges stay plain, generated time excluded. Revised regressions RED on previous code 0.459s then GREEN 1.274s. Exact clipped-row accents for all 3 forms, fixed minute 09/10/59 matrix, actual Ctrl+Y plain clipboard, hover/default notes controls; broad targets PASS 1.853s, race PASS 3.933s, timezone PASS 0.585s, exact artifact guard PASS 3.506s, N=8/16 classifier 4N, inventory PASS immediately before close, diff check clean. Atlas/lessons updated. Fresh recorded affected started on pushed d30f7c517f25; required PASS before landing. TL no stage confirmed; no staging performed.; review verdict: SHIP
 
 Claimed after #840 landed and cleanup returned a clean resting branch. TL plan posted; quick-flow proceeding-unless-objection rule applies. Existing notes renderer provides fixed dark background and existing actionable-link blue; no new palette is needed. Alternatives: matching each wrapped line risks false positives inside split paths; storing decorated strings risks leaking styles to copy. Use source spans projected to cells instead.
 

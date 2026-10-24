@@ -189,3 +189,84 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000411
+
+---
+
+## Re-review — 2026-10-23T17:23:09-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 841 — Bell notifications: highlight slot (repo:N) and issue (repo#N) references in an accent color |
+| repo | pair |
+| issue file | workshop/issues/000841-bell-notifications-highlight-slot-repo-n-and-issue-repo-n-references-in-an.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 1ee96e9872ef195450d5c53f096f530ca7e95ee3..d30f7c517f25996e15b8bf190d2ad6327e7bd4a5 |
+| command | sdlc close --issue 841 |
+| reviewer | codex (openai; author openai) |
+| isolation | fenced |
+| timestamp | 2026-10-23T17:23:09-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+The implementation matches the revised conservative visual-aid contract. Standalone references receive accents, ambiguous syntax stays plain, and copying remains unchanged. The prior exclusion finding is superseded by the documented scope revision; the clipping defect is fixed with regression evidence. No new findings.
+
+```findings
+dispose:
+  - id: BR-2
+    disposition: withdrawn
+    note: |
+      The issue's “TL narrows acceptance to a conservative visual aid” revision explicitly permits uncolored Markdown labels and references adjacent to paths/URLs. attention_references.go:25-44 implements that conservative whole-word rule; atlas/couch.md documents it. Bracket/link render controls pass at head and fail with the previous renderer restored in a disposable copy.
+  - id: BR-3
+    disposition: addressed
+    note: |
+      notes_menu.go:155 matches final fitted rows, removing the source-substring projection dependency. TestAttentionReferenceClippedRow asserts exact clipped-row accents for pair:3, ariadne#575 and #841. All pass at head; restoring the previous renderer makes all three fail with empty accents.
+```
+
+1. **Strengths**
+
+   - Matching remains pure and reuses canonical workspace-reference validation.
+   - Bell-only opt-in preserves ordinary notes-menu rendering.
+   - Tests exercise all notification kinds, hover states, deterministic timestamps, and actual Ctrl+Y clipboard output.
+   - Atlas accurately documents the conservative matching behavior.
+
+2. **Critical findings:** None.
+
+3. **Important findings:** None.
+
+4. **Minor findings:** None.
+
+5. **Test coverage notes**
+
+   Focused rendering/copy tests, the timezone race suite, selected artifact-source guards, and diff whitespace checks passed. Regression checks against the previous renderer failed as expected. The disposable copy was removed; the pinned checkout remains clean.
+
+6. **Architectural notes**
+
+   - **ARCH-DRY: pass.** Reuses validation, wrapping, palette, and clipboard infrastructure.
+   - **ARCH-PURE: pass.** Detection is directly testable without IO; cell styling stays thin.
+   - **ARCH-PURPOSE: pass.** Delivers the explicitly revised conservative contract.
+   - **ARCH-EVOLVE: pass.** No persisted formats change.
+
+   No new command, flag, keybinding, or configuration requires a README update.
+
+7. **Plan revision recommendations:** None; existing revisions describe the implemented design.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"edf27a24-f45a-4b99-8740-6cedd93c2763","repository":"github.com/xianxu/pair","issue_id":"000841","recipe":"small-diff-review","round":3,"attempt":1,"agent":"codex","root":"/Volumes/TestScratch/review-checkouts/91da7eb11ff49149","reviewed_head":"d30f7c517f25996e15b8bf190d2ad6327e7bd4a5","slot":"pair:9","requested_at":"2026-10-24T00:21:32.580264Z"},"phase":"finished","pid":90932,"started_at":"2026-10-24T00:21:32.808064Z","finished_at":"2026-10-24T00:23:08.724842Z","session_id":"01a16b48-c45c-7a63-9b1c-5e90d88e6d1d","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 3.174086125s
+head: "d30f7c517f25996e15b8bf190d2ad6327e7bd4a5"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412
