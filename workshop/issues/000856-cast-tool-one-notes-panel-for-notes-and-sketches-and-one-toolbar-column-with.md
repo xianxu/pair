@@ -5,8 +5,8 @@ deps: []
 github_issue:
 created: 2026-10-23
 updated: 2026-10-23
-estimate_hours:
-card_mirror: 'a7e5c077af7623ef075ad9433c25a9e636d90c09' # card fields mirrored from issue-cards; edit via sdlc
+estimate_hours: 2.43
+card_mirror: 'ba2f10107eec0b1c88ea8d5a57eaa96f6fdd7a50' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-23T21:35:40-07:00
 claimant:
     operator: Xian Xu
@@ -15,6 +15,7 @@ claimant:
     workspace: pair:4
     worktree: /Users/xianxu/workspace/worktree/pair-slot4/pair
     repository: github.com/xianxu/pair
+flow: {kind: full, provenance: operator}
 ---
 
 # Cast tool: one Notes panel for notes and sketches, and one toolbar column with tools revealed on toggle
@@ -95,3 +96,23 @@ Non-skipped native Chrome qualification passed 0.80s (package 1.036s): actual to
 ### 2026-10-23 — Operator layout acceptance
 
 Authenticated TL e378240d-75dd-498d-96e8-91b542182269 records operator “yes, like it” on the reworked mock and directs production #856 then #857, aiming for the morning stage together with #849. Done-when now explicitly includes approved icon/hover and actual-tool refinements. Mock work is complete. #850 remains in its existing exact-source suite; no stacked issue commits. Next: change-code plan-quality/estimate gates and independently testable production work; integrate parent APIs only from landed main.
+
+## Estimate
+
+*Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md` against `baseline-v3.1.md`. Method A only. Calibration source is marked stale/provisional by sdlc estimate-source.*
+
+#856 only; #857 gets its own estimate after its gate. Treat the browser panel, tool column and hover/anchor interaction as three screen/state-machine primitives (same UI/state/test concern as tui-screen, implemented in existing JS). Panel and hover each choose v2 design=1h ×0.2 thorough-spec discount and impl=1h ×0.40 v3.1; column chooses design=.5h ×.2 and impl=.6h ×.4. Shared wiring uses cross-cutting-refactor design=.5h ×.2 and impl=.4h ×.4. Native CDP qualification uses real-api-discovery impl=.6h ×.4. Docs use .1h design ×.2 and .2h impl ×.4; one close review uses .5h impl ×.4. Familiarity=1: this is the same cast UI worked in #850. Library availability: existing floating panel, painter, command owners and native CDP fixture supply the reusable mechanisms; no novel framework or greenfield service. The approved clickable mock resolves layout decisions. Sum design=.62h, scaled impl=1.72h, +15% design buffer=.093h, total=2.433h, rounded2.43h. This estimates focused work, not FIFO waiting.
+
+```estimate
+model: estimate-logic-v3.1
+familiarity: 1.0
+item: tui-screen design=0.20 impl=0.40
+item: tui-screen design=0.10 impl=0.24
+item: tui-screen design=0.20 impl=0.40
+item: cross-cutting-refactor design=0.10 impl=0.16
+item: real-api-discovery design=0 impl=0.24
+item: atlas-docs design=0.02 impl=0.08
+item: milestone-review design=0 impl=0.20
+design-buffer: 0.15
+total: 2.43
+```
