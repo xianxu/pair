@@ -94,6 +94,10 @@ func (o *loadOwner) ingress(in any) any {
 				o.transition(cell, loadChanged{cell.id})
 			}
 			o.cellSerial++
+			if o.cellSerial == 0 {
+				o.transition(nil, loadClose{})
+				return v
+			}
 			cell = &loadCell{id: o.cellSerial, epoch: 1, attached: true, selection: loadSelection{Session: v.Session, Target: v.Tab.ID}}
 			o.cells[v.Session] = cell
 		}

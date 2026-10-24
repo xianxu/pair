@@ -3,6 +3,7 @@ package webcast
 import (
 	"bytes"
 	"context"
+	"fmt"
 
 	"github.com/xianxu/pair/cmd/internal/webcast/notedraft"
 	"sync/atomic"
@@ -10,6 +11,7 @@ import (
 	core "github.com/xianxu/pair/cmd/internal/submission"
 	"github.com/xianxu/pair/cmd/internal/webcast/board"
 	"github.com/xianxu/pair/cmd/internal/webcast/notes"
+	"github.com/xianxu/pair/cmd/internal/webcast/query"
 	"github.com/xianxu/pair/cmd/internal/webcast/recorder"
 	"github.com/xianxu/pair/cmd/internal/webcast/recording"
 	"image"
@@ -33,6 +35,7 @@ func castSubmissionFixture(t *testing.T) (*Cast, *submissionBrowser, *recording.
 	b := recording.NewBuilder("recording")
 	el := b.El("button", nil, b.Txt("Save"))
 	b.Page(recording.SegLive, "https://example.test", el)
+	b.Recs[1].(*recording.Seg).PageLoad = &recording.PageLoad{Target: "tab1", Loader: "submission-load", Root: 1}
 	box := recording.Box{20, 20, 100, 40}
 	b.At(10).Add(&recording.Note{ID: "n", Author: recording.Author{ID: "person"}, Text: "fix", At: recording.NoteAt{Node: el.ID, Text: "Save", Box: &box}, Region: &box})
 	writes := 0
@@ -238,6 +241,8 @@ func (f *storedSubmissionFixture) page(t *testing.T, url string) {
 		why = recording.SegNavigate
 	}
 	f.b.At(int64(prev+1)*10).Page(why, url, el)
+	seg := f.b.Recs[prev].(*recording.Seg)
+	seg.PageLoad = &recording.PageLoad{Target: seg.Tab.ID, Loader: fmt.Sprintf("stored-load-%d", seg.Seg), Root: int64(seg.Seg)}
 	for _, r := range f.b.Recs[prev:] {
 		if err := f.w.Put(r); err != nil {
 			t.Fatal(err)
@@ -328,34 +333,58 @@ func TestCastSubmissionStoredCaptureSurvivesMutationAndPublication(t *testing.T)
 		t.Fatal("resolve not idempotent", err)
 	}
 }
-func TestCastSubmissionMultipleDocumentsAndPerNotePrivacy(t *testing.T) {
+func TestCastSubmissionIndependentPagePressesPreservePerNotePrivacy(t *testing.T) {
 	f := newStoredSubmissionFixture(t)
-	f.draw(t, "first")
+	first := f.draw(t, "first")
+	firstPress, err := f.c.SubmissionSelection()
+	if err != nil || len(firstPress.Notes) != 1 || firstPress.Notes[0].ID != first.NoteID {
+		t.Fatalf("first press: %+v, %v", firstPress, err)
+	}
 	f.page(t, "https://second.test/")
-	f.draw(t, "second")
+	second := f.draw(t, "second")
+	secondPress, err := f.c.SubmissionSelection()
+	if err != nil || len(secondPress.Notes) != 1 || secondPress.Notes[0].ID != second.NoteID {
+		t.Fatalf("second press selected another load: %+v, %v", secondPress, err)
+	}
 	policy, err := core.ParseOriginPolicy([]byte(`{"origins":[{"origin":"https://original.test","privacy":"shareable"}]}`))
 	if err != nil {
 		t.Fatal(err)
 	}
 	f.c.readOriginPolicy = func() (core.OriginPolicy, string) { return policy, "" }
-	selected, err := f.c.SubmissionSelection()
-	if err != nil || len(selected.Notes) != 2 {
-		t.Fatal(selected, err)
+	original, firstCrops, err := f.c.PrepareSubmission(context.Background(), "original-press", castSubmissionTarget(), firstPress, "", nil)
+	if err != nil || len(firstCrops) != 1 || len(original.Notes) != 1 || original.Privacy != core.Shareable || original.Notes[0].Privacy != core.Shareable || original.Notes[0].ID != first.NoteID {
+		t.Fatalf("earlier admitted source privacy lost: %+v, %v", original, err)
 	}
-	sub, crops, err := f.c.PrepareSubmission(context.Background(), "mixed", castSubmissionTarget(), selected, "", nil)
-	if err != nil || len(crops) != 2 || sub.Privacy != core.Private || sub.Notes[0].Privacy != core.Shareable || sub.Notes[1].Privacy != core.Private || sub.Notes[0].SourceDocument == sub.Notes[1].SourceDocument {
-		t.Fatal(sub, err)
+	current, secondCrops, err := f.c.PrepareSubmission(context.Background(), "current-press", castSubmissionTarget(), secondPress, "", nil)
+	if err != nil || len(secondCrops) != 1 || len(current.Notes) != 1 || current.Privacy != core.Private || current.Notes[0].Privacy != core.Private || current.Notes[0].ID != second.NoteID || current.Notes[0].SourceDocument == original.Notes[0].SourceDocument {
+		t.Fatalf("independent page press privacy/context: %+v, %v", current, err)
 	}
-	if err = f.c.ReconcilePreparedSubmission(context.Background(), sub, core.PublicationObservation{State: core.PublicationAbsent}); err != nil {
+	// Historical parsing remains unfiltered independently of current admission.
+	records, err := readSubmissionRecording(context.Background(), f.c.RecordingPath())
+	if err != nil {
 		t.Fatal(err)
+	}
+	history, err := query.New(records, notes.Structural{}).Notes(5000)
+	if err != nil || len(history) != 2 || history[0].Note.ID != first.NoteID || history[1].Note.ID != second.NoteID || history[0].PageLoad == history[1].PageLoad {
+		t.Fatalf("historical documents lost: %+v, %v", history, err)
+	}
+	for _, sub := range []core.Submission{original, current} {
+		if err = f.c.ReconcilePreparedSubmission(context.Background(), sub, core.PublicationObservation{State: core.PublicationAbsent}); err != nil {
+			t.Fatal(err)
+		}
 	}
 	policy, err = core.ParseOriginPolicy([]byte(`{"origins":[{"origin":"https://original.test","privacy":"shareable"},{"origin":"https://second.test","privacy":"shareable"}]}`))
 	if err != nil {
 		t.Fatal(err)
 	}
-	sub, _, err = f.c.PrepareSubmission(context.Background(), "shareable", castSubmissionTarget(), selected, "", nil)
-	if err != nil || sub.Privacy != core.Shareable {
-		t.Fatal(sub, err)
+	for i, press := range []board.Selection{firstPress, secondPress} {
+		sub, _, err := f.c.PrepareSubmission(context.Background(), fmt.Sprintf("shareable-%d", i), castSubmissionTarget(), press, "", nil)
+		if err != nil || sub.Privacy != core.Shareable {
+			t.Fatalf("shareable retry: %+v, %v", sub, err)
+		}
+	}
+	if f.captures.Load() != 2 {
+		t.Fatal("policy or navigation retries recaptured source evidence")
 	}
 }
 func TestCastSubmissionMissingCaptureIsExplicitAndNoRecapture(t *testing.T) {

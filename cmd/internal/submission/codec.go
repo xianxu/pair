@@ -85,6 +85,7 @@ func makeSubmissionSchema() *manifestSchema {
 	privacy.stringAlternative = true
 	author := objectSchema("id name color", nil)
 	page := nullableSchema(objectSchema("url title provenance", nil))
+	pageLoad := requireMembers(objectSchema("target loader root", nil), "target loader root")
 	viewport := requireMembers(typedObject("", "w h", "", "dpr", "", nil), "w h dpr")
 	anchor := typedObject("tag route kind sel text", "node", "", "", "", map[string]*manifestSchema{"box": tupleSchema(4, true), "classes": arraySchema(scalarSchema('s')), "path": arraySchema(scalarSchema('s')), "stable": stringMapSchema()})
 	fact := requireMembers(typedObject("tag id unavailable", "node parent", "", "", "truncated", map[string]*manifestSchema{"data": stringMapSchema()}), "node")
@@ -94,7 +95,7 @@ func makeSubmissionSchema() *manifestSchema {
 	plan := typedObject("sketch", "width height", "", "scale", "clipped", map[string]*manifestSchema{"paths": arraySchema(path), "region": tupleSchema(4, false)})
 	plan = requireMembers(plan, "sketch region scale width height clipped paths")
 	image := requireMembers(objectSchema("file provenance", map[string]*manifestSchema{"limitations": arraySchema(scalarSchema('s')), "plan": plan}), "file provenance plan")
-	sketchSource := typedObject("tab url title provenance", "t record_index doc", "", "", "", map[string]*manifestSchema{"vp": viewport, "scroll": tupleSchema(2, false)})
+	sketchSource := typedObject("tab url title provenance", "t record_index doc", "", "", "", map[string]*manifestSchema{"page_load": pageLoad, "vp": viewport, "scroll": tupleSchema(2, false)})
 	sketchSource = requireMembers(sketchSource, "t record_index doc tab url title vp scroll provenance")
 	sketch := typedObject("id recording_id digest note phase reason privacy privacy_origin", "history_t history_record_index", "next_sequence", "", "", map[string]*manifestSchema{"privacy_rule": requireMembers(privacy, "origin privacy"), "author": requireMembers(author, "id color"), "source": sketchSource, "elements": facts, "image": image, "index": scalarSchema('i'), "paths": arraySchema(path), "finish": sketchSource})
 	sketch = requireMembers(sketch, "id recording_id next_sequence digest author note history_t history_record_index phase source elements image privacy privacy_rule")
@@ -104,7 +105,7 @@ func makeSubmissionSchema() *manifestSchema {
 	crop := typedObject("file captured_at unavailable", "document", "", "", "clipped_to_viewport", map[string]*manifestSchema{"settlement": nullableSchema(objectSchema("status reason", nil)), "box": tupleSchema(4, false)})
 	note := typedObject("privacy privacy_origin capture_id id text element replay", "source_document t", "revision", "", "", map[string]*manifestSchema{"privacy_rule": privacy, "page": page, "author": author, "elements": nullableSchema(facts), "box_text": boxText, "at": anchor, "before": arraySchema(scalarSchema('s')), "context": typedObject("text", "node landmark", "", "", "", map[string]*manifestSchema{"box": tupleSchema(4, true)}), "crop": crop})
 	source := typedObject("kind recording_id recording_path tab_id", "document", "", "", "", map[string]*manifestSchema{"page": page})
-	return typedObject("privacy privacy_origin how_to_read id delivery", "version", "", "", "superseded", map[string]*manifestSchema{"privacy_rule": privacy, "target": objectSchema("scope tag session nonce", nil), "source": source, "notes": arraySchema(note), "sketches": arraySchema(sketch), "sketch_page": nullableSchema(requireMembers(typedObject("file provenance privacy privacy_origin", "width height", "", "scale", "clipped", map[string]*manifestSchema{"privacy_rule": requireMembers(privacy, "origin privacy"), "source": requireMembers(typedObject("recording_id tab url title", "t record_index doc", "", "", "", map[string]*manifestSchema{"vp": viewport, "scroll": tupleSchema(2, false)}), "recording_id t record_index doc tab url title vp scroll"), "region": tupleSchema(4, false), "limitations": arraySchema(scalarSchema('s'))}), "file provenance source region scale width height clipped privacy privacy_rule"))})
+	return typedObject("privacy privacy_origin how_to_read id delivery", "version", "", "", "superseded", map[string]*manifestSchema{"privacy_rule": privacy, "target": objectSchema("scope tag session nonce", nil), "source": source, "notes": arraySchema(note), "sketches": arraySchema(sketch), "sketch_page": nullableSchema(requireMembers(typedObject("file provenance privacy privacy_origin", "width height", "", "scale", "clipped", map[string]*manifestSchema{"privacy_rule": requireMembers(privacy, "origin privacy"), "source": requireMembers(typedObject("recording_id tab url title", "t record_index doc", "", "", "", map[string]*manifestSchema{"page_load": pageLoad, "vp": viewport, "scroll": tupleSchema(2, false)}), "recording_id t record_index doc tab url title vp scroll"), "region": tupleSchema(4, false), "limitations": arraySchema(scalarSchema('s'))}), "file provenance source region scale width height clipped privacy privacy_rule"))})
 }
 
 // DecodePreserving rejects ambiguous keys and invalid known wire shapes before

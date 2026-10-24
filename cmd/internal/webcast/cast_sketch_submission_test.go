@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"image/png"
+	"math"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -15,6 +16,7 @@ import (
 	core "github.com/xianxu/pair/cmd/internal/submission"
 	"github.com/xianxu/pair/cmd/internal/webcast/board"
 	"github.com/xianxu/pair/cmd/internal/webcast/notes"
+	"github.com/xianxu/pair/cmd/internal/webcast/query"
 	"github.com/xianxu/pair/cmd/internal/webcast/recording"
 	"github.com/xianxu/pair/cmd/internal/webcast/sketchimage"
 )
@@ -24,7 +26,7 @@ func castSketchSubmissionFixture(t *testing.T, n int) (*Cast, *sketchimage.FakeP
 	b := recording.NewBuilder("shapes")
 	node := b.El("button", []string{"id", "original", "data-action", "save"})
 	b.Page(recording.SegLive, "https://original.test/settings", node)
-	selected := board.Selection{Document: 1, TabID: "tab1"}
+	b.Recs[1].(*recording.Seg).PageLoad = &recording.PageLoad{Target: "tab1", Loader: "original-load", Root: 1}
 	for i := 0; i < n; i++ {
 		id := fmt.Sprintf("s%d", i)
 		op := func(seq uint64) recording.SketchOperation {
@@ -37,14 +39,30 @@ func castSketchSubmissionFixture(t *testing.T, n int) (*Cast, *sketchimage.FakeP
 		b.At(at + 2).Add(&recording.SketchPoints{SketchOperation: op(2), Sketch: id, ID: "p", Pts: []recording.SketchPoint{{20, 20, 0}, {40, 40, 1}}})
 		b.At(at + 3).Add(&recording.SketchStrokeEnd{SketchOperation: op(3), Sketch: id, ID: "p"})
 		b.At(at + 4).Add(&recording.SketchLabel{SketchOperation: op(4), Sketch: id, Label: "Move button"})
-		selected.Sketches = append(selected.Sketches, board.SelectedSketch{ID: id, NextSequence: 5, Digest: strings.Repeat("a", 64)})
 	}
-	b.At(100).Page(recording.SegLive, "https://current.test/", b.El("div", []string{"id", "unrelated"}))
 	bd := board.New(notes.Structural{}, nil)
 	for _, r := range b.Recs {
 		if err := bd.Put(r); err != nil {
 			t.Fatal(err)
 		}
+	}
+	// The press pins exact accepted witnesses before the browser leaves this
+	// load. Evidence preparation may finish after a genuinely unrelated page.
+	selected, err := bd.Selection()
+	if err != nil || len(selected.Sketches) != n {
+		t.Fatalf("original press: %+v, %v", selected, err)
+	}
+	previous := len(b.Recs)
+	b.At(100).Page(recording.SegNavigate, "https://current.test/", b.El("div", []string{"id", "unrelated"}))
+	b.Recs[previous].(*recording.Seg).PageLoad = &recording.PageLoad{Target: "tab1", Loader: "later-load", Root: 2}
+	for _, r := range b.Recs[previous:] {
+		if err := bd.Put(r); err != nil {
+			t.Fatal(err)
+		}
+	}
+	current, err := bd.Selection()
+	if err != nil || len(current.Sketches) != 0 {
+		t.Fatalf("later page selected original-load ink: %+v, %v", current, err)
 	}
 	dir := t.TempDir()
 	for name, recs := range recording.Split(b.Recs) {
@@ -61,14 +79,22 @@ func castSketchSubmissionFixture(t *testing.T, n int) (*Cast, *sketchimage.FakeP
 			t.Fatal(err)
 		}
 	}
-	snapshot, err := bd.Selection()
-	if err != nil {
-		t.Fatal(err)
-	}
-	selected.Sketches = snapshot.Sketches
 	fake := sketchimage.NewFakePageRenderer()
 	c := &Cast{board: bd, recDir: dir, done: make(chan struct{}), sketchPages: fake}
 	return c, fake, selected
+}
+
+func castSketchHistory(t *testing.T, c *Cast) []query.SketchView {
+	t.Helper()
+	read, err := recording.ReadDir(c.RecordingPath())
+	if err != nil {
+		t.Fatal(err)
+	}
+	views, err := query.New(read.Records, nil).SketchesAt(math.MaxInt64)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return views
 }
 func TestCastPackagesSketchOnlyHistoricalSubmission(t *testing.T) {
 	c, fake, selected := castSketchSubmissionFixture(t, 2)
@@ -162,6 +188,7 @@ func TestCastSketchPreparationFailureRetainsInk(t *testing.T) {
 				count = 9
 			}
 			c, fake, selected := castSketchSubmissionFixture(t, count)
+			historyBefore := castSketchHistory(t, c)
 			ctx := context.Background()
 			switch kind {
 			case "render":
@@ -183,8 +210,8 @@ func TestCastSketchPreparationFailureRetainsInk(t *testing.T) {
 				t.Fatalf("renderer cleanup incomplete: %+v", state)
 			}
 			after, err := c.board.Selection()
-			if err != nil || len(after.Sketches) != count {
-				t.Fatalf("preparation changed ink: %v %+v", err, after.Sketches)
+			if err != nil || len(after.Sketches) != 0 || !reflect.DeepEqual(historyBefore, castSketchHistory(t, c)) || len(historyBefore) != count {
+				t.Fatalf("preparation changed retained ink or selected another load: %v %+v", err, after.Sketches)
 			}
 		})
 	}
@@ -213,11 +240,12 @@ func TestCastSketchPageSharesBundleBudgetWithOtherFeedback(t *testing.T) {
 // must not suppress that shape, while ACKed versions suppress across targets.
 func TestCastSketchSubmissionDurableLifecycleAcrossTargets(t *testing.T) {
 	ctx := context.Background()
-	c, _, _ := castSketchSubmissionFixture(t, 3)
-	before, err := c.SubmissionSelection()
-	if err != nil {
-		t.Fatal(err)
+	c, _, before := castSketchSubmissionFixture(t, 3)
+	currentBefore, err := c.SubmissionSelection()
+	if err != nil || len(currentBefore.Sketches) != 0 {
+		t.Fatalf("later page selection: %+v, %v", currentBefore, err)
 	}
+	historyBefore := castSketchHistory(t, c)
 	inkBefore, err := c.board.OperatorSketchSince(board.SketchDeliveryCursor{})
 	if err != nil || inkBefore.Bootstrap == nil {
 		t.Fatalf("initial ink: %v", err)
@@ -339,11 +367,13 @@ func TestCastSketchSubmissionDurableLifecycleAcrossTargets(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !reflect.DeepEqual(before, after) || inkAfter.Bootstrap == nil || !reflect.DeepEqual(inkBefore.Bootstrap.Display, inkAfter.Bootstrap.Display) {
+	if !reflect.DeepEqual(currentBefore, after) || inkAfter.Bootstrap == nil || !reflect.DeepEqual(inkBefore.Bootstrap.Display, inkAfter.Bootstrap.Display) || !reflect.DeepEqual(historyBefore, castSketchHistory(t, c)) {
 		t.Fatal("dispatch/resolve changed original ink or accepted versions")
 	}
-	candidates := make([]core.PreviewItem, 0, len(after.Sketches))
-	for _, sketch := range after.Sketches {
+	// Delivery recovery evaluates candidates pinned by the original presses;
+	// a new press on the unrelated current load still has no sketches.
+	candidates := make([]core.PreviewItem, 0, len(before.Sketches))
+	for _, sketch := range before.Sketches {
 		candidates = append(candidates, core.PreviewItem{RecordingID: sub.Source.RecordingID, SketchID: sketch.ID, Sequence: sketch.NextSequence, Digest: sketch.Digest})
 	}
 	preview := core.SelectSketchPreview(candidates, delivered, core.PreviewStamp{})

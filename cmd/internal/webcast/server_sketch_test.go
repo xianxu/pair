@@ -44,6 +44,7 @@ func newSketchHTTPFixture(t *testing.T) *sketchHTTPFixture {
 	p := b.El("p", nil, b.Txt("Source"))
 	f.node = p.ID
 	b.Page(recording.SegLive, "http://x/", p)
+	b.Recs[1].(*recording.Seg).PageLoad = &recording.PageLoad{Target: "tab1", Loader: "sketch-http-load", Root: 1}
 	for _, r := range b.Recs {
 		if err := f.w.Put(r); err != nil {
 			t.Fatal(err)

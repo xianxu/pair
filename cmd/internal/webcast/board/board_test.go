@@ -437,7 +437,11 @@ func TestBoardOverTheSegmentsFixture(t *testing.T) {
 			if q == nil {
 				t.Fatal("no input on the page")
 			}
-			if id, err = r.bd.Note(NoteIn{Viewer: ana, Seg: 1, Node: q.ID, Box: recording.Box{1, 1, 1, 1}, Region: recording.Box{1, 1, 1, 1}, Color: 0, Text: "mine"}); err != nil {
+			// This is historical legacy evidence, not a fresh live annotation:
+			// unknown load identity deliberately cannot admit new page work.
+			id = "legacy-historical-note"
+			box := recording.Box{1, 1, 1, 1}
+			if err = r.w.Emit(&recording.Note{ID: id, Author: recording.Author{ID: ana.ID, Name: ana.Name}, Text: "mine", At: recording.NoteAt{Node: q.ID, Box: &box}, Region: &box}, r.bd.st.DocSeg); err != nil {
 				t.Fatal(err)
 			}
 		}

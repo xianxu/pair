@@ -166,6 +166,7 @@ func resolvedVisibilityChromeFixture(t *testing.T) (*Chrome, *loopState, core.Pr
 	b := recording.NewBuilder("rec")
 	node := b.El("button", []string{"id", "current"})
 	b.Page(recording.SegLive, "https://example.test/", node)
+	b.Recs[1].(*recording.Seg).PageLoad = &recording.PageLoad{Target: "tab1", Loader: "visibility-load", Root: 1}
 	op := func(seq uint64) recording.SketchOperation {
 		return recording.SketchOperation{Operation: strconv.FormatUint(seq, 10), Sequence: seq, Digest: strings.Repeat("a", 64)}
 	}
@@ -182,6 +183,9 @@ func resolvedVisibilityChromeFixture(t *testing.T) (*Chrome, *loopState, core.Pr
 	snapshot, err := c.opts.Record.Operator.Selection()
 	if err != nil {
 		t.Fatal(err)
+	}
+	if len(snapshot.Sketches) != 1 {
+		t.Fatalf("current-load sketch selection = %+v, want saved shape", snapshot.Sketches)
 	}
 	operator := c.opts.Record.Operator.OperatorView()
 	view := core.FeedbackVisibility{Revision: 1, Scene: operator.FeedbackContext, MaskScope: operator.FeedbackMask.Scope, MaskRevision: operator.FeedbackMask.Revision, Notes: []core.PreviewNote{}, Sketches: []core.VisibleSketch{{ID: "shape", Sequence: snapshot.Sketches[0].NextSequence, Digest: snapshot.Sketches[0].Digest, Paths: []core.VisiblePath{{ID: "p", Locator: []int{1, 0}, Box: recording.Box{0, 0, 100, 100}, Clip: recording.Box{0, 0, 1280, 800}}}}}}

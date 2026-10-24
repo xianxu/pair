@@ -1,6 +1,8 @@
 package query
 
 import (
+	"encoding/json"
+	"fmt"
 	"strconv"
 
 	"github.com/xianxu/pair/cmd/internal/webcast/recording"
@@ -39,4 +41,27 @@ func SketchBeginSourceFacts(state *recording.State, begin *recording.SketchBegin
 	facts.T, facts.Doc, facts.Tab, facts.VP = begin.T, begin.Doc, begin.Tab, begin.VP
 	facts.PageLoad = PageLoadFactsOf(state.PageLoadAt(begin.Doc))
 	return facts
+}
+
+// UnmarshalJSON admits only a complete canonical wire identity when present.
+// A missing optional field leaves the comparable zero value unchanged.
+func (p *PageLoadFacts) UnmarshalJSON(raw []byte) error {
+	var load recording.PageLoad
+	if err := json.Unmarshal(raw, &load); err != nil {
+		return err
+	}
+	*p = PageLoadFactsOf(&load)
+	return nil
+}
+
+// Validate accepts unknown absence or a complete exact semantic identity.
+func (p PageLoadFacts) Validate() error {
+	if p == (PageLoadFacts{}) {
+		return nil
+	}
+	root, err := strconv.ParseInt(p.Root, 10, 64)
+	if err != nil || strconv.FormatInt(root, 10) != p.Root {
+		return fmt.Errorf("invalid page load root")
+	}
+	return (&recording.PageLoad{Target: p.Target, Loader: p.Loader, Root: root}).Validate()
 }

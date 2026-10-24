@@ -49,12 +49,12 @@ func (b *Board) selectionLocked() (Selection, error) {
 	if b.broken != nil {
 		return Selection{}, ErrBroken
 	}
-	if b.st.Top == nil {
+	if b.st.Top == nil && !b.pageLoad.managed {
 		return Selection{}, ErrNotLive
 	}
 	out := Selection{Document: b.st.DocSeg, TabID: b.st.Tab.ID, SketchGeneration: b.submissionGeneration}
 	load := b.currentPageLoadLocked()
-	if load == nil {
+	if b.st.Top == nil || load == nil {
 		// An unidentified or pending page contributes no page feedback. This
 		// does not add a refusal to ordinary text submission (pair#857).
 		return out, nil

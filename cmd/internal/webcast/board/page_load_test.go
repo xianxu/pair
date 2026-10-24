@@ -360,3 +360,44 @@ func TestPageLoadColorQuotaFollowsSameLoadReturn(t *testing.T) {
 		t.Fatalf("same-load quota reset on activation: %v", err)
 	}
 }
+
+func TestPageLoadInitialPendingContributesNoFeedbackWithoutRefusal(t *testing.T) {
+	b := newRig(t).bd
+	if _, err := b.Selection(); !errors.Is(err, ErrNotLive) {
+		t.Fatalf("unstarted Board: %v", err)
+	}
+	b.BeginPageLoad(1)
+	for _, phase := range []string{"pending", "unavailable"} {
+		if phase == "unavailable" {
+			b.UnavailablePageLoad(1)
+		}
+		selected, err := b.Selection()
+		if err != nil || len(selected.Notes) != 0 || len(selected.Sketches) != 0 {
+			t.Fatalf("%s initial capture refused ordinary submission: %+v %v", phase, selected, err)
+		}
+	}
+}
+
+func TestPageLoadUnknownRejectsFreshPageFeedback(t *testing.T) {
+	for _, kind := range []string{"note", "pointer"} {
+		t.Run(kind, func(t *testing.T) {
+			r := newRig(t)
+			p := r.b.El("p", nil, r.b.Txt("Legacy"))
+			r.b.Page(recording.SegLive, "http://legacy/", p)
+			for _, record := range r.b.Recs {
+				if err := r.w.Put(record); err != nil {
+					t.Fatal(err)
+				}
+			}
+			var err error
+			if kind == "note" {
+				_, err = r.note(p.ID, 0)
+			} else {
+				err = r.bd.Stroke(StrokeIn{Viewer: ana, Seg: 1, ID: "pointer", Color: 0, Pts: [][3]float64{{1, 2, 0}}})
+			}
+			if !errors.Is(err, ErrStale) {
+				t.Fatalf("unknown load admitted fresh %s: %v", kind, err)
+			}
+		})
+	}
+}

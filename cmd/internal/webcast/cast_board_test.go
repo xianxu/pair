@@ -78,6 +78,7 @@ func (bc *recordedBoardCast) open(t *testing.T) recording.Node {
 	b := recording.NewBuilder("rec")
 	p := b.El("p", []string{"id", "p"}, b.Txt("Hello"))
 	b.Page(recording.SegLive, "http://app/", p)
+	b.Recs[1].(*recording.Seg).PageLoad = &recording.PageLoad{Target: "tab1", Loader: "fixture-load", Root: 1}
 	for _, r := range b.Recs {
 		if err := bc.eb.w.Put(r); err != nil {
 			t.Fatal(err)

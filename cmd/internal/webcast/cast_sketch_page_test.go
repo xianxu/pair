@@ -114,15 +114,25 @@ func TestCastSketchPageCompositePrivacyIncludesPrivateOriginalSource(t *testing.
 		records = append(records, r)
 	}
 	bd := board.New(notes.Structural{}, nil)
+	var snapshot board.Selection
 	for _, r := range records {
 		bd.Put(r)
+		if _, ok := r.(*recording.SketchLabel); ok {
+			snapshot, err = bd.Selection()
+			if err != nil {
+				t.Fatal(err)
+			}
+		}
 	}
-	snapshot, err := bd.Selection()
-	if err != nil {
-		t.Fatal(err)
+	if len(snapshot.Sketches) != 1 {
+		t.Fatalf("original press lost: %+v", snapshot)
+	}
+	current, err := bd.Selection()
+	if err != nil || len(current.Sketches) != 0 {
+		t.Fatalf("later page included original load: %+v, %v", current, err)
 	}
 	c.board = bd
-	selected.Sketches = snapshot.Sketches
+	selected = snapshot
 	for name, recs := range recording.Split(records) {
 		var data bytes.Buffer
 		for _, r := range recs {

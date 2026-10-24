@@ -2,6 +2,7 @@ package submission
 
 import (
 	"fmt"
+	"github.com/xianxu/pair/cmd/internal/webcast/query"
 	"github.com/xianxu/pair/cmd/internal/webcast/recording"
 	"github.com/xianxu/pair/cmd/internal/webcast/sketchimage"
 	"unicode/utf8"
@@ -23,7 +24,20 @@ type SketchPage struct {
 	Current     *sketchimage.CurrentView `json:"current,omitempty"`
 }
 
+func validateSourcePageLoad(s SketchSource) error {
+	if err := s.PageLoad.Validate(); err != nil {
+		return err
+	}
+	if s.PageLoad != (query.PageLoadFacts{}) && s.PageLoad.Target != s.Tab {
+		return fmt.Errorf("page load target differs from source tab")
+	}
+	return nil
+}
+
 func validateSketchSource(s SketchSource) error {
+	if err := validateSourcePageLoad(s); err != nil {
+		return err
+	}
 	if s.Provenance != "recorded-dom" || s.T < 0 || uint64(s.T) > recording.MaxSketchInteger || s.RecordIndex < 0 || s.Doc < 1 || !sketchID(s.Tab) || len(s.URL) > MaxPageURLBytes || len(s.Title) > MaxPageTitleBytes || !utf8.ValidString(s.URL) || !utf8.ValidString(s.Title) {
 		return fmt.Errorf("invalid sketch source facts")
 	}

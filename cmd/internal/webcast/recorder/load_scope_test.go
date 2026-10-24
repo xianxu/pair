@@ -86,3 +86,20 @@ func TestLoadScopePauseAndCloseKeepDrain(t *testing.T) {
 		t.Fatal("close lost historical queue drain")
 	}
 }
+
+func TestLoadOwnerCounterExhaustionFailsClosed(t *testing.T) {
+	for _, counter := range []string{"cell", "intent"} {
+		t.Run(counter, func(t *testing.T) {
+			owner := newLoadOwner(nil)
+			if counter == "cell" {
+				owner.cellSerial = ^uint64(0)
+			} else {
+				owner.serial = ^uint64(0)
+			}
+			input := owner.ingress(Live{Tab: recording.Tab{ID: "T"}, Session: "S"}).(Live)
+			if input.intent != nil || !owner.state.closing {
+				t.Fatal("wrapped counter issued capture authority")
+			}
+		})
+	}
+}

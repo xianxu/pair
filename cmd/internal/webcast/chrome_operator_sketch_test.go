@@ -215,6 +215,7 @@ func TestOperatorSketchAsyncWriterDoesNotBlockWorkerAndLifetimeFences(t *testing
 	}
 	build := recording.NewBuilder("runtime")
 	build.Page(recording.SegLive, "https://app/")
+	build.Recs[1].(*recording.Seg).PageLoad = &recording.PageLoad{Target: "tab1", Loader: "l", Root: 1}
 	for _, record := range build.Recs {
 		if err := b.Put(record); err != nil {
 			t.Fatal(err)
@@ -283,6 +284,7 @@ func TestOperatorSketchLifetimeGuardCannotGrantMissingDrawingAuthority(t *testin
 	}
 	build := recording.NewBuilder("runtime-deny")
 	build.Page(recording.SegLive, "https://app/")
+	build.Recs[1].(*recording.Seg).PageLoad = &recording.PageLoad{Target: "tab1", Loader: "l", Root: 1}
 	for _, record := range build.Recs {
 		if err := b.Put(record); err != nil {
 			t.Fatal(err)
