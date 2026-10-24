@@ -695,14 +695,43 @@ func TestLifecycleDrainReportsOnlyUntargetedFacts(t *testing.T) {
 	for {
 		select {
 		case message := <-diagnostic:
-			if strings.Contains(message, "lacked verified slot metadata") {
-				if !strings.Contains(message, ": 1 observations") {
-					t.Fatalf("drain counted the ordinary fact: %s", message)
+			if strings.Contains(message, "metadata unverified") {
+				if message != "Lifecycle: metadata unverified for 1 slot(s) at restart drain" {
+					t.Fatalf("drain diagnostic: %q", message)
 				}
 				return
 			}
 		case <-testwait.After(t):
 			t.Fatal("no drain diagnostic for the untargeted fact: " + lifecyclePublisherState(p))
+		}
+	}
+}
+
+// The projection cap reports itself with the pane to inspect instead of
+// silently dropping the hub.
+func TestLifecycleProjectionCapacityDiagnostic(t *testing.T) {
+	ep := newControlledEndpoint()
+	diagnostic := make(chan string, 4)
+	_, p, _ := lifecyclePublisherRig(t, ep, func(message string) {
+		select {
+		case diagnostic <- message:
+		default:
+		}
+	})
+	p.mu.Lock()
+	for i := 0; i < 128; i++ {
+		p.roots[fmt.Sprintf("hub-%d", i)] = true
+	}
+	p.mu.Unlock()
+	p.observe(lifecycleSlotObservation(2, 1))
+	for {
+		select {
+		case message := <-diagnostic:
+			if message == "Lifecycle: hub projection full; inspect Slots" {
+				return
+			}
+		case <-testwait.After(t):
+			t.Fatal("no capacity diagnostic: " + lifecyclePublisherState(p))
 		}
 	}
 }

@@ -79,7 +79,7 @@ func installRuntimeWithToolsContext(ctx context.Context, b Binaries, p RootsPlan
 	files := []runtimeFile{
 		{name: "pair", source: b.Pair, copy: true}, {name: "couch", source: b.Couch, copy: true}, {name: "pair-launch-helper", source: b.Helper, copy: true},
 		{name: "claude", source: b.Fixture, copy: true}, {name: "codex", source: b.Fixture, copy: true},
-		{name: "git", source: b.Git}, {name: "sdlc", source: b.SDLC}, {name: "weave", source: b.Weave}, {name: "zellij", source: b.Zellij}, {name: "nvim", source: b.Nvim},
+		{name: "git", source: b.Git}, {name: "git-upload-pack", source: b.GitUploadPack}, {name: "sdlc", source: b.SDLC}, {name: "weave", source: b.Weave}, {name: "zellij", source: b.Zellij}, {name: "nvim", source: b.Nvim},
 	}
 	for _, name := range runtimeUtilities {
 		if err := ctx.Err(); err != nil {

@@ -537,13 +537,6 @@ func renderRootMenuFrame(state MenuState, frame MenuFrame, width, height int, no
 			hubLabels[entry.OwnerHub] = entry.Label
 		}
 	}
-	activeHub := ""
-	for _, entry := range presentations {
-		if entry.Row.Address == state.ActiveAddress {
-			activeHub = entry.OwnerHub
-			break
-		}
-	}
 	labels := make(map[couchcore.ThreadRowKey]ThreadPresentation, len(presentations))
 	for _, entry := range presentations {
 		labels[menuRowKey(entry.Row)] = entry
@@ -584,7 +577,6 @@ func renderRootMenuFrame(state MenuState, frame MenuFrame, width, height int, no
 		selected   bool
 		actorStart bool
 		hub        bool
-		otherHub   bool
 		thread     couchcore.ThreadAddress
 		key        couchcore.ThreadRowKey
 	}
@@ -688,7 +680,7 @@ func renderRootMenuFrame(state MenuState, frame MenuFrame, width, height int, no
 		if selectedRow {
 			selectedStart = len(rows)
 		}
-		rows = append(rows, rootLine{text: plain, selected: selectedRow, actorStart: true, hub: entry.Hub, otherHub: activeHub != "" && entry.OwnerHub != "" && entry.OwnerHub != activeHub, thread: thread.Address, key: menuRowKey(thread)})
+		rows = append(rows, rootLine{text: plain, selected: selectedRow, actorStart: true, hub: entry.Hub, thread: thread.Address, key: menuRowKey(thread)})
 		if frame.View == MenuViewNormal && menuDescriptionMatches(thread, frame.Filter) {
 			rows = append(rows, rootLine{text: clipMenuLine("    "+menuFocusSummary(thread), width), thread: thread.Address, key: menuRowKey(thread)})
 		}
@@ -743,10 +735,6 @@ func renderRootMenuFrame(state MenuState, frame MenuFrame, width, height int, no
 			// Glyphs and selectedMenuLine reset their styles. Restore the hub
 			// treatment after each reset, then end it before the next row.
 			row.text = style + strings.ReplaceAll(row.text, "\x1b[0m", "\x1b[0m"+style) + "\x1b[0m"
-		}
-		if row.otherHub && color256 && !state.Palette.NoColor {
-			const dim = "\x1b[2m"
-			row.text = dim + strings.ReplaceAll(row.text, "\x1b[0m", "\x1b[0m"+dim) + "\x1b[0m"
 		}
 		lines = append(lines, row.text)
 		if row.thread == (couchcore.ThreadAddress{}) && row.key == (couchcore.ThreadRowKey{}) {

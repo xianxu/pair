@@ -1,6 +1,8 @@
 package couchtty
 
 import (
+	"fmt"
+	uv "github.com/charmbracelet/ultraviolet"
 	"reflect"
 	"strings"
 	"testing"
@@ -301,22 +303,72 @@ func TestHubOtherFadePreservesStatusAndHitSpans(t *testing.T) {
 	}
 }
 
-func TestHubSwitcherShowsOwnershipAndFadesRelativeToActivePane(t *testing.T) {
-	ops, bench := presentationOrdinary("/src/ops", "o"), presentationOrdinary("/src/bench", "b")
-	state := NewMenuState([]couchcore.ActionableThreadSummary{bench, ops}, ops.Address)
-	state, _ = ReduceMenu(state, MenuEvent{Kind: MenuEventHubOwnership, HubOwnership: multiHubFixture(t)})
-	lines, _ := renderRootMenuFrame(state, state.CurrentFrame(), 140, 30, time.Now(), true)
-	body := strings.Join(lines, "\n")
-	if !strings.Contains(body, "hub bench") || !strings.Contains(body, "hub ops") {
-		t.Fatalf("missing per-row owner: %s", body)
-	}
-	for _, line := range lines {
-		plain := string(ansi.Strip([]byte(line)))
-		if strings.Contains(plain, "hub bench") && !strings.Contains(line, "\x1b[2m") {
-			t.Fatalf("foreign hub not faded: %q", line)
-		}
-		if strings.Contains(plain, "hub ops") && strings.Contains(line, "\x1b[2m") {
-			t.Fatalf("own hub faded: %q", line)
+func TestHubSwitcherOwnershipDoesNotFadeRows(t *testing.T) {
+	for _, n := range []int{8, 16} {
+		for _, parked := range []bool{false, true} {
+			for _, palette := range []Palette{darkTrueColor, {}, {NoColor: true}} {
+				for _, color := range []bool{false, true} {
+					t.Run(fmt.Sprintf("rows%d/parked%t/palette%+v/color%t", n, parked, palette, color), func(t *testing.T) {
+						ops, bench := presentationOrdinary("/src/ops", "o"), presentationOrdinary("/src/bench", "b")
+						rows := []couchcore.ActionableThreadSummary{ops, bench}
+						for i := 0; i < n-2; i++ {
+							row := presentationSlot("/src/pair", 7+i)
+							row.Address = menuAddress(fmt.Sprintf("worker%d", i))
+							rows = append(rows, row)
+						}
+						for i := range rows {
+							rows[i].State = couchcore.ThreadLive
+							if parked {
+								rows[i].State = couchcore.ThreadParked
+								rows[i].LastActiveAt = idleNow.Add(-5 * 24 * time.Hour)
+							}
+						}
+						for _, selected := range rows[:4] {
+							state := NewMenuState(rows, selected.Address)
+							state, _ = ReduceMenu(state, MenuEvent{Kind: MenuEventHubOwnership, HubOwnership: multiHubFixture(t)})
+							state.Palette = palette
+							state.Frames[0].SelectedAddress = selected.Address
+							state.Frames[0].SelectedKey = menuRowKey(selected)
+							state.ActiveAddress = couchcore.ThreadAddress{}
+							baseline, spans := renderRootMenuFrame(state, state.CurrentFrame(), 160, 50, idleNow, color)
+							if len(spans) != n {
+								t.Fatalf("rows%d: got %d click extents", n, len(spans))
+							}
+							for _, active := range []couchcore.ThreadAddress{ops.Address, bench.Address} {
+								state.ActiveAddress = active
+								lines, extents := renderRootMenuFrame(state, state.CurrentFrame(), 160, 50, idleNow, color)
+								if !reflect.DeepEqual(spans, extents) || len(lines) != len(baseline) {
+									t.Fatal("active owner changed geometry or click extents")
+								}
+								body := strings.Join(lines, "\n")
+								if !strings.Contains(body, "hub bench") || !strings.Contains(body, "hub ops") {
+									t.Fatalf("missing owner labels: %s", body)
+								}
+								for i, line := range lines {
+									before, after := hubCells(t, baseline[i], 160), hubCells(t, line, 160)
+									if !reflect.DeepEqual(before, after) {
+										t.Fatalf("owner focus changed cells on row%d: %q -> %q", i, baseline[i], line)
+									}
+								}
+								for _, span := range extents {
+									cells := hubCells(t, lines[span.Start], 160)
+									for _, cell := range cells {
+										if !parked && cell.Style.Attrs&uv.AttrFaint != 0 {
+											t.Fatalf("fresh live row faint: %q", lines[span.Start])
+										}
+									}
+									if parked && color && span.Thread != selected.Address {
+										want := hubCells(t, ageColor(AgeDays)+"x", 1)[0].Style.Fg
+										if !reflect.DeepEqual(cells[0].Style.Fg, want) {
+											t.Fatalf("parked row lost age styling: %q", lines[span.Start])
+										}
+									}
+								}
+							}
+						}
+					})
+				}
+			}
 		}
 	}
 }

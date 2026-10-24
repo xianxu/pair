@@ -196,6 +196,8 @@ type leaveParkFleet struct {
 	driveN    atomic.Int64
 }
 
+type fleetCompletionCancelKey struct{}
+
 // newLeaveParkFleet is n live threads whose parks commit in a modeled 2.5s
 // and complete when their own quit is triggered.
 func newLeaveParkFleet(t *testing.T, n int) *leaveParkFleet {
@@ -241,9 +243,23 @@ func newLeaveParkFleet(t *testing.T, n int) *leaveParkFleet {
 		},
 		CompletionTimeout: time.Second, PollInterval: time.Millisecond,
 	}
+	// #852: this fixture measures retry work, not host IO latency. Completion
+	// is synchronous with trigger; only an actual missing-proof poll spends
+	// its budget. WithCancel retains caller cancellation through both seams.
+	controller.completionDeadline = func(parent context.Context, _ time.Duration) (context.Context, context.CancelFunc) {
+		ctx, cancel := context.WithCancel(parent)
+		return context.WithValue(ctx, fleetCompletionCancelKey{}, cancel), cancel
+	}
+	controller.Wait = func(ctx context.Context, _ time.Duration) error {
+		ctx.Value(fleetCompletionCancelKey{}).(context.CancelFunc)()
+		return ctx.Err()
+	}
 	f.couch = &Couch{
 		Threads: store, Proc: NewFakeProcOps(), Artifacts: f.artifacts,
 		PairLifecycle: controller, sleep: func(time.Duration) {},
+	}
+	f.couch.leaveParkDeadline = func(parent context.Context, _ time.Duration) (context.Context, context.CancelFunc) {
+		return context.WithCancel(parent)
 	}
 	f.couch.onLeaveParkDrive = func(address ThreadAddress, action leaveParkAction) {
 		f.driveN.Add(1)
@@ -313,6 +329,64 @@ func TestLeaveParkRetriesProvenRollbackWithinOneQuit(t *testing.T) {
 				t.Fatalf("published=%d peak=%d, want %d and <= %d", f.lifecycle.published, f.lifecycle.peak, n, LifecycleParallelism)
 			}
 		})
+	}
+}
+
+// A modeled completion budget must not expire while the real store is busy.
+// An immediately elapsed wall-clock duration makes the old fixture fail
+// without sleeping or relying on machine load (#852).
+func TestLeaveParkFixtureCompletionBudgetIsDrivenByProof(t *testing.T) {
+	withParallelism(t, 1)
+	f := newLeaveParkFleet(t, 1)
+	//lint:allow test-shrunk-deadline — this rejects wall-clock use by the fixture's controlled deadline, not a production timeout
+	f.couch.PairLifecycle.CompletionTimeout = time.Nanosecond
+	f.lifecycle.failPublish[f.sessions[0]] = 1
+	result, err := f.couch.Leave(context.Background(), LeavePark)
+	if err != nil || len(result.Parked) != 1 {
+		t.Fatalf("immediate matching proof failed: %+v %v", result, err)
+	}
+	want := []leaveParkAction{leaveParkFresh, leaveParkFresh}
+	if got := fmt.Sprint(f.drivesOf(f.threads[0].Address)); got != fmt.Sprint(want) {
+		t.Fatalf("drives=%s, want two fresh drives", got)
+	}
+}
+
+// Controlled time must still end a wait when the fake withholds its proof.
+func TestLeaveParkFixtureMissingProofSpendsCompletionBudget(t *testing.T) {
+	withParallelism(t, 1)
+	f := newLeaveParkFleet(t, 1)
+	f.artifacts.TriggerQuitHook = func(session string, _ launcher.QuitIntent) error {
+		if err := f.lifecycle.trigger(session); err != nil {
+			return err
+		}
+		f.lifecycle.mu.Lock()
+		clear(f.lifecycle.completions)
+		f.lifecycle.mu.Unlock()
+		return nil
+	}
+	result, err := f.couch.Leave(context.Background(), LeavePark)
+	if !errors.Is(err, context.Canceled) || len(result.Parked) != 0 || len(result.Unresolved) != 1 {
+		t.Fatalf("missing proof did not spend controlled budget: %+v %v", result, err)
+	}
+	if got := len(f.drivesOf(f.threads[0].Address)); got != leaveParkMaxDrives {
+		t.Fatalf("missing proof drives=%d, want cap %d", got, leaveParkMaxDrives)
+	}
+	after, err := f.couch.Threads.GetThread(f.threads[0].Address)
+	if err != nil || after.VerifiedPark != nil || after.Park == nil {
+		t.Fatalf("missing proof fabricated success or lost transaction: %+v %v", after, err)
+	}
+}
+
+func TestLeaveParkFixtureHonorsCallerCancellation(t *testing.T) {
+	f := newLeaveParkFleet(t, 1)
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	result, err := f.couch.Leave(ctx, LeavePark)
+	if !errors.Is(err, context.Canceled) || len(result.Parked) != 0 || len(result.Unresolved) != 1 {
+		t.Fatalf("caller cancellation lost: %+v %v", result, err)
+	}
+	if f.driveN.Load() != 0 || f.lifecycle.published != 0 {
+		t.Fatal("canceled caller started a park")
 	}
 }
 
