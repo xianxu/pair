@@ -1,0 +1,122 @@
+test_check_config (__main__.AffectedConfigTest.test_check_config) ... Qualifying upstream affected source: /Users/xianxu/workspace/worktree/pair-slot3/ariadne @ 5a17f789619d3dcaafec62ae51b350833836a3e7
+ok
+
+----------------------------------------------------------------------
+Ran 1 test in 104.265s
+
+OK
+=== RUN   TestDeclaredPreparationQualifiesCleanPairGraph
+--- PASS: TestDeclaredPreparationQualifiesCleanPairGraph (92.89s)
+=== RUN   TestStrictConfig
+=== RUN   TestStrictConfig/unknown
+=== RUN   TestStrictConfig/duplicate
+=== RUN   TestStrictConfig/nested_unknown
+=== RUN   TestStrictConfig/nested_duplicate
+--- PASS: TestStrictConfig (0.00s)
+    --- PASS: TestStrictConfig/unknown (0.00s)
+    --- PASS: TestStrictConfig/duplicate (0.00s)
+    --- PASS: TestStrictConfig/nested_unknown (0.00s)
+    --- PASS: TestStrictConfig/nested_duplicate (0.00s)
+=== RUN   TestPackageUnion
+--- PASS: TestPackageUnion (0.16s)
+=== RUN   TestPathsAndFallbacks
+=== RUN   TestPathsAndFallbacks/Makefile
+=== RUN   TestPathsAndFallbacks/Makefile.local
+=== RUN   TestPathsAndFallbacks/tests/lib/helper.sh
+=== RUN   TestPathsAndFallbacks/go.mod
+=== RUN   TestPathsAndFallbacks/go.sum
+=== RUN   TestPathsAndFallbacks/.sdlc/affected.json
+=== RUN   TestPathsAndFallbacks/.github/workflows/ci.yml
+=== RUN   TestPathsAndFallbacks/tests/webcast/unclaimed.fixture
+=== RUN   TestPathsAndFallbacks/tests/broadcast-viewer/unclaimed.fixture
+=== RUN   TestPathsAndFallbacks/tests/terminal-oracle/unclaimed.fixture
+=== RUN   TestPathsAndFallbacks/tests/new-unowned.fixture
+=== RUN   TestPathsAndFallbacks/cmd/internal/absent_platform_package/deleted.go
+=== RUN   TestPathsAndFallbacks/probes/absent_platform_package/deleted.go
+--- PASS: TestPathsAndFallbacks (0.20s)
+    --- PASS: TestPathsAndFallbacks/Makefile (0.00s)
+    --- PASS: TestPathsAndFallbacks/Makefile.local (0.00s)
+    --- PASS: TestPathsAndFallbacks/tests/lib/helper.sh (0.00s)
+    --- PASS: TestPathsAndFallbacks/go.mod (0.00s)
+    --- PASS: TestPathsAndFallbacks/go.sum (0.00s)
+    --- PASS: TestPathsAndFallbacks/.sdlc/affected.json (0.00s)
+    --- PASS: TestPathsAndFallbacks/.github/workflows/ci.yml (0.00s)
+    --- PASS: TestPathsAndFallbacks/tests/webcast/unclaimed.fixture (0.00s)
+    --- PASS: TestPathsAndFallbacks/tests/broadcast-viewer/unclaimed.fixture (0.00s)
+    --- PASS: TestPathsAndFallbacks/tests/terminal-oracle/unclaimed.fixture (0.00s)
+    --- PASS: TestPathsAndFallbacks/tests/new-unowned.fixture (0.00s)
+    --- PASS: TestPathsAndFallbacks/cmd/internal/absent_platform_package/deleted.go (0.00s)
+    --- PASS: TestPathsAndFallbacks/probes/absent_platform_package/deleted.go (0.00s)
+=== RUN   TestActualNonGoInputsForceFull
+=== RUN   TestActualNonGoInputsForceFull/scripts/supervision-labels/labels.py
+=== RUN   TestActualNonGoInputsForceFull/scripts/supervision-labels/check.py
+=== RUN   TestActualNonGoInputsForceFull/scripts/build-go-atomic.sh
+=== RUN   TestActualNonGoInputsForceFull/nvim/init.lua
+=== RUN   TestActualNonGoInputsForceFull/nvim/workbench_actions.lua
+=== RUN   TestActualNonGoInputsForceFull/nvim/scrollback.lua
+=== RUN   TestActualNonGoInputsForceFull/nvim/review.lua
+=== RUN   TestActualNonGoInputsForceFull/nvim/review/comment.lua
+=== RUN   TestActualNonGoInputsForceFull/nvim/review/comment_float.lua
+=== RUN   TestActualNonGoInputsForceFull/zellij/config.kdl
+=== RUN   TestActualNonGoInputsForceFull/zellij/layouts/main-2.kdl
+=== RUN   TestActualNonGoInputsForceFull/zellij/layouts/main-3.kdl
+=== RUN   TestActualNonGoInputsForceFull/doctor/doctor.sh
+=== RUN   TestActualNonGoInputsForceFull/doctor/perf.sh
+=== RUN   TestActualNonGoInputsForceFull/doctor/fixtures/perf_capture.txt
+=== RUN   TestActualNonGoInputsForceFull/bin/pair-help
+=== RUN   TestActualNonGoInputsForceFull/bin/lib/dev-rebuild.sh
+=== RUN   TestActualNonGoInputsForceFull/tests/adapt-golden.expected
+=== RUN   TestActualNonGoInputsForceFull/tests/fixtures/zellij-replies.json
+=== RUN   TestActualNonGoInputsForceFull/tests/copy-on-select-test.sh
+=== RUN   TestActualNonGoInputsForceFull/tests/with-isolated-pair.sh
+=== RUN   TestActualNonGoInputsForceFull/tests/without-ancestors.py
+=== RUN   TestActualNonGoInputsForceFull/tests/lib/zellij_fixture_replies.py
+=== RUN   TestActualNonGoInputsForceFull/tests/terminal-oracle/driver.cjs
+=== RUN   TestActualNonGoInputsForceFull/tests/webcast/model.test.mjs
+=== RUN   TestActualNonGoInputsForceFull/tests/broadcast-viewer/pinspots.json
+=== RUN   TestActualNonGoInputsForceFull/testdata/edit-records/propose/fixture.json
+=== RUN   TestActualNonGoInputsForceFull/cmd/internal/sessioninventory/testdata/normalization/v1.json
+=== RUN   TestActualNonGoInputsForceFull/cmd/internal/wrapcmd/testdata/drive/codex/0.162.1/session-status.screen
+=== RUN   TestActualNonGoInputsForceFull/cmd/internal/webcast/notes/testdata/anchor-candidates.json
+=== RUN   TestActualNonGoInputsForceFull/terminfo/pair-vt-256color.ti
+--- PASS: TestActualNonGoInputsForceFull (2.29s)
+    --- PASS: TestActualNonGoInputsForceFull/scripts/supervision-labels/labels.py (0.00s)
+    --- PASS: TestActualNonGoInputsForceFull/scripts/supervision-labels/check.py (0.00s)
+    --- PASS: TestActualNonGoInputsForceFull/scripts/build-go-atomic.sh (0.00s)
+    --- PASS: TestActualNonGoInputsForceFull/nvim/init.lua (0.00s)
+    --- PASS: TestActualNonGoInputsForceFull/nvim/workbench_actions.lua (0.00s)
+    --- PASS: TestActualNonGoInputsForceFull/nvim/scrollback.lua (0.00s)
+    --- PASS: TestActualNonGoInputsForceFull/nvim/review.lua (0.00s)
+    --- PASS: TestActualNonGoInputsForceFull/nvim/review/comment.lua (0.00s)
+    --- PASS: TestActualNonGoInputsForceFull/nvim/review/comment_float.lua (0.00s)
+    --- PASS: TestActualNonGoInputsForceFull/zellij/config.kdl (0.00s)
+    --- PASS: TestActualNonGoInputsForceFull/zellij/layouts/main-2.kdl (0.00s)
+    --- PASS: TestActualNonGoInputsForceFull/zellij/layouts/main-3.kdl (0.00s)
+    --- PASS: TestActualNonGoInputsForceFull/doctor/doctor.sh (0.00s)
+    --- PASS: TestActualNonGoInputsForceFull/doctor/perf.sh (0.00s)
+    --- PASS: TestActualNonGoInputsForceFull/doctor/fixtures/perf_capture.txt (0.00s)
+    --- PASS: TestActualNonGoInputsForceFull/bin/pair-help (0.00s)
+    --- PASS: TestActualNonGoInputsForceFull/bin/lib/dev-rebuild.sh (0.00s)
+    --- PASS: TestActualNonGoInputsForceFull/tests/adapt-golden.expected (0.00s)
+    --- PASS: TestActualNonGoInputsForceFull/tests/fixtures/zellij-replies.json (0.00s)
+    --- PASS: TestActualNonGoInputsForceFull/tests/copy-on-select-test.sh (0.00s)
+    --- PASS: TestActualNonGoInputsForceFull/tests/with-isolated-pair.sh (0.00s)
+    --- PASS: TestActualNonGoInputsForceFull/tests/without-ancestors.py (0.00s)
+    --- PASS: TestActualNonGoInputsForceFull/tests/lib/zellij_fixture_replies.py (0.00s)
+    --- PASS: TestActualNonGoInputsForceFull/tests/terminal-oracle/driver.cjs (0.00s)
+    --- PASS: TestActualNonGoInputsForceFull/tests/webcast/model.test.mjs (0.00s)
+    --- PASS: TestActualNonGoInputsForceFull/tests/broadcast-viewer/pinspots.json (0.00s)
+    --- PASS: TestActualNonGoInputsForceFull/testdata/edit-records/propose/fixture.json (0.00s)
+    --- PASS: TestActualNonGoInputsForceFull/cmd/internal/sessioninventory/testdata/normalization/v1.json (0.00s)
+    --- PASS: TestActualNonGoInputsForceFull/cmd/internal/wrapcmd/testdata/drive/codex/0.162.1/session-status.screen (0.00s)
+    --- PASS: TestActualNonGoInputsForceFull/cmd/internal/webcast/notes/testdata/anchor-candidates.json (0.00s)
+    --- PASS: TestActualNonGoInputsForceFull/terminfo/pair-vt-256color.ti (0.00s)
+=== RUN   TestActualPairRoots
+--- PASS: TestActualPairRoots (2.15s)
+=== RUN   TestActualGroupConsumerCoverage
+--- PASS: TestActualGroupConsumerCoverage (2.38s)
+=== RUN   TestActualFileConsumerCoverage
+    config_test.go:303: checked 778 distinct group/file inputs
+--- PASS: TestActualFileConsumerCoverage (2.43s)
+PASS
+ok  	github.com/xianxu/ariadne/cmd/sdlc/fixture	102.596s

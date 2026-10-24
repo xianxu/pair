@@ -39,7 +39,7 @@ Adopt the newer Ariadne substrate on its own main-based issue branch. Preserve t
 
 Durable source-qualified plan: workshop/plans/000861-ariadne-pin-lint-adoption-plan.md.
 
-- [ ] Adopt normal pin and contextual catalog boundary; qualify real upstream planner fixture.
+- [x] Adopt normal pin and contextual catalog boundary; qualify real upstream planner fixture.
 - [x] Consolidate three JSON readers with preserved owner contracts; retain two authorized independent-role exceptions pending ariadne#590.
 - [x] Reuse canonical ShortRoot; preserve ordinary inherited TMPDIR and optional startup socket isolation.
 - [x] Replace virtual budget shortcuts and native expiry races with explicit observed transitions and cue-owned deadlines/timers.
@@ -169,3 +169,9 @@ Artifact inventory initially correctly rejected two new helper sources. Both are
 Individually re-audited14 changed readers before exact certificate commands. Cloudflared/session roots and generated config, owned-query/synthetic child fixtures, historyarchive inline JSON, fake launcher observation, layout reply fixture, actor/CLI mailbox markers remain local/literal; no new repository input populations. Startup and harness retain existing non-Go full fallback for real build/runtime/TTY inputs. Catalog remains a fixed scanner over tracked Go sources, native fixture roots and sleep-debt.json; new imported Go scanner participates in the normal graph. Filename-sensitive Zellij/FIFO callbacks add no IO. Inventory PASS after all commands completed. New helper tests staged before final catalog/inventory scan.
 
 Atlas and lesson updated. Next: commit this qualified implementation; run clean-head planner fixture in all source modes and inventory, push; one recorded --pre-close and ask hub for offered priority on queue. Keep runner/FIFO. Close's mandatory review and landing remain outstanding; then #838 integrates this landed main and reruns its own pre-close before the joint operator stage.
+
+### 2026-10-24 — clean-head planner qualification PASS
+
+At committed implementation5c3d67edb2798b06b6368e7e1b0e244b619b36d3, all three real provider source modes passed on the clean archived Pair graph: installed581 module103.330s, exact581 Git ref102.596s, sibling103.437s. Each qualified778 distinct group/file inputs. Raw logs retained under workshop/evidence/000861/affected-*-passed.log. Fresh inventory PASS; Go1.27.3 verified; no protected gate-configuration path in branch diff. Full catalog includes staged new helpers and passes3483 sources/34 rules/100 exact debt sites.
+
+Next: push this documentation checkpoint, queue one --pre-close, notify hub for offered priority. Preserve runner/FIFO. Required final recorded pass and mandatory close review/landing are still pending. No native agent model/live fleet was touched; #838 owns the later real operator joint check.
