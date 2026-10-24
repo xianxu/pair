@@ -1,6 +1,6 @@
 ---
 id: 000739
-status: codecomplete
+status: done
 created: 2026-10-20
 updated: 2026-10-23
 estimate_hours: 4.695
@@ -21,6 +21,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: 2b4258f054885fab11ace33de705cb7f5f5cc053
         evidence_commit: 419e868c2acc488c5318d289d0e386bcceba7684
+        landed_commit: 9e6cc9d7a781c9b73acc0e3b3b72116c004b5a4b
 ---
 
 # couch: start-up safe mode: no automatic injection into the hub, restart kind reported not acted on, one generic start notice per worker
