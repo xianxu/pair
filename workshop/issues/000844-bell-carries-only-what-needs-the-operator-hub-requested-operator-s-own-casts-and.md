@@ -1,13 +1,13 @@
 ---
 id: 000844
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-10-23
 updated: 2026-10-24
 estimate_hours: 4.12
 collaboration-mode: collaboration
-card_mirror: '9caa93e948d4470ffb0375ad9db867baf8596807' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '467a51e4c246fb1653b465a0df4fae43768d69ed' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-24T10:30:06-07:00
 claimant:
     operator: Xian Xu
@@ -17,6 +17,7 @@ claimant:
     worktree: /Users/xianxu/workspace/worktree/pair-slot1/pair
     repository: github.com/xianxu/pair
 flow: {kind: full, provenance: operator}
+actual_hours: N/A
 ---
 
 # Bell carries only what needs the operator (hub-requested, operator's own casts and drives, no hub able to act); the rest goes to the hub
