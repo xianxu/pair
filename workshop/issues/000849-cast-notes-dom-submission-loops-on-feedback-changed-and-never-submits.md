@@ -16,7 +16,7 @@ claimant:
     workspace: pair:6
     worktree: /Users/xianxu/workspace/worktree/pair-slot6/pair
     repository: github.com/xianxu/pair
-flow: {kind: quick, provenance: inferred, spec: "46dabe43", done: "f7c72a4b"}
+flow: {kind: full, provenance: inferred}
 ---
 
 # Cast notes: DOM submission loops on 'Feedback changed' and never submits
@@ -94,6 +94,8 @@ before changing anything; no weakening of the "feedback changed" protection.
 ## Log
 
 ### 2026-10-23
+- 2026-10-23: closed — Option one (TL 10-23): press takes board.Selection().PressSelection(delivered), no preview gate. Live Chrome on the host: TestSubmissionManagerLiveSubmitsOnAChangingPage (page changes every 50 ms, dispatches selectionchange) refused on the old code, now submits and prepares; asserts the caret is recorded once (mutation-checked: 42 records without the observer dedupe); TestOperatorFeedbackLivePrepareAndStalePanel reports an unsaved draft. Unit: TestSubmissionPressNeedsNoPreview, TestSubmissionPressReadsOutsideLockAndIgnoresPageChanges, TestSubmissionRefusesAnUnsavedNote, TestSubmissionPressCapturesNoteRevisions, TestSubmissionPanelOutOfDateNeverGates, TestPressSelectionLeavesOutDeliveredAndKeepsOldestEight, TestOperatorViewIgnoresSelectionRecords (mutation-checked), TestCastPressSelectionRendersFromTheRecording, node capture-dialog unsaved getter; reading guide, skill and README swept (model_test, sketch_page_test, skill_privacy_test). sdlc-local/suite pass on 5cd9a3e78 (known flake #825 rerun). Pre-existing on clean origin/main, not this change: webcast TestLiveConformance and TestLiveCastEndToEnd (in-page pause control click).; review verdict: SHIP
+- 2026-10-23: flow upgraded quick → full — 285 added lines in code files (limit 100); an earlier round of this close already ran the full review
 
 Investigation (pair:6), from the operator's recording 20261023T165427-6f1f (17:07 presses ≈ t 700–755 s):
 
