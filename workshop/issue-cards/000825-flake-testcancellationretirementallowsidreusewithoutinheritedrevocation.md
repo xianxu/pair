@@ -2,10 +2,18 @@
 id: 000825
 status: open
 created: 2026-10-22
-updated: 2026-10-22
+updated: 2026-10-23
 estimate_hours:
 github_issue:
 flake_tests: [github.com/xianxu/pair/cmd/internal/testcouch/agentfixture.TestCancellationRetirementAllowsIDReuseWithoutInheritedRevocation]
+started: 2026-10-23T19:43:32-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: Xian’s MacBook Pro
+    workspace: pair:9
+    worktree: /Users/xianxu/workspace/worktree/pair-slot9/pair
+    repository: github.com/xianxu/pair
 ---
 
 # flake: TestCancellationRetirementAllowsIDReuseWithoutInheritedRevocation
