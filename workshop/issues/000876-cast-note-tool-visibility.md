@@ -15,6 +15,7 @@ claimant:
     workspace: pair:4
     worktree: /Users/xianxu/workspace/worktree/pair-slot4/pair
     repository: github.com/xianxu/pair
+flow: {kind: quick, provenance: inferred, spec: "ccce414c", done: "1e787a6b"}
 ---
 
 # Cast Note tool is missing or undiscoverable in the live tool column
