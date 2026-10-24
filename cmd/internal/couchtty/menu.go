@@ -205,7 +205,10 @@ type MenuState struct {
 	FrameSequence      uint64
 	SpinnerPhase       uint8
 	Notice             MenuNotice
-	CopyFeedback       CopyFeedback
+	// LatestFeed is derived from the bounded feed for display only; operation
+	// notices retain priority and Ctrl+Y reads the full retained source.
+	LatestFeed   string
+	CopyFeedback CopyFeedback
 	// SlotGit is the last slot git observation per checkout path (pair#317),
 	// rebuilt over each refresh's probe set. Display evidence only.
 	SlotGit map[string]couchcore.SlotGitStatus

@@ -51,13 +51,14 @@ type driveRoutes struct {
 	// logged the messages already logged: in memory, at most maxLogged,
 	// then forgotten and logged afresh.
 	logf   func(format string, args ...any)
+	warnf  func(format string, args ...any)
 	logMu  sync.Mutex
 	logged map[string]bool
 }
 
 const maxLogged = 64
 
-func (d *driveRoutes) logOnce(msg string) {
+func (d *driveRoutes) logOnce(msg string, actionable bool) {
 	d.logMu.Lock()
 	if d.logged[msg] {
 		d.logMu.Unlock()
@@ -68,6 +69,9 @@ func (d *driveRoutes) logOnce(msg string) {
 	}
 	d.logged[msg] = true
 	logf := d.logf
+	if actionable && d.warnf != nil {
+		logf = d.warnf
+	}
 	d.logMu.Unlock()
 	if logf != nil {
 		logf("%s", msg)
@@ -91,12 +95,15 @@ func (s *Server) WithDrive(ctrl drive.Controller, token string) *Server {
 	return s
 }
 
-// WithDriveLog sends the drive routes' failures to logf (the cast's
-// Logf: Couch's notice line).
-func (s *Server) WithDriveLog(logf func(format string, args ...any)) *Server {
+// WithDriveLog sends diagnostics to logf. The optional warning callback owns
+// actionable failures; transient cancellation/busy responses stay informational.
+func (s *Server) WithDriveLog(logf func(format string, args ...any), warnings ...func(string, ...any)) *Server {
 	if s.drive != nil {
 		s.drive.logMu.Lock()
 		s.drive.logf = logf
+		if len(warnings) > 0 {
+			s.drive.warnf = warnings[0]
+		}
 		s.drive.logMu.Unlock()
 	}
 	return s
@@ -252,7 +259,7 @@ func (l *seatLimits) allowInput(now time.Time) bool   { return l.input.Allow(now
 func (d *driveRoutes) answer(w http.ResponseWriter, err error) {
 	status, text := drive.Answer(err)
 	if status >= http.StatusInternalServerError {
-		d.logOnce(fmt.Sprintf("remote driving: %d: %v", status, err))
+		d.logOnce(fmt.Sprintf("remote driving: %d: %v", status, err), status != http.StatusServiceUnavailable)
 	}
 	if status == http.StatusNoContent {
 		w.WriteHeader(status)

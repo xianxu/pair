@@ -2,6 +2,7 @@ package couchtty
 
 import (
 	"encoding/base64"
+	"reflect"
 	"strings"
 	"testing"
 	"unicode/utf8"
@@ -20,20 +21,18 @@ func TestChromeStatusTextUsesFortyDisplayCells(t *testing.T) {
 		{"control", "\x1b[31mready\x1b[0m\n\r\x0e", "ready"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			for _, capability := range []bool{false, true} {
-				m := StatusModel{}
-				if capability {
-					m.CapabilityNotice = tc.input
-				} else {
-					m.Notice = tc.input
-				}
-				legacy := RenderStatusRow(240, m)
-				bar := RenderStatusBar(240, 2, m)
-				for _, body := range []string{legacy.Body, bar.Body()} {
-					got := strings.TrimSpace(rowtext.Sanitize(body))
-					if got != tc.want || textwidth.Width(got) > 40 || !utf8.ValidString(got) {
-						t.Fatalf("capability=%v got %q (%d cells), want %q", capability, got, textwidth.Width(got), tc.want)
-					}
+			if got := ChromeStatusText(tc.input); got != tc.want {
+				t.Fatalf("status projection %q, want %q", got, tc.want)
+			}
+			// General feed text no longer enters chrome. The capability status
+			// retains the forty-cell contract in both renderer entry points.
+			m := StatusModel{CapabilityNotice: tc.input}
+			legacy := RenderStatusRow(240, m)
+			bar := RenderStatusBar(240, 2, m)
+			for _, body := range []string{legacy.Body, bar.Body()} {
+				got := strings.TrimSpace(rowtext.Sanitize(body))
+				if got != tc.want || textwidth.Width(got) > 40 || !utf8.ValidString(got) {
+					t.Fatalf("capability got %q (%d cells), want %q", got, textwidth.Width(got), tc.want)
 				}
 			}
 		})
@@ -42,17 +41,18 @@ func TestChromeStatusTextUsesFortyDisplayCells(t *testing.T) {
 
 func TestChromeLongNoticePreservesLayoutAndFullFeed(t *testing.T) {
 	full := strings.Repeat("n", 200)
-	feed := NewFeed(8, nil, NoticeLifetime)
-	feed.Push(Notice{Kind: "status", Body: full})
-	m := StatusModel{Actors: []StatusActor{{Label: "agent", Active: true}}, Notice: feed.Row().Body}
-	bar := RenderStatusBar(100, 2, m)
-	m.Notice = strings.Repeat("n", 39) + "…"
-	want := RenderStatusBar(100, 2, m)
-	if bar.Body() != want.Body() || bar.Height() != want.Height() {
-		t.Fatalf("long notice changed layout: %q vs %q", bar.Body(), want.Body())
+	f := newFixture(t, 24, 100)
+	f.con.mu.Lock()
+	before := f.con.statusModelLocked()
+	f.con.feed.Push(Notice{Kind: "status", Body: full})
+	after := f.con.statusModelLocked()
+	f.con.mu.Unlock()
+	bar, want := RenderStatusBar(100, 2, after), RenderStatusBar(100, 2, before)
+	if !reflect.DeepEqual(bar, want) {
+		t.Fatalf("general feed notice changed chrome layout: %q vs %q", bar.Body(), want.Body())
 	}
-	if feed.Messages()[0].Body != full {
-		t.Fatal("display cap destroyed full text")
+	if got := f.con.menuSnapshot().LatestFeed; got != full {
+		t.Fatalf("full source text lost from switcher feed: %q", got)
 	}
 }
 

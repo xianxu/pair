@@ -19,8 +19,8 @@ import (
 func TestEndpointChromeDuringIncompleteChildSequence(t *testing.T) {
 	host, child, con := newVTFixture(t, 8, 40)
 	child.Feed([]byte("\x1b[38;2;"))
-	con.setNotice("CHROME-DURING-PARTIAL")
-	waitFor(t, "independent chrome", func() bool { return strings.Contains(host.row(8), "CHROME-DURING-PARTIAL") })
+	con.setWarning("CHROME-DURING-PARTIAL")
+	waitFor(t, "independent chrome", func() bool { return strings.Contains(host.row(8), AttentionGlyph+"1") })
 	child.Feed([]byte("1;2;3mENDPOINT-COMPLETE"))
 	waitFor(t, "completed endpoint", func() bool { return strings.Contains(host.childArea(), "ENDPOINT-COMPLETE") })
 }
@@ -30,8 +30,8 @@ func TestEndpointChromeDoesNotUseChildCursorSave(t *testing.T) {
 		t.Run(sequence, func(t *testing.T) {
 			host, child, con := newVTFixture(t, 8, 40)
 			child.Feed([]byte(sequence))
-			con.setNotice("INDEPENDENT-STATUS")
-			waitFor(t, "chrome without child cursor ownership", func() bool { return strings.Contains(host.row(8), "INDEPENDENT-STATUS") })
+			con.setWarning("INDEPENDENT-STATUS")
+			waitFor(t, "chrome without child cursor ownership", func() bool { return strings.Contains(host.row(8), AttentionGlyph+"1") })
 		})
 	}
 }
@@ -65,28 +65,24 @@ func waitClosed(t *testing.T, what string, ch <-chan struct{}) {
 	}
 }
 
-// pair#484: a paint that snapshotted the status row before a notice was
-// pushed used to publish AFTER the notice's own paint, so the stale row stayed
-// on screen and nothing repainted it (TestEndpointChrome* hung under load).
-func TestStaleChromeSnapshotCannotOverwriteNotice(t *testing.T) {
+// pair#484: a paint that snapshotted chrome before a warning was pushed must
+// not publish after its badge update and leave stale chrome on screen.
+func TestStaleChromeSnapshotCannotOverwriteAttentionBadge(t *testing.T) {
 	host, _, con := newVTFixture(t, 8, 40)
 	held, release := holdFirstPublish(t, con, "chrome")
 	stale := make(chan struct{})
 	go func() { defer close(stale); con.repaint() }()
 	waitClosed(t, "the stale paint to snapshot", held)
 	notice := make(chan struct{})
-	go func() { defer close(notice); con.setNotice("AFTER-STALE-SNAPSHOT") }()
-	// Unordered, the notice's paint completes while the stale one is parked;
-	// ordered, it waits for it. Either way, give it the chance to overtake.
-	select {
-	case <-notice:
-	case <-time.After(50 * time.Millisecond):
-	}
+	go func() { defer close(notice); con.setWarning("AFTER-STALE-SNAPSHOT") }()
+	// Observe publication's state commit while the older paint is held. This
+	// forces the interleaving without assuming a goroutine ran after a sleep.
+	waitFor(t, "notice committed behind held paint", func() bool { return con.menuSnapshot().LatestFeed == "AFTER-STALE-SNAPSHOT" })
 	release()
 	waitClosed(t, "the stale paint", stale)
 	waitClosed(t, "the notice paint", notice)
-	if got := host.row(8); !strings.Contains(got, "AFTER-STALE-SNAPSHOT") {
-		t.Fatalf("a stale status row replaced the notice: %q", got)
+	if got := host.row(8); !strings.Contains(got, AttentionGlyph+"1") {
+		t.Fatalf("a stale status row replaced the warning badge: %q", got)
 	}
 }
 
@@ -122,26 +118,28 @@ func TestPaintDuringSelectionCannotRestoreTheMenu(t *testing.T) {
 	}
 }
 
-// pair#484: the menu's status row is snapshotted with the menu. A notice that
-// overtook the menu's publication was painted onto the endpoint, and the menu
-// then covered it with its older row.
+// pair#484: the switcher snapshot and publication share the publication owner.
+// A notice concurrent with publication must appear in the final switcher banner,
+// without being hidden by the older snapshot.
 func TestNoticeDuringMenuPublicationIsShown(t *testing.T) {
-	host, _, con := newVTFixture(t, 8, 40)
+	host, _, con := newVTFixture(t, 12, 40)
+	con.mu.Lock()
+	con.menu.Notice = MenuNotice{} // This parser fixture has no inventory provider.
+	con.mu.Unlock()
 	held, release := holdFirstPublish(t, con, "panel")
 	menu := make(chan struct{})
 	go func() { defer close(menu); con.showMenu() }()
 	waitClosed(t, "the menu to snapshot", held)
 	notice := make(chan struct{})
 	go func() { defer close(notice); con.setNotice("NOTICE-UNDER-MENU") }()
-	select {
-	case <-notice:
-	case <-time.After(50 * time.Millisecond):
-	}
+	// Observe publication's state commit while the older paint is held. This
+	// forces the interleaving without assuming a goroutine ran after a sleep.
+	waitFor(t, "notice committed behind held paint", func() bool { return con.menuSnapshot().LatestFeed == "NOTICE-UNDER-MENU" })
 	release()
 	waitClosed(t, "the menu", menu)
 	waitClosed(t, "the notice paint", notice)
-	if got := host.row(8); !strings.Contains(got, "NOTICE-UNDER-MENU") {
-		t.Fatalf("the menu's older status row covered the notice: %q", got)
+	if got := host.childArea(); !strings.Contains(got, "NOTICE-UNDER-MENU") {
+		t.Fatalf("the menu's older snapshot covered the notice: %q", got)
 	}
 }
 
@@ -154,11 +152,10 @@ func TestNoticeDuringResizeUsesOneGeometry(t *testing.T) {
 	host.SetSize(ptychild.Size{Rows: 8, Cols: 50})
 	waitClosed(t, "the resize to snapshot", held)
 	notice := make(chan struct{})
-	go func() { defer close(notice); con.setNotice("DURING-RESIZE") }()
-	select {
-	case <-notice:
-	case <-time.After(50 * time.Millisecond):
-	}
+	go func() { defer close(notice); con.setWarning("DURING-RESIZE") }()
+	// Observe publication's state commit while the older paint is held. This
+	// forces the interleaving without assuming a goroutine ran after a sleep.
+	waitFor(t, "notice committed behind held paint", func() bool { return con.menuSnapshot().LatestFeed == "DURING-RESIZE" })
 	release()
 	waitClosed(t, "the notice paint", notice)
 	con.mu.Lock()
@@ -167,7 +164,10 @@ func TestNoticeDuringResizeUsesOneGeometry(t *testing.T) {
 	if failure != nil {
 		t.Fatalf("resize interleaving failed the terminal: %v", failure)
 	}
-	waitFor(t, "notice at the new width", func() bool { return strings.Contains(host.row(8), "DURING-RESIZE") })
+	waitFor(t, "warning badge at the new width", func() bool { return strings.Contains(host.row(8), AttentionGlyph+"1") })
+	if got := con.menuSnapshot().LatestFeed; got != "DURING-RESIZE" {
+		t.Fatalf("resize warning lost retained text: %q", got)
+	}
 }
 
 func TestEndpointSwitchRestoresFrameWithoutResizingChild(t *testing.T) {

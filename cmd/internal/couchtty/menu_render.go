@@ -230,7 +230,7 @@ func renderedMenuNotice(state MenuState, now time.Time) string {
 		if state.ProjectionPending {
 			return "refresh pending"
 		}
-		return ""
+		return state.LatestFeed
 	}
 	if notice.Level == MenuNoticeError {
 		if state.ProjectionPending {

@@ -2832,6 +2832,17 @@ and external temporary roots rather than relying on the host's TMPDIR.
 
 - #796: When adding a display mode, parameterize established pending/reattach regressions over both modes. A legacy fixture that explicitly selects the compatibility mode cannot prove the new default preserves pending states. Count branches also need owner/style invariants from ordinary chips, not only correct text and hit spans.
 
+- #812 BR-1: audit each terminal completion owner (local queue, remote queue, direct dispatch) separately. A dispatcher diagnostic callback cannot cover attempts already owned by queues; test the actual local completion path and its once owner.
+- #812 BR-2: a generic Logf or Warning string is not a severity boundary. Trace all producers, including successful fidelity summaries, recovered overflow, aggregate close reports and transient busy replies; carry an explicit warning fact/callback at actionable sources and keep one owner for uncertainty alerts.
+
+- #812 BR-3: an operator-required relaunch instruction is actionable even when its component is named a priority helper. Enumerate every remaining publication callback by producer branches; normal mixed-family messages are not a reason to discard the failure branches.
+- #812 BR-4: when removing a presentation surface, migrate all tests that consume it while preserving their original ordering/parser/resize invariants. Run complete affected packages with JSON progress before the next review; an absence assertion must use confirmed ownership and joined background completion.
+
+- #812 BR-5: an async source being queued does not mean its UI event exists. Shared attention-opening test helpers must acknowledge publication before toggling; cover both input-before-publication and publication-before-input with controlled barriers, preserving the production empty-list behavior.
+
+- #812 BR-6: apply publication-order rules to every assertion, not only shared helper callers. Pane removal and cast phase changes can precede their warning/feedback; positive assertions await publication, and negative controls join the terminal callback or final feedback before checking absence.
+
+- #812 live restart: normal startup proof must include borrowed attachment ownership, not only fully attributed helper repair. A successful-result Warning string mixes routine retained ownership feedback with actual configuration-publication failure; classify typed components. Diagnostic-only skipped reminder checks remain feed-only, independent of actual generated stale reminders.
 - #739 live acceptance: label immutable startup observations as history in persistent status output. A recovered actor must not appear currently missing because its startup absence was retained. Startup safety notices must name the explicit recovery action as well as explain what automation was suppressed.
 
 - #739: host bytes are not a presentation-complete barrier. A startup-ordering test must finish through the console event loop, with a held-write control; asynchronous Stop exercises cancellation instead. Qualify the current exit semantics (Escape need not quit an empty switcher), and track shared cancellation-cause loss separately rather than ignoring generic presenter errors.
