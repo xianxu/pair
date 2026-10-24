@@ -87,6 +87,15 @@ Full review found no Critical or production defect, but returned FIX-THEN-SHIP w
 
 The old recorded lease3817920737 was still queued and was cancelled through SDLC because the reviewed test fix needs a final-head record (tl-worker review-overlap contract). No suite had run; requeue only after this correction is pushed. The live look remains the combined morning stage with pair:4 (hub7d702e30); hub563a3e8a explicitly approves the precise no-plan-check acknowledgement for that external wait. #863 separately claimed, not started; do not switch this checkout while the next #842 review is active.
 
+
+### 2026-10-24 — SHIP; parked for final recorded result and combined stage
+
+Close round2 returned SHIP, high confidence; BR-1 and BR-2 addressed, zero new/open findings. The reviewer independently repeated the wrong-destination mutation and observed the successor assertion fail. SDLC published codecomplete bound to evidence de17daf3044e6d45c7e1335db2fc6237fd371ef7, then mirrored it; pre-checkpoint HEAD57e65c33cf0c8e43ddeaac7c147effce238dd2cf. PR581 remains unmerged; no live acceptance claimed.
+
+One final recorded suite is still queued: lease-3238290542, attemptcfb07485d03d337d82c60275ecc8c0a9 on tested runtime/test head27f192b8930fe672722112a425c97ca21a5d774e, tool session37701, detached checkoutsdlc-local-951911802. Follow this retained runner/result, not the cancelled older leases. Close evidence and this checkpoint are docs-only descendants. Next: on its pass hand pair:4 the branch/head and operator steps for the approved combined morning stage; no independent pair:0 action. Only after that acceptance, run sdlc merge --yes and verify landing.
+
+Hub843a4c5e made #863 urgent after #842 enters this wait: verify the production fresh-hub broker caller case first in the disposable shared harness. #863 is claimed/open, with no code/design stacked on this branch. Switching this slot to main-based #863 leaves this detached recorded suite and #842 branch intact.
+
 ## Revisions
 
 ### 2026-10-23 — scope clarification before design
