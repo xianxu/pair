@@ -2895,3 +2895,5 @@ and external temporary roots rather than relying on the host's TMPDIR.
 - #866 copy completion: Attribute fixture completion to exact operation argv. A shared executable can also run background helpers; their successful exit must never satisfy another operation's completion channel.
 
 - #866 composed startup coverage: a terminal fake must execute the production first-pane publisher before agent readiness; AgentReady alone cannot model creator admission. Run every default Go package locally with suite flags after helper/lease migrations, and retain a named phase/session error for missing first-pane evidence at the existing startup bound.
+
+- #866 passive namespace hermeticity: replacing the native executable is insufficient when admission reads sockets before invoking it. Shared fake-query owners must bind a private socket namespace and prove isolation against an owned poisoned inherited namespace without touching a real server.

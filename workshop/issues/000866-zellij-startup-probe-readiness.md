@@ -192,6 +192,12 @@ Accepted external-layout boundary: root precedence is PAIR_HOME, executable sibl
 
 Reader audit: the two changed couchcore fixtures still read canonical non-Go helper/catalog inputs and keep full fallback; recovery fixture reads generated catalog cases with explicit local paths; both fixed scanners retain their declared tree/owner inputs and negative controls. Each printed certificate was individually recorded after inspection; inventory passes. Complete local fresh-candidate Go verification runs at /Volumes/TestScratch/pair866-full-go-local-gr31bcx7/go.log (GOFLAGS -p=3 -trimpath, go test ./... -count=1 -timeout20m); complete41-target make-k rerun at /Volumes/TestScratch/pair866-all-targets-final-7m7g6nrb/targets.log. Both still running; no pass claimed and no recorded suite queued.
 
+### 2026-10-24 — local all-target pass and full-Go hermeticity finding
+
+The corrected complete41-target sweep PASS exit0, capture /Volumes/TestScratch/pair866-all-targets-final-7m7g6nrb/targets.log SHA2566cef6d80ae13eb14c284b6fee68b8795453e8a6eb7b9a32edd6ecfb17f90ec03. Full default Go run is still finishing; couchcore reported another fixture-isolation class while corrected composed registration/attach and launcher passed. The shared sandboxedChecker installed fake executable and disposable HOME but inherited the native socket namespace, so passive qualification consulted operator endpoints before the fake ran. Deterministic owned poisoned-namespace regression failed RED without any real server; binding that shared owner to its own HOME/native makes the poison and all affected listing/ownership/warm-attach tests PASS65.707s. All original query counts and no-deletion fences remain. Only artifactcollision_zellij_test.go changed; direct file reads remain owned local fixture paths, individually audited/recorded as local_or_literal_fixture.
+
+The full-Go run also found TestRepoPreferenceConcurrentInstancesPreserveOtherRepositoriesAndAgents busy-store failure; isolated exact run reproduces exit1/package1.496s, and source/test are unchanged from main. pair:6 confirms854/873 do not cover it: Background keeps the fixed1s wait and typed ErrThreadStoreBusy escapes the preference loop. TL266b90f8 directs separate unclaimed filing. Creation is pending behind the common SDLC repo lock; no fix or flake classification is folded into866. No recorded suite queued. Full Go capture remains /Volumes/TestScratch/pair866-full-go-local-gr31bcx7/go.log; no full pass claimed.
+
 ## Revisions
 
 ### 2026-10-24 — final plan bookkeeping and source ownership
