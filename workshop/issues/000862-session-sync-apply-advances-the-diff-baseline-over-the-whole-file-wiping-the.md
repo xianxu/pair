@@ -1,12 +1,20 @@
 ---
 id: 000862
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-10-24
 updated: 2026-10-24
 estimate_hours:
-card_mirror: 'ad34b49a65b2a57860ee75ffabe52338c2b94058' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: 'ad29701005c921a39535c1fa45ea756931a7c5e6' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-24T15:58:12-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: Xian’s MacBook Pro
+    workspace: pair:3
+    worktree: /Users/xianxu/workspace/worktree/pair-slot3/pair
+    repository: github.com/xianxu/pair
 ---
 
 # session-sync apply advances the diff baseline over the whole file, wiping the operator's unread edits elsewhere
@@ -50,8 +58,33 @@ map cleanly.
 
 ## Plan
 
-- [ ]
+Draft: [apply shadow plan](../plans/000862-apply-shadow-plan.md).
+One atomic close boundary, no milestones. Await TL approval before code.
+
+- [ ] Approve the mapped-range contract and conservative retained-baseline warning; coordinate Ariadne fake ownership.
+- [ ] Prove pure mapping and bounded growth, then integrate preparation/public warning handling.
+- [ ] Verify public registered/legacy/CLI paths, unread preservation and refusal/publication controls; update guidance.
+- [ ] Qualify the updated Ariadne fake, inventory and recorded pre-close, then whole close and land.
 
 ## Log
 
 ### 2026-10-24
+
+### 2026-10-24 — claim, investigation and plan for TL
+
+Claimed in pair:3 and started from fresh main
+f01ccc06b55fd3c5ac383fe172f4a4bb3ab74bcf. Confirmed the issue's Apply ->
+prepareWrite -> shadowAfter(empty section) path replaces the entire baseline.
+Ariadne's TestFakeApplyAdvancesBaseline explicitly pins that defect; changing
+instructions link is not this issue's scope. The fake update needs coordination
+with its owning repo/slot, not unlanded runtime imports.
+
+Recommended design reuses bounded changedRuns to map actual changed byte runs
+through unchanged old-shadow/current-file intervals. Independent occurrence
+resolution against the shadow is rejected because unread edits can change
+occurrence counts. Broad records and no-ops must not acknowledge unchanged
+text. Unmappable/missing-baseline outcome is proposed as existing-document
+apply success, old baseline retained, visible warning and scoped-read recovery;
+this policy goes to TL for explicit approval before code. No new persisted
+coverage state, parser, timeout or retry. Durable plan records pure/integration
+boundaries, failure states, counted growth, fixtures and public verification.
