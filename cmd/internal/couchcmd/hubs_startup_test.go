@@ -622,20 +622,29 @@ func TestBareCwdHubResolverFailureStaysUnknownAndUsable(t *testing.T) {
 	if err == nil || hubs != nil || len(roots) != 1 || roots[0] != path {
 		t.Fatalf("unverified hub was guessed: %v %v %v", hubs, roots, err)
 	}
+	want := startupSummary(couchcore.StartupObservation{
+		Kind: couchcore.StartupUnknown, Diagnostic: err,
+		MissingHubs: []string{path}, ParkedUnknown: true,
+		Hubs: map[string]couchcore.StartupHubObservation{path: {Unknown: true}},
+	}, path)
 	before, _ := c.Threads.PreviewSnapshot()
 	host := hostty.NewFakeHost(ptychild.Size{Rows: 30, Cols: 240})
-	console := couchtty.New(host, strings.NewReader(""))
+	reader, writer := io.Pipe()
+	console := couchtty.New(host, reader)
+	assertCopied := noticeCopyAssertion(t, console)
 	done := make(chan int, 1)
 	go func() { done <- runConsole(console, c, couchcore.StartResult{}, io.Discard) }()
 	t.Cleanup(func() {
 		console.Stop()
+		_ = writer.Close()
 		select {
 		case <-done:
 		case <-testwait.After(t):
 			t.Error("unknown startup console did not stop")
 		}
 	})
-	waitWarmAcceptance(t, "unverified bare hub has visible unknown notice", func() bool { return strings.Contains(host.Written(), "startup: unknown; hub automation unavailable") })
+	waitWarmAcceptance(t, "unverified bare hub has visible unknown notice", func() bool { return strings.Contains(host.Written(), couchtty.ChromeStatusText(want)) })
+	assertCopied(writer, want)
 	if _, err := console.Ops()(couchcore.OperationCall{Name: "list"}); err != nil {
 		t.Fatalf("unknown hub blocked switcher operations: %v", err)
 	}
