@@ -320,6 +320,9 @@ test-runtimebundle: runtimebundle-generate
 # The review helpers are now built Go binaries (#93 M3), not committed shell
 # scripts — declare them as prereqs so a fresh-tree `make test` builds them
 # before the review suite execs `$ROOT/bin/pair-review-*`.
+# Lua callers and the helper must come from one candidate. Fixture bootstrap
+# preserves PATH; prefer the suite-owned image, else the just-built local Pair.
+test-review test-lua: export PATH := $(if $(PAIR_TEST_BINARY),$(dir $(PAIR_TEST_BINARY)),$(abspath $(BIN_DIR))):$(PATH)
 test-review: $(BIN_DIR)/pair
 	bash tests/review-docflow-test.sh
 	bash tests/review-apply-test.sh
@@ -360,7 +363,7 @@ test-run-headless:
 # Headless Lua tests for nvim/*.lua decision modules (issue #000027). nvim -l
 # runs a Lua script in nvim's interpreter with the full vim.api available, so
 # pure logic AND buffer-manipulation can be asserted without a UI.
-test-lua:
+test-lua: $(BIN_DIR)/pair
 	nvim -l tests/zellij-observation_test.lua
 	nvim -l tests/review-restore-admission-test.lua
 	bash tests/nvim-route-poke-admission-test.sh

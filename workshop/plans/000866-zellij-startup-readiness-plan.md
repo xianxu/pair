@@ -376,3 +376,10 @@ This append-only correction supersedes the resolver rows in both earlier concept
 | Existing handoff policy definitions | cmd/internal/launcher/session_handoff.go | unchanged; reused | no new policy implementation here |
 
 The previous implementation reconciliation still governs the first-pane publisher location (new launcher/pane_ready.go), the local repolint inventory ownership and exact retirement file. The BR-4 correction still removes PlanProbeAdmission in favor of the single production qualification loop. All other governing core file/status rows were checked against Git name-status; this revision records location/status corrections only, with no new mechanism, state or source change. ARCH-PURPOSE requires the durable concept map to describe the implementation reviewers can inspect.
+
+
+### 2026-10-24 — candidate test ownership and atomic rollout rule
+
+Authenticated TL11f5d193 requires the Lua callers and the Pair executable to update together. A staged build updates both from the selected candidate, so normal staged use has no caller/helper version skew. Upgrade/relaunch cooperating processes together; copying only the Lua assets onto an older Pair is unsupported because that older executable may lack internal zellij-command. This records the rollout contract of the approved helper, with no new runtime mechanism.
+
+The test-review and test-lua recipes now build the in-tree Pair and prefix PATH with the suite-owned PAIR_TEST_BINARY directory when supplied, otherwise the in-tree candidate bin directory. This selection survives the existing empty-environment fixture bootstrap; tests no longer resolve the operator's installed Pair accidentally. A regression supplies an incompatible installed Pair first on inherited PATH and checks both recipe targets through that bootstrap, for shared and in-tree candidates. Fixtures also retain private native namespaces and their actual helper/effect assertions. ARCH-PURPOSE and ARCH-CONSTRAINTS make executable and native endpoint ownership part of the integration boundary.

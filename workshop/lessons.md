@@ -2885,3 +2885,5 @@ and external temporary roots rather than relying on the host's TMPDIR.
 - #866 post-close Lua regression: Classify argv before evaluating adapter-specific providers. Cover non-native identity/RPC through the same run method with a provider that fails if consulted; native integration fixtures must execute the migrated helper seam.
 
 - #866 helper migration fixtures: Native CLI integration owns both the exact candidate Pair executable and a private native socket namespace. PATH must not resolve an older installed helper, and injected tracing executors must retain the guarded helper rather than invoke raw native commands.
+
+- #866 second pre-close: Put the exact candidate binary on PATH at Lua/native recipe entry, preserve it across fixture bootstrap, and prove an incompatible installed Pair cannot win. Run both complete review and Lua targets before requeuing after a helper migration failure; update caller assets and helper binary together.

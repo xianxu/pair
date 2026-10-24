@@ -12,7 +12,10 @@ export PAIR_SCROLLBACK_PENDING_PATH="$RT/pending.md"
 export PAIR_DRAFT_PANE_PATH="$RT/no-cached-draft" PAIR_NVIM_PID_FILE="$RT/viewer.pid"
 export PAIR_RETENTION_PROTOCOL=0 PAIR_CHANGELOG_LOG=''
 export ZELLIJ_PANE_ID=11 ZELLIJ_SESSION_NAME=fixture-review
-mkdir "$RT/bin"
+mkdir -p "$RT/bin" "$RT/home"
+# Keep native admission on the suite-owned Pair executable and private namespace.
+bash "$ROOT/tests/lib/pair-test-binary.sh" "$RT/bin/pair"
+export HOME="$RT/home" ZELLIJ_SOCKET_DIR="$RT/native"
 cat > "$RT/bin/zellij" <<'PY'
 #!/usr/bin/env python3
 import json, os, sys
