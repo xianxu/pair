@@ -7,7 +7,7 @@ created: 2026-10-23
 updated: 2026-10-24
 estimate_hours:
 collaboration-mode: collaboration
-card_mirror: '1ea07666e4b3d6bddc27ed6483f8b9d9e8cc2248' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '490cf64d423bbef0f457478c83ecfdd6fbbb1e49' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-23T22:15:11-07:00
 claimant:
     operator: Xian Xu
@@ -17,7 +17,7 @@ claimant:
     worktree: /Users/xianxu/workspace/worktree/pair-slot7/pair
     repository: github.com/xianxu/pair
 flow: {kind: full, provenance: inferred}
-actual_hours: 1.23
+actual_hours: N/A
 ---
 
 # Cast broadcast bar: a ⏎ send button when sketches or annotations are pending
