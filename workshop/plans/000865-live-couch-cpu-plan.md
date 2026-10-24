@@ -24,6 +24,7 @@ The mapped process UUID differs from the current binary at its path. Do not assi
 
 | Name | Kind | Lives in | Status |
 |------|------|----------|--------|
+| ProfileLifecycle/StepProfile | PURE | cmd/internal/couchcmd/profiling.go | new; sole legal state/event/effect reducer |
 | ProfileRequest | PURE | cmd/internal/couchcmd/profiling.go | new; parse an absolute output directory or disabled |
 | ProfileWindow | INTEGRATION | cmd/internal/couchcmd/profiling.go | new; own timer, runtime/pprof and local output files |
 | Couch launch lifetime | INTEGRATION | cmd/internal/couchcmd/run.go | modified; opt-in only on cliLaunch, join profile cleanup on exit |
@@ -85,13 +86,13 @@ The implementation should reserve the requested leaf directory with one os.Mkdir
 
 Profile metadata should contain runtime/debug.ReadBuildInfo, executable identity/hash captured for the selected candidate, process/start/profile timestamps, fixed settings and final status. Describe workload, actors, rates, cast state and viewer state in the controlled run's external manifest using existing harness observations, instead of adding another production inventory reader. No environment dump, browser DOM or authored terminal text belongs in metadata. Record cumulative allocation snapshots at their actual timestamps without forcing GC or changing MemProfileRate; analyze the difference over the observed window and state sampling limits.
 
-Named adversarial test strategy:
+Named adversarial strategies (the executable cases live in tests):
 
-- ParseProfileRequest: empty, relative, noncanonical and absolute input; exact disabled versus enabled result with no IO.
-- StartProfileWindow: existing leaf/symlink leaf/permission failure; directory and file permissions; bounded writer crossing its cap and short writes; CPU owner busy; successful versus failed acquisition. A stateful backend tracks active owner, CPU start/stop, profile writes and injected failures. It must reject a second active profile and detect Stop without ownership.
-- ProfileWindow.Close/lifetime: controlled warmup and capture gates, cancel before warmup, cancel while CPU active, window expiry racing Close, repeated Close; exactly one stop/close and joined completion; first-cause preservation under later errors. Real writer errors must remain visible even if backend Stop has no return value.
-- RunWithRuntime launch integration: profile env set on help/skill/message/internal commands leaves filesystem untouched; terminal-invalid launch also leaves no worker; admitted launch starts only one owner; ending the real Console stops and joins it without modifying the exit code. Use existing Console runtime tests and notices, not a second fake Console implementation.
-- Real backend conformance: a short admitted CPU window and allocation snapshots parse with go tool pprof against the retained test executable. Do not use arbitrary sleeps as proof of lifecycle ordering; the backend signals capture admission/completion.
+- ParseProfileRequest: malformed path classes → pure accepted-request/disabled/refused invariants, without IO.
+- StepProfile: generated legal and adversarial event sequences → independently count acquisition/release, require no release without ownership, retain first failure and permit completion only after cleanup.
+- StartProfileWindow/ProfileWindow.Close: controlled clock/backend/file failure ordering → same production reducer, one owner, exactly-once cleanup and joined completion; bounded first-error writers preserve failures hidden by the runtime API.
+- RunWithRuntime launch integration: vary command/lifetime admission → only an admitted interactive launch may read the opt-in/create artifacts, and ending Console joins it without altering the exit code.
+- Runtime profile adapter: short real capture → go tool pprof accepts CPU/allocation outputs with the exact retained binary; stateful double ownership agrees with this conformance control.
 
 The existing Console control is now recorded in the committed measurement summary. Its allocation concentration justifies including terminal-heavy disposable controls; it does not select the M2 optimization.
 
@@ -102,3 +103,28 @@ The existing Console control is now recorded in the committed measurement summar
 Targeted lifecycle: `go test ./cmd/internal/couchcmd -run 'Profile' -count=1`, then `go test -race ./cmd/internal/couchcmd -run 'Profile' -count=20`. Run the package's relevant launch controls, `go test ./cmd/internal/repolint`, the audited reader inventory (`make test-affected-inventory`) and `git diff --check`. Run short real backend conformance with generated profiles parsed by `go tool pprof -top`. Native workload commands are added to Log with their actual selected candidate, manifest and timeout before running; do not claim skipped cases as qualified. Boundary verification is `sdlc milestone-close --issue865 --milestone M1`, with the mandatory binary-owned review; final pre-close uses the pushed head's `sdlc local-check run --pre-close`. M2 exact test commands follow its approved measured revision.
 
 ARCH-PURE: path validation is pure; runtime profiler/file/timer ownership stays in one thin integration. ARCH-MOCK: the stateful profile backend models exclusive acquisition, output, failure and release; a real pprof conformance control checks it. ARCH-PURPOSE: M1 is not final completion; the issue includes the measured M2 correction. ARCH-SECURE: private local outputs only, no listener, credentials, DOM or text dump. ARCH-CONSTRAINTS and ARCH-FUNERAL: one finite window, fixed bounded file set, no periodic growth; explicitly opted-in artifacts retained for the investigation and removed by their requesting owner. ARCH-EVOLVE: no product wire format changes; diagnostic metadata is write-once, with no read-modify-write path to lose unknown fields.
+
+## Revisions
+
+- 2026-10-24 — PQ-1/PQ-2: enforce lifecycle through StepProfile and compress test inventories into adversarial strategies. Public behavior, profile settings, owner and disposable-first approval remain unchanged.
+
+## Enforced lifecycle core (PQ-1)
+
+`ProfileLifecycle` is PURE; `StepProfile(state,event)` is the sole state/effect reducer. `ProfileWindow.run` is the one serialized event/effect interpreter. It holds the authoritative state as a local value and replaces it only with StepProfile's result; file/backend adapters never mutate it. Concurrent Close calls only cancel the context and await the same done channel. They cannot call backend Stop or close files. External acquisition/IO runs synchronously inside this worker; no unjoined effect worker exists.
+
+| State | Event | Next state / emitted effect |
+|---|---|---|
+| warmup | elapsed | acquiring / allocation-before then CPU Start |
+| warmup | cancel | releasing / close files and finalize cancelled evidence, no CPU Stop |
+| acquiring | admitted | capturing / arm finite capture timer |
+| acquiring | admitted-cancelled | releasing / Stop owned CPU, finalize cancelled evidence |
+| acquiring | failed | releasing / finalize failed evidence without CPU Stop |
+| capturing | expiry or cancel | releasing / Stop owned CPU, allocation-after, close/finalize |
+| releasing | release-completed (with any retained error) | finished / close done after effects joined |
+| finished | late event | finished / no effect |
+
+Cancellation during synchronous acquisition is latched by context, not by concurrently mutating lifecycle state: after allocation-before the worker checks cancellation before calling CPU Start. After successful CPU Start it checks cancellation again and emits admitted-cancelled if needed. That event carries positive acquired ownership so release cannot be skipped. Failure of CPU Start never grants ownership. The pure reducer rejects out-of-state events instead of guessing success. Cancel/expiry racing while capturing are serialized by the worker select: the first emits release, later cancellation only waits for done. A release failure is retained as failed/incomplete; it cannot roll back completed effects or create permission to retry acquisition. No retries exist inside a launch.
+
+The model carries an optional first failure and explicit acquired ownership in releasing state. Cancellation is a visible cancelled outcome unless an IO/backend failure supplies stronger failed/incomplete evidence; the first actual failure stays authoritative. Release does not run twice. Cleanup completes despite cancellation, and Close returns only once the worker and runtime writer are joined. A failed file-close or final-metadata write remains observable through the existing notice owner even if the final file is incomplete.
+
+Applicable events: cancel revokes the pending/active window and releases acquired ownership; expiry completes the window through release; IO/acquisition failure cancels further profiling and preserves completed artifacts as incomplete; a late cancel/expiry after finished is ignored. There is no replacement request, automatic retry, queue, preemption or rollback in one launch. Only timer, context and synchronous IO completion ordering are nondeterministic; the controllable backend/clock drives those same boundaries in tests.

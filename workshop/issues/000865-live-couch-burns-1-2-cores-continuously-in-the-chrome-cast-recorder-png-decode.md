@@ -70,3 +70,7 @@ ARCH-DRY uses the existing Runtime/Getenv, Console notice and testcouch owners; 
 ## Revisions
 
 - 2026-10-24 07:12 PDT — TL revised the original recorder hypothesis after the denser measurement: original filing is retained under Problem; active Spec/Done when now require attribution before optimization. M1 approved as above; M2 remains a measured design gate. No production code yet.
+
+### 2026-10-24 — plan gate round1
+
+Plan-quality returned PQ-1 explicit-transition-ownership and PQ-2 test-strategy-compression. Added the pure StepProfile lifecycle and single serialized effect interpreter, including cancelled successful acquisition requiring release; compressed prose case inventories into one adversarial strategy per risky function. No implementation admitted or written. No change to TL-approved public M1 behavior.
