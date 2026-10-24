@@ -102,3 +102,7 @@ total: 2.92325
 ### 2026-10-24 — plan gate round2
 
 CLEAN/high: PQ-1 and PQ-2 addressed, no new findings. Derived estimate only after this clearance. The M2 allowance remains provisional pending measurement and TL's design approval.
+
+### 2026-10-24 — admitted design and pure lifecycle
+
+change-code completed exit0 at93b8d5593: plan-quality CLEAN, estimate-quality INFO. Estimate notes question experimental allowance and provisional M2 sizing; re-derive when the measured M2 design is known. First TDD unit: TestProfileLifecycle tests failed on absent model/event APIs (/tmp/pair865-model-red.log), then passed0.380s after implementation (/tmp/pair865-model-green.log). Pure StepProfile is isolated in profiling_model.go. Exhaustive event sequences independently count acquisition/release and require joined finished ownership; no production runtime/file adapter exists yet. No recorded check or merge runner is active.
