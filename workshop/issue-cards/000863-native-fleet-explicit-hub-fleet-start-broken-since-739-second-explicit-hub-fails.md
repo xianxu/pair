@@ -17,10 +17,10 @@ actual_hours: N/A
 tracker:
     version: 1
     completion:
-        token: close-03de6f18fbc2
+        token: close-4cab81b80d1c
         repository: github.com/xianxu/pair
-        reviewed_head: 3a25379a588a7d6eff2fc7d4d918cea9e4e67de6
-        evidence_commit: 8b3031485002a81568863bb747fc17c94102bdb9
+        reviewed_head: db3c572e729063328540b68d194bed58547055a1
+        evidence_commit: 2496a9fa6f94ff34dd6a7ed9496705a1c6be3c17
 ---
 
 # Native fleet: explicit-hub Fleet.Start broken since #739; second explicit hub fails attach at a fresh start
