@@ -750,7 +750,6 @@ var NonArtifactSources = []string{
 	"cmd/internal/launcher/startup_budget.go",
 	"cmd/internal/startupbudget/budget.go",
 	// #823 editorial settings and embedded mode briefs name no Pair artifacts.
-	"cmd/internal/editorial/catalog.go",
 	"cmd/internal/editorial/document.go",
 	"cmd/internal/editorial/markdown.go",
 	"cmd/internal/editorial/source.go",

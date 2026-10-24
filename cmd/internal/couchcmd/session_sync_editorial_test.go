@@ -77,8 +77,7 @@ func TestRunEditorialMigrationCLI(t *testing.T) {
 		return response.Migration
 	}
 	p := preview()
-	c, _ := editorial.DefaultCatalog()
-	want, err := editorial.PlanMigration([]byte(source), c)
+	want, err := editorial.PlanMigration([]byte(source))
 	if err != nil {
 		t.Fatal(err)
 	}
