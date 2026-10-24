@@ -371,6 +371,41 @@ reason and report a discrepancy to the hub. No check was queued against the
 known-red dependency. Fresh authoritative #581 observation: still not landed,
 claimed by ariadne:2. All other next steps and preserved evidence remain valid.
 
+### 2026-10-23 20:28 — #581 pinned; pure checks GREEN
+
+Authenticated hub dispatch dfeecc73-2520-4a73-815d-b45c926cd920 resumes final
+qualification. Independently verified ariadne PR423 MERGED at
+5a17f789619d3dcaafec62ae51b350833836a3e7, and ordinary weave substrate refresh
+contains that merge. Normal module pin is now
+v0.0.0-20261024032245-5a17f789619d; no replace or candidate fork. Seeded workflow
+refresh remains deferred as its own operator-verified change, not included here.
+
+Repinned export v4 at that landed revision:84 members plus manifest,15 active
+editorial cases and2 historical moves. New authored fixtures cover invalid answer
+links and unread closed frontmatter; all15 replay through public CLI. Historical
+#823 bytes stay unchanged. Native harness now includes both new cases too.
+
+A targeted integration test caught Pair's remaining duplicate direct-link regex:
+Unicode whitespace destinations still marked an ask answered, including an old
+escaped pending marker. Both public edit-guard cases were RED before the fix.
+Removed the duplicate direct-link scan (shared ChatItems already owns it), and
+reused sidedoc.ValidAnswerTarget for appends and decoded historical marker links.
+Both new cases and the old malformed/empty cases now GREEN. No alternate target
+rule, scanner, retry or timeout was introduced (ARCH-DRY).
+
+Fresh whole editorial PASS0.396s, whole sessionsync PASS6.880s; full race on both
+PASS3.823s/19.952s. Focused CLI Editorial/Round/SessionSync/Collaborative PASS1.199s;
+authored native input preflight PASS. Go reports1.27.3. Reader inventory PASS after
+individual re-audits of the four changed readers: same candidate skill/runtime
+and manifest roots, now with the two new exported fixtures; same frozen fuzz
+inputs. Exact certificate commands retained each non-Go full fallback.
+
+Next: commit/push this qualified head; retain `sdlc local-check run --pre-close`
+to completion, inspect its printed selection, and run final exact-head native
+fixtures. Then send the verified revision and checklist to the hub for its
+possibly coordinated #838/#419 stage. No :0 mutation before that coordination.
+Whole issue close/review and landing follow actual operator acceptance.
+
 ## Revisions
 
 ### 2026-10-23 — initial implementation design

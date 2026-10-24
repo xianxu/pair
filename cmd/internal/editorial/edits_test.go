@@ -154,7 +154,7 @@ func TestValidateChatAnswerLinkRecognition(t *testing.T) {
 	cases := []struct {
 		name, item string
 		linked     bool
-	}{{"direct", "- Why? → [answer](note.side/old.md)\n", true}, {"pending escaped", "- Why? 🤖{ → \\[answer\\](note.side/old.md)}\n", true}, {"inline example", "- Why? `→ [answer](note.side/example.md)`\n", false}, {"fenced example", "- Why?\n\n  ```\n  → [answer](note.side/example.md)\n  ```\n\n  Follow-up text.\n", false}, {"malformed", "- Why? → [answer](broken path)\n", false}, {"empty destination", "- Why? → [answer]()\n", false}, {"mention", "- Why? → [answer](note.side/example.md) is an example\n", false}, {"pending example", "- Why? 🤖{literal \\[answer\\](example)}\n", false}}
+	}{{"direct", "- Why? → [answer](note.side/old.md)\n", true}, {"pending escaped", "- Why? 🤖{ → \\[answer\\](note.side/old.md)}\n", true}, {"inline example", "- Why? `→ [answer](note.side/example.md)`\n", false}, {"fenced example", "- Why?\n\n  ```\n  → [answer](note.side/example.md)\n  ```\n\n  Follow-up text.\n", false}, {"malformed", "- Why? → [answer](broken path)\n", false}, {"empty destination", "- Why? → [answer]()\n", false}, {"unicode whitespace destination", "- Why? → [answer](broken\u00a0path)\n", false}, {"pending unicode whitespace destination", "- Why? 🤖{ → \\[answer\\](broken\u00a0path)}\n", false}, {"mention", "- Why? → [answer](note.side/example.md) is an example\n", false}, {"pending example", "- Why? 🤖{literal \\[answer\\](example)}\n", false}}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			src := "# Chat\n<!-- collaboration-mode: chat -->\n" + tc.item

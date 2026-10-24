@@ -67,7 +67,7 @@ func TestCollaborativeFixturesPublicCLI(t *testing.T) {
 			primaries[member.Name] = member.Path
 		}
 	}
-	if len(primaries) != 13 || len(moves) != 2 {
+	if len(primaries) != 15 || len(moves) != 2 {
 		t.Fatalf("coverage: %d editorial examples, %d historical moves", len(primaries), len(moves))
 	}
 	var cases []fixture

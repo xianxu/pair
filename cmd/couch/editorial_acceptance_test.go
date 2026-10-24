@@ -19,6 +19,8 @@ import (
 
 var nativeEditorialFixtures = []struct{ name, file, notice, protected string }{
 	{"chat-tag", "session.md", "", "@@chat@@"},
+	{"chat-answer-invalid", "session.md", "", "@@chat@@"},
+	{"frontmatter-unread-tag", "note.md", "frontmatter could not be read, so any legacy mode keys in it were not read", ""},
 	{"legacy-chat-map", "status.md", "collaboration-mode map is a legacy key; its chat sections are read as @@chat@@", "collaboration-mode"},
 	{"ask-command", "design.md", "", ""},
 	{"ask-question", "design.md", "", ""},
@@ -423,7 +425,7 @@ func TestNativeEditorial(t *testing.T) {
 			if get(legacy) != lossy || !strings.Contains(result.Stdout, "Notes") {
 				t.Fatalf("lossy migration not refused with section: %s", result.Stdout)
 			}
-			t.Logf("native editorial: agent=%s actor=fixture:0 upstream=354e5fac5c96e0b2c26350ee712eb835746a6d67 authored-decisions=mechanical highlight-only=PASS unchanged-file-shadow-state-round-on-owned-refusal=PASS migration-preview-confirm-stale-lossy=PASS elapsed=%s", kind, time.Since(started))
+			t.Logf("native editorial: agent=%s actor=fixture:0 upstream=5a17f789619d3dcaafec62ae51b350833836a3e7 authored-decisions=mechanical highlight-only=PASS unchanged-file-shadow-state-round-on-owned-refusal=PASS migration-preview-confirm-stale-lossy=PASS elapsed=%s", kind, time.Since(started))
 			cleanup, cancelCleanup := context.WithTimeout(context.Background(), 15*time.Second)
 			defer cancelCleanup()
 			if err := fleet.Close(cleanup); err != nil {

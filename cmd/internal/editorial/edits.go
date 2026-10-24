@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"github.com/xianxu/ariadne/pkg/sidedoc"
 	"regexp"
+	"strings"
 )
 
 // Change replaces the half-open base byte interval with New.
@@ -294,7 +295,7 @@ func validateEdits(base []byte, p *DocumentPolicy, changes []Change) ([]EditPoli
 			stats.ChatComparisons++
 			if overlapsChange(ch, item.Range) || ch.Start == item.AppendAt || ch.Start == item.Range.Start {
 				if !inReference {
-					if ch.Start != ch.End || ch.Start != item.AppendAt || item.Linked || !answerAppend.MatchString(ch.New) || !safeAnswers[i] {
+					if ch.Start != ch.End || ch.Start != item.AppendAt || item.Linked || !validAnswerAppend(ch.New) || !safeAnswers[i] {
 						return fail("editorial-chat", "preserve each chat ask; only append its answer link", r)
 					}
 				}
@@ -385,9 +386,26 @@ func mergeRanges(in []Range) []Range {
 	return out
 }
 
-var existingAnswerLine = regexp.MustCompile(`(?m)(?:^|[ \t])→ (?:\[answer\]\([^\s()]+\)|done: [^\r\n]+)[ \t]*\r?$`)
+// Pending historical markers escape their link punctuation. After decoding,
+// their destinations obey the same shared rule as ordinary chat answers.
+var existingAnswerLine = regexp.MustCompile(`(?m)(?:^|[ \t])→ (?:\[answer\]\(([^()]*)\)|(done: [^\r\n]+))[ \t]*\r?$`)
 
-var answerAppend = regexp.MustCompile(`^ → \[answer\]\([^\s()]+\)$`)
+func hasExistingAnswer(text string) bool {
+	for _, match := range existingAnswerLine.FindAllStringSubmatch(text, -1) {
+		if match[2] != "" || sidedoc.ValidAnswerTarget(match[1]) {
+			return true
+		}
+	}
+	return false
+}
+
+func validAnswerAppend(text string) bool {
+	const prefix = " → [answer]("
+	if !strings.HasPrefix(text, prefix) || !strings.HasSuffix(text, ")") {
+		return false
+	}
+	return sidedoc.ValidAnswerTarget(text[len(prefix) : len(text)-1])
+}
 
 type chatItem struct {
 	Range    Range
@@ -460,27 +478,8 @@ func compileChatItems(base []byte, p *DocumentPolicy) []chatItem {
 
 func indexBlocks(base []byte, p *DocumentPolicy, markers []Marker) ([]Range, []chatItem) {
 	items := selectChatItems(base, p)
-	// Direct links must end a source line and lie outside Markdown code. Pending
-	// marker links are decoded through the same marker grammar/escape owner.
-	directItem, codeCursor := 0, 0
-	for _, match := range existingAnswerLine.FindAllIndex(base, -1) {
-		for directItem < len(items) && items[directItem].Range.End <= match[0] {
-			directItem++
-		}
-		if directItem == len(items) {
-			break
-		}
-		if match[0] < items[directItem].Range.Start || match[1] > items[directItem].Range.End {
-			continue
-		}
-		for codeCursor < len(p.CodeRanges) && p.CodeRanges[codeCursor].End <= match[0] {
-			codeCursor++
-		}
-		if codeCursor < len(p.CodeRanges) && p.CodeRanges[codeCursor].Start <= match[0] {
-			continue
-		}
-		items[directItem].Linked = true
-	}
+	// Direct answer status already comes from shared ChatItems. Only historical
+	// escaped pending-marker links need the additional decoded observation below.
 	lines := sourceLines(base)
 	lineEnd := make([]int, len(lines))
 	for i, r := range lines {
@@ -511,7 +510,7 @@ func indexBlocks(base []byte, p *DocumentPolicy, markers []Marker) ([]Range, []c
 			continue
 		}
 		decoded := UnescapeMarkerText(string(base[m.LastTurn.Start:m.LastTurn.End]))
-		if existingAnswerLine.MatchString(decoded) {
+		if hasExistingAnswer(decoded) {
 			items[itemCursor].Linked = true
 		}
 	}
@@ -577,7 +576,7 @@ func safeAnswerAppends(source []byte, base, after *DocumentPolicy, changes []Cha
 	safe := make([]bool, len(changes))
 	for i, ch := range changes {
 		work++
-		if ch.Start != ch.End || !answerAppend.MatchString(ch.New) {
+		if ch.Start != ch.End || !validAnswerAppend(ch.New) {
 			continue
 		}
 		tail, ok := tails[ch.Start]

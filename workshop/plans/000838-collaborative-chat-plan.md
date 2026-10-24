@@ -160,7 +160,7 @@ Files: `editorial/{document,source,edits,markdown,catalog}.go` and colocated tes
 - [x] Adapt ChatScan sections/notices to byte intervals and protected source ownership, retaining Goldmark source facts for edit validation. One shared scan per Compile; include tag and owning heading/ancestor in section freshness tokens.
 - [x] Delete retired processing/presentation/override resolution, domain/frontier enforcement and fill paths. Keep legacy declarations byte protected and nonfatal. Compile unknown/malformed settings using shared fallback without discarding unrelated ownership metadata.
 - [x] Implement the function-scoped strategies below for authority preservation and chat grammar; preserve existing ready-referral and pending-marker guards.
-- [ ] Pin adapter scan counts at N/2N and fuzz generated base/candidate edits with an independent interval/item oracle. Run `go test ./cmd/internal/editorial` and `go test -race ./cmd/internal/editorial`; expected PASS including existing item-integrity regressions.
+- [x] Pin adapter scan counts at N/2N and fuzz generated base/candidate edits with an independent interval/item oracle. Run `go test ./cmd/internal/editorial` and `go test -race ./cmd/internal/editorial`; expected PASS including existing item-integrity regressions.
 - [x] Commit the coherent pure-core change with issue, Agent and Co-Authored-By trailers.
 
 ### 3. Wire rounds, notices and operator migration
@@ -170,7 +170,7 @@ Files: `sessionsync/{editorial,editorial_migration,editorial_codec,round,applyfi
 - [ ] Write failing public-seam tests through the stateful file rig for each write API; assert the common source/authority invariant and unchanged shadow on every rejected transaction.
 - [x] Remove the runtime catalog dependency. Carry the shared notice sequence once in Read.Editorial; CLI renders the sequence without duplicated wrapper notices. Preserve old round codec/render semantics and unknown-field round trips.
 - [x] Exercise PlanMigration with generated legacy documents and the independent chat-item projection oracle; test the existing confirmed transaction as event sequences. Implement only transformations proved to preserve chat items.
-- [ ] Run `go test ./cmd/internal/sessionsync ./cmd/internal/couchcmd -run 'Editorial|Round|SessionSync'`, then focused race tests. Commit the integration with the same trailers.
+- [x] Run `go test ./cmd/internal/sessionsync ./cmd/internal/couchcmd -run 'Editorial|Round|SessionSync'`, then focused race tests. Commit the integration with the same trailers.
 
 ### 4. Agent contract, acceptance and close
 
@@ -323,3 +323,14 @@ still qualifies the actual editor/agent behavior. Qoder is not a supported
 personality in this harness, and no real-model/Qoder credit run is claimed.
 All 13 collaborative primary fixtures pass public CLI; localized records retain
 the existing coarse diff refusal rather than expanding #838 into a new diff.
+
+### 2026-10-23 20:28 — landed #581 qualification
+
+Normal pinned module and manifest now use5a17f789619d3dcaafec62ae51b350833836a3e7
+(PR423),84 members and15 active fixtures. Shared ValidAnswerTarget also owns
+Pair's appended and historical escaped answer-link destination validation;
+removing the residual duplicate direct-link scan fixed two measured Unicode
+whitespace false positives. This is the same approved shared-grammar authority,
+with no new resolver or state. Whole pure package/race checks pass. Current
+recorded-check entry is `sdlc local-check run --pre-close` per the authenticated
+#578 fleet notice, superseding explicit affected selection in earlier tasks.

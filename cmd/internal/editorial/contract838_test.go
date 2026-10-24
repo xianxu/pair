@@ -14,9 +14,9 @@ import (
 // These are frozen upstream contract inputs, not a second implementation of
 // universal-review. Runtime behavior is exercised by the editorial tests.
 func TestContract838PinnedExport(t *testing.T) {
-	const revision = "354e5fac5c96e0b2c26350ee712eb835746a6d67"
+	const revision = "5a17f789619d3dcaafec62ae51b350833836a3e7"
 	const sourceRoot = "construct/local/universal-review/"
-	const manifestDigest = "6669fc014c9724317c672e83481eed1b9eb3a600b70b3b048f463096a4111d75"
+	const manifestDigest = "85e60265e25341b7351ddabdadd288d9fc209a254a70249b8aacf18bf410eee0"
 	type filePin struct {
 		Source string
 		Path   string
@@ -41,9 +41,9 @@ func TestContract838PinnedExport(t *testing.T) {
 	}
 	readJSON("../../../workshop/evidence/000838/contract-provenance.json", &provenance)
 	if provenance.Repository != "github.com/xianxu/ariadne" || provenance.Commit != revision {
-		t.Fatalf("unexpected upstream provenance: %+v", provenance)
+		t.Fatalf("unexpected upstream provenance: repository=%q commit=%q", provenance.Repository, provenance.Commit)
 	}
-	if provenance.Manifest != (filePin{Source: sourceRoot + "export.json", Path: "export.json", Bytes: 18065, SHA256: manifestDigest}) {
+	if provenance.Manifest != (filePin{Source: sourceRoot + "export.json", Path: "export.json", Bytes: 19783, SHA256: manifestDigest}) {
 		t.Fatalf("unexpected export manifest pin: %+v", provenance.Manifest)
 	}
 	root := "testdata/contract838"
@@ -71,7 +71,7 @@ func TestContract838PinnedExport(t *testing.T) {
 		}
 	}
 	readJSON(filepath.Join(root, "export.json"), &manifest)
-	if manifest.Schema != "ariadne/universal-review-export" || manifest.Version != 4 || len(manifest.Members) != 77 {
+	if manifest.Schema != "ariadne/universal-review-export" || manifest.Version != 4 || len(manifest.Members) != 84 {
 		t.Fatalf("unexpected export contract: %s v%d, %d members", manifest.Schema, manifest.Version, len(manifest.Members))
 	}
 	pins := make(map[string]filePin)
