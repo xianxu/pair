@@ -2,6 +2,7 @@ package recording
 
 import (
 	"encoding/json"
+	"fmt"
 	"math"
 	"reflect"
 	"testing"
@@ -177,5 +178,55 @@ func TestPageLoadMembershipUsesAcceptedIndexWithoutCopying(t *testing.T) {
 		}
 	}); allocs != 0 {
 		t.Fatalf("membership allocated %v times", allocs)
+	}
+}
+
+func TestPageLoadSketchProjectionVisitsEachCreationOnce(t *testing.T) {
+	for _, n := range []int{32, 64} {
+		s := NewState()
+		build := NewBuilder("projection")
+		for i := 0; i < n; i++ {
+			why := SegNavigate
+			if i == 0 {
+				why = SegLive
+			}
+			start := len(build.Recs)
+			build.Page(why, "http://same/")
+			for _, r := range build.Recs[start:] {
+				if seg, ok := r.(*Seg); ok {
+					seg.PageLoad = &PageLoad{Target: seg.Tab.ID, Loader: fmt.Sprint("L", i%2), Root: 1}
+				}
+			}
+		}
+		// Populate through accepted records, interleaving one finished sketch in
+		// every activation. The membership predicate sees only creation metadata.
+		for _, r := range build.Recs {
+			r.SetTime(s.T + 1)
+			if err := s.Apply(r); err != nil {
+				t.Fatal(err)
+			}
+			if _, ok := r.(*Doc); !ok {
+				continue
+			}
+			begin := sketchBegin()
+			begin.ID = fmt.Sprint("s", s.Seg)
+			begin.Doc = s.DocSeg
+			begin.Tab = s.Tab.ID
+			applySketch(t, s, begin)
+			applySketch(t, s, &SketchLabel{SketchOperation: sketchOp(1), Sketch: begin.ID, Label: "saved"})
+		}
+		load := s.PageLoadAt(1)
+		visits := 0
+		out := s.Sketches.snapshotForDocuments(func(doc int) bool { visits++; return s.OnPageLoad(doc, load) })
+		if visits != n || len(out.Sketches) != n/2 {
+			t.Fatalf("N=%d visits=%d selected=%d", n, visits, len(out.Sketches))
+		}
+		out.Sketches[0].Begin.ID = "mutated"
+		if s.Sketches.Snapshot().Sketches[0].Begin.ID == "mutated" {
+			t.Fatal("projection aliases history")
+		}
+		if got := s.SketchesOnPageLoad(nil); len(got.Sketches) != 0 {
+			t.Fatal("unknown matched history")
+		}
 	}
 }

@@ -6,7 +6,7 @@ agent in that view. Each selected note
 carries focused recorded context, a replay link, draw-time box text, and its
 saved PNG crop when available. Overlapping notes retain separate captures;
 submission never recaptures a changed page for those crops. The press takes the
-board's feedback as it is at that moment (pair#849): every open note at its current
+board's feedback on the confirmed current page load at that moment (pair#849, #857): every open note at its current
 revision and every finished, labelled sketch at its current version that no
 earlier submission delivered, offscreen ones included. What the page is doing
 never refuses it; a live page that changes many times a second submits like a
@@ -20,6 +20,21 @@ With neither kind of evidence, nonempty text follows ordinary draft submission; 
 does nothing. Ordinary Alt+Return keeps its existing behavior. A paused cast
 refuses new draw-time captures and note-state writes; resume before drawing a
 new note or retrying pending note resolution.
+
+## Page-load membership (#857)
+
+A load is the exact CDP target, loader and backend-root triple, persisted on
+segment boundaries. A real reload, including the same URL, or a new tab starts
+with no earlier feedback. Pause/resume, app-only updates and A→B→A tab return
+retain feedback when that triple is unchanged. Activation segments remain the
+draft fence; they are not load identity. Navigation makes the scope pending
+before snapshot IO; pending, failed or legacy-unknown scope contributes no page
+feedback. Normal draft text and the unsaved-note guard retain their behavior.
+An admitted selection keeps its exact versions across later navigation.
+
+History queries remain unfiltered. Notes and sketch source/finish facts expose
+additive `page_load` provenance with a canonical decimal-string root; absence
+means unknown, never an inferred match. Saved captures are not recaptured.
 
 ## Completed sketch evidence (#753)
 
@@ -148,8 +163,8 @@ failure releases it. These optional dialog hooks do not change terminal notes.
 Live pins follow a connected anchor or a confident unique replacement on the same
 route, projecting the original region onto its new box. Removed, hidden, clipped,
 offscreen, conflicting or ambiguous anchors show no box. The shared list retains
-all open notes, including notes on earlier documents, labelled **not on this view**
-when placement is unavailable. The single yellow Notes panel also lists accepted
+only the confirmed current load’s open notes, labelled **not on this view**
+when placement on that same load is unavailable. Earlier-load notes and sketches are absent from the UI, not merely marked unavailable. The single yellow Notes panel also lists accepted
 sketches, including offscreen or unavailable anchors. It minimizes to Notes (N),
 moves by header/button or arrow keys,
 and keeps its shared session-local anchor. Existing editors appear inside its

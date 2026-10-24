@@ -64,7 +64,7 @@ func (f FakeSurface) Notes(before int64) ([]NoteView, error) {
 		if !ok {
 			continue
 		}
-		v := NoteView{Note: st.Notes[len(st.Notes)-1], Elements: noteElementFacts(st, n)}
+		v := NoteView{PageLoad: PageLoadFactsOf(st.PageLoadAt(st.Notes[len(st.Notes)-1].Seg)), Note: st.Notes[len(st.Notes)-1], Elements: noteElementFacts(st, n)}
 		if el := st.Node(n.At.Node); el != nil {
 			v.Element = Outline(el)
 			ctx, err := f.Model.Context(st, n.At)

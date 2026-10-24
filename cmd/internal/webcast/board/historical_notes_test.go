@@ -23,11 +23,15 @@ func TestEarlierLoadFreshResolveRefusesWhileAdmittedResolutionRetainsHistory(t *
 			}
 			oldNode := r.p1.ID
 			r.page(recording.SegNavigate)
-			if got := r.bd.Live(); len(got) != 1 || got[0].ID != id {
-				t.Fatalf("Couch list lost old note: %+v", got)
+			if got := r.bd.Live(); len(got) != 0 {
+				t.Fatalf("Couch list retained earlier load: %+v", got)
 			}
-			if got := r.bd.OperatorView(); len(got.Notes) != 1 || got.Notes[0].ID != id || got.Notes[0].At.Node != oldNode {
-				t.Fatalf("operator list lost frozen note: %+v", got)
+			if got := r.bd.OperatorView(); len(got.Notes) != 0 {
+				t.Fatalf("operator list retained earlier load: %+v", got)
+			}
+			history, err := recording.Reduce(r.mem.Records(), 1<<62)
+			if err != nil || len(history.Notes) != 1 || history.Notes[0].ID != id || history.Notes[0].At.Node != oldNode || history.Notes[0].State != recording.NoteOpen {
+				t.Fatalf("recording lost frozen earlier-load note: %+v, %v", history, err)
 			}
 			writes := 0
 			var session *OperatorSession
@@ -53,7 +57,7 @@ func TestEarlierLoadFreshResolveRefusesWhileAdmittedResolutionRetainsHistory(t *
 			} else if err := r.bd.SetState(StateIn{Viewer: ana, ID: id, State: recording.NoteResolved}); !errors.Is(err, ErrStale) {
 				t.Fatalf("fresh earlier-load resolve: %v", err)
 			}
-			if writes != 0 || len(r.kinds("note-state")) != 0 || !hasLive(r.bd.Live(), id) {
+			if writes != 0 || len(r.kinds("note-state")) != 0 || r.bd.st.Notes[0].ID != id || r.bd.st.Notes[0].State != recording.NoteOpen {
 				t.Fatal("earlier-load request reached writer or consumed history")
 			}
 			current, err := r.note(r.p1.ID, 1)
@@ -70,7 +74,7 @@ func TestEarlierLoadFreshResolveRefusesWhileAdmittedResolutionRetainsHistory(t *
 			} else if err := r.bd.SetState(StateIn{Viewer: ana, ID: current, State: recording.NoteResolved}); err != nil {
 				t.Fatal(err)
 			}
-			if !hasLive(r.bd.Live(), id) || hasLive(r.bd.Live(), current) {
+			if len(r.bd.Live()) != 0 || r.bd.st.Notes[0].State != recording.NoteOpen || r.bd.st.Notes[1].ID != current || r.bd.st.Notes[1].State != recording.NoteResolved {
 				t.Fatal("current resolve consumed wrong note")
 			}
 			if err := r.bd.ResolveSelection(context.Background(), admitted); err != nil {
@@ -81,6 +85,10 @@ func TestEarlierLoadFreshResolveRefusesWhileAdmittedResolutionRetainsHistory(t *
 			}
 			if len(r.kinds("note-state")) != 2 || len(r.bd.st.Notes) != 2 {
 				t.Fatal("resolution lost retained history or wrote duplicate state")
+			}
+			history, err = recording.Reduce(r.mem.Records(), 1<<62)
+			if err != nil || len(history.Notes) != 2 || history.Notes[0].ID != id || history.Notes[0].State != recording.NoteResolved || history.Notes[1].State != recording.NoteResolved {
+				t.Fatalf("admitted resolution missing from retained history: %+v, %v", history, err)
 			}
 		})
 	}
@@ -133,11 +141,16 @@ func TestHistoricalListDoesNotConsumeCurrentPageColorQuota(t *testing.T) {
 		}
 	}
 	r.page(recording.SegNavigate)
-	if _, err := r.note(r.p1.ID, 0); err != nil {
+	current, err := r.note(r.p1.ID, 0)
+	if err != nil {
 		t.Fatalf("old page consumed new page quota: %v", err)
 	}
-	if len(r.bd.Live()) != broadcast.MaxNotesPerColor+1 {
-		t.Fatal("list omitted historical notes")
+	if live := r.bd.Live(); len(live) != 1 || live[0].ID != current {
+		t.Fatalf("current list includes earlier load: %+v", live)
+	}
+	history, err := recording.Reduce(r.mem.Records(), 1<<62)
+	if err != nil || len(history.Notes) != broadcast.MaxNotesPerColor+1 {
+		t.Fatalf("recording lost historical notes: %+v, %v", history, err)
 	}
 }
 
@@ -179,8 +192,11 @@ func TestCurrentLoadOperatorResolveKeepsQueuedPageFence(t *testing.T) {
 			if writes != 1 {
 				t.Fatalf("queued writer fence never reached: %d", writes)
 			}
-			if !hasLive(r.bd.Live(), id) {
-				t.Fatal("refused resolve consumed old note")
+			if len(r.bd.st.Notes) != 1 || r.bd.st.Notes[0].ID != id || r.bd.st.Notes[0].State != recording.NoteOpen {
+				t.Fatal("refused resolve consumed retained note")
+			}
+			if live := r.bd.Live(); (mode == "navigation" && len(live) != 0) || (mode != "navigation" && (len(live) != 1 || live[0].ID != id)) {
+				t.Fatalf("live list disagrees with current load: %+v", live)
 			}
 		})
 	}

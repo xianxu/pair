@@ -395,10 +395,21 @@ func cloneSketchStroke(b *SketchStrokeBegin) (*SketchStrokeBegin, error) {
 	}
 	return owned, nil
 }
-func (s *SketchState) Snapshot() SketchProjection {
+func (s *SketchState) Snapshot() SketchProjection { return s.snapshotForDocuments(nil) }
+
+// SketchesOnPageLoad copies matching sketches without copying earlier loads'
+// pressure history. Unknown identities never select historical feedback.
+func (s *State) SketchesOnPageLoad(load *PageLoad) SketchProjection {
+	return s.Sketches.snapshotForDocuments(func(doc int) bool { return s.OnPageLoad(doc, load) })
+}
+
+func (s *SketchState) snapshotForDocuments(include func(int) bool) SketchProjection {
 	out := SketchProjection{Active: s.active, HistoryBytes: s.historyBytes, Sketches: []SketchView{}}
 	for _, id := range s.order {
 		h := s.sketches[id]
+		if include != nil && !include(h.begin.Doc) {
+			continue
+		}
 		begin, _ := cloneSketchBegin(h.begin)
 		v := SketchView{Begin: begin, Phase: h.phase, Reason: h.reason, Label: h.label, Strokes: []SketchStrokeView{}, Visible: append([]string{}, h.visible...), Redo: append([]string{}, h.redo...), NextSequence: h.next, Receipts: []SketchReceipt{}}
 		for _, sid := range h.order {

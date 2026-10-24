@@ -30,7 +30,7 @@ Paths are relative to `cmd/internal/webcast/`.
 | Load transition state/events/effects (`nextLoadScope`, one-cell helper) | `recorder/load_scope.go` | new |
 | Current-load press selection | `board/submission.go` | modified |
 | Historical load provenance | `query/querier.go`, `query/sketch.go`, `board/feedback_context.go` | modified |
-| Browser reducer load membership | `web/model.js` | modified |
+| Browser load membership and exact root validation | `web/page-load.js`, `web/model.js` | new / modified |
 
 `PageLoad` owns opaque nonempty `Target` and `Loader` strings and positive int64 `Root`, the CDP backend root rather than a recording NodeID. Equality compares these three owned fields; missing load never matches another missing load. A recording has many loads; a load may have many activation segments. `DocSeg` stays the existing activation/draft fence, not a substitute identity.
 
@@ -231,3 +231,9 @@ TL02693d4d-10fd-4b7f-a3fb-96d20a116b78 approves canonical positive decimal-strin
 ### 2026-10-24 — FIFO historical intent and current UI scope
 
 Read-only recorder integration found that latest-generation-only reservations would discard earlier queued Live activations before snapshots start, violating unchanged TestRecorderSegments. TL32581055 requires queued history preserved. TLf4d3e2cb approves the revised transition section: per-session cells, immutable ingress tickets, epoch-fenced attempts with one event-driven retry per observed epoch, one actor outside the mutex for writes, newest-scope-only Board confirmation, and close draining already-issued history. This is the second mechanism change; a third requires re-planning recorder ownership as a whole. Recorder production edits remain paused until this revision clears plan-quality.
+
+### 2026-10-24 — Detach fixture parity and landed UI integration
+
+TL2eb592a8 approves ARCH-MOCK parity: fakeChrome refuses every method for a detached session. TestRecorderActivePageDetach first settles initial Live, retaining its exact A-then-B assertion; a separate pending-initial-capture detach test requires the existing snapshot-failure diagnostic, no fabricated A snapshot and a valid first-live B. This corrects fixture phase ordering under the already-approved detach rule, not the recorder ownership mechanism.
+
+#856 landed as PR583 and is integrated through main. Actual ownership now includes the shared pure browser `web/page-load.js`, explicit current-scope fields on OperatorView and the existing sketch-delivery epoch reset. Projections filter before copying earlier pressure history; scope changes never append canonical clear records. Historical scalar query facts preserve comparable integrity witnesses. Trusted anchors reuse same-key mirror IDs and the existing anchor index. Board computes a sorted load projection once per anchor revision; recorder batches probe only requested nodes against that index, avoiding added whole-anchor copies/sorts. Existing original-binding delivery already scans feedback and DOM per batch: with B batches, H feedback and D anchor source-document buckets, new lookup is O(B*D*q) for fixed bounded q<=16, D<=H; it adds no cache or index lifetime. Allocation qualification at32/64 anchors retains four requested IDs, two matches and two allocations. Same-load inactive-node removals still pass through the existing graveyard policy.

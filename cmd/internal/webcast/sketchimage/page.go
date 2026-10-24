@@ -23,7 +23,7 @@ type PageScene struct {
 // SamePageView deliberately excludes title/time/ordinal, which may change while
 // the selected shapes still describe the same recorded visible viewport.
 func SamePageView(a, b PageScene) bool {
-	return a.RecordingID == b.RecordingID && a.Doc == b.Doc && a.Tab == b.Tab && a.URL == b.URL && a.VP == b.VP && a.Scroll == b.Scroll
+	return a.RecordingID == b.RecordingID && a.PageLoad == b.PageLoad && a.Doc == b.Doc && a.Tab == b.Tab && a.URL == b.URL && a.VP == b.VP && a.Scroll == b.Scroll
 }
 
 type PagePlan struct {
@@ -100,11 +100,7 @@ func fitPagePixels(width, height float64, maxPixels int) (scale float64, w, h in
 	return
 }
 func pageFinishFacts(index int, state *recording.State) query.SketchSourceFacts {
-	f := query.SketchSourceFacts{T: state.T, RecordIndex: index, Doc: state.DocSeg, Tab: state.Tab.ID, URL: state.URL, Title: state.Title, VP: state.VP}
-	if state.Top != nil {
-		f.Scroll = state.Scrolls[state.Top.ID]
-	}
-	return f
+	return query.CurrentSourceFacts(state, index)
 }
 
 // ValidatePageBatch shares the legacy ordered witness pass. All supplied BEGIN,

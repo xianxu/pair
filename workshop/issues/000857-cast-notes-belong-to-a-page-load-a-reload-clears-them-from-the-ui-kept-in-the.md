@@ -49,6 +49,8 @@ Change:
 - Pause/resume and A→B→A tab switching keep notes; an app-only refresh keeps them; a second tab on the same URL has its
   own notes (native tests).
 
+- Detached fake CDP sessions refuse all methods; the active-detach test preserves exact A-then-B history, while pending initial capture reports the existing failure diagnostic and records only valid first-live B.
+
 ## Plan
 
 - [ ] Implement persisted load identity and replay/catch-up preservation per [the durable plan](../plans/000857-page-load-feedback-plan.md).
@@ -100,6 +102,16 @@ Recorder: revised owner plan-quality CLEAN, change-code exit0. Full recorder PAS
 Historical query proposal, read-only only: comparable scalar query.PageLoadFacts{Target,Loader,Root string}, zero unknown and page_load,omitzero to preserve legacy JSON omission; shared CurrentSourceFacts / SketchBeginSourceFacts populate query, Board scalar witnesses and sketchimage producers without pointer-equality traps or mutable aliases. Keep independent test oracles and unfiltered history. Implement after recorder lifetime repair; no query code started.
 
 After #856 lands: switch back here, merge landed main (bringing #856), finish the recorder lifetime regression, implement historical provenance and current-load UI integration, then native reload/pause/tab/app/new-tab qualification, inventory, pre-close, fresh close review and hub-sequenced combined morning stage with #842. Preserve #856 merge runner once entered; no duplicate runner.
+
+### 2026-10-24 — Core implementation qualification after parent landing
+
+#856 landed as PR583, integration suite PASS12m49s, CI green and retained merge runner exit0. Report49bd939d-eaae-418c-bfe7-e7a68ad70547 is submitted to hub. Returned to this issue and integrated landed main in db2a3ad2c, preserving both earlier published joint-plan history and the implementation checkpoint. Pair:3 coordinates the morning combined stage; message754e12df-bdd6-43c2-bf4b-2b034a3a553d submitted: do not wait for #857 unless ready/green.
+
+Core package run PASS: recording3.299s, recorder5.568s, Board5.667s, query8.009s, sketchimage0.480s, submission1.983s. Focused Board PageLoad race PASS1.224s. Earlier focused recorder race PASS1.331s. Full artifactpath inventory package PASS16.646s after explicit new-source classification. Injected module/scene assembly tests PASS0.746s after wiring the shared page-load module. These are component evidence, not final-source native or recorded pre-close evidence.
+
+Observed regressions before fixes: pending scope neither published an empty operator view nor woke sketch delivery; close-drain fixture then exposed two retained session cells; layout IO after reservation could attach replacement-page viewport evidence; same-load A→B→A lost trusted node IDs. Tests now cover projection-only epoch reset, healthy/paused versus pending scope ownership, retained canonical history, after-join cleanup, cancellable complete snapshot evidence and same-key ID restoration/removal pruning. Full Board fixture updates distinguish current-load UI from unfiltered recorded history rather than weakening version-recovery checks. Exact roots remain string provenance; legacy unknowns omit provenance and never match known live scope.
+
+Browser adapter work and full Node qualification are in progress. Native TestPageLoadLiveFeedbackLifecycle is being added with note-only tab-return rebinding first, then sketches, pause/resume, app-only update, same-URL second target and real reload; no green native result yet. Next: finish JS/native integration, source-bound complete verification, inventory, recorded pre-close and mandatory close review. Normal measured actuals apply under ariadne#591; no historical actuals were rewritten.
 
 ## Revisions
 

@@ -207,8 +207,8 @@ func TestDocumentRules(t *testing.T) {
 		t.Errorf("a viewer one resume behind is on the same document: %v", err)
 	}
 	r.page(recording.SegNavigate)
-	if got := len(r.bd.Live()); got != 2 {
-		t.Errorf("open notes after a navigation: %d, want 2", got)
+	if got := len(r.bd.Live()); got != 0 {
+		t.Errorf("earlier-load notes after a navigation: %d, want 0", got)
 	}
 	if _, err := r.bd.Note(NoteIn{Viewer: ana, Seg: 2, Node: r.p1.ID, Region: recording.Box{1, 1, 10, 10}, Color: 0, Text: "x"}); !errors.Is(err, ErrStale) {
 		t.Errorf("a note made on the old document: %v", err)
@@ -369,7 +369,9 @@ func TestSubscribeFollowsTheOpenNotes(t *testing.T) {
 	r.page(recording.SegNavigate)
 	select {
 	case got := <-ch:
-		t.Errorf("unchanged notes should not publish after navigation: %v", got)
+		if len(got) != 0 {
+			t.Errorf("navigation must empty current-load notes: %v", got)
+		}
 	default:
 	}
 	if err := r.bd.SetState(StateIn{Viewer: ana, ID: id, State: recording.NoteResolved}); !errors.Is(err, ErrStale) {
@@ -383,8 +385,10 @@ func TestSubscribeFollowsTheOpenNotes(t *testing.T) {
 	if err := r.bd.ResolveSelection(context.Background(), admitted); err != nil {
 		t.Fatal(err)
 	}
-	if got := <-ch; len(got) != 0 {
-		t.Errorf("after historical resolve %v", got)
+	select {
+	case got := <-ch:
+		t.Errorf("historical resolve changed current-load list: %v", got)
+	default:
 	}
 	r.bd.Close()
 	if _, open := <-ch; open {
@@ -418,9 +422,8 @@ func TestWriterStampsNoEarlierThanTheLastRecord(t *testing.T) {
 	}
 }
 
-// The board over a real fixture: a note made before a pause stays live
-// across the resume and the tab switch; the recording with it
-// still validates.
+// A legacy fixture without page-load metadata keeps historical notes without
+// presenting them as confirmed current-load feedback.
 func TestBoardOverTheSegmentsFixture(t *testing.T) {
 	rec, err := recording.ReadDir(recording.Fixture("segments"))
 	if err != nil {
@@ -438,15 +441,24 @@ func TestBoardOverTheSegmentsFixture(t *testing.T) {
 				t.Fatal(err)
 			}
 		}
-		if x.Time() > 6000 && x.Time() < 7000 && !hasLive(r.bd.Live(), id) {
-			t.Errorf("my note must be live after the resume (t=%d)", x.Time())
+		if hasLive(r.bd.Live(), id) {
+			t.Errorf("legacy unknown load appeared live at t=%d", x.Time())
 		}
 		if err := r.w.Put(x); err != nil {
 			t.Fatalf("t=%d %s: %v", x.Time(), x.Kind(), err)
 		}
 	}
-	if !hasLive(r.bd.Live(), id) {
-		t.Errorf("my open note must remain listed after the tab switch")
+	if hasLive(r.bd.Live(), id) {
+		t.Error("legacy unknown load appeared after tab switch")
+	}
+	found := false
+	for _, note := range r.bd.st.Notes {
+		if note.ID == id {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatal("legacy note history lost")
 	}
 	if _, err := recording.Reduce(r.mem.Records(), 1<<62); err != nil {
 		t.Errorf("recording with the note: %v", err)

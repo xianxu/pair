@@ -14,6 +14,7 @@ import (
 
 // NoteView is a note as an agent reads it.
 type NoteView struct {
+	PageLoad PageLoadFacts `json:"page_load,omitzero"`
 	// Elements owns literal declarations at this historical context moment.
 	Elements DeclaredElementFacts
 

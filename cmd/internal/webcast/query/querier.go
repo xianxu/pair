@@ -190,7 +190,7 @@ func (q *Querier) ContextForNote(note *recording.Note, at, before int64) (NoteVi
 
 func (q *Querier) noteContext(st *recording.State, view *recording.NoteView, i int, before int64, words map[int]said) (NoteView, error) {
 	n := view.Note
-	v := NoteView{Note: view, URL: st.URL, Header: Header(st), Elements: noteElementFacts(st, n)}
+	v := NoteView{PageLoad: PageLoadFactsOf(st.PageLoadAt(view.Seg)), Note: view, URL: st.URL, Header: Header(st), Elements: noteElementFacts(st, n)}
 	if node, ok := q.model.Resolve(st, n.At); ok {
 		at := n.At
 		at.Node = node

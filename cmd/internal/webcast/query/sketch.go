@@ -15,7 +15,8 @@ type SketchSelection struct {
 	Digest       string `json:"digest"`
 }
 type SketchSourceFacts struct {
-	T int64 `json:"t"`
+	PageLoad PageLoadFacts `json:"page_load,omitzero"`
+	T        int64         `json:"t"`
 	// RecordIndex is zero-based and inclusive. Render this exact input prefix:
 	// source time alone cannot distinguish subsequent records at the same time.
 	RecordIndex int                `json:"record_index"`
@@ -96,10 +97,7 @@ func (q *Querier) sketchesAt(at int64, selected []SketchSelection) ([]SketchView
 			local.Tab = state.Tab
 			local.VP = state.VP
 			local.Control = state.Control
-			source := SketchSourceFacts{T: begin.T, RecordIndex: i, Doc: begin.Doc, Tab: begin.Tab, URL: state.URL, Title: state.Title, VP: begin.VP}
-			if state.Top != nil {
-				source.Scroll = state.Scrolls[state.Top.ID]
-			}
+			source := SketchBeginSourceFacts(state, begin, i)
 			facts := captureElementFacts(state)
 			stats.SourceNodes += facts.inspected
 			histories[id] = &sketchQueryHistory{state: local, source: source, elements: facts, selected: sel, recordIndex: i}
@@ -212,6 +210,9 @@ func SketchText(v SketchView) string {
 		fmt.Fprintf(&b, " reason=%s", v.History.Reason)
 	}
 	b.WriteByte('\n')
+	if v.Source.PageLoad != (PageLoadFacts{}) {
+		fmt.Fprintf(&b, "page_load: target=%q loader=%q root=%q\n", v.Source.PageLoad.Target, v.Source.PageLoad.Loader, v.Source.PageLoad.Root)
+	}
 	for _, f := range v.Elements.Anchors {
 		fmt.Fprintf(&b, "anchor @%d <%s> id=%q", f.Node, f.Tag, f.ID)
 		if f.Unavailable != "" {

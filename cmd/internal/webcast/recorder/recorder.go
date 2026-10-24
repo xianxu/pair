@@ -519,6 +519,7 @@ func (r *Recorder) run() {
 	close(r.assetQ)
 	close(r.shotQ)
 	r.side.Wait()
+	r.loads.finish()
 	// Results that came back after the end are dropped: the recording is
 	// closed.
 	if r.sink != nil {
@@ -794,6 +795,7 @@ type documentSnapshot struct {
 	loader, frame string
 	seq           uint64
 	children      []frameTree
+	vp            rec.Viewport
 }
 
 func (d documentSnapshot) key() string { return fmt.Sprintf("%s:%d", d.loader, d.root.BackendNodeID) }
@@ -828,7 +830,7 @@ func (r *Recorder) document(ctx context.Context, session string) (documentSnapsh
 	if res.Root == nil || res.Root.BackendNodeID <= 0 {
 		return documentSnapshot{}, errors.New("recorder: getDocument returned no root identity")
 	}
-	return documentSnapshot{root: res.Root, loader: tree.FrameTree.Frame.LoaderID, frame: tree.FrameTree.Frame.ID, seq: seq, children: tree.FrameTree.Children}, nil
+	return documentSnapshot{root: res.Root, loader: tree.FrameTree.Frame.LoaderID, frame: tree.FrameTree.Frame.ID, seq: seq, children: tree.FrameTree.Children, vp: r.viewport(ctx, session)}, nil
 }
 func (r *Recorder) installDocument(session string, d documentSnapshot) {
 	r.hideSketchNodes(d.root)
@@ -878,7 +880,7 @@ func (r *Recorder) commitTopSnapshot(at time.Time, why string, intent *snapshotI
 			}
 			r.seg++
 			r.tab.URL = d.root.DocumentURL
-			seg := &rec.Seg{Seg: r.seg, Why: why, Tab: r.tab, VP: r.viewport(), PageLoad: ownedLoadIdentity(evidence.Load)}
+			seg := &rec.Seg{Seg: r.seg, Why: why, Tab: r.tab, VP: d.vp, PageLoad: ownedLoadIdentity(evidence.Load)}
 			err = r.m.Seg(r.t(at), seg, attempt.selection.Session, d.root, key)
 			r.segT = r.m.st.T
 		} else {
@@ -918,7 +920,12 @@ func (r *Recorder) frameSnapshot(at time.Time, session string) {
 	r.m.FrameDoc(r.t(at), session, d.root, d.key())
 }
 
-func (r *Recorder) viewport() rec.Viewport {
+func (r *Recorder) viewport(parent context.Context, session string) rec.Viewport {
+	call := func(method string, params, result any) (uint64, error) {
+		ctx, cancel := context.WithTimeout(parent, callTimeout)
+		defer cancel()
+		return r.opts.Call.CallSeq(ctx, session, method, params, result)
+	}
 	vp := rec.Viewport{W: 1280, H: 800, DPR: 1}
 	var lm struct {
 		CSS struct {
@@ -926,16 +933,16 @@ func (r *Recorder) viewport() rec.Viewport {
 			H float64 `json:"clientHeight"`
 		} `json:"cssLayoutViewport"`
 	}
-	if _, err := r.call(r.top, "Page.getLayoutMetrics", nil, &lm); err == nil && lm.CSS.W > 0 {
+	if _, err := call("Page.getLayoutMetrics", nil, &lm); err == nil && lm.CSS.W > 0 {
 		vp.W, vp.H = int(lm.CSS.W), int(lm.CSS.H)
 	}
-	if ctx, ok := r.topContext(r.top); ok {
+	if ctx, ok := r.topContext(session); ok {
 		var res struct {
 			Result struct {
 				Value float64 `json:"value"`
 			} `json:"result"`
 		}
-		if _, err := r.call(r.top, "Runtime.evaluate", map[string]any{"expression": "devicePixelRatio", "contextId": ctx, "returnByValue": true}, &res); err == nil && res.Result.Value > 0 {
+		if _, err := call("Runtime.evaluate", map[string]any{"expression": "devicePixelRatio", "contextId": ctx, "returnByValue": true}, &res); err == nil && res.Result.Value > 0 {
 			vp.DPR = res.Result.Value
 		}
 	}

@@ -70,12 +70,28 @@ A cast is a sequence of **live segments** with gaps where it was paused (project
 
 | Kind | Fields | Meaning |
 |---|---|---|
-| `seg` | `seg` (1, 2, …), `why`, `tab` `{id,url,title}`, `vp` `{w,h,dpr}` | A segment starts. **All DOM state is dropped**: documents, nodes, sheets, form values, scroll, selection, focus, layout. The asset table and the notes are kept. `why` is `live` (first go-live), `resume` (going live again on **the same document** as before the pause), `navigate` (a new top document, including one loaded while paused), or `tab` (the operator switched tabs). The current document began at the latest segment that isn't a `resume`. |
+| `seg` | `seg` (1, 2, …), `why`, `tab` `{id,url,title}`, `vp` `{w,h,dpr}`, optional `page_load` `{target,loader,root}` | A segment starts. **All DOM state is dropped**: documents, nodes, sheets, form values, scroll, selection, focus, layout. The asset table and the notes are kept. `why` is `live` (first go-live), `resume` (going live again on **the same document** as before the pause), `navigate` (a new top document, including one loaded while paused), or `tab` (the operator switched tabs). The current document began at the latest segment that isn't a `resume`. |
 | `doc` | `doc`, `url`, `tree`, optional `host` | A full snapshot of one document. `tree` is a `doc` node, and `doc` is its id. Without `host` it is the top document; exactly one comes right after each `seg`, before any change. With `host` (an `iframe` element's id) it is that frame's document, replacing whatever the frame showed before. Cross-origin frames come the same way: the recorder stitches them by their owner element. |
 | `stop` | `why`: `pause` or `end` | The segment ends. The state is frozen as it was. `end` is final: no `seg` or `ctl` follows it (#466). |
 
 A cross-document navigation of the top document is a new segment (`why: navigate`): "each new document starts with a
 full snapshot" (project, step 4). A same-document navigation (`pushState`) is a `nav` record within the segment.
+
+**Page load versus activation (#857).** A modern `seg.page_load` records the
+exact CDP target, loader and backend root. Root is a canonical positive decimal
+string within int64, never a JavaScript number. Target equals `tab.id`; opaque
+nonempty target/loader values are not URLs. Missing metadata is legacy unknown.
+Owned values are strict; unknown nested JSON extensions survive typed rewrites
+without numeric rounding. A preserving older schema can carry the new field as
+unknown, but already-shipped permissive readers may discard it on rewrite.
+
+The segment-to-load index survives DOM reset and catch-up. Note creation
+segments and sketch begin documents derive membership without changing sketch
+canonical bytes or receipts. Reload/new target clears earlier live feedback;
+same-load tab return, pause/resume and same-document changes retain it. Recorder
+navigation fencing precedes snapshot IO; historical writes drain in FIFO order,
+but only the newest matching scope confirms UI/admission. Queries keep all
+loads, including legacy unknowns.
 
 ## Node ids
 
@@ -208,8 +224,8 @@ generated once per browser and a name it asked for once, with the color of the s
 **attribution, not authentication**: anyone with the cast link can write as any id (one always-on link for internal
 viewers, TL 10-12). Remote driving (#467) swaps in seat identity. The id `operator` is reserved for Couch.
 
-Notes stay open in the recording after navigation until resolved. The live open-note list spans documents;
-a pin appears only when its anchor is confidently placed on the current view. Historical replay's `liveNotes`
+Notes stay open in the recording after navigation until resolved. The live open-note list contains only the confirmed current load;
+a pin appears only when its anchor is confidently placed on that load. Historical replay's `liveNotes`
 filter uses `State.DocSeg`, retaining notes across pause/resume while limiting its historical page's pins. The shape is shared with the terminal's notes (#455, #488). `author`
 and `text` stay the same. Both carry a box, in their own units: page px here, cells on the terminal. Both carry an
 anchor read as `{kind, path, text}`: here `kind: element` and the containers' path; on the terminal, Couch's layout
@@ -539,7 +555,7 @@ the terminal viewer:
 - A tap gets the default box: a tenth of the page shown each way, centred on the tap. It is shifted, not shrunk,
   to stay in view.
 - The note anchors on `nodeAt`'s element at the box's centre.
-- `openNotes` lists every open note across recording documents. Live pins use
+- `openNotes` lists open notes belonging to the confirmed current load. Live pins use
   `placementOf` only: removed, hidden, clipped, offscreen or ambiguous anchors have
   no box, while their list entry reads **not on this view**. No historical box is
   substituted into the live page.
@@ -638,7 +654,7 @@ directory does. At most 10 crops at most the frame's size plus two small text fi
 |---|---|---|---|
 | `dom [--at T] [--sel S] [--max-lines N]` | the page at T (default: the end) | a header (t, segment, live/paused, URL, viewport, title, driver), then one line per element `@id <tag attrs>` with form state, focus and scroll overlaid | `{t,seg,live,url,title,vp,control,matches}`, nodes in the format's `Node` shape plus `frame`, `state`, `focused`, `scroll` |
 | `events --from T1 --to T2` | what happened in the window | one line per record with its time, targets named as they were then, `by <viewer>` on a driver's acts; a run of more than 3 DOM, style, asset or layout records is one line (counts by kind, most-touched elements); a field typed a key at a time is one line with its final value | the records, as JSON lines |
-| `notes [--note ID] [--before MS]` | every note | author, time, segment, state now (resolved or open), text, anchor, the element as of the note, the notes model's context, and the user's actions in the `--before` ms (default 10000) before it, including segment starts and stops | `{note,state,seg,url,element,context,landmark,before}` |
+| `notes [--note ID] [--before MS]` | every note | author, time, segment, state now (resolved or open), text, anchor, the element as of the note, the notes model's context, and the user's actions in the `--before` ms (default 10000) before it, including segment starts and stops | `{note,state,seg,url,page_load?,element,context,landmark,before}` |
 
 - **Node ids are the handle.** Every element in every answer is `@N`; `--sel @N` shows one. A note's own
   selector is matched by the notes model's reader (`notes.Match`), so it names what the note names; anything

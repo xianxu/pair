@@ -676,6 +676,14 @@ var SourceClassifications = []SourceClassification{
 // the artifact namespace requires an explicit SourceClassification.
 // pair:m5-concept pure
 var NonArtifactSources = []string{
+	// #857 page-load facts, recorder ownership and projections use the existing
+	// recording stream or in-memory scope, never Pair artifact filenames.
+	"cmd/internal/webcast/board/page_load.go",
+	"cmd/internal/webcast/recorder/load_scope.go",
+	"cmd/internal/webcast/recorder/page_load.go",
+	"cmd/internal/webcast/recording/page_load.go",
+	"cmd/internal/webcast/recording/segment_codec.go",
+	"cmd/internal/webcast/query/page_load.go",
 	// #739 startup/automation/cue policy delegates to existing stores and
 	// transports; none constructs or names Pair artifact filenames.
 	"cmd/internal/couchcmd/automation.go",

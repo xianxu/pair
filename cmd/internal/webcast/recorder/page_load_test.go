@@ -77,11 +77,14 @@ func TestRecorderSegmentsPersistPageLoad(t *testing.T) {
 // than accidentally returning the replacement fake page after release.
 type loadSnapshotGate struct {
 	*fakeChrome
-	mu        sync.Mutex
-	method    string
-	entered   chan struct{}
-	release   chan struct{}
-	cancelled chan struct{}
+	mu          sync.Mutex
+	method      string
+	entered     chan struct{}
+	release     chan struct{}
+	cancelled   chan struct{}
+	faultMethod string
+	fault       error
+	emptyRoot   bool
 }
 
 func (g *loadSnapshotGate) hold(method string) {
@@ -95,12 +98,25 @@ func (g *loadSnapshotGate) hold(method string) {
 func (g *loadSnapshotGate) CallSeq(ctx context.Context, session, method string, params, result any) (uint64, error) {
 	seq, err := g.fakeChrome.CallSeq(ctx, session, method, params, result)
 	g.mu.Lock()
+	fault, emptyRoot := error(nil), false
+	if g.faultMethod == method {
+		fault, emptyRoot = g.fault, g.emptyRoot
+		g.faultMethod = ""
+	}
 	held := g.method == method
 	if held {
 		g.method = ""
 	}
 	entered, release, cancelled := g.entered, g.release, g.cancelled
 	g.mu.Unlock()
+	if fault != nil {
+		return seq, fault
+	}
+	if emptyRoot {
+		if decodeErr := json.Unmarshal([]byte(`{"root":null}`), result); decodeErr != nil {
+			return seq, decodeErr
+		}
+	}
 	if !held {
 		return seq, err
 	}
@@ -344,7 +360,6 @@ func TestRecorderPageLoadCloseDrainsOrderedIntents(t *testing.T) {
 	h.r.Send(Live{Tab: rec.Tab{ID: "T-B"}, Session: "B"})
 	updates, stop := b.SubscribeSubmissionCandidates()
 	defer stop()
-	<-updates
 	closed := make(chan error, 1)
 	go func() { closed <- h.r.Close() }()
 	waitLoadSignal(t, updates)
@@ -424,5 +439,63 @@ func TestRecorderPageLoadPendingKeepsHistoricalResolution(t *testing.T) {
 	}
 	if fresh != 0 || states != 1 {
 		t.Fatalf("pending creation or historical resolution changed: fresh=%d resolutions=%d", fresh, states)
+	}
+}
+
+func TestRecorderPageLoadViewportIOStillPrecedesReservation(t *testing.T) {
+	h, _, g := loadHarness(t)
+	g.hold("Page.getLayoutMetrics")
+	loadNavigate(h, "L2")
+	waitLoadSignal(t, g.entered)
+	loadNavigate(h, "L3")
+	waitLoadSignal(t, g.cancelled)
+	h.settle()
+	var loaders []string
+	for _, r := range h.out.sink.Records() {
+		if s, ok := r.(*rec.Seg); ok {
+			loaders = append(loaders, s.PageLoad.Loader)
+		}
+	}
+	if !reflect.DeepEqual(loaders, []string{"L1", "L3"}) {
+		t.Fatalf("viewport IO had already reserved old evidence: %v", loaders)
+	}
+}
+
+func TestRecorderPageLoadFailedEvidenceStaysUnavailableUntilExplicitRetry(t *testing.T) {
+	for _, fault := range []string{"frame-tree", "document", "missing-root"} {
+		t.Run(fault, func(t *testing.T) {
+			h, b, g := loadHarness(t)
+			before := h.fc.countCalls("A DOM.getDocument")
+			g.mu.Lock()
+			g.faultMethod = "DOM.getDocument"
+			g.fault = fmt.Errorf("injected snapshot failure")
+			if fault == "frame-tree" {
+				g.faultMethod = "Page.getFrameTree"
+			}
+			if fault == "missing-root" {
+				g.fault = nil
+				g.emptyRoot = true
+			}
+			g.mu.Unlock()
+			loadNavigate(h, "L2")
+			h.settle()
+			if b.CurrentPageLoad() != nil || b.PageLoadReady() {
+				t.Fatal("failed evidence restored earlier recorded load")
+			}
+			if fault == "frame-tree" && h.fc.countCalls("A DOM.getDocument") != before {
+				t.Fatal("failed frame tree reused a prior loader for a document capture")
+			}
+			for _, r := range h.out.sink.Records() {
+				if seg, ok := r.(*rec.Seg); ok && seg.PageLoad.Loader != "L1" {
+					t.Fatalf("failed snapshot created load: %+v", seg.PageLoad)
+				}
+			}
+			h.r.Send(Pause{})
+			h.r.Send(Live{Tab: rec.Tab{ID: "T-A"}, Session: "A"})
+			h.settle()
+			if load := b.CurrentPageLoad(); load == nil || load.Loader != "L2" {
+				t.Fatalf("explicit retry failed to establish current load: %+v", load)
+			}
+		})
 	}
 }

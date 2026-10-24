@@ -773,7 +773,9 @@ attributes for original anchors, ancestors and nearby recorded elements, with
 explicit bounds/truncation. Do not infer application meanings from these values.
 Ordinary notes also carry these facts at their recorded context/capture moment.
 
-The draft chord takes the board's feedback as it is at the press: every open
+A real reload or a new tab starts with no earlier notes or sketches in the live UI or submission. Returning to the same tab and page load restores its saved feedback; pause/resume and same-document updates keep it. Pending or unidentified loads contribute no page feedback. Earlier feedback stays in recording history and queries.
+
+The draft chord takes only the confirmed current page load's feedback as it is at the press: every open
 note at its current revision and every finished, labelled sketch at its current
 version that no earlier submission delivered, offscreen ones included, with at
 most eight sketches (oldest first); the rest wait for the next submission. What

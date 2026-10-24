@@ -612,8 +612,16 @@ func (m *mirror) SameDocument(session, key string) bool {
 // install makes root, the document key names, the session's current tree. A
 // new document drops the old one's ids: they named its nodes only.
 func (m *mirror) install(s *msession, root *cnode, key string) {
-	same := s.root != nil && key != "" && key == s.doc
+	same := key != "" && key == s.doc
 	var old []int
+	if same && s.root == nil {
+		// Inactive top documents lose their tree but retain bounded backend IDs.
+		// Reconcile removals on return through the same graveyard as live updates.
+		old = make([]int, 0, len(s.ids))
+		for backend := range s.ids {
+			old = append(old, backend)
+		}
+	}
 	if s.root != nil {
 		if same {
 			old = backends(s.root)

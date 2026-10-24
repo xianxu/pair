@@ -18,7 +18,7 @@ func (b *Board) BeginPageLoad(generation uint64) bool {
 		return false
 	}
 	b.pageLoad = pageLoadScope{generation: generation, managed: true, pending: true}
-	b.submissionChangedLocked()
+	b.publishPageLoadLocked()
 	return true
 }
 
@@ -32,7 +32,7 @@ func (b *Board) ConfirmPageLoad(generation uint64, load *recording.PageLoad) boo
 	}
 	b.pageLoad.pending = false
 	b.pageLoad.load = &recording.PageLoad{Target: load.Target, Loader: load.Loader, Root: load.Root}
-	b.submissionChangedLocked()
+	b.publishPageLoadLocked()
 	return true
 }
 
@@ -45,7 +45,7 @@ func (b *Board) UnavailablePageLoad(generation uint64) bool {
 		return false
 	}
 	b.pageLoad = pageLoadScope{generation: generation, managed: true}
-	b.submissionChangedLocked()
+	b.publishPageLoadLocked()
 	return true
 }
 
@@ -129,4 +129,31 @@ func (b *Board) currentPageLoadLocked() *recording.PageLoad {
 		return &load
 	}
 	return b.st.CurrentPageLoad()
+}
+
+// publishPageLoadLocked retires display continuity before publishing the new
+// scope. It changes only projections; canonical history and receipts remain.
+func (b *Board) publishPageLoadLocked() {
+	b.resetSketchDeliveryLocked()
+	b.refreshLocked()
+	b.refreshOperatorLocked(nil)
+	b.submissionChangedLocked()
+}
+
+func sameOptionalPageLoad(a, b *recording.PageLoad) bool {
+	if a == nil || b == nil {
+		return a == b
+	}
+	return recording.SamePageLoad(a, b)
+}
+
+// CurrentPageLoad returns owned, confirmed scope, including while paused.
+// Pending, failed, ended or closed scopes cannot provide anchor authority.
+func (b *Board) CurrentPageLoad() *recording.PageLoad {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	if b.closed || b.broken != nil || b.st.Ended {
+		return nil
+	}
+	return b.currentPageLoadLocked()
 }

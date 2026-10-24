@@ -18,12 +18,7 @@ type feedbackSketchContext struct {
 }
 
 func (b *Board) feedbackContextLocked(index int) query.SketchSourceFacts {
-	s := b.st
-	v := query.SketchSourceFacts{T: s.T, RecordIndex: index, Doc: s.DocSeg, Tab: s.Tab.ID, URL: s.URL, Title: s.Title, VP: s.VP}
-	if s.Top != nil {
-		v.Scroll = s.Scrolls[s.Top.ID]
-	}
-	return v
+	return query.CurrentSourceFacts(b.st, index)
 }
 
 // Called exactly once after every successfully applied ordered record. Duplicate
@@ -42,8 +37,7 @@ func (b *Board) refreshFeedbackContextLocked(r recording.Record, duplicate bool)
 		if len(b.feedback.sketches) >= recording.SketchMaxCount {
 			return
 		}
-		source := b.feedbackContextLocked(index)
-		source.Doc, source.Tab, source.VP = v.Doc, v.Tab, v.VP
+		source := query.SketchBeginSourceFacts(b.st, v, index)
 		b.feedback.sketches[v.ID] = feedbackSketchContext{source: source}
 	case *recording.SketchLabel:
 		if duplicate {

@@ -217,6 +217,21 @@ func (o *loadOwner) retire(intent *snapshotIntent) {
 		intent.retired = true
 	}
 }
+
+// finish releases session cells only after the actor has drained all issued
+// intents and joined side work. Closing itself cannot revoke FIFO history.
+func (o *loadOwner) finish() {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	if o.cancel != nil {
+		o.cancel()
+	}
+	o.cancel = nil
+	o.cancelAttempt = nil
+	clear(o.cells)
+	o.state.active = nil
+	o.state.reservation = nil
+}
 func (o *loadOwner) close() { o.mu.Lock(); defer o.mu.Unlock(); o.transition(nil, loadClose{}) }
 
 // pageFeedbackReady gates new page effects only. Recovery and unrelated ctl

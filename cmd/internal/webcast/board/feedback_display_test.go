@@ -340,6 +340,18 @@ func TestFeedbackDisplayDeliveryMetadataTracksEveryAcceptedOperation(t *testing.
 	cursor := b.OperatorSketchCursor()
 	for _, r := range submissionSketchRecords(1) {
 		b.Put(r)
+		if seg, ok := r.(*recording.Seg); ok {
+			if seg.PageLoad == nil {
+				t.Fatal("modern delivery fixture omitted load identity")
+			}
+			// A new accepted load retires the initial unscoped cursor. Start
+			// operation-by-operation checks from its acknowledged bootstrap.
+			initial, err := b.OperatorSketchSince(cursor)
+			if err != nil || initial.Bootstrap == nil {
+				t.Fatalf("load bootstrap: %+v, %v", initial, err)
+			}
+			cursor = SketchDeliveryCursor{Epoch: initial.Bootstrap.Epoch, Seq: initial.Bootstrap.Seq}
+		}
 		if recording.SketchReceiptKey(r) == "" {
 			continue
 		}

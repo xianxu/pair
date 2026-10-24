@@ -26,16 +26,26 @@ func (r *Recorder) OperatorOriginals(ctx context.Context, session string, execut
 			reply <- result{err: board.ErrStale}
 			return
 		}
+
+		load := r.m.st.CurrentPageLoad()
+		if r.opts.Operator != nil && !rec.SamePageLoad(load, r.opts.Operator.CurrentPageLoad()) {
+			reply <- result{err: board.ErrStale}
+			return
+		}
+		if load == nil {
+			reply <- result{err: board.ErrStale}
+			return
+		}
 		allowed := map[rec.NodeID]bool{}
 		for _, n := range r.m.st.Notes {
-			if n.State == rec.NoteOpen && n.Seg >= document && wanted[n.At.Node] && r.m.st.Node(n.At.Node) != nil {
+			if n.State == rec.NoteOpen && r.m.st.OnPageLoad(n.Seg, load) && wanted[n.At.Node] && r.m.st.Node(n.At.Node) != nil {
 				allowed[n.At.Node] = true
 			}
 		}
-		// Query only this bounded requested batch. The recording's source-doc
-		// anchor index avoids scanning sketch paths or copying historical geometry.
-		for id := range wanted {
-			if r.m.st.Sketches.HasAnchor(document, id) && r.m.st.Node(id) != nil {
+		// Check this bounded request against source-document buckets; the full
+		// anchor projection is cached by Chrome, not recopied on every batch here.
+		for id := range r.m.st.SketchAnchorsOnPageLoad(load, wanted) {
+			if r.m.st.Node(id) != nil {
 				allowed[id] = true
 			}
 		}

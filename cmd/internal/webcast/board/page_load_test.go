@@ -233,3 +233,114 @@ func TestPageLoadConcurrentConfirmationCannotOvertakePending(t *testing.T) {
 		}
 	}
 }
+
+func TestPageLoadPublishesOnlyCurrentFeedbackAndPendingEmpty(t *testing.T) {
+	a := &recording.PageLoad{Target: "A", Loader: "L1", Root: 1}
+	b := &recording.PageLoad{Target: "B", Loader: "L2", Root: 1}
+	r := loadPage(newRig(t), recording.SegLive, a)
+	first, err := r.note(r.p1.ID, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	views, cancel := r.bd.SubscribeOperator()
+	defer cancel()
+	<-views
+	live, stop := r.bd.Subscribe()
+	defer stop()
+	<-live
+	r.bd.BeginPageLoad(1)
+	select {
+	case view := <-views:
+		if len(view.Notes) != 0 {
+			t.Fatalf("pending view retained notes: %+v", view.Notes)
+		}
+	default:
+		t.Fatal("pending scope did not publish operator view")
+	}
+	if notes := r.bd.Live(); len(notes) != 0 {
+		t.Fatalf("pending live list retained notes: %+v", notes)
+	}
+	loadPage(r, recording.SegTab, b)
+	if view := r.bd.OperatorView(); len(view.Notes) != 0 {
+		t.Fatal("historical commit bypassed pending")
+	}
+	if !r.bd.ConfirmPageLoad(1, b) {
+		t.Fatal("confirm B")
+	}
+	second, err := r.note(r.p1.ID, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if view := r.bd.OperatorView(); len(view.Notes) != 1 || view.Notes[0].ID != second {
+		t.Fatalf("B view: %+v", view.Notes)
+	}
+	r.bd.BeginPageLoad(2)
+	loadPage(r, recording.SegTab, a)
+	r.bd.ConfirmPageLoad(2, a)
+	if view := r.bd.OperatorView(); len(view.Notes) != 1 || view.Notes[0].ID != first {
+		t.Fatalf("same-load return: %+v", view.Notes)
+	}
+	if got := r.bd.Live(); len(got) != 1 || got[0].ID != first {
+		t.Fatalf("same-load live list: %+v", got)
+	}
+	r.bd.BeginPageLoad(3)
+	r.bd.UnavailablePageLoad(3)
+	if len(r.bd.OperatorView().Notes) != 0 || len(r.bd.Live()) != 0 {
+		t.Fatal("failed load restored history")
+	}
+}
+
+func TestPageLoadSketchDeliveryResetsAndRestoresMatchingHistory(t *testing.T) {
+	b := sketchDeliveryFixture(t)
+	deliveryBegin(t, b)
+	deliveryStroke(t, b)
+	before := b.OperatorSketchCursor()
+	wake, stop := b.SubscribeSketchDelivery()
+	defer stop()
+	<-wake
+	if !b.BeginPageLoad(1) {
+		t.Fatal("pending")
+	}
+	select {
+	case <-wake:
+	default:
+		t.Fatal("pending scope did not wake sketch delivery")
+	}
+	pending, err := b.OperatorSketchSince(before)
+	if err != nil || pending.Bootstrap == nil || len(pending.Bootstrap.Display.Sketches) != 0 {
+		t.Fatalf("pending delivery: %+v %v", pending, err)
+	}
+	if !b.ConfirmPageLoad(1, b.st.CurrentPageLoad()) {
+		t.Fatal("confirm")
+	}
+	frame, err := b.OperatorSketchSince(SketchDeliveryCursor{Epoch: pending.Bootstrap.Epoch, Seq: pending.Bootstrap.Seq})
+	if err != nil || frame.Bootstrap == nil || len(frame.Bootstrap.Display.Sketches) != 1 || frame.Bootstrap.Display.Sketches[0].Begin.ID != "s" {
+		t.Fatalf("restored delivery: %+v %v", frame, err)
+	}
+	if len(b.st.Sketches.Snapshot().Sketches) != 1 {
+		t.Fatal("UI reset mutated canonical sketch history")
+	}
+}
+
+func TestPageLoadOperatorWireOwnedAndPauseKeepsScope(t *testing.T) {
+	load := &recording.PageLoad{Target: "A", Loader: "L", Root: 9223372036854775807}
+	r := loadPage(newRig(t), recording.SegLive, load)
+	view := r.bd.OperatorView()
+	if !view.PageLoadReady || !recording.SamePageLoad(view.PageLoad, load) {
+		t.Fatalf("confirmed view: %+v", view)
+	}
+	view.PageLoad.Loader = "tampered"
+	if got := r.bd.CurrentPageLoad(); got.Loader != "L" {
+		t.Fatal("view aliases Board scope")
+	}
+	r.b.Add(&recording.Stop{Why: recording.StopPause})
+	r.flush()
+	if view := r.bd.OperatorView(); !view.Paused || !view.PageLoadReady || !recording.SamePageLoad(view.PageLoad, load) {
+		t.Fatalf("pause lost known load: %+v", view)
+	}
+	r.bd.BeginPageLoad(1)
+	view = r.bd.OperatorView()
+	if view.PageLoadReady || view.PageLoad != nil || r.bd.CurrentPageLoad() != nil {
+		t.Fatal("pending view claimed known load")
+	}
+}

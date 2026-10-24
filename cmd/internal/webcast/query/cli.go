@@ -316,6 +316,9 @@ func NoteText(v NoteView, before int64) string {
 	var b strings.Builder
 	n := v.Note
 	fmt.Fprintf(&b, "note %s  t=%d  segment %d  %s  by %s\n", n.ID, n.T, n.Seg, n.State, who(n.Author.ID, n.Author.Name))
+	if v.PageLoad != (PageLoadFacts{}) {
+		fmt.Fprintf(&b, "  page_load: target=%q loader=%q root=%q\n", v.PageLoad.Target, v.PageLoad.Loader, v.PageLoad.Root)
+	}
 	if n.Edited {
 		b.WriteString("  edited\n")
 	}
@@ -442,6 +445,7 @@ func notesJSON(vs []NoteView, w io.Writer) error {
 		Box      *recording.Box   `json:"box,omitempty"`
 	}
 	type view struct {
+		PageLoad   PageLoadFacts     `json:"page_load,omitzero"`
 		ResolvedBy *recording.Author `json:"resolved_by,omitempty"`
 		Note       json.RawMessage   `json:"note"`
 		State      string            `json:"state"`
@@ -458,7 +462,7 @@ func notesJSON(vs []NoteView, w io.Writer) error {
 		if err != nil {
 			return err
 		}
-		jv := view{ResolvedBy: v.Note.ResolvedBy, Note: note, State: v.Note.State, Seg: v.Note.Seg, URL: v.URL, Element: v.Element,
+		jv := view{PageLoad: v.PageLoad, ResolvedBy: v.Note.ResolvedBy, Note: note, State: v.Note.State, Seg: v.Note.Seg, URL: v.URL, Element: v.Element,
 			Context: ctx{v.Context.Node, v.Context.Landmark, v.Context.Text, v.Context.Box}, Landmark: v.Landmark,
 			Before: []json.RawMessage{}}
 		for _, r := range v.Before {
