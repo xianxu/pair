@@ -439,9 +439,9 @@ Zellij metadata routing waits until no native server is running, normally the
 next machine reboot, and retains the original directory as `session_info.disk`.
 See [Couch scratch](atlas/couch-scratch.md) for the lifecycle and fallback rules.
 
-Opening Couch launches or attaches each requested hub, including the cwd hub
-when no directory is given. A hub listed live uses Continue; otherwise its
-normal startup resumes a proven conversation or starts fresh. Other slots are
+Opening Couch attaches surviving requested hubs, including the cwd hub when no
+directory is given. Missing or uncertain hubs remain in the switcher; startup
+never starts a new agent or resumes a stopped conversation. Other slots are
 observed and attached in the background when projected Continue. Startup never
 launches or resumes their agents, completes interrupted starts, or replays their
 recovery journals. Attachments use bounded parallelism and one retry; a failure
@@ -458,6 +458,23 @@ row, `Ctrl+Y` copies its retained diagnostic; otherwise a current capability
 diagnostic takes precedence over the last notice. Status text in chrome is limited
 to 40 display cells, with `…`; copying retains the full diagnostic.
 Recovery confirmations stay on their row until you select it to review them.
+
+Hub automation controls Couch's generated input and scheduled runs. It starts on
+for a positively surviving hub after a normal restart, and off for missing hubs
+or a full-shutdown/unknown start. After a cold start, hubs stay stopped by design:
+choose **Resume from disk** on a retained switcher row, or **Ctrl+Space → Start**
+with the hub directory when no row exists. Normal warm reattachment is unchanged.
+The retained startup notice names missing hubs and says
+`hub automation off; say turn it on`. Automation status labels these hubs
+`missing at startup:`: that is startup history, not current liveness, and remains
+after a hub is manually attached. The TL uses
+`couch --automation on|off|status [hub]` for its own hub. **Ctrl+G** in the
+switcher toggles the selected hub automation on/off; the result names the hub.
+Worker reports, operator input and desktop notices still arrive while off.
+Suppressed notices and missed scheduled runs are never replayed when turned on.
+Each newly started worker receives one generic restart cue; surviving wrappers
+do not receive that cue again after a Couch-only restart. The separate request
+to resend an unanswered report remains once per Couch lifetime.
 
 Couch keeps agent-pane context titles and cmux activity heat titles current from
 its existing inventory and minute activity refreshes. Hosted Pair starts no
@@ -1087,12 +1104,13 @@ Codex, Qoder and non-hub receivers keep singleton delivery, as do older wrappers
 that explicitly refuse the batch protocol.
 
 Couch also sends its configured hub system notices for confirmed slot starts,
-resumes, parks, relaunches, recovery and needs-relaunch transitions. Restart
-reattachments form one summary after the existing pass drains; larger summaries
-use numbered parts through the same delivery queue. Rows include known cached
+resumes, parks, relaunches, recovery and needs-relaunch transitions while hub
+automation is on. Automatic startup observations stay in Slots and the retained
+startup notice; they do not produce a later hub summary. Larger ordinary
+summaries use numbered parts through the same delivery queue. Rows include known cached
 agent/model, branch/issue and initiation; unknown fields stay unknown. These are
-Slots information, with no reply or work requested. Native-agent exit is not
-reported: an attachment ending does not prove the agent exited (#657).
+Slots information, with no reply or work requested. A native-agent exit requires
+the wrapper's reaped-child proof; an attachment ending does not prove it (#657).
 
 `COUCH_LIFECYCLE_NOTICES=off` disables lifecycle notices for this Couch process;
 the default is `on`, and other nonempty values refuse startup. No configured hub
@@ -1109,6 +1127,8 @@ Lifecycle notices keep bounded current state, not durable event history. Repeate
 unsent changes coalesce with a count. A busy hub waits on its existing composer;
 uncertain input is not replayed. Failed publication produces a local diagnostic,
 with later confirmed changes or receiver readiness enabling a fresh snapshot.
+Automation off retires unsent occurrences; turning it back on only admits new
+events, including across a rapid off/on during a delayed publication.
 An ownership move drops pending lifecycle history and tells the new hub to check
 Slots. Input already admitted to the previous hub finishes there with its original
 receipt; Couch does not replay or reroute it. New events follow the new owner.
@@ -1178,13 +1198,13 @@ below 1 second; adversarial OS starvation is outside that claim. Pair cleanup
 retains its 10-second outer deadline and 5-second exact-Zellij inner wait.
 Leave Couch applies one disposition to every live actor and returns to the
 shell: in the switcher, `Alt+d` **detaches** them, so quitting never kills a running agent, and
-`Alt+x` **parks** them behind the same confirmation a single park needs. A later bare `couch` returns to the work already in
-that repository: **detached first, then parked, most recently
-active within each class**. It starts a new thread only when there is nothing to
-return to. Ranking replaced an exactness rule that was a ratchet -- two
-resumable rows at one path created a third, guaranteeing the next startup
-created a fourth -- and wanting a fresh agent instead costs one chord inside
-Pair (`Alt+Shift+N` restarts the conversation, keeping the workbench).
+`Alt+x` **parks** them behind the same confirmation a single park needs. A later
+bare `couch` reattaches a positively surviving session, most recently active
+first. Parked or missing sessions stay stopped; without a surviving launch hub,
+Couch opens the switcher. Use **Ctrl+Space** to open the explicit Start form and
+enter the hub directory. An empty configured hub names that action in its
+display-only entry. Inside a live Pair, `Alt+Shift+N` restarts the conversation
+while keeping the workbench.
 
 **One primary per repository.** A repository has at most one primary (`:0`)
 thread; more agents in it are slots (`:1+`). `couch` anywhere inside a

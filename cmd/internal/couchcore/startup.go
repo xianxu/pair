@@ -2,6 +2,7 @@ package couchcore
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/xianxu/pair/cmd/internal/launcher"
 )
@@ -70,9 +71,57 @@ func PathHoldsUnreadableThread(rows []ActionableThreadSummary, repoScope string)
 	return ThreadAddress{}, false
 }
 
-// StartInteractive launches the explicitly selected hub. Other retained slots
-// remain observations; startup never recovers their transactions or agents.
+// StartInteractive only reattaches an existing selected hub when no action was
+// requested. Cold resume and Fresh remain explicit operator actions.
 func (c *Couch) StartInteractive(ctx context.Context, args StartArgs) (StartResult, error) {
+	if args.Action != "" {
+		return c.startExplicitInteractive(ctx, args)
+	}
+	if err := ctx.Err(); err != nil {
+		return StartResult{}, err
+	}
+	path := args.WorkingDir()
+	if path == "" {
+		path = "."
+	}
+	tree, err := c.ResolveTree(path)
+	if err != nil {
+		if ctx.Err() != nil {
+			return StartResult{}, ctx.Err()
+		}
+		return StartResult{}, nil
+	}
+	hub := string(tree)
+	if physical, e := c.Path.Physical(hub); e == nil {
+		hub = physical
+	}
+	snapshot, err := c.Threads.PreviewSnapshotContext(ctx)
+	if err != nil {
+		if ctx.Err() != nil {
+			return StartResult{}, ctx.Err()
+		}
+		return StartResult{}, nil
+	}
+	for _, candidate := range startupHubRecords(snapshot, hub) {
+		session, present, err := c.listedTerminal(ctx, candidate)
+		if err != nil {
+			if ctx.Err() != nil {
+				return StartResult{}, ctx.Err()
+			}
+			return StartResult{}, nil
+		}
+		if present {
+			record, handle, err := c.attachListedTerminal(ctx, candidate, session, ResumeOptions{})
+			if err != nil {
+				err = fmt.Errorf("hub %s: %w", hub, err)
+			}
+			return StartResult{Record: record, Handle: handle}, err
+		}
+	}
+	return StartResult{}, nil
+}
+
+func (c *Couch) startExplicitInteractive(ctx context.Context, args StartArgs) (StartResult, error) {
 	if err := ctx.Err(); err != nil {
 		return StartResult{}, err
 	}
@@ -81,44 +130,7 @@ func (c *Couch) StartInteractive(ctx context.Context, args StartArgs) (StartResu
 		return StartResult{}, err
 	}
 	if resolution.Target.Kind == ThreadTargetSlot {
-		// Explicit actions retain their own contract; only a no-action hub
-		// startup may choose fresh when no existing conversation is proven.
-		if args.Action != "" || resolution.Action != StartOpen {
-			return c.spawnManagedResolution(ctx, resolution)
-		}
-		local, _, err := c.selectedSlot(ctx, resolution.Target.Slot.WorktreeRoot)
-		if err != nil {
-			return StartResult{}, err
-		}
-		view := *local
-		view.readOnly = true
-		observed, err := view.observeSlotCurrentContext(ctx)
-		if err != nil {
-			return StartResult{}, err
-		}
-		if observed.Unsupported {
-			return StartResult{}, observed.Err
-		}
-		if observed.Record != nil {
-			name, listed, err := c.listedTerminal(ctx, *observed.Record)
-			if err != nil {
-				return StartResult{}, err
-			}
-			if listed {
-				record, handle, err := c.attachListedTerminal(ctx, *observed.Record, name, ResumeOptions{})
-				return StartResult{Record: record, Handle: handle}, err
-			}
-			binding, err := c.resumeEvidence(ctx, *observed.Record)
-			if err != nil && !isBindingDiagnostic(ResumeDiagnosticOf(err)) {
-				return StartResult{}, err
-			}
-			if err == nil && coldResumeAuthorized(binding) {
-				return c.spawnManagedResolution(ctx, resolution)
-			}
-		}
-		// Existing fresh admission owns the checks for surviving or unresolved
-		// owners. Startup cannot waive them or recover their transactions.
-		return c.StartFreshSlot(ctx, resolution.Target.Slot.WorktreeRoot, resolution.RequestedAgent)
+		return c.spawnManagedResolution(ctx, resolution)
 	}
 	if err := c.enrollPrimaryResolution(ctx, resolution); err != nil {
 		return StartResult{}, err
@@ -127,8 +139,6 @@ func (c *Couch) StartInteractive(ctx context.Context, args StartArgs) (StartResu
 	if err != nil {
 		return StartResult{}, err
 	}
-	// A positively listed terminal is sufficient attachment authority, including
-	// pre-upgrade sessions with no launch policy or cold-resume metadata.
 	snapshot, err := c.Threads.PreviewSnapshotContext(ctx)
 	if err != nil {
 		return StartResult{}, err
@@ -158,11 +168,7 @@ func (c *Couch) StartInteractive(ctx context.Context, args StartArgs) (StartResu
 		record, handle, err := c.attachListedTerminal(ctx, *warm, session, ResumeOptions{})
 		return StartResult{Record: record, Handle: handle}, err
 	}
-	// Native proof is requested only for this hub's primary records. Rows in
-	// other scopes and managed slots cannot authorize a background launch.
-	snapshot, evidence, err := c.gatherThreadEvidence(ctx, nil, func(record ThreadRecord) bool {
-		return false // exact cold proof is read below, independently of projection state
-	})
+	snapshot, evidence, err := c.gatherThreadEvidence(ctx, nil, func(ThreadRecord) bool { return false })
 	if err != nil {
 		return StartResult{}, err
 	}
@@ -176,8 +182,7 @@ func (c *Couch) StartInteractive(ctx context.Context, args StartArgs) (StartResu
 		if err != nil && !isBindingDiagnostic(ResumeDiagnosticOf(err)) {
 			return StartResult{}, err
 		}
-		if err == nil && coldResumeAuthorized(binding) && CheckResumePreconditions(record, binding, c.workingPathExists(record)) == nil &&
-			(cold == nil || record.LastActiveAt.After(cold.LastActiveAt)) {
+		if err == nil && coldResumeAuthorized(binding) && CheckResumePreconditions(record, binding, c.workingPathExists(record)) == nil && (cold == nil || record.LastActiveAt.After(cold.LastActiveAt)) {
 			candidate := record
 			cold = &candidate
 		}
