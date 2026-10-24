@@ -7,7 +7,7 @@ created: 2026-10-22
 updated: 2026-10-23
 estimate_hours: 1.7435
 collaboration-mode: collaboration
-card_mirror: 'a49b211e3da48f32d859ac4efe321fe18dd6f6b1' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: 'ca5676077b2e0bbcac3dc2ff160dcbd03f6af89a' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-23T05:01:56-07:00
 claimant:
     operator: Xian Xu
@@ -17,7 +17,7 @@ claimant:
     worktree: /Users/xianxu/workspace/worktree/pair-slot1/pair
     repository: github.com/xianxu/pair
 flow: {kind: full, provenance: operator}
-actual_hours: 5.58
+actual_hours: 5.14
 ---
 
 # Couch tab bar: drop the trailing last lifecycle/error message (switcher keeps it)
