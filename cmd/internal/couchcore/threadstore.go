@@ -181,7 +181,31 @@ func (s *ThreadStore) withStoreLock(fn func() error) error {
 // and yields at the first contention; a foreground writer waits out a brief
 // preview read for up to wait (#827). Ordinary writers pass nil and retain
 // their blocking lock semantics.
-func (s *ThreadStore) withStoreLockChecked(fn func() error, check func() error, wait time.Duration) (err error) {
+func (s *ThreadStore) withStoreLockChecked(fn func() error, check func() error, wait time.Duration) error {
+	return s.withStoreLockBounded(fn, check, storeWait{d: wait})
+}
+
+// storeWait is a foreground writer's store.lock wait. deadline marks a wait
+// cut short by the caller's context: when it ends, the deadline ended it, not
+// contention outlasting the wait (pair#854).
+type storeWait struct {
+	d        time.Duration
+	deadline bool
+}
+
+// storeLockBound caps a store.lock wait at the caller's remaining budget. The
+// context check alone cannot bound it: an expiry between that check and the
+// wait's own deadline test would read as busy.
+func storeLockBound(ctx context.Context, wait time.Duration) storeWait {
+	if deadline, ok := ctx.Deadline(); ok {
+		if remaining := time.Until(deadline); remaining < wait {
+			return storeWait{d: max(remaining, 0), deadline: true}
+		}
+	}
+	return storeWait{d: wait}
+}
+
+func (s *ThreadStore) withStoreLockBounded(fn func() error, check func() error, wait storeWait) (err error) {
 	if s != nil {
 		if err := s.validateBackendPath(); err != nil {
 			return err
@@ -196,8 +220,10 @@ func (s *ThreadStore) withStoreLockChecked(fn func() error, check func() error, 
 		}
 	}
 	var lock *threadStoreLock
-	if check != nil && wait > 0 {
+	if check != nil && wait.d > 0 {
 		lock, err = acquireThreadStoreLockWithin(s.root, wait, check)
+	} else if wait.deadline {
+		return fmt.Errorf("lock thread store: %w", context.DeadlineExceeded)
 	} else {
 		lock, err = acquireThreadStoreLockMode(s.root, check != nil)
 	}

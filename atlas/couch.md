@@ -3613,6 +3613,9 @@ park leave (`leave_park.go`):
   therefore poll it within `storeReadLockWait` and then return
   `ErrThreadStoreBusy`. Before #827 they refused at the first EWOULDBLOCK, which
   is what left fan-out parks behind. Retention maintenance still yields at once.
+  The wait never outlives the caller's deadline (`storeLockBound`, pair#854): a
+  caller with less budget than the wait waits only that long, and gets
+  `context.DeadlineExceeded` rather than busy when the deadline ends it.
 
 **Asleep slots** (#830). A full quit marks what it parks; `couch --wake`, from
 the main hub, brings back the other hubs.
