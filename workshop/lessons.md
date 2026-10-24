@@ -2838,4 +2838,10 @@ and external temporary roots rather than relying on the host's TMPDIR.
 
 - #162 BR-3: Never erase blank composer rows to prove a single-line command. Preserve the positively bounded input structure independently of cursor position; right-padding normalization is per row. Where terminal padding and authored blank rows are indistinguishable, decline command authority instead of inferring from the cursor. Preserve established peer-envelope comparison separately through the shared geometry/projector, and make synthetic agents render the native boundary their command proof needs.
 - #819 PQ-1: express planned tests as named production functions, adversarial input classes and mechanical invariants. Keep executable case inventories in test code; preserve cost bounds and verification commands in the plan.
+
+- #845: A command selected for an isolated PATH may depend on basename-dispatched helpers. Resolve only needed helpers from that executable’s own installation and pin the actual private-PATH operation; Apple’s /usr/bin/git launcher can hide the physical Git executable’s helper lookup failure. Preserve helper invocation names when symlinks resolve to a multicall binary.
+
+- #845 inventory: untracked Go tests are absent from the tracked reader inventory. Stage new tests before the final audit, inspect the command’s completed exit status, and only then start close or queue verification; never batch a gate mutation after a verification result that has not been checked.
+
+- #845 review execution: a native harness watchdog must cover the test’s own startup/scenario context plus cleanup. A shorter go-test deadline aborts defers and creates unverifiable residue; inspect/reconcile that exact owner before starting another fleet, and do not call the watchdog a product failure.
 - #802 BR-1: operator-facing notice wording is restated in the embedded `skills/couch/SKILL.md` and the atlas. When a producer string changes, grep the literal shape and reason labels repo-wide and update every live restatement; archived issues and comments that describe the condition are not copies. Updating the atlas alone is not the sweep.
