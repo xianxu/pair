@@ -58,6 +58,12 @@ func TestStatusSendClickExactEndpoint(t *testing.T) {
 				return span != (ColumnSpan{})
 			})
 			before := sendChordWrites(r.child.Writes())
+			var replacement *ptychild.Child
+			t.Cleanup(func() {
+				if replacement != nil {
+					_ = replacement.Close()
+				}
+			})
 			err := r.con.runTerminalCommand(context.Background(), func() error {
 				r.con.mu.Lock()
 				row := int(r.con.size.Rows) - r.con.statusRows + 1
@@ -71,7 +77,8 @@ func TestStatusSendClickExactEndpoint(t *testing.T) {
 				case "replacement":
 					old := r.con.panes[r.con.active]
 					successor := *old
-					successor.child = ptychild.NewFakeChild(nil)
+					replacement = ptychild.NewFakeChild(nil)
+					successor.child = replacement
 					r.con.panes[r.con.active] = &successor
 				case "thread":
 					r.con.statusSendTarget.thread.Tag = "other"
@@ -98,6 +105,14 @@ func TestStatusSendClickExactEndpoint(t *testing.T) {
 			}
 			if err := r.child.Endpoint().Flush(context.Background()); err != nil {
 				t.Fatal(err)
+			}
+			if replacement != nil {
+				if err := replacement.Endpoint().Flush(context.Background()); err != nil {
+					t.Fatal(err)
+				}
+				if got := sendChordWrites(replacement.Writes()); got != 0 {
+					t.Fatalf("successor received %d send chord(s)", got)
+				}
 			}
 			if got := sendChordWrites(r.child.Writes()) - before; got != tc.want {
 				t.Fatalf("send admissions=%d want %d", got, tc.want)

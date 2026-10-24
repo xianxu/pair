@@ -136,3 +136,19 @@ Concrete files replacing the superseded preview rows: add Board.HasSubmissionFee
 Reuse the existing tracked cast update watcher in couchtty/console_webcast.go: subscribe to SubmissionCandidateUpdates, take an initial projection and refresh it on coalesced candidate wakes outside Console.mu, then apply the scalar through the existing runTerminalCommand path with exact cast-pointer revalidation. Store the scalar in that cast's existing webcastState; statusModelLocked reads it in O(1). Do not add a goroutine, timer, Store scan or dependency on preview progress. The cast-end path and a successor's fresh state reset the value. Tests drive a preview-unavailable cast and exact delivery-mask wake, and count projection reads over repeated paints versus candidate wakes.
 
 The accepted render carries its actor/thread/endpoint plus cast identity into the drawn Send witness. No host/publication witness survives this revision. Click admission validates the physically confirmed frame and current cast/actor identity; press-time transaction chooses the current eligible feedback rather than pinning old note revisions from rendering. Implementation is still gated by change-code's plan-quality/estimate checks.
+
+### 2026-10-24 — current entity table and review corrections
+
+This is the current greppable table; the earlier preview-centric rows remain superseded history. No production behavior changes in this revision.
+
+| Name | Kind | Lives in | Status |
+|---|---|---|---|
+| GlobalBinding send action | PURE | cmd/internal/workbenchshortcut/shortcut.go | modified |
+| StatusModel / RenderedStatusRow Send fields | PURE | cmd/internal/couchtty/reserve.go | modified |
+| Board.HasSubmissionFeedback | INTEGRATION | cmd/internal/webcast/board/submission.go | new |
+| Cast.HasSubmissionFeedback | INTEGRATION | cmd/internal/webcast/cast_submission_candidates.go | new |
+| Console.refreshSendFeedback | INTEGRATION | cmd/internal/couchtty/console_send.go | new |
+| Existing cast watcher candidate subscription | INTEGRATION | cmd/internal/couchtty/console_webcast.go | modified |
+| sendStatusTarget / Console.routeSendStatusClick | INTEGRATION | cmd/internal/couchtty/console_send.go | new |
+
+BR-1 adds README’s user-facing button and widened hotkey instructions, preserving existing operator review markers. BR-2 retains, joins and observes the successor input sink as well as the original sink in the real mouse-route replacement control; a deliberately wrong current-target route must now fail this test. Combined operator acceptance remains owed; SHIP alone is not permission to stage independently or land before the scheduled check.

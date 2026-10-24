@@ -77,6 +77,13 @@ Added an actual active-pane replacement negative control (in addition to stale w
 
 Final pushed executable/test head c6ec05d934e5dcddf003c10c9f25c123d4bf3a21. One owned pre-close runner remains: lease-3817920737, attempt3571627d7f82767774fde43939990c2f, log /Users/xianxu/workspace/pair/.git/sdlc/test-stats/inflight/3571627d7f82767774fde43939990c2f/run.log; tool session25514 at allocation, FIFO position8. It selected affected, then the declared nvim/init.lua full-suite fallback. Do not launch a duplicate. Next: read this run's terminal result; on pass run make test-affected-inventory and close's mandatory review (full review expected from actual diff; no-project since the hub owns projects). Hand pair:4 the verified SHIP head and smoke steps for the combined morning stage. No independent pair:0 stage or landing before that authorized acceptance. This checkpoint adds documentation only, no runtime/test changes after c6ec05d9.
 
+
+### 2026-10-24 — close round1 corrections (BR-1 / BR-2)
+
+Full review found no Critical or production defect, but returned FIX-THEN-SHIP with two Important findings still blocking ledger finalization: missing README coverage of the Send control/wider chord (BR-1), and an incomplete successor-endpoint oracle (BR-2). Added the user-facing README correction with inline review markers, and strengthened the mouse-route test to retain/flush/count/clean both old and successor child endpoints. Qualified it by temporarily replacing accepted-frame routing with current-pane routing: the replacement case failed specifically with "successor received 1 send chord(s)"; restored production source byte-for-byte afterward. This proves the corrected oracle rejects the misroute the old assertion missed. Positive corrected StatusSend race run passed16.344s. No production change. Added the prevention rule to lessons and a current PURE/INTEGRATION entity table to the plan, leaving superseded design history intact. Inventory passes.
+
+The old recorded lease3817920737 was still queued and was cancelled through SDLC because the reviewed test fix needs a final-head record (tl-worker review-overlap contract). No suite had run; requeue only after this correction is pushed. The live look remains the combined morning stage with pair:4 (hub7d702e30); hub563a3e8a explicitly approves the precise no-plan-check acknowledgement for that external wait. #863 separately claimed, not started; do not switch this checkout while the next #842 review is active.
+
 ## Revisions
 
 ### 2026-10-23 — scope clarification before design
