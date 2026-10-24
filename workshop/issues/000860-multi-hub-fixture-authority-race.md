@@ -89,6 +89,16 @@ Inventory named only wait_notice_test.go. Audited its existing modelConfirmation
 
 ## Revisions
 
+### 2026-10-24 — Include measured child-proof publication
+
+Extend the approved same-class sweep to newWorkerCueRig authority.child and its custom child-proof controls after full package race exposed the identical publication bug. Use the existing pre-construction decorator, preserve proof controls, repeat the coordinator races and full package qualification. Approved by TL f28ac8d5-81f5-4bec-b5eb-4bea676489a3.
+
 ### 2026-10-24 — Sweep the demonstrated initialization class
 
 Extend the named multiHubWaitRig repair to analogous fixture assignments after wrappers are live, as approved by the TL. Add deterministic constructor-derived policy coverage alongside race qualification. Preserve the original no-lock/no-sleep and unchanged notification assertions; use one atomic close boundary, not separate milestones.
+
+### 2026-10-24 — Measured child-proof sibling
+
+Full couchcmd race failed in304.234s at newWorkerCueRig's post-connect authority.child replacement, racing the same execute authority read. Exact unknown/uncertain coordinator count20 reproduced RED2.390s on5443413ec. TL approved folding this sibling in (f28ac8d5-81f5-4bec-b5eb-4bea676489a3), and explicitly directed cancellation of old-head queued lease-3482810010; the supported cancel completed successfully. No pass is claimed for that cancelled check. Compose the child-proof closure before construction and supply the three custom proof callbacks through the same fixture constructor, preserving their assertions and atomic proof/ordinal state. The counted no-wrapper fixture remains distinct. Requeue pre-close only after the corrected source is pushed.
+
+The corrected coordinator cases all pass20 race repetitions8.246s, including role-change, committed-report and bounded-proof controls; inventory and diff checks pass. The replacement full package race is running on the corrected source.
