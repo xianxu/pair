@@ -66,7 +66,7 @@ One atomic close boundary, no milestones. Await TL approval before code.
 - [x] Approve the mapped-range contract and conservative retained-baseline warning; separate the dependent Ariadne fake update.
 - [x] Prove pure mapping and bounded growth, then integrate preparation/public warning handling.
 - [x] Verify public registered/legacy/CLI paths, unread preservation and refusal/publication controls; update guidance.
-- [ ] File the dependent Ariadne fake update; pass inventory and recorded pre-close, then whole close and land.
+- [x] File the dependent Ariadne fake update; complete targeted qualification/inventory and submit recorded pre-close. Final close/landing outcomes remain in Log.
 
 ## Log
 
@@ -136,6 +136,19 @@ Next: commit/push, queued --pre-close, inventory then whole close and merge.
 Ariadne#615 is unclaimed and depends on pair#862; its eventual model must use
 the final approved review-then-read-all recovery, superseding its early draft's
 scoped-read wording. No cross-repo code was changed.
+
+### 2026-10-24 — recorded final-head qualification queued
+
+Pushed implementation 6f6e6e216390727a39408ab588a2e1f078eaeeba; PR599
+is open. SDLC --pre-close selected affected, then the declared full fallback
+for cmd/internal/sessionsync/testdata/apply-shadow/cases.json. Original runner
+terminal39827, attempt a7d4b27fdd25c235d58c12a6a549d612,
+lease-2922290125 is queued normally (last observed FIFO4). Preserve it;
+no unqueued full suite or native matrix. The final issue Plan row records
+submission rather than falsely claiming the pending recorded result/landing.
+A close review may overlap this queued check under the worker contract, but
+landing requires its pass on the final code. Next: inventory, close review,
+retain the check to its terminal result, then authoritative merge on SHIP.
 
 ## Revisions
 
