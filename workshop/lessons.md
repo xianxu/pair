@@ -7,6 +7,8 @@ representative evidence, not an exhaustive index.
 
 ## Proof and verification
 
+- #679 BR-1: A source census must classify each relevant IPC contract from its actual producer/consumer behavior. A list of Mkfifo paths does not justify calling every remaining use metadata validation; payload barriers and held lifetimes are distinct, valid patterns.
+
 - #679: An empty FIFO open/close is not a reliable read-completion barrier on Darwin. Exchange a checked payload, and put an otherwise uncancellable native reader in an owned child with one joined Wait; a timeout around an in-process goroutine leaves the blocked syscall alive. Cap exec diagnostics with an explicit buffer field so a promoted ReadFrom cannot bypass Write's limit.
 
 - #833: A failed component's later refusal must wrap its retained cause, not replace it with a generic unavailable error or join a new synthetic leaf. Publish the failed state and first cause together under the same mutex; pin queued, later and owner-completion paths plus the real shutdown caller, including physical errors joined with cancellation.
