@@ -273,6 +273,8 @@ const (
 	// therefore non-pinning, which is the one input where the two legitimately
 	// differ (pair#172).
 	MenuEventMouseSwitch
+	// MenuEventMouseRowClick selects first inside the open switcher.
+	MenuEventMouseRowClick
 
 	// MenuEventNotice reports a console-side refusal on the menu's own surface.
 	// The status row is behind the panel while the switcher owns the screen, so
@@ -307,6 +309,8 @@ type MenuEvent struct {
 	Inventory            []couchcore.ActionableThreadSummary
 	InventorySet         bool
 	Operation            string
+	// RevealTarget is set only by an open-switcher chip, never a list hit.
+	RevealTarget bool
 	// Mode is the operation's disposition where it has one: which of park or
 	// detach a whole-couch `leave` applies to every live thread.
 	Mode        string
@@ -465,7 +469,7 @@ func ReduceMenu(state MenuState, event MenuEvent) (MenuState, []MenuEffect) {
 	if !event.At.IsZero() {
 		next.ObservedAt = event.At
 	}
-	if event.Kind == MenuEventKey || event.Kind == MenuEventMouseSwitch || event.Kind == MenuEventParkHotkey {
+	if event.Kind == MenuEventKey || event.Kind == MenuEventMouseSwitch || event.Kind == MenuEventMouseRowClick || event.Kind == MenuEventParkHotkey {
 		next.LandingAttempt = 0
 	}
 	var consumed bool
@@ -530,32 +534,11 @@ func ReduceMenu(state MenuState, event MenuEvent) (MenuState, []MenuEffect) {
 	if event.Kind == MenuEventParkHotkey {
 		return reduceParkHotkey(next, event)
 	}
+	if event.Kind == MenuEventMouseRowClick {
+		return reduceSwitcherRowClick(next, event)
+	}
 	if event.Kind == MenuEventMouseSwitch {
-		thread, ok := menuThreadTarget(next, event.RowKey, event.Address)
-		if ok {
-			if selected, busy := selectBusyMenuRow(next, thread); busy {
-				return selected, nil
-			}
-		}
-		// A pending row is not ready: a click on it lands nowhere (pair#206).
-		if !ok || enterOperationFor(thread) == "" || !menuRowSelectable(next, event.Address) {
-			return next, nil
-		}
-		next.Frames = next.Frames[:1]
-		selectMenuRow(&next.Frames[0], thread)
-		state, effects := dispatchMenuRow(next, enterOperationFor(thread), thread)
-		// Only mark a dispatch that HAPPENED. dispatchThreadOperation refuses
-		// when another operation is in flight and returns the state unchanged;
-		// marking that would leave Manual set on someone else's operation.
-		for _, effect := range effects {
-			if effect.Operation != "" {
-				origin := menuOriginForAttempt(state, effect.Attempt)
-				origin.Manual = true
-				state = replaceMenuOperationOrigin(state, origin)
-				break
-			}
-		}
-		return state, effects
+		return activateMouseMenuRow(next, event)
 	}
 	if event.Kind == MenuEventReattachArm {
 		return armReattach(next, event.Address), nil
@@ -2017,4 +2000,33 @@ func reapConfirmationCost(thread couchcore.ActionableThreadSummary) string {
 		return fmt.Sprintf(" — ends orphaned server PID %d and everything under it (pair wrap/term/title, nvim, the agent)", o.PID)
 	}
 	return " — ends its orphaned server and everything under it (pair wrap/term/title, nvim, the agent)"
+}
+
+// activateMouseMenuRow retains the shared manual activation and veto path.
+func activateMouseMenuRow(next MenuState, event MenuEvent) (MenuState, []MenuEffect) {
+	thread, ok := menuThreadTarget(next, event.RowKey, event.Address)
+	if ok {
+		if selected, busy := selectBusyMenuRow(next, thread); busy {
+			return selected, nil
+		}
+	}
+	// A pending row is not ready: a click on it lands nowhere (pair#206).
+	if !ok || enterOperationFor(thread) == "" || !menuRowSelectable(next, event.Address) {
+		return next, nil
+	}
+	next.Frames = next.Frames[:1]
+	selectMenuRow(&next.Frames[0], thread)
+	state, effects := dispatchMenuRow(next, enterOperationFor(thread), thread)
+	// Only mark a dispatch that HAPPENED. dispatchThreadOperation refuses
+	// when another operation is in flight and returns the state unchanged;
+	// marking that would leave Manual set on someone else's operation.
+	for _, effect := range effects {
+		if effect.Operation != "" {
+			origin := menuOriginForAttempt(state, effect.Attempt)
+			origin.Manual = true
+			state = replaceMenuOperationOrigin(state, origin)
+			break
+		}
+	}
+	return state, effects
 }
