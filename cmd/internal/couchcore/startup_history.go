@@ -35,6 +35,12 @@ func (s *ThreadStore) startupHistoryLocked(ctx context.Context, scope string) (b
 		if !errors.Is(err, os.ErrNotExist) {
 			return false, err
 		}
+		// Recovery backups retain the exact outgoing conversation bytes even
+		// when no readable current record or archive remains.
+		present, err := startupHistoryDirectoryWithin(ctx, filepath.Join(s.root, "recovery"), "", startupHistoryEntryLimit, false)
+		if err != nil || present {
+			return present, err
+		}
 		scope = "" // A local store belongs to this exact checkout.
 	} else {
 		manifest, _, _, err := s.loadManifestLockedContext(ctx)
@@ -61,6 +67,10 @@ func startupHistoryTree(ctx context.Context, path, scope string) (bool, error) {
 }
 
 func startupHistoryTreeWithin(ctx context.Context, path, scope string, remaining int) (bool, error) {
+	return startupHistoryDirectoryWithin(ctx, path, scope, remaining, true)
+}
+
+func startupHistoryDirectoryWithin(ctx context.Context, path, scope string, remaining int, scopes bool) (bool, error) {
 	fd, err := unix.Open(path, unix.O_RDONLY|unix.O_DIRECTORY|unix.O_NOFOLLOW|unix.O_CLOEXEC|unix.O_NONBLOCK, 0)
 	if errors.Is(err, unix.ENOENT) {
 		return false, nil
@@ -121,7 +131,7 @@ func startupHistoryTreeWithin(ctx context.Context, path, scope string, remaining
 			}
 		}
 	}
-	return inspect(root, true)
+	return inspect(root, scopes)
 }
 
 // observeStartupHistory includes configured local stores even when this

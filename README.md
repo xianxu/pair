@@ -464,7 +464,10 @@ for a positively surviving hub after a normal restart, and off for missing hubs
 🤖~or a full-shutdown/unknown start. After a cold start, hubs stay stopped by design:
 choose **Resume from disk** on a retained switcher row, or **Ctrl+Space → Start**
 with the hub directory when no row exists. Normal warm reattachment is unchanged.~{or a full-shutdown/unknown start. A proven first start with no retained history
-is `fresh`: configured hubs start normally, with automation off. After a known
+is `fresh`: configured hubs start normally, with automation off. This includes
+unenrolled local stores and retained archives/recovery backups; startup rechecks
+that each target is empty before creating it and never replaces a conversation.
+After a known
 shutdown or an unknown start, missing hubs stay stopped: choose **Resume from
 disk** on a retained switcher row, or **Ctrl+Space → Start** when no row exists.
 Normal warm reattachment is unchanged.}

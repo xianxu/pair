@@ -165,6 +165,16 @@ func (f *Fleet) Prepare(ctx context.Context) error {
 }
 
 func (f *Fleet) Start(ctx context.Context) error {
+	return f.start(ctx, true)
+}
+
+// StartCold starts the owned console without waiting for an agent. The caller
+// can then perform the real operator gesture on an intentionally parked fleet.
+func (f *Fleet) StartCold(ctx context.Context) error {
+	return f.start(ctx, false)
+}
+
+func (f *Fleet) start(ctx context.Context, waitReady bool) error {
 	ctx, done, err := f.begin(ctx)
 	if err != nil {
 		return err
@@ -197,6 +207,9 @@ func (f *Fleet) Start(ctx context.Context) error {
 	f.record(RunEvent{Kind: "own", Resource: Resource{ID: fmt.Sprint(cmd.Process.Pid), Generation: p.generation, Kind: "couch"}})
 	if err := f.ownershipError(); err != nil {
 		return err
+	}
+	if !waitReady {
+		return nil
 	}
 	if err = f.WaitAgent(ctx, 0); err != nil {
 		return fmt.Errorf("steward startup: %w; screen=%s; output=%s", err, p.Screen(), p.Output())

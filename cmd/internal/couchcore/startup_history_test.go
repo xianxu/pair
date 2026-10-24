@@ -11,7 +11,7 @@ import (
 )
 
 func TestStartupObservesUnenrolledConfiguredHistoryWithoutMutation(t *testing.T) {
-	for _, family := range []string{"local-current", "local-archive", "global-archive", "global-legacy"} {
+	for _, family := range []string{"local-current", "local-archive", "local-recovery", "global-archive", "global-legacy"} {
 		t.Run(family, func(t *testing.T) {
 			f := newProvisionFixture(t)
 			f.git(f.Primary, "worktree", "add", "-b", "main-slot1", f.host(1), "main")
@@ -28,6 +28,8 @@ func TestStartupObservesUnenrolledConfiguredHistoryWithoutMutation(t *testing.T)
 				path = filepath.Join(local.root, "thread.json")
 			case "local-archive":
 				path = filepath.Join(local.root, "archive", "retained-scope", "retained.json")
+			case "local-recovery":
+				path = filepath.Join(local.root, "recovery", "retained.json")
 			case "global-archive":
 				path = filepath.Join(env.Couch.Threads.root, "archive", "retained-scope", "retained.json")
 			case "global-legacy":
@@ -150,5 +152,28 @@ func TestStartupHistoryMissingConfiguredLocalStaysMissing(t *testing.T) {
 	}
 	if _, err := os.Lstat(local.root); !errors.Is(err, os.ErrNotExist) {
 		t.Fatalf("observation initialized local store: %v", err)
+	}
+}
+
+func TestStartupHistoryLockedRetainsRecoveryOnlyLocalStore(t *testing.T) {
+	store := testLocalThreadStore(t)
+	if err := store.withLock(func() error {
+		path := filepath.Join(store.root, "recovery", "retained.json")
+		if err := os.MkdirAll(filepath.Dir(path), 0700); err != nil {
+			return err
+		}
+		if err := os.WriteFile(path, []byte("unreadable retained original"), 0600); err != nil {
+			return err
+		}
+		present, err := store.startupHistoryLocked(t.Context(), "")
+		if err != nil {
+			return err
+		}
+		if !present {
+			t.Error("recovery-only local store classified empty")
+		}
+		return nil
+	}); err != nil {
+		t.Fatal(err)
 	}
 }

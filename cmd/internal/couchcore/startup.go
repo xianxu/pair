@@ -132,9 +132,9 @@ func (c *Couch) startExplicitInteractive(ctx context.Context, args StartArgs) (S
 	return c.startInteractiveResolution(ctx, resolution)
 }
 
-// StartFreshHub is called only with the initial zero-history startup permission.
-// A primary opens normally; a never-used numbered slot needs its existing fresh
-// path, because OpenSlot deliberately requires a resumable current conversation.
+// StartFreshHub attempts creation after the initial zero-history observation.
+// Both primary and numbered targets must still be empty when their reservation
+// is committed. Startup cannot cold-resume, replace or retire retained history.
 func (c *Couch) StartFreshHub(ctx context.Context, path string) (StartResult, error) {
 	if err := ctx.Err(); err != nil {
 		return StartResult{}, err

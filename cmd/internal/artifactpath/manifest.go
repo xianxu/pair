@@ -682,6 +682,10 @@ var NonArtifactSources = []string{
 	"cmd/internal/couchcmd/worker_cue_coordinator.go",
 	"cmd/internal/couchcore/hub_automation.go",
 	"cmd/internal/couchcore/startup_policy.go",
+	// #863 inspects Couch thread-store metadata and guards its existing journal
+	// commits; these files do not construct or consume Pair artifact paths.
+	"cmd/internal/couchcore/startup_history.go",
+	"cmd/internal/couchcore/startup_creation.go",
 	"cmd/internal/couchmessage/worker_start_notice.go",
 	"cmd/internal/couchtty/console_automation.go",
 	// #753 historical sketch evidence uses Couch recording/submission namespaces,

@@ -15,9 +15,15 @@ the pty console, actor panel, notices, and complete local lifecycle shipped in
 ### Startup and hub automation (#739, #863)
 
 `couchcore/startup_policy.go` classifies one read-only bulk session observation.
-A proven zero-history namespace is `fresh`: configured hubs start normally,
+A proven zero-history fleet is `fresh`: configured hubs start normally,
 with the launch hub selected and extra hubs queued serially; automation stays
-off. The initial observation is retained through those launches, so the new
+off. Proof includes namespace global/legacy current and archived records, and each
+configured local store independently of enrollment, including recovery backups.
+Missing, unsafe or uncertain evidence never grants creation authority. Each
+target is rechecked under the existing coordinator → global → local store lock
+order before its empty-only reservation is published. Startup cannot use general
+Open to cold-resume or Fresh to replace history that appeared after observation.
+The initial observation is retained through those launches, so the new
 sessions cannot turn their own automation on. Known prior history whose sessions
 are absent is `full-shutdown`; unreadable/unresolved evidence is `unknown`.
 Those states keep missing hubs in the switcher: choose Resume from disk on a

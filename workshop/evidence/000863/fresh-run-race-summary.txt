@@ -1,0 +1,13 @@
+#863 controlled Run race diagnostic (2026-10-24)
+Owned invocation: go test -race ./cmd/internal/couchcmd -run TestFreshStartupRun|TestKnownShutdownRun -count=1
+Owned binary PID40950, go parent37406, tool session99604.
+Parent authorized SIGQUIT capture; run ended FAIL188.692s by requested SIGQUIT, not automatic test failure.
+Relevant Go stack:
+goroutine5 [sleep] -> testwait.waitUntil -> TestFreshStartupRunSerializesLaunchThroughAdoption, fresh_startup_run_test.go:173.
+Line173 was polling len(console.ResourceInventory().Hosted)==3.
+Console.Run was in its select at console.go:1008. All six lifecycle workers in operationQueue.Run select at operation_queue.go:114; navigation worker idle. No worker remained in held launch/adoption gates. Two installObservedThreadActor child monitors were present, not three.
+Classification: expected third adoption missing, cause not established; this is not evidence of a production mutex deadlock. Original test omitted observation of definite dispatch/adoption error.
+Test-only correction adds failure channel from actual dispatcher boundary and stops waiting immediately on a definite error, recording all launch/adoption events.
+Subsequent bounded diagnostic: go test -race ./cmd/internal/couchcmd -run TestFreshStartupRunSerializesLaunchThroughAdoption -count=1 -timeout=45s -v
+PASS1.828s (test0.34s), no effect error. This pass does not classify original miss.
+Native sample at /tmp/pair863-fresh-run-race.sample is separate; full Go SIGQUIT dump is retained in the Codex tool transcript for session99604.

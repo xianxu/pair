@@ -866,7 +866,10 @@ acceptance.
 ## Several hubs in one Couch
 
 Startup observes history once before launching new agents. A proven first start
-with no retained history is fresh: configured hubs start normally, with hub
+with no retained history in namespace or configured local stores (including
+archives and recovery backups, regardless of enrollment) is fresh. Creation
+rechecks the target is empty under its existing store locks; uncertain evidence
+keeps it parked. Configured fresh hubs start normally, with hub
 automation off and no automatic agent input. A known full shutdown or unknown
 startup attaches surviving sessions only; missing hubs stay in the switcher until
 the operator chooses recovery. The retained line reports fresh, normal,
