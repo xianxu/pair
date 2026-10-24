@@ -56,7 +56,7 @@ type notesMenuLine struct {
 	// attention list's kinds, pair#673); nil uses color.
 	chipBg color.Color
 
-	accents []bool // source byte positions carrying the bell reference accent
+	accents []bool // display byte positions carrying the bell reference accent
 }
 
 // menuItem is one entry of a titled menu, with its color chip or none. Bg,
@@ -134,13 +134,7 @@ func renderMenuAt(title string, notes []menuItem, cols, rows int, top bool) Note
 	var items []notesMenuItem
 	shown := 0
 	for _, n := range notes {
-		source := sanitizedNote(n.Text)
-		wrapped := wrapNote(source, textW)
-		var accents []bool
-		if n.refStart > 0 && n.refStart <= len(source) {
-			accents = append(make([]bool, n.refStart), referenceAccents(source[n.refStart:], referenceToken)...)
-		}
-		offset := 0
+		wrapped := wrapNote(n.Text, textW)
 		need := len(wrapped)
 		more := len(notes) - shown - 1
 		reserve := 0
@@ -152,7 +146,15 @@ func renderMenuAt(title string, notes []menuItem, cols, rows int, top bool) Note
 		}
 		top := len(lines)
 		for i, l := range wrapped {
-			lines = append(lines, notesMenuLine{text: l, chip: n.Chip && i == 0, color: n.Color, chipBg: n.Bg, id: n.ID, accents: projectReferenceAccents(source, l, accents, &offset)})
+			var accents []bool
+			if n.refStart > 0 {
+				skip := 0
+				if i == 0 {
+					skip = n.refStart
+				}
+				accents = referenceAccents(l, skip, len(wrapped) > 1, referenceToken)
+			}
+			lines = append(lines, notesMenuLine{text: l, chip: n.Chip && i == 0, color: n.Color, chipBg: n.Bg, id: n.ID, accents: accents})
 		}
 		items = append(items, notesMenuItem{ID: n.ID, Top: top, Bottom: len(lines)})
 		shown++
@@ -180,7 +182,8 @@ func renderMenuAt(title string, notes []menuItem, cols, rows int, top bool) Note
 // it is already plain, but it is drawn into the operator's terminal.
 func wrapNote(text string, width int) []string {
 	var out []string
-	for _, para := range strings.Split(sanitizedNote(text), "\n") {
+	for _, para := range strings.Split(text, "\n") {
+		para = rowtext.Sanitize(strings.ReplaceAll(para, "\t", " "))
 		wrapped := ansi.Wrap(para, width, " -")
 		out = append(out, strings.Split(wrapped, "\n")...)
 	}

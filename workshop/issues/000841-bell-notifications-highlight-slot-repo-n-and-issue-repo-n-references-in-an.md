@@ -65,6 +65,10 @@ PR #571 opened on implementation f2257a6dc2532c77257969cd90e99851fee33f09. Recor
 
 Corrected final verification: targeted attention/notes/toggle/notification controls PASS 2.964s; targeted race PASS 6.408s; original reviewer timezone reproduction (TZ=Asia/Kolkata) with fixed boundary times PASS 0.591s; exhaustive artifact guard PASS 2.294s; lint/godoc PASS 4.779s/0.442s; reader inventory PASS and diff whitespace clean. Branch patch now adds 99 production lines, so it remains within the quick shell. No recorded pass yet on the corrected executable head; commit and push precede its fresh affected run and second close review.
 
+TL-approved conservative implementation: source projector, source sanitization helper and ordered path lexer deleted. Final fitted-row whole-word matcher leaves ambiguous bracket/link/path/URL chunks and wrapped edge fragments plain. Revised tests RED on former implementation (0.459s): bracket/split highlights violate the narrowed contract and exact clipped-row reference loses its accent. Simplified implementation GREEN 1.274s on reference/notes/clipboard controls. Production additions now 75 lines, within quick flow. Atlas and learned rule revised to state the false-negative tradeoff.
+
+Conservative final verification: attention/notes/toggle/notification tests PASS 1.853s, targeted race PASS 3.933s, timezone/fixed-minute matrix PASS 0.585s, exhaustive artifact guard PASS 3.506s, reader inventory PASS, diff whitespace clean. Exact clipboard remains covered; candidate counts are 4N at N=8/16 (one match per rendered word), with fixed-size row masks. No recorded check is active yet on this new executable state; commit/push, fresh affected run and close follow.
+
 ## Revisions
 
 ### 2026-10-23 — Make release-gate sequencing explicit

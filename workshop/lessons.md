@@ -7,7 +7,7 @@ representative evidence, not an exhaustive index.
 
 ## Proof and verification
 
-- #841 BR-1/BR-2: Match display references within their source role, before wrapping. Exclude generated metadata explicitly rather than banning valid-looking identifiers; keep path/URL exclusion at lexical spans so adjacent prose and Markdown labels survive. Fix fixture clocks at grammar boundaries, and preserve internal path brackets in negative controls.
+- #841 BR-1/BR-2/BR-3: For a conservative visual aid, match final fitted display words and permit false negatives. Exclude generated metadata and ambiguous path/link/bracket chunks; skip wrapped row edges that may be fragments. Source-substring projection fails when fitting removes zero-width characters. Use fixed-clock grammar boundaries and exact clipped-row accents, not a test satisfied by any earlier colored label.
 
 - #833: A failed component's later refusal must wrap its retained cause, not replace it with a generic unavailable error or join a new synthetic leaf. Publish the failed state and first cause together under the same mutex; pin queued, later and owner-completion paths plus the real shutdown caller, including physical errors joined with cancellation.
 
