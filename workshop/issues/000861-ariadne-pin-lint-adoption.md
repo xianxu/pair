@@ -5,8 +5,8 @@ deps: []
 github_issue:
 created: 2026-10-24
 updated: 2026-10-24
-estimate_hours:
-card_mirror: 'e5904d2c6f5b195f7b39a4fc8d5d7ff946dfa712' # card fields mirrored from issue-cards; edit via sdlc
+estimate_hours: 4.11
+card_mirror: '101f9a1dffc511a2bd9a0f3a7f7b876bd80bd8ab' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-24T00:02:47-07:00
 claimant:
     operator: Xian Xu
@@ -15,6 +15,7 @@ claimant:
     workspace: pair:3
     worktree: /Users/xianxu/workspace/worktree/pair-slot3/pair
     repository: github.com/xianxu/pair
+flow: {kind: full, provenance: operator}
 ---
 
 # Adopt Ariadne shared sidedoc pin and qualify newly active lint rules
@@ -43,6 +44,39 @@ Durable source-qualified plan: workshop/plans/000861-ariadne-pin-lint-adoption-p
 - [ ] Reuse canonical ShortRoot; preserve ordinary inherited TMPDIR and optional startup socket isolation.
 - [ ] Replace virtual budget shortcuts and native expiry races with explicit observed transitions and cue-owned deadlines/timers.
 - [ ] Audit readers, pass catalog/targeted/pre-close, update atlas, close and land; then return #838.
+
+## Estimate
+
+*Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md` against `baseline-v3.1.md`. Method A only. Calibration source is reported stale; values remain provisional.*
+
+Decomposition: one issue/spec; one catalog+pin boundary; one JSON cross-cutting extraction; one cue helper; seven bounded request/timer integrations (tunnel, provision, VM, agent CLI, launcher retirement, drawing expiry, PTY capture); four virtual/selection test groups; one socket-fixture cross-cut; atlas; one close review. Repeated item rows below correspond to the integrations/groups in that order.
+
+Raw v2 design choices are0.5 issue,0.2 catalog,0.6 JSON refactor,0.5 cue helper,0.2 each integration,0.15 each virtual group,0.2 sockets,0.1 docs and0.1 review; thorough accepted plan discount x0.2. Library check: cue helper reuses standard context cancellation and local spendable-budget precedent, so its greenfield design additionally halves to0.05; all other work extends known standard-library/current-stack seams. Implementation choices from v2 table are0.2 issue,0.5 catalog,0.5 JSON,0.8 cue,0.5 each integration,0.35 each virtual group,0.4 sockets,0.2 docs,0.5 review, all scaled once by v3.1 x0.40. Familiarity1.0; thorough-plan design buffer15%. No API-discovery or UX budget.
+
+```estimate
+model: estimate-logic-v3.1
+familiarity: 1.0
+item: issue-spec design=0.1 impl=0.08
+item: smaller-go-module design=0.04 impl=0.2
+item: cross-cutting-refactor design=0.12 impl=0.2
+item: greenfield-go-module design=0.05 impl=0.32
+item: smaller-go-module design=0.04 impl=0.2
+item: smaller-go-module design=0.04 impl=0.2
+item: smaller-go-module design=0.04 impl=0.2
+item: smaller-go-module design=0.04 impl=0.2
+item: smaller-go-module design=0.04 impl=0.2
+item: smaller-go-module design=0.04 impl=0.2
+item: smaller-go-module design=0.04 impl=0.2
+item: smaller-go-module design=0.03 impl=0.14
+item: smaller-go-module design=0.03 impl=0.14
+item: smaller-go-module design=0.03 impl=0.14
+item: smaller-go-module design=0.03 impl=0.14
+item: cross-cutting-refactor design=0.04 impl=0.16
+item: atlas-docs design=0.02 impl=0.08
+item: milestone-review design=0.02 impl=0.2
+design-buffer: 0.15
+total: 4.11
+```
 
 ## Log
 
