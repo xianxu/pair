@@ -11,6 +11,7 @@ func submissionSketchRecords(n int) []recording.Record {
 	b := recording.NewBuilder("submission-sketch")
 	node := b.El("button", []string{"id", "save"})
 	b.Page(recording.SegLive, "https://example.test", node)
+	b.Recs[1].(*recording.Seg).PageLoad = &recording.PageLoad{Target: "tab1", Loader: "submission-load", Root: 1}
 	for i := 0; i < n; i++ {
 		id := string(rune('a' + i))
 		op := func(seq uint64) recording.SketchOperation {

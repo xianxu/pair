@@ -103,8 +103,12 @@ func TestSubmissionResolutionPreservesChangedAndNewDocument(t *testing.T) {
 	if err := r.bd.ResolveSelection(context.Background(), sel); err != nil {
 		t.Fatal(err)
 	}
-	if live := r.bd.Live(); len(live) != 2 || !hasLive(live, id) || !hasLive(live, newID) {
-		t.Fatal("reopened historical or new page note resolved")
+	if live := r.bd.Live(); len(live) != 1 || live[0].ID != newID {
+		t.Fatalf("current list includes earlier load or lost new note: %+v", live)
+	}
+	history, err := recording.Reduce(r.mem.Records(), 1<<62)
+	if err != nil || len(history.Notes) != 2 || history.Notes[0].ID != id || history.Notes[0].State != recording.NoteOpen || history.Notes[1].ID != newID || history.Notes[1].State != recording.NoteOpen {
+		t.Fatalf("reopened historical or current note resolved in recording: %+v, %v", history, err)
 	}
 }
 
@@ -120,7 +124,7 @@ func TestSubmissionResolutionWaitsForRecordedOutcome(t *testing.T) {
 	}
 }
 
-func TestSubmissionSelectsHistoricalOpenNotes(t *testing.T) {
+func TestSubmissionSelectsCurrentLoadAndResolvesPreviouslyAdmittedHistory(t *testing.T) {
 	r := newRig(t).page(recording.SegLive)
 	first, _ := r.note(r.p1.ID, 0)
 	original, _ := r.bd.Selection()
@@ -130,13 +134,23 @@ func TestSubmissionSelectsHistoricalOpenNotes(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(selected.Notes) != 2 || selected.Notes[0].ID != first || selected.Notes[1].ID != second {
-		t.Fatalf("historical notes omitted: %+v", selected)
+	if len(selected.Notes) != 1 || selected.Notes[0].ID != second {
+		t.Fatalf("selection includes another load: %+v", selected)
+	}
+	history, err := recording.Reduce(r.mem.Records(), 1<<62)
+	if err != nil || len(history.Notes) != 2 || history.Notes[0].ID != first || history.Notes[0].State != recording.NoteOpen {
+		t.Fatalf("prior load lost from recording: %+v, %v", history, err)
+	}
+	if len(original.Notes) != 1 || original.Notes[0].ID != first {
+		t.Fatalf("navigation changed admitted identity: %+v", original)
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
 	if err = r.bd.ResolveSelection(ctx, original); err != nil {
 		t.Fatal(err)
+	}
+	if r.bd.st.Notes[0].ID != first || r.bd.st.Notes[0].State != recording.NoteResolved || r.bd.st.Notes[1].State != recording.NoteOpen {
+		t.Fatalf("historical acknowledgement resolved wrong exact version: %+v", r.bd.st.Notes)
 	}
 	selected, err = r.bd.Selection()
 	if err != nil || len(selected.Notes) != 1 || selected.Notes[0].ID != second {

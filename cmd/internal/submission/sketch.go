@@ -89,6 +89,9 @@ func ValidateSketch(s Sketch) error {
 	if s.Privacy == "" || s.PrivacyOrigin != OriginOf(s.Source.URL) || s.PrivacyOrigin == "" && s.Privacy != Private {
 		return fail("original source privacy")
 	}
+	if err := validateSourcePageLoad(s.Source); err != nil {
+		return err
+	}
 	paths := s.Paths
 	if s.Image != nil {
 		if s.Index != 0 || s.Paths != nil || s.Finish != nil {

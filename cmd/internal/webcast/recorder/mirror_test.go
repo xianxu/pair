@@ -354,3 +354,46 @@ func TestObserveAttributesTheDriver(t *testing.T) {
 		t.Errorf("a non-driver's click: dropped %d, want 1", m.Dropped["click"])
 	}
 }
+
+func TestMirrorSameLoadTabReturnKeepsOnlyTrustedBackendIDs(t *testing.T) {
+	a := newFakePage("http://a/")
+	kept, removed := a.el("button"), a.el("button")
+	a.insert(a.body(), nil, kept)
+	a.insert(a.body(), nil, removed)
+	a.take()
+	m := start(t, a)
+	keptID, _ := m.IDOf(sess, kept.backend)
+	removedID, _ := m.IDOf(sess, removed.backend)
+	b := newFakePage("http://b/")
+	m.Session("B", "T-B", true)
+	if err := m.Seg(1, &rec.Seg{Seg: 2, Why: rec.SegTab, Tab: rec.Tab{ID: "T-B"}, VP: rec.Viewport{W: 800, H: 600, DPR: 1}}, "B", b.snapshot(), "LB"); err != nil {
+		t.Fatal(err)
+	}
+	a.remove(removed)
+	replacement := a.el("button")
+	a.insert(a.body(), nil, replacement)
+	a.take()
+	m.Session(sess, a.frameID, true)
+	if err := m.Seg(2, &rec.Seg{Seg: 3, Why: rec.SegTab, Tab: rec.Tab{ID: "T"}, VP: rec.Viewport{W: 800, H: 600, DPR: 1}}, sess, a.snapshot(), "L1"); err != nil {
+		t.Fatal(err)
+	}
+	if got, _ := m.IDOf(sess, kept.backend); got != keptID {
+		t.Fatalf("known backend lost stable identity: %d -> %d", keptID, got)
+	}
+	if _, ok := m.IDOf(sess, removed.backend); ok {
+		t.Fatal("removed backend became live on return")
+	}
+	if got, _ := m.IDOf(sess, replacement.backend); got == removedID || got == keptID {
+		t.Fatal("replacement borrowed an earlier node's identity")
+	}
+	if len(m.sessions[sess].grave) == 0 {
+		t.Fatal("inactive removals bypassed bounded grave accounting")
+	}
+	before, _ := m.IDOf(sess, kept.backend)
+	if err := m.Seg(3, &rec.Seg{Seg: 4, Why: rec.SegNavigate, Tab: rec.Tab{ID: "T"}, VP: rec.Viewport{W: 800, H: 600, DPR: 1}}, sess, a.snapshot(), "L2"); err != nil {
+		t.Fatal(err)
+	}
+	if got, _ := m.IDOf(sess, kept.backend); got == before {
+		t.Fatal("same backend in a different load retained identity")
+	}
+}

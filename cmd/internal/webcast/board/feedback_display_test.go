@@ -103,22 +103,28 @@ func TestFeedbackDisplayBudgetRefusalAtomicAndNoopPreservesPrevious(t *testing.T
 	}
 }
 
-func TestFeedbackDisplayAccepts49HistoricalOpenNotes(t *testing.T) {
+func TestFeedbackDisplayAccepts49PreviouslyAdmittedNoteVersions(t *testing.T) {
 	r := newRig(t)
+	var admitted []SelectedNote
 	for i := 0; i < 49; i++ {
 		r.page(recording.SegLive)
 		if _, err := r.note(r.p1.ID, 0); err != nil {
 			t.Fatal(err)
 		}
+		selected, err := r.bd.Selection()
+		if err != nil || len(selected.Notes) != 1 {
+			t.Fatalf("load %d selected earlier notes: %+v, %v", i, selected, err)
+		}
+		admitted = append(admitted, selected.Notes[0])
 	}
 	s, err := r.bd.Selection()
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(s.Notes) != 49 {
-		t.Fatalf("historical note fixture=%d", len(s.Notes))
+	if len(s.Notes) != 1 || len(r.bd.st.Notes) != 49 || len(admitted) != 49 {
+		t.Fatalf("current=%d history=%d admitted=%d", len(s.Notes), len(r.bd.st.Notes), len(admitted))
 	}
-	if err := r.bd.SetDeliveredFeedback(nil, s.Notes); err != nil {
+	if err := r.bd.SetDeliveredFeedback(nil, admitted); err != nil {
 		t.Fatal(err)
 	}
 	if len(r.bd.FeedbackMask().Notes) != 49 || len(r.bd.OperatorView().Notes) != 0 {
@@ -334,6 +340,18 @@ func TestFeedbackDisplayDeliveryMetadataTracksEveryAcceptedOperation(t *testing.
 	cursor := b.OperatorSketchCursor()
 	for _, r := range submissionSketchRecords(1) {
 		b.Put(r)
+		if seg, ok := r.(*recording.Seg); ok {
+			if seg.PageLoad == nil {
+				t.Fatal("modern delivery fixture omitted load identity")
+			}
+			// A new accepted load retires the initial unscoped cursor. Start
+			// operation-by-operation checks from its acknowledged bootstrap.
+			initial, err := b.OperatorSketchSince(cursor)
+			if err != nil || initial.Bootstrap == nil {
+				t.Fatalf("load bootstrap: %+v, %v", initial, err)
+			}
+			cursor = SketchDeliveryCursor{Epoch: initial.Bootstrap.Epoch, Seq: initial.Bootstrap.Seq}
+		}
 		if recording.SketchReceiptKey(r) == "" {
 			continue
 		}

@@ -20,7 +20,7 @@ import (
 	"github.com/xianxu/pair/cmd/internal/webcast/recording"
 )
 
-//go:embed web/index.html web/viewer.js web/viewer.css web/model.js web/sketch-model.js web/render.js web/css.js web/annotate.js web/floating-panel.js web/feedback-entries.js web/feedback-layout.js web/feedback-glow.js web/feedback-panel.js web/feedback-panel.css web/cast-tools.js web/cast-tools.css web/annotation-policy.js web/annotation-anchor.js web/annotation-placement.js web/capture-draft.js web/annotate.css web/placeholders.js web/drive.js web/drive.css web/replay.js web/replay.css web/replayer.js web/fidelity.html web/fidelity.js web/sketch-image.html web/sketch-image.js web/sketch-page-image.js web/sketch-policy.js web/sketch-render.js web/sketch-delivery.js web/sketch-scene.js web/sketch.js web/sketch-notes.js web/sketch.css web/feedback-mask.js web/feedback-visibility.js
+//go:embed web/index.html web/viewer.js web/viewer.css web/model.js web/page-load.js web/sketch-model.js web/render.js web/css.js web/annotate.js web/floating-panel.js web/feedback-entries.js web/feedback-layout.js web/feedback-glow.js web/feedback-panel.js web/feedback-panel.css web/cast-tools.js web/cast-tools.css web/annotation-policy.js web/annotation-anchor.js web/annotation-placement.js web/capture-draft.js web/annotate.css web/placeholders.js web/drive.js web/drive.css web/replay.js web/replay.css web/replayer.js web/fidelity.html web/fidelity.js web/sketch-image.html web/sketch-image.js web/sketch-page-image.js web/sketch-policy.js web/sketch-render.js web/sketch-delivery.js web/sketch-scene.js web/sketch.js web/sketch-notes.js web/sketch.css web/feedback-mask.js web/feedback-visibility.js
 var webFS embed.FS
 
 // contentSecurityPolicy: the page runs only its own script, talks only to
@@ -46,6 +46,7 @@ var assets = map[string]struct{ file, contentType string }{
 	"":                {"web/index.html", "text/html; charset=utf-8"},
 	"viewer.js":       {"web/viewer.js", "text/javascript; charset=utf-8"},
 	"viewer.css":      {"web/viewer.css", "text/css; charset=utf-8"},
+	"page-load.js":    {"web/page-load.js", "text/javascript; charset=utf-8"},
 	"model.js":        {"web/model.js", "text/javascript; charset=utf-8"},
 	"sketch-model.js": {"web/sketch-model.js", "text/javascript; charset=utf-8"},
 	"render.js":       {"web/render.js", "text/javascript; charset=utf-8"},

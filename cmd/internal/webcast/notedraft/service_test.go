@@ -19,6 +19,7 @@ func preparation(t *testing.T) (board.AnnotationAdmission, board.PreparedNote) {
 	b := recording.NewBuilder("test")
 	el := b.El("p", []string{"id", "card"}, b.Txt("Original card"))
 	b.Page(recording.SegLive, "https://example.test/", el)
+	b.Recs[1].(*recording.Seg).PageLoad = &recording.PageLoad{Target: "tab1", Loader: "notedraft-load", Root: 1}
 	for _, r := range b.Recs {
 		bd.Put(r)
 	}

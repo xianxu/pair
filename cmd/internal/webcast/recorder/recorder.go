@@ -99,6 +99,7 @@ type Options struct {
 type (
 	// Event is a CDP event of any session, as read (Seq from cdp.Event).
 	Event struct {
+		intent          *snapshotIntent
 		annotation      board.AnnotationAdmission // captured at binding ingress, never refreshed on dispatch
 		Session, Method string
 		Params          json.RawMessage
@@ -107,6 +108,7 @@ type (
 	// Live goes live on a tab, or switches the cast to another tab while
 	// live. Session is the tab's page session.
 	Live struct {
+		intent  *snapshotIntent
 		Tab     rec.Tab
 		Session string
 	}
@@ -174,6 +176,8 @@ const (
 
 // Recorder records one cast. Start it, Send it inputs, Close it.
 type Recorder struct {
+	loads          *loadOwner
+	topIntent      *snapshotIntent
 	draftWork      chan struct{}
 	draftOwner     *operatorDraftOwner
 	inputUncertain bool
@@ -277,6 +281,7 @@ func Start(opts Options) *Recorder {
 		requests: map[string]netReq{}, dirty: map[string]bool{}, owned: map[string]bool{},
 		pending: map[string]pendingRef{},
 	}
+	r.loads = newLoadOwner(opts.Operator)
 	r.side.Add(2)
 	go r.assetWorker()
 	go r.shotWorker()
@@ -306,6 +311,7 @@ func (r *Recorder) enqueue(in any, bounded bool) bool {
 		}
 	}
 
+	in = r.loads.ingress(in)
 	at := r.opts.Now()
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -346,6 +352,7 @@ func (r *Recorder) enqueue(in any, bounded bool) bool {
 // went wrong: opening or writing the recording, or what it lost (Stats).
 // Idempotent.
 func (r *Recorder) Close() error {
+	r.loads.close()
 	r.mu.Lock()
 	if !r.closing {
 		r.closing = true
@@ -512,6 +519,7 @@ func (r *Recorder) run() {
 	close(r.assetQ)
 	close(r.shotQ)
 	r.side.Wait()
+	r.loads.finish()
 	// Results that came back after the end are dropped: the recording is
 	// closed.
 	if r.sink != nil {
@@ -600,6 +608,7 @@ func (r *Recorder) handle(in stamped) {
 			break
 		}
 		switch {
+		case !r.pageFeedbackReady(v.Record, v.Doc):
 		case v.Doc > 0 && !r.m.State().OnDoc(v.Doc):
 			// The viewer's document has gone, or the cast is paused on it
 			// (pair#499): nobody may act on that page now.
@@ -654,7 +663,10 @@ func (r *Recorder) afterInput(at time.Time) {
 		// document update, a desync); the page first, as a new document
 		// there means every frame comes again.
 		if r.dirty[r.top] {
-			if r.resnapshot(at, r.top) {
+			if r.topIntent == nil {
+				r.topIntent = r.loads.refresh(r.top)
+			}
+			if r.resnapshot(at, r.top, r.topIntent) {
 				r.markAll()
 			}
 		}
@@ -664,6 +676,8 @@ func (r *Recorder) afterInput(at time.Time) {
 			}
 		}
 	}
+	r.loads.retire(r.topIntent)
+	r.topIntent = nil
 	clear(r.dirty)
 	for len(r.m.Expand) > 0 {
 		e := r.m.Expand[0]
@@ -741,6 +755,7 @@ func (r *Recorder) goLive(at time.Time, l Live) {
 		r.m.Emit(0, &rec.Head{Format: rec.Format, V: rec.Version, ID: r.opts.ID, Started: at.Format(time.RFC3339Nano)})
 	}
 	if r.live && l.Session == r.top {
+		r.loads.retire(l.intent)
 		return
 	}
 	why := rec.SegLive
@@ -759,7 +774,7 @@ func (r *Recorder) goLive(at time.Time, l Live) {
 	r.m.Session(r.top, l.Tab.ID, true)
 	r.live = true
 	r.enable(r.top)
-	r.snapshotTop(at, why)
+	r.snapshotTop(at, why, l.intent)
 	for _, s := range r.castSessions()[1:] {
 		r.enable(s)
 		r.frameSnapshot(at, s)
@@ -774,32 +789,17 @@ func (r *Recorder) goLive(at time.Time, l Live) {
 
 // snapshotTop takes the cast page's document: a new segment (why, or resume
 // when the document is the one that was paused).
-func (r *Recorder) snapshotTop(at time.Time, why string) {
-	root, key, err := r.document(r.top)
-	if err != nil {
-		r.opts.Logf("recorder: no snapshot of the cast tab (%v); the cast is not recorded until it goes live again", err)
-		r.live = false
-		if r.m.st.Live {
-			// A tab switch whose new tab can't be read: the previous
-			// segment ends here, never left open.
-			r.m.Emit(r.t(at), &rec.Stop{Why: rec.StopPause})
-		}
-		return
-	}
-	if why == rec.SegNavigate && r.m.SameDocument(r.top, key) && !r.m.st.Live {
-		why = rec.SegResume
-	}
-	r.seg++
-	r.tab.URL = root.DocumentURL
-	seg := &rec.Seg{Seg: r.seg, Why: why, Tab: r.tab, VP: r.viewport()}
-	if err := r.m.Seg(r.t(at), seg, r.top, root, key); err != nil {
-		r.opts.Logf("%v", err)
-	}
-	r.segT = r.m.st.T
+// documentSnapshot is local evidence until the load owner reserves it.
+type documentSnapshot struct {
+	root          *cnode
+	loader, frame string
+	seq           uint64
+	children      []frameTree
+	vp            rec.Viewport
 }
 
-// document snapshots a session's document and names it.
-func (r *Recorder) document(session string) (*cnode, string, error) {
+func (d documentSnapshot) key() string { return fmt.Sprintf("%s:%d", d.loader, d.root.BackendNodeID) }
+func (r *Recorder) document(ctx context.Context, session string) (documentSnapshot, error) {
 	var tree struct {
 		FrameTree struct {
 			Frame struct {
@@ -809,61 +809,123 @@ func (r *Recorder) document(session string) (*cnode, string, error) {
 			Children []frameTree `json:"childFrames"`
 		} `json:"frameTree"`
 	}
-	if _, err := r.call(session, "Page.getFrameTree", nil, &tree); err == nil {
-		r.loader[session] = tree.FrameTree.Frame.LoaderID
-		for _, child := range tree.FrameTree.Children {
-			r.learnFrameTree(child, tree.FrameTree.Frame.ID)
-		}
+	call := func(method string, params, result any) (uint64, error) {
+		c, cancel := context.WithTimeout(ctx, callTimeout)
+		defer cancel()
+		return r.opts.Call.CallSeq(c, session, method, params, result)
+	}
+	if _, err := call("Page.getFrameTree", nil, &tree); err != nil {
+		return documentSnapshot{}, err
+	}
+	if tree.FrameTree.Frame.ID == "" || tree.FrameTree.Frame.LoaderID == "" {
+		return documentSnapshot{}, errors.New("recorder: frame identity unavailable")
 	}
 	var res struct {
 		Root *cnode `json:"root"`
 	}
-	seq, err := r.call(session, "DOM.getDocument", map[string]any{"depth": -1, "pierce": true}, &res)
+	seq, err := call("DOM.getDocument", map[string]any{"depth": -1, "pierce": true}, &res)
 	if err != nil {
-		return nil, "", err
+		return documentSnapshot{}, err
 	}
-	if res.Root == nil {
-		return nil, "", errors.New("recorder: getDocument returned no root")
+	if res.Root == nil || res.Root.BackendNodeID <= 0 {
+		return documentSnapshot{}, errors.New("recorder: getDocument returned no root identity")
 	}
-	r.hideSketchNodes(res.Root)
-	r.snapSeq[session] = seq
-	return res.Root, fmt.Sprintf("%s:%d", r.loader[session], res.Root.BackendNodeID), nil
+	return documentSnapshot{root: res.Root, loader: tree.FrameTree.Frame.LoaderID, frame: tree.FrameTree.Frame.ID, seq: seq, children: tree.FrameTree.Children, vp: r.viewport(ctx, session)}, nil
+}
+func (r *Recorder) installDocument(session string, d documentSnapshot) {
+	r.hideSketchNodes(d.root)
+	r.loader[session] = d.loader
+	r.snapSeq[session] = d.seq
+	for _, child := range d.children {
+		r.learnFrameTree(child, d.frame)
+	}
 }
 
-// resnapshot takes the cast page's document again: the same document's
-// children (kids), or a new document's segment. True for a new segment.
-func (r *Recorder) resnapshot(at time.Time, session string) bool {
-	root, key, err := r.document(session)
-	if err != nil {
-		return false
+// commitTopSnapshot is the sole selected-top snapshot installation/write path.
+// Reservations protect historical writes; only current ownership confirms UI.
+func (r *Recorder) commitTopSnapshot(at time.Time, why string, intent *snapshotIntent) (accepted, newSegment bool) {
+	if intent == nil {
+		return false, false
 	}
-	if !r.m.SameDocument(session, key) {
-		// A new document: the top one is a new segment.
-		r.seg++
-		r.tab.URL = root.DocumentURL
-		seg := &rec.Seg{Seg: r.seg, Why: rec.SegNavigate, Tab: r.tab, VP: r.viewport()}
-		if err := r.m.Seg(r.t(at), seg, session, root, key); err != nil {
-			r.opts.Logf("%v", err)
+	for {
+		attempt, ctx := r.loads.start(r.ctx, intent)
+		if attempt == nil {
+			return false, false
 		}
-		r.segT = r.m.st.T
+		d, err := r.document(ctx, attempt.selection.Session)
+		if err != nil {
+			if r.loads.failed(attempt) {
+				continue
+			}
+			r.opts.Logf("recorder: no snapshot of the cast tab (%v)", err)
+			return false, false
+		}
+		evidence := loadEvidence{Selection: loadSelection{Session: attempt.selection.Session, Target: attempt.selection.Target, Frame: d.frame}, Load: &rec.PageLoad{Target: attempt.selection.Target, Loader: d.loader, Root: int64(d.root.BackendNodeID)}}
+		reservation := r.loads.ready(attempt, evidence)
+		if reservation == nil {
+			if r.loads.retry(attempt) {
+				continue
+			}
+			return false, false
+		}
+		r.installDocument(attempt.selection.Session, d)
+		key := d.key()
+		newSegment = why != "" || !r.m.SameDocument(attempt.selection.Session, key)
+		if newSegment {
+			if why == "" {
+				why = rec.SegNavigate
+			}
+			if why == rec.SegNavigate && r.m.SameDocument(attempt.selection.Session, key) && !r.m.st.Live {
+				why = rec.SegResume
+			}
+			r.seg++
+			r.tab.URL = d.root.DocumentURL
+			seg := &rec.Seg{Seg: r.seg, Why: why, Tab: r.tab, VP: d.vp, PageLoad: ownedLoadIdentity(evidence.Load)}
+			err = r.m.Seg(r.t(at), seg, attempt.selection.Session, d.root, key)
+			r.segT = r.m.st.T
+		} else {
+			r.m.Resnapshot(r.t(at), attempt.selection.Session, d.root)
+		}
+		if err == nil {
+			err = r.write()
+		}
+		r.loads.done(reservation, err == nil && r.err == nil, d.seq)
+		return err == nil, newSegment
+	}
+}
+func (r *Recorder) snapshotTop(at time.Time, why string, intent *snapshotIntent) {
+	accepted, _ := r.commitTopSnapshot(at, why, intent)
+	if !accepted {
+		r.live = false
+		if r.m.st.Live {
+			r.m.Emit(r.t(at), &rec.Stop{Why: rec.StopPause})
+		}
+	}
+}
+func (r *Recorder) resnapshot(at time.Time, session string, intent *snapshotIntent) bool {
+	accepted, changed := r.commitTopSnapshot(at, "", intent)
+	if accepted && changed {
 		r.observe(session, true)
 		r.goAssets()
 		r.nextShot = time.Time{}
-		return true
 	}
-	r.m.Resnapshot(r.t(at), session, root)
-	return false
+	return accepted && changed
 }
-
 func (r *Recorder) frameSnapshot(at time.Time, session string) {
-	root, key, err := r.document(session)
+	d, err := r.document(r.ctx, session)
 	if err != nil {
 		return
 	}
-	r.m.FrameDoc(r.t(at), session, root, key)
+	r.installDocument(session, d)
+	r.m.FrameDoc(r.t(at), session, d.root, d.key())
 }
 
-func (r *Recorder) viewport() rec.Viewport {
+func (r *Recorder) viewport(parent context.Context, session string) rec.Viewport {
+	call := func(method string, params, result any) (uint64, error) {
+		ctx, cancel := context.WithTimeout(parent, callTimeout)
+		defer cancel()
+		return r.opts.Call.CallSeq(ctx, session, method, params, result)
+	}
 	vp := rec.Viewport{W: 1280, H: 800, DPR: 1}
 	var lm struct {
 		CSS struct {
@@ -871,16 +933,16 @@ func (r *Recorder) viewport() rec.Viewport {
 			H float64 `json:"clientHeight"`
 		} `json:"cssLayoutViewport"`
 	}
-	if _, err := r.call(r.top, "Page.getLayoutMetrics", nil, &lm); err == nil && lm.CSS.W > 0 {
+	if _, err := call("Page.getLayoutMetrics", nil, &lm); err == nil && lm.CSS.W > 0 {
 		vp.W, vp.H = int(lm.CSS.W), int(lm.CSS.H)
 	}
-	if ctx, ok := r.topContext(r.top); ok {
+	if ctx, ok := r.topContext(session); ok {
 		var res struct {
 			Result struct {
 				Value float64 `json:"value"`
 			} `json:"result"`
 		}
-		if _, err := r.call(r.top, "Runtime.evaluate", map[string]any{"expression": "devicePixelRatio", "contextId": ctx, "returnByValue": true}, &res); err == nil && res.Result.Value > 0 {
+		if _, err := call("Runtime.evaluate", map[string]any{"expression": "devicePixelRatio", "contextId": ctx, "returnByValue": true}, &res); err == nil && res.Result.Value > 0 {
 			vp.DPR = res.Result.Value
 		}
 	}
@@ -983,6 +1045,10 @@ func (r *Recorder) event(at time.Time, e Event) {
 		}
 		if json.Unmarshal(e.Params, &p) == nil && p.Frame.ID == r.frameIDs[e.Session] {
 			r.loader[e.Session] = p.Frame.LoaderID
+			if r.live && e.Session == r.top && e.intent != nil {
+				r.dirty[r.top] = true
+				r.topIntent = e.intent
+			}
 		}
 		return
 	}
@@ -999,6 +1065,9 @@ func (r *Recorder) event(at time.Time, e Event) {
 	switch e.Method {
 	case "DOM.documentUpdated":
 		r.dirty[e.Session] = true
+		if e.Session == r.top {
+			r.topIntent = e.intent
+		}
 	case "DOM.inlineStyleInvalidated":
 		var p struct {
 			IDs []int `json:"nodeIds"`

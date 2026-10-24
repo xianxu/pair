@@ -85,3 +85,60 @@ func TestOperatorSketchOriginalSaveIdentityWithoutNotesAndReplacement(t *testing
 		t.Fatalf("identical replacement claimed recorded identity: %v %v", refs, err)
 	}
 }
+
+func TestOperatorOriginalsSameLoadReturnsAcrossActivationSegments(t *testing.T) {
+	h, b, _, n := preparedFixture(t)
+	h.r.Send(Emit{Record: &n.Note, Doc: n.Document})
+	h.settle()
+	node := n.Note.At.Node
+	initial, err := h.r.OperatorOriginals(context.Background(), "A", 7, 1, []rec.NodeID{node})
+	if err != nil || initial[node] == 0 {
+		t.Fatal(initial, err)
+	}
+	h.page("B", "http://b/", "L9")
+	h.r.Send(Live{Tab: rec.Tab{ID: "T-B"}, Session: "B"})
+	h.settle()
+	h.r.Send(Live{Tab: rec.Tab{ID: "T-A"}, Session: "A"})
+	h.settle()
+	returned, err := h.r.OperatorOriginals(context.Background(), "A", 7, 3, []rec.NodeID{node})
+	if err != nil || returned[node] != initial[node] {
+		t.Fatalf("same-load note lost trusted identity across A-B-A: before=%v after=%v err=%v", initial, returned, err)
+	}
+	if b.OperatorView().Notes[0].ID != n.Note.ID {
+		t.Fatal("same-load saved note did not return")
+	}
+	h.r.Send(Pause{})
+	h.settle()
+	paused, err := h.r.OperatorOriginals(context.Background(), "A", 7, 3, []rec.NodeID{node})
+	if err != nil || paused[node] != initial[node] {
+		t.Fatalf("pause revoked same-load anchor: %v %v", paused, err)
+	}
+}
+
+func TestOperatorSketchOriginalsSameLoadReturnAndPendingFence(t *testing.T) {
+	h, b, _ := operatorHarness(t)
+	var node rec.NodeID
+	h.r.ask(context.Background(), func() { node, _, _ = h.r.m.nodeAt(h.r.m.sessions["A"], h.r.frameIDs["A"], []int{1, 2, 0}) })
+	begin := mirrorSketchBegin()
+	begin.Tab = "T-A"
+	h.r.Send(Emit{Record: begin, Doc: 1})
+	h.r.Send(Emit{Record: &rec.SketchStrokeBegin{SketchOperation: rec.SketchOperation{Operation: "stroke", Sequence: 1, Digest: strings.Repeat("b", 64)}, Sketch: "sk", ID: "p", At: rec.NoteAt{Node: node, Box: &rec.Box{1, 2, 30, 40}}, Width: 3}, Doc: 1})
+	h.settle()
+	before, err := h.r.OperatorOriginals(context.Background(), "A", 7, 1, []rec.NodeID{node})
+	if err != nil || before[node] == 0 {
+		t.Fatal(before, err)
+	}
+	h.page("B", "http://b/", "L9")
+	h.r.Send(Live{Tab: rec.Tab{ID: "T-B"}, Session: "B"})
+	h.settle()
+	h.r.Send(Live{Tab: rec.Tab{ID: "T-A"}, Session: "A"})
+	h.settle()
+	after, err := h.r.OperatorOriginals(context.Background(), "A", 7, 3, []rec.NodeID{node})
+	if err != nil || after[node] != before[node] {
+		t.Fatalf("same-load sketch lost original anchor: %v %v", after, err)
+	}
+	b.BeginPageLoad(999)
+	if _, err = h.r.OperatorOriginals(context.Background(), "A", 7, 3, []rec.NodeID{node}); !errors.Is(err, board.ErrStale) {
+		t.Fatalf("pending load exposed previous backend references: %v", err)
+	}
+}

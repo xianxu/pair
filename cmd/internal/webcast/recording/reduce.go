@@ -109,6 +109,7 @@ type State struct {
 	nodes               map[NodeID]*DOMNode
 	types               map[NodeID]string // id -> type and tag, for the whole recording
 	awaitTop            bool              // a seg came; its top doc hasn't
+	pageLoads           map[int]*PageLoad // immutable accepted segment provenance
 }
 
 // NewState is the state before any record.
@@ -234,6 +235,12 @@ func (s *State) apply(r Record) error {
 	case *Seg:
 		if r.Seg <= s.Seg {
 			return fmt.Errorf("segment %d after segment %d", r.Seg, s.Seg)
+		}
+		if r.PageLoad != nil {
+			if s.pageLoads == nil {
+				s.pageLoads = map[int]*PageLoad{}
+			}
+			s.pageLoads[r.Seg] = clonePageLoad(r.PageLoad)
 		}
 		if r.Why != SegResume || r.Tab.ID != s.Tab.ID {
 			s.Sketches.interrupt(SketchInterruptNavigation)

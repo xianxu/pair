@@ -50,6 +50,10 @@ func (r *Recorder) WriteSketch(ctx context.Context, in board.SketchWrite) (board
 		if duplicate {
 			return nil
 		}
+		if !r.pageFeedbackReady(in.Record, in.Document) {
+			out.Source = nil
+			return board.ErrStale
+		}
 		if e = ctx.Err(); e != nil {
 			out.Source = nil
 			return e

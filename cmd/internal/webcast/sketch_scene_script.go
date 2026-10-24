@@ -11,11 +11,12 @@ func buildSketchSceneScript() (string, error) {
 		imports    map[string]string
 	}
 	parts := []part{
+		{"pageLoad", "page-load.js", nil},
 		{"anchor", "annotation-anchor.js", nil},
 		{"placement", "annotation-placement.js", map[string]string{"./annotation-anchor.js": "anchor"}},
 		{"css", "css.js", nil},
 		{"sketch", "sketch-model.js", nil},
-		{"model", "model.js", map[string]string{"./sketch-model.js": "sketch"}},
+		{"model", "model.js", map[string]string{"./page-load.js": "pageLoad", "./sketch-model.js": "sketch"}},
 		{"render", "render.js", map[string]string{"./annotation-placement.js": "placement", "./css.js": "css"}},
 	}
 	var code strings.Builder

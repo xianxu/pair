@@ -71,8 +71,13 @@ func (b *Board) edit(in EditIn, operator bool, emit Emit) error {
 	}
 	var owner string
 	found := false
+	load := b.currentPageLoadLocked()
 	for _, n := range b.st.Notes {
 		if n.ID == in.ID && n.State == recording.NoteOpen {
+			if !b.st.OnPageLoad(n.Seg, load) {
+				b.mu.Unlock()
+				return ErrStale
+			}
 			owner = n.Owner
 			found = true
 			break

@@ -18,6 +18,7 @@ import { mountFeedbackGlow } from './feedback-glow.js';
 import { captureDraftController } from './capture-draft.js';
 import { annotationPolicy } from './annotation-policy.js';
 import { HEX_COLOR, pointerColor, colorStore, safeStorage, poster, sayer, railAt, renderSwatches, noteDialog, sessionNoteOwner, gestureBox, noteGesture, dragMin, boxCentre, validName, VIEWER_NAME_KEY, MAX_VIEWER_NAME } from './collab.js';
+import { feedbackReady, feedbackScopeKey, onFeedbackPage } from './page-load.js';
 
 export { validName };
 
@@ -134,12 +135,12 @@ export function strokeStore() {
 // (docSeg), so a resume keeps them and a navigation clears them.
 export function liveNotes(model) {
   if (!model || !model.docSeg) return [];
-  return model.notes.filter((n) => n.seg >= model.docSeg && n.state === 'open').map((n) => n.note);
+  return model.notes.filter((n) => (typeof model.onPageLoad==='function'?onFeedbackPage(model,n.seg):feedbackReady(model)&&n.seg>=model.docSeg) && n.state === 'open').map((n) => n.note);
 }
 
-// Open notes remain reachable even when their document or anchor is absent.
+// Current-load open notes remain reachable when their anchor is absent.
 export function openNotes(model, feedbackMask) {
-  return (model?.notes || []).filter(n => n.state === 'open' && (!feedbackMask || feedbackMask.noteVisible(n.note.id,n.revision??0))).map(n => n.note);
+  return (model?.notes || []).filter(n => onFeedbackPage(model,n.seg)&&n.state === 'open' && (!feedbackMask || feedbackMask.noteVisible(n.note.id,n.revision??0))).map(n => n.note);
 }
 
 export function noteList(doc, container, open) {
@@ -438,6 +439,7 @@ export function mountAnnotation(doc, win, v, { root, box, stage, palette, who, c
   // The document now: the module mounts after the catch-up may have been
   // applied, so it starts from the model's, not from nothing.
   let docSeg = v.model ? v.model.docSeg : 0;
+  let loadScope = feedbackScopeKey(v.model);
 
   // While the cast is paused viewers do nothing (pair#499): the rail's
   // controls are disabled and say why, and the note dialog is held; the
@@ -467,7 +469,7 @@ export function mountAnnotation(doc, win, v, { root, box, stage, palette, who, c
   }
   function sync() {
     const m = v.model || {};
-    transition({ type: 'sync', doc: m.docSeg, ready: m.seg > 0, allowed: annotate && annotationAllowed, paused: m.paused, ended: m.ended, driver: operator ? m.driver : '' });
+    transition({ type: 'sync', doc: m.docSeg, ready: m.seg > 0&&feedbackReady(m), allowed: annotate && annotationAllowed, paused: m.paused, ended: m.ended, driver: operator ? m.driver : '' });
   }
   // The rail's controls are rendered only when their state changes (a pick,
   // a mode, a pause or a resume); each frame only places the rail, so
@@ -485,7 +487,7 @@ export function mountAnnotation(doc, win, v, { root, box, stage, palette, who, c
       b.setAttribute('aria-pressed', String(state.mode === m));
     }
     const off = unavailable();
-    const reason = policy?.phase === 'disabled' ? (availabilityState === 'broken' ? 'Cast broken. Wait for the operator to end the cast.' : availabilityState === 'retry' ? 'Annotation is off. Waiting for the operator to retry.' : 'Annotation is off.') : policy?.driver ? `${policy.driver} is driving.` : 'The cast is paused.';
+    const reason = !feedbackReady(v.model) ? 'Page feedback is getting ready.' : policy?.phase === 'disabled' ? (availabilityState === 'broken' ? 'Cast broken. Wait for the operator to end the cast.' : availabilityState === 'retry' ? 'Annotation is off. Waiting for the operator to retry.' : 'Annotation is off.') : policy?.driver ? `${policy.driver} is driving.` : 'The cast is paused.';
     rail.classList.toggle('paused', off);
     for (const b of [...Object.values(modeButtons), ...swatches.querySelectorAll('button')]) b.disabled = off;
     if (v.tools) v.tools.groups.pointerColors.hidden = state.mode === 'watch' || off;
@@ -705,6 +707,14 @@ export function mountAnnotation(doc, win, v, { root, box, stage, palette, who, c
   }
 
   v.onRecord((r, model) => {
+    const nextScope = feedbackScopeKey(model);
+    if (nextScope !== loadScope) {
+      loadScope = nextScope;
+      gestureVersion++;endGesture(true);strokes.clear();dialog.close();
+      notesPanel.clearHighlight();notesPanel.setNotes([]);glow.clear();
+      pinned.draw([],()=>null,place,{placementOf:()=>null});
+      drawStrokes(win.performance.now());
+    }
     strokes.seen(r.t);
     if (model.docSeg && model.docSeg !== docSeg) {
       // A new document: a stroke doesn't span documents. (A resync's fresh
@@ -715,7 +725,7 @@ export function mountAnnotation(doc, win, v, { root, box, stage, palette, who, c
       if (was) { strokes.clear(); endGesture(true); }
     }
     if (r.k === 'annotation-clear') { strokes.clear(); gestureVersion++; endGesture(true); setMode('watch'); }
-    if (r.k === 'stroke') strokes.record(r, win.performance.now(), `${who.id()}.`);
+    if (r.k === 'stroke'&&feedbackReady(model)) strokes.record(r, win.performance.now(), `${who.id()}.`);
     // A pause or the end puts the pen down (setMode ends the gesture and
     // renders the rail, disabled while paused); a resume enables it again.
     if (r.k === 'stop') { setMode('watch'); if (r.why === 'end') dialog.close(); }

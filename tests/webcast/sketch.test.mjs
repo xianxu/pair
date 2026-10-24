@@ -61,6 +61,7 @@ function harness() {
       seg: 1,
       why: 'live',
       tab: { id: 'tab', url: 'https://old/' },
+      page_load: {target:'tab',loader:'load-A',root:'1'},
       vp: { w: 100, h: 100, dpr: 1 },
     },
     {
@@ -1022,7 +1023,7 @@ test('cached painted bounds retain note discovery after scroll hides the first p
 
 test('actual Notes panel preserves finished sketch identity through offscreen and unavailable anchors, then restores availability',async()=>{
  const {mountSketch}=await mod(),h=harness();
- const path={sketch:'accepted',id:'stroke',width:4,color:'#ff0000',at:{node:7,box:[0,0,100,100]},pts:[[10,10,.5],[30,10,.8]]};
+ const path={source:{doc:1},sketch:'accepted',id:'stroke',width:4,color:'#ff0000',at:{node:7,box:[0,0,100,100]},pts:[[10,10,.5],[30,10,.8]]};
  let placement=path.at.box,reveals=0;
  h.options.paths=()=>[path];h.options.sketchMetadata=()=>({phase:'complete',label:'Kept accepted label'});
  h.view.placementOf=()=>placement;h.view.reveal=()=>{reveals++;return !!placement;};
@@ -1070,4 +1071,52 @@ test('requesting a sketch label expands its minimized adopted Notes editor',asyn
  assert.equal(h.root.querySelector('.sketch-label').hidden,false);
  assert.equal(notes.classList.contains('minimized'),false);assert.equal(body.hidden,false);
  assert.equal(ui.labelInput.focused,true);ui.dispose();
+});
+
+test('current-load sketch rows retain accepted history and restore same-load finished labels',async()=>{
+ const {mountSketch}=await mod(),h=harness(),ui=mountSketch(h.doc,h.win,h.view,h.options);
+ await ui.enter();h.event(ui.layer,'pointerdown');await h.flush();h.event(ui.layer,'pointerup');await h.flush();
+ await ui.leave();ui.labelInput.value='Saved A';await ui.saveLabel();await h.flush();
+ const history=h.model.sketchProjection(),sent=h.sent.length,open=h.root.querySelector('.feedback-open');
+ h.event(open,'click');assert.equal(h.root.querySelector('.feedback-readonly').hidden,false);
+ h.model.page_load_ready=false;h.model.page_load=null;h.emit({k:'view',t:h.model.t});
+ assert.equal(h.root.querySelector('.feedback-rows').children.length,0,'pending clears shared rows immediately');
+ assert.equal(h.root.querySelector('.feedback-readonly').hidden,true);await h.flush();
+ assert.equal(ui.captureBusy(),false);assert.equal(h.sent.length,sent);
+ h.model.page_load_ready=true;h.model.page_load={target:'tab',loader:'load-B',root:'2'};
+ h.emit({k:'view',t:h.model.t});await h.flush();assert.equal(h.root.querySelector('.feedback-rows').children.length,0);
+ h.model.page_load={target:'tab',loader:'load-A',root:'1'};h.emit({k:'view',t:h.model.t});await h.flush();
+ assert.equal(h.root.querySelector('.feedback-open').textContent,'View note');
+ h.event(h.root.querySelector('.feedback-open'),'click');assert.equal(h.root.querySelector('.feedback-readonly-text').textContent,'Saved A');
+ assert.deepEqual(h.model.sketchProjection(),history);assert.equal(h.sent.length,sent);ui.dispose();
+});
+
+test('pending scope discards local label editor without sending historical mutations',async()=>{
+ const {mountSketch}=await mod(),h=harness(),ui=mountSketch(h.doc,h.win,h.view,h.options);
+ await ui.enter();h.event(ui.layer,'pointerdown');await h.flush();h.event(ui.layer,'pointerup');await h.flush();await ui.leave();
+ ui.labelInput.value='Departing unsaved label';const sent=h.sent.length;
+ h.model.page_load_ready=false;h.model.page_load=null;h.emit({k:'view',t:h.model.t});await h.flush();
+ assert.equal(h.root.querySelector('.sketch-label').hidden,true);assert.equal(ui.captureBusy(),false);
+ await ui.saveLabel();assert.equal(h.sent.length,sent);assert.equal(ui.controls.pen.disabled,true);ui.dispose();
+});
+
+test('late placement after pending scope cannot restore accepted pixels or rows',async()=>{
+ const {mountSketch}=await mod(),h=harness();let release;
+ h.options.paths=()=>[{sketch:'old',id:'p',at:{node:7,box:[0,0,100,100]},width:3,color:'#ff0000',pts:[[10,10,.5]],source:{doc:1}}];
+ h.options.sketchMetadata=()=>({phase:'complete',label:'Old'});
+ h.view.placementOf=()=>new Promise(resolve=>release=resolve);
+ const ui=mountSketch(h.doc,h.win,h.view,h.options);await h.flush();assert.equal(typeof release,'function');
+ h.model.page_load_ready=false;h.model.page_load=null;h.emit({k:'view',t:h.model.t});
+ release([0,0,100,100]);await h.flush();assert.equal(h.context.paintedPoints,0);assert.equal(h.root.querySelector('.feedback-rows').children.length,0);ui.dispose();
+});
+
+test('departed preflight completion cannot clear the fresh load entry guard',async()=>{
+ const {mountSketch}=await mod(),h=harness();const waits=[];
+ h.scene.preflight=()=>new Promise(resolve=>waits.push(resolve));
+ const ui=mountSketch(h.doc,h.win,h.view,h.options),old=ui.enter();
+ h.model.page_load_ready=false;h.model.page_load=null;h.emit({k:'view',t:h.model.t});
+ h.model.page_load_ready=true;h.model.page_load={target:'tab',loader:'load-A',root:'1'};h.emit({k:'view',t:h.model.t});
+ const fresh=ui.enter();assert.equal(waits.length,2);assert.equal(ui.captureBusy(),true);
+ waits[0]();await old;assert.equal(ui.captureBusy(),true,'late departed preflight cleared current entry guard');
+ waits[1]();await fresh;await h.flush();assert.equal(h.sent.filter(m=>m.kind==='sketch-begin').length,1);ui.dispose();
 });

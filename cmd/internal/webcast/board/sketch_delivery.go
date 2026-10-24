@@ -97,7 +97,7 @@ func displayBegin(m recording.SketchMetadata) SketchDisplayBegin {
 	return SketchDisplayBegin{ID: m.ID, Author: m.Author, Doc: m.Doc, Tab: m.Tab, VP: m.VP, T: m.T}
 }
 func (b *Board) refreshSketchDeliveryLocked(r recording.Record, before sketchDeliveryBefore) {
-	if before.duplicate {
+	if before.duplicate || !b.sketchOnCurrentPageLocked(recording.SketchID(r)) {
 		return
 	}
 	change, ok := b.st.Sketches.Change(r, before.core)
@@ -214,7 +214,7 @@ func (b *Board) OperatorSketchSince(cursor SketchDeliveryCursor) (SketchDelivery
 		gap = len(j.entries) == 0 || cursor.Seq+1 < j.entries[0].seq
 	}
 	if gap {
-		frame := &SketchDeliveryBootstrap{Epoch: current.Epoch, Seq: current.Seq, Display: sketchDisplayProjection(b.st.Sketches.Snapshot())}
+		frame := &SketchDeliveryBootstrap{Epoch: current.Epoch, Seq: current.Seq, Display: sketchDisplayProjection(b.st.SketchesOnPageLoad(b.currentPageLoadLocked()))}
 		encoded, err := json.Marshal(frame)
 		if err != nil {
 			return SketchDelivery{}, err
@@ -312,4 +312,21 @@ func (b *Board) closeSketchDeliveryLocked() {
 	j.subs = nil
 	j.entries = nil
 	j.bytes = 0
+}
+
+func (b *Board) resetSketchDeliveryLocked() {
+	j := &b.sketchDelivery
+	if j.closed {
+		return
+	}
+	j.epoch = randomID()
+	j.seq = 0
+	j.entries = nil
+	j.bytes = 0
+	for ch := range j.subs {
+		select {
+		case ch <- struct{}{}:
+		default:
+		}
+	}
 }

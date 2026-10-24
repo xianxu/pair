@@ -172,8 +172,8 @@ func TestSketchExclusionBlocksObserverStylesAndLateOOPEvents(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	h.r.Send(Detached{Session: "private-session"})
-	h.r.Send(Detached{Session: "nested-session"})
+	h.detach("private-session")
+	h.detach("nested-session")
 	if err := h.r.acknowledged(ctx, func() error {
 		if len(h.r.sketchSessions) != 0 {
 			t.Errorf("retained detached sessions: %v", h.r.sketchSessions)

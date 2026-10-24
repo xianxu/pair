@@ -17,6 +17,7 @@ func sketchDeliveryFixture(t *testing.T) *Board {
 	b := New(notes.Structural{}, nil)
 	build := recording.NewBuilder("delivery")
 	build.Page(recording.SegLive, "http://x/")
+	build.Recs[1].(*recording.Seg).PageLoad = &recording.PageLoad{Target: "tab1", Loader: "delivery-load", Root: 1}
 	for _, r := range build.Recs {
 		b.Put(r)
 	}
@@ -194,7 +195,7 @@ func TestSketchDeliveryProjectionMatchesActualBrowser(t *testing.T) {
 	follow(&recording.SketchStrokeBegin{SketchOperation: deliveryOp(6), Sketch: "s", ID: "q", At: recording.NoteAt{Node: 3, Box: &recording.Box{0, 0, 10, 10}}, Width: 3})
 	follow(&recording.SketchPoints{SketchOperation: deliveryOp(7), Sketch: "s", ID: "q", Pts: []recording.SketchPoint{{3, 4, 1}}})
 	follow(&recording.Stop{Why: recording.StopPause})
-	follow(&recording.Seg{Seg: 2, Why: recording.SegResume, Tab: recording.Tab{ID: "tab1"}, VP: recording.Viewport{W: 100, H: 100, DPR: 1}})
+	follow(&recording.Seg{Seg: 2, Why: recording.SegResume, Tab: recording.Tab{ID: "tab1"}, VP: recording.Viewport{W: 100, H: 100, DPR: 1}, PageLoad: b.st.CurrentPageLoad()})
 	follow(&recording.SketchLabel{SketchOperation: deliveryOp(8), Sketch: "s", Label: "Saved partial"})
 	follow(&recording.AnnotationClear{Who: recording.Author{ID: recording.OperatorID}})
 	root, err := reporoot.Current()

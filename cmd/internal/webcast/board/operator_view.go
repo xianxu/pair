@@ -25,6 +25,8 @@ const OperatorStrokeFadeMS int64 = 1500
 const MaxOperatorStrokes = 128
 
 type OperatorView struct {
+	PageLoad             *recording.PageLoad   `json:"page_load"`
+	PageLoadReady        bool                  `json:"page_load_ready"`
 	FeedbackContext      sketchimage.PageScene `json:"feedback_context"`
 	NoteRevisions        map[string]string     `json:"note_revisions"`
 	FeedbackMask         LiveFeedbackMask      `json:"feedback_mask"`
@@ -108,6 +110,8 @@ func cloneNote(n *recording.Note) *recording.Note {
 }
 func (b *Board) operatorViewLocked() OperatorView {
 	v := OperatorView{Revision: b.operatorRevision, Seg: b.st.Seg, Doc: b.st.DocSeg, T: b.st.T, Paused: b.st.Paused(), Ended: b.closed || b.st.Ended || b.broken != nil, Notes: []*recording.Note{}, Strokes: []OperatorStroke{}}
+	v.PageLoad = b.currentPageLoadLocked()
+	v.PageLoadReady = !v.Ended && v.PageLoad != nil
 	v.SketchCursor = b.sketchDeliveryCursorLocked()
 	v.FeedbackMask = cloneFeedbackMask(b.feedbackDisplay.mask)
 	v.FeedbackContext = b.currentFeedbackPageLocked()
@@ -120,12 +124,15 @@ func (b *Board) operatorViewLocked() OperatorView {
 		}
 	}
 	for _, n := range b.st.Notes {
-		if n.State == recording.NoteOpen && !b.noteFeedbackHiddenLocked(n.ID, n.Revision) {
+		if n.State == recording.NoteOpen && b.st.OnPageLoad(n.Seg, v.PageLoad) && !b.noteFeedbackHiddenLocked(n.ID, n.Revision) {
 			v.Notes = append(v.Notes, cloneNote(n.Note))
 			v.NoteRevisions[n.ID] = strconv.FormatUint(n.Revision, 10)
 		}
 	}
 	for _, s := range b.operatorStrokes {
+		if v.PageLoad == nil {
+			break
+		}
 		s.Pts = slices.Clone(s.Pts)
 		v.Strokes = append(v.Strokes, s)
 	}
@@ -174,5 +181,8 @@ func (b *Board) SketchAnchorRevision() uint64 {
 func (b *Board) SketchAnchorNodes(document int) []recording.NodeID {
 	b.mu.Lock()
 	defer b.mu.Unlock()
-	return b.st.Sketches.AnchorNodes(document)
+	if document != b.st.DocSeg {
+		return nil
+	}
+	return b.st.SketchAnchorNodesOnPageLoad(b.currentPageLoadLocked())
 }

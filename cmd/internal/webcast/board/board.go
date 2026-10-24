@@ -109,6 +109,7 @@ type Board struct {
 	feedback             feedbackContexts
 	feedbackDisplay      feedbackDisplay
 	submissionSubs       map[chan struct{}]struct{}
+	pageLoad             pageLoadScope
 }
 
 // New makes a board that anchors notes with model and writes through emit.
@@ -132,6 +133,11 @@ func (b *Board) Put(r recording.Record) error {
 		b.mu.Unlock()
 		return nil
 	}
+	var previousLoad *recording.PageLoad
+	_, segment := r.(*recording.Seg)
+	if segment && !b.pageLoad.managed {
+		previousLoad = b.currentPageLoadLocked()
+	}
 	sketchBefore := b.sketchBeforeChangeLocked(r)
 	if err := b.st.Apply(r); err != nil {
 		// The writer applied r to its own reducer first, so this can't
@@ -143,6 +149,9 @@ func (b *Board) Put(r recording.Record) error {
 			b.Logf("web cast notes stopped: %v", err)
 		}
 		return nil
+	}
+	if segment && !b.pageLoad.managed && !sameOptionalPageLoad(previousLoad, b.currentPageLoadLocked()) {
+		b.resetSketchDeliveryLocked()
 	}
 	b.refreshSketchDeliveryLocked(r, sketchBefore)
 	b.refreshFeedbackContextLocked(r, sketchBefore.duplicate)
@@ -362,8 +371,13 @@ func (b *Board) setState(in StateIn, seg int, operator bool, emit Emit) error {
 		return err
 	}
 	var cur *recording.NoteView
+	load := b.currentPageLoadLocked()
 	for _, n := range b.st.Notes {
 		if n.ID == in.ID {
+			if !b.st.OnPageLoad(n.Seg, load) {
+				b.mu.Unlock()
+				return ErrStale
+			}
 			copy := *n
 			cur = &copy
 		}
@@ -384,7 +398,7 @@ func (b *Board) setState(in StateIn, seg int, operator bool, emit Emit) error {
 	return emit(update, doc)
 }
 
-// Live is all open notes across recorded documents, oldest first.
+// Live is open notes on the confirmed current page load, oldest first.
 func (b *Board) Live() []LiveNote {
 	b.mu.Lock()
 	defer b.mu.Unlock()
@@ -430,6 +444,8 @@ func (b *Board) pageLocked(seg int) (int, error) {
 		return 0, ErrNotLive
 	case b.st.Paused():
 		return 0, ErrPaused
+	case b.currentPageLoadLocked() == nil:
+		return 0, ErrStale
 	case seg < b.st.DocSeg || seg > b.st.Seg:
 		return 0, ErrStale
 	}
@@ -439,8 +455,9 @@ func (b *Board) pageLocked(seg int) (int, error) {
 // openLocked counts a color's open notes on this page, pending included.
 func (b *Board) openLocked(color int) int {
 	n := 0
-	for _, l := range b.model.Live(b.st) {
-		if l.State == recording.NoteOpen && l.Author.Color == b.palette[color] {
+	load := b.currentPageLoadLocked()
+	for _, l := range b.st.Notes {
+		if l.State == recording.NoteOpen && b.st.OnPageLoad(l.Seg, load) && l.Author.Color == b.palette[color] {
 			n++
 		}
 	}
@@ -461,8 +478,9 @@ func (b *Board) author(v Viewer, color int) recording.Author {
 // buffer first, so the send never blocks under the lock.
 func (b *Board) refreshLocked() {
 	var open []LiveNote
+	load := b.currentPageLoadLocked()
 	for _, n := range b.st.Notes {
-		if n.State == recording.NoteOpen {
+		if n.State == recording.NoteOpen && b.st.OnPageLoad(n.Seg, load) {
 			open = append(open, LiveNote{ID: n.ID, Author: n.Author, Text: n.Text, Color: slices.Index(b.palette, n.Author.Color), T: n.T})
 		}
 	}

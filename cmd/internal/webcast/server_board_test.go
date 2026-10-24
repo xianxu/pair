@@ -47,6 +47,7 @@ func newBoardCast(t *testing.T) *boardCast {
 	c.url, c.viewURL, c.bd = srv.URL+"/tok/", srv.URL+"/view/", bd
 	c.p = c.b.El("p", []string{"id", "p"}, c.b.Txt("Hello"))
 	c.b.Page(recording.SegLive, "http://app/", c.p)
+	c.b.Recs[1].(*recording.Seg).PageLoad = &recording.PageLoad{Target: "tab1", Loader: "server-load", Root: 1}
 	c.flush(t)
 	return c
 }

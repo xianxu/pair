@@ -63,7 +63,9 @@ type SketchState struct {
 	anchorRevision uint64
 }
 
-func sketchID(r Record) string {
+// SketchID returns a record's owning sketch identity, or empty for other kinds.
+// Live admission and receipt reconciliation share this projection.
+func SketchID(r Record) string {
 	switch r := r.(type) {
 	case *SketchBegin:
 		return r.ID
@@ -84,6 +86,8 @@ func sketchID(r Record) string {
 	}
 	return ""
 }
+
+func sketchID(r Record) string { return SketchID(r) }
 
 // Reconcile is read-only. Producers call it before stamping or writing, so
 // an exact retry cannot emit another JSONL line or consume another byte.
@@ -391,10 +395,21 @@ func cloneSketchStroke(b *SketchStrokeBegin) (*SketchStrokeBegin, error) {
 	}
 	return owned, nil
 }
-func (s *SketchState) Snapshot() SketchProjection {
+func (s *SketchState) Snapshot() SketchProjection { return s.snapshotForDocuments(nil) }
+
+// SketchesOnPageLoad copies matching sketches without copying earlier loads'
+// pressure history. Unknown identities never select historical feedback.
+func (s *State) SketchesOnPageLoad(load *PageLoad) SketchProjection {
+	return s.Sketches.snapshotForDocuments(func(doc int) bool { return s.OnPageLoad(doc, load) })
+}
+
+func (s *SketchState) snapshotForDocuments(include func(int) bool) SketchProjection {
 	out := SketchProjection{Active: s.active, HistoryBytes: s.historyBytes, Sketches: []SketchView{}}
 	for _, id := range s.order {
 		h := s.sketches[id]
+		if include != nil && !include(h.begin.Doc) {
+			continue
+		}
 		begin, _ := cloneSketchBegin(h.begin)
 		v := SketchView{Begin: begin, Phase: h.phase, Reason: h.reason, Label: h.label, Strokes: []SketchStrokeView{}, Visible: append([]string{}, h.visible...), Redo: append([]string{}, h.redo...), NextSequence: h.next, Receipts: []SketchReceipt{}}
 		for _, sid := range h.order {

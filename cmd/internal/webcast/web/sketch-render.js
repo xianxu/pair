@@ -94,9 +94,9 @@ export function displayFromSketchProjection(projection) {
 
 export function createSketchDisplay() {
   let sketches = new Map(),
-    anchors = new Map();
+    anchors = new Map(), currentAnchors = new Map();
   const work = { points: 0, patches: 0, bootstraps: 0, anchorVisits: 0 };
-  function anchor(index, document, node, delta) {
+  function anchor(index, currentIndex, document, node, delta) {
     if (!safe(document) || document === 0) return;
     let nodes = index.get(document);
     if (!nodes) {
@@ -107,6 +107,9 @@ export function createSketchDisplay() {
     if (count > 0) nodes.set(node, count);
     else nodes.delete(node);
     if (!nodes.size) index.delete(document);
+    const currentCount = (currentIndex.get(node) || 0) + delta;
+    if (currentCount > 0) currentIndex.set(node, currentCount);
+    else currentIndex.delete(node);
   }
   const snapshot = () => ({
     sketches: Array.from(sketches.values(), (s) => ({
@@ -117,7 +120,7 @@ export function createSketchDisplay() {
   function install(view) {
     need(view && Array.isArray(view.sketches) && view.sketches.length <= 256, 'invalid bootstrap');
     const next = new Map(),
-      nextAnchors = new Map();
+      nextAnchors = new Map(), nextCurrentAnchors = new Map();
     let anchorVisits = 0;
     for (const s of view.sketches) {
       const begin = sketchBegin(s.begin);
@@ -141,10 +144,11 @@ export function createSketchDisplay() {
       }
       need(count <= 16384, 'sketch point bound');
       next.set(begin.id, { header: { begin, ...metadata(s) }, strokes, points: count, anchorNodes });
-      if (s.phase !== 'cleared') for (const node of anchorNodes) anchor(nextAnchors, begin.doc, node, 1);
+      if (s.phase !== 'cleared') for (const node of anchorNodes) anchor(nextAnchors, nextCurrentAnchors, begin.doc, node, 1);
     }
     sketches = next;
     anchors = nextAnchors;
+    currentAnchors = nextCurrentAnchors;
     work.anchorVisits += anchorVisits;
     work.bootstraps++;
   }
@@ -269,6 +273,7 @@ export function createSketchDisplay() {
     if (clear) {
       sketches.clear();
       anchors.clear();
+      currentAnchors.clear();
     }
     for (const [key, s] of changes) {
       const target = s.original || { header: s.header, strokes: new Map(), anchorNodes: new Set() };
@@ -276,7 +281,7 @@ export function createSketchDisplay() {
       const active = s.header.phase !== 'cleared';
       if (wasActive && !active)
         for (const node of target.anchorNodes) {
-          anchor(anchors, target.header.begin.doc, node, -1);
+          anchor(anchors, currentAnchors, target.header.begin.doc, node, -1);
           work.anchorVisits++;
         }
       target.header = s.header;
@@ -288,7 +293,7 @@ export function createSketchDisplay() {
           const node = p.begin.at.node;
           if (!target.anchorNodes.has(node)) {
             target.anchorNodes.add(node);
-            if (wasActive && active) anchor(anchors, target.header.begin.doc, node, 1);
+            if (wasActive && active) anchor(anchors, currentAnchors, target.header.begin.doc, node, 1);
           }
         }
         st.pts.push(...p.tail);
@@ -296,7 +301,7 @@ export function createSketchDisplay() {
         target.strokes.set(sid, st);
       }
       if (!wasActive && active)
-        for (const node of target.anchorNodes) anchor(anchors, target.header.begin.doc, node, 1);
+        for (const node of target.anchorNodes) anchor(anchors, currentAnchors, target.header.begin.doc, node, 1);
       sketches.set(key, target);
     }
     work.points += appended;
@@ -313,6 +318,7 @@ export function createSketchDisplay() {
     },
     hasAnchor: (document, node) =>
       safe(document) && document > 0 && safe(node) && node > 0 && anchors.get(document)?.has(node) === true,
+    hasCurrentAnchor: (node) => safe(node) && node > 0 && currentAnchors.has(node),
     install,
     apply: (patch) => applyBatch([patch]),
     applyBatch,

@@ -3,6 +3,7 @@ package board
 import (
 	"context"
 	"errors"
+	"fmt"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -59,6 +60,15 @@ func (r *rig) add(rec recording.Record) *rig {
 func (r *rig) flush() *rig {
 	r.t.Helper()
 	for ; r.fed < len(r.b.Recs); r.fed++ {
+		if seg, ok := r.b.Recs[r.fed].(*recording.Seg); ok && seg.PageLoad == nil {
+			// This rig models current recorder output. A resume reactivates
+			// the same load; navigation and tab changes create distinct loads.
+			if seg.Why == recording.SegResume && seg.Tab.ID == r.bd.st.Tab.ID {
+				seg.PageLoad = r.bd.st.CurrentPageLoad()
+			} else {
+				seg.PageLoad = &recording.PageLoad{Target: seg.Tab.ID, Loader: fmt.Sprintf("fixture-load-%d", seg.Seg), Root: int64(seg.Seg)}
+			}
+		}
 		if err := r.w.Put(r.b.Recs[r.fed]); err != nil {
 			r.t.Fatalf("writer refused %s: %v", r.b.Recs[r.fed].Kind(), err)
 		}
@@ -197,8 +207,8 @@ func TestDocumentRules(t *testing.T) {
 		t.Errorf("a viewer one resume behind is on the same document: %v", err)
 	}
 	r.page(recording.SegNavigate)
-	if got := len(r.bd.Live()); got != 2 {
-		t.Errorf("open notes after a navigation: %d, want 2", got)
+	if got := len(r.bd.Live()); got != 0 {
+		t.Errorf("earlier-load notes after a navigation: %d, want 0", got)
 	}
 	if _, err := r.bd.Note(NoteIn{Viewer: ana, Seg: 2, Node: r.p1.ID, Region: recording.Box{1, 1, 10, 10}, Color: 0, Text: "x"}); !errors.Is(err, ErrStale) {
 		t.Errorf("a note made on the old document: %v", err)
@@ -352,17 +362,33 @@ func TestSubscribeFollowsTheOpenNotes(t *testing.T) {
 	if got := <-ch; len(got) != 1 || got[0].ID != id {
 		t.Errorf("after a note %v", got)
 	}
+	admitted, err := r.bd.Selection()
+	if err != nil || len(admitted.Notes) != 1 {
+		t.Fatalf("selection: %+v, %v", admitted, err)
+	}
 	r.page(recording.SegNavigate)
 	select {
 	case got := <-ch:
-		t.Errorf("unchanged notes should not publish after navigation: %v", got)
+		if len(got) != 0 {
+			t.Errorf("navigation must empty current-load notes: %v", got)
+		}
 	default:
 	}
-	if err := r.bd.SetState(StateIn{Viewer: ana, ID: id, State: recording.NoteResolved}); err != nil {
+	if err := r.bd.SetState(StateIn{Viewer: ana, ID: id, State: recording.NoteResolved}); !errors.Is(err, ErrStale) {
+		t.Fatalf("fresh earlier-load resolve: %v", err)
+	}
+	select {
+	case got := <-ch:
+		t.Fatalf("refused resolve published: %+v", got)
+	default:
+	}
+	if err := r.bd.ResolveSelection(context.Background(), admitted); err != nil {
 		t.Fatal(err)
 	}
-	if got := <-ch; len(got) != 0 {
-		t.Errorf("after historical resolve %v", got)
+	select {
+	case got := <-ch:
+		t.Errorf("historical resolve changed current-load list: %v", got)
+	default:
 	}
 	r.bd.Close()
 	if _, open := <-ch; open {
@@ -396,9 +422,8 @@ func TestWriterStampsNoEarlierThanTheLastRecord(t *testing.T) {
 	}
 }
 
-// The board over a real fixture: a note made before a pause stays live
-// across the resume and the tab switch; the recording with it
-// still validates.
+// A legacy fixture without page-load metadata keeps historical notes without
+// presenting them as confirmed current-load feedback.
 func TestBoardOverTheSegmentsFixture(t *testing.T) {
 	rec, err := recording.ReadDir(recording.Fixture("segments"))
 	if err != nil {
@@ -412,19 +437,32 @@ func TestBoardOverTheSegmentsFixture(t *testing.T) {
 			if q == nil {
 				t.Fatal("no input on the page")
 			}
-			if id, err = r.bd.Note(NoteIn{Viewer: ana, Seg: 1, Node: q.ID, Box: recording.Box{1, 1, 1, 1}, Region: recording.Box{1, 1, 1, 1}, Color: 0, Text: "mine"}); err != nil {
+			// This is historical legacy evidence, not a fresh live annotation:
+			// unknown load identity deliberately cannot admit new page work.
+			id = "legacy-historical-note"
+			box := recording.Box{1, 1, 1, 1}
+			if err = r.w.Emit(&recording.Note{ID: id, Author: recording.Author{ID: ana.ID, Name: ana.Name}, Text: "mine", At: recording.NoteAt{Node: q.ID, Box: &box}, Region: &box}, r.bd.st.DocSeg); err != nil {
 				t.Fatal(err)
 			}
 		}
-		if x.Time() > 6000 && x.Time() < 7000 && !hasLive(r.bd.Live(), id) {
-			t.Errorf("my note must be live after the resume (t=%d)", x.Time())
+		if hasLive(r.bd.Live(), id) {
+			t.Errorf("legacy unknown load appeared live at t=%d", x.Time())
 		}
 		if err := r.w.Put(x); err != nil {
 			t.Fatalf("t=%d %s: %v", x.Time(), x.Kind(), err)
 		}
 	}
-	if !hasLive(r.bd.Live(), id) {
-		t.Errorf("my open note must remain listed after the tab switch")
+	if hasLive(r.bd.Live(), id) {
+		t.Error("legacy unknown load appeared after tab switch")
+	}
+	found := false
+	for _, note := range r.bd.st.Notes {
+		if note.ID == id {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatal("legacy note history lost")
 	}
 	if _, err := recording.Reduce(r.mem.Records(), 1<<62); err != nil {
 		t.Errorf("recording with the note: %v", err)
@@ -499,5 +537,32 @@ func TestWriterRefusesARecordDuringAPause(t *testing.T) {
 	}
 	if n := len(r.kinds("stroke")); n != 0 {
 		t.Errorf("%d strokes written", n)
+	}
+}
+
+func TestRigPageLoadFixturesDistinguishResumeNavigationAndExplicitIdentity(t *testing.T) {
+	r := newRig(t).page(recording.SegLive)
+	first := r.bd.st.CurrentPageLoad()
+	if first == nil {
+		t.Fatal("modern fixture omitted page-load metadata")
+	}
+	r.add(&recording.Stop{Why: recording.StopPause}).page(recording.SegResume)
+	if !recording.SamePageLoad(first, r.bd.st.CurrentPageLoad()) {
+		t.Fatal("resume invented a new load")
+	}
+	r.page(recording.SegNavigate)
+	if recording.SamePageLoad(first, r.bd.st.CurrentPageLoad()) {
+		t.Fatal("navigation reused prior load")
+	}
+	explicit := &recording.PageLoad{Target: "tab1", Loader: "explicit-loader", Root: 99}
+	r.b.Page(recording.SegTab, "http://app/", r.b.El("p", nil))
+	for _, record := range r.b.Recs[r.fed:] {
+		if seg, ok := record.(*recording.Seg); ok {
+			seg.PageLoad = explicit
+		}
+	}
+	r.flush()
+	if !recording.SamePageLoad(explicit, r.bd.st.CurrentPageLoad()) {
+		t.Fatal("fixture replaced explicit load")
 	}
 }

@@ -81,7 +81,7 @@ func TestFeedbackContextsMatchExactQueryPrefixesAndIgnoreDuplicates(t *testing.T
 			t.Fatal(err)
 		}
 	}
-	wantFinish := query.SketchSourceFacts{T: oracle.T, RecordIndex: len(records) - 1, Doc: oracle.DocSeg, Tab: oracle.Tab.ID, URL: oracle.URL, Title: oracle.Title, VP: oracle.VP, Scroll: oracle.Scrolls[oracle.Top.ID]}
+	wantFinish := query.SketchSourceFacts{T: oracle.T, RecordIndex: len(records) - 1, Doc: oracle.DocSeg, Tab: oracle.Tab.ID, URL: oracle.URL, Title: oracle.Title, VP: oracle.VP, Scroll: oracle.Scrolls[oracle.Top.ID], PageLoad: query.PageLoadFacts{Target: "tab1", Loader: "submission-load", Root: "1"}}
 	if v.Finish != wantFinish {
 		t.Fatalf("finish %+v != independent prefix %+v", v.Finish, wantFinish)
 	}
@@ -195,5 +195,34 @@ func TestFeedbackContextRecordWorkIsLinearAndPressureDoesNotWake(t *testing.T) {
 		if after.SketchGeneration != before.SketchGeneration {
 			t.Fatal("DOM/view updates invalidated fixed feedback")
 		}
+	}
+}
+
+func TestFeedbackSourceAndFinishKeepTheirIndependentPageLoadBoundaries(t *testing.T) {
+	b := New(nil, nil)
+	recs := submissionSketchRecords(1)
+	recs[1].(*recording.Seg).PageLoad = &recording.PageLoad{Target: "tab1", Loader: "creation", Root: math.MaxInt64}
+	all := append([]recording.Record{}, recs[:len(recs)-1]...)
+	all = append(all, &recording.Seg{Header: recording.Header{T: 2}, Seg: 2, Why: recording.SegNavigate, Tab: recording.Tab{ID: "tab1", URL: "https://example.test"}, VP: recording.Viewport{W: 1280, H: 800, DPR: 1}, PageLoad: &recording.PageLoad{Target: "tab1", Loader: "finish", Root: 2}}, &recording.Doc{Header: recording.Header{T: 2}, Doc: 999, URL: "https://example.test", Tree: recording.Node{ID: 999, Y: recording.YDoc}})
+	label := *recs[len(recs)-1].(*recording.SketchLabel)
+	label.SetTime(3)
+	all = append(all, &label)
+	for _, r := range all {
+		if err := b.Put(r); err != nil {
+			t.Fatal(err)
+		}
+	}
+	witness := b.feedback.sketches["a"]
+	source := query.PageLoadFacts{Target: "tab1", Loader: "creation", Root: "9223372036854775807"}
+	finish := query.PageLoadFacts{Target: "tab1", Loader: "finish", Root: "2"}
+	if witness.source.PageLoad != source || witness.finish.PageLoad != finish || !witness.finished {
+		t.Fatalf("source/finish identity conflated: %+v", witness)
+	}
+	if page := b.currentFeedbackPageLocked(); page.PageLoad != finish {
+		t.Fatalf("current witness lost load: %+v", page)
+	}
+	views, err := query.New(all, nil).SketchesAt(math.MaxInt64)
+	if err != nil || len(views) != 1 || views[0].Source.PageLoad != source {
+		t.Fatalf("historical query filtered or reclassified source: %+v, %v", views, err)
 	}
 }

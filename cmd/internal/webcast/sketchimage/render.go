@@ -130,10 +130,7 @@ func validateBatchInput(b Batch, observe func(int, *recording.State) error, thro
 			begins[begin.ID] = true
 			if i, selected := byID[begin.ID]; selected {
 				v := b.Sketches[i]
-				source := query.SketchSourceFacts{T: begin.T, RecordIndex: index, Doc: begin.Doc, Tab: begin.Tab, URL: state.URL, Title: state.Title, VP: begin.VP}
-				if state.Top != nil {
-					source.Scroll = state.Scrolls[state.Top.ID]
-				}
+				source := query.SketchBeginSourceFacts(state, begin, index)
 				if source != v.Source {
 					return fmt.Errorf("sketch image: source boundary differs for %q", begin.ID)
 				}

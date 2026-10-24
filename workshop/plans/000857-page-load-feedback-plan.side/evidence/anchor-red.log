@@ -1,0 +1,118 @@
+✖ live receiver gates old and delayed bootstraps by confirmed scope and delivery epoch (4.956416ms)
+✔ console sketch transport retains original permission on unknown retry and joins close (0.721417ms)
+✔ console delivery ACK follows complete validated transfer and gap requests bootstrap (0.226208ms)
+✔ late console scene preparation cannot restore a disposed source (8.534417ms)
+✔ console disabled Sketch explains readiness and distinguishes driving holder (3.686709ms)
+✔ preflight timeout removes failed frame and permits a fresh attempt (0.539792ms)
+✔ late old preflight cannot open or clear a replacement scene (0.411417ms)
+✔ disposal removes only owned hooks and permanently fences receiver delivery (0.333709ms)
+✔ old scene-open refusal preserves a replacement frame and shared preflight joins once (0.41575ms)
+✔ placement sends bounded anchor and source without a long strokes points (1.308ms)
+✔ receiver repeats final ACK and requests bootstrap for a real batch gap (0.252583ms)
+✔ authority revision fences stale enable and duplicate updates without resetting UI (0.421375ms)
+✔ authority validates canonical uint64 strings and safe epoch before advancing revision (0.4105ms)
+✔ console handoff reconciles authoritative nonempty open contact without Model helpers (44.333791ms)
+✔ console handoff reconciles authoritative empty open contact without Model helpers (3.378458ms)
+✔ console expiry reconciles authoritative nonempty open contact without Model helpers (1.932083ms)
+✔ console expiry reconciles authoritative empty open contact without Model helpers (1.691209ms)
+✔ console pause reconciles authoritative nonempty open contact without Model helpers (2.957ms)
+✔ console pause reconciles authoritative empty open contact without Model helpers (1.288333ms)
+✔ console clear reconciles authoritative nonempty open contact without Model helpers (1.610958ms)
+✔ console clear reconciles authoritative empty open contact without Model helpers (1.393625ms)
+✔ console end reconciles authoritative nonempty open contact without Model helpers (4.189ms)
+✔ console end reconciles authoritative empty open contact without Model helpers (1.35675ms)
+✔ late old console label cannot retire a newly prepared drawer scene (4.436666ms)
+✔ stale status open-stroke cannot reopen the journal sealed contact (3.03325ms)
+✔ already open label draft survives handoff and repeated synthetic refresh (1.413417ms)
+✔ held label status cannot submit after clear (1.37275ms)
+✔ held label status cannot submit after end (1.279542ms)
+✔ held label status cannot submit after new-target (2.140417ms)
+✔ repeated clear/bootstrap cycles retain no historical receiver identities (25.973833ms)
+✔ console Done preserves open contact through delayed anchor (2.38075ms)
+✔ console Done preserves released contact through delayed anchor (8.431916ms)
+✔ console Escape preserves open contact through delayed anchor (1.948333ms)
+✔ console Escape preserves released contact through delayed anchor (1.538417ms)
+✔ console point preserves open contact through delayed anchor (8.676542ms)
+✔ console point preserves released contact through delayed anchor (3.318208ms)
+✔ console note preserves open contact through delayed anchor (2.810792ms)
+✔ console note preserves released contact through delayed anchor (1.45975ms)
+✔ console handoff visibly retires pending-anchor finishing and fences late callback (4.409292ms)
+✔ console pause visibly retires pending-anchor finishing and fences late callback (3.983458ms)
+✔ console clear visibly retires pending-anchor finishing and fences late callback (0.681459ms)
+✔ console end visibly retires pending-anchor finishing and fences late callback (0.770791ms)
+✔ console finishing deadline bounds anchor wait and retains explicit failure after late response (0.813834ms)
+✔ console logical owner survives pointerup and consumes successor until fresh down (2.176917ms)
+✔ console logical owner survives pointercancel and consumes successor until fresh down (1.801334ms)
+✔ console logical owner survives lostpointercapture and consumes successor until fresh down (1.729125ms)
+✔ console logical owner survives buffer-limit and consumes successor until fresh down (38.835375ms)
+✔ console coordinates admission failure never publishes half-contact (1.363708ms)
+✔ console capture admission failure never publishes half-contact (1.283584ms)
+✔ console rejected N/2N downs allocate no IDs capture hit-tests timers or points (2.197209ms)
+✔ console ordinary anchor timeout releases logical owner and fences late callback (1.590416ms)
+✔ console Undo/Redo wait for logical owner with existing accepted top (4.90625ms)
+✔ console 4096 point end transfers owner while FIFO keeps terminal before successor begin (144.360709ms)
+✔ console retired open anchor reject cannot cancel fresh owner after prior terminal confirmation (3.91425ms)
+✔ console retired released anchor reject cannot cancel fresh owner after prior terminal confirmation (1.986375ms)
+✔ console retired open anchor timeout cannot cancel fresh owner after prior terminal confirmation (1.940417ms)
+✔ console retired released anchor timeout cannot cancel fresh owner after prior terminal confirmation (2.881125ms)
+✔ console required label Enter saves once and waits for accepted reply before switching tools (6.242917ms)
+✔ authoritative display facts append only new points and keep caller/projected objects owned (5.36925ms)
+✔ display batch refuses gaps/conflicts atomically, exact echoed ranges cost zero (1.1675ms)
+✔ core projections and compact display select the same visible and live partial paths (15.875625ms)
+✔ pressure painter shares affine fixtures and keeps width independent of anchor aspect ratio (0.641959ms)
+✔ bootstrap counts participate in append admission, rejected growth leaves full display intact (21.189291ms)
+✔ 8/16 dirty chunks schedule one paint, disposal cancels late frame work (0.632167ms)
+✔ compact bootstrap shows accepted open partials and omits cleared historical sketches (0.316ms)
+✖ anchor membership retains empty and undone accepted strokes with exact source document (0.6845ms)
+✖ anchor index install/clear and rejected batches are atomic, shared anchor membership survives other clears (0.864083ms)
+✖ 8/16 point chunks never rebuild or revisit anchor metadata (0.314542ms)
+✔ display metadata is an owned constant-size lifecycle projection (0.196167ms)
+✔ painter returns pressure-expanded bounds from only its existing projection walk (0.855333ms)
+✖ 32/64 metadata anchor updates keep load-wide membership without rescanning point history (0.559083ms)
+ℹ tests 71
+ℹ suites 0
+ℹ pass 66
+ℹ fail 5
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 554.536709
+
+✖ failing tests:
+
+test at tests/webcast/operator-sketch.test.mjs:5:1
+✖ live receiver gates old and delayed bootstraps by confirmed scope and delivery epoch (4.956416ms)
+  TypeError: receiver.hasCurrentAnchor is not a function
+      at TestContext.<anonymous> (file:///Users/xianxu/workspace/worktree/pair-slot4/pair/tests/webcast/operator-sketch.test.mjs:15:101)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1201:25)
+      at Test.start (node:internal/test_runner/test:1096:17)
+      at startSubtestAfterBootstrap (node:internal/test_runner/harness:385:17)
+
+test at tests/webcast/sketch-render.test.mjs:186:1
+✖ anchor membership retains empty and undone accepted strokes with exact source document (0.6845ms)
+  TypeError: d.hasCurrentAnchor is not a function
+      at TestContext.<anonymous> (file:///Users/xianxu/workspace/worktree/pair-slot4/pair/tests/webcast/sketch-render.test.mjs:191:18)
+      at async Test.run (node:internal/test_runner/test:1208:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:831:7)
+
+test at tests/webcast/sketch-render.test.mjs:212:1
+✖ anchor index install/clear and rejected batches are atomic, shared anchor membership survives other clears (0.864083ms)
+  TypeError: d.hasCurrentAnchor is not a function
+      at TestContext.<anonymous> (file:///Users/xianxu/workspace/worktree/pair-slot4/pair/tests/webcast/sketch-render.test.mjs:222:18)
+      at async Test.run (node:internal/test_runner/test:1208:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:831:7)
+
+test at tests/webcast/sketch-render.test.mjs:253:1
+✖ 8/16 point chunks never rebuild or revisit anchor metadata (0.314542ms)
+  TypeError: d.hasCurrentAnchor is not a function
+      at TestContext.<anonymous> (file:///Users/xianxu/workspace/worktree/pair-slot4/pair/tests/webcast/sketch-render.test.mjs:263:18)
+      at async Test.run (node:internal/test_runner/test:1208:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:831:7)
+
+test at tests/webcast/sketch-render.test.mjs:289:1
+✖ 32/64 metadata anchor updates keep load-wide membership without rescanning point history (0.559083ms)
+  TypeError: d.hasCurrentAnchor is not a function
+      at TestContext.<anonymous> (file:///Users/xianxu/workspace/worktree/pair-slot4/pair/tests/webcast/sketch-render.test.mjs:295:38)
+      at async Test.run (node:internal/test_runner/test:1208:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:831:7)

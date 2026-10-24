@@ -59,6 +59,10 @@ func (r *Recorder) writePrepared(at time.Time, in preparedNoteWrite) {
 		refuse(err)
 		return
 	}
+	if !r.pageFeedbackReady(&in.reservation.Note, in.reservation.Document) {
+		refuse(board.ErrStale)
+		return
+	}
 	if err := in.admission.Check(); err != nil {
 		refuse(err)
 		return

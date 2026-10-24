@@ -244,6 +244,14 @@ func (s *SketchService) Execute(ctx context.Context, a SketchAuthority, c Sketch
 		b.mu.Unlock()
 		return v
 	}
+	pageSketch := c.Sketch
+	if c.Kind == "sketch-begin" {
+		pageSketch = ""
+	}
+	if !b.sketchOnCurrentPageLocked(pageSketch) {
+		b.mu.Unlock()
+		return sketchFailure(c, "stale")
+	}
 	if len(s.flights) >= 64 {
 		b.mu.Unlock()
 		return sketchFailure(c, "busy")
@@ -328,9 +336,12 @@ func (s *SketchService) Execute(ctx context.Context, a SketchAuthority, c Sketch
 			if err := s.check(a, drawing); err != nil {
 				return err
 			}
+			b.mu.Lock()
+			defer b.mu.Unlock()
+			if !b.pageFeedbackReadyLocked(record) {
+				return ErrStale
+			}
 			if drawing && c.Kind != "sketch-begin" {
-				b.mu.Lock()
-				defer b.mu.Unlock()
 				if s.source == nil || s.sourceSketch != c.Sketch || s.now().Sub(s.lastMutation) >= 2*time.Minute {
 					return ErrStale
 				}

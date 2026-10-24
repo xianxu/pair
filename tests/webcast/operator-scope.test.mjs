@@ -75,7 +75,7 @@ function mounted() {
   }, { createElement: node }, h.win);
   h.win.__couchcastAnnotationAllowed(true, '1');
   const snapshot = (revision, doc, extra = {}) => h.win.__couchcastOperatorView({feedback_mask:{scope:"cast",revision:"0",sketches:[],notes:[]},
-    revision, doc, seg: revision, t: revision, notes: [], strokes: [], ...extra,
+    page_load_ready:doc>0,page_load:doc>0?{target:'tab',loader:'A',root:'1'}:null,revision, doc, seg: revision, t: revision, notes: [], strokes: [], ...extra,
   });
   return { ...h, options, snapshot, onView(fn) { receive = fn; } };
 }
@@ -178,7 +178,7 @@ function feedbackRoundtrip(text,{actualSketch=false}={}) {
   const ui=mountOperator({host,root,report:m=>{if(m.t==='operator')sent.push(m);if(m.t==='feedback-view')visibilityNotices.push(m);}},{annotate:{mountAnnotation},palette:['#112233'],css:'',sketch:{mount(options){
     view=options.view;
     if(actualSketch){const mounted=mountOperatorSketch(options,doc,win);receiver=mounted.receiver;preview={publish:value=>win.__couchcastSketchSubmissionPreview(value)};return mounted;}
-    receiver=createOperatorSketchReceiver(()=>{});preview=createOperatorSubmissionPreview({root,receiver,setStatus:(source,text)=>previewStatuses.set(source,text)},doc);
+    receiver=createOperatorSketchReceiver(()=>{},()=>view.model);preview=createOperatorSubmissionPreview({root,receiver,setStatus:(source,text)=>previewStatuses.set(source,text)},doc);
     return {tool:{},receiver,captureBusy:()=>preview.captureBusy()};
   }}},doc,win);
   const digest='a'.repeat(64),mask={scope:'cast',revision:'9',sketches:[{id:'submitted-shape',next_sequence:'5',digest}],notes:[]};
@@ -188,9 +188,10 @@ function feedbackRoundtrip(text,{actualSketch=false}={}) {
   receiver.receive({phase:'begin',handle:'history',epoch:'cast',total:bytes.length});
   receiver.receive({phase:'chunk',handle:'history',epoch:'cast',total:bytes.length,offset:0,base64:bytes.toString('base64')});
   const previewValue={host:'A',generation:'1',revision:'1',operation:'1',stamp:{board:'1',delivered:'1'},items:[{recording_id:'rec',id:'unsent-shape',next_sequence:5,digest}],notes:[{id:note.id,revision:'0'}],remaining:0,cursor:{epoch:'cast',seq:7}};
+  win.__couchcastOperatorView({revision:0,doc:1,seg:1,t:0,notes:[],strokes:[],feedback_mask:structuredClone(mask),page_load_ready:true,page_load:{target:'A',loader:'load',root:'1'},sketch_cursor:{epoch:'cast',seq:7}});
   const previewAck=preview.publish(previewValue);
   const flush=()=>{let budget=30;while(frames.length){assert.ok(budget-->0,'annotation redraw did not settle');frames.shift()();}};
-  const snapshot=(revision,document,url,notes)=>{win.location.href=url;win.__couchcastOperatorView({revision,doc:document,seg:document,t:revision,notes,strokes:[],feedback_mask:structuredClone(mask),
+  const snapshot=(revision,document,url,notes)=>{win.location.href=url;win.__couchcastOperatorView({page_load_ready:document>0,page_load:document>0?{target:url.endsWith('/a')?'A':'B',loader:'load',root:'1'}:null,sketch_cursor:{epoch:document===0?'pending':url.endsWith('/a')?'cast':'B',seq:7},revision,doc:document,seg:document,t:revision,notes,strokes:[],feedback_mask:structuredClone(mask),
     ...(actualSketch?{feedback_context:{recording_id:'rec',t:revision,record_index:revision*10,doc:document,tab:url.endsWith('/a')?'A':'B',url,title:'Page',vp:{w:800,h:600,dpr:1},scroll:[0,0]},note_revisions:Object.fromEntries(notes.map(n=>[n.id,'0']))}:{})});flush();};
   const rows=()=>Array.from(root.querySelector('.feedback-rows').children).filter(row=>row.dataset.key.startsWith('note:'));
   const pin=()=>root.querySelector('.pins').children[0];
@@ -211,15 +212,14 @@ for(const text of ['Save','Distinct original action for the operator roundtrip']
   assert.equal(h.rows().length,0,'inactive target must retire its page projection');
   assert.equal(h.view.feedbackMask.sketchVisible('submitted-shape',{next_sequence:5,digest:h.digest}),false,'inactive view forgot confirmed history');
   assert.equal(h.win.__couchcastOperatorOriginal(1,7,h.anchor),false,'inactive scope accepted a stale identity binding');
-  h.snapshot(3,2,'https://example.test/b',[h.note]);
-  assert.equal(h.rows().length,1);assert.match(h.rows()[0].querySelector('.feedback-location').textContent,/not on this view/);assert.equal(h.pin().hidden,true);
-  assert.equal(h.view.placementOf(h.receiver.paths()[0]),null,'historical sketch anchor must not project onto another route');
-  h.rows()[0].querySelector('.feedback-open').listeners.click[0]({stopPropagation(){}});
-  assert.equal(h.ui.dialog.open,true,'unplaced note must still open');
-  assert.equal(h.root.querySelector('.note-input').value,h.note.text);h.ui.dialog.close();
-  // Returning A is a fresh recording document within the same isolated world;
-  // the retained sketch still owns the original connected DOM binding.
+  h.snapshot(3,2,'https://example.test/b',[]);
+  assert.equal(h.rows().length,0,'other load cannot show old feedback');assert.equal(h.pin(),undefined);
+  assert.equal(h.view.placementOf(history[0]),null,'historical sketch anchor must not project onto another route');
+  assert.equal(h.ui.dialog.open,false,'departed editors stay closed');
+  // Returning A is a fresh activation. Trusted recorder evidence must rebind
+  // the original DOM node; replacement matching is never used for this proof.
   h.snapshot(4,3,'https://example.test/a',[h.note]);
+  assert.equal(h.win.__couchcastOperatorOriginal(3,7,h.anchor),true,'trusted original rebind must admit historical anchor under current activation');h.flush();
   assert.equal(h.rows().length,1);
   assert.doesNotMatch(h.rows()[0].querySelector('.feedback-location').textContent,/not on this view/);assert.equal(h.pin().hidden,false,'retained original failed to restore the pin');
   assert.ok(h.view.placementOf(h.receiver.paths()[0]),'safe retained sketch anchor did not recover placement');
@@ -239,13 +239,15 @@ test('trusted retained sketch anchor survives inactive and new recording documen
   assert.equal(h.win.__couchcastOperatorOriginal(1,7,h.anchor),true);h.flush();
   const path=h.receiver.paths()[0];
   h.snapshot(2,0,'https://example.test/a',[]);
-  h.snapshot(3,2,'https://example.test/b',[h.note]);
+  h.snapshot(3,2,'https://example.test/b',[]);
   assert.equal(h.view.placementOf(path),null,'source route must still constrain a trusted original');
-  h.snapshot(4,3,'https://example.test/a',[h.note]);
+  h.snapshot(4,3,'https://example.test/a',[]);
+  assert.equal(h.win.__couchcastOperatorOriginal(3,7,h.anchor),true,'trusted original rebind must admit historical anchor under current activation');h.flush();
   assert.deepEqual(h.view.placementOf(path),[10,20,100,50],'connected trusted original was forgotten when recorder document1 became3');
+  h.snapshot(5,3,'https://example.test/a',[h.note]);
   // A real geometry invalidation must recompute using the original reference;
   // merely finding old pixels immediately after a tab switch misses this bug.
-  h.anchor.rect.left=110;h.snapshot(5,3,'https://example.test/a',[h.note]);
+  h.anchor.rect.left=110;h.snapshot(6,3,'https://example.test/a',[h.note]);
   assert.deepEqual(h.view.placementOf(path),[110,20,100,50]);
   assert.equal(h.pin().hidden,false);assert.equal(h.rows()[0].dataset.placement,'visible');
 });
@@ -259,7 +261,8 @@ test('retained binding cannot promote an ambiguous replacement and actual clear 
   h.anchor.remove();
   const replacement=doc.createElement('button');replacement.append({nodeType:3,nodeValue:'Save',ownerDocument:doc});parent.append(replacement);
   h.snapshot(3,3,'https://example.test/a',[h.note]);
-  assert.equal(h.win.__couchcastOperatorOriginal(3,7,replacement),false,'historical ID rebound to a same-shape node');
+  // A replacement is never supplied as trusted recorder evidence.
+  assert.equal(h.view.placementOf(path),null,'replacement received departed identity');
   assert.equal(h.view.placementOf(path),null);
   assert.match(h.rows()[0].querySelector('.feedback-location').textContent,/not on this view/);assert.equal(h.pin().hidden,true);
   // The accepted annotation-clear delta drops the historical anchor index.
@@ -325,4 +328,17 @@ test('accepted receiver version changes retire a completed visibility snapshot b
   assert.throws(()=>h.win.__couchcastFeedbackVisibility(),/paint|unavailable/i,'new accepted version left the old completed snapshot available');
   await h.settle();const latest=h.win.__couchcastFeedbackVisibility();
   assert.ok(BigInt(latest.revision)>BigInt(old.revision));assert.equal(latest.sketches[0].next_sequence,'6');assert.equal(latest.sketches[0].digest,'b'.repeat(64));
+});
+
+test('coalesced confirmed load change retires old original proof before trusted next-load binding',()=>{
+ const h=feedbackRoundtrip('Save');h.snapshot(1,1,'https://example.test/a',[h.note]);
+ assert.equal(h.win.__couchcastOperatorOriginal(1,7,h.anchor),true);
+ // Deliberately reuse a numeric ID to defend this seam independently of the
+ // recorder's monotonically allocated IDs. Only the new trusted hook can bind.
+ const replacement=h.anchor.ownerDocument.createElement('button');
+ replacement.append({nodeType:3,nodeValue:'Save',ownerDocument:h.anchor.ownerDocument});h.anchor.parentNode.append(replacement);
+ h.snapshot(2,2,'https://example.test/b',[h.note]);
+ assert.equal(h.win.__couchcastOperatorOriginal(2,7,replacement),true,'coalesced scope retained a previous-load WeakRef');
+ assert.equal(h.receiver.hasCurrentAnchor(7),false,'old ACK must not authorize current-load sketch anchor');
+ assert.deepEqual(h.receiver.paths(),[]);
 });
