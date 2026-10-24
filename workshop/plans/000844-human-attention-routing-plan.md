@@ -170,3 +170,8 @@ ARCH-FUNERAL: the lifetime owner removes pending/tracking records on terminal re
 ## Approval request / remaining decisions
 
 Approve the typed table, four-worker/128-entry dispatcher and the single aggregated capacity-loss fallback. Approve primary ownership for truly global diagnostics (preserves current archive contract). The live-hub-picker case needs an explicit interpretation: connected owner but blocked composer cannot safely consume its own prompt; keep feed and chip only under the approved connected-hub rule, rather than expanding class 3 to busy hubs. Other disabled/busy admission failures remain feed-only and do not weaken guards. No implementation starts until ops:0 answers the detailed plan.
+
+
+## Revisions
+
+- 2026-10-24: ops:0 approved the entire design in authenticated delivery 12d7cfb1-b715-4546-b159-69f6c8cde4bb, including all 39 classes, dispatch bounds, global primary ownership, aggregated capacity-loss bell and connected-hub picker rule. This supersedes the proposed/awaiting-approval status and approval-request wording above. Implementation is authorized after the change-code gate. Use the full flow because the planned reducer, dispatcher and producer sweep exceed the 100-added-code-line quick shell.
