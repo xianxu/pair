@@ -101,3 +101,56 @@ Files: shared testcouch Hubs option/tests; fresh_hub_registration_live_test.go; 
 2026-10-24 — Hub9a53d319 approves consolidation after the second path correction: core StartFreshHub resolves the exact target once with Open intent, uses StartFreshSlot only for a numbered target, otherwise shares the existing resolution-based ordinary open implementation. Both initial primary and extra-hub startup consume this helper. Real OS SlotCatalog-backed tests for both target kinds red on missing helper, then green; no relaxed generic StartInteractive semantics. Stop and re-plan if a third path correction is needed.
 
 2026-10-24 — Implementation and native/deterministic qualification complete. The final checkbox is post-implementation gate procedure: final recorded check is queued, close review overlaps under tl-worker PERMISSIONS, and no landing precedes final-head recorded pass. No unimplemented product behavior is waived.
+
+### 2026-10-24 — consolidated re-plan after close REWORK; awaiting approval
+
+This Revision supersedes the completion assertion above. Task2's claimed held fresh launch/adoption coverage is withdrawn: its tests inspect prepared calls and invoke callbacks; the held real-console tests cover surviving sessions. BR-1 is accepted as Critical. BR-2 remains an Important acceptance gap, not a classified regression or flake. No production code changes until the hub approves this re-plan, followed by change-code's plan-quality gate.
+
+**Contract:** Fresh requires no history in the active namespace's global/legacy storage or any configured hub's local store, independently of enrollment. Observation grants permission to attempt empty creation only. Existing store reservations and locks own mutation authority. Automatic startup cannot replace, archive or cold-resume a conversation. History or uncertain evidence keeps the affected hub parked.
+
+**Alternatives:** Parking every fresh hub is simplest but contradicts the operator's requirement. A broader scan alone leaves the appearance race. General Fresh authorizes replacement; general Open can cold-resume newly appeared history. Instead, add empty-only checks to the existing creation commits, with no new executor, lock family or durable token (ARCH-DRY, ARCH-SECURE, ARCH-ORDER).
+
+#### Revised concepts and boundaries
+
+| Entity/seam | Files under cmd/internal/ | Change |
+|---|---|---|
+| History evidence: empty, retained, unknown | couchcore/startup_policy.go | Pure classification input; incomplete/default evidence cannot mean empty |
+| Configured-target history observation | couchcore/startup_history.go (new), threadstore_preview.go, threadstore_layout.go | Read-only direct observation, independent of enrollment |
+| Empty-only startup creation | couchcore/startup.go, slotrecovery.go, threadtag.go, threadstore.go | Narrow existing reservation/commit paths; no replacement or resume |
+
+Observe each distinct configured hub using the existing read-only workspace/catalog identity boundary. Never call selectedSlot, reconciliation or enrollment merely to observe. Construct the verified numbered target's local ThreadStore directly. Reuse preview path validation and read locks; missing storage is empty only when the exact target identity is known. Inspect namespace current/manifest and global retained archives, including legacy records that ordinary routed lists filter out; inspect configured local thread.json and archives independently. Any retained entry denies fresh without decoding its full payload. Malformed/unsupported data, pending journal, unsafe path, contention, changed identity or read failure means unknown. Observation creates, migrates and repairs nothing.
+
+Resolve each mutation target once. Numbered startup uses requireEmpty=true, never public StartFreshSlot's replacement mode. Carry that intent to the existing replaceSlotCurrent locked commit, where both current and archive absence are checked alongside exact physical identity before publication. Ordinary startup bypasses startInteractiveResolution's warm/cold selectors and uses create-only spawn. There is currently NO atomic empty-primary-scope API: AllocateThreadTag claims a unique address and CreateThread checks only that tag. Add a narrow guarded variant of that existing locked reservation publication that checks target-scope current and archived history. Reuse artifact claim/release, journal publication and CommitStartClaim; explicit operator Open/Fresh semantics stay unchanged.
+
+Use one lock-assuming history reader shared by preview and commit, not recursive public ArchivedThreads calls. Global/legacy and local history use different locks: hold the existing namespace coordinator, acquire the exact local store using the existing nonblocking nested-lock protocol, and recheck relevant legacy plus local history before the empty-only commit. A busy nested store releases the coordinator and refuses this startup attempt; no retry loop. Do not infer atomic absence from two separately released reads. Validate this ordering against existing migration/enrollment writers before implementation; if it cannot fit the existing coordinator protocol, stop and report rather than add another lock mechanism.
+
+Initial fleet evidence remains immutable, keeping automation off after our own launches. Mutation checks are target-scoped, so our new primary does not prohibit another originally empty hub. This is not an all-or-nothing multi-hub transaction: each target independently refuses newly discovered history, preserving its bytes. The safety resource is its existing store/coordinator lock held from the final empty check through journal publication, rather than a stale observation.
+
+**Cost:** Once per startup, O(H+E) for H distinct stores and E inspected directory entries, never per tick/message. Observe each store once, stop when retained history is established, use bounded directory reads with existing context/lock deadlines. Archive presence requires zero archive payload reads. Count visits at 8 and 16 stores to reject worse-than-linear traversal. No new cache or watcher. Existing launch budgets/reservations/adoption and cleanup remain owners; no persistent format changes (ARCH-CONSTRAINTS, ARCH-FUNERAL, ARCH-EVOLVE).
+
+#### Actions and projection
+
+Actions: turn automation on; select Resume; inspect the named diagnostic and retry explicitly; select explicit Fresh.
+
+| Internal state/outcome | Visible state | One recovery action | Possible loss |
+|---|---|---|---|
+| Complete empty proof and successful empty commit | fresh, automation off | turn automation on | none |
+| Retained history, including unenrolled/archive-only | parked with history advice | select Resume | none; no automatic archive/replacement |
+| Unsafe, unreadable, unsupported or busy observation | parked with named uncertainty | inspect diagnostic and retry explicitly | none |
+| History appears before commit | startup refused: target history changed | inspect diagnostic and retry explicitly | no old bytes lost; no new launch |
+| Owned launch/adoption fails or is cancelled | existing failed operation result | existing explicit retry | only failed new launch, through existing cleanup |
+
+Fresh remains an explicit operator action when history exists. Positive normal-survivor attachment is unchanged. Foreign namespaces, unsupported-data recovery and the separate Zellij probe bug are not expanded here.
+
+#### Remaining steps — one close boundary
+
+- [ ] **Red observation proof:** Real SlotCatalog-backed startup_history/startup_observation tests supply unenrolled current, archive-only, legacy global, malformed and journal history. Assert non-fresh and independent before/after filesystem equality, no enrollment or initialization. Generated pure evidence combinations cover unknown/retained dominance; count 8/16-store visits and zero archive payload reads.
+- [ ] **Red mutation proof:** Hold the existing commit seam, introduce current or archive history after observation, release, and assert refusal, identical old bytes, zero retirement/archive effects and zero launches for both ordinary and numbered targets. Include cross-store legacy/local appearance and lock-contention controls. Keep an explicit operator Fresh replacement control. A negative control using general replacement/Open must fail the oracle.
+- [ ] Implement only the shared evidence reader and empty-only commit boundaries above. Run targeted core/store startup tests and commit the minimal correction.
+- [ ] In couchcmd/fresh_startup_test.go drive actual Console.Run with existing stateful lifecycle/store seams, holding launch and adoption separately. Prove serial extra launches, immutable automation off, cancellation joins, no empty-result adoption and history refusal. Count real effects; prepared argv or direct completion callbacks do not satisfy this step.
+- [ ] **Classify BR-2:** Retain the review report's command and failure: StartupArguments/claude failed after initial startup during switch-agent adoption, 'attach terminal input has ended', with 'terminal listing omitted a live server'; Codex skipped. FreshHubCaller, EditedRestart and dirty/force passed. Run unchanged StartupArguments on pinned main and corrected branch sequentially, same native tools/substrate and shared owner, using existing selected-candidate/disposable review infrastructure rather than a second slot checkout convention. Capture console, wrapper, listing and operation receipts on failure. No timeout increase. A matching main failure is independence evidence; branch-only failure or unresolved attribution blocks acceptance and goes to the hub before another run. A passing branch retry alone is not flake classification. Do not equate this with the earlier Zellij metadata panic.
+- [ ] Qualify corrected fresh two-hub Claude/Codex behavior plus the required EditedRestart, StartupArguments and dirty/force acceptance through the shared owner. Scenario watchdog includes cleanup. Retain/classify failures before another invocation. Prior FreshHubCaller PASS39.45s is partial old-source evidence, not proof of this correction or the whole matrix.
+- [ ] Update atlas/README/embedded skill; audit named readers; make test-affected-inventory; push final head and run recorded pre-close once. Prior #863 queued lease1020585962 was cancelled after REWORK and its parent joined without tests; no passing recorded #863 check exists.
+- [ ] Narrow re-close with both findings' evidence, hub-approved --no-actual for the exact resting window, and --no-project. SHIP plus recorded final-head pass precedes sdlc merge --yes. After landing file the already-directed separate Zellij startup-probe readiness issue; report real merge/archive state.
+
+**Approval requested:** This consolidated plan covers complete history evidence, empty-only mutation on both target kinds, genuine held fresh orchestration, and BR-2 classification. It adds no replacement authority, retry policy or registry repair. Production work remains stopped until hub approval.
