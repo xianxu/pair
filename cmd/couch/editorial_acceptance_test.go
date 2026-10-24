@@ -234,7 +234,6 @@ func TestNativeEditorial(t *testing.T) {
 			}
 			read := func(file string) sessionsync.ReadResult {
 				t.Helper()
-				call(0, "--session-sync", "diff", file)
 				var response struct{ Read sessionsync.ReadResult }
 				result := call(0, "--session-sync", "read", "--all", file, "--json")
 				if err := json.Unmarshal([]byte(result.Stdout), &response); err != nil {

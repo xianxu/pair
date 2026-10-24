@@ -313,6 +313,25 @@ checks/inventory, push and record affected per the fleet notice; request the
 hub-authorized operator stage using operator-check.md, then whole close/landing.
 No recorded suite, landing runner or stage lease is active at this checkpoint.
 
+### 2026-10-23 17:43 — native harness setup failure classified
+
+Committed/pushed candidate e1e529ee010157fc0a3e1bf29714235798d34f3a native
+editorial run EXIT1 after 26.284s, before fixture mutation. The added read helper
+unnecessarily invoked session-sync diff, but testcouch's intentionally isolated
+PATH has no diff executable. This is a branch test-harness setup error, not a
+policy failure or registered flake. Exact candidate skill/prefix passed. Shared
+owner teardown confirmed all generations absent, direct child and IO joined;
+Codex did not start. Retained native-e1e529ee-failed.log SHA256
+c13c0cff549e3bdaa724c7d45f549fe7a51b1a2457ab8753292d1b872823901d.
+
+Removed that extra diff call: Read already provides/acknowledges the snapshot
+and no tested editorial action needs a diff subprocess. The harness still uses
+real ActorCLI reads/writes and the same isolated PATH; no provisioner broadening,
+timeout change or blind same-head retry. Re-audited native reader inputs (same
+candidate skill/fixtures/runtime bundle), exact certificate refreshed. Next is
+a new committed-head native run. Pure-core scoped race PASS 4.776s; the two
+confirmed #581 cases remain the only full-package blockers.
+
 ## Revisions
 
 ### 2026-10-23 — initial implementation design
