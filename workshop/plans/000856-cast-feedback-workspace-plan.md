@@ -214,3 +214,11 @@ TL66eb5fd0-b8a4-40d7-a896-3ba247374694 approves #856 landing after SHIP and exac
 ### 2026-10-24 — Boundary review fixes
 
 BR-1 separates list membership from placement: all accepted eligible sketch identities remain in the sole Notes panel when bounds become offscreen, missing or malformed. Geometry controls availability, glow and confirmed-original reveal only. BR-2 shares a two-corner page-to-client rectangle projection between annotation placement and hover, including its clip. BR-3 adds a visible Status suffix to minimized Notes with the full message as tooltip/accessibility text, then remeasures/clamps its complete control. Opening either adopted editor expands Notes before focus, retaining one presentation owner and existing command authority. The older native preview fixture is migrated to the real column/header, preserving all prepare/freeze/unsaved assertions. These are corrections to the accepted sole-panel, geometry and minimized-status contracts, not new product commands.
+
+### 2026-10-24 — Native qualification boundary clarified
+
+Round2 disposed BR-1/2/3 and accepted the retained source-bound native interaction results. BR-4 remains for the distinction between standalone-panel bounds and composed production-workspace separation: extend the injected operator fixture to measure the actual column against expanded/minimized Notes, status and both real editors at desktop/narrow viewports. No production behavior changes are requested by this revision. The final recorded check is requeued only after that test source is green; the older queued lease was cancelled through SDLC without an attempt result.
+
+### 2026-10-24 — Native minimized intrinsic measurement correction
+
+The composed geometry oracle found that inline width:auto allowed the minimized control to shrink during measurement at its stale offscreen anchor and grow after clamping, overlapping the toolbar at320px. Retain intrinsic max-content width (capped by the same content bounds) before measuring, so positioning cannot change the measured extent. Native expanded/minimized/status/editor measurements and a deliberate overlap mutation pin the postcondition. This implements the existing clamping requirement without adding a positional heuristic.

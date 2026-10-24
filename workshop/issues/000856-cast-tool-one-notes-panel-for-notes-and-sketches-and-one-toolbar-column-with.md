@@ -59,6 +59,28 @@ Close and landing use their SDLC gates. The recorded exact-source pre-close chec
 
 ## Log
 
+### 2026-10-24 — Final native composition source green
+
+Final TestOperatorFeedbackLivePrepareAndStalePanel passed6.63s (package6.861s), non-skipped, with exactly16 independent production rectangle measurements, overlap-negative mutation rejection, real ordinary/sketch editors and actual40px captured panel drag. Test source blob28b086fa339b18c4a0ad8a59d427a74018cce54a, printed by Git. Temporary prototype probes were removed. The minimized-width source fix is covered by this exact final matrix. All604 Node tests pass1.702s (zero skipped). Stage new test-source, finish reader inventory, commit/push, queue the final head and send its lease to TL for re-grant; then full close round3 with retained composition evidence. Do not create another check on the old cancelled heads.
+
+
+### 2026-10-24 — Composed native matrix and drag diagnosis
+
+With intrinsic max-content sizing, all16 production measurements passed (expanded Notes/status, minimized Notes/status, real sketch-label editor and ordinary-note editor at1280x800,768x800,320x800,320x480). A runtime panel-position mutation was rejected by the independent overlap oracle. Geometry checks wait for the existing private capture to finish and the UI host to be unsuppressed, rather than treating intentional screenshot suppression as a layout defect. Narrowing legitimately preserves the clamped anchor; the fixture restores page gesture access using the supported keyboard movement before continuing original drawing targets.
+
+A further real-drag assertion exposed synthetic-input sequencing, not a production owner cancellation: CDP mouseMoved button:none with heldbuttons1 admitted then lost pending capture without an explicit release, resize, status or host mutation; the poisoned gesture prevented a subsequent comparison. A fresh run using mouseMoved button:left (the established standalone native drag fixture form) passed6.49s, package6.731s, with actual40px panel movement, all16 geometry states and the negative oracle. No drag production code was changed. Temporary prototype diagnostics are being removed; retain the final-source native result before queueing.
+
+
+### 2026-10-24 — Native composition oracle exposes real minimized-width bug
+
+The actual production matrix passed expanded states, then caught minimized320px overlap: Notes x183.17,width124.72,right307.89 crossed the toolbar beginning252. The inline minimized width:auto overrode CSS max-content. Measurement while still at the old offscreen anchor used shrink-to-fit min-content width; after clamping, the element expanded and escaped the reserved content. Preserve intrinsic max-content width before measurement (still capped by existing maxWidth), so one measured width remains valid after positioning. This is a correction to the approved complete-hit-area clamping contract, with the native resize matrix as the regression; no timeout increase. Focused27 panel/floating tests pass, native rerun pending.
+
+
+### 2026-10-24 — Close round2: behavior fixed, composition evidence outstanding
+
+BR-1/2/3 were addressed, including disposable mutation checks by the reviewer. BR-4 retained a precise gap: standalone panel bounds and reachable Pen buttons do not prove the actual protected column is separate from panel/status/editors at common widths. The working-host interaction evidence was accepted. Extending TestOperatorFeedbackLivePrepareAndStalePanel with independent native rectangle measurements at1280/768/320 and320x480 through the actual injected production workspace. Cancelled queued lease-2914357650 through SDLC successfully, no result recorded, so the final test head can be queued once without a guaranteed stale fixture. TL e567a7da revoked the grant while no check is queued and will re-grant on the final queued head. Existing PR583 remains open, server CI green; no merge runner or pair:0 action.
+
+
 ### 2026-10-24 — Retained native evidence for BR-4
 
 The corrected production source is Git commit791e8742c1459ba95e1f84ce4ac83cec7265bf03. Non-skipped host output is retained at [native-review-fixes.log](../plans/000856-cast-feedback-workspace-plan.side/evidence/native-review-fixes.log); all8 named tests passed27.857s, including actual browser gestures, private capture, preview/unsaved refusal, minimized-editor reopening and viewport separation at1280/320. [node-review-fixes.log](../plans/000856-cast-feedback-workspace-plan.side/evidence/node-review-fixes.log) retains all603 Node passes. The source was committed unchanged immediately after these runs. BR-4's review-host GPU startup refusal is not product evidence; this working-host output supplies the requested qualification. Inventory re-audit passed after staging the new test. Requeued recorded pre-close is retained in terminal34212 on this source; no second run is active.

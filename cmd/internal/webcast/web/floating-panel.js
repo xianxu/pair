@@ -102,7 +102,7 @@ export function mountFloatingPanel(doc, win, {parent, body, title = 'Notes', cla
     const minimized = state.mode === 'minimized';
     root.hidden = (!showEmpty && count === 0) || state.viewport.width === 0 || state.viewport.height === 0;
     if (customGeometry) {
-      root.style.width = minimized ? 'auto' : `${state.size.width}px`;
+      root.style.width = minimized ? 'max-content' : `${state.size.width}px`;
       root.style.height = minimized ? 'auto' : `${state.size.height}px`;
       root.style.maxWidth = `${state.viewport.width}px`;
       root.style.maxHeight = `${state.viewport.height}px`;

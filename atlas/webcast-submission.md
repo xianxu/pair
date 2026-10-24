@@ -149,13 +149,16 @@ Live pins follow a connected anchor or a confident unique replacement on the sam
 route, projecting the original region onto its new box. Removed, hidden, clipped,
 offscreen, conflicting or ambiguous anchors show no box. The shared list retains
 all open notes, including notes on earlier documents, labelled **not on this view**
-when placement is unavailable. The single yellow Notes panel also lists accepted sketches, including offscreen or unavailable anchors. It minimizes to Notes (N), moves by header/button or arrow keys,
+when placement is unavailable. The single yellow Notes panel also lists accepted
+sketches, including offscreen or unavailable anchors. It minimizes to Notes (N),
+moves by header/button or arrow keys,
 and keeps its shared session-local anchor. Existing editors appear inside its
 scrolling body; final sketch labels remain read-only. Hover/focus glows the
 corresponding confirmed geometry. Show on page uses only a validated original
 and reports unavailable rather than guessing. These actions do not hide anchored
 feedback or resolve submitted revisions. Pending counts/stale status live in the
-same header and do not gate submission.
+same header and do not gate submission. Minimized Notes marks status, with the
+full text in its tooltip and accessible name; opening an editor restores the panel.
 Weak/common text cannot select a replacement;
 truncated searches cannot claim uniqueness. Operator originals arrive as actual DOM
 objects through a bounded, document-scoped recorder/CDP bridge; weak references

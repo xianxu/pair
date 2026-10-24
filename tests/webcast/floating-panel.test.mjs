@@ -177,3 +177,11 @@ test('minimized status growth reclamps its complete control and retires a tentat
  const before={...f.cost};f.setStatus('Pending feedback is out of date.');assert.deepEqual(f.cost,before);
  f.setStatus('');assert.equal(f.restore.textContent,'Notes (1)');
 });
+
+test('unchanged status during a drag retains capture and the tentative anchor',()=>{
+ const f=fixture(1);f.setStatus('Pending feedback.');
+ f.header.fire('pointerdown');f.root.fire('pointermove',{clientX:100,clientY:100});
+ const inset=f.root.style.inset;assert.equal(f.header.hasPointerCapture(1),true);
+ f.setStatus('Pending feedback.');assert.equal(f.header.hasPointerCapture(1),true);assert.equal(f.root.style.inset,inset);
+ f.root.fire('pointerup');assert.equal(f.header.hasPointerCapture(1),false);assert.equal(f.root.style.inset,inset);
+});
