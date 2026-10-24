@@ -60,6 +60,11 @@ Close and landing use their SDLC gates. The recorded exact-source pre-close chec
 
 ## Log
 
+### 2026-10-24 — Parallel #857 data/recorder work authorized
+
+TL8b5caf7d-587c-44ab-9f60-a0832c521a5a authorizes #857 data/recorder work now on its own branch from current main, copying no #856 commits; UI integration waits for #856 to land. #856 is SHIP/codecomplete, PR583 server CI green, clean/pushed. Retained terminal5418/lease-306801268/run2d195b5c900c7a2bf81b53c80416abe4 runs its own detached snapshot087631062 and keeps its grant/FIFO place across the checkout switch. Return to this branch and enter merge the moment that pass records. No merge runner currently holds this checkout, and no pair:0 stage is owned here. Scope and production-look acceptance remain unchanged.
+
+
 ### 2026-10-24 — Actual attribution refusal; authorized N/A recovery
 - 2026-10-24: closed — TLfab98e9b authorizes N/A: earlier rounds measured2.72h then3.33h; ariadne#580 now refuses branch attribution for062e2184-2117-4c26-b929-ceec3b5a8030: concurrent claims have unknown, resting or ambiguous active branch during2026-10-23T21:35:40-07:00 to2026-10-24T04:36:48Z (#850/#856 transition). Refusal/reflog retained, no fabricated hours. All604 Node tests and inventory pass. Final-source8 native/module tests PASS32.750s on087631062, retained native-final-source.log:16 actual panel/toolbar/status/editor measurements at1280/768/320/320x480, overlapmutation rejected, real40px captureddrag, pressure/privacy/tab/SPA/handoff and unsaved guards. BR1-3 regression fixes remain. Recorded lease-306801268 queued; pass required before landing. Acceptedmock/native evidence authorized; morning stage covers production look.; review verdict: SHIP
 
