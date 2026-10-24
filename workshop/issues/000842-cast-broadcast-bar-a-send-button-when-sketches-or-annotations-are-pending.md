@@ -38,7 +38,12 @@ makes the action visible. It disappears when nothing is pending.
 
 ## Plan
 
-- [ ]
+Durable design: [Cast Send Button](../plans/000842-cast-send-button-plan.md).
+
+- [ ] Declare the existing send chord once and qualify pane/fullscreen routing without changing payload semantics.
+- [ ] Derive acknowledged pending-feedback eligibility and render independently clipped status Send spans.
+- [ ] Bind status clicks to the exact accepted actor endpoint and existing PairSendDOM transaction; prove stale/refusal controls.
+- [ ] Update help/atlas, run inventory and recorded pre-close, obtain the hub-coordinated live look, close and land.
 
 ## Log
 
@@ -56,3 +61,6 @@ Read #856 joint plan and mock HTML/CSS, then viewed its actual synthetic1280x900
 
 Per hubddb54395, show Send only for feedback that the current hotkey would send, in the existing Couch LIVE/Chrome status-row group. Keep existing transaction data and permissions unchanged. Terminal notes unsupported by that transaction do not become eligible merely because they are counted on a bar. #856's browser-page column and its Notes panel do not absorb this work. No implementation has started; pending action-routing design and hub approval.
 
+### 2026-10-23 — approved routing and separate terminal gap
+
+Hub6491d0e0 approved the existing chord as the single routing owner, including wider agent/review/right-terminal availability and reservation of this one chord from fullscreen terminal apps; help and atlas must say so. Filed unclaimed #859 with source evidence for the missing terminal-sketch submission path, without claiming existing terminal sketches were lost. The durable plan keeps terminal NoteBoard notes ineligible, browser column untouched and payload authority in PairSendDOM. No implementation started; send the plan to the hub before change-code.
