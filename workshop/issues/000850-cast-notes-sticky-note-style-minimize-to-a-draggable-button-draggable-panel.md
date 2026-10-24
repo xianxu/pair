@@ -46,8 +46,8 @@ Evidence: ops-echo `session.side/2026-10-23-03-echo-23-board-feedback.md` and it
 
 Durable full-flow design: [Cast notes panel plan](../plans/000850-cast-notes-panel-plan.md).
 
-- [ ] Implement one session-local floating-panel owner and sticky, fixed-height scrolling annotation list, preserving existing note rows/editor authority.
-- [ ] Add visible per-sketch Add note / read-only View note controls through existing actions and accepted metadata, coordinating shared seams with #849.
+- [x] Implement one session-local floating-panel owner and sticky, fixed-height scrolling annotation list, preserving existing note rows/editor authority.
+- [x] Add visible per-sketch Add note / read-only View note controls through existing actions and accepted metadata, coordinating shared seams with #849.
 - [ ] Verify pointer/keyboard/resize lifetimes, unchanged submission guards, headless layout, pre-close check and staged operator acceptance; close and land through SDLC.
 
 
@@ -69,6 +69,15 @@ Pair:6 messages15fa9f8e and06588197 confirm #849 root cause is still under opera
 Full-flow change-code round3 passed plan quality and estimate quality, with an advisory INFO only. Test-authoring cost is inside the two UI items and metadata mapping; the review/native/operator overhead item covers execution, not all test development. The UX allowance covers expected polish within the approved constraints, not new product choices. Queue wait remains excluded.
 
 Floating-panel Task1 tests observed semantic RED before implementation, then8/8 GREEN including3,000 generated transitions and N/2N constant-cost movement. Annotation integration regression first failed because the scrolling body did not exist; after wrapping the existing keyed list,63 focused Node tests pass. Minimize preserves anchored feedback and note state; later data updates preserve local mode. Existing guard tests remain green. Added shared module to viewer embedding and isolated operator assembly; assembly initially refused the unmapped import, then both focused assembly tests passed after wiring. Panel resource disposal is exposed and registered on pagehide for both mount contexts; no changes to feedback/preview owners. Sketch controls and native layout proof are the remaining implementation tasks; no recorded check, merge runner or stage owned here.
+
+
+### 2026-10-23 — candidate implemented; native regression fixed
+
+Sketch controls reuse the existing accepted placement pass and current policy slots; final labels open read-only and stale handlers re-read current entries. TDD observed missing-affordance RED; focused68 tests passed. Strengthened unique P/2P property-access/projection counts and generated malformed placement/metadata cases pass. Both modules are embedded and assembled for viewer and isolated operator.
+
+The first complete native operator run exposed a real #850 regression: a View note button placed directly at the first ink point intercepted the next stroke. The board held1 sketch while the preview helper waited for2. Added native hit-test proof, which failed in1.85s, then moved the44px control beside ink with an8px gap (below at the top edge). Complete native scenario passed6.31s after correction. Pair:6 notified; this is not evidence of their separate #849 publisher defect. Preview/visibility/commit/witness owners remain unchanged.
+
+Final verification: all Node webcast tests EXIT0; focused Go operator assembly/server checks EXIT0; WEBCAST_LIVE_CHROME=1 targeted panel plus full operator drawing checks passed non-skipped9.756s. Native panel proof includes1280x800,320x480 and shrinking mid-drag to180x130, actual capture/lost capture, wheel scrolling, keyboard, full chip hits and page reachability. The actual operator scenario retains completed-paint and stale/selected-version guards through masks, tab returns and SPA replacement. make test-affected-inventory EXIT0 after staging the new native test; no reader certificate repair requested. Remaining: pushed-head pre-close record, boundary close, hub-timed stage/operator look, and merge. No stage is held by this slot.
 
 ## Revisions
 

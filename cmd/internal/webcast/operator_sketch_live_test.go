@@ -256,13 +256,23 @@ func TestOperatorSketchLiveDrawing(t *testing.T) {
 		// An unrelated delivery transition may refresh the same selected shapes.
 		// Exercise that new publication identity without replacing keyed cards.
 		previewDeliveryGeneration++
+		lastProblem := ""
+		problem := func(stage string, err error) {
+			message := fmt.Sprintf("%s: %v", stage, err)
+			if message != lastProblem {
+				t.Logf("preview waiting: %s", message)
+				lastProblem = message
+			}
+		}
 		wait("acknowledged private submission preview", func() bool {
 			host, _, e := cast.SubmissionPreviewHost(ctx)
 			if e != nil {
+				problem("host", e)
 				return false
 			}
 			selected, e := cast.board.Selection()
 			if e != nil || len(selected.Sketches) != want {
+				problem("selection", fmt.Errorf("count %d want %d: %v", len(selected.Sketches), want, e))
 				return false
 			}
 			candidates := make([]core.PreviewSketchCandidate, 0, len(selected.Sketches))
@@ -275,6 +285,7 @@ func TestOperatorSketchLiveDrawing(t *testing.T) {
 			}
 			view, e := cast.ReadSubmissionVisibility(ctx, host)
 			if e != nil {
+				problem("visibility", e)
 				return false
 			}
 			delivered := core.DeliveredFeedback{RecordingID: chrome.opts.Record.ID, Sketches: map[core.PreviewItem]struct{}{}}
@@ -292,6 +303,7 @@ func TestOperatorSketchLiveDrawing(t *testing.T) {
 			}
 			selection, e = cast.ResolveSubmissionPreview(ctx, host, selection)
 			if e != nil {
+				problem("resolve", e)
 				return false
 			}
 			previewState, _ = core.NextPreview(previewState, core.PreviewHostChanged{Host: host})
@@ -301,6 +313,7 @@ func TestOperatorSketchLiveDrawing(t *testing.T) {
 			for _, effect := range effects {
 				if publication, ok := effect.(core.PreviewPublish); ok {
 					if e = cast.PublishSubmissionPreview(ctx, publication.Publication); e != nil {
+						problem("publish", e)
 						previewState, _ = core.NextPreview(previewState, core.PreviewPublishFailed{Publication: publication.Publication})
 						return false
 					}
@@ -329,6 +342,11 @@ func TestOperatorSketchLiveDrawing(t *testing.T) {
 	}
 	if got := string(eval(world, `(()=>{const root=__couchcastOperatorSketch.labelInput.getRootNode();return root.activeElement===previewIdleFocus&&root.querySelector('.sketch-submission-card')===previewCard&&previewCard.querySelector('canvas')===previewCanvas})()`)); got != "true" {
 		t.Fatalf("idle capture changed preview focus/identity: %s", got)
+	}
+	// Discovery controls sit beside the ink; they must not steal a later pen
+	// stroke at the same recorded coordinates.
+	if got := string(eval(world, `(()=>{const root=__couchcastOperatorSketch.labelInput.getRootNode(),buttons=[...root.querySelectorAll('.sketch-note-control')];return buttons.length>0&&buttons.every(b=>{const r=b.getBoundingClientRect();return !(110>=r.left&&110<r.right&&140>=r.top&&140<r.bottom)})})()`)); got != "true" {
+		t.Fatalf("sketch note affordance covers existing ink: %s", got)
 	}
 	// Start an unfinished second sketch whose ink is inside the first stroke's
 	// bounds, preserving the existing original-node placement checks below.
@@ -543,7 +561,7 @@ func TestOperatorSketchLiveDrawing(t *testing.T) {
 	wait("new post-submit stroke settled", func() bool {
 		return string(eval(world, `__couchcastOperatorSketch.state().slots.every(s=>!s.inflight&&!s.queued)`)) == "true"
 	})
-	clickTool("Note")
+	clickTool("Add note")
 	wait("new post-submit Note editor", func() bool {
 		return string(eval(world, `!__couchcastOperatorSketch.labelInput.parentElement.hidden`)) == "true"
 	})
@@ -776,7 +794,7 @@ func TestOperatorSketchLiveDrawing(t *testing.T) {
 	wait("SPA pressure path settled", func() bool {
 		return string(eval(world, `__couchcastOperatorSketch.state().slots.every(s=>!s.inflight&&!s.queued)`)) == "true"
 	})
-	clickTool("Note")
+	clickTool("Add note")
 	wait("SPA sketch Note editor", func() bool {
 		return string(eval(world, `!__couchcastOperatorSketch.labelInput.parentElement.hidden`)) == "true"
 	})

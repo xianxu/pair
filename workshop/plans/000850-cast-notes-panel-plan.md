@@ -106,29 +106,29 @@ The DOM adapter owns effects; pure transitions return next state and effects. Re
 
 Files: create `web/floating-panel.js`, `tests/webcast/floating-panel.test.mjs`; extend the existing DOM fixture only as real pointer/viewport behavior requires.
 
-- [ ] Implement the transition/adapter strategies above as failing tests. Run `node --test tests/webcast/floating-panel.test.mjs`; observe semantic RED.
-- [ ] Implement deterministic transition and minimal owned adapter, with model-controlled capture and listener disposal. Run the tests and counted N/2N cost pin GREEN. Commit.
+- [x] Implement the transition/adapter strategies above as failing tests. Run `node --test tests/webcast/floating-panel.test.mjs`; observe semantic RED.
+- [x] Implement deterministic transition and minimal owned adapter, with model-controlled capture and listener disposal. Run the tests and counted N/2N cost pin GREEN. Commit.
 
 ### Task 2 — annotation panel styling and integration
 
 Files: modify `web/annotate.js`, `web/annotate.css`, `server.go`, `operator_script.go`; extend `tests/webcast/annotation-list.test.mjs`, `tests/webcast/annotate.test.mjs`, relevant operator module/server tests.
 
-- [ ] Implement the `noteList` integration strategy above as failing tests against the real keyed rows and guarded editor.
-- [ ] Wrap the list body with the owned panel and approved CSS geometry; update both explicit embedding/import paths. Run Node tests and focused module assembly/asset-serving Go tests GREEN. Commit.
+- [x] Implement the `noteList` integration strategy above as failing tests against the real keyed rows and guarded editor.
+- [x] Wrap the list body with the owned panel and approved CSS geometry; update both explicit embedding/import paths. Run Node tests and focused module assembly/asset-serving Go tests GREEN. Commit.
 
 ### Task 3 — sketch note discovery without command changes
 
 Files: create `web/sketch-notes.js`, `tests/webcast/sketch-notes.test.mjs`; modify `web/sketch.js`, `web/sketch.css`, embedding maps and `tests/webcast/sketch.test.mjs`.
 
-- [ ] Implement the entry/controls strategies above as failing tests with independent identity and mutation oracles.
-- [ ] Add keyed controls from the existing placement pass; use current leave/openLabel and a read-only final-text view. Keep label commit/witness and preview/visibility owners unchanged. Coordinate shared-file edits with pair:6 and reconcile landed #849 through main, never its unlanded branch. Run strategy tests GREEN and commit.
+- [x] Implement the entry/controls strategies above as failing tests with independent identity and mutation oracles.
+- [x] Add keyed controls from the existing placement pass; use current leave/openLabel and a read-only final-text view. Keep label commit/witness and preview/visibility owners unchanged. Coordinate shared-file edits with pair:6 and reconcile landed #849 through main, never its unlanded branch. Run strategy tests GREEN and commit.
 
 ### Task 4 — browser and protected-submission verification
 
 Files: new `cmd/internal/webcast/cast_notes_panel_live_test.go` and/or extend existing operator/viewer Chrome fixtures; update `tests/webcast/operator-submission-preview.test.mjs` only for integration assumptions, atlas/webcast.md, atlas/webcast-submission.md and README's existing cast-note instructions.
 
-- [ ] Implement the native layout and visibility/preview strategies above as regression tests. Retain #849's exact authority invariants when its fix lands; no bypass if submission still fails.
-- [ ] Run `node --test tests/webcast/*.test.mjs`; targeted `go test ./cmd/internal/webcast/... -run 'TestOperatorScript|TestServer|TestCastNotesPanel' -count=1`; headless `WEBCAST_LIVE_CHROME=1 go test ./cmd/internal/webcast -run 'TestCastNotesPanelLive|TestOperatorSketchLiveDrawing' -count=1 -timeout 5m`. Verify non-skipped execution. Audit named readers before individual certificate repair and run `make test-affected-inventory`.
+- [x] Implement the native layout and visibility/preview strategies above as regression tests. Retain #849's exact authority invariants when its fix lands; no bypass if submission still fails.
+- [x] Run `node --test tests/webcast/*.test.mjs`; targeted `go test ./cmd/internal/webcast/... -run 'TestOperatorScript|TestServer|TestCastNotesPanel' -count=1`; headless `WEBCAST_LIVE_CHROME=1 go test ./cmd/internal/webcast -run 'TestCastNotesPanelLive|TestOperatorSketchLiveDrawing' -count=1 -timeout 5m`. Verify non-skipped execution. Audit named readers before individual certificate repair and run `make test-affected-inventory`.
 - [ ] Commit/push final candidate and use `sdlc local-check run --pre-close`. Run required inventory immediately before SDLC close; its fresh review is the boundary. At TL stage go after #849 releases its diagnostic lease, stage/build for the operator look below. Land after SHIP, recorded proof and acceptance, clear stage, notify hub. Use the train's full suite unless an explicit gate requires another.
 
 ## Operator look

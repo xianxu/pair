@@ -72,3 +72,46 @@
 body.driving.sketching .annotate-rail .mode {
   display: block;
 }
+
+/* Private note affordances reuse the accepted paint placement, never the
+   recorded page. Only the buttons intercept input; the drawing stays reachable. */
+.sketch-note-controls {
+  position: absolute;
+  inset: 0;
+  z-index: 34;
+  pointer-events: none;
+  overflow: hidden;
+}
+.sketch-note-control {
+  position: absolute;
+  min-height: 44px;
+  max-width: 100%;
+  padding: 6px 10px;
+  border: 1px solid #b7a744;
+  border-radius: 5px;
+  background: #fff59d;
+  color: #2b2b2b;
+  font: 13px/1.4 system-ui, sans-serif;
+  pointer-events: auto;
+}
+.sketch-note-view {
+  position: absolute;
+  z-index: 41;
+  right: 12px;
+  bottom: 12px;
+  box-sizing: border-box;
+  width: min(300px, calc(100% - 24px));
+  max-height: min(320px, calc(100% - 24px));
+  overflow: auto;
+  padding: 12px;
+  border: 1px solid #b7a744;
+  border-radius: 5px;
+  background: #fff59d;
+  color: #2b2b2b;
+  box-shadow: 0 3px 16px #0003;
+  font: 14px/1.4 system-ui, sans-serif;
+  pointer-events: auto;
+}
+.sketch-note-view[hidden] { display: none; }
+.sketch-note-text { white-space: pre-wrap; overflow-wrap: anywhere; margin-bottom: 12px; }
+.sketch-note-close { min-height: 44px; }

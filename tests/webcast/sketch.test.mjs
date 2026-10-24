@@ -276,7 +276,7 @@ test('unfinished Note opens label once and idle authority preserves its controls
   const {mountSketch}=await mod(),h=harness();
   const ui=mountSketch(h.doc,h.win,h.view,h.options);
   await ui.enter();
-  const note=h.root.querySelector('.sketch-toolbar').children.find(b=>b.textContent==='Note');
+  const note=h.root.querySelector('.sketch-toolbar').children.find(b=>b.textContent==='Add note');
   assert.ok(note,'unfinished sketch has a Note button');
   let focuses=0;ui.labelInput.focus=()=>focuses++;
   for(const fn of note.listeners.click)fn();await h.flush();
@@ -986,4 +986,15 @@ test('live exact feedback mask clears accepted ink while preserving vectors and 
  assert.deepEqual(h.model.sketchProjection(),before,'mask cannot alter accepted history');
  await ui.leave();ui.labelInput.value='new version';await ui.saveLabel();await h.flush();
  assert.ok(h.context.paintedPoints>0,'new accepted version must reappear');ui.dispose();
+});
+
+test('placed sketch Add note follows owned finish flow and final View note is read only',async()=>{
+  const {mountSketch}=await mod(),h=harness(),ui=mountSketch(h.doc,h.win,h.view,h.options);
+  await ui.enter();h.event(ui.layer,'pointerdown');await h.flush();h.event(ui.layer,'pointerup');await h.flush();
+  const control=h.root.querySelector('.sketch-note-control');assert.ok(control,'placed sketch exposes note affordance');assert.equal(control.textContent,'Add note');
+  h.event(control,'click');await h.flush();assert.equal(h.root.querySelector('.sketch-label').hidden,false);
+  ui.labelInput.value='Final immutable note';await ui.saveLabel();await h.flush();
+  const final=h.root.querySelector('.sketch-note-control');assert.equal(final,control);assert.equal(final.textContent,'View note');
+  const sent=h.sent.length;h.event(final,'click');assert.equal(h.root.querySelector('.sketch-note-text').textContent,'Final immutable note');assert.equal(h.sent.length,sent);
+  ui.dispose();assert.equal(h.root.querySelector('.sketch-note-controls'),undefined);
 });
