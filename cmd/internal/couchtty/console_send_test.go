@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/xianxu/pair/cmd/internal/ptychild"
 	core "github.com/xianxu/pair/cmd/internal/submission"
 	"github.com/xianxu/pair/cmd/internal/terminal"
 )
@@ -40,6 +41,7 @@ func TestStatusSendClickExactEndpoint(t *testing.T) {
 		{name: "left", want: 1}, {name: "right", button: 2}, {name: "shift", button: 4}, {name: "release", release: true}, {name: "stale-endpoint", stale: "endpoint"},
 		{name: "stale-cast", stale: "cast"},
 		{name: "stale-pane", stale: "pane"},
+		{name: "replaced-active-pane", stale: "replacement"},
 		{name: "stale-thread", stale: "thread"},
 		{name: "panel", stale: "panel"},
 		{name: "wheel", button: 64},
@@ -66,6 +68,11 @@ func TestStatusSendClickExactEndpoint(t *testing.T) {
 					r.con.statusSendTarget.cast = nil
 				case "pane":
 					r.con.statusSendTarget.pane = nil
+				case "replacement":
+					old := r.con.panes[r.con.active]
+					successor := *old
+					successor.child = ptychild.NewFakeChild(nil)
+					r.con.panes[r.con.active] = &successor
 				case "thread":
 					r.con.statusSendTarget.thread.Tag = "other"
 				case "panel":

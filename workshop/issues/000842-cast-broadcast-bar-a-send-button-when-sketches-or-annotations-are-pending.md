@@ -67,6 +67,11 @@ Latest combined targeted command: go test ./cmd/internal/couchtty ./cmd/internal
 
 Reader inventory audit: changed workbenchshortcut/shortcut_test.go retains its one repository input nvim/workbench_actions.lua plus local t.TempDir sidecars. No new path or scanner; nvim/** is already a non-Go full fallback input. Refreshed only its fixed_scanner certificate after inspection. Final inventory, recorded pre-close and mandatory close review remain.
 
+
+### 2026-10-24 — race qualification and final-head queue
+
+Added an actual active-pane replacement negative control (in addition to stale witness fields); the full StatusSend test under -race passed14.759s. Production unchanged from087446b70. Pre-close resolved affected correctly, then selected the full suite because nvim/init.lua is a declared full-fallback input; its older-head lease3817618192 was still queued, not running, and was cancelled through the owned SDLC lease before queuing this final test head. No completed suite is discarded, no parallel duplicate runner, no flake retry. Hub7d702e30 assigns acceptance to pair:4's combined morning #856/#857/#842 stage after a recorded pass and SHIP; pair:0 remains #851's. Do not stage alone.
+
 ## Revisions
 
 ### 2026-10-23 — scope clarification before design
