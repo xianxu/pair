@@ -170,3 +170,50 @@ This comparison retains a lease **only where the public CLI unavoidably scans al
 - [ ] Only after approval, define the small pure marker-qualification model and portable stateful fake. Independently count zero native probe admissions before exact readiness, including two sessions where only one is marked and the named command internally scans both.
 - [ ] Put the optional scan lease only at unavoidable native enumeration boundaries and creator publication; do not add a pending intent store. Mechanically enumerate/guard bypass callers. Preserve caller deadlines, conservative unknown results and joined ownership.
 - [ ] Retain the original bounded shared-fleet Claude/Codex qualification, normal catalog/inventory guards and recorded pre-close/full review requirements; no new standalone server/process probe. Preserve all three failing native captures and distinguish conformance from historical trigger attribution.
+
+
+### 2026-10-24 — approved marker plus kernel lease; accepted creator-crash limit
+
+Submitted TL734d1a09 approves the narrower marker/CLI revision and entry to change-code. This section is the final governing design; all initial unfinished-intent/reducer/store tasks above are superseded. **No journal or persisted pending state is permitted.**
+
+**Accepted limit:** the creator holds a kernel file lock (flock/fcntl) from before native spawn until exact pane readiness and marker publication. If that creator dies, the kernel releases the lock automatically. A scanner may then encounter a server whose creator died, including a delayed endpoint publication: Zellij's original early-removal risk remains in that crash case. This issue protects cooperating live creators, not crash-proof native bootstrap. No lock disappearance is called readiness. Missing markers remain unknown/starting; no durable orphan latch or stronger ownership guarantee is introduced to close this explicitly accepted limit. Foreign/non-cooperating binaries also remain outside exclusion.
+
+#### Final core concepts and files (supersede initial tables)
+
+| Pure entity | File | Status | Test strategy |
+|---|---|---|---|
+| ReadyMarker / ReadyIdentity / QualifyReadyMarker | cmd/internal/zellijquery/readiness.go | new | exact identity, stale/missing/malformed evidence, direct value tests |
+| PlanProbeAdmission | cmd/internal/zellijquery/readiness.go | new | complete candidate set versus positive markers; never convert unknown into absence; count8/16 inputs |
+
+| Integration | File | Status | Dependency/fake |
+|---|---|---|---|
+| ProbeGuard and marker storage | cmd/internal/zellijquery/readiness_os.go | new | context-bounded kernel lease and portable private files; stateful initializing/ready fake |
+| PairCachePaths readiness/scan-lease resolvers | cmd/internal/artifactpath/session_lock.go | modified | canonical configured namespace, existing cache/lease conventions |
+| terminalOSAttempt Start/Admit | cmd/internal/launcher/session_handoff_os.go | modified | creator exclusion; existing exact AgentReady; marker publication before release |
+| Source.ReadContext native-scan admission | cmd/internal/zellijquery/query.go | modified | same production guard, independent fake native scanner |
+| Existing attach/mutation/native command boundaries | cmd/internal/launcher and current CLI adapters | modified | classify every globally scanning native caller; retain existing process join/retirement ownership |
+| Native consumer | cmd/couch/zellij_startup_readiness_fleet_test.go | new | shared testcouch only, Claude/Codex fixtures, public CLI/output |
+
+The single lease excludes native global scans from the creator interval; exact-launch positive marker checks remain separate lock-free reads. Marker storage is bounded current positive evidence, not a journal: one marker per current session, remove before replacement/after matching retirement, reuse session-retention cleanup for no-longer-needed evidence. A stale marker must never certify a new cooperating launch. Resolver/manifest and additive strict-typed marker decoding are part of the deliverable; no new secret, ownership census or live-root test lane. Before spawn, refuse capacity/metadata uncertainty rather than create an unmarkable session. Maintain at most the existing supported actor envelope in a namespace; no silently truncated selection or per-launch history.
+
+Probe admission obtains the scan lease across complete candidate/marker qualification and the joined native CLI call; it does not release between check and use. Creator admission must not recursively reacquire that lease: its pre-Start queries use its explicit owned permit; after Start, exact readiness is observed without native CLI, marker is published and creator exclusion released, then the existing final native admission query uses the ordinary scan path. Direct marker/cache reads never acquire the global-scan lease. The existing absolute caller deadline bounds acquisition, readiness and queries; no timeout increase or extra retry loop.
+
+#### Final state/recovery rows
+
+| Current condition/event | Effect/visible result | Recovery/limit |
+|---|---|---|
+| live creator owns exclusion, readiness absent | native scans wait under existing caller deadline; startup remains pending | wait/cancel current operation |
+| exact ready identity observed | publish positive marker, release creator exclusion, ordinary admission query | normal operation |
+| stale/foreign/malformed marker | no target readiness; retain unknown/starting, never fabricate absence | existing explicit recovery |
+| scanning CLI admitted | retain kernel lease through candidate qualification and joined CLI completion | existing bounded query policy |
+| cancellation while waiting for lease/readiness | cancel/join owned work, release kernel lock, no journal | normal caller error; any native partial progress stays uncertain |
+| creator death | kernel unlocks; missing marker is not success | accepted crash-only upstream risk; no claimed bootstrap guarantee |
+| old completion after a new launch | cannot publish marker for the new exact identity | ignore/refuse stale evidence |
+
+#### Approved execution sequence
+
+- [ ] Establish RED with the shared production query seam and a stateful scanner that internally touches every candidate even for a named target; hold creator readiness and independently assert zero premature native admissions.
+- [ ] Implement the final pure marker qualification and IO guard, creator marker publication/exclusion, and complete globally-scanning native caller sweep. Add the normal catalog guard for bypasses; preserve existing wire validation and cleanup authority.
+- [ ] Prove deadline/cancellation, same-namespace two-session interleavings, stale identity, separate namespace isolation, subprocess kernel owner-death release and linear8/16 work. Assert accepted crash behavior as a limit, not a success claim. Run targeted and relevant complete packages/races and inventories.
+- [ ] Run one bounded shared disposable native qualification with Claude/Codex and public CLI/output, retaining exact cleanup/log/hash. No direct socket/process-owner experiment or standalone upstream report. Register/attribute unrelated failures before any rerun.
+- [ ] Update atlas/README, push, record sdlc local-check run --pre-close, run make test-affected-inventory, then mandatory full close and ordinary landing/report. #722 stays separately ready for operator-watched acceptance.
