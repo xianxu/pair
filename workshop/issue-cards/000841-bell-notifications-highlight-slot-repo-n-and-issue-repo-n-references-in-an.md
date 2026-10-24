@@ -1,6 +1,6 @@
 ---
 id: 000841
-status: codecomplete
+status: done
 created: 2026-10-23
 updated: 2026-10-23
 estimate_hours:
@@ -21,6 +21,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: d30f7c517f25996e15b8bf190d2ad6327e7bd4a5
         evidence_commit: 195cd6d2516767c0a50657219c65a77d9683a8bc
+        landed_commit: 1412b823d7257c8069b1a6cb787f320624fbe9fe
 ---
 
 # Bell notifications: highlight slot (repo:N) and issue (repo#N) references in an accent color
