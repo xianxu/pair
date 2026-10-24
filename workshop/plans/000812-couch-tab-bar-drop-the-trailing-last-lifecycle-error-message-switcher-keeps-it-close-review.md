@@ -813,3 +813,74 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-23T18:50:15-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 812 — Couch tab bar: drop the trailing last lifecycle/error message (switcher keeps it) |
+| repo | pair |
+| issue file | workshop/issues/000812-couch-tab-bar-drop-the-trailing-last-lifecycle-error-message-switcher-keeps-it.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | b8ce57e955c1ccb8e092c4616568820878b55845..ac2b02ff851132e7906cb56fc4d3502a5d2a533a |
+| command | sdlc close --issue 812 |
+| reviewer | codex (openai; author openai) |
+| isolation | fenced |
+| timestamp | 2026-10-23T18:50:15-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+The pinned interdiff preserves both sides’ intent in the conflict resolutions: shorter lifecycle/cast wording, actionable diagnostic routing, capacity-warning suppression, and retained rotation feedback. No new defects or scope changes found. BR-1–BR-6 remain disposed; this window provides no reason to reopen them.
+
+```findings
+{}
+```
+
+1. **Strengths**
+   - Lifecycle resolutions preserve typed actionable warnings and the publisher-lifetime capacity latch (`cmd/internal/couchcmd/lifecycle_notices.go:191`, `:243`).
+   - Rotation tests retain viewer disconnection, secret-free feedback, warning classification, and complete clipboard assertions (`cmd/internal/couchtty/console_castcodes_test.go:68`, `:101`).
+   - The metadata-warning test still acknowledges actual publication before opening attention.
+
+2. **Critical findings:** None.
+
+3. **Important findings:** None.
+
+4. **Minor findings:** None.
+
+5. **Test coverage notes**
+   - Focused lifecycle and cast-rotation tests passed.
+   - Relevant lifecycle and rotation tests passed three repetitions with `-race`.
+   - Range whitespace checks passed.
+   - No full-suite or live-acceptance result is claimed by this review.
+
+6. **Architectural notes**
+   - **ARCH-DRY — Pass:** Existing diagnostic and feed owners remain shared.
+   - **ARCH-PURE — Pass:** No new IO or business-logic coupling.
+   - **ARCH-PURPOSE — Pass:** Both conflict resolutions preserve warning visibility and retained switcher feedback.
+   - **ARCH-EVOLVE — Pass:** No persisted-format contract changes.
+   - No new architectural or user-facing surface requires atlas/README changes in this window.
+
+7. **Plan revision recommendations:** None. The implementation plan, Spec, and Done-when remain unchanged.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"11e84411-bee0-4804-9044-a2b74e8679e2","repository":"github.com/xianxu/pair","issue_id":"000812","recipe":"fix-review","round":9,"attempt":1,"agent":"codex","root":"/Volumes/TestScratch/review-checkouts/edd6147da12f0565","reviewed_head":"ac2b02ff851132e7906cb56fc4d3502a5d2a533a","slot":"pair:1","requested_at":"2026-10-24T01:49:14.626292Z"},"phase":"finished","pid":81818,"started_at":"2026-10-24T01:49:14.793545Z","finished_at":"2026-10-24T01:50:14.036971Z","session_id":"01a16b99-0e1b-7b73-8b39-c6635c7e3500","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 3.224168084s
+head: "ac2b02ff851132e7906cb56fc4d3502a5d2a533a"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412
