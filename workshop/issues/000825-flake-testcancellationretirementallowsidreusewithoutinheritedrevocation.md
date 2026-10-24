@@ -29,13 +29,23 @@ Known flaky tests (#394), registered with same-head fail→pass evidence:
 
 ## Spec
 
+Retirement assertions count mailbox records, excluding atomic publication scratch while it is still owned by the publisher. Preserve the command/result/cancellation fences, joined-child guarantee, exact ID reuse and capacity behavior. Reuse countMailboxEntries rather than changing runtime publication/retirement or removing another producer's scratch. A genuine leftover result or cancellation must still fail. No production state, format, deadline or retry changes.
+
+Alternatives: joining or locking the publisher inside RetireResult would add a runtime mechanism to satisfy a test oracle that disagrees with the existing capacity contract; waiting/retrying the directory-empty assertion would hide that mismatch. Use the existing counter and deterministic held-scratch controls instead (ARCH-DRY, ARCH-PURE, ARCH-PURPOSE).
+
 ## Done when
 
 - The root cause is fixed (never a retry loop or a longer timeout); closing this issue unregisters the tests.
+- Held publisher scratch cannot fail either live-publication retirement assertion; real mailbox records still count as leaks.
+- Existing cancellation, uncertain-result preservation, ID reuse, joined-child and bounded-capacity controls pass, with race and the required recorded pre-close check.
 
 ## Plan
 
-- [ ]
+- [ ] Pin the false-positive state with a held .publish-* file in the reuse and joined-child retirement controls; observe RED with the raw-directory oracle.
+- [ ] Use the existing countMailboxEntries for both live-publication retirement assertions, include entry names on failure, and add scratch-versus-genuine-record negative controls.
+- [ ] Run targeted lifecycle/capacity controls, repeated reuse and race, lint and reader inventory; prepare pushed pre-close verification and close. Recorded pre-close pass, mandatory fresh review and landing remain downstream gates until their own results.
+
+Quick flow, test-only correction. ARCH-ORDER: producer owns temporary hard-link cleanup after final result becomes visible; RetireResult removes cancellation then command then final result under the admission lock. No new state or effects. ARCH-CONSTRAINTS: preserve MaxRequests+1 cycles and existing limits; no new hot path or growth driver, and no timing-based waits. ARCH-FUNERAL: test-owned held scratch dies with t.TempDir; never unlink another publisher's temporary file. ARCH-EVOLVE/SECURE: production wire fields and identity validation unchanged. Existing stateful fixture remains the integration seam (ARCH-MOCK).
 
 ## Log
 
