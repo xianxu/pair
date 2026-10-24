@@ -5,9 +5,9 @@ deps: []
 github_issue:
 created: 2026-10-23
 updated: 2026-10-23
-estimate_hours:
+estimate_hours: 2.156
 collaboration-mode: collaboration
-card_mirror: 'c7f2c4075a5ab9bbf0f13f206d698eaf7c778046' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: 'cd28fe8f93b05acb923e67310accaa15128d8b97' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-23T19:27:12-07:00
 claimant:
     operator: Xian Xu
@@ -71,3 +71,23 @@ Approved yellow300x320 within viewport, fixed header/scroll body, draggable head
 ### 2026-10-23 — plan-quality PQ-1
 
 First full-flow gate refused before implementation solely for prose test-case inventories. Compressed all task test descriptions to named production-function strategies with adversarial input classes and mechanical invariants. Commands, independent native/browser proof and cost bounds remain. No product/design change or estimate yet; rerun gate next.
+
+## Estimate
+
+Produced via brain/data/life/42shots/velocity/estimate-logic-v3.1.md against baseline-v3.1.md. Method A only; calibration is marked stale, so these numbers are provisional. The approved plan resolves choices: apply0.2 design discount and15% design buffer. Implementation values use the prescribed0.40 scale exactly once, familiarity1.0 for established browser/DOM/Chrome fixture patterns. Standard Pointer Events and existing modules cover the seams; no novel-stack library discovery or new external API is assumed.
+
+Two screen/state-machine extensions: floating panel and sketch note controls each raw design1.0/impl1.0 -> design0.20/impl0.40. Compact metadata mapping uses smaller-module raw0.20/0.40 ->0.04/0.16. Shared embedding/import wiring uses cross-cutting-refactor raw0.40/0.30 ->0.08/0.12. Docs raw0.10/0.15 ->0.02/0.06. Atomic review/native/operator verification chunk raw0.10/0.50 ->0.02/0.20. One planned operator UX iteration raw0.40/0.20 ->0.08/0.08. Design subtotal0.64 ×1.15=0.736; implementation1.42; total2.156h. Queue wait is excluded; unresolved #849 diagnosis is peer work, not charged as implementation here.
+
+```estimate
+model: estimate-logic-v3.1
+familiarity: 1.0
+item: tui-screen design=0.20 impl=0.40
+item: tui-screen design=0.20 impl=0.40
+item: smaller-go-module design=0.04 impl=0.16
+item: cross-cutting-refactor design=0.08 impl=0.12
+item: atlas-docs design=0.02 impl=0.06
+item: milestone-review design=0.02 impl=0.20
+item: ux-rename-iteration design=0.08 impl=0.08
+design-buffer: 0.15
+total: 2.156
+```
