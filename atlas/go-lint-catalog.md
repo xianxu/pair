@@ -293,3 +293,25 @@ private-HOME setup, inherited by nested blocks, through TempDir values or the
 existing sandboxedChecker fixture. It covers refused calls too. It does not infer
 types, dynamic aliases or interprocedural helper isolation; native fleet helpers
 retain their existing caller-owned fixture boundary.
+
+
+## Empty FIFO test handoffs (#679)
+
+The Pair-local `test-fifo-empty-handoff` rule in
+`internal/repolint/fifo_empty_handoff_rule_test.go` rejects a direct test writer
+close without a nonempty payload after a same-function FIFO creation. Empty
+open/close rendezvous can leave Darwin's reader blocked. It uses the existing
+catalog checker and suppression behavior; production files are excluded.
+
+The matcher follows direct path syntax and parser-resolved writer identity in
+one block, including aliased imports. Known-empty literals, conditional,
+deferred and asynchronous writes do not prove a payload. Dynamic payloads,
+helper/handle aliases, cross-block handles and deferred closes are outside
+this syntax guard. The regression pins the legacy changelog handoff and the
+scrollback reader's existing payload variant.
+
+`changelogcmd/retention_test.go` retains the real command/read and lease proof
+in an owned self-exec child, with checked newline input and exactly one joined
+Wait. `retention_child_test.go` owns bounded writer admission, cancellation and
+capped diagnostics. Early-exit, missing-reader and blocked-child tests defend
+the cleanup paths; no product timeout or read behavior changes.

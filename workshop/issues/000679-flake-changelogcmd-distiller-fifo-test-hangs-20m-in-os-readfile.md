@@ -52,9 +52,9 @@ Operating envelope: one child and one one-byte payload per invocation, at most o
 
 ## Plan
 
-- [ ] Implement the payload-carrying FIFO regression through an owned self-exec child, exact lease identity assertions, nonblocking bounded writer admission, and one joined completion/cleanup owner; preserve LastUse and no-model behavior.
-- [ ] Pin early child exit and a deliberately stalled child as bounded failure/cleanup cases; prove the child is joined and no registration/artifact assertion is read concurrently with a running producer. Add the empty-handoff lint rule and adversarial matcher coverage, replaying the measured legacy shape.
-- [ ] Run50 consecutive focused test invocations, targeted race qualification and the full changelogcmd package plus repolint. Audit any changed affected-reader certificate before its named repair; run inventory before close.
+- [x] Implement the payload-carrying FIFO regression through an owned self-exec child, exact lease identity assertions, nonblocking bounded writer admission, and one joined completion/cleanup owner; preserve LastUse and no-model behavior.
+- [x] Pin early child exit and a deliberately stalled child as bounded failure/cleanup cases; prove the child is joined and no registration/artifact assertion is read concurrently with a running producer. Add the empty-handoff lint rule and adversarial matcher coverage, replaying the measured legacy shape.
+- [x] Run50 consecutive focused test invocations, targeted race qualification and the full changelogcmd package plus repolint. Audit any changed affected-reader certificate before its named repair; run inventory before close.
 - [ ] Push the tested source, retain the recorded affected/full fallback, then binary-owned close review and sdlc merge; report each real outcome. No stage or model-native qualification is needed for this test-only fix.
 
 ## Log
@@ -85,3 +85,16 @@ Next: send the committed plan to ops:0 and wait for approval before change-code.
 ### 2026-10-23 — Preserve native IO while replacing the empty handoff
 
 The old Done-when's suggested byte/held-writer fix is refined to a checked one-byte payload plus child-process containment and joined cleanup. The original50-run requirement remains. A timeout around the old uncancellable in-process goroutine is explicitly insufficient. This plan is proposed to the hub; implementation has not started.
+
+
+### 2026-10-23 — Approved implementation; focused verification
+
+Authenticated ops:0 deliveryf91465a3 approved the proposed test-only quick flow. change-code passed inferred quick flow. No production Go, local-gates configuration or product timing was changed. The real RunWithEnv executes in an explicitly selected self-exec child with a test-local model shim. Parent observes exact child process/birth, changelog-render role and empty target before nonblocking writer admission, exchanges a checked newline, joins the sole Wait and verifies zero leases, unchanged LastUse, no model invocation and no generated output. All failure paths cancel and join that child before disposable roots are removed.
+
+Regressions pass for early child exit, writer refusal after exit, no reader within the existing1s observation bound, non-ENXIO error propagation and cancellation of the real blocked FIFO command. An exec-copy diagnostic regression first failed with65536 retained bytes because embedded bytes.Buffer promoted ReadFrom and bypassed Write; an explicit buffer field restores the32KiB cap while draining every byte. GREEN helper coverage passed1.353s.
+
+The local catalog matcher first ran no-op: the retained legacy shape failed RED with no finding instead of1; its25-case matrix then passed, including the scrollback payload sibling. Catalog registration separately failed RED before wiring and now passes test-only filename scope. Function-local direct syntax limits and dynamic/alias exclusions are documented in atlas/go-lint-catalog.md; the shared catalog and other repositories are unchanged.
+
+50 consecutive real managed-distiller invocations passed4.079s. Targeted race qualification, three repeats across managed-distiller and helper tests, passed9.300s. Complete changelogcmd passed3.987s and repolint passed13.713s. git diff --check passed. Inventory named only internal/repolint/zellij_query_boundary_rule_test.go: audited the complete file, whose inputs are parsed AST/literal import and command syntax, not executed external reads; only its individual local_or_literal_fixture certificate was recorded. Stage all new test sources, rerun inventory and the tracked catalog walk, then checkpoint and push before the required recorded affected check/full fallback and binary-owned close.
+
+Staged-source inventory PASS after all new files were added; the tracked repolint sweep passed15.030s with the new rule active. No additional reader inputs or certificates were named. This is the pre-recorded-check checkpoint; full recorded and review/landing outcomes remain pending.

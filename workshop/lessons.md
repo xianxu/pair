@@ -7,6 +7,8 @@ representative evidence, not an exhaustive index.
 
 ## Proof and verification
 
+- #679: An empty FIFO open/close is not a reliable read-completion barrier on Darwin. Exchange a checked payload, and put an otherwise uncancellable native reader in an owned child with one joined Wait; a timeout around an in-process goroutine leaves the blocked syscall alive. Cap exec diagnostics with an explicit buffer field so a promoted ReadFrom cannot bypass Write's limit.
+
 - #833: A failed component's later refusal must wrap its retained cause, not replace it with a generic unavailable error or join a new synthetic leaf. Publish the failed state and first cause together under the same mutex; pin queued, later and owner-completion paths plus the real shutdown caller, including physical errors joined with cancellation.
 
 - #827 PQ-1: joining dispatch callers does not join their asynchronous producers. When cancellation can return from Await early, retain the exact admitted future and defer gate/capacity release and final reporting until producer completion; pin ordinary caller behavior when adding an opt-in joined path.
