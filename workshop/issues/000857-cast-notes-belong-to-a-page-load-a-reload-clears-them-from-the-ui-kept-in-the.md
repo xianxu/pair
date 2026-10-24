@@ -178,6 +178,10 @@ Targeted RED reproduces all three failures; with the fixture correction, all thr
 
 Retained pre-close run d44ae76f7e233e3acfd70a340eb55d05 (lease-3431074150) completed PASS, exit0,13m39s on fixed source6615515753ca49f840209747317995d81913d24b. Complete suite log is .git/sdlc/local-checks/6615515753ca49f840209747317995d81913d24b/suite.log, SHA2563f2d1ec14a751c9ab441e56070f699391239854fabac9b696c47468177defe99. All tests passed, including the corrected Couch web-notes fixture; no flake waiver. Narrow re-close remains SHIP/no findings. Hub outcome receipt6f1f5fd9-6c21-48b5-9cc4-9b9327b95c7a is submitted. Next step: wait for hub authorization and pair:0 release, verify #866's final green head with pair:5, build the authorized combined stage, verify exact binary provenance and send the joint operator steps (including legacy unknown-segment refusal/reload caveat). No pair:0 change or merge before that operator check.
 
+### 2026-10-24 — Combined stage dependency update
+
+Pair:5 delivery2292929b reports #866 is not stage-ready: corrected work is under complete verification after a recorded-suite failure. Keep the combined sequencing and wait for its green head plus hub build authorization. Added TL e38364e9's operator-step caveat: “terminal first-pane readiness unverified” indicates an old layout; rebuild/update selected layouts with candidate Pair/Lua assets. #857's passed suite and SHIP remain unchanged; no pair:0 action.
+
 ## Estimate
 
 Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md` against `baseline-v3.1.md`. Method A only. The calibration source is marked stale by estimate-source, so the result is provisional.
