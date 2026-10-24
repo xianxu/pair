@@ -233,3 +233,101 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000409
+
+---
+
+## Re-review — 2026-10-24T05:15:01-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 866 — Wait for Zellij readiness before startup probe clients |
+| repo | pair |
+| issue file | workshop/issues/000866-zellij-startup-probe-readiness.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 0859007d1bdee7f723eef4ba086e3ec18ff79312..bdbf7367ba61debbe2017f5cf5656e38a7c2e829 |
+| command | sdlc close --issue 866 |
+| reviewer | codex (openai; author openai) |
+| isolation | fenced |
+| timestamp | 2026-10-24T05:15:01-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+The pinned implementation matches the governing plan revisions. BR-5’s explicit correction now maps the resolvers and handoff to their actual files and change statuses. No new blocking findings emerged. Executed checks passed; retained native qualification supports the documented bounded protection and its accepted limits.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      The passing actual-CLI regression covers all nine supported native reads, four adapter spellings, positive-marker admission and explicit-mutation controls; command.go applies qualification to that class.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      The recovery fixture uses testpair.ShortRoot; the long inherited TMPDIR regression passes in the complete zellijquery package.
+  - id: BR-3
+    disposition: addressed
+    note: |
+      README.md:884-897 documents legacy-session refusal, rebuild/relaunch guidance, authorized recovery and coverage limits, consistent with acquireNative and the interactive/death controls.
+  - id: BR-4
+    disposition: addressed
+    note: |
+      PlanProbeAdmission is absent from production. The revision at plan line 364 supersedes its earlier row; counted 8/16 tests exercise the production qualifyCandidates loop.
+  - id: BR-5
+    disposition: addressed
+    note: |
+      Plan lines 367-378 explicitly supersede both earlier resolver rows. Source and pinned name-status confirm zellij_readiness.go is new, manifest.go and session_handoff_os.go are modified, and session_lock.go and session_handoff.go are unchanged.
+```
+
+1. **Strengths**
+
+   - Exact first-pane evidence releases namespace exclusion before AgentReady, avoiding the bootstrap rename dependency cycle.
+   - Admission precedes injected runners, so tests and production share the guard.
+   - Retirement preserves successor markers and removes only unchanged, confirmed generations.
+   - README and atlas explain rollout requirements and residual risks.
+
+2. **Critical findings:** None.
+
+3. **Important findings:** None.
+
+4. **Minor findings:** None.
+
+5. **Test coverage notes**
+
+   Passed complete `zellijquery`, `panebirth`, `artifactpath`, `pair-go`, and `repolint` packages; targeted launcher controls; race tests for `zellijquery` and `panebirth`; Lua tracing tests; affected-reader inventory; and source whitespace checks.
+
+   Inspected retained Claude/Codex native qualification and exact cleanup evidence. No fresh native fleet run or mutation testing was performed this round.
+
+6. **Architectural notes**
+
+   - **ARCH-DRY — pass:** shared lease and admission implementations.
+   - **ARCH-PURE — pass:** codecs and identity qualification separate from filesystem/process effects.
+   - **ARCH-PURPOSE — pass:** bounded caller inventory is migrated and enforced.
+   - **ARCH-MOCK — pass:** stateful dependency controls share production seams; native conformance evidence exists.
+   - **ARCH-CONSTRAINTS — pass:** deadlines, candidate counts, metadata size and capacity are bounded.
+   - **ARCH-SECURE — pass:** strict metadata parsing, exact identities and argv preservation.
+   - **ARCH-ORDER — pass:** stale publication, cancellation, owner death and successor retirement are exercised.
+   - **ARCH-FUNERAL — pass:** stable lock bounds, marker retirement and joined child lifetimes are explicit.
+   - **ARCH-EVOLVE — pass:** legacy compatibility and nested unknown-field preservation are tested.
+
+7. **Plan revision recommendations:** None; the latest revisions reconcile the implementation map.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"cd15e139-b7ee-420f-abbc-db816abf46c2","repository":"github.com/xianxu/pair","issue_id":"000866","recipe":"milestone-review","round":3,"attempt":1,"agent":"codex","root":"/Volumes/TestScratch/review-checkouts/5e464e32d6e377bc","reviewed_head":"bdbf7367ba61debbe2017f5cf5656e38a7c2e829","slot":"pair:5","requested_at":"2026-10-24T12:11:42.02409Z"},"phase":"finished","pid":58653,"started_at":"2026-10-24T12:11:42.139833Z","finished_at":"2026-10-24T12:15:00.400979Z","session_id":"01a16dd2-ee29-7ef1-b3fd-fc3631fb06fd","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 2.347180541s
+head: "bdbf7367ba61debbe2017f5cf5656e38a7c2e829"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412

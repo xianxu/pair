@@ -115,6 +115,57 @@ rounds:
       recipe: milestone-review
       isolation: fenced
       blocked: true
+    - reviewer_runs:
+        - version: 1
+          intent:
+            disposable_root: true
+            id: cd15e139-b7ee-420f-abbc-db816abf46c2
+            repository: github.com/xianxu/pair
+            issue_id: "000866"
+            recipe: milestone-review
+            round: 3
+            attempt: 1
+            agent: codex
+            root: /Volumes/TestScratch/review-checkouts/5e464e32d6e377bc
+            reviewed_head: bdbf7367ba61debbe2017f5cf5656e38a7c2e829
+            slot: pair:5
+            requested_at: "2026-10-24T12:11:42.02409Z"
+          phase: finished
+          pid: 58653
+          started_at: "2026-10-24T12:11:42.139833Z"
+          finished_at: "2026-10-24T12:15:00.400979Z"
+          session_id: 01a16dd2-ee29-7ef1-b3fd-fc3631fb06fd
+          outcome: returned
+      "n": 3
+      timestamp: "2026-10-24T05:15:01-07:00"
+      dispatched: "2026-10-24T05:11:39-07:00"
+      agent: codex
+      reviewer: codex (openai; author openai)
+      dispose:
+        - id: BR-1
+          disposition: addressed
+          note: The passing actual-CLI regression covers all nine supported native reads, four adapter spellings, positive-marker admission and explicit-mutation controls; command.go applies qualification to that class.
+          round: 3
+        - id: BR-2
+          disposition: addressed
+          note: The recovery fixture uses testpair.ShortRoot; the long inherited TMPDIR regression passes in the complete zellijquery package.
+          round: 3
+        - id: BR-3
+          disposition: addressed
+          note: README.md:884-897 documents legacy-session refusal, rebuild/relaunch guidance, authorized recovery and coverage limits, consistent with acquireNative and the interactive/death controls.
+          round: 3
+        - id: BR-4
+          disposition: addressed
+          note: PlanProbeAdmission is absent from production. The revision at plan line 364 supersedes its earlier row; counted 8/16 tests exercise the production qualifyCandidates loop.
+          round: 3
+        - id: BR-5
+          disposition: addressed
+          note: Plan lines 367-378 explicitly supersede both earlier resolver rows. Source and pinned name-status confirm zellij_readiness.go is new, manifest.go and session_handoff_os.go are modified, and session_lock.go and session_handoff.go are unchanged.
+          round: 3
+      recipe: milestone-review
+      isolation: fenced
+      reviewed: bdbf7367ba61debbe2017f5cf5656e38a7c2e829
+      blocked: false
 ---
 
 # Gate ledger — pair#866 (boundary-review)
@@ -149,6 +200,16 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-5** [Critical] `core-concept-traceability` (kind: defect) Governing resolver concept row names an unchanged implementation file
   workshop/plans/000866-zellij-startup-readiness-plan.md:255 lists cmd/internal/artifactpath/session_lock.go as modified for the new marker/namespace-lock resolvers, but that file is unchanged across the pinned range. ZellijNamespaceLease, ZellijReadyDirectory and ZellijReadyMarker are instead new in cmd/internal/artifactpath/zellij_readiness.go:12-44. Later revisions correct other implementation locations but not this row. Reconcile this row and append a specific Revisions correction. This is Critical under the supplied core-concepts cross-check rule; it is a traceability defect, not a runtime failure. ARCH-PURPOSE.
 
+## Round 3 — 2026-10-24T05:15:01-07:00 (codex) — passed
+
+### Disposed
+
+- BR-1 — addressed — The passing actual-CLI regression covers all nine supported native reads, four adapter spellings, positive-marker admission and explicit-mutation controls; command.go applies qualification to that class.
+- BR-2 — addressed — The recovery fixture uses testpair.ShortRoot; the long inherited TMPDIR regression passes in the complete zellijquery package.
+- BR-3 — addressed — README.md:884-897 documents legacy-session refusal, rebuild/relaunch guidance, authorized recovery and coverage limits, consistent with acquireNative and the interactive/death controls.
+- BR-4 — addressed — PlanProbeAdmission is absent from production. The revision at plan line 364 supersedes its earlier row; counted 8/16 tests exercise the production qualifyCandidates loop.
+- BR-5 — addressed — Plan lines 367-378 explicitly supersede both earlier resolver rows. Source and pinned name-status confirm zellij_readiness.go is new, manifest.go and session_handoff_os.go are modified, and session_lock.go and session_handoff.go are unchanged.
+
 ## Open findings
 
-- **BR-5** [Critical] `core-concept-traceability` (kind: defect) Governing resolver concept row names an unchanged implementation file
+(none — every finding has been disposed)
