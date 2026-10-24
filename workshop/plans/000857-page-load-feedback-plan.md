@@ -27,7 +27,7 @@ Paths are relative to `cmd/internal/webcast/`.
 | PageLoad: exact browser load identity and equality | `recording/page_load.go` | new |
 | Segment codec with recursive raw extensions | `recording/segment_codec.go`, `recording/codec.go`, `recording/record.go` | new / modified |
 | Segment-to-load membership index | `recording/page_load.go`, `recording/reduce.go` | new / modified |
-| Load transition state/events/effects (`nextLoadScope`) | `recorder/load_scope.go` | new |
+| Load transition state/events/effects (`nextLoadScope`, one-cell helper) | `recorder/load_scope.go` | new |
 | Current-load press selection | `board/submission.go` | modified |
 | Historical load provenance | `query/querier.go`, `query/sketch.go`, `board/feedback_context.go` | modified |
 | Browser reducer load membership | `web/model.js` | modified |
@@ -74,23 +74,43 @@ Selected top-frame navigation, target activation/change and detach invalidate th
 
 Snapshot cancellation is owner-scoped. An unreserved superseded reply cannot mutate caches; a previously reserved commit may finish its historical writes but cannot confirm scope, clear a successor's pending state or mark the successor non-live. Keep execution serialized and cancellation-aware. Snapshot failure, missing root, detach or close leaves scope unavailable, recoverable through the existing explicit capture retry; never restore old scope optimistically.
 
-### Enforced transition model and linearization
+### Enforced transition model and linearization (revised ownership)
 
-`nextLoadScope(state, event)` is pure and returns the next state plus typed effects. The internal states are Unknown, Pending(g), Committing(g, immutable snapshot evidence), Confirmed(g, load), Unavailable(g), and Closed. Events are Invalidate(selected-session facts), SnapshotReady(g, evidence), CommitDone(g, result), SnapshotFailed(g), and Close. A private `loadOwner` holds this state under its mutex; callers cannot assign phase/generation fields or construct commit reservations. Only its transition wrapper runs effects; the selected-top snapshot paths share `commitTopSnapshot` rather than calling mirror.Seg/Resnapshot directly.
+This section supersedes the initial latest-generation-only reservation model. TL32581055 requires preserving queued activation history; TLf4d3e2cb approves one load owner with per-session epochs and ordered tickets. No visible state, user action, deadline or failure policy changes.
 
-| State / event | Next state | Effect / authority |
-|---------------|------------|--------------------|
-| Any nonclosed / Invalidate | Pending(g+1) | Cancel superseded snapshot IO; publish Board pending before enqueue/next capture |
-| Pending(g) / SnapshotReady(g, valid complete evidence) | Committing(g, evidence) | Return one opaque reservation to the sole recorder actor |
-| Any / SnapshotReady(other generation) | Unchanged | Discard evidence, no cache/mirror/sink effects |
-| Committing(g) / CommitDone(g, success), still current | Confirmed(g, load) | Publish complete accepted scope |
-| Committing(g) / write failure, or Pending(g) / SnapshotFailed(g) | Unavailable(g) | Keep Board unavailable; retain error and existing retry action |
-| Any newer state / completion for older generation | Unchanged | No Board confirmation, successor cancellation or live-state mutation |
-| Any / Close | Closed | Cancel owned work and publish unavailable; join existing actor/side workers |
+The conceptual distinction is **ordered recording intent versus current UI scope**. Live/Pause commands already own FIFO recording order; a later command must not retroactively cancel an earlier activation. Navigation can invalidate an in-flight observation of a session, while a newer selected tab merely prevents an older activation from becoming current UI authority.
 
-The reservation transition is snapshot acceptance's linearization point against ingress invalidation. Both use the same load-owner mutex. After a reservation, the actor writes that accepted historical snapshot outside the mutex, so Send never waits for sink IO. Invalidation can supersede a Committing generation immediately and publish pending while its write is held. Those already reserved records legitimately precede the queued navigation in recording order; they are not reclassified as the newer load. A reservation is consumed once. The sole actor's serialization ensures its cache/mirror installation cannot overwrite a newer actor installation; ingress modifies only scope authority. A pre-reservation stale reply has no effects. Post-write confirmation reacquires the owner, runs CommitDone, and confirms Board only while that generation remains current. Publish the pending/confirmed projection under the owner mutex into the leaf Board lock; release before queue lock or CDP/sink IO. Board never calls back into this owner.
+One private `loadOwner` owns, under one mutex:
 
-Any accepted write failure leaves scope unavailable; no rollback pretends the recording write was atomic. Already appended history remains history and existing sink-error handling remains authoritative. No new visible error/retry mode is added. A held sink regression proves navigation can supersede mid-write, old completion cannot confirm, and the queued successor can establish the correct scope. TL96c958be-4700-46a3-9713-e626ca914a9d approves this internal refinement.
+- Stable session cells: trusted session/target/top-frame facts, navigation epoch and attached state. The existing session lookup owns each cell; outstanding private tickets retain a detached cell only until settlement.
+- Immutable ordered snapshot-intent tickets: serial, session-cell identity and cause (activation or refresh). Live creates an activation ticket at ingress; top navigation/document invalidation creates a refresh intent. Existing dirty/resync triggers obtain that same ticket kind before IO. Tickets are carried by already-owned recorder queue work, not a second queue or writer. A ticket can produce one accepted snapshot reservation; a superseded attempt leaves the same intent unfulfilled.
+- Newest UI scope: monotonic generation, selected activation/session, pending/confirmed identity and intended-live flag. Pause changes intended-live/control state while retaining the same load, not clearing saved notes. Closing prevents new admission/UI confirmation while historical queue drain continues.
+- At most one actor capture attempt or reserved commit. A capture samples session epoch and, only when it corresponds to the selected activation, the current UI generation. A reservation carries that attempt and immutable snapshot evidence.
+
+`nextLoadScope` plus a pure one-cell transition helper receive owner values, the relevant session-cell value and a typed event; return next values and typed effects. The thin owner performs one session lookup, updates only that cell and applies effects under its mutex. No map-wide copy or mutation hidden inside a pure function. Private fields/ticket constructors and one `commitTopSnapshot` path prevent selected-top writes bypassing authority. The current committed pure prototype is replaced to implement this revised model before wiring production.
+
+| State / event | Authority transition | Effect |
+|---------------|----------------------|--------|
+| Open / Live intent | Issue immutable activation ticket; select it and advance UI generation to pending | Enqueue FIFO intent, publish pending; later Live never revokes its historical ticket |
+| Already intended-live on same target / duplicate Live | No new intent or generation | Preserve existing no-op command behavior |
+| Open / Pause intent | Retain tickets, session epochs and load; intended-live becomes false | Existing FIFO Stop/control semantics; notes remain associated with the same load |
+| Tracked session / real top navigation or document invalidation | Advance that session epoch; create/coalesce ordered refresh work; advance UI pending only if selected | Cancel only the matching session's unreserved capture; iframe/same-document events do not advance load epoch |
+| Actor / SnapshotStart(ticket) | Sample current attached session epoch and trusted facts; UI generation only if this intent is selected | One serialized capture outside mutex; a navigation before start is observed at the current epoch rather than inventing old snapshot evidence |
+| Capturing / SnapshotReady(ticket, epoch, complete evidence), unchanged epoch and matching session/target/frame | Reserve ticket once under mutex | Return opaque historical commit reservation independent of newest UI generation |
+| Capturing / epoch superseded during IO | Discard unreserved evidence, preserve unfulfilled intent | Same actor observes the new epoch and retries that intent before advancing FIFO; at most one attempt per newly observed epoch, no timer or polling |
+| Capturing / real failure or detached cell | Intent fails through existing unavailable/error path | Keep current scope unavailable if affected; no guessed prior loader; saved history retained |
+| Reserved / later navigation or selected activation change | Reservation remains valid for ordered historical write; newest scope remains pending | Never cancel/retract accepted sink work; no ingress wait on sink IO |
+| Reserved / successful CommitDone | Consume reservation and settle ticket once | Confirm Board only if selected activation, captured UI generation and session epoch still match; otherwise history only |
+| Reserved / failed CommitDone | Consume reservation, retain sink failure | Current affected scope unavailable; no false rollback or confirmation |
+| Any / stale, duplicate or foreign-token completion | No authority change | No cache/scope effects or successor cancellation |
+| Open / Close | Stop issuing tickets and UI confirmation; keep accepted FIFO drain | Existing actor processes already-issued intents/reservations, then closes/cancels/joins owned work |
+| Session / Detach | Mark cell detached, remove its lookup, invalidate affected current scope | Cancel unreserved session capture; retained ticket cannot bind to a new cell reusing the session string |
+
+Snapshot acceptance linearizes at the successful ticket/epoch reservation transition under this same owner mutex. Historical mirror/cache installation and sink writes then execute on the sole actor outside it. The actor's serialization prevents an older reserved commit overwriting a newer actor installation. An unreserved old observation cannot commit. Post-write confirmation reacquires the owner and validates current selected activation, sampled UI generation and session epoch; publish to the leaf Board lock only while those still match. All transition publications release before queue ownership or CDP/sink IO. Board never calls back into the owner.
+
+If initial Live capture is superseded by navigation during IO, its unfulfilled intent retains the initial activation reason while retrying the new observed epoch; it cannot yield to a following Pause and silently lose the initial segment. A refresh observing an already completed exact identity may resnapshot but creates no duplicate activation. The attempt-count guard counts actual CDP starts against activation/refresh intents and epoch advances, including cancelled attempts. A continuous navigation stream cannot manufacture attempts without new event evidence.
+
+Any accepted write failure leaves current affected scope unavailable; already appended records remain history and existing sink-error handling stays authoritative. The visible state/recovery table remains unchanged. Native/fake tests retain the existing queued lifecycle test unchanged, plus cancellation mid-capture, navigation mid-write and close drain.
 
 Board's scope transition accepts a monotonic generation and pending/confirmed value under its lock. Pending immediately invalidates live projections and page-feedback creation admission; confirmation succeeds only for the current generation and matching accepted state. Reducer metadata alone supplies replay facts; runtime pending overlays only the live owner. Preserve original DocSeg and annotation/control authority fences. Audit lock order across every caller before adding an acquirer.
 
@@ -120,8 +140,9 @@ Covered: real top navigation, snapshot races/failure, tab identity, same-load re
 
 | Growth driver | Work | Counted test |
 |---------------|------|--------------|
-| E CDP events | O(1) classification/token update; one serialized snapshot owner | 8/16 duplicate notifications count snapshot starts, concurrent calls <=1, no duplicate activation for unchanged completed identity |
+| E CDP events / A queued snapshot intents | O(1) classification and one session-cell update; one serialized actor capture | 8/16 notifications plus queued activations count starts <= A + 2E, concurrent calls <=1, no duplicate activation for unchanged completed identity |
 | S snapshot nodes | Existing one-pass O(S) document processing per admitted snapshot | Existing fake tree counter plus delayed/cancelled IO proves no extra scan or orphan work |
+| Q queued intents / D attached sessions | One constant ticket per existing queue input, one cell per tracked session; retire with settlement/detach/close, no new durable index | Queued lifecycle/close test counts issued/settled tickets and retained detached cells |
 | L activation segments | One O(1) index insertion each, O(L) retained metadata | 32/64 segments count index writes, full/catch-up parity |
 | H feedback items | O(H) projection with one O(1) membership lookup each | 32/64 mixed notes/sketches count lookup visits, reject nested segment scans |
 | F displayed rows / P painted paths | Existing linear projection/painter; membership checked once per item | Node 32/64 fixture counts visits and clears noncurrent keyed state |
@@ -175,7 +196,7 @@ Names introduced here are intended interfaces; reconcile names with implementati
 | `decodeSegment`, `encodeSegment`, `Decode`, `Encode` | Fuzz JSON object structure and Unicode/numeric boundaries; strict owned authority, recursive duplicate refusal and raw unknown-byte preservation after typed edits, no shared mutation |
 | `State.Apply`, `State.PageLoadAt`, `State.CurrentPageLoad` | Generated activation/feedback sequences: creation membership immutable, index survives DOM reset, one lookup per item, draft DocSeg unchanged |
 | `CatchUp`, `CheckCatchUp` | Every generated valid prefix and repeated compaction: full replay and catch-up agree on load facts and complete history, sketch canonical bytes/digests/receipts unchanged |
-| `nextLoadScope` | Generated state/event sequences: generation monotonicity, exactly one reservation, stale events have no effects, confirmed implies successful current reserved commit, Closed terminal |
+| `nextLoadScope` and pure one-cell transition | Generated ordered-intent/session-event sequences: queued activations preserved, monotonic epochs, one reservation per intent, stale attempts have no effects, current confirmation requires matching selected activation/generation/epoch, close drains history and ends terminally |
 | `Recorder.enqueue`, `document`, `commitTopSnapshot`, `snapshotTop`, `resnapshot` | Stateful fake interleavings with held/failing CDP and sink boundaries: pending precedes IO, reservation linearizes acceptance, superseding navigation remains responsive mid-write, no stale confirmation, joined cancellation and one actor writer |
 | `Board.BeginPageLoad`, `Board.ConfirmPageLoad`, `selectionLocked`, `Selection.PressSelection` | Interleave scope transition and selection admission under barriers: one current scope, no unknown-page feedback, immutable admitted versions, existing delivered limits and unsaved guard preserved |
 | `operatorViewLocked`, `OperatorSketchSince`, `sketchDisplayProjection`, browser model application / `feedbackEntries` | Cross-language replay of generated load transitions: current-only rows/pins/ink/label eligibility agree, complete unfiltered query history remains |
@@ -206,3 +227,7 @@ PQ-1 is addressed by the pure nextLoadScope transition table, private owner/rese
 ### 2026-10-24 — One exact wire identity
 
 TL02693d4d-10fd-4b7f-a3fb-96d20a116b78 approves canonical positive decimal-string root in page_load, validated as int64 in Go, refusing leading zeros and signs. This supersedes the drafted numeric root plus special JavaScript projection. One representation spans disk, live transport, catch-up and browser membership, preventing lossy parsing without a second key. Round2 accepted PQ-1/PQ-2 with no new findings; implementation still waits for this final contract and estimate to clear change-code.
+
+### 2026-10-24 — FIFO historical intent and current UI scope
+
+Read-only recorder integration found that latest-generation-only reservations would discard earlier queued Live activations before snapshots start, violating unchanged TestRecorderSegments. TL32581055 requires queued history preserved. TLf4d3e2cb approves the revised transition section: per-session cells, immutable ingress tickets, epoch-fenced attempts with one event-driven retry per observed epoch, one actor outside the mutex for writes, newest-scope-only Board confirmation, and close draining already-issued history. This is the second mechanism change; a third requires re-planning recorder ownership as a whole. Recorder production edits remain paused until this revision clears plan-quality.
