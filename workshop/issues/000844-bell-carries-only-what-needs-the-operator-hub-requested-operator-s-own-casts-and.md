@@ -196,6 +196,18 @@ Reviewer noted intermittent existing TestFreshStartupRunSerializesLaunchThroughA
 
 NEXT ACTION: monitor retained suite to completion and classify every failure; use registered-flake resume only when its conditions hold. On green, send pair:4 current Git head and three short operator steps for the combined stage (routine restart/feed, explicit hub --notify, expected cast start/stop remaining quiet); no unilateral pair:0 change. Record live verdict, then enter sdlc merge --yes for PR593 and verify tracker done/archive/runner exit before hub outcome. If further design is required, stop for TL scope cut.
 
+### 2026-10-24 — recorded suite inventory defect; bounded checker fix approved
+
+Retained suite lease-1632073207 acquired its slot after 3,634s queued and continues running; do not stop it early. cmd/internal/couchcmd passed 98.527s. TestProductionArtifactReferencesAreExactlyClassified deterministically failed: six new production files lack inventory declarations, and notice_route.go's typed class constants mention agent/continuation/lifecycle families. Five files were individually audited as non-artifact sources (ephemeral model/broker/UI/parser state, no artifact path construction); only manifest entries prepared. No debt list or test rule changed.
+
+The current vocabulary checker cannot express const ValueSpec use sites. Hub approved the bounded correction in submitted delivery 79f32e6d-3d0c-4b8c-8aea-32413d2d7107: exact typed-constant context keyed by type and symbol, literal and count; reject implicit/untyped/computed initializers and wrong symbol/type/count; mutation regressions; list only eight actual enum tokens plus the five audited non-artifact entries. This is inventory coverage, not a fourth routing design delta. Protected local-gates path list does not include the manifest/checker source. No waiver/debt growth. Let the running suite finish first to retain every package result, then targeted proof, narrow re-close and a fresh recorded head.
+
+Fleet load notice f519f9ef-8cc2-4170-aa40-57339de83591 verified submitted: no full tests outside the queue; targeted runs at most count10, one at a time per slot, no load-stress work without TL approval. No additional test is running here. New 64KiB actual-proof authorization 8ce0868e-7985-4e32-be2d-4ebf1fc1d02b also verified; existing close used the separately recorded 128-source authorization.
+
+Pair:4 message 7cb81381-2930-4b27-b018-50c88df654f2 verified submitted: combined stage is #857+#866+#844 after green, explicit hub build go still required; no pair:0 action. Operator restart will use COUCH_PROFILE_DIR for #871, configured by the stage coordinator/hub.
+
+NEXT ACTION: wait for terminal session91413's complete result; classify all failures, then implement the approved exact checker contract test-first and verify sequentially. Do not cancel/restart the owned run. Re-close narrowly and record the repaired head before sending pair:4 green head/checklist; live acceptance still precedes merge.
+
 ## Estimate
 
 Produced via brain/data/life/42shots/velocity/estimate-logic-v3.1.md against baseline-v3.1.md. Method A only. Calibration is flagged stale by estimate-source, so these are provisional ship-wall-clock hours. Read v2/v2.1 procedure and table: retain issue/spec design cost; use x0.2 design discount for approved module/integration/refactor decisions, 40% implementation conversion, familiarity 1.0 and 15% design buffer.
