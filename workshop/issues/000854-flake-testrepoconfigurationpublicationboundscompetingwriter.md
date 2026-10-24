@@ -56,6 +56,8 @@ A caller with more budget than the wait still gets a genuine busy after 1 s. No 
 
 ## Log
 
+
+- 2026-10-24: closed — Actual not measured (--no-actual per the TL fleet notice for ariadne#593): close refused with "measurement snapshot does not serialize: ... measurement exceeds 65536 bytes". Root cause fixed, no retry or timeout bump: withUpdateLockContext polled store.lock for a fixed storeReadLockWait independent of the caller deadline, so with ~1 s of budget left a deschedule between the context check and the wait-deadline test reported busy. storeLockBound caps the wait at the remaining budget and a wait the cap ends reports context.DeadlineExceeded. TestStoreLockWaitEndsAtTheCallerDeadline (deadline-blind check: fixed wait busy, bounded wait DeadlineExceeded; mutation of the cap fails with the issue symptom), TestStoreLockWaitWithinBudgetStaysBusy; TestRepoConfigurationPublicationBoundsCompetingWriter 5/5 under load; full couchcore passes (333 s); sdlc-local/affected pass on c4d4ed487 (25 packages).; review verdict: SHIP
 ### 2026-10-23
 
 - Implemented in c088041de. `storeWait{d, deadline}` carries the deadline mark into `acquireThreadStoreLockWithin`, so a genuine busy from inside the locked work (a nested preview lock) is never relabelled. `withStoreLockChecked` keeps its signature for the literal-0 callers; `withUpdateLockContext` uses `withStoreLockBounded`, computing the bound inside the coordinator callback, after the coordinator wait has spent budget.
