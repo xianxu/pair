@@ -360,6 +360,17 @@ Next: await #581 landing notice, update the normal pinned module, require the
 unmodified regression/full pure package and race PASS, then recorded affected
 on pushed head, hub-authorized operator stage and one issue-close review.
 
+### 2026-10-23 19:27 — pre-close selection contract updated
+
+Authenticated hub receipt3ac9bb0c-8bd5-4c73-bf96-a90900380800 supersedes the
+explicit affected command above: after the #581 pin and passing targeted checks,
+run `sdlc local-check run --pre-close` on the pushed head for close and boarding.
+Current installed help exposes that flag and explains affected selection for a
+train-enabled repository whose main declares it. Inspect its printed choice and
+reason and report a discrepancy to the hub. No check was queued against the
+known-red dependency. Fresh authoritative #581 observation: still not landed,
+claimed by ariadne:2. All other next steps and preserved evidence remain valid.
+
 ## Revisions
 
 ### 2026-10-23 — initial implementation design
