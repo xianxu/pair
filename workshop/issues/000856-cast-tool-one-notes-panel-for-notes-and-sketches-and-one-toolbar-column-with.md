@@ -59,6 +59,13 @@ Close and landing use their SDLC gates. The recorded exact-source pre-close chec
 
 ## Log
 
+### 2026-10-24 — Final-source native set and recorded-check lease
+
+One current-source run on087631062be649f7578cab38fe75ddc6c3044ed1 passed all8 named native/module tests in32.750s, no skips, including the final16-state composed geometry oracle and captureddrag. Output is retained in [native-final-source.log](../plans/000856-cast-feedback-workspace-plan.side/evidence/native-final-source.log). This supersedes mixing earlier interaction output with later geometry output: one source now supplies the complete qualification. All604 Node tests and reader inventory pass.
+
+Recorded pre-close full fallback is retained as terminal5418, lease-306801268, run2d195b5c900c7a2bf81b53c80416abe4, detached snapshot /Volumes/TestScratch/local-checks/sdlc-local-1248088162; queued FIFO11 when reported. Hub was sent the exact pushed head/lease for priority re-grant. Preserve this runner; do not restart while queued/running. Next: full close round3 over the qualified source/evidence, then await the recorded pass and promptly enter merge. No stage action until hub sequencing; #857 starts only from landed main.
+
+
 ### 2026-10-24 — BR-4 composition evidence retained
 
 [workspace-geometry.log](../plans/000856-cast-feedback-workspace-plan.side/evidence/workspace-geometry.log) retains the exact final-source non-skipped result on ac362f793a33997bcc0503208ed07171a8dd2711: all16 actual toolbar/panel/status/editor measurements, deliberate overlap rejection, captured40px drag, existing save/stale/prepare/unsaved guards, PASS6.63s. The red minimized-overlap log is retained alongside it; node-final.log records all604 Node passes. Reader inventory passed. Source trees match the committed test blob named in the log. This completes the specific composed-workspace qualification that round2 left open; earlier native-review-fixes.log continues to cover drawing pressure, privacy, tab/SPA and handoff on unchanged production paths.
