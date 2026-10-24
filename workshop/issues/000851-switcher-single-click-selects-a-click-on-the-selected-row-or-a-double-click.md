@@ -74,7 +74,7 @@ Envelope: one decision per accepted press, no IO before the existing declared op
 
 - [x] Add RED pure event and real SGR mouse-path regressions for different/selected rows, rapid double press and delayed selected press; canonical recordless-slot identity, reorder/replacement, hidden-chip reveal, group counts, nested frames and current operation vetoes.
 - [x] Implement the shared pure select/activate transition and scoped Console routing/classification. Preserve direct actor-view chip switching and keyboard behavior. Pin release/motion/right/modifier negatives, manual-versus-paging origin, stale geometry and8/16 dispatch counts.
-- [ ] Run focused and race checks plus complete couchtty; update the existing atlas/user interaction text and individually audit any named affected-reader changes. Commit/push; run sdlc local-check run --pre-close and inventory before binary-owned close. Request a hub-authorized :0 stage/operator click check after the tested build is reviewable; then normal SDLC landing and stage cleanup.
+- [x] Run focused and race checks plus complete couchtty; update the existing atlas/user interaction text and individually audit any named affected-reader changes. Commit/push; run sdlc local-check run --pre-close and inventory before binary-owned close. Request a hub-authorized :0 stage/operator click check after the tested build is reviewable; then normal SDLC landing and stage cleanup.
 
 ## Log
 
@@ -142,3 +142,7 @@ At authenticated ready request59af07a4-0538-4fd6-ac5b-abe10cda0833, ran sdlc sta
 ### 2026-10-24 — Combined build verified, awaiting operator
 
 Pair:3 confirmed combined stage BUILT (Submitted470c6612-bee3-4b6d-bdac-1a75e91a54a5). Independently verified pair:0 Git clean at3d0135b0021209730956929c8926e30f9799ba79, and all five Go1.27.3 binaries report that exact vcs.revision with vcs.modified=false. Read checklist /Users/xianxu/workspace/pair/workshop/evidence/000838/morning-combined-check.md: main856 plus851/838/842;857 excluded;851 gestures match the approved contract.838 owns the supported stage lease and will coordinate its clear before individual landing. Hub notified via6baf5f53-86b0-45a8-a337-f351b6643266. Await actual operator result; build provenance and coordinator targeted passes are not operator acceptance. No own runner or pending code change.
+
+### 2026-10-24 — Operator acceptance PASS, closing
+
+Authenticated Submitted ops:0 delivery51719893-1354-48dd-b33a-a4c70d7d94b4 reports operator switcher-click PASS ("works") on verified combined3d0135b0021209730956929c8926e30f9799ba79 and directs close/landing. No851 code changed since recorded full-suite PASS13m54s on402b6b1d8d111dac5c27abcad67b8a0e56faafe9 (30e6ba7b0c61); branch descendants are issue Log only. Fresh make test-affected-inventory passes with no repairs. Atlas, targeted/race/real SGR tests, exact-count and keyboard proofs plus native operator acceptance satisfy the plan; ticked final verification row. Normal measurement and binary-owned boundary review next, then SDLC merge. Pair:3 owns combined stage clear; coordination3fb502d1-828f-4573-a1f2-8ee75eed7e48 is Submitted. Do not touch another issue's lease.
