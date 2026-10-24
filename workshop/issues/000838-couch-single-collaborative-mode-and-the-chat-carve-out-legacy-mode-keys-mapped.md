@@ -587,6 +587,21 @@ Next: read that retained result; on PASS update the record and re-enter one
 sdlc merge --yes. On failure classify it before any repeat. The combined stage
 is cleared and operator acceptance remains recorded. No landing yet.
 
+### 2026-10-24 — final-code recorded suite PASS; resume landing
+
+The retained pre-close runner terminal55443 completed EXIT0 on repaired
+code dfdfb47c55bd4655d9401712bec710e1b7593b6f in 12m37s, recorded
+sdlc-local/suite. Attempt 0badb8a5914ae357e677a0deecab0ed7 and
+lease-2996623973 were retained through the normal machine queue without
+requeue, cancellation or manual full-suite execution. Saved log:
+.git/sdlc/local-checks/dfdfb47c55bd4655d9401712bec710e1b7593b6f/suite.log
+SHA256 38c2b54d76e219ea3bea2501409300e49b91597d8de48c57a6dcf62970a46af2.
+Close remains SHIP, operator PASS recorded, later descendants are documentation
+and close evidence only. The boarding precondition is now satisfied; next is
+one sdlc merge --yes and its authoritative integration/landing gates.
+The authenticated overload notice 4e752163 is in force: no out-of-queue full
+suites or native matrices; any integration verification stays queue-budgeted.
+
 ## Revisions
 
 ### 2026-10-23 — initial implementation design
