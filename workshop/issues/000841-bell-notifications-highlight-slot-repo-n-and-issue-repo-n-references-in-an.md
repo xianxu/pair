@@ -77,6 +77,10 @@ Recorded affected attempt e5a7db4c973ffa5a5ff24dae9232b02b on executable d30f7c5
 
 At TL direction, ran the identical focused command once on separate untouched diagnostic trees: go test -json ./cmd/internal/couchcore -run '^TestLeaveParkRetriesProvenRollbackWithinOneQuit$' -count=1 -timeout=90s. Issue executable d30f7c51 failed both /15 and /30 with an unexpected third recovery drive (65.102s). Pure origin/main f109640a6ad2477df1629ea9b1238d0b90a3f634 also failed both: /15 14 parked/1 unresolved (20.72s), /30 28 parked/2 unresolved (39.97s), context deadline after one drive; package61.055s. Filed unclaimed high-severity #852 with both reproductions for TL dispatch. Logs and trees retained under /Volumes/TestScratch/pair841-leave-repro-gub_n4rh. No park source changed, no flake registered, no check retried and no recorded runner remains active. #841 remains accepted SHIP/high, not landed; await #852 disposition, then obtain required affected pass before boarding. #825 remains queued after landing.
 
+### 2026-10-23 — Authorized overlapping claims
+
+TL directive 295d506f-33e6-4f3b-a09a-89a60e9a0537 authorizes starting #825 from fresh main while retaining #841's queued check, then returning to board #841 on its pass. Both #841 (accepted SHIP, waiting for check/landing) and #825 (claimed, beginning root-cause work) remain owned by pair:9; ariadne#580 tracks overlapping-time attribution. Verified lease-1223841125's detached checkout HEAD954e3caea7078371c91c7523e86a70bdad751658 at /Volumes/TestScratch/local-checks/sdlc-local-1464763110; caller branch changes cannot alter that source. Dependency declarations, affected policy and Makefile.local match main. Retain runner81109, no restart/cancel or duplicate check. Scheduling only; no design revision.
+
 ## Revisions
 
 ### 2026-10-23 — Resume landing after #852
