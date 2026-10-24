@@ -273,8 +273,11 @@ func TestWaitOriginalPermitReachesMailboxCommit(t *testing.T) {
 			if !w.watcher.seen[w.worker].notified {
 				t.Fatal("suppressed wait retained retry")
 			}
-			if _, ok := w.watcher.questions[bindingThread(w.worker)]; !ok {
-				t.Fatal("suppression removed passive attention")
+			if _, ok := w.watcher.questionConditions[bindingThread(w.worker)]; !ok {
+				t.Fatal("suppression removed the judged episode")
+			}
+			if _, ok := w.watcher.questions[bindingThread(w.worker)]; ok {
+				t.Fatal("connected owner granted a question bell")
 			}
 			if got := w.tickAt(12 * time.Minute); len(got) != 0 {
 				t.Fatal("suppressed wait replayed")

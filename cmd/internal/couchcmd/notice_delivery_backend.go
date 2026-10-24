@@ -53,7 +53,15 @@ func (s *messageService) resolveNoticeOwner(o couchcore.NoticeDeliveryOccurrence
 	root := o.OwnerRoot
 	var identity couchcore.WorkspaceIdentity
 	known := false
+	pendingIdentity := false
 	s.mu.Lock()
+	if connected := s.connected.Load(); connected != nil {
+		for binding, live := range *connected {
+			if _, committed := s.workspaces[binding]; live && !committed && (o.Thread == (couchcore.ThreadAddress{}) || bindingThread(binding) == o.Thread) {
+				pendingIdentity = true
+			}
+		}
+	}
 	for binding, workspace := range s.workspaces {
 		if o.Thread != (couchcore.ThreadAddress{}) && bindingThread(binding) == o.Thread || o.Thread == (couchcore.ThreadAddress{}) && o.SourceRoot != "" && workspace.WorktreeRoot == o.SourceRoot {
 			identity, known = workspace, true
@@ -90,7 +98,9 @@ func (s *messageService) resolveNoticeOwner(o couchcore.NoticeDeliveryOccurrence
 		s.mu.Lock()
 		booting := s.noticeBoot[root]
 		s.mu.Unlock()
-		if booting {
+		// Registry publication precedes EffectConnect's identity/broker commit.
+		// That in-flight witness is unknown readiness, never proof of absence.
+		if booting || pendingIdentity {
 			return couchcore.NoticeDeliveryOwner{State: couchcore.NoticeOwnerBooting}
 		}
 		return couchcore.NoticeDeliveryOwner{State: couchcore.NoticeOwnerUnavailable}

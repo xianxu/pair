@@ -165,16 +165,16 @@ The following names are the production API to implement; unit tests call these f
 
 **Files:** producer anchors in the routing table, couchcmd/attention.go, wait_notice.go, notify_service.go, archive_notify.go, automatic_input_stall.go; associated tests.
 
-- [ ] Add failing producer-inventory and production-function tests from the executable test contract before rewiring their effects.
-- [ ] Wire the typed sources and existing canonical delivery provenance into the one routing policy, keeping source identity through callbacks.
-- [ ] Run `go test -race ./cmd/internal/couchtty ./cmd/internal/couchcmd -run 'Test.*(Notice|Attention|Warning|Picker|Question|Notify|AutomaticInputStall|Startup)' -count=1`; classify unrelated baseline failures with exact evidence.
-- [ ] Audit each changed reader, refresh only its named certificate via the inventory's exact repair command, run `make test-affected-inventory`, then commit the integrated sweep.
+- [x] Add failing producer-inventory and production-function tests from the executable test contract before rewiring their effects.
+- [x] Wire the typed sources and existing canonical delivery provenance into the one routing policy, keeping source identity through callbacks.
+- [x] Run `go test -race ./cmd/internal/couchtty ./cmd/internal/couchcmd -run 'Test.*(Notice|Attention|Warning|Picker|Question|Notify|AutomaticInputStall|Startup)' -count=1`; classify unrelated baseline failures with exact evidence.
+- [x] Audit each changed reader, refresh only its named certificate via the inventory's exact repair command, run `make test-affected-inventory`, then commit the integrated sweep.
 
 ### Task 4: documentation and close
 
 **Files:** relevant atlas/couch attention documentation and atlas/index.md; this issue/plan.
 
-- [ ] Document policy-table anchor, operator eligibility, ownership, automation-off and bounded delivery semantics at map level.
+- [x] Document policy-table anchor, operator eligibility, ownership, automation-off and bounded delivery semantics at map level.
 - [ ] Run `git diff --check`, targeted verification above and inventory; push final head, run `sdlc local-check run --pre-close` and await its recorded result.
 - [ ] Finish the pre-close reader inventory and verification evidence in the issue Log.
 

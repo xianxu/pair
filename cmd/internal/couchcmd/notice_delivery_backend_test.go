@@ -46,3 +46,22 @@ func TestNoticeDeliveryRejectsChangedAutomationEpoch(t *testing.T) {
 		t.Fatal("stale effect created broker message")
 	}
 }
+
+func TestNoticeOwnerDefersRegistryConnectUntilIdentityIsCommitted(t *testing.T) {
+	r, slots := hubMessageRig(t)
+	source := slots[2]
+	r.s.mu.Lock()
+	identity := r.s.workspaces[source]
+	delete(r.s.workspaces, source)
+	r.s.mu.Unlock()
+	occurrence := couchcore.NoticeDeliveryOccurrence{Thread: bindingThread(source)}
+	if got := r.s.NoticeOwner(occurrence); got.State != couchcore.NoticeOwnerBooting {
+		t.Fatalf("connected source with pending identity treated absent: %+v", got)
+	}
+	r.s.mu.Lock()
+	r.s.workspaces[source] = identity
+	r.s.mu.Unlock()
+	if got := r.s.NoticeOwner(occurrence); got.State != couchcore.NoticeOwnerEnabled {
+		t.Fatalf("committed identity did not resolve owner: %+v", got)
+	}
+}

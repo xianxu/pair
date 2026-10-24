@@ -110,6 +110,18 @@ A new complete couchcmd run is in progress with JSON events retained at /Volumes
 
 Final repeated race check PASS: go test -race ./cmd/internal/couchcore ./cmd/internal/couchtty ./cmd/internal/couchcmd -run 'TestNotice(Route|Delivery|Owner|Class)|TestConsoleNotice|TestSupervisionWarningCompositionRaisesAttention' -count=3 -timeout=90s (core 2.794s, tty 2.572s, cmd 6.920s). make test-affected-inventory and git diff --check PASS after the supervision fixture correction. Complete couchcmd JSON run remains active; next inspect its exact result, then record pre-close on the pushed final head.
 
+### 2026-10-24 — complete-package result and final readiness correction
+
+The complete couchcmd JSON run finished in 502.363s with 1,982 passing test/subtest events and only TestWaitOriginalPermitReachesMailboxCommit/false and /true failing (parent included). Both failures expected passive bell attention under a connected owner after an OFF/ON transition. Updated those expectations to retain the judged episode while requiring no bell; unchanged mailbox suppression, epoch and no-replay assertions remain. Focused automation/original-permit race verification passed (5.538s), and final owner/agent-kind/automation race verification passed (3.748s). This was a branch test-expectation defect, not a classified flake or passing complete-package run.
+
+Source audit also found registry liveness can precede EffectConnect's identity/broker commit. resolveNoticeOwner now treats that in-flight witness as booting rather than absent; the regression failed with Unavailable before the correction and passes after identity commitment. Repeated owner/startup/condition race verification passed x3 (5.810s). The new real Console-to-adapter-to-registry/broker test covers Claude and Codex, exactly one system-origin delivery and matching canonical submitted receipt, independently rerun in the final race selection. Its inputs are literal fixture data and disposable service state, without external reader inputs.
+
+Standing authorization from ops:0 delivery 8ed4d3ff-1e37-4edf-9c60-5ecaf47edafe applies only if measurement refuses with 'measurement sources exceed snapshot limit 128': use --no-actual with the exact refusal and measured window in --verified, never guessed hours. Measurement has not yet been attempted for this issue.
+
+Integrated producer selection passed with race detection: go test -race ./cmd/internal/couchtty ./cmd/internal/couchcmd -run 'Test.*(Notice|Attention|Warning|Picker|Question|Notify|AutomaticInputStall|Startup)' -count=1 -timeout=180s (tty 16.913s, cmd 16.274s). make test-affected-inventory passed after staging the new agent-kind test; git diff --check passed.
+
+NEXT ACTION: commit/push this final checkpoint, then run recorded local-check --pre-close. No recorded check or live acceptance is claimed. Coordinate any :0 stage/live check through the hub before touching that slot; close/landing remain outstanding.
+
 ## Estimate
 
 Produced via brain/data/life/42shots/velocity/estimate-logic-v3.1.md against baseline-v3.1.md. Method A only. Calibration is flagged stale by estimate-source, so these are provisional ship-wall-clock hours. Read v2/v2.1 procedure and table: retain issue/spec design cost; use x0.2 design discount for approved module/integration/refactor decisions, 40% implementation conversion, familiarity 1.0 and 15% design buffer.
