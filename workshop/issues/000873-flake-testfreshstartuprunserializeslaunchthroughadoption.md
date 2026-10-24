@@ -51,6 +51,7 @@ After implementation qualification: push, run the recorded pre-close, close with
 ## Log
 
 ### 2026-10-24
+- 2026-10-24: closed — Held kernel-lock RED/GREEN at both startup sites with cancellation, typed exhaustion and late retained evidence; maintenance control preserved. N=2/4 counts linear, old-policy overlay fails all six cases. Targeted core PASS17.973s; original Console.Run 1/50 failures before vs50/50 PASS96.407s after (not calibrated rate). Inventory PASS immediately before close; atlas updated. Recorded affected lease-1096961115 remains queued on runtime c6644e8d; current descendant adds only Log and refusal evidence. Require recorded pass before landing. Normal actual refused measurement snapshot exceeds65536bytes, exact receipt workshop/evidence/000873/measurement-refusal.txt; --no-actual authorized by standing TL f039e10f / ariadne#593. Hub owns projects. #854 second lander applies context cap to both calls. (done-when: contract moved since change-code; judged by the close review); review verdict: SHIP
 
 ### 2026-10-24 — root trace and bounded measurement
 
