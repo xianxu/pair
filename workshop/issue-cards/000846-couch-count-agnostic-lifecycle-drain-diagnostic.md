@@ -1,6 +1,6 @@
 ---
 id: 000846
-status: codecomplete
+status: done
 created: 2026-10-23
 updated: 2026-10-23
 estimate_hours:
@@ -22,6 +22,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: 01c56b37d69c2ee1e46cd525efc38503dab790d2
         evidence_commit: 3476752e77ef8de5aa3a47f991a4800ee9507e2a
+        landed_commit: 32706f0901dd26ce209d565b0ce11adc46e6412b
 ---
 
 # Couch: count-agnostic lifecycle drain diagnostic
