@@ -1,0 +1,8 @@
+--- FAIL: TestValidateChatAnswerLinkRecognition (0.00s)
+    --- FAIL: TestValidateChatAnswerLinkRecognition/malformed (0.00s)
+        edits_test.go:166: editorial-chat at bytes 73:73: preserve each chat ask; only append its answer link
+    --- FAIL: TestValidateChatAnswerLinkRecognition/empty_destination (0.00s)
+        edits_test.go:166: editorial-chat at bytes 62:62: preserve each chat ask; only append its answer link
+FAIL
+FAIL	github.com/xianxu/pair/cmd/internal/editorial	0.311s
+FAIL

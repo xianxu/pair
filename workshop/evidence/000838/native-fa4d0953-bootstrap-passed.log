@@ -1,0 +1,45 @@
+=== RUN   TestNativeEditorial
+    binaries.go:62: fa4d09531694f7dfe95c3906e03f8614fe2a80ad
+        
+    binaries.go:62: git version 2.54.0 (Apple Git-157)
+        
+    binaries.go:62: sdlc version path=/Users/xianxu/workspace/ariadne/bin/sdlc revision=8f3e340ec633957c6e199d2a86d5349b4b88c0ae modified=false
+        
+    binaries.go:62: weave version dev
+        
+    binaries.go:62: zellij 0.45.1
+        
+    binaries.go:62: NVIM v0.11.7
+        Build type: Release
+        LuaJIT 2.1.1741730670
+        Run "nvim -V1 -v" for more info
+        
+=== RUN   TestNativeEditorial/claude
+    owner.go:218: native fleet isolation: root=/Volumes/TestScratch/pc-1505394799 run=27c8536a154d744f3b979dd50f6cca7a agent=claude workers=1
+    editorial_acceptance_test.go:201: native guidance: complete candidate bytes=63976 actor prefix bytes=32768 truncated=true exact-prefix=PASS
+    editorial_acceptance_test.go:380: native authored fixture: agent=claude case=chat-tag exact-parent-and-side-docs=PASS highlight-rounds=PASS notices="" owned-refusal=true
+    editorial_acceptance_test.go:380: native authored fixture: agent=claude case=chat-answer-invalid exact-parent-and-side-docs=PASS highlight-rounds=PASS notices="" owned-refusal=true
+    editorial_acceptance_test.go:380: native authored fixture: agent=claude case=frontmatter-unread-tag exact-parent-and-side-docs=PASS highlight-rounds=PASS notices="frontmatter could not be read, so any legacy mode keys in it were not read" owned-refusal=false
+    editorial_acceptance_test.go:380: native authored fixture: agent=claude case=legacy-chat-map exact-parent-and-side-docs=PASS highlight-rounds=PASS notices="collaboration-mode map is a legacy key; its chat sections are read as @@chat@@" owned-refusal=true
+    editorial_acceptance_test.go:380: native authored fixture: agent=claude case=ask-command exact-parent-and-side-docs=PASS highlight-rounds=PASS notices="" owned-refusal=false
+    editorial_acceptance_test.go:380: native authored fixture: agent=claude case=ask-question exact-parent-and-side-docs=PASS highlight-rounds=PASS notices="" owned-refusal=false
+    editorial_acceptance_test.go:380: native authored fixture: agent=claude case=legacy-keys-ignored exact-parent-and-side-docs=PASS highlight-rounds=PASS notices="retired keys ignored: presentation, presentation-mode, process-instruction, processing-instruction, processing-mode" owned-refusal=true
+    editorial_acceptance_test.go:427: native editorial: agent=claude actor=fixture:0 upstream=5a17f789619d3dcaafec62ae51b350833836a3e7 authored-decisions=mechanical highlight-only=PASS unchanged-file-shadow-state-round-on-owned-refusal=PASS migration-preview-confirm-stale-lossy=PASS elapsed=18.397857083s
+    fleet.go:505: native fleet cleaned: root=/Volumes/TestScratch/pc-1505394799 all owned generations absent; direct child and IO joined
+=== RUN   TestNativeEditorial/codex
+    owner.go:218: native fleet isolation: root=/Volumes/TestScratch/pc-299771203 run=aec502c00df442b595a181853c7ddf91 agent=codex workers=1
+    editorial_acceptance_test.go:201: native guidance: complete candidate bytes=63976 actor prefix bytes=32768 truncated=true exact-prefix=PASS
+    editorial_acceptance_test.go:380: native authored fixture: agent=codex case=chat-tag exact-parent-and-side-docs=PASS highlight-rounds=PASS notices="" owned-refusal=true
+    editorial_acceptance_test.go:380: native authored fixture: agent=codex case=chat-answer-invalid exact-parent-and-side-docs=PASS highlight-rounds=PASS notices="" owned-refusal=true
+    editorial_acceptance_test.go:380: native authored fixture: agent=codex case=frontmatter-unread-tag exact-parent-and-side-docs=PASS highlight-rounds=PASS notices="frontmatter could not be read, so any legacy mode keys in it were not read" owned-refusal=false
+    editorial_acceptance_test.go:380: native authored fixture: agent=codex case=legacy-chat-map exact-parent-and-side-docs=PASS highlight-rounds=PASS notices="collaboration-mode map is a legacy key; its chat sections are read as @@chat@@" owned-refusal=true
+    editorial_acceptance_test.go:380: native authored fixture: agent=codex case=ask-command exact-parent-and-side-docs=PASS highlight-rounds=PASS notices="" owned-refusal=false
+    editorial_acceptance_test.go:380: native authored fixture: agent=codex case=ask-question exact-parent-and-side-docs=PASS highlight-rounds=PASS notices="" owned-refusal=false
+    editorial_acceptance_test.go:380: native authored fixture: agent=codex case=legacy-keys-ignored exact-parent-and-side-docs=PASS highlight-rounds=PASS notices="retired keys ignored: presentation, presentation-mode, process-instruction, processing-instruction, processing-mode" owned-refusal=true
+    editorial_acceptance_test.go:427: native editorial: agent=codex actor=fixture:0 upstream=5a17f789619d3dcaafec62ae51b350833836a3e7 authored-decisions=mechanical highlight-only=PASS unchanged-file-shadow-state-round-on-owned-refusal=PASS migration-preview-confirm-stale-lossy=PASS elapsed=27.803315875s
+    fleet.go:505: native fleet cleaned: root=/Volumes/TestScratch/pc-299771203 all owned generations absent; direct child and IO joined
+--- PASS: TestNativeEditorial (61.86s)
+    --- PASS: TestNativeEditorial/claude (20.70s)
+    --- PASS: TestNativeEditorial/codex (30.20s)
+PASS
+ok  	github.com/xianxu/pair/cmd/couch	62.010s

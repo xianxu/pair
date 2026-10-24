@@ -300,7 +300,8 @@ Stable lock inodes occupy 256 stripes in session-locks-v2 and are retained.
 
 Startup attachments and explicit Continue use the same single bounded retry.
 Background attachment does not block the console or steal focus. Every failure
-keeps its Continue outcome and shows a reason with a one-click warm attach retry;
+keeps its Continue outcome and shows a reason; activating its selected row
+retries the warm attachment (if its row is not selected, select it first);
 a later inventory observation may independently change the outcome.
 Authenticated wrappers reconnect and join the broker independently of panes;
 retained thread/workspace, positive terminal listing, readiness and exact process
@@ -1696,18 +1697,10 @@ CLI. It runs in-process against the store and needs no supervisor.
     - A no-op write keeps the previous round.
     - **No stale round:** the old sidecar is removed before the document moves, so a failed round write (a warning) leaves none.
   - `round FILE --json` answers `{Code, Error, Round, Cleared}` (the parley.nvim#383 contract). `Cleared` is any submit of the file after `at` in the raw ledger, folded submits included, through `submitNames`, which `OwedForDocument` also uses.
-  - **Propose:** under the document's `presentation: propose`, a non-frontmatter write keeps the base text and writes the body's diff as markers (`ProposeDocument`, `propose.go`), one per changed line. Unpaired blank lines are not marked.
-    - **The engine:** `BuildEdit`/`contentStep` (`round.go`) is shared with `pair review apply`, so both paths behave identically.
-    - **Applied directly** (`directUnderPropose`):
-      - records wholly inside the frontmatter, which is never proposed;
-      - a side-doc answer (`answersSideDoc`): a ready operator marker (`readyMarkerIn`, `marker.go`, the markers.lua grammar) replaced by a new `→ [proposal|discussion](PATH)` link;
-      - the fold a link's `🤖[fold in]` asks for, which keeps the link with ` (folded DATE)` (S3).
-    - **Refused:** a record crossing the frontmatter's end, or a body write changing the frontmatter (`propose-unencodable`).
-    - **Operator-owned keys:** `presentation` and `collaboration-mode` refuse any agent change on every path, `write --frontmatter` included (`operator-owned`).
-    - **Conformance:** `testdata/edit-records/conformance` holds ariadne#437's universal-review examples byte for byte. The file, shadow, hash and round all follow the written marker bytes.
-    - A hunk over 3 lines refuses with `propose-too-large`.
-    - A line the marker grammar can't carry refuses with `propose-unencodable`.
-    - Both refusals name the one fallback, a side-doc proposal.
+  - **Current writes (#838):** `BuildEdit` (`round.go`) is shared with `pair review apply`. New edits are clean text with highlight presentation; retired document presentation keys never select direct or proposal output. No three-line proposal limit applies to new writes.
+  - **Historical presentation:** old `Round.presentation` and `Span.presentation` values keep their direct/highlight/propose meanings through reading, records, commits and resume. An absent span value falls back to the round, then highlight. Known fields and duplicate keys remain strictly validated; unknown extensions, including nested values, survive rewrites. New writes do not reinterpret saved rounds.
+  - **Source protection:** normal writes preserve legacy mode/instruction keys and real `@@chat@@` tags and their heading attachment. Chat-item text is retained with only an answer-link append. A refused batch publishes no subset. Retired settings produce shared nonfatal notices instead of selecting a mode.
+  - **Shared semantics:** the reviewing agent follows the shared collaborative round instructions for questions, commands, scope and briefs. Couch enforces structural preservation, not natural-language intent. The snapshot, legacy grammar and lossless operator map-to-tag migration are mapped in [couch-agentic-documents.md](couch-agentic-documents.md#collaborative-snapshot-838).
 - **Ledger:** the message service's `messageEndpoint.Deliver`
   (`message_deliveries.go`) appends one row per delivery that may have
   reached the agent: submitted, indeterminate, an endpoint error, or a
@@ -3408,7 +3401,14 @@ reasserting click-only mode over a child that needs drag motion.
 The existing Ctrl+vertical-wheel product policy remains explicit in the typed
 input adapter; it is separate from terminal mode ownership and tracked by #226.
 
-A click dispatches the SAME declared `switch` (or `resume`) operation Enter
+Inside the open switcher, a left press on a different row selects it without
+switching; a press on the selected visible row activates it (#851). A double
+click therefore selects then activates, with no timer. Chips inside the open
+switcher follow the same rule; a hidden chip first reveals and selects its
+row, while +N retains its group-opening action. Tab-bar chips outside the
+switcher still activate immediately. Keyboard behavior is unchanged.
+
+An activating click dispatches the SAME declared `switch` (or `resume`) operation Enter
 dispatches, chosen by the same `enterOperationFor` rule — one authority, because
 a restatement had already diverged on its first day. The one difference is that a
 click is always MANUAL: it suppresses the attention capture, so the landing is

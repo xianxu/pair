@@ -5,7 +5,9 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	"github.com/xianxu/ariadne/pkg/sidedoc"
 	"regexp"
+	"strings"
 )
 
 // Change replaces the half-open base byte interval with New.
@@ -41,17 +43,17 @@ type validationStats struct {
 // ValidateEdits validates a complete sorted batch atomically, returning one
 // classification per input change in the same order. It never obtains authority
 // from candidate-written declarations.
-func ValidateEdits(base []byte, policy *DocumentPolicy, changes []Change, catalog *Catalog) ([]EditPolicy, error) {
-	out, _, e := validateEdits(base, policy, changes, catalog)
+func ValidateEdits(base []byte, policy *DocumentPolicy, changes []Change) ([]EditPolicy, error) {
+	out, _, e := validateEdits(base, policy, changes)
 	return out, e
 }
-func validateEdits(base []byte, p *DocumentPolicy, changes []Change, c *Catalog) ([]EditPolicy, validationStats, error) {
+func validateEdits(base []byte, p *DocumentPolicy, changes []Change) ([]EditPolicy, validationStats, error) {
 	stats := validationStats{}
 	fail := func(code, reason string, r Range) ([]EditPolicy, validationStats, error) {
 		return nil, stats, &PolicyError{Code: code, Reason: reason, Range: r}
 	}
-	if p == nil || c == nil {
-		return fail("editorial-invalid", "compiled base policy and catalog are required", Range{})
+	if p == nil {
+		return fail("editorial-invalid", "compiled base policy is required", Range{})
 	}
 	hash := sha256.Sum256(base)
 	if hex.EncodeToString(hash[:]) != p.SourceHash {
@@ -109,7 +111,7 @@ func validateEdits(base []byte, p *DocumentPolicy, changes []Change, c *Catalog)
 		}
 		result = append(result, EditPolicy{Change: ch, Effective: effective, Presentation: effective.Presentation})
 	}
-	after, err := Compile(candidate.Bytes(), c)
+	after, err := Compile(candidate.Bytes())
 	if err != nil {
 		return fail("editorial-invalid", err.Error(), Range{})
 	}
@@ -119,18 +121,6 @@ func validateEdits(base []byte, p *DocumentPolicy, changes []Change, c *Catalog)
 	afterOwned := map[int]OwnedSource{}
 	for _, o := range after.Owned {
 		afterOwned[o.Range.Start] = o
-	}
-	ownedMapper := positionMapper{changes: changes}
-	for _, o := range p.Owned {
-		stats.SourceComparisons++
-		start, ok := ownedMapper.mapStart(o.Range.Start)
-		if !ok {
-			return fail("operator-owned", "editorial declaration was removed", o.Range)
-		}
-		got, exists := afterOwned[start]
-		if !exists || got.Key != o.Key || !bytes.Equal(got.Raw, o.Raw) {
-			return fail("operator-owned", "editorial declaration or its attachment changed", o.Range)
-		}
 	}
 	// Heading identity and direct-parent identity protect declaration associations,
 	// even when the candidate happens to retain the same scalar values.
@@ -148,8 +138,29 @@ func validateEdits(base []byte, p *DocumentPolicy, changes []Change, c *Catalog)
 			}
 		}
 	}
+	// Bind preserved declaration bytes to the mapped original owner, even when
+	// redundant legacy authority makes an attachment transfer routing-neutral.
+	ownedMapper := positionMapper{changes: changes}
+	for _, o := range p.Owned {
+		stats.SourceComparisons++
+		start, ok := ownedMapper.mapStart(o.Range.Start)
+		if !ok {
+			return fail("operator-owned", "editorial declaration was removed", o.Range)
+		}
+		got, exists := afterOwned[start]
+		wantHeading := -1
+		if o.Heading >= 0 {
+			wantHeading = mappedHeadings[o.Heading]
+			if wantHeading < 0 {
+				return fail("operator-owned", "a declaration's owning heading was removed", o.Range)
+			}
+		}
+		if !exists || got.Key != o.Key || got.Heading != wantHeading || !bytes.Equal(got.Raw, o.Raw) {
+			return fail("operator-owned", "editorial declaration or its attachment changed", o.Range)
+		}
+	}
 	for i, h := range p.Headings {
-		if h.Directive == nil {
+		if !h.Protected {
 			continue
 		}
 		j := mappedHeadings[i]
@@ -272,25 +283,7 @@ func validateEdits(base []byte, p *DocumentPolicy, changes []Change, c *Catalog)
 		stats.ItemJoinVisits = work
 	}
 
-	domain := processingDomains(p)
-	frontiers := map[int]int{}
-	markerRegion := 0
-	readyIndex := 0
-	for _, m := range markers {
-		if !m.Ready {
-			continue
-		}
-		for markerRegion+1 < len(p.Regions) && p.Regions[markerRegion].Range.End <= m.Range.Start {
-			markerRegion++
-		}
-		id := domain[markerRegion]
-		start := readyStarts[readyIndex]
-		readyIndex++
-		if old, ok := frontiers[id]; !ok || start < old {
-			frontiers[id] = start
-		}
-	}
-	pendingIndex, refIndex, chatIndex, editRegion := 0, 0, 0, 0
+	pendingIndex, refIndex, chatIndex := 0, 0, 0
 	for i, ch := range changes {
 		r := Range{ch.Start, ch.End}
 		for pendingIndex < len(pending) && pending[pendingIndex].End <= ch.Start {
@@ -306,31 +299,18 @@ func validateEdits(base []byte, p *DocumentPolicy, changes []Change, c *Catalog)
 		for chatIndex < len(chatItems) && chatItems[chatIndex].Range.End <= ch.Start {
 			chatIndex++
 		}
-		chatAnswer := false
 		if chatIndex < len(chatItems) {
 			item := chatItems[chatIndex]
 			stats.ChatComparisons++
 			if overlapsChange(ch, item.Range) || ch.Start == item.AppendAt || ch.Start == item.Range.Start {
 				if !inReference {
-					if ch.Start != ch.End || ch.Start != item.AppendAt || item.Linked || !answerAppend.MatchString(ch.New) || !safeAnswers[i] {
+					if ch.Start != ch.End || ch.Start != item.AppendAt || item.Linked || !validAnswerAppend(ch.New) || !safeAnswers[i] {
 						return fail("editorial-chat", "preserve each chat ask; only append its answer link", r)
 					}
-					chatAnswer = true
 				}
 			}
 		}
-		editRegion = advanceChangeRegion(p.Regions, editRegion, ch)
-		effective := result[i].Effective
-		if !chatAnswer && !inReference {
-			if effective.Scope == MarkersOnly {
-				return fail("editorial-scope", "this processing mode permits changes only to ready marker referrals", r)
-			}
-			if effective.Frontier {
-				if frontier, ok := frontiers[domain[editRegion]]; ok && ch.Start < frontier {
-					return fail("editorial-scope", "text above the first ready marker's referral is settled", r)
-				}
-			}
-		}
+
 	}
 	return result, stats, nil
 }
@@ -391,7 +371,7 @@ func (m *positionMapper) mapEnd(pos int) (int, bool) {
 	return pos + m.delta, true
 }
 func sameEffective(a, b Effective) bool {
-	return a.Collaboration == b.Collaboration && a.Presentation == b.Presentation && a.Processing == b.Processing && a.Instruction == b.Instruction && a.Scope == b.Scope && a.Frontier == b.Frontier
+	return a.Collaboration == b.Collaboration && a.Legacy == b.Legacy
 }
 func overlapsChange(c Change, r Range) bool {
 	if c.Start == c.End {
@@ -414,27 +394,27 @@ func mergeRanges(in []Range) []Range {
 	}
 	return out
 }
-func processingDomains(p *DocumentPolicy) []int {
-	ids := make([]int, len(p.Regions))
-	for i, r := range p.Regions {
-		ids[i] = -1
-		if r.Heading < 0 {
-			continue
-		}
-		h := p.Headings[r.Heading]
-		if h.Parent >= 0 {
-			ids[i] = ids[h.Parent+1]
-		}
-		if _, ok := h.Overrides["processing-mode"]; ok {
-			ids[i] = r.Heading
+
+// Pending historical markers escape their link punctuation. After decoding,
+// their destinations obey the same shared rule as ordinary chat answers.
+var existingAnswerLine = regexp.MustCompile(`(?m)(?:^|[ \t])→ (?:\[answer\]\(([^()]*)\)|(done: [^\r\n]+))[ \t]*\r?$`)
+
+func hasExistingAnswer(text string) bool {
+	for _, match := range existingAnswerLine.FindAllStringSubmatch(text, -1) {
+		if match[2] != "" || sidedoc.ValidAnswerTarget(match[1]) {
+			return true
 		}
 	}
-	return ids
+	return false
 }
 
-var existingAnswerLine = regexp.MustCompile(`(?m)(?:^|[ \t])→ (?:\[answer\]\([^\s()]+\)|done: [^\r\n]+)[ \t]*\r?$`)
-
-var answerAppend = regexp.MustCompile(`^ → \[answer\]\([^\s()]+\)$`)
+func validAnswerAppend(text string) bool {
+	const prefix = " → [answer]("
+	if !strings.HasPrefix(text, prefix) || !strings.HasSuffix(text, ")") {
+		return false
+	}
+	return sidedoc.ValidAnswerTarget(text[len(prefix) : len(text)-1])
+}
 
 type chatItem struct {
 	Range    Range
@@ -443,77 +423,72 @@ type chatItem struct {
 }
 
 func selectChatItems(base []byte, p *DocumentPolicy) []chatItem {
-	items := []chatItem{}
-	type listFact struct {
-		r              Range
-		region, indent int
-	}
-	facts := make([]listFact, 0, len(p.ListItems))
-	minimum := make([]int, len(p.Regions))
-	for i := range minimum {
-		minimum[i] = -1
-	}
-	region := 0
-	for _, r := range p.ListItems {
-		for region+1 < len(p.Regions) && p.Regions[region].Range.End <= r.Start {
-			region++
-		}
-		if p.Regions[region].Effective.Collaboration != "chat" {
-			continue
-		}
-		column := 0
-		for pos := r.Start; pos < r.End; pos++ {
-			if base[pos] == ' ' {
-				column++
-			} else if base[pos] == '\t' {
-				column = (column/4 + 1) * 4
-			} else {
-				break
-			}
-		}
-		facts = append(facts, listFact{r, region, column})
-		if minimum[region] < 0 || column < minimum[region] {
-			minimum[region] = column
-		}
-	}
-	for _, fact := range facts {
-		if fact.indent != minimum[fact.region] {
-			continue
-		}
-		r := fact.r
+	return append([]chatItem(nil), p.items...)
+}
 
-		end := r.End
-		for end > r.Start && (base[end-1] == '\n' || base[end-1] == '\r') {
-			end--
-		}
-		items = append(items, chatItem{Range: r, AppendAt: end, Linked: false})
+// compileChatItems visits disjoint governing ranges, with one global minimum
+// indent per original section. No overlapping parent range is reparsed.
+func compileChatItems(base []byte, p *DocumentPolicy) []chatItem {
+	type fact struct {
+		item          chatItem
+		owner, indent int
 	}
-	return items
+	var facts []fact
+	minimum := make(map[int]int)
+	for i := 0; i < len(p.Regions); {
+		first := p.Regions[i]
+		end := first.Range.End
+		j := i + 1
+		for j < len(p.Regions) && p.Regions[j].chat == first.chat {
+			end = p.Regions[j].Range.End
+			j++
+		}
+		i = j
+		if first.chat < 0 {
+			continue
+		}
+		begin := max(first.Range.Start, p.parsed.body)
+		if begin >= end {
+			continue
+		}
+		chunk := base[begin:end]
+		p.Stats.ItemSourceBytes += len(chunk)
+		lines := sourceLines(chunk)
+		for _, shared := range sidedoc.ChatItems(string(chunk), first.Effective.Legacy) {
+			p.Stats.ItemJoins++
+			if shared.Start < 0 || shared.Start >= len(lines) || len(shared.Lines) == 0 {
+				continue
+			}
+			last := shared.Start + len(shared.Lines) - 1
+			if last >= len(lines) {
+				continue
+			}
+			r := Range{begin + lines[shared.Start].Start, begin + lines[last].End}
+			appendAt := r.End
+			for appendAt > r.Start && (base[appendAt-1] == '\n' || base[appendAt-1] == '\r') {
+				appendAt--
+			}
+			indent := sidedoc.IndentOf(shared.Lines[0])
+			if old, ok := minimum[first.chat]; !ok || indent < old {
+				minimum[first.chat] = indent
+			}
+			facts = append(facts, fact{chatItem{Range: r, AppendAt: appendAt, Linked: shared.Answered}, first.chat, indent})
+		}
+	}
+	var out []chatItem
+	for _, f := range facts {
+		p.Stats.ItemJoins++
+		if f.indent == minimum[f.owner] {
+			out = append(out, f.item)
+		}
+	}
+	return out
 }
 
 func indexBlocks(base []byte, p *DocumentPolicy, markers []Marker) ([]Range, []chatItem) {
 	items := selectChatItems(base, p)
-	// Direct links must end a source line and lie outside Markdown code. Pending
-	// marker links are decoded through the same marker grammar/escape owner.
-	directItem, codeCursor := 0, 0
-	for _, match := range existingAnswerLine.FindAllIndex(base, -1) {
-		for directItem < len(items) && items[directItem].Range.End <= match[0] {
-			directItem++
-		}
-		if directItem == len(items) {
-			break
-		}
-		if match[0] < items[directItem].Range.Start || match[1] > items[directItem].Range.End {
-			continue
-		}
-		for codeCursor < len(p.CodeRanges) && p.CodeRanges[codeCursor].End <= match[0] {
-			codeCursor++
-		}
-		if codeCursor < len(p.CodeRanges) && p.CodeRanges[codeCursor].Start <= match[0] {
-			continue
-		}
-		items[directItem].Linked = true
-	}
+	// Direct answer status already comes from shared ChatItems. Only historical
+	// escaped pending-marker links need the additional decoded observation below.
 	lines := sourceLines(base)
 	lineEnd := make([]int, len(lines))
 	for i, r := range lines {
@@ -544,7 +519,7 @@ func indexBlocks(base []byte, p *DocumentPolicy, markers []Marker) ([]Range, []c
 			continue
 		}
 		decoded := UnescapeMarkerText(string(base[m.LastTurn.Start:m.LastTurn.End]))
-		if existingAnswerLine.MatchString(decoded) {
+		if hasExistingAnswer(decoded) {
 			items[itemCursor].Linked = true
 		}
 	}
@@ -610,7 +585,7 @@ func safeAnswerAppends(source []byte, base, after *DocumentPolicy, changes []Cha
 	safe := make([]bool, len(changes))
 	for i, ch := range changes {
 		work++
-		if ch.Start != ch.End || !answerAppend.MatchString(ch.New) {
+		if ch.Start != ch.End || !validAnswerAppend(ch.New) {
 			continue
 		}
 		tail, ok := tails[ch.Start]
