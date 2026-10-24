@@ -15,6 +15,7 @@ claimant:
     workspace: pair:2
     worktree: /Users/xianxu/workspace/worktree/pair-slot2/pair
     repository: github.com/xianxu/pair
+flow: {kind: quick, provenance: inferred, spec: "45e204ae", done: "bdbf53cd"}
 ---
 
 # Admitted worker reboot loses steward positive-list authentication during receipt polling
