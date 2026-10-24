@@ -1,12 +1,20 @@
 ---
 id: 000871
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-10-24
 updated: 2026-10-24
 estimate_hours:
-card_mirror: '71ac5eb1333cc8462d568e477f80c46db973d8f1' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '378445042606522f14fb39aecea914f19f537c2c' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-24T08:26:21-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: Xian’s MacBook Pro
+    workspace: pair:7
+    worktree: /Users/xianxu/workspace/worktree/pair-slot7/pair
+    repository: github.com/xianxu/pair
 ---
 
 # Land the opt-in launch-only Couch profiler independently
@@ -30,9 +38,13 @@ Seam: profiling_model.go/model_test.go from a40b597e; profiling.go/profiling_tes
 
 ## Plan
 
-- Selectively extract and reconcile the existing accepted design and tests; follow start-plan/change-code gates on the new main-based issue branch.
-- Verify, review, land and report profiler invocation to TL for the operator's later restart decision.
+- [ ] Execute [the extraction plan](../plans/000871-couch-launch-profiler-plan.md): preserve the approved finite lifecycle and launch/env ownership, exclude scaled/native harness consumers.
+- [ ] Qualify deterministic ownership/fault/disabled controls, counted output bounds, real pprof parsing, inventory and pre-close; close, land and report the invocation for the operator's later restart decision.
 
 ## Log
 
 Filed unclaimed by pair:9 at TL request for pair:7. Existing native four-actor control passed415.469s at88c6b328 with exact cleanup; summary workshop/evidence/000865/native-terminal-controls.md. Subsequent scaled run exposed early worker redraw termination and N10 caller-proof failure; neither is a profiler implementation failure, and neither is qualified here.
+
+### 2026-10-24 — planning checkpoint
+
+Claimed in pair:7 and start-plan created this branch from fresh main3470debf43a86144a9ca993e9065e2d0c8dfa8ef. Existing finite diagnostic design is approved via TL dispatch and #865 provenance; no live relaunch is authorized. Read-only extraction audit found no scaled dependencies in the four core files and confirmed real pprof parsing already exists in profiling_test.go. Small missing fault cases (partial creation, allocation-after, short write, pre-cancelled parent) and counted writer growth are planned as tests, not a new mechanism. Full flow applies because imported production exceeds100lines; durable plan posted to TL before change-code.
