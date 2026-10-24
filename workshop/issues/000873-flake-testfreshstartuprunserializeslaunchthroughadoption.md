@@ -43,8 +43,8 @@ No new user state: legitimate brief contention remains the existing pending star
 
 ## Plan
 
-- [ ] Add deterministic held-lock regressions around withEmptyStartupTarget using existing kernel-lock and contention helpers; establish RED before modifying production.
-- [ ] Select existing foreground wait at the global and local acquisitions; verify cancellation, exhaustion, late retained evidence, maintenance and counted N/2N effects plus the original Run case.
+- [x] Add deterministic held-lock regressions around withEmptyStartupTarget using existing kernel-lock and contention helpers; establish RED before modifying production.
+- [x] Select existing foreground wait at the global and local acquisitions; verify cancellation, exhaustion, late retained evidence, maintenance and counted N/2N effects plus the original Run case.
 
 After implementation qualification: push, run the recorded pre-close, close with binary-owned review, enter normal merge on SHIP and report the actual landing. No manual main chase after the branch check.
 
@@ -55,3 +55,17 @@ After implementation qualification: push, run the recorded pre-close, close with
 ### 2026-10-24 — root trace and bounded measurement
 
 Claimed/start-plan from main after #871 landed. Retained branch and main-baseline logs both stop at bench launch/adopt/adopted with raw EWOULDBLOCK before next runner entry. Read-only trace found the two wait=0 calls in startup_creation.go; threadstore.go explicitly documents nonnil check plus zero wait as maintenance-style immediate refusal. Preview reads do not take the coordinator. Existing #827 withUpdateLockContext already uses the established foreground budget. A bounded one-process50-repeat of the unchanged original test is running as baseline evidence; deterministic held-lock controls, not its rate, will prove causation. No production changes yet. This is a semantic foreground/maintenance classification error; a blanket lint banning zero-wait checked locks would reject valid maintenance. Existing maintenance negative control pins that distinction.
+
+### 2026-10-24 — RED evidence and composition
+
+The unchanged real-Run test failed once in 50 repetitions (102.680 s, one process), with the same raw store-lock refusal and bench-only effects; retained in workshop/evidence/000873/baseline-50.log. The new held-kernel-lock regressions then failed at both acquisitions: global/primary and global/local-slot cases, N=2/4, cancellation, typed exhaustion and journal recheck. The observer could not run because the old code refused immediately. These deterministic failures establish the policy mismatch; the small cohort is not a calibrated flake rate.
+
+## Revisions
+
+### 2026-10-24 — approved foreground policy and #854 composition
+
+Hub approved reuse of storeReadLockWait at both sites, preserving all admission guards. #854 is unlanded and adds a remaining-context cap through withStoreLockBounded/storeLockBound. No stacking or copying its helpers: whichever issue lands second applies that cap to both startup acquisitions. Pair:6 explicitly confirmed it will integrate the two calls if #873 lands first.
+
+### 2026-10-24 — GREEN and negative control
+
+Changed only the two foreground policy arguments plus their explanatory comment. Targeted core checks passed (17.973 s): held global/local acquisition at N=2/4, cancellation, typed exhaustion, current/archive/journal appearing while waiting, existing empty-only admission and foreground/maintenance controls. A compiler overlay restoring both zero arguments failed all six held-lock cases with the original raw refusal; retained in negative-policy.log, with actual source unchanged. The original unchanged Console.Run test then passed all 50 repetitions (96.407 s; corrected-50.log), versus 1/50 failures before. This is supporting comparison, not a stability-rate claim. make test-affected-inventory passed; the new test reads only fixture-owned stores, without repository reader inputs to certify. Atlas now states the existing foreground admission policy. #854 remains unlanded at its announced head; the agreed second-lander composition still applies.
