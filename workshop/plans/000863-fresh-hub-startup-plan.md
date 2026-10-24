@@ -28,7 +28,7 @@ One StartupObservation belongs to one console startup and is never recomputed af
 | Integration | Lives in | Status | Wraps |
 |---|---|---|---|
 | startup orchestration | cmd/internal/couchcmd/run.go, hubs.go | modified | initial primary attach and serial extra-hub lifecycle queue |
-| start-hub dispatch | cmd/internal/couchcore/operationdispatch.go | modified | existing StartInteractive / explicit launch seam |
+| StartFreshHub / start-hub dispatch | cmd/internal/couchcore/startup.go and operationdispatch.go | modified | one exact target resolution, existing ordinary Open / numbered Fresh path |
 | shared fleet acceptance | cmd/couch/fresh_hub_registration_live_test.go | new | real private supervisor, native fixtures, inherited caller CLI |
 
 Fresh launch permission is internal startup policy from the recorded observation; no automatic agent message is authorized by it. Launch the primary through the existing explicit open path after observation, before initial adoption; queue other configured hubs serially through the existing lifecycle workers with the same fresh permission. For normal/full-shutdown/unknown, retain surviving-only StartInteractive. An empty surviving-only result is a successful no-child result, never adopted or aborted. Automation initialization consumes the original observation, so newly launched hubs cannot turn it on.
@@ -57,37 +57,37 @@ Startup only: reuse one inventory/session observation and existing worker cap/se
 
 Files: startup_policy.go/startup_policy_test.go; ops.go and colocated adoption tests.
 
-- [ ] ClassifyStartup: generate incomplete and contradictory snapshot/presence combinations; an independent predicate forbids fresh whenever history or uncertainty exists, and permutation checks forbid input-order dependence. Confirm red on readable zero-history input before changing classification.
-- [ ] StartResult.Started: vary the record and handle independently, with handle possession as the independent adoption-authority oracle; confirm the empty result fails before the fix and inspect sibling Started implementations for the same contract.
-- [ ] Run targeted tests, confirm intended failures, implement minimal classifier and no-child correction; rerun startup/adoption tests.
-- [ ] Commit with #863 and model trailers.
+- [x] ClassifyStartup: generate incomplete and contradictory snapshot/presence combinations; an independent predicate forbids fresh whenever history or uncertainty exists, and permutation checks forbid input-order dependence. Confirm red on readable zero-history input before changing classification.
+- [x] StartResult.Started: vary the record and handle independently, with handle possession as the independent adoption-authority oracle; confirm the empty result fails before the fix and inspect sibling Started implementations for the same contract.
+- [x] Run targeted tests, confirm intended failures, implement minimal classifier and no-child correction; rerun startup/adoption tests.
+- [x] Commit with #863 and model trailers.
 
 ### Task2: orchestrate only proven fresh launches
 
 Files: couchcmd/run.go, hubs.go, automation.go consumers and hubs_startup_test.go; couchcore/operationdispatch.go.
 
-- [ ] runConsole/startExplicitHubs: use the existing stateful fake process/store boundary with held launch/adoption and cancellation; count effects against the immutable initial observation, independently forbidding cold effects without fresh evidence. startupAutomationOn: mutate subsequent live inventory while retaining the initial observation and require automation to stay off for fresh startup.
-- [ ] Observe before new launches; route permitted fresh primary/extra effects through existing explicit-open/lifecycle owners. Keep surviving-only paths conservative.
-- [ ] Update startup summary for fresh (not missing/resume-from-disk language for never-started hubs); keep real launch failure recovery advice.
-- [ ] Run core/cmd/tty startup and automation targeted tests; commit.
+- [x] runConsole/startExplicitHubs: use the existing stateful fake process/store boundary with held launch/adoption and cancellation; count effects against the immutable initial observation, independently forbidding cold effects without fresh evidence. startupAutomationOn: mutate subsequent live inventory while retaining the initial observation and require automation to stay off for fresh startup.
+- [x] Observe before new launches; route permitted fresh primary/extra effects through existing explicit-open/lifecycle owners. Keep surviving-only paths conservative.
+- [x] Update startup summary for fresh (not missing/resume-from-disk language for never-started hubs); keep real launch failure recovery advice.
+- [x] Run core/cmd/tty startup and automation targeted tests; commit.
 
 ### Task3: qualify form duplicate admission
 
 Files: couchtty/menu start tests / console lifecycle tests; production reducer only if a failing test proves a gap.
 
-- [ ] reduceStartKey/dispatchMenuOperation: hold effect completion and generate repeated Enter plus duplicate/late result events; independently count start effects per form identity and require at most one. Current source synchronously closes admitted form; do not add redundant state if the invariant already holds.
-- [ ] Ask pair:6's corrected native run to retain whether a second actual launch occurred. If reproduced, fix in this issue with one consumed-form identity until outcome; no new retry. If it needs another mechanism, stop and report to hub before expanding.
-- [ ] Record production versus harness classification with evidence.
+- [x] reduceStartKey/dispatchMenuOperation: hold effect completion and generate repeated Enter plus duplicate/late result events; independently count start effects per form identity and require at most one. Current source synchronously closes admitted form; do not add redundant state if the invariant already holds.
+- [x] Ask pair:6's corrected native run to retain whether a second actual launch occurred. If reproduced, fix in this issue with one consumed-form identity until outcome; no new retry. If it needs another mechanism, stop and report to hub before expanding.
+- [x] Record production versus harness classification with evidence.
 
 ### Task4: native acceptance and close
 
 Files: shared testcouch Hubs option/tests; fresh_hub_registration_live_test.go; relevant atlas startup/hub docs and issue Log.
 
 - [x] Diagnostic Hubs argv input red then green (same #830 contract), exact two-hub main caller admission measured.
-- [ ] Convert diagnostic into durable Claude/Codex fresh two-hub acceptance: Fleet.Start returns with actual live callers, both hubs registered, no false hub-failed notice, automation off, no automatic hub input. Keep explicit known-shutdown gesture test where appropriate; no duplicate fleet owner.
-- [ ] Run one bounded native qualification per personality. On failure retain full wrapper and console facts, classify before another run.
-- [ ] Coordinate #830 integration; whoever lands second takes identical Hubs contract. Preserve #830 T6 skip until its owner verifies it.
-- [ ] Document fresh vs known shutdown, update atlas and issue Log, audit reader inventory, run make test-affected-inventory.
+- [x] Convert diagnostic into durable Claude/Codex fresh two-hub acceptance: Fleet.Start returns with actual live callers, both hubs registered, no false hub-failed notice, automation off, no automatic hub input. Keep explicit known-shutdown gesture test where appropriate; no duplicate fleet owner.
+- [x] Run one bounded native qualification per personality. On failure retain full wrapper and console facts, classify before another run.
+- [x] Coordinate #830 integration; whoever lands second takes identical Hubs contract. Preserve #830 T6 skip until its owner verifies it.
+- [x] Document fresh vs known shutdown, update atlas and issue Log, audit reader inventory, run make test-affected-inventory.
 - [ ] Push; run sdlc local-check run --pre-close, close with actual evidence and --no-project; on SHIP merge main then sdlc merge --yes. Report real merge/archive state to hub. No live stage requested.
 
 ## Revisions
@@ -99,3 +99,5 @@ Files: shared testcouch Hubs option/tests; fresh_hub_registration_live_test.go; 
 2026-10-24 — Native qualification confirmed Open intentionally cannot create a never-used managed slot (resume-no-survivor). Hub7cf1b120 approves the existing Fresh path for this zero-history-only permission. Use StartFresh for initial configured hubs; known-shutdown/unknown remain untouched. Original evidence still owns automation. Retained Zellij v0.45.1 RemoveClient unwrap panic is an external lifecycle fault, separately recorded, not a registry patch or timeout change.
 
 2026-10-24 — Hub9a53d319 approves consolidation after the second path correction: core StartFreshHub resolves the exact target once with Open intent, uses StartFreshSlot only for a numbered target, otherwise shares the existing resolution-based ordinary open implementation. Both initial primary and extra-hub startup consume this helper. Real OS SlotCatalog-backed tests for both target kinds red on missing helper, then green; no relaxed generic StartInteractive semantics. Stop and re-plan if a third path correction is needed.
+
+2026-10-24 — Implementation and native/deterministic qualification complete. The final checkbox is post-implementation gate procedure: final recorded check is queued, close review overlaps under tl-worker PERMISSIONS, and no landing precedes final-head recorded pass. No unimplemented product behavior is waived.
