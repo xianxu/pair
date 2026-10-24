@@ -345,7 +345,7 @@ func TestOperatorSketchLiveDrawing(t *testing.T) {
 	}
 	// Discovery controls sit beside the ink; they must not steal a later pen
 	// stroke at the same recorded coordinates.
-	if got := string(eval(world, `(()=>{const root=__couchcastOperatorSketch.labelInput.getRootNode(),buttons=[...root.querySelectorAll('.sketch-note-control')];return buttons.length>0&&buttons.every(b=>{const r=b.getBoundingClientRect();return !(110>=r.left&&110<r.right&&140>=r.top&&140<r.bottom)})})()`)); got != "true" {
+	if got := string(eval(world, `(()=>{const root=__couchcastOperatorSketch.labelInput.getRootNode(),buttons=[...root.querySelectorAll('.sketch-notes-summary')];return buttons.length>0&&buttons.every(b=>{const r=b.getBoundingClientRect();return !(110>=r.left&&110<r.right&&140>=r.top&&140<r.bottom)})})()`)); got != "true" {
 		t.Fatalf("sketch note affordance covers existing ink: %s", got)
 	}
 	// Start an unfinished second sketch whose ink is inside the first stroke's

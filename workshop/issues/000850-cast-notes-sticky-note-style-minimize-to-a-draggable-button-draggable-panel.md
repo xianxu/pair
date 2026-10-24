@@ -107,6 +107,13 @@ Polled retained terminal9613 after restart: lease-3061314793 survived, acquired 
 
 Full review disposed BR1–4 as addressed, including mutation-proved regressions, source-bound native evidence and authenticated acceptance. It raised BR5 Critical: two sketches with the same/overlapping/edge-clamped bounds produce controls that cover earlier notes. Stopped at the third viewport delta and proposed replacing geometric per-sketch controls rather than adding collision heuristics. TL36312a99 approved ONE clamped Sketch notes(N) button for all eligible on-view sketches, opening a bounded scrolling keyed list with individually labeled Add/View note rows. Existing actions/final read-only view stay unchanged; no per-sketch controls/packing. Plan Revisions records state, alternative, single-selection owner, cost and composition-level native oracle. Earlier operator acceptance covers the panel; report the button change for the hub to tell them. Running old-source suite continues, no new runner yet; corrected source requires its own pre-close proof and close.
 
+
+### 2026-10-23 — BR5 selector implemented and composed native hits verified
+
+Replaced all per-sketch geometric controls with exactly one measured/clamped Sketch notes(N) summary. Its bounded scrolling keyed list identifies every current sketch by index/id and optional final-text snippet; rows route existing Add note or final read-only View note, rereading current membership. No collision packing or point-history changes. State preserves list mode across refresh, closes on choice/empty membership, retires stale handlers and disposes all UI. TDD observed missing summary and128 per-row measurements RED, then71 focused tests GREEN; N/2N proves linear row updates and one summary measurement.
+
+All webcast Node tests EXIT0. Updated real Chrome fixture opens the single selector and independently hit-tests/clicks every one of24 identical/partially overlapping/edge-clamped sketch rows (scrolling the list), verifying the exact chosen final label and zero commands. Updated complete operator test still draws at prior ink coordinates without the summary blocking it. Native pair PASS7.392s non-skipped, complete operator5.60s; raw evidence and exact source-blob manifest refreshed in workshop/evidence/000850. Prior panel acceptance remains recorded; hub must tell the operator about the approved summary-button change. Existing old-source suite still runs and will finish normally; this source needs fresh pre-close proof, then full close and merge.
+
 ## Revisions
 
 ### 2026-10-23 — TL approved design (19f42a37)

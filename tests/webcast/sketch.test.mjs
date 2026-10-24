@@ -991,10 +991,12 @@ test('live exact feedback mask clears accepted ink while preserving vectors and 
 test('placed sketch Add note follows owned finish flow and final View note is read only',async()=>{
   const {mountSketch}=await mod(),h=harness(),ui=mountSketch(h.doc,h.win,h.view,h.options);
   await ui.enter();h.event(ui.layer,'pointerdown');await h.flush();h.event(ui.layer,'pointerup');await h.flush();
-  const control=h.root.querySelector('.sketch-note-control');assert.ok(control,'placed sketch exposes note affordance');assert.equal(control.textContent,'Add note');
+  const control=h.root.querySelector('.sketch-note-control');assert.ok(control,'placed sketch exposes note affordance');assert.match(control.textContent,/Add note/);
+  h.event(h.root.querySelector('.sketch-notes-summary'),'click');
   h.event(control,'click');await h.flush();assert.equal(h.root.querySelector('.sketch-label').hidden,false);
   ui.labelInput.value='Final immutable note';await ui.saveLabel();await h.flush();
-  const final=h.root.querySelector('.sketch-note-control');assert.equal(final,control);assert.equal(final.textContent,'View note');
+  const final=h.root.querySelector('.sketch-note-control');assert.equal(final,control);assert.match(final.textContent,/View note/);
+  h.event(h.root.querySelector('.sketch-notes-summary'),'click');
   const sent=h.sent.length;h.event(final,'click');assert.equal(h.root.querySelector('.sketch-note-text').textContent,'Final immutable note');assert.equal(h.sent.length,sent);
   ui.dispose();assert.equal(h.root.querySelector('.sketch-note-controls'),undefined);
 });
@@ -1005,16 +1007,16 @@ test('cached painted bounds retain note discovery after scroll hides the first p
  const ui=mountSketch(h.doc,h.win,h.view,h.options);
  await ui.enter();h.event(ui.layer,'pointerdown',{clientX:20,clientY:10});await h.flush();
  h.event(ui.layer,'pointermove',{clientX:50,clientY:100});h.tick(50);await h.flush();h.event(ui.layer,'pointerup',{clientX:70,clientY:140});await h.flush();
- const button=h.root.querySelector('.sketch-note-control');assert.ok(button);
+ const button=h.root.querySelector('.sketch-notes-summary');assert.ok(button);
  button.getBoundingClientRect=()=>({width:80,height:44});
  // Existing transform invalidation must discard old bounds and repaint them
  // in current local coordinates, including later ink still in the viewport.
  h.scene.fromPage=(x,y)=>[x,y-100];ui.refresh({geometry:true});await h.flush();
- assert.equal(h.root.querySelector('.sketch-note-control'),button);
- assert.equal(button.textContent,'Add note');
+ assert.equal(h.root.querySelector('.sketch-notes-summary'),button);
+ assert.equal(button.textContent,'Sketch notes (1)');
  assert.ok(Number.parseFloat(button.style.top)>=48,'button sits below the visible tail with a gap');
  const count=h.context.paintedPoints;ui.refresh();await h.flush();
  assert.equal(h.context.paintedPoints,count,'same transform reuses painted bounds without another point walk');
- assert.equal(h.root.querySelector('.sketch-note-control'),button);
+ assert.equal(h.root.querySelector('.sketch-notes-summary'),button);
  ui.dispose();
 });

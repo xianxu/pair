@@ -45,7 +45,7 @@ window.showSketchControls=(paths,targets)=>{
  const canvas=document.createElement('canvas');canvas.width=innerWidth;canvas.height=innerHeight;root.append(canvas);
  const bounds=paths.map((p,i)=>paintSketchPaths(canvas.getContext('2d'),[p],{project:()=>targets[i]}));
  window.sketchControls=mountSketchNoteControls(document,{parent:root,onAdd:()=>{throw Error('final labels cannot mutate')}});
- sketchControls.update(sketchNoteEntries(paths,bounds,{metadata:()=>({phase:'complete',label:'Final visible sketch'}),editable:new Set(),viewport:{width:innerWidth,height:innerHeight}}),{width:innerWidth,height:innerHeight});
+ sketchControls.update(sketchNoteEntries(paths,bounds,{metadata:key=>({phase:'complete',label:'Final visible sketch '+key}),editable:new Set(),viewport:{width:innerWidth,height:innerHeight}}),{width:innerWidth,height:innerHeight});
 };
 </script>`)
 	}))
@@ -244,14 +244,29 @@ window.showSketchControls=(paths,targets)=>{
 	// Native scroll/multipath/edge proof uses bounds from the real painter.
 	resize(320, 480)
 	eval(`(()=>{const p={sketch:'s',id:'p',width:4,color:'#ff0000',at:{box:[0,0,100,800]},pts:[[30,100,.5],[60,700,.5]]};showSketchControls([p],[ [0,-500,100,800] ]);})()`, nil)
-	reachable := `(()=>{const e=document.querySelector('.sketch-note-control'),r=e?.getBoundingClientRect();return !!r&&r.width>0&&r.height>0&&r.left>=0&&r.top>=0&&r.right<=innerWidth&&r.bottom<=innerHeight&&e===document.elementFromPoint(r.x+r.width/2,r.y+r.height/2)})()`
+	reachable := `(()=>{const e=document.querySelector('.sketch-notes-summary'),r=e?.getBoundingClientRect();return !!r&&r.width>0&&r.height>0&&r.left>=0&&r.top>=0&&r.right<=innerWidth&&r.bottom<=innerHeight&&e===document.elementFromPoint(r.x+r.width/2,r.y+r.height/2)})()`
 	require(reachable)
+	click(".sketch-notes-summary")
 	click(".sketch-note-control")
-	require(`document.querySelector('.sketch-note-text').textContent==='Final visible sketch'&&!document.querySelector('.sketch-note-view').hidden`)
+	require(`document.querySelector('.sketch-note-text').textContent==='Final visible sketch s'&&!document.querySelector('.sketch-note-view').hidden`)
 	click(".sketch-note-close")
 	for _, corner := range [][2]int{{0, 0}, {319, 0}, {0, 479}, {319, 479}} {
 		eval(fmt.Sprintf(`(()=>{const off={sketch:'s',id:'off',width:4,at:{box:[0,0,320,480]},pts:[[-100,-100,.5]]};const visible={...off,id:'visible',pts:[[%d,%d,.5]]};showSketchControls([off,visible],[[0,0,320,480],[0,0,320,480]]);})()`, corner[0], corner[1]), nil)
 		require(reachable)
+	}
+	// Identical/partially overlapping/edge-clamped shapes share one entry
+	// target, while every latest identity stays independently selectable.
+	eval(`(()=>{const paths=Array.from({length:24},(_,i)=>({sketch:'s'+i,id:'p',width:4,at:{box:[0,0,320,480]},pts:[[(i%3)*2,(i%4)*2,.5]]}));showSketchControls(paths,paths.map(()=>[0,0,320,480]));})()`, nil)
+	require(`document.querySelectorAll('.sketch-notes-summary').length===1&&document.querySelector('.sketch-notes-summary').textContent==='Sketch notes (24)'`)
+	require(reachable)
+	for i := 0; i < 24; i++ {
+		click(".sketch-notes-summary")
+		eval(fmt.Sprintf(`document.querySelector('.sketch-note-control[data-sketch="s%d"]').scrollIntoView({block:'center'})`, i), nil)
+		selector := fmt.Sprintf(`.sketch-note-control[data-sketch="s%d"]`, i)
+		require(fmt.Sprintf(`(()=>{const e=document.querySelector(%q),r=e.getBoundingClientRect();return r.left>=0&&r.top>=0&&r.right<=innerWidth&&r.bottom<=innerHeight&&document.elementFromPoint(r.x+r.width/2,r.y+r.height/2)===e})()`, selector))
+		click(selector)
+		require(fmt.Sprintf(`document.querySelector('.sketch-note-text').textContent===%q&&!document.querySelector('.sketch-note-view').hidden`, fmt.Sprintf("Final visible sketch s%d", i)))
+		click(".sketch-note-close")
 	}
 	eval(`sketchControls.dispose();document.querySelector('#sketch-fixture').remove()`, nil)
 
