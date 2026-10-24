@@ -75,7 +75,41 @@ rounds:
           note: Function-level strategies name adversarial classes and mechanical invariants while retaining resource guards and native acceptance criteria.
           round: 2
       blocked: false
-content_hash: 2e63a85fd372c0a1e6e4c4da7efaef232b6eee8de3d881e8a453a820b5f1153a
+    - reviewer_runs:
+        - version: 1
+          intent:
+            id: e829fbca-5d9e-470a-b10f-29cad0bebd69
+            repository: github.com/xianxu/pair
+            issue_id: "000857"
+            recipe: plan-quality
+            round: 3
+            attempt: 1
+            agent: codex
+            root: /Users/xianxu/workspace/worktree/pair-slot4/pair
+            reviewed_head: 8b8c7463546b13dbbec0e686e59ed3eb2a2006a4
+            slot: pair:4
+            requested_at: "2026-10-24T09:24:16.031693Z"
+          phase: finished
+          pid: 52977
+          started_at: "2026-10-24T09:24:16.192875Z"
+          finished_at: "2026-10-24T09:25:37.838158Z"
+          session_id: 01a16d39-a464-7a82-a789-aafb81c3b58d
+          outcome: returned
+      "n": 3
+      timestamp: "2026-10-24T02:25:38-07:00"
+      agent: codex
+      reviewer: codex (openai; author openai)
+      dispose:
+        - id: PQ-1
+          disposition: addressed
+          note: Private transition authority and one-use reservations define acceptance, supersession and confirmation ordering.
+          round: 3
+        - id: PQ-2
+          disposition: addressed
+          note: Named production functions have adversarial strategies and mechanical invariants; executable case inventories remain in tests.
+          round: 3
+      blocked: false
+content_hash: 094fc3471f6ba0c96284dfb2747239a595ae214b97a98f77a3a151c838bcb425
 ---
 
 # Gate ledger — pair#857 (plan-quality)
@@ -98,6 +132,13 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 
 - PQ-1 — addressed — Pure transitions, private reservations and explicit acceptance/confirmation linearization resolve the ordering authority finding.
 - PQ-2 — addressed — Function-level strategies name adversarial classes and mechanical invariants while retaining resource guards and native acceptance criteria.
+
+## Round 3 — 2026-10-24T02:25:38-07:00 (codex) — passed
+
+### Disposed
+
+- PQ-1 — addressed — Private transition authority and one-use reservations define acceptance, supersession and confirmation ordering.
+- PQ-2 — addressed — Named production functions have adversarial strategies and mechanical invariants; executable case inventories remain in tests.
 
 ## Open findings
 

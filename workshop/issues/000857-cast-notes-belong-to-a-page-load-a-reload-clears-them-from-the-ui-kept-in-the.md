@@ -5,8 +5,8 @@ deps: []
 github_issue:
 created: 2026-10-23
 updated: 2026-10-24
-estimate_hours:
-card_mirror: 'b7e679930fb167469cde5b0368b2e033661b77b4' # card fields mirrored from issue-cards; edit via sdlc
+estimate_hours: 3.29
+card_mirror: 'd69741f3dc62b732c696a2ed454b8144decc0cc7' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-23T21:35:40-07:00
 claimant:
     operator: Xian Xu
@@ -79,3 +79,37 @@ Round2 returned CLEAN, disposing PQ-1/PQ-2 with no new findings; change-code the
 ### 2026-10-24 — Parallel independent preparation
 
 The approved joint scope is unchanged. TL8b5caf7d permits data/recorder work before #856 lands, on a main-based branch with no copied #856 commits; its UI integration still waits for landed main. Pending/unknown scope contributes no page feedback, without adding a global text-submit refusal; the ordinary unsaved-note guard stays. Earlier-load feedback remains queryable history, entirely absent from live UI.
+
+## Estimate
+
+Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md` against `baseline-v3.1.md`. Method A only. The calibration source is marked stale by estimate-source, so the result is provisional.
+
+The approved plan resolves the identity, state and scope decisions: apply the v2.1 thorough-spec design factor0.2 and design buffer15%. Reuse strictjson, recording reducers/catch-up, the existing CDP Caller/fake and #856's landed panel; no greenfield stack/library discovery is needed. Familiarity1.0 reflects the immediately preceding cast work. Implementation values below are40% of v2/v2.1 selected hours.
+
+- Identity entity: typed-data-prototype, base design0.5 and impl0.5 -> design0.10, impl0.20.
+- Preserving segment codec: smaller-go-module, base design0.3 and impl0.5 ->0.06/0.20.
+- Reducer/catch-up provenance: cross-cutting-refactor, base design0.5 and impl0.5 ->0.10/0.20.
+- Recorder/CDP fence and reserved commits: api-integration, base design2.0 and impl1.5 ->0.40/0.60.
+- Atomic Board selection/scope: smaller-go-module, base design0.3 and impl0.5 ->0.06/0.20.
+- Browser consumer integration: cross-cutting-refactor, base design0.8 and impl0.5 ->0.16/0.20.
+- Native CDP qualification: real-api-discovery, design0 and base impl0.6 ->0/0.24.
+- Atlas: atlas-docs, base design0.2 and impl0.2 ->0.04/0.08.
+- One close boundary: milestone-review, base design0.2 and impl0.5 ->0.04/0.20.
+
+Design subtotal1.02, buffered1.173; implementation subtotal2.12; derived total3.293h, rounded3.29h. Queue wait is not focused work.
+
+```estimate
+model: estimate-logic-v3.1
+familiarity: 1.0
+item: typed-data-prototype design=0.10 impl=0.20
+item: smaller-go-module design=0.06 impl=0.20
+item: cross-cutting-refactor design=0.10 impl=0.20
+item: api-integration design=0.40 impl=0.60
+item: smaller-go-module design=0.06 impl=0.20
+item: cross-cutting-refactor design=0.16 impl=0.20
+item: real-api-discovery design=0.00 impl=0.24
+item: atlas-docs design=0.04 impl=0.08
+item: milestone-review design=0.04 impl=0.20
+design-buffer: 0.15
+total: 3.29
+```
