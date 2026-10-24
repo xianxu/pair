@@ -39,6 +39,8 @@ Evidence: ops-echo `session.side/2026-10-23-03-echo-23-board-feedback.md` and it
   expanded panel can be dragged; its height is fixed with a scrollbar (tests for each behaviour).
 - A sketch shows a visible control to open or add its notes (test), plus a brief operator look.
 
+- The approved shared position, keyboard/cancel/resize behavior stays local to the mounted context; moving/minimizing never mutates anchored feedback, the selection, its stamps or label/witness authority. Unfinished sketches use existing Add note; completed labels open read-only. Guard regressions and the staged operator look cover both.
+
 ## Plan
 
 Durable full-flow design: [Cast notes panel plan](../plans/000850-cast-notes-panel-plan.md).
@@ -59,3 +61,9 @@ Durable full-flow design: [Cast notes panel plan](../plans/000850-cast-notes-pan
 Read the echo operator's original side document and screenshot locally. Obstructing widget is the white .annotation-notes all-open list, separate from dark Pending feedback. No source evidence images copied. Existing annotation editor already has #fff59d sticky styling, while list rows are white; no panel header/minimize/drag owner exists. Sketch toolbar's Note is shown only while active, pending-label buttons are vague, and completed labels are final at recording/sketch_state.go. Proposed completed View note is read-only; unfinished Add note reuses existing label commands.
 
 Pair:6 messages15fa9f8e and06588197 confirm #849 root cause is still under operator diagnosis. Preserve Shown acknowledgment, exact fresh comparison/freeze, board/delivered stamps and completed visibility witnesses; do not leave paint busy or change label commit/witness flow. Annotation-list presentation is independent of the scene paint selection; all new sketch changes remain affordance-only. They will report shared-file changes before implementation. Full design records explicit panel state, local-lifetime cleanup, counted costs, direct tests and stage look. Pending TL approval on panel geometry and final-label view semantics; no code, no estimate or change-code yet.
+
+## Revisions
+
+### 2026-10-23 — TL approved design (19f42a37)
+
+Approved yellow300x320 within viewport, fixed header/scroll body, draggable header and minimized Notes(N) sharing one local position, keyboard move and cancel/resize cleanup. Anchored feedback/selection/stamps and849 invariants stay protected. Approved existing unfinished-label Add note and read-only completed View note; finished edits only if the operator later asks. Proceed through the full-flow design gate; live operator look at end. Added explicit Done-when coverage of these accepted semantics. No new permission pending.

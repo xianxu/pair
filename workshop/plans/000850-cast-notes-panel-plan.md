@@ -127,3 +127,9 @@ Restart onto the staged head. Create several long notes, confirm yellow appearan
 ## Approval questions for the hub
 
 Confirm the proposed 300x320 panel size and shared anchor behavior. Confirm final sketches expose read-only View note, while Add note retains the existing one final-label workflow; mutable sketch labels/additional notes would require a deliberate recording-contract scope change. No code before approval. Stage timing remains with the hub while #849 holds its diagnostic build.
+
+## Revisions
+
+### 2026-10-23 — approved (TL19f42a37)
+
+The hub approved the exact proposed dimensions/shared anchor and final-label read-only behavior, keyboard and pointer lifecycle, protected submission invariants and staged look. Approval questions above are resolved. No mutable label or multiple-note recording change is authorized. Proceed to implementation after full-flow gates.
