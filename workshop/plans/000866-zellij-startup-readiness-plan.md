@@ -217,3 +217,114 @@ Probe admission obtains the scan lease across complete candidate/marker qualific
 - [ ] Prove deadline/cancellation, same-namespace two-session interleavings, stale identity, separate namespace isolation, subprocess kernel owner-death release and linear8/16 work. Assert accepted crash behavior as a limit, not a success claim. Run targeted and relevant complete packages/races and inventories.
 - [ ] Run one bounded shared disposable native qualification with Claude/Codex and public CLI/output, retaining exact cleanup/log/hash. No direct socket/process-owner experiment or standalone upstream report. Register/attribute unrelated failures before any rerun.
 - [ ] Update atlas/README, push, record sdlc local-check run --pre-close, run make test-affected-inventory, then mandatory full close and ordinary landing/report. #722 stays separately ready for operator-watched acceptance.
+
+### 2026-10-24 — consolidated third revision after PQ-1/PQ-2 (for TL approval)
+
+**Reason:** plan-quality round1 blocked entry to implementation on PQ-1 (`exclusion-covers-native-scan-lifetime`); PQ-2 requests explicit unknown-field preservation. The caller sweep also found a bootstrap dependency cycle. Submitted TL c8f6e5d4 permits bounded-command/creator coverage with an explicit interactive-attach limit if an attributable existing witness does not hold up. This is the one consolidated third revision requested by TL, not authorization to keep adding mechanisms. **This entire section supersedes the previous concept tables, tasks and state tables; earlier proposals remain history. No production code has changed. Await TL approval of this consolidation before rerunning change-code.**
+
+#### Coverage and the simplest alternative
+
+The deliverable excludes cooperating **bounded native CLI commands** from the live creator's spawn-to-exact-first-pane interval. A kernel-held namespace lock is the one exclusion resource. Direct reads of marker/cache files take no lock. There is no pending journal, namespace-wide unfinished intent, daemon, background guard service, new PTY or output decoder.
+
+The simplest alternative, target-marker checks without exclusion, fails because even a named native action enumerates and probes the whole namespace; a creator may also publish a new endpoint between a marker check and the command. Keeping an exclusion lease for an interactive client's entire lifetime fails because an attached client could indefinitely prevent another session from starting.
+
+**Interactive witness assessment and chosen limit:** `terminalOSAttempt.Start` only observes process creation; `Admit(false)` immediately returns and observes no native handshake. A mixed Pair PTY stream is not attributable native-client output. In tagged Zellij, alternate-screen/theme bytes are emitted at client/lib.rs973–989 after session lookup but **before** connect_to_server/send_to_server; arbitrary first bytes also do not distinguish diagnostics from client startup. The shared `Starting Zellij client!` log line lacks PID/session attribution. A new output tap/decoder or per-attach temporary logging namespace would add a mechanism. Use TL's fallback instead: **ordinary interactive attachment takes no namespace exclusion lock and retains its existing behavior. Its initial scan, and native in-process session switching/reconnect, can still race a concurrent creator.** Do not claim full protection against every native client. A fake test must demonstrate this uncovered interleaving, so future tests cannot accidentally claim it safe.
+
+Other accepted limits remain: creator death releases the kernel lock and can expose an incompletely initialized or delayed server; foreign/older clients do not cooperate; an external same-name replacement is not certified by an old Pair marker. No marker, vanished lock or missing endpoint is called proof of absence. These are coverage limits, not new permission to retire or kill anything.
+
+#### Readiness before bootstrap commands
+
+Use actual **first agent-pane execution**, not AgentReady, to release creator exclusion. Metadata is assigned Some at upstream lib.rs1058, before initial NewTab1099–1118 can execute the pane command. AgentReady remains the separate, stronger agent-startup requirement and its semantics do not change.
+
+The current main-2.kdl44/main-3.kdl55 sequence writes the pane sidecar, calls native rename-pane, then execs pair wrap; wrap starts the agent and publishes AgentReady. Waiting for AgentReady while guarding the earlier rename deadlocks. Replace the shell printf with one internal, non-native publisher at the **same first-command position**, before rename or wrap. It atomically writes the existing `Paths.PaneChecked(agent)` sidecar with its existing pane_id/cwd plus additive exact namespace, scope, tag, agent, session and launch nonce. It resolves and validates the existing launch environment, not arbitrary supplied paths. It never queries Zellij and never acquires the namespace lock. Existing sidecar consumers continue to read pane_id/cwd or existence; the new creator reader requires the exact added identity.
+
+The creator already clears that exact sidecar before spawn. It reads the sidecar under its caller-owned startup deadline, compares the entire expected launch identity, publishes the namespace's positive ready marker itself, then releases exclusion. Thus a late old pane writer cannot publish a namespace marker for a new launch. Only the creator publishes that final marker after matching its own fresh nonce. Subsequent guarded rename can wait for this release without preventing the independent first-pane publisher from running. The right terminal and editor paths use ordinary bounded-command admission; neither must finish before first-pane publication.
+
+#### Governing concepts and integration points
+
+| Pure entity | File | Status | Direct test |
+|---|---|---|---|
+| ReadyIdentity / ReadyMarker / QualifyReadyMarker | cmd/internal/zellijquery/readiness.go | new | exact identity, missing/stale/malformed/newer additive data |
+| PlanProbeAdmission | cmd/internal/zellijquery/readiness.go | new | complete passive candidate set, unknown is never empty; counted8/16 candidates |
+| PaneBirthRecord codec | cmd/internal/panebirth/record.go | new | old pane fields plus exact additive launch identity; nested unknown fields |
+
+| Integration | Files | Status | Dependency/fake |
+|---|---|---|---|
+| Context-bounded stable file lease | cmd/internal/launcher/session_lease.go; cmd/internal/zellijquery/lease.go | modified/new shared extraction | reuse existing kernel flock, CLOEXEC, inode validation and cancellation pacing; subprocess tests |
+| ProbeGuard / positive marker store | cmd/internal/zellijquery/readiness_os.go | new | same production seam with a portable private folder and stateful fake native namespace |
+| Canonical marker/namespace-lock paths and lifetime declaration | cmd/internal/artifactpath/session_lock.go; manifest.go | modified | effective child environment; transport spelling retained; separate stable lock family |
+| First-pane publisher | cmd/internal/panebirth/record_os.go; cmd/pair-go/main.go; zellij/layouts/main-2.kdl; main-3.kdl | new/modified | early internal route analogous to internal exec-alarm; existing pane sidecar, no native effects |
+| Creator handoff | cmd/internal/launcher/session_handoff_os.go; session_handoff.go | modified | exact pane record before marker/release, then existing AgentReady and admission |
+| Bounded Go native commands | cmd/internal/zellijquery/query.go and callers enumerated below | modified | one guarded invocation seam; independently counted stateful scanner |
+| Bounded shell/Lua native adapter | cmd/pair-go/main.go; cmd/internal/zellijquery/command.go; nvim/zellij_trace.lua and callers below | new/modified | internal zellij-command runner, same guard/argv/env and joined child behavior |
+| Native qualification | cmd/couch/zellij_startup_readiness_fleet_test.go | new | existing testcouch only; both agent fixtures; caller deadline and exact cleanup |
+
+The shared lease extraction must preserve `launcher.AcquireTerminalLease`'s existing external behavior through delegation; it is not a second lock algorithm. No import cycle or per-session native-lock/conversation policy is introduced. The explicit owned permit is an in-process value; no environment bypass crosses an exec boundary.
+
+#### Lock ownership and completion table (PQ-1)
+
+Lock order for creation is **existing per-session handoff lease, then namespace lease**. A bounded command takes only namespace admission; it must not acquire a per-session handoff lease. A marker/cache read takes neither. Creator preflight queries use its explicit held namespace permit, avoiding recursive flock acquisition. The first-pane publisher takes neither. Failure joins owned native work before releasing its namespace lease; the process-death limit above remains explicit.
+
+| Command/path | Namespace-lock owner and release | Failure/cancellation | Proof/control |
+|---|---|---|---|
+| New terminal creation | terminalOSAttempt owns from before preflight/native spawn until exact first-pane match and ready-marker publication | cancel/join own client and observers, release; partial server remains uncertain, no new cleanup authority | hold pane publisher, assert zero bounded probes; publish exact record and assert release before AgentReady |
+| Creator's final admission | ordinary bounded query after creator release | existing short query budget capped by startup | assert no recursive acquisition; withheld AgentReady remains a startup failure independently |
+| Source.readAttempt, including custom Run / InheritedGroup | caller owns across passive marker qualification and the entire joined native command | original single deadline includes lock wait; existing result/evidence and group join preserved | native scanner touches every endpoint even for a named action; second creator cannot overlap |
+| Bounded mutation, title, clipboard or shell/Lua action | same guarded command owner through child completion | use caller's existing bound, capped by the shared native-command budget; never silently detach | controlled child waits, cancels and exits; new creator admitted only after join |
+| ExecKillSession | exec a Pair internal guarded-command helper first; that helper owns a normal CLOEXEC lease while synchronously running native kill-session, then exits with its status | preserve process-replacement semantics and explicit errors; no inherited lock FD or successful return into restart logic | subprocess proves lock remains while the native child scans and is free after helper/native exit |
+| PAIR_KILL_CMD override that is not native zellij | retain existing override execution; it does not claim guarded native scanning | existing override/test contract | regression proves argv and non-returning exit behavior; native zellij overrides go through helper |
+| Interactive attach, including native session switch/reconnect | **no namespace lock; residual race explicitly accepted for this contour** | retain current client admission/interactive lifetime and cancellation | negative coverage control shows it is not guarded; independent test proves an attached client never holds creation for its lifetime |
+| Creator process death | kernel releases file descriptor automatically | no journal, no orphan latch, no inferred readiness | subprocess owner-death release; expected unknown marker state and documented upstream residual risk |
+
+`syscall.Exec` directly into Zellij cannot carry an ordinary CLOEXEC guard. Executing the Pair helper before acquisition preserves the existing process-replacement boundary, and its synchronously joined native child makes the lock lifetime explicit. The helper accepts native argv as argv, never shell source; it is not a general command executor. Missing binary and native nonzero exits remain explicit.
+
+#### Complete bounded-call sweep and enforcement
+
+The mechanical class is **Pair-originated bounded public Zellij CLI invocations that internally scan the namespace**. Guarding only zellijexec.Run would miss Source.Run injection and raw exec sites. Place source-read admission before Source.readAttempt calls its runner; route raw bounded Go calls through the same command seam without repeating read classification/retry policy. Mutation calls do not inherit read retries.
+
+| Caller family | Production sites to migrate/audit |
+|---|---|
+| Shared reads | cmd/internal/zellijquery/query.go, including injected and inherited-group runners; launcher ZellijSource and Couch ListingPoller callers derive from this |
+| Go mutations | cmd/internal/layoutcmd/layoutcmd.go RunZellijAction; termcmd/run.go runZellij; wrapcmd/wrap.go runZellijAction/floating scrollback; clipcmd/runtime.go SetPaneColor/WritePaneKeyContext; titlepoller/runtime.go RenamePane; couch/titles.go; reviewcmd/runtime.go SpawnReviewPane |
+| Retirement/replacement | launcher/osruntime.go ExecKillSession and existing recovery_terminal_os.go native commands; preserve all existing retirement proofs and operation authority |
+| Bootstrap/generated shells | zellij/layouts/main-2.kdl, main-3.kdl; workbenchshortcut/terminal_command.go RightTerminalPaneShell; first-pane publisher always precedes any guarded rename |
+| Lua bounded actions | nvim/zellij_trace.lua consumers (workbench_route, pair_poke, dom_transport, draft_send); nvim/review/restore_client.lua; init.lua raw vim.fn.system and floating-viewer command sites |
+| Explicit non-scans/limits | zellij --version remains lock-free; hidden --server belongs to creator startup, not query admission; ordinary interactive attach/native internal session switching are the declared uncovered class; tests directly invoking Zellij are classified as fixture/qualification inputs |
+
+Internal helper invocation is `pair internal zellij-command -- <native argv>`; a caller with a shorter deadline supplies it through the adapter's existing deadline boundary. It uses the effective inherited environment, keeps argv intact and owns native stdio/exit collection. Shell and Lua consumers route through this helper rather than copy lock paths or shell flock logic. The internal pane writer is `pair internal pane-ready`, resolved before public launch dispatch. Both follow the existing internal exec-alarm route pattern, with no public dispatcher-family growth.
+
+Catalog/AST/source inventory guard in pkg/golint must cite #866, enumerate the above finite escape hatches and reject new unclassified direct native bounded exec sites in Go, generated shell/layout strings and Lua. Classify the interactive exception explicitly rather than suppressing every call in its file. Add negative controls for each source language and for custom Source.Run bypass. Readiness/cancellation code must be reviewed against this inventory before marking the sweep complete.
+
+#### State, format evolution, capacity and retirement (PQ-2)
+
+The positive namespace marker is immutable for one exact launch. No read-modify-write path is needed: observation decodes without writing; same-generation publication keeps an existing compatible record byte-for-byte; replacement is a different launch and may replace only after creator authority/old marker invalidation under the namespace lock. Matching retirement removes the old marker only after the existing lifecycle proof; observation never unlinks an unmarked/unknown server. Stale/external same-name reuse remains the stated limit.
+
+Known JSON fields and duplicates remain strict. Decode preserves unknown raw members at both top level and nested identity in explicit raw-member maps, and encode merges them without dropping fields. The additive pane-sidecar codec does the same for any same-generation rewrite. Tests load a newer record with top-level and nested unknown fields through the older decoder, encode it again and assert semantic equality; same-generation publication also asserts byte-for-byte preservation. Wrong known types, duplicate keys and unsupported safety semantics refuse. A legacy pane record stays readable by existing consumers but cannot satisfy the new exact-launch creator qualification.
+
+Use bounded regular-file metadata helpers and atomic writes. Namespace lock inodes are a fixed256-stripe family and never unlinked; collisions only serialize. The marker store holds only current positive evidence, never a record per retry. Register explicit resolver/retention ownership and integrate matching create/retirement cleanup; do not mistake a manifest label for an implemented sweep. Marker bytes are bounded8KiB. Before admitting a new marker, enforce a complete128-current-session envelope per configured namespace, reclaim only markers proved superseded/retired by existing authority, and refuse capacity/uncertain selection before native creation. Reader overflow returns unknown rather than truncating candidates. This capacity bound covers durable residue even when a process dies; it is not permission to remove an unknown session. Direct positive-marker/cache reads remain lock-free.
+
+Actions are wait/retry the existing operation, cancel the current launch, and use existing explicit recovery; no new recovery command is introduced.
+
+| Internal condition | Visible result | Recovery | Possible loss/limit |
+|---|---|---|---|
+| live creator holds namespace lock, no exact pane record | bounded command waits within caller deadline; startup pending | wait or cancel launch | no new bounded probe effect |
+| exact first-pane record, marker published | release namespace; existing agent readiness/admission continues | ordinary operation | pane readiness proves native metadata, not agent readiness |
+| malformed/stale/missing candidate marker | observation unknown/starting; no fabricated empty inventory | existing explicit recovery | legacy sessions may require explicit relaunch before full qualification |
+| bounded-command lock wait reaches deadline | no-answer/context cause; no child spawned | retry existing operation | original observation unavailable |
+| bounded child cancelled/exits | join child, retire command resources and release | existing caller error/retry | partial native effect remains explicit; no mutation replay |
+| creator death or unconfirmed cancellation | kernel unlocks, marker remains absent/unknown | existing explicit recovery | upstream early-removal risk in crash case remains |
+| interactive attach/native reconnect overlaps creation | existing attach result; no coverage claim | existing operation recovery | upstream residual race remains; never hold lock for interactive life |
+| marker capacity/selection uncertainty | refuse before create, no truncated inventory | existing explicit retirement/recovery | no new session started |
+
+Hot-path cost: for C passive namespace candidates, one complete candidate pass plus at most C bounded marker reads and one guarded native invocation per attempt, O(C), not a native call per candidate. Existing read retries remain at most3 within one original5s/caller deadline. Count8/16 candidate/admission cases and require exactly one candidate traversal, at most C marker reads and zero native scans while the live creator is blocked. No background worker, new timer cadence, lifetime journal or timing-only performance assertion.
+
+#### Single implementation/review boundary
+
+- [ ] Record RED against the production Source seam with a stateful fake that models native global enumeration, withheld first-pane execution and exact identities. Include the named-target/unready-neighbor case, creator publication ordering and bootstrap rename-before-AgentReady cycle.
+- [ ] Implement the shared lease extraction, pure codecs/admission and bounded portable store; prove subprocess owner death, inode safety, namespace isolation, existing deadline consumption, capacity refusal and additive nested-field preservation. Do not claim that the accepted crash case is solved.
+- [ ] Add the non-native first-pane publisher and creator lifetime integration; keep AgentReady unchanged. Prove that exact pane publication releases exclusion while AgentReady is withheld and that a stale pane generation cannot release a new creator.
+- [ ] Complete the bounded Go/shell/Lua caller inventory through the one guarded command seam; add exec-helper lifetime tests, helper argument/exit tests, source-language bypass controls and a negative interactive-coverage test. Run each focused regression RED/GREEN, then the relevant complete packages/races and inventory checks.
+- [ ] Qualify on the shared disposable native fleet for Claude and Codex, with ordinary bounded observation traffic concurrent with startup; retain exact cleanup, complete output and hashes. No private server/socket/process-owner experiment and no upstream issue without a standalone reproducer. State historical trigger attribution remains incomplete.
+- [ ] Update atlas/startup documentation and durable evidence; push final source; record sdlc local-check run --pre-close, run make test-affected-inventory and use the binary-owned close review/ordinary landing path. #722 remains separately parked for its operator-watched rerun.
+
+**Review disposition request:** PQ-1 is answered by explicit command-class ownership and the TL-authorized interactive limitation, not by inventing an unsupported release event. PQ-2 is answered by immutable same-generation publication plus explicit nested raw-member preservation and round-trip tests. TL should approve/reject this consolidated contour once; another substantive design correction means stop and re-scope per c8f6e5d4.
