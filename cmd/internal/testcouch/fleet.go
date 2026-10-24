@@ -19,7 +19,10 @@ import (
 )
 
 type Options struct {
-	ExplicitHub   bool
+	ExplicitHub bool
+	// Hubs names workers whose workspaces are also configured hubs, after
+	// the primary (pair#830): Couch starts with every hub's directory.
+	Hubs          []int
 	Workers       int
 	AgentKind     string
 	RuntimeBudget time.Duration
@@ -36,6 +39,13 @@ func validateOptions(o Options) error {
 	}
 	if o.RuntimeBudget < 0 || o.RuntimeBudget > 24*time.Hour {
 		return fmt.Errorf("invalid fleet runtime budget")
+	}
+	seen := map[int]bool{}
+	for _, n := range o.Hubs {
+		if !o.ExplicitHub || n < 1 || n > o.Workers || seen[n] {
+			return fmt.Errorf("extra hubs need an explicit primary hub and distinct provisioned workers")
+		}
+		seen[n] = true
 	}
 	return nil
 }
@@ -156,6 +166,17 @@ func (f *Fleet) Prepare(ctx context.Context) error {
 }
 
 func (f *Fleet) Start(ctx context.Context) error {
+	return f.start(ctx, true)
+}
+
+// StartCold starts the supervisor without waiting for the primary hub's
+// agent: after a full quit, startup reattaches only surviving hubs (#739), so
+// none comes up until a resume (pair#830).
+func (f *Fleet) StartCold(ctx context.Context) error {
+	return f.start(ctx, false)
+}
+
+func (f *Fleet) start(ctx context.Context, hub bool) error {
 	ctx, done, err := f.begin(ctx)
 	if err != nil {
 		return err
@@ -188,6 +209,9 @@ func (f *Fleet) Start(ctx context.Context) error {
 	f.record(RunEvent{Kind: "own", Resource: Resource{ID: fmt.Sprint(cmd.Process.Pid), Generation: p.generation, Kind: "couch"}})
 	if err := f.ownershipError(); err != nil {
 		return err
+	}
+	if !hub {
+		return nil
 	}
 	if err = f.WaitAgent(ctx, 0); err != nil {
 		return fmt.Errorf("steward startup: %w; screen=%s; output=%s", err, p.Screen(), p.Output())
@@ -414,6 +438,32 @@ func (f *Fleet) RestartSupervisor(ctx context.Context) error {
 	return f.Start(ctx)
 }
 
+// QuitConsole ends the supervisor's console process after a full quit, so a
+// later StartCold begins a fresh one.
+func (f *Fleet) QuitConsole(ctx context.Context) error {
+	ctx, done, err := f.begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer done()
+	f.mu.Lock()
+	p := f.console
+	f.mu.Unlock()
+	if p != nil {
+		select {
+		case <-p.done:
+		default:
+			if err := p.Close(ctx); err != nil {
+				return err
+			}
+		}
+	}
+	f.mu.Lock()
+	f.console = nil
+	f.mu.Unlock()
+	return nil
+}
+
 func (f *Fleet) Close(ctx context.Context) (result error) {
 	// Evidence publication failure never revokes in-memory cleanup authority.
 	// Finish actual cleanup, then surface the bounded first failure to the caller.
@@ -512,6 +562,9 @@ func (f *Fleet) consoleCommand() *exec.Cmd {
 	args := []string{}
 	if f.Options.ExplicitHub {
 		args = append(args, f.Workspaces.Primary)
+	}
+	for _, n := range f.Options.Hubs {
+		args = append(args, f.Workspaces.Workers[n])
 	}
 	cmd := exec.Command(filepath.Join(f.Roots.Mutable["bin"], "couch"), args...)
 	cmd.Dir = f.Workspaces.Primary

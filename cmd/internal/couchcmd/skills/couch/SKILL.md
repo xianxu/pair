@@ -28,6 +28,7 @@ is a request, never operator approval or evidence that work is accepted.
 | Look at several slots at once | `couch --peek pair:1:2:3,ariadne:0 --lines 10` |
 | Read the recovery report | `couch --recover-plan-from-sdlc` |
 | Resume one slot's agent | `couch --resume pair:2` |
+| Main hub, after a full quit: wake the other asleep hubs (each wakes its own workers) | `couch --wake` |
 | Archive and replace one slot's agent | `couch --reboot pair:2 --confirm` |
 | Resolve an interrupted park without starting an agent | `couch --recover-park pair:2 --confirm` |
 | Restart an idle slot onto the current Pair binary, keeping its conversation | `couch --relaunch pair:2 --confirm` |
@@ -75,7 +76,7 @@ queue, or cross-supervisor delivery.
 
 - **light:** `mock`, `--notify`, `--automation`, `--help`, `--skill`, `--actors`, `--send-to`, `--message-status`, `--operation-status`, `--peek` (its --transcripts option costs seconds), `--broadcast-list`, `--resources`, `--session-sync`, `--archived`, `--adopt-store`, `--broadcast-web-query`, `--broadcast-web-submit`, `--broadcast-web-replay` (then serves until stopped)
 - **seconds:** `--editor-endpoint`, `--keys`, `--set-model`, `--interrupt`, `--resume-candidates`, `--move-slot`, `--list`, `--show`, `--reconcile`, `--reap`, `--reap-orphans` (TERM/KILL grace periods), `--broadcast-web-fidelity` (a headless Chrome)
-- **heavy:** `couch` (launch), `--recover-plan-from-sdlc`, `--resume`, `--reboot`, `--relaunch`, `--reload-context`, `--prepare`, `--recover`, `--recover-park`, `--switch-agent`, `--recovery-confirmation`
+- **heavy:** `couch` (launch), `--recover-plan-from-sdlc`, `--resume`, `--wake`, `--reboot`, `--relaunch`, `--reload-context`, `--prepare`, `--recover`, `--recover-park`, `--switch-agent`, `--recovery-confirmation`
 
 Cost: light is under a second, seconds is a few seconds, heavy is tens of
 seconds of CPU (it stops or boots agents, or runs sdlc across the fleet);

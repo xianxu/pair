@@ -497,6 +497,19 @@ func threadStateText(thread couchcore.ActionableThreadSummary, now time.Time) st
 	if thread.HasOpenPark {
 		return menuRowAdviceOf(menuRowFactsOf(thread)).Notice.Text
 	}
+	text := continuityStateText(thread, now)
+	if thread.AsleepAt != nil {
+		// Asleep is a parked slot a full shutdown put down (pair#830): the
+		// asleep set is what wake brings back, so it reads apart from parked.
+		if couchcore.ContinuityOutcome(thread) == couchcore.ResumeDisk {
+			return "Asleep · " + relativeMenuAge(now, *thread.AsleepAt)
+		}
+		return text + " · asleep"
+	}
+	return text
+}
+
+func continuityStateText(thread couchcore.ActionableThreadSummary, now time.Time) string {
 	switch couchcore.ContinuityOutcome(thread) {
 	case couchcore.Continue:
 		if thread.State == couchcore.ThreadDetached && hasRecordedActivity(thread.LastActiveAt) {

@@ -161,6 +161,7 @@ func AdvanceStartTransaction(record ThreadRecord, event StartEvent) (ThreadRecor
 			// Pair registration is the commit point for a resume. Until this
 			// transition the verified park remains the rollback authority.
 			next.VerifiedPark = nil
+			next.Asleep = nil // woken: the mark named the receipt just retired (pair#830)
 			// A conversation is running again: the line a compaction that
 			// didn't finish left has been acted on (#522).
 			next.ContinuationMissed = nil

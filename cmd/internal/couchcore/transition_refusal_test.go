@@ -147,6 +147,15 @@ func TestEveryLifecycleTransitionIsDrivenIntoItsOwnRefusal(t *testing.T) {
 			},
 			want: "exactly one live or unknown incarnation",
 		},
+		// The asleep form shares BeginPark's door and precondition (pair#830).
+		"BeginParkAsleep": {
+			shape: noShape,
+			call: func(t *testing.T, s *ThreadStore, r ThreadRecord) error {
+				_, err := s.BeginParkAsleep(r.Address, r.Revision, park(r), time.Unix(1, 0), threadrecord.SleepFullQuit)
+				return err
+			},
+			want: "exactly one live or unknown incarnation",
+		},
 		"AdvancePark": {
 			shape: noShape,
 			call: func(t *testing.T, s *ThreadStore, r ThreadRecord) error {
