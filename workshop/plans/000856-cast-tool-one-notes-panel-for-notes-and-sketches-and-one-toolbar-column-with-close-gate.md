@@ -431,6 +431,41 @@ rounds:
       recipe: milestone-review
       isolation: fenced
       blocked: true
+    - reviewer_runs:
+        - version: 1
+          intent:
+            disposable_root: true
+            id: 728642d5-276d-4d4a-b2d0-4be3bc8c20fb
+            repository: github.com/xianxu/pair
+            issue_id: "000856"
+            recipe: milestone-review
+            round: 3
+            attempt: 1
+            agent: codex
+            root: /Volumes/TestScratch/review-checkouts/aed7f4d07bf39ea2
+            reviewed_head: fec09fd2b22508e04d9d2d4706ad9c3970793699
+            slot: pair:4
+            requested_at: "2026-10-24T08:48:37.633541Z"
+          phase: finished
+          pid: 68659
+          started_at: "2026-10-24T08:48:37.792026Z"
+          finished_at: "2026-10-24T08:51:16.079133Z"
+          session_id: 01a16d19-035e-7731-bf0b-1704c409c39f
+          outcome: returned
+      "n": 3
+      timestamp: "2026-10-24T01:54:36-07:00"
+      dispatched: "2026-10-24T01:48:33-07:00"
+      agent: codex
+      reviewer: codex (openai; author openai)
+      dispose:
+        - id: BR-4
+          disposition: withdrawn
+          note: native-final-source.log records all eight named tests passing without skips on 087631062be649f7578cab38fe75ddc6c3044ed1; git diff against the pinned head shows identical cmd/ and tests/ trees. The production fixture independently checks 16 viewport/presentation combinations, native control hit reachability, deliberate overlap rejection and captured drag. workspace-geometry-red.log records the minimized-width regression failing before correction. The review-host rerun still fails at Chrome startup with GPU exit_code=6, but the source-matched working-host evidence answers the requested qualification.
+          round: 3
+      recipe: milestone-review
+      isolation: fenced
+      reviewed: fec09fd2b22508e04d9d2d4706ad9c3970793699
+      blocked: false
 ---
 
 # Gate ledger — pair#856 (boundary-review)
@@ -460,6 +495,12 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - BR-3 — addressed — Minimized Notes visibly indicates Status and exposes the full message through its accessible name and tooltip. Tests cover arrival, clearing, restoration and clamping; removing the visible suffix failed the regression.
 - BR-4 — not-addressed — Retained native-review-fixes.log supplies eight non-skipped passes on 791e8742c, whose cmd/ and tests/ trees match this head. However, cast_notes_panel_live_test.go:32-42 mounts only the standalone panel, without cast-tools CSS, toolbar or protected workspace layout; its 1280/320 bounds assertions cannot establish toolbar separation. operator_sketch_live_test.go:162 checks button reachability, without the required viewport separation matrix. The repeated WEBCAST_LIVE_CHROME=1 GOMAXPROCS=2 go test -p 1 ./cmd/internal/webcast -run '^(TestCastNotesPanelLive|TestOperatorSketchLiveDrawing|TestOperatorLiveAnnotation|TestOperatorFeedbackLivePrepareAndStalePanel|TestOperatorSketchLiveOpenContactHandoffLabel|TestOperatorModuleAssembly|TestOperatorSharedModulesExecute|TestOperatorSketchSharedBundleExecutes)$' -count=1 -v -timeout 180s still failed native startup with GPU exit_code=6. Supply source-bound, non-skipped host results measuring the actual toolbar against expanded/minimized Notes, editors and status at common desktop/narrow widths (ARCH-MOCK, ARCH-CONSTRAINTS).
 
+## Round 3 — 2026-10-24T01:54:36-07:00 (codex) — passed
+
+### Disposed
+
+- BR-4 — withdrawn — native-final-source.log records all eight named tests passing without skips on 087631062be649f7578cab38fe75ddc6c3044ed1; git diff against the pinned head shows identical cmd/ and tests/ trees. The production fixture independently checks 16 viewport/presentation combinations, native control hit reachability, deliberate overlap rejection and captured drag. workspace-geometry-red.log records the minimized-width regression failing before correction. The review-host rerun still fails at Chrome startup with GPU exit_code=6, but the source-matched working-host evidence answers the requested qualification.
+
 ## Open findings
 
-- **BR-4** [Important] `native-ui-qualification` (kind: unverifiable) Native browser interaction and layout qualification could not run
+(none — every finding has been disposed)

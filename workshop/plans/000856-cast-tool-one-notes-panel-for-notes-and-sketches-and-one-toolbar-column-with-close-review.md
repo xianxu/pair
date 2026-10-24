@@ -203,3 +203,90 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000415
+
+---
+
+## Re-review — 2026-10-24T01:54:36-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 856 — Cast tool: one Notes panel for notes and sketches, and one toolbar column with tools revealed on toggle |
+| repo | pair |
+| issue file | workshop/issues/000856-cast-tool-one-notes-panel-for-notes-and-sketches-and-one-toolbar-column-with.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 99846a5015f753f05edaf4778618849f377a2f71..fec09fd2b22508e04d9d2d4706ad9c3970793699 |
+| command | sdlc close --issue 856 |
+| reviewer | codex (openai; author openai) |
+| isolation | fenced |
+| timestamp | 2026-10-24T01:54:36-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: medium
+```
+
+The pinned range delivers #856’s unified Notes panel and protected tool column, including the approved icon, hover and palette revisions. No new blocking defects found. BR-4 is answered by retained, source-matched native measurements. This host still cannot start Chrome, which limits independent native reproduction.
+
+```findings
+dispose:
+  - id: BR-4
+    disposition: withdrawn
+    note: |
+      native-final-source.log records all eight named tests passing without skips on 087631062be649f7578cab38fe75ddc6c3044ed1; git diff against the pinned head shows identical cmd/ and tests/ trees. The production fixture independently checks 16 viewport/presentation combinations, native control hit reachability, deliberate overlap rejection and captured drag. workspace-geometry-red.log records the minimized-width regression failing before correction. The review-host rerun still fails at Chrome startup with GPU exit_code=6, but the source-matched working-host evidence answers the requested qualification.
+```
+
+1. **Strengths**
+
+   - The panel projects existing feedback through typed keys without acquiring submission authority or duplicating saved state: `web/feedback-entries.js` and `web/feedback-panel.js`.
+   - Tool adoption preserves existing control listeners and permission decisions, with explicit restoration during disposal: `web/cast-tools.js`.
+   - The composed native oracle measures actual production rectangles and hit targets independently of `feedbackLayout`, and rejects deliberately introduced overlap: `live_note_submission_test.go:126`.
+   - README and both webcast atlas documents describe the new panel, controls, status placement and read-only finished labels.
+
+2. **Critical findings:** None.
+
+3. **Important findings:** None.
+
+4. **Minor findings:** None.
+
+5. **Test coverage notes**
+
+   - Reviewed both required stat and name-status outputs, then targeted implementation and test patches.
+   - `node --test tests/webcast/*.test.mjs`: **604 passed**, zero failures or skips.
+   - All three operator module assembly/execution checks passed locally.
+   - Five native scenarios failed locally before opening a page because Chrome’s GPU process was unusable.
+   - Retained source-matched output records all eight native/module tests passing. Its geometry matrix covers expanded/minimized Notes with status and both real editors at 1280×800, 768×800, 320×800 and 320×480.
+   - BR-1, BR-2 and BR-3 remain previously accepted dispositions; none is reopened.
+
+6. **Architectural notes**
+
+   - **ARCH-DRY — pass:** Shared projection, layout, glow and panel owners replace separate presentation surfaces.
+   - **ARCH-PURE — pass:** Entry/layout calculations and floating-panel transitions remain directly testable; DOM adapters execute presentation effects.
+   - **ARCH-PURPOSE — pass:** #856’s panel and column are delivered. The plan explicitly assigns persisted page-load partitioning to separate issue #857.
+   - **ARCH-MOCK — pass:** Changed UI uses injected DOM fixtures and disposable native Chrome fixtures through production seams.
+   - **ARCH-CONSTRAINTS — pass:** Linear projection guards, bounded scrolling and composed narrow-viewport measurements support the declared interactive workload.
+   - **ARCH-SECURE — pass:** Feedback text uses text insertion; reveal requires validated original-anchor evidence and visibly reports unavailability.
+   - **ARCH-ORDER — pass:** Floating-panel changes retain the production transition reducer; existing annotation/sketch policy owners retain command admission.
+   - **ARCH-FUNERAL — pass:** New presentation owners provide disposal for canvases, listeners, keyed rows and adopted nodes. No new runtime durable artifact family appears.
+   - **ARCH-EVOLVE — pass:** This range changes presentation without changing persisted recording formats.
+
+   The #856 core-concept rows match the implementation. The #857 rows are explicitly future scope.
+
+7. **Plan revision recommendations:** None. Existing revisions document the approved deviations and minimized-width correction.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"728642d5-276d-4d4a-b2d0-4be3bc8c20fb","repository":"github.com/xianxu/pair","issue_id":"000856","recipe":"milestone-review","round":3,"attempt":1,"agent":"codex","root":"/Volumes/TestScratch/review-checkouts/aed7f4d07bf39ea2","reviewed_head":"fec09fd2b22508e04d9d2d4706ad9c3970793699","slot":"pair:4","requested_at":"2026-10-24T08:48:37.633541Z"},"phase":"finished","pid":68659,"started_at":"2026-10-24T08:48:37.792026Z","finished_at":"2026-10-24T08:51:16.079133Z","session_id":"01a16d19-035e-7731-bf0b-1704c409c39f","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 3.931341583s
+head: "fec09fd2b22508e04d9d2d4706ad9c3970793699"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412
