@@ -1,0 +1,129 @@
+package webcast
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"github.com/xianxu/pair/cmd/internal/broadcast"
+	castassets "github.com/xianxu/pair/cmd/internal/webcast/assets"
+	"github.com/xianxu/pair/cmd/internal/webcast/recording"
+	"net/http"
+	"net/http/httptest"
+	"os"
+	"path/filepath"
+	"testing"
+	"time"
+)
+
+func Test876DiagnosticToolColumn(t *testing.T) {
+	if os.Getenv("WEBCAST_LIVE_CHROME") == "" {
+		t.Skip("set WEBCAST_LIVE_CHROME=1")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+	page := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/card.svg" {
+			w.Header().Set("Content-Type", "image/svg+xml")
+			fmt.Fprint(w, `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20"><rect width="20" height="20" fill="purple"/></svg>`)
+			return
+		}
+		w.Header().Set("Content-Type", "text/html")
+		fmt.Fprint(w, `<!doctype html><title>console sketch integration</title><style>body{margin:0}button{position:absolute;left:80px;top:100px;width:240px;height:160px;padding:0;border:0;background:#eee}</style><button>Save</button><img src="/card.svg" style="position:absolute;left:600px;top:500px">`)
+	}))
+	defer page.Close()
+	bin, err := FindChrome(os.Getenv, execLookPath, fileExists)
+	if err != nil {
+		t.Fatal(err)
+	}
+	profile, root := t.TempDir(), filepath.Join(t.TempDir(), "recordings")
+	var chrome *Chrome
+	cast, err := StartCast(ctx, CastConfig{RecordingsDir: root, Host: broadcast.NewHost(broadcast.HostConfig{Tunnel: &broadcast.FakeTunnel{}}), Logf: t.Logf,
+		NewAssets: func(w recording.AssetWriter) castassets.Served {
+			return castassets.NewRecorded(w, castassets.DefaultPolicy)
+		},
+		Launch: func(ctx context.Context, opts *RecordOptions) (Browser, error) {
+			opts.ShotEvery = -1
+			var e error
+			chrome, e = Launch(ctx, LaunchOptions{Binary: bin, Headless: true, ProfileDir: profile, StartURL: page.URL, Record: opts})
+			return chrome, e
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer cast.End()
+	stop := context.AfterFunc(ctx, chrome.proc.Kill)
+	defer stop()
+	session := (liveHarness{chrome}).session(t, "")
+	call := func(method string, params, result any) {
+		t.Helper()
+		if e := chrome.conn.Call(ctx, session, method, params, result); e != nil {
+			t.Fatal(method, e)
+		}
+	}
+	eval := func(world int64, expression string) json.RawMessage {
+		t.Helper()
+		var res struct {
+			Result struct {
+				Value json.RawMessage `json:"value"`
+			} `json:"result"`
+			Exception json.RawMessage `json:"exceptionDetails"`
+		}
+		p := map[string]any{"expression": expression, "returnByValue": true, "awaitPromise": true}
+		if world != 0 {
+			p["contextId"] = world
+		}
+		call("Runtime.evaluate", p, &res)
+		if len(res.Exception) > 0 {
+			t.Fatalf("evaluate %s: %s", expression, res.Exception)
+		}
+		return res.Result.Value
+	}
+	wait := func(what string, condition func() bool) {
+		t.Helper()
+		for !condition() {
+			select {
+			case <-ctx.Done():
+				t.Fatalf("waiting for %s: %v", what, ctx.Err())
+			case <-time.After(25 * time.Millisecond):
+			}
+		}
+	}
+	call("Emulation.setDeviceMetricsOverride", map[string]any{"width": 1728, "height": 997, "deviceScaleFactor": 1, "mobile": false}, nil)
+	wait("fixture document", func() bool {
+		return string(eval(0, `document.readyState==='complete'&&!!document.querySelector('button')&&document.querySelector('button').textContent==='Save'&&!document.querySelector('button').id`)) == "true"
+	})
+	if err = chrome.SetLive(true); err != nil {
+		t.Fatal(err)
+	}
+	var world int64
+	wait("operator world", func() bool {
+		done := make(chan struct{})
+		chrome.do(func(s *loopState) { world = s.contexts[session]; close(done) })
+		<-done
+		return world != 0
+	})
+	wait("operator sketch permission", func() bool {
+		return string(eval(world, `!!globalThis.__couchcastOperatorSketch?.state().allowed&&__couchcastOperatorSketch.state().live`)) == "true"
+	})
+	if _, err = cast.board.AdmitAnnotation(); err == nil {
+		t.Fatal("viewer annotation enabled by console drawing")
+	}
+	wait("operator UI unsuppressed", func() bool {
+		return string(eval(world, `!__couchcastOperatorSketch.labelInput.getRootNode().host.hidden`)) == "true"
+	})
+	if got := string(eval(world, `(()=>{const root=__couchcastOperatorSketch.labelInput.getRootNode(),bar=root.querySelector('.cast-tools'),controls=__couchcastOperatorSketch.controls;return !bar.hidden&&getComputedStyle(bar).display!=='none'&&bar.contains(controls.pen)&&controls.pen.textContent==='✎ Pen'&&!controls.pen.disabled&&controls.done.disabled})()`)); got != "true" {
+		t.Fatalf("annotation-off console toolbar unavailable or idle Done enabled: %s; %s", got, eval(world, `JSON.stringify([...__couchcastOperatorSketch.labelInput.getRootNode().querySelectorAll('.cast-tools button')].map(b=>({text:b.textContent,disabled:b.disabled,display:getComputedStyle(b).display})))`))
+	}
+	snapshot := func(label string) {
+		t.Log(label, string(eval(world, `JSON.stringify((()=>{const root=__couchcastOperatorSketch.labelInput.getRootNode(),bar=root.querySelector('.cast-tools');return {viewport:[innerWidth,innerHeight],delivery:globalThis.__couchcastAnnotationDelivery,bar:bar.getBoundingClientRect().toJSON(),scroll:[bar.scrollTop,bar.scrollHeight,bar.clientHeight],buttons:[...bar.querySelectorAll('button,select')].map(b=>{const r=b.getBoundingClientRect(),style=getComputedStyle(b);return {text:b.textContent,hidden:b.hidden,disabled:b.disabled,title:b.title,display:style.display,opacity:style.opacity,rect:r.toJSON(),hit:b.contains(root.elementFromPoint(r.x+r.width/2,r.y+r.height/2))}})}})())`)))
+	}
+	snapshot("default-off")
+	if err := cast.board.SetAnnotationAllowed(ctx, true); err != nil {
+		t.Fatal(err)
+	}
+	wait("Note enabled", func() bool {
+		return string(eval(world, `(()=>{const root=__couchcastOperatorSketch.labelInput.getRootNode(),b=[...root.querySelectorAll('.cast-tools .mode')].find(b=>b.textContent==='▤ Note');return !!b&&!b.disabled})()`)) == "true"
+	})
+	snapshot("annotation-on")
+}
