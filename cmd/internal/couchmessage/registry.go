@@ -53,6 +53,7 @@ type registrySession struct {
 	build          *BuildIdentity
 	settled        *bool
 	backgroundWork *bool
+	workerCue      *WorkerCueReport
 	// picker is the hello-v3 self-report (pair#465): nil until one says.
 	// pickerSince is the wrapper's LastActivity on the frame that opened it.
 	picker      *bool
@@ -97,7 +98,8 @@ type RegistryEvent struct {
 	Picker      *bool          // SessionActivity/SessionSubmit on a hello-v3 session
 	At          time.Time      // supervisor receipt time; display activity only
 
-	BackgroundWork *bool // SessionActivity/SessionSubmit on a hello-v4 session
+	WorkerCue      *WorkerCueReport // hello-v5 session snapshot, nil is unknown
+	BackgroundWork *bool            // SessionActivity/SessionSubmit on a hello-v4 session
 }
 
 type RegistryEffectKind int
@@ -152,7 +154,7 @@ func (r *Registry) Advance(e RegistryEvent) ([]RegistryEffect, error) {
 				fx = r.displace(t, s, fx)
 			}
 		}
-		s := &registrySession{binding: e.Binding, build: e.Build, phase: AwaitingAdmission}
+		s := &registrySession{binding: e.Binding, build: e.Build, workerCue: CopyWorkerCueReport(e.WorkerCue), phase: AwaitingAdmission}
 		r.sessions[e.Token] = s
 		fx = r.readmit(e.Token, s, fx)
 	case SessionClosed:
@@ -210,6 +212,7 @@ func (r *Registry) Advance(e RegistryEvent) ([]RegistryEffect, error) {
 		if s == nil {
 			return nil, nil
 		}
+		s.workerCue = CopyWorkerCueReport(e.WorkerCue)
 		if s.build != nil && e.Settled != nil {
 			v := *e.Settled
 			if s.settled == nil && v && !e.At.IsZero() && e.Observation.LastActivity.After(s.lastWorkAt) {
@@ -340,7 +343,8 @@ func (r *Registry) Phase(t SessionToken) (AdmissionPhase, bool) {
 // until a hello-v2 session reports it. Both being nil reads as "unknown",
 // which is never "idle".
 type SlotLiveness struct {
-	Binding Binding
+	Binding   Binding
+	WorkerCue *WorkerCueReport `json:",omitempty"`
 	// LastWorkAt is the last observed work/completion of this session (#625).
 	// Settled refreshes cannot advance it; replacement sessions start empty.
 	LastWorkAt time.Time
@@ -375,7 +379,7 @@ func (r *Registry) Liveness() map[string]SlotLiveness {
 			ambiguous[slot] = true
 			continue
 		}
-		out[slot] = SlotLiveness{Binding: s.binding, LastWorkAt: s.lastWorkAt, Build: s.build, Settled: s.settled, BackgroundWork: copyBackgroundWork(s.backgroundWork), Picker: s.picker, PickerSince: s.pickerSince, Session: t}
+		out[slot] = SlotLiveness{Binding: s.binding, WorkerCue: CopyWorkerCueReport(s.workerCue), LastWorkAt: s.lastWorkAt, Build: s.build, Settled: s.settled, BackgroundWork: copyBackgroundWork(s.backgroundWork), Picker: s.picker, PickerSince: s.pickerSince, Session: t}
 	}
 	for slot := range ambiguous {
 		delete(out, slot)

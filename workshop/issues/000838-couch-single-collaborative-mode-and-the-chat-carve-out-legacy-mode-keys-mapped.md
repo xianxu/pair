@@ -464,3 +464,11 @@ reasons and alternatives in the durable plan.
 TL approval makes the draft's lossless-only migration refusal part of this
 implementation contract; the refusal must name the affected section. Upstream
 sequencing and project operator acceptance are approved as recorded above.
+
+### 2026-10-24 — adoption landed; integrated targeted qualification
+
+#861 landed PR580 as965ba1ee6097dba463e75a3409547bf589904430, tracker done/archive verified. Merged landed main75594fccb65aee96bc538d8690ff7396c669f19c into this original issue branch. Resolved modify/delete catalog.go/catalog_test.go by preserving this issue's approved deletion; no runtime consumers remain. Adopted main's go.sum, removing only obsolete intermediate pin sums; go.mod stays normal581. Combined artifact manifest preserves this issue's deleted catalog removal and861's new root scanner/cue helper entries. No protected gate config changed.
+
+Fresh targeted checks PASS: full editorial race5.736s, full sessionsync race61.458s, public CLI Editorial/Round/SessionSync/Collaborative11.126s, full artifactpath23.433s and repolint21.042s. Reader inventory and diff whitespace checks PASS without certificate refresh. No runtime behavior resolution beyond the approved catalog deletion, no new pin, timeout or suppression.
+
+Next: commit/push integration, rerun exact-head native editorial through shared disposable Claude/Codex personalities, then one recorded --pre-close. On PASS send exact qualified head to pair:2 for the authorized combined main+#851+#838 stage. Pair:2 reports851 repaired-head suite PASS and preserves its lease. Operator semantic/render acceptance and this issue's mandatory whole close/landing still remain pending.

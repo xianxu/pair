@@ -10,7 +10,7 @@ import (
 	"time"
 )
 
-func TestStartupLaunchesHubWithoutChangingOtherRetainedRecords(t *testing.T) {
+func TestStartupLeavesMissingHubAndOtherRetainedRecordsUntouched(t *testing.T) {
 	for _, mode := range []string{"empty", "parked", "broken-record", "pre-upgrade-live", "mixed"} {
 		t.Run(mode, func(t *testing.T) {
 			env := newTestEnv(t, "/repo")
@@ -48,7 +48,7 @@ func TestStartupLaunchesHubWithoutChangingOtherRetainedRecords(t *testing.T) {
 				t.Fatal(err)
 			}
 			result, err := env.Couch.StartInteractive(context.Background(), StartArgs{Cwd: "/repo"})
-			if err != nil || result.Handle == nil || len(env.Runner.Ops) != 2 {
+			if err != nil || result.Handle != nil || len(env.Runner.Ops) != 0 {
 				t.Fatalf("startup: %+v err=%v ops=%v", result, err, env.Runner.Ops)
 			}
 			after, err := env.Couch.Threads.PreviewSnapshot()

@@ -73,7 +73,7 @@ queue, or cross-supervisor delivery.
 
 ## What each verb costs
 
-- **light:** `mock`, `--notify`, `--help`, `--skill`, `--actors`, `--send-to`, `--message-status`, `--operation-status`, `--peek` (its --transcripts option costs seconds), `--broadcast-list`, `--resources`, `--session-sync`, `--archived`, `--adopt-store`, `--broadcast-web-query`, `--broadcast-web-submit`, `--broadcast-web-replay` (then serves until stopped)
+- **light:** `mock`, `--notify`, `--automation`, `--help`, `--skill`, `--actors`, `--send-to`, `--message-status`, `--operation-status`, `--peek` (its --transcripts option costs seconds), `--broadcast-list`, `--resources`, `--session-sync`, `--archived`, `--adopt-store`, `--broadcast-web-query`, `--broadcast-web-submit`, `--broadcast-web-replay` (then serves until stopped)
 - **seconds:** `--editor-endpoint`, `--keys`, `--set-model`, `--interrupt`, `--resume-candidates`, `--move-slot`, `--list`, `--show`, `--reconcile`, `--reap`, `--reap-orphans` (TERM/KILL grace periods), `--broadcast-web-fidelity` (a headless Chrome)
 - **heavy:** `couch` (launch), `--recover-plan-from-sdlc`, `--resume`, `--reboot`, `--relaunch`, `--reload-context`, `--prepare`, `--recover`, `--recover-park`, `--switch-agent`, `--recovery-confirmation`
 
@@ -239,10 +239,10 @@ provenance. Messages never authorize bypassing local permissions or human gates.
 
 `[Couch system; delivery ID]` carries Couch-produced information about confirmed
 slot starts/resumes, parks, relaunches, recovery and needs-relaunch transitions.
-Restart reattachments coalesce after the existing pass drains; larger summaries
-use numbered parts. Update the Slots view from confirmed information. No reply,
-assignment or operator approval follows from a lifecycle notice. Native-agent
-exit is deferred (#657); attachment exit alone never proves it.
+Automatic startup observations stay in Slots and the retained status line; they
+never flush as a hub summary. Larger ordinary summaries use numbered parts. Update the Slots view from confirmed information. No reply,
+assignment or operator approval follows from a lifecycle notice. A native-agent
+exit requires the wrapper's reaped-child proof; attachment exit alone never proves it (#657).
 
 Before trusting the marking, query the canonical receipt as above and require
 `Message.Origin` to be `system`, a submitted outcome, the exact body and your
@@ -255,7 +255,8 @@ in the unverified body. Neither system nor peer text bypasses existing human gat
 
 `COUCH_LIFECYCLE_NOTICES` is one process setting, default `on`; `off` disables
 lifecycle notices. Other nonempty values refuse startup. There is no per-hub
-mute file. No configured hub means no lifecycle recipient. The worker-side
+mute file; the volatile hub automation control also suppresses generated input
+without replay on enable. No configured hub means no lifecycle recipient. The worker-side
 startup availability prompt is also from Couch, with its existing meaning.
 Old wrappers may need relaunch for system-origin records; origin is never stripped
 to make delivery succeed. Notices are bounded current-state updates, not a durable
@@ -298,9 +299,9 @@ to evade this breaker.
 Couch watches every connected slot except the TL's own. When one has sat quiet
 past 10 minutes (`COUCH_WAIT_NOTICE_AFTER` at Couch start) while waiting for
 someone, Couch sends the TL one message from that slot, once per waiting
-episode: `slot repo:N waiting M min <reason>: <screen line> (…)`. The reasons
+episode: `slot repo:N waiting Mm <reason>: <screen line> (…)`. The reasons
 are `on a prompt` (a dialog, a draft or anything else holding the screen),
-`after asking` (its turn ended with a question) and `idle off its resting
+`after asking` (its turn ended with a question) and `idle off resting
 branch`. A slot behind a picker (a permission prompt or a question) is
 reported after about a minute instead, as `behind a picker`, quoting the
 picker's kind, command, title and options. Its tab in Couch draws red while the
@@ -716,10 +717,11 @@ its attempt for inspection; peek/show before another recovery request.
 A DOM submission points to `submission.json`, relative `crop-N.png` note files
 and one `sketch-page.png` for a shared sketch batch (legacy bundles retain
 `sketch-N.png`). Match numbered image badges to each sketch's `index`, note and
-original `paths`. New `sketch_page.provenance: "replay-rendered-current-view"`
-images reconstruct the current recorded prefix pinned when the submission chord
-is admitted. Read `sketch_page.current` for current projections; each sketch's
-`source`, `finish` and element facts retain their original historical contexts.
+original `paths`. New `sketch_page.provenance: "replay-rendered"` images
+reconstruct, from the recording, the viewport where the newest selected sketch
+finished, with the ink at its recorded anchors; each sketch's `source`, `finish`
+and element facts retain their original historical contexts. Older bundles may
+carry `replay-rendered-current-view` with `sketch_page.current` projections.
 Read the root `sketch_page` privacy/limitations as well as each item's.
 Only selected unsent ink appears; pointer and private tool UI never enter it.
 The manifest includes recorded note context, draw-time box text/accessibility
@@ -751,11 +753,10 @@ Completed sketches join the same operator draft submission. One finished sketch
 may contain several strokes sharing one attached note. Read each sketch's
 `source.url`, `source.title`, `source.provenance: "recorded-dom"`, author, note,
 `elements`, and image transform/limitations. New bundles reference one
-`sketch-page.png` through `sketch_page`: a replay reconstruction of the current
-console viewport, with only selected ink and numbered badges matching each
-sketch's `index`. Its provenance is `replay-rendered-current-view`; current
-projections in `sketch_page.current` record the actually painted target locators,
-boxes and clipping. Original coordinates and pressure remain in each sketch's
+`sketch-page.png` through `sketch_page`: a replay reconstruction of the recorded
+viewport where the newest selected sketch finished, with only selected ink at
+its recorded anchors and numbered badges matching each sketch's `index`. Its
+provenance is `replay-rendered`. Original coordinates and pressure remain in each sketch's
 `paths`, with its exact `finish` context. Legacy bundles retain per-sketch
 `sketch-N.png` images and `image.plan.paths`; legacy shared pages keep their
 recorded finish-time context. These images reconstruct recorded content;
@@ -770,15 +771,15 @@ attributes for original anchors, ancestors and nearby recorded elements, with
 explicit bounds/truncation. Do not infer application meanings from these values.
 Ordinary notes also carry these facts at their recorded context/capture moment.
 
-The operator sees the next selection before the existing draft chord sends:
-only feedback actually visible on the current console is eligible, with at most
-eight unsent finished sketches. The Pending feedback panel shows annotation and
-sketch counts, plus deferred **N more sketches** and **N more annotations**.
-Off-view feedback stays pending. A stale visible selection refuses preparation;
-partial selected ink, unsupported clipping, an open editor or a held drawing
-scene also refuses preparation. The operator reviews a fresh completed paint
-before trying again. The chord pins its current recorded prefix; pointer
-gestures and private tool UI never enter the submission. Confirmed dispatched/resolved manifests acknowledge only their
+The draft chord takes the board's feedback as it is at the press: every open
+note at its current revision and every finished, labelled sketch at its current
+version that no earlier submission delivered, offscreen ones included, with at
+most eight sketches (oldest first); the rest wait for the next submission. What
+the page is doing never refuses it. Only a note still being written (a new note
+not saved, or an edit not saved) refuses the press, naming it. The Pending
+feedback panel shows what the console paints and is information, never a gate.
+Unsupported clipping still refuses preparation; pointer gestures and private
+tool UI never enter the submission. Confirmed dispatched/resolved manifests acknowledge only their
 exact sketch versions, across targets. Those exact sketch versions and note
 revisions disappear from live console/viewer painting after confirmation; unsent
 or newer feedback stays. Original ink and notes remain in recording history and
@@ -862,6 +863,25 @@ acceptance.
 
 ## Several hubs in one Couch
 
+Startup attaches surviving sessions only; a missing hub stays in the switcher
+until the operator chooses recovery. The retained startup line reports normal,
+full-shutdown or unknown and names missing hubs. Hub automation starts on for a
+positively surviving hub after a normal restart, otherwise off. When off, Couch
+drops its own generated hub input and skips due scheduled runs. Human input,
+worker reports and desktop/status output still work. Nothing replays on enable.
+
+Use `couch --automation status` to inspect your own hub, or
+`couch --automation on` / `couch --automation off` on the operator's instruction.
+An optional hub argument must select your own canonical hub; a TL cannot change
+another hub. The operator can toggle the selected hub with Ctrl+G in the
+switcher. Input, reconnects and time never turn automation on implicitly. A lost
+control reply is uncertain: query status before choosing whether to repeat it.
+
+A newly started worker gets one generic cue to reread its issue Log and report
+to its hub. That witness belongs to the wrapper launch, so a surviving wrapper
+does not get another cue after a Couch-only restart. The separate prompt asking
+for a still-relevant unanswered report remains once per Couch lifetime.
+
 Launch with `couch . ../bench`: the first directory is main, and owns all slots
 unless another started hub claims them. Bare `couch` still uses cwd as its one
 hub. Each started hub’s `.hub` lists workspace-relative repositories (`pair`)
@@ -881,5 +901,6 @@ Implicit repository sends select within the sender’s hub. Exact addresses can
 cross hubs. Mutation commands are limited to the caller’s hub; actors and peek
 remain global. Wait/stuck notices and restart prompts follow the owning hub.
 Each hub may notify, with its name in multi-hub desktop titles. The switcher
-shows ownership sections and dims other hubs relative to focus. Move slots with
-the CLI; there is no switcher move action yet.
+shows ownership sections without dimming other hubs relative to focus; the tab
+bar retains its inactive-owner dimming. Move slots with the CLI; there is no
+switcher move action yet.

@@ -40,7 +40,7 @@ func TestRunEstablishesAfterOneShortCompletedCorroboratedRound(t *testing.T) {
 	runtime.modTimes[paths.AgentPID()] = runtime.now
 	runtime.identities["1234"] = "pair-identity"
 
-	err := Run(Options{Agent: "codex", Tag: "work", ScopeKey: "scope", LaunchOrdinal: 1, Home: "/home", DataDir: dataDir, PIDWait: time.Second, Timeout: 20 * time.Millisecond, Poll: time.Millisecond}, runtime)
+	err := Run(Options{Agent: "codex", Tag: "work", ScopeKey: "scope", LaunchOrdinal: 1, Home: "/home", DataDir: dataDir}, runtime)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -164,7 +164,7 @@ func TestWatcherIncrementalV2PublishesProofFromOnlyPostBoundaryArtifact(t *testi
 	runtime.files[paths.Log()] = []byte("## 2026-08-28 01:00:01\n\n" + text + "\n\n---\n\n")
 	runtime.files[paths.AgentPID()] = []byte("1234\n")
 	runtime.modTimes[paths.AgentPID()] = runtime.now
-	if err := Run(Options{Agent: "codex", Tag: "work", ScopeKey: "scope", LaunchOrdinal: 1, Home: "/home", DataDir: dataDir, PIDWait: time.Second, Timeout: 20 * time.Millisecond, Poll: time.Millisecond}, runtime); err != nil {
+	if err := Run(Options{Agent: "codex", Tag: "work", ScopeKey: "scope", LaunchOrdinal: 1, Home: "/home", DataDir: dataDir}, runtime); err != nil {
 		t.Fatal(err)
 	}
 	if len(runtime.store.records) != 1 || runtime.store.records[0].Version != 3 || runtime.store.records[0].AuthorizationProof == nil || runtime.store.records[0].RootNativeID != sid {
@@ -206,7 +206,8 @@ func TestWatcherLaunchBaselineWinsWhenConcurrentCatalogAlreadyContainsNewArtifac
 	runtime := newWatcherRuntime(native)
 	runtime.files[paths.Ledger()] = mustLaunchRecord(t, sessionledger.Record{Version: 2, Kind: sessionledger.RecordLaunch, ScopeKey: "scope", Tag: "work", Agent: "codex", LaunchArtifactBoundaries: []sessionledger.LaunchArtifactBoundary{}})
 	runtime.files[paths.Log()] = []byte("## 2026-08-29 01:00:01\n\n" + text + "\n\n---\n\n")
-	if err := Run(Options{Agent: "codex", Tag: "work", ScopeKey: "scope", LaunchOrdinal: 1, Home: "/home", DataDir: dataDir, PIDWait: time.Nanosecond, Timeout: 10 * time.Millisecond, Poll: time.Millisecond}, runtime); err != nil {
+	skipWatcherPIDWait(runtime)
+	if err := Run(Options{Agent: "codex", Tag: "work", ScopeKey: "scope", LaunchOrdinal: 1, Home: "/home", DataDir: dataDir}, runtime); err != nil {
 		t.Fatal(err)
 	}
 	if len(runtime.store.records) != 1 || runtime.store.records[0].AuthorizationProof == nil {
@@ -316,7 +317,8 @@ func TestWatcherCatalogFailureDoesNotPreventDurableConfirmation(t *testing.T) {
 	runtime.catalogRuntime = failingCatalogRuntime{}
 	runtime.files[paths.Ledger()] = mustLaunchRecord(t, sessionledger.Record{Version: 2, Kind: sessionledger.RecordLaunch, ScopeKey: "scope", Tag: "work", Agent: "codex", LaunchArtifactBoundaries: []sessionledger.LaunchArtifactBoundary{}})
 	runtime.files[paths.Log()] = []byte("## 2026-08-29 01:00:01\n\n" + text + "\n\n---\n\n")
-	if err := Run(Options{Agent: "codex", Tag: "work", ScopeKey: "scope", LaunchOrdinal: 1, Home: "/home", DataDir: dataDir, PIDWait: time.Nanosecond, Timeout: time.Nanosecond, Poll: time.Nanosecond}, runtime); err != nil {
+	skipWatcherPIDWait(runtime)
+	if err := Run(Options{Agent: "codex", Tag: "work", ScopeKey: "scope", LaunchOrdinal: 1, Home: "/home", DataDir: dataDir}, runtime); err != nil {
 		t.Fatal(err)
 	}
 	if len(runtime.store.records) != 1 || runtime.store.records[0].RootNativeID != sid {
@@ -341,7 +343,7 @@ func TestWatcherLaunchBoundaryNeverReadsPreexistingArtifact(t *testing.T) {
 	runtime.files[paths.AgentPID()] = []byte("1234\n")
 	runtime.modTimes[paths.AgentPID()] = runtime.now
 	runtime.identities["1234"] = "pair-identity"
-	if err := Run(Options{Agent: "codex", Tag: "work", ScopeKey: "scope", LaunchOrdinal: 1, Home: "/home", DataDir: dataDir, PIDWait: time.Second, Timeout: 20 * time.Millisecond, Poll: time.Millisecond}, runtime); err != nil {
+	if err := Run(Options{Agent: "codex", Tag: "work", ScopeKey: "scope", LaunchOrdinal: 1, Home: "/home", DataDir: dataDir}, runtime); err != nil {
 		t.Fatal(err)
 	}
 	if got := native.OperationCount(sessioninventorytest.OperationReadAt, ""); got != 0 || len(runtime.store.records) != 0 {
@@ -436,7 +438,7 @@ func TestRunIgnoresUnrelatedOpenFilesWhenRoundIsUnique(t *testing.T) {
 	runtime.modTimes[paths.AgentPID()] = runtime.now
 	runtime.identities["1234"] = "pair-identity"
 
-	if err := Run(Options{Agent: "codex", Tag: "work", ScopeKey: "scope", LaunchOrdinal: 1, Home: "/home", DataDir: dataDir, PIDWait: time.Second, Timeout: 20 * time.Millisecond, Poll: time.Millisecond}, runtime); err != nil {
+	if err := Run(Options{Agent: "codex", Tag: "work", ScopeKey: "scope", LaunchOrdinal: 1, Home: "/home", DataDir: dataDir}, runtime); err != nil {
 		t.Fatal(err)
 	}
 	if len(runtime.store.records) != 1 || runtime.store.records[0].RootNativeID != sid {
@@ -462,7 +464,7 @@ func TestRunEstablishesUniqueRoundWhenProcessIdentityIsUnavailable(t *testing.T)
 	runtime.files[paths.AgentPID()] = []byte("1234\n")
 	runtime.modTimes[paths.AgentPID()] = runtime.now
 
-	if err := Run(Options{Agent: "codex", Tag: "work", ScopeKey: "scope", LaunchOrdinal: 1, Home: "/home", DataDir: dataDir, PIDWait: time.Second, Timeout: 20 * time.Millisecond, Poll: time.Millisecond}, runtime); err != nil {
+	if err := Run(Options{Agent: "codex", Tag: "work", ScopeKey: "scope", LaunchOrdinal: 1, Home: "/home", DataDir: dataDir}, runtime); err != nil {
 		t.Fatal(err)
 	}
 	if len(runtime.store.records) != 1 || runtime.store.records[0].RootNativeID != sid {
@@ -517,7 +519,8 @@ func TestRunRejectsSupersededLaunch(t *testing.T) {
 	runtime := newWatcherRuntime(sessioninventorytest.NewFakeRuntime())
 	runtime.files[paths.Ledger()] = []byte(first + "\n" + second + "\n")
 	runtime.now = time.Unix(10, 0)
-	if err := Run(Options{Agent: "codex", Tag: "work", ScopeKey: "scope", LaunchOrdinal: 1, Home: "/home", DataDir: dataDir, PIDWait: time.Nanosecond, Timeout: time.Nanosecond, Poll: time.Nanosecond}, runtime); !errors.Is(err, sessionledger.ErrStaleLaunch) {
+	skipWatcherPIDWait(runtime)
+	if err := Run(Options{Agent: "codex", Tag: "work", ScopeKey: "scope", LaunchOrdinal: 1, Home: "/home", DataDir: dataDir}, runtime); !errors.Is(err, sessionledger.ErrStaleLaunch) {
 		t.Fatalf("err=%v", err)
 	}
 }
@@ -688,4 +691,18 @@ func (p scopedTestPaths) Catalog() string {
 }
 func (p scopedTestPaths) Config(agent string) string {
 	return filepath.Join(p.dataDir, "config-"+p.tag+"-"+agent+".json")
+}
+
+// skipWatcherPIDWait advances the existing fake clock across the production
+// PID wait when a fixture deliberately has no process. It leaves observation
+// time and later scan events under the test's normal onSleep control.
+func skipWatcherPIDWait(r *watcherRuntime) {
+	var opts Options
+	applyWatcherDefaults(&opts)
+	end := r.now.Add(opts.PIDWait)
+	next := r.onSleep
+	r.onSleep = func() {
+		r.now = end
+		r.onSleep = next
+	}
 }

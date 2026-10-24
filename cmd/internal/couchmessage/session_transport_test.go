@@ -2,6 +2,7 @@ package couchmessage
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net"
@@ -309,4 +310,90 @@ func TestSessionServerCapacity(t *testing.T) {
 			t.Fatalf("session %d ack %+v", i, ack)
 		}
 	}
+}
+
+func TestWorkerCueV5WireCarriesKnownLaunchEvidence(t *testing.T) {
+	b := registryBinding("pair:1", "a", 7)
+	raw, _ := json.Marshal(map[string]any{"Op": "hello-v5", "Binding": b, "Build": testBuild, "WorkerCue": map[string]any{"LaunchOrdinal": uint64(7), "State": "needed"}})
+	if _, err := DecodeSessionFrame(raw); err != nil {
+		t.Fatalf("v5 must carry known worker-cue evidence: %v", err)
+	}
+}
+
+func TestSessionWorkerCueSurvivesPrivateSupervisorRestart(t *testing.T) {
+	socket := sessionSocket(t)
+	clientCtx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	helloReports := make(chan *WorkerCueReport, 10)
+	activityReports := make(chan *WorkerCueReport, 10)
+	handler := SessionHandler{
+		Open:   func(_ SessionToken, h SessionHello) error { helloReports <- h.WorkerCue; return nil },
+		Frame:  func(_ SessionToken, f SessionFrame) { activityReports <- f.WorkerCue },
+		Closed: func(SessionToken) {},
+	}
+	server, err := StartSessionServer(context.Background(), socket, handler)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = server.Close() }()
+	b := selfBinding("pair:1")
+	c := NewSessionClient()
+	c.SetBuild(testBuild)
+	cue := &WorkerCueReport{LaunchOrdinal: 7, State: WorkerCueNeeded}
+	c.WorkerCue(cue)
+	c.Update(Observation{Sequence: 1})
+	go c.Run(clientCtx, socket, b, ReconnectBackoff{Base: time.Millisecond, Cap: 10 * time.Millisecond, StableAfter: time.Hour}, time.Millisecond)
+	receive := func(ch <-chan *WorkerCueReport, want WorkerCueState) {
+		t.Helper()
+		deadline := time.After(3 * time.Second)
+		for {
+			select {
+			case got := <-ch:
+				if got != nil && got.State == want {
+					return
+				}
+			case <-deadline:
+				t.Fatalf("no %s report", want)
+			}
+		}
+	}
+	receive(helloReports, WorkerCueNeeded)
+	cue.State = WorkerCueCommitted
+	cue.ID = WorkerStartNoticeID(b, 7)
+	c.WorkerCue(cue)
+	receive(activityReports, WorkerCueCommitted)
+	if err := server.Close(); err != nil {
+		t.Fatal(err)
+	}
+	server, err = StartSessionServer(context.Background(), socket, handler)
+	if err != nil {
+		t.Fatal(err)
+	}
+	receive(helloReports, WorkerCueCommitted)
+	// An outcome update after reconnection is sent even without a new observation.
+	cue.State = WorkerCueSubmitted
+	c.WorkerCue(cue)
+	receive(activityReports, WorkerCueSubmitted)
+}
+
+func TestHelloV4CannotClaimWorkerCue(t *testing.T) {
+	socket := sessionSocket(t)
+	log := newSessionLog()
+	startSessionServer(t, socket, log)
+	conn, err := net.Dial("unix", socket)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer conn.Close()
+	b := selfBinding("pair:1")
+	if err := writeSessionFrame(conn, SessionFrame{Op: FrameHelloV4, Binding: &b, Build: &testBuild}); err != nil {
+		t.Fatal(err)
+	}
+	if ack, err := readSessionFrame(conn); err != nil || ack.Code != "ok" {
+		t.Fatalf("ack %+v %v", ack, err)
+	}
+	if err := writeSessionFrame(conn, SessionFrame{Op: FrameActivity, Observation: &Observation{}, WorkerCue: &WorkerCueReport{LaunchOrdinal: 1, State: WorkerCueNeeded}}); err != nil {
+		t.Fatal(err)
+	}
+	log.waitFor(t, "closed 1")
 }

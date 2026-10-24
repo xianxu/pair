@@ -46,3 +46,11 @@ test('capture retry projection rekeys the pending draft without replacing its te
  assert.equal(f.d.projectDraft('r',{pending:false}),false);assert.equal(f.els.input.value,'unchanged');
  f.d.projectDraft('retry',{pending:false,payload:{draft:'signed'}});assert.equal(f.els.save.disabled,false);
 });
+test('unsaved names a new draft or a changed edit, never a view or an untouched edit (pair#849)',()=>{
+ const f=fixture();assert.equal(f.d.unsaved,null);
+ f.d.draft({request:'r',draft:'signed'});assert.deepEqual(f.d.unsaved,{draft:true});f.click('cancel');assert.equal(f.d.unsaved,null);
+ f.d.view({id:'n1',text:'saved text'});assert.equal(f.d.unsaved,null);f.click('cancel');
+ f.d.edit({id:'n1',text:'saved text'});assert.equal(f.d.unsaved,null);
+ f.type('saved text, changed');assert.deepEqual(f.d.unsaved,{id:'n1',text:'saved text'});
+ f.type('saved text');assert.equal(f.d.unsaved,null);
+});

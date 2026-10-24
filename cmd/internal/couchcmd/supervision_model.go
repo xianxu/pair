@@ -28,6 +28,7 @@ type supervisionEffect struct {
 type supervisionFacts struct {
 	binding                                 couchmessage.Binding
 	known, settled, resting, pending, muted bool
+	automationOff                           bool
 	quiet                                   time.Duration
 	submission                              uint64
 }
@@ -94,8 +95,15 @@ func (s *supervisionState) tick(now time.Time, facts []supervisionFacts, hub boo
 			continue
 		}
 		age := now.Sub(r.at)
-		if !r.notified && age >= supervisionNudgeAfter && ownHub {
-			effects = append(effects, supervisionEffect{kind: supervisionNudge, binding: b, report: r.id, age: age})
+		if !r.notified && age >= supervisionNudgeAfter {
+			if f.automationOff {
+				// Suppression consumes this occurrence even while the owning hub is
+				// absent. Operator escalation remains independent below.
+				r.notified = true
+				s.reports[b] = r
+			} else if ownHub {
+				effects = append(effects, supervisionEffect{kind: supervisionNudge, binding: b, report: r.id, age: age})
+			}
 		}
 		// Even a disconnected hub must not suppress the operator's escalation.
 		if !r.escalated && age >= supervisionEscalateAfter {

@@ -153,6 +153,8 @@ func TestServerRoutes(t *testing.T) {
 	}{
 		{"GET", "/tok/", 200},
 		{"GET", "/tok/viewer.js", 200},
+		{"GET", "/tok/floating-panel.js", 200},
+		{"GET", "/tok/sketch-notes.js", 200},
 		{"GET", "/tok/viewer.css", 200},
 		{"GET", "/tok/model.js", 200},
 		{"GET", "/tok/render.js", 200},

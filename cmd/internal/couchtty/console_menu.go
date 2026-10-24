@@ -213,6 +213,10 @@ func (c *Console) reduceMenu(event MenuEvent) {
 }
 
 func (c *Console) onMenuKey(key PanelKey) {
+	if key.Kind == KeyToggleAutomation {
+		c.toggleSelectedAutomation()
+		return
+	}
 	if key.Kind == KeyCopyNotice {
 		c.copyLastNotice()
 		return

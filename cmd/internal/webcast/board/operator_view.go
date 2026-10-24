@@ -61,6 +61,12 @@ func (b *Board) pruneOperatorLocked(now time.Time) {
 	}
 }
 func (b *Board) refreshOperatorLocked(r recording.Record) {
+	if _, caret := r.(*recording.Selection); caret {
+		// A caret or text selection changes nothing the operator page shows:
+		// a fresh view would only make it repaint, and invalidate feedback
+		// visibility, many times a second on a live page (pair#849).
+		return
+	}
 	if _, clear := r.(*recording.AnnotationClear); clear {
 		b.operatorStrokes = nil
 	}

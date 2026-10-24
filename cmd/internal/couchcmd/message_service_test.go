@@ -229,6 +229,18 @@ func (r *serviceRig) start() {
 	if r.decorateAuthority != nil {
 		authority = r.decorateAuthority(authority)
 	}
+	// Transport fixtures explicitly opt in; production unknown startup is off.
+	if authority.automation == nil {
+		initial := map[string]bool{}
+		if authority.hubs != nil {
+			for _, hub := range authority.hubs.snapshot().Hubs() {
+				initial[hub.Root] = true
+			}
+		} else if authority.hub != "" {
+			initial[authority.hub] = true
+		}
+		authority.automation = newHubAutomationOwner(initial, couchcore.StartupNormal, nil)
+	}
 	r.s, err = newMessageService(context.Background(), r.brokerSock, r.regSock, authority, r.panes, func(root string) (couchcore.SlotGitStatus, bool) {
 		r.mu.Lock()
 		defer r.mu.Unlock()

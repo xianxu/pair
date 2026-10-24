@@ -225,7 +225,7 @@ func TestIsQuestionToleratesTrailingMarkdown(t *testing.T) {
 
 func TestWaitNoticeBodyPutsSlotFirstAndBoundsTheSummary(t *testing.T) {
 	body := waitNoticeBody("ariadne:3", 12*time.Minute+40*time.Second, waitPrompt, strings.Repeat("é", 300), "/store/wait-notice-off")
-	if !strings.HasPrefix(body, "slot ariadne:3 waiting 12 min on a prompt: ") {
+	if !strings.HasPrefix(body, "slot ariadne:3 waiting 12m on a prompt: ") {
 		t.Fatalf("body head %q", body[:60])
 	}
 	if !strings.Contains(body, "é…") || strings.Count(body, "é") != 100 {
@@ -446,7 +446,7 @@ func TestWaitNoticeQuestionNotifiesNormalEndDoesNot(t *testing.T) {
 
 func TestWaitNoticeIdleOffRestingBranchNotifies(t *testing.T) {
 	w := newWaitRig(t, true, false, claudeDoneTail)
-	if got := w.tickAt(11 * time.Minute); len(got) != 1 || !strings.Contains(got[0].Body, "idle off its resting branch") {
+	if got := w.tickAt(11 * time.Minute); len(got) != 1 || !strings.Contains(got[0].Body, "idle off resting branch") {
 		t.Fatalf("idle notices %+v", got)
 	}
 }

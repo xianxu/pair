@@ -22,7 +22,7 @@ func TestBareCouchInstalledCommand(t *testing.T) {
 	binDir := t.TempDir()
 	couchBin, fixtureBin := installedExecutables(t)
 
-	// Bare Couch launches its selected hub in an isolated repository.
+	// Bare Couch opens an empty switcher; an explicit Start form launches the hub.
 	fleet, err := filepath.EvalSymlinks(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
@@ -75,7 +75,7 @@ exec %q launch "$@"
 	}
 	t.Cleanup(func() { _ = os.RemoveAll(sockets) })
 
-	t.Run("pty launches and attaches current hub", func(t *testing.T) {
+	t.Run("pty opens empty switcher then explicitly starts and attaches hub", func(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 		cmd := exec.CommandContext(ctx, couchBin)
@@ -104,6 +104,8 @@ exec %q launch "$@"
 		waitResult := make(chan error, 1)
 		go func() { waitResult <- cmd.Wait() }()
 		readResult := make(chan []byte, 1)
+		switcherReady := make(chan struct{}, 1)
+		startFormReady := make(chan struct{}, 1)
 		consoleReady := make(chan struct{}, 1)
 		go func() {
 			var out bytes.Buffer
@@ -112,6 +114,18 @@ exec %q launch "$@"
 				n, readErr := master.Read(buf)
 				if n > 0 {
 					_, _ = out.Write(buf[:n])
+					if bytes.Contains(out.Bytes(), []byte("threads")) && bytes.Contains(out.Bytes(), []byte("startup: full-shutdown")) && bytes.Contains(out.Bytes(), []byte("Ctrl+Space: start")) {
+						select {
+						case switcherReady <- struct{}{}:
+						default:
+						}
+					}
+					if bytes.Contains(out.Bytes(), []byte("start thread")) {
+						select {
+						case startFormReady <- struct{}{}:
+						default:
+						}
+					}
 					if bytes.Contains(out.Bytes(), []byte("COUCH_INSTALLED_PAIR_MARKER")) {
 						select {
 						case consoleReady <- struct{}{}:
@@ -127,14 +141,60 @@ exec %q launch "$@"
 		}()
 
 		timedOut := false
+		phase := "empty switcher"
+		var flowErr error
 		startupDeadline := time.NewTimer(15 * time.Second)
 		defer startupDeadline.Stop()
 		select {
-		case <-consoleReady:
+		case <-switcherReady:
 		case <-startupDeadline.C:
 			timedOut = true
 		}
 		if !timedOut {
+			// Initial presentation is evidence only. No Pair launcher or native
+			// wrapper may exist before the operator submits the explicit Start form.
+			calls, err := os.ReadFile(callLog)
+			if err != nil {
+				flowErr = fmt.Errorf("empty-switcher call log: %w", err)
+			}
+			for _, line := range strings.Split(strings.TrimSpace(string(calls)), "\n") {
+				if strings.HasPrefix(line, "pair ") {
+					flowErr = fmt.Errorf("empty switcher automatically launched Pair: %q", line)
+				}
+			}
+			if _, err := os.Stat(filepath.Join(fixtureFiles, "ready")); err == nil {
+				flowErr = fmt.Errorf("empty switcher automatically started the native wrapper")
+			}
+			if flowErr == nil {
+				phase = "explicit Start form"
+				if _, err := master.Write([]byte{0}); err != nil {
+					flowErr = fmt.Errorf("open Start form: %w", err)
+				}
+			}
+			if flowErr == nil {
+				select {
+				case <-startFormReady:
+				case <-startupDeadline.C:
+					timedOut = true
+				}
+			}
+			if !timedOut && flowErr == nil {
+				// Ctrl+Space opens the existing form; dot chooses this checkout, and
+				// Enter explicitly submits it. Startup itself supplied no launch intent.
+				phase = "explicit hub attachment"
+				if _, err := master.Write([]byte(".\r")); err != nil {
+					flowErr = fmt.Errorf("submit Start form: %w", err)
+				}
+			}
+			if !timedOut && flowErr == nil {
+				select {
+				case <-consoleReady:
+				case <-startupDeadline.C:
+					timedOut = true
+				}
+			}
+		}
+		if !timedOut && flowErr == nil {
 			// Attachment can precede agent readiness; observe the fixture's
 			// live wrapper publication before stopping the real launcher.
 			ticker := time.NewTicker(10 * time.Millisecond)
@@ -159,10 +219,10 @@ exec %q launch "$@"
 		case <-time.After(2 * time.Second):
 			t.Fatal("installed couch PTY reader did not finish")
 		}
-		if timedOut {
+		if timedOut || flowErr != nil {
 			calls, _ := os.ReadFile(callLog)
 			zellijCalls, _ := os.ReadFile(filepath.Join(fixtureFiles, "zellij-calls"))
-			t.Fatalf("timed out waiting for installed couch hub attachment and wrapper; output=%q calls=%q zellij=%q", out, calls, zellijCalls)
+			t.Fatalf("installed couch flow failed during %s (timeout=%v error=%v); output=%q calls=%q zellij=%q", phase, timedOut, flowErr, out, calls, zellijCalls)
 		}
 		calls, err := os.ReadFile(callLog)
 		if err != nil {

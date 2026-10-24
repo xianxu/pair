@@ -537,13 +537,6 @@ func renderRootMenuFrame(state MenuState, frame MenuFrame, width, height int, no
 			hubLabels[entry.OwnerHub] = entry.Label
 		}
 	}
-	activeHub := ""
-	for _, entry := range presentations {
-		if entry.Row.Address == state.ActiveAddress {
-			activeHub = entry.OwnerHub
-			break
-		}
-	}
 	labels := make(map[couchcore.ThreadRowKey]ThreadPresentation, len(presentations))
 	for _, entry := range presentations {
 		labels[menuRowKey(entry.Row)] = entry
@@ -559,7 +552,7 @@ func renderRootMenuFrame(state MenuState, frame MenuFrame, width, height int, no
 		}
 		title = clipMenuLine("threads · "+label+" (Esc: all)", width)
 	}
-	lines := []string{title, clipMenuLine("Ctrl+Y copy last notice / selected error", width)}
+	lines := []string{title, clipMenuLine("Ctrl+Y copy last notice / selected error · Ctrl+G hub automation on/off", width)}
 	rowBudget := height - len(lines)
 	if frame.Filter != "" {
 		rowBudget--
@@ -567,6 +560,7 @@ func renderRootMenuFrame(state MenuState, frame MenuFrame, width, height int, no
 	if rowBudget < 1 {
 		rowBudget = 1
 	}
+	emptyText := ""
 	if len(visible) == 0 {
 		empty := "  (no match)"
 		if frame.View == MenuViewFocus {
@@ -576,19 +570,38 @@ func renderRootMenuFrame(state MenuState, frame MenuFrame, width, height int, no
 				empty = "  no tagged live threads — tag one with ! … in a pair draft"
 			}
 		}
-		lines = append(lines, empty)
+		emptyText = empty
 	}
 	type rootLine struct {
 		text       string
 		selected   bool
 		actorStart bool
 		hub        bool
-		otherHub   bool
 		thread     couchcore.ThreadAddress
 		key        couchcore.ThreadRowKey
 	}
 	jobs := menuOperationRows(state)
 	var rows []rootLine
+	// Configured hubs without a verified inventory path remain visible, but
+	// these lines have no target: starting still requires the existing form.
+	observedHubs := map[string]bool{}
+	for _, entry := range presentations {
+		root := entry.root
+		if entry.Row.Target.Kind == couchcore.ThreadTargetSlot && entry.Row.Target.Validate() == nil {
+			root = entry.Row.Target.Slot.WorktreeRoot
+		}
+		if root != "" {
+			observedHubs[root] = true
+		}
+	}
+	for _, hub := range state.HubOwnership.Hubs() {
+		if !observedHubs[hub.Root] {
+			rows = append(rows, rootLine{text: clipMenuLine("  hub · Ctrl+Space: start "+rowtext.Sanitize(hub.Root), width)})
+		}
+	}
+	if emptyText != "" {
+		rows = append(rows, rootLine{text: emptyText})
+	}
 	selectedStart, selectedEnd := 0, 0
 	for _, thread := range visible {
 		selectedRow := (frame.SelectedKey.Kind == couchcore.ThreadTargetSlot && menuRowKey(thread) == frame.SelectedKey) || (frame.SelectedKey.Kind != couchcore.ThreadTargetSlot && thread.Address == frame.SelectedAddress)
@@ -667,7 +680,7 @@ func renderRootMenuFrame(state MenuState, frame MenuFrame, width, height int, no
 		if selectedRow {
 			selectedStart = len(rows)
 		}
-		rows = append(rows, rootLine{text: plain, selected: selectedRow, actorStart: true, hub: entry.Hub, otherHub: activeHub != "" && entry.OwnerHub != "" && entry.OwnerHub != activeHub, thread: thread.Address, key: menuRowKey(thread)})
+		rows = append(rows, rootLine{text: plain, selected: selectedRow, actorStart: true, hub: entry.Hub, thread: thread.Address, key: menuRowKey(thread)})
 		if frame.View == MenuViewNormal && menuDescriptionMatches(thread, frame.Filter) {
 			rows = append(rows, rootLine{text: clipMenuLine("    "+menuFocusSummary(thread), width), thread: thread.Address, key: menuRowKey(thread)})
 		}
@@ -697,6 +710,11 @@ func renderRootMenuFrame(state MenuState, frame MenuFrame, width, height int, no
 		start = 0
 	}
 	for start < selectedStart && start < len(rows) && !rows[start].actorStart {
+		// Leading display-only hub headers stay visible; only a preceding
+		// actor's continuation lines are skipped by the selection window.
+		if rows[start].thread == (couchcore.ThreadAddress{}) && rows[start].key == (couchcore.ThreadRowKey{}) {
+			break
+		}
 		start++
 	}
 	end := min(start+rowBudget, len(rows))
@@ -717,10 +735,6 @@ func renderRootMenuFrame(state MenuState, frame MenuFrame, width, height int, no
 			// Glyphs and selectedMenuLine reset their styles. Restore the hub
 			// treatment after each reset, then end it before the next row.
 			row.text = style + strings.ReplaceAll(row.text, "\x1b[0m", "\x1b[0m"+style) + "\x1b[0m"
-		}
-		if row.otherHub && color256 && !state.Palette.NoColor {
-			const dim = "\x1b[2m"
-			row.text = dim + strings.ReplaceAll(row.text, "\x1b[0m", "\x1b[0m"+dim) + "\x1b[0m"
 		}
 		lines = append(lines, row.text)
 		if row.thread == (couchcore.ThreadAddress{}) && row.key == (couchcore.ThreadRowKey{}) {

@@ -117,8 +117,8 @@ func installLifecycleForContextTest(t *testing.T, env *testEnv, address ThreadAd
 		Threads: env.Couch.Threads, DataDir: env.Dir,
 		Lifecycle: &fakeControllerLifecycle{model: model, store: env.Couch.Threads},
 		Sessions:  env.Artifacts, Proc: env.Proc, Clock: FixedClock{T: env.Now},
-		Nonce:             func() (string, error) { return "park-context", nil },
-		CompletionTimeout: time.Millisecond, PollInterval: time.Millisecond,
+		Nonce:        func() (string, error) { return "park-context", nil },
+		PollInterval: time.Millisecond,
 	}
 }
 

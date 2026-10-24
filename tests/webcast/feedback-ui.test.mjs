@@ -8,18 +8,28 @@ test('live note mask redraws pins, list and open dialog without modifying note s
  class E extends Element{append(...nodes){for(const n of nodes){n.parent=this;super.append(n);}}remove(){this.parent.children=this.parent.children.filter(n=>n!==this);}getContext(){return {setTransform(){},clearRect(){},beginPath(){},stroke(){},moveTo(){},lineTo(){},arc(){},fill(){}};}}
  const root=new E('root'),box=new E('box');root.append(box);const frames=[],hooks=new Set();
  const doc={body:root,createElement:t=>new E(t)};
- const win={innerWidth:100,crypto:{getRandomValues:b=>b.fill(1)},performance:{now:()=>0},requestAnimationFrame:fn=>frames.push(fn),addEventListener(){},setTimeout:()=>1,clearTimeout(){},clearInterval(){}};
+ const win={innerWidth:800,innerHeight:600,crypto:{getRandomValues:b=>b.fill(1)},performance:{now:()=>0},requestAnimationFrame:fn=>frames.push(fn),addEventListener(){},setTimeout:()=>1,clearTimeout(){},clearInterval(){}};
  const note={id:'n',text:'keep me in replay',author:{name:'Viewer',color:'#112233'},region:[0,0,30,30]};
  const entry={note,seg:1,state:'open',revision:0};const v={model:{seg:1,docSeg:1,notes:[entry]},onRecord(){},onFeedback(fn){hooks.add(fn);},toPage:(x,y)=>[x,y],fromPage:(x,y)=>[x,y],placementOf:()=>[0,0,30,30],boxOf:()=>null};
  v.feedbackMask=createFeedbackMask({changed:()=>{for(const fn of hooks)fn();}});
  const ui=mountAnnotation(doc,win,v,{root,box,stage:box,palette:['#112233'],annotate:false,who:{id:()=> 'viewer',name:()=> 'Viewer',viewer:()=>({id:'viewer',name:'Viewer'})},colors:{get:()=>0,set(){}},post:()=>assert.fail('display cannot post')});
  const flush=()=>{while(frames.length)frames.shift()();};flush();
- const list=root.querySelector('.annotation-notes');assert.equal(list.children.length,1);
+ const panel=root.querySelector('.annotation-notes');
+ const list=root.querySelector('.annotation-note-list');assert.ok(list,'list is the scrolling panel body');
+ assert.equal(list.children.length,1);
+ const click={preventDefault(){},stopPropagation(){},detail:0};
+ panel.querySelector('.floating-panel-minimize').listeners.click[0](click);
+ assert.equal(panel.classList.contains('minimized'),true);
+ assert.equal(root.querySelector('.pins').children.length,1,'minimizing preserves anchored feedback');
+ assert.equal(entry.revision,0);assert.equal(entry.state,'open');
  list.children[0].listeners.click[0]({stopPropagation(){}});assert.equal(ui.dialog.open,true);
  v.feedbackMask.install({scope:'cast',revision:'1',sketches:[],notes:[{id:'n',revision:'0'}]});flush();
  assert.equal(list.children.length,0);assert.equal(root.querySelector('.pins').children.length,0);assert.equal(ui.dialog.open,false);
  assert.equal(entry.state,'open');assert.equal(entry.note,note);
  entry.revision=1;for(const fn of hooks)fn();flush();assert.equal(list.children.length,1,'newer note revision reappears');
+ assert.equal(panel.classList.contains('minimized'),true,'updates preserve local panel mode');
+ assert.equal(panel.hidden,false);
+ assert.equal(panel.querySelector('.floating-panel-restore').textContent,'Notes (1)');
  v.feedbackMask.install({scope:'cast',revision:'2',sketches:[],notes:[{id:'n',revision:'2'}]});
  for(const revision of [0,1,2]){entry.revision=revision;for(const fn of hooks)fn();flush();assert.equal(list.children.length,0,'old reconnect prefix must not flash a known submitted note');}
  entry.revision=3;for(const fn of hooks)fn();flush();assert.equal(list.children.length,1,'current newer note remains visible');

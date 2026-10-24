@@ -63,6 +63,15 @@
 .note-dialog[hidden] { display: none; }
 
 /* Open notes remain reachable when a route or hidden anchor has no pin. */
-.annotation-notes { position: fixed; right: 12px; top: 110px; width: min(260px, 40vw); max-height: 35vh; overflow: auto; z-index: 9; pointer-events: auto; display: grid; gap: 4px; }
-.annotation-notes[hidden], .annotation-notes.operator-off { display: none; }
-.annotation-note-row { display: block; width: 100%; text-align: left; white-space: pre-wrap; overflow-wrap: anywhere; border: 1px solid #ccc; border-radius: 5px; padding: 6px 8px; color: #222; background: #fff; font: 12px/1.4 system-ui, sans-serif; cursor: pointer; }
+/* One local presentation owner; anchored feedback remains in the scene. */
+.floating-notes { position: fixed; box-sizing: border-box; width: min(300px, max(0px, calc(100vw - 24px))); height: min(320px, max(0px, calc(100vh - 24px))); z-index: 9; pointer-events: auto; display: flex; flex-direction: column; overflow: hidden; background: #fff59d; color: #2b2b2b; border: 1px solid rgba(0,0,0,.25); border-radius: 5px; box-shadow: 0 3px 12px #0004; font: 13px/1.4 system-ui,sans-serif; }
+.floating-notes[hidden], .floating-notes.operator-off, .floating-notes [hidden] { display: none; }
+.floating-panel-header { display: flex; flex: 0 0 auto; min-height: 44px; touch-action: none; cursor: move; }
+.floating-notes button { color: inherit; font: inherit; }
+.floating-panel-drag { flex: 1; min-width: 0; text-align: left; cursor: move; touch-action: none; }
+.floating-panel-drag, .floating-panel-minimize, .floating-panel-restore { border: 0; padding: 8px; background: transparent; min-height: 44px; }
+.floating-panel-minimize { cursor: pointer; }
+.floating-panel-body { flex: 1 1 auto; min-height: 0; overflow: auto; overscroll-behavior: contain; padding: 4px; }
+.floating-notes.minimized { width: max-content; max-width: max(0px, calc(100vw - 24px)); height: auto; max-height: max(0px, calc(100vh - 24px)); }
+.floating-panel-restore { display: block; width: 100%; cursor: move; touch-action: none; }
+.annotation-note-row { display: block; width: 100%; text-align: left; white-space: pre-wrap; overflow-wrap: anywhere; border: 1px solid #0003; border-radius: 3px; padding: 6px 8px; margin-bottom: 4px; color: inherit; background: #ffffff50; cursor: pointer; }

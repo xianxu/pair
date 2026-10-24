@@ -676,6 +676,14 @@ var SourceClassifications = []SourceClassification{
 // the artifact namespace requires an explicit SourceClassification.
 // pair:m5-concept pure
 var NonArtifactSources = []string{
+	// #739 startup/automation/cue policy delegates to existing stores and
+	// transports; none constructs or names Pair artifact filenames.
+	"cmd/internal/couchcmd/automation.go",
+	"cmd/internal/couchcmd/worker_cue_coordinator.go",
+	"cmd/internal/couchcore/hub_automation.go",
+	"cmd/internal/couchcore/startup_policy.go",
+	"cmd/internal/couchmessage/worker_start_notice.go",
+	"cmd/internal/couchtty/console_automation.go",
 	// #753 historical sketch evidence uses Couch recording/submission namespaces,
 	// private caller-selected exports and in-memory projections; no Pair artifact family.
 	"cmd/internal/submission/codec.go",
@@ -1669,6 +1677,7 @@ var NonArtifactSources = []string{
 	"cmd/internal/couchcore/worktree.go",
 	"cmd/internal/mouseinput/mouseinput.go",
 	"cmd/internal/couchtty/attention.go",
+	"cmd/internal/couchtty/attention_references.go",
 	"cmd/internal/couchtty/console_completion.go",
 	"cmd/internal/couchtty/console_presentation.go",
 	"cmd/internal/couchtty/console_slotgit.go",
@@ -1768,6 +1777,7 @@ var NonArtifactSources = []string{
 	"cmd/internal/testcouch/terminal.go",
 	// pair#479 test wait helper: bounds a wait by the test deadline; names no file.
 	"cmd/internal/testwait/testwait.go",
+	"cmd/internal/testwait/deadline.go",
 	// Test failure diagnostics inspect host load, not session artifacts.
 	"cmd/internal/testwait/host.go",
 	"cmd/internal/ctxmeter/ctxmeter.go",
@@ -1928,6 +1938,7 @@ var NonArtifactSources = []string{
 	"cmd/internal/slugcmd/slug.go",
 	"cmd/internal/slugline/slugline.go",
 	"cmd/internal/strictjson/decode.go",
+	"internal/jsonstrict/scan.go",
 	"cmd/internal/strictjson/object.go",
 	"cmd/internal/lifetimelease/lease.go",
 	"cmd/internal/termcmd/rename.go",

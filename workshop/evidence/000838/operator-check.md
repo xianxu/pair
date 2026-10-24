@@ -1,6 +1,7 @@
 # #838 operator check (about five minutes)
 
-Pending final shared-parser pin, native qualification and hub-authorized stage.
+Pending fresh integrated qualification and the hub-authorized combined stage.
+The shared parser pin is landed; native mechanical checks use synthetic agents.
 The hub supplies the exact staged revision and build provenance. Refresh the
 worker's Couch skill from that candidate; existing sessions may retain old
 instructions. This check exercises the operator's usual Couch/Parley workflow.
@@ -30,5 +31,5 @@ Use a disposable document, without changing fleet configuration or real chat ask
    round fixtures. Its existing rendering remains unchanged. This step may be
    checked in Parley's round fixture viewer if the live document has no old round.
 
-Report PASS or the first mismatch and candidate revision to the hub. Clear only
-#838's stage lease after acceptance; no live document is migrated automatically.
+Report PASS or the first mismatch and candidate revision to the hub. After acceptance, coordinate stage cleanup with the combined stage's lease owner;
+no live document is migrated automatically.

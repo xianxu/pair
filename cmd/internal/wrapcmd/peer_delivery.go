@@ -73,6 +73,9 @@ type peerDelivery struct {
 	// status query after a broker restart still has an answer and a reused
 	// ID is refused rather than pasted again (#365).
 	recent couchmessage.RecentDeliveries
+	// One launch witness survives ordinary receipt-cache eviction.
+	workerCue        *couchmessage.WorkerCueReport
+	workerCueReceipt couchmessage.Receipt
 	// Settle state (#421, peer_settle.go). settleProbe is nil when the
 	// wrapper cannot judge (no terminal model), and then nothing settles.
 	settled     bool
@@ -363,6 +366,9 @@ func (d *peerDelivery) retainedLocked(id string) (couchmessage.Receipt, bool) {
 			}
 		}
 	}
+	if id != "" && d.workerCueReceipt.Message.ID == id {
+		return d.workerCueReceipt, true
+	}
 	return d.recent.Get(id)
 }
 
@@ -394,6 +400,9 @@ func (d *peerDelivery) enqueueLocked(m couchmessage.Message) error {
 	if err := couchmessage.ValidateBody(m.Body); err != nil {
 		return err
 	}
+	if err := d.validateWorkerCueLocked(m); err != nil {
+		return err
+	}
 	if _, ok := d.retainedLocked(m.ID); ok {
 		return errors.New("delivery already committed")
 	}
@@ -404,6 +413,7 @@ func (d *peerDelivery) enqueueLocked(m couchmessage.Message) error {
 	}
 	d.batch = nil
 	d.current = couchmessage.Receipt{Message: m, Status: couchmessage.Queued}
+	d.recordWorkerCueLocked(d.current)
 	d.state = couchmessage.PeerDeliveryState{}
 	d.interrupted = false
 	d.released = false
@@ -645,6 +655,11 @@ func (p *proxy) advancePeer(event couchmessage.PeerDeliveryEvent, out io.Writer)
 		} else {
 			d.current.Detail = state.Reason
 		}
+		for _, m := range d.membersLocked() {
+			r := d.current
+			r.Message = m
+			d.recordWorkerCueLocked(r)
+		}
 		select {
 		case d.notices <- fmt.Sprintf("Couch message from %s: %s", d.current.Message.From.Slot, d.current.Status):
 		default:
@@ -742,4 +757,50 @@ func peerConfirmEvidence(composer PeerComposerState, sawOccupied, turn, turnAtSu
 		t = "a turn started"
 	}
 	return "submitted; composer " + c + "; " + t
+}
+
+// initWorkerCue is called before the session starts. An unknown ordinal does
+// not opt this launch into automatic orientation.
+func (d *peerDelivery) initWorkerCue(ordinal uint64) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	if ordinal != 0 && couchmessage.WorkerStartNoticeID(d.binding, ordinal) != "" {
+		d.workerCue = &couchmessage.WorkerCueReport{LaunchOrdinal: ordinal, State: couchmessage.WorkerCueNeeded}
+	}
+}
+
+func (d *peerDelivery) workerCueReport() *couchmessage.WorkerCueReport {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	return couchmessage.CopyWorkerCueReport(d.workerCue)
+}
+
+// recordWorkerCueLocked shares the input writer's exact delivery result. It
+// records all frozen batch members; the cue need not be the head. The sink only
+// copies and wakes a sender, so this path performs no IO while holding d.mu.
+func (d *peerDelivery) recordWorkerCueLocked(receipt couchmessage.Receipt) {
+	if d.workerCue == nil {
+		return
+	}
+	next := couchmessage.AdvanceWorkerStartNotice(*d.workerCue, receipt)
+	if next == *d.workerCue {
+		return
+	}
+	*d.workerCue = next
+	d.workerCueReceipt = receipt
+	if sink, ok := d.session.(interface {
+		WorkerCue(*couchmessage.WorkerCueReport)
+	}); ok {
+		sink.WorkerCue(d.workerCue)
+	}
+}
+
+// validateWorkerCueLocked runs before queue membership changes. Unknown launch
+// evidence cannot admit a canonical automatic cue to this native input owner.
+func (d *peerDelivery) validateWorkerCueLocked(m couchmessage.Message) error {
+	ordinal := uint64(0)
+	if d.workerCue != nil {
+		ordinal = d.workerCue.LaunchOrdinal
+	}
+	return couchmessage.ValidateWorkerStartNotice(m, ordinal)
 }

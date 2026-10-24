@@ -12,76 +12,87 @@ import (
 // Copy the shared catalog before extending it: Pair rules must not alter the
 // upstream catalog used by sleepSites to identify existing sleep debt.
 var pairCatalog = append(append([]golint.Rule(nil), golint.Catalog...), golint.Rule{
+	Name:     "test-fifo-empty-handoff",
+	Incident: "pair#679",
+	Message:  "write a nonempty FIFO payload before closing a test writer; an empty open/close can strand Darwin readers",
+	Match:    func(*ast.File, *golint.CheckContext) []ast.Node { return nil }, // bound to test filenames by pairCatalogFor
+}, golint.Rule{
 	Name:     "slash-command-submit",
 	Incident: "pair#162",
 	Message:  "execute authored slash commands with KeyEnter and exact command echo proof; KeySubmit is prose submission (Alt+Return)",
-	Match:    func(*ast.File) []ast.Node { return nil }, // bound to the filename by pairCatalogFor
+	Match:    func(*ast.File, *golint.CheckContext) []ast.Node { return nil }, // bound to the filename by pairCatalogFor
 }, golint.Rule{
 	Name:     "quit-trigger-private-home",
 	Incident: "pair#797",
 	Message:  "set a private HOME before in-process TriggerQuit/TriggerBoundQuit tests; a private data directory does not isolate compatibility quit markers",
-	Match:    quitTriggersWithoutPrivateHome,
+	Match:    syntaxMatch(quitTriggersWithoutPrivateHome),
 }, golint.Rule{
 	Name:     "fixture-cli-group-completion",
 	Incident: "pair#744",
 	Message:  "observe CLI process-group quiescence through cliGroupError after Wait; leader completion alone cannot acknowledge descendants",
-	Match:    fixtureCLIUnobservedGroups,
+	Match:    syntaxMatch(fixtureCLIUnobservedGroups),
 }, golint.Rule{
 	Name:     "wrapper-child-release",
 	Incident: "pair#715",
 	Message:  "retain wrapper child ownership and join it with Wait before returning; Process.Release permits writes after wrapper shutdown",
-	Match:    wrapperChildReleases,
+	Match:    syntaxMatch(wrapperChildReleases),
 }, golint.Rule{
 	Name:     "lifecycle-failure-address",
 	Incident: "pair#714",
 	Message:  "compose diagnostic addresses atomically with completeFailureAddress; partial target evidence must not replace an exact captured address",
-	Match:    lifecycleFailureAddressOverrides,
+	Match:    syntaxMatch(lifecycleFailureAddressOverrides),
 }, golint.Rule{
 	Name:     "terminal-registry-owner",
 	Incident: "pair#731",
 	Message:  "use LiveOwnerIDs for native terminal ownership; kill-only LiveIDs admits a shell after exec",
-	Match:    terminalRegistryOwnerCalls,
+	Match:    syntaxMatch(terminalRegistryOwnerCalls),
 }, golint.Rule{
 	Name:     "zellij-read-attempt-bypass",
 	Incident: "pair#748",
 	Message:  "call zellijquery.Source.ReadContext to preserve bounded read recovery, the shared deadline and per-attempt evidence; readAttempt belongs only to that entry point",
-	Match:    zellijReadAttemptBypasses,
+	Match:    syntaxMatch(zellijReadAttemptBypasses),
 }, golint.Rule{
 	Name:     "zellij-query-boundary",
 	Incident: "pair#803",
 	Message:  "use zellijquery.Source.ReadContext or Output for decision reads; raw collectors belong only to the shared attempt and qualified diagnostics",
-	Match:    func(*ast.File) []ast.Node { return nil }, // bound to the filename by pairCatalogFor
+	Match:    func(*ast.File, *golint.CheckContext) []ast.Node { return nil }, // bound to the filename by pairCatalogFor
 }, golint.Rule{
 	Name:     "controlled-zellij-close",
 	Incident: "pair#764",
 	Message:  "report or propagate ControlledZellij.Close cleanup errors; discarded cleanup can leave a controlled session alive",
-	Match:    discardedControlledZellijCloses,
+	Match:    syntaxMatch(discardedControlledZellijCloses),
 }, golint.Rule{
 	Name:     "fd-path-permission",
 	Incident: "pair#767",
 	Message:  "prove inherited descriptor usability directly (read/fstat/fcntl), not through a /dev/fd pathname permission check; macOS can report a false negative",
-	Match:    fdPathPermissionChecks,
+	Match:    syntaxMatch(fdPathPermissionChecks),
 }, golint.Rule{
 	Name:     "scribe-pty-printf",
 	Incident: "pair#766",
 	Message:  "use a terminal-aware producer and acknowledge its readiness before final output; direct printf can fail before producing the test marker",
-	Match:    scribePTYPrintfCalls,
+	Match:    syntaxMatch(scribePTYPrintfCalls),
 }, golint.Rule{
 	Name:     "startup-admission-budget",
 	Incident: "pair#773",
 	Message:  "birthBound is a probe cadence, not a terminal admission budget; preserve the caller-owned startup deadline",
-	Match:    birthProbeAdmissionBudgets,
+	Match:    syntaxMatch(birthProbeAdmissionBudgets),
 }, golint.Rule{
 	Name:     "manual-clock-rendezvous",
 	Incident: "pair#771",
 	Message:  "manualClock timer delivery must rendezvous with its receiver before a request barrier proves completion",
-	Match:    bufferedManualClockTimers,
+	Match:    syntaxMatch(bufferedManualClockTimers),
 }, golint.Rule{
 	Name:     "fixture-couch-identity",
 	Incident: "pair#778",
 	Message:  "seed fixture roots with testpair.SeedCouchIdentity so the production census recognizes their Couch identity",
-	Match:    fixtureConstructorsWithoutCouchIdentity,
+	Match:    syntaxMatch(fixtureConstructorsWithoutCouchIdentity),
 })
+
+// syntaxMatch adapts Pair's AST-only rules to the contextual upstream catalog.
+// Contextual upstream rules retain their original context and metadata.
+func syntaxMatch(match func(*ast.File) []ast.Node) func(*ast.File, *golint.CheckContext) []ast.Node {
+	return func(file *ast.File, _ *golint.CheckContext) []ast.Node { return match(file) }
+}
 
 // These enumerated fixture constructors must preserve the production identity
 // contract. This syntax guard checks a direct imported helper call, not runtime
