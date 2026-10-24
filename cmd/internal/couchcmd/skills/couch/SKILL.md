@@ -883,5 +883,6 @@ Implicit repository sends select within the sender’s hub. Exact addresses can
 cross hubs. Mutation commands are limited to the caller’s hub; actors and peek
 remain global. Wait/stuck notices and restart prompts follow the owning hub.
 Each hub may notify, with its name in multi-hub desktop titles. The switcher
-shows ownership sections and dims other hubs relative to focus. Move slots with
-the CLI; there is no switcher move action yet.
+shows ownership sections without dimming other hubs relative to focus; the tab
+bar retains its inactive-owner dimming. Move slots with the CLI; there is no
+switcher move action yet.
