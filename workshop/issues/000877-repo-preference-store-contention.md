@@ -16,6 +16,7 @@ claimant:
     worktree: /Users/xianxu/workspace/worktree/pair-slot6/pair
     repository: github.com/xianxu/pair
 flake_tests: [github.com/xianxu/pair/cmd/internal/couchcore.TestRepoPreferenceConcurrentInstancesPreserveOtherRepositoriesAndAgents]
+flow: {kind: quick, provenance: inferred, spec: "7b2652d2", done: "7a67b1e1"}
 ---
 
 # Repository preference publication escapes typed store contention
