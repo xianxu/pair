@@ -26,6 +26,8 @@ type wakeRig struct {
 	pending map[string]bool
 	resumed []string
 	guards  []error
+	// beforeGuard runs between admission and the effect gate.
+	beforeGuard func()
 }
 
 // newWakeRig is three hubs (ops is main) and a worker, each connected; the
@@ -43,13 +45,21 @@ func newWakeRig(t *testing.T) *wakeRig {
 	}, time.Now)
 	r.slotOps.guardedRun = func(key, op, target string, _ couchcore.LiveRestartOptions, guard func(context.Context) error, _ func(), _ couchcore.OperationProgress, _ func(any, error)) error {
 		x.mu.Lock()
-		defer x.mu.Unlock()
 		if x.pending[key] {
+			x.mu.Unlock()
 			return couchtty.ErrRemotePending
 		}
 		x.pending[key] = true
 		x.resumed = append(x.resumed, op+" "+target)
-		x.guards = append(x.guards, guard(context.Background()))
+		before := x.beforeGuard
+		x.mu.Unlock()
+		if before != nil {
+			before()
+		}
+		err := guard(context.Background())
+		x.mu.Lock()
+		x.guards = append(x.guards, err)
+		x.mu.Unlock()
 		return nil
 	}
 	r.decorateAuthority = func(a messageAuthority) messageAuthority {
@@ -224,5 +234,31 @@ func TestWakeCLIPollsEachResumeToOneSummary(t *testing.T) {
 	want := "woke 1 of 3 asleep hubs: bench:0\n  third:0 failed: launch failed\n  docs:0 not admitted: busy: pending\n"
 	if code != 1 || !strings.HasPrefix(out.String(), want) || len(ops) != 3 || ops[1] != "operation-status r-bench" || ops[2] != "operation-status r-third" {
 		t.Fatalf("code %d ops %v stdout %q stderr %q", code, ops, out.String(), errout.String())
+	}
+}
+
+// pair#830: the effect gate re-proves the target is still asleep. A hub
+// resumed or parked between admission and the resume running is not wake's.
+func TestWakeEffectGateRefusesAHubNoLongerAsleep(t *testing.T) {
+	x := newWakeRig(t)
+	x.sleep("bench", 0, x.defs[1].Root)
+	x.sleep("third", 0, x.defs[2].Root)
+	x.beforeGuard = func() {
+		x.mu.Lock()
+		defer x.mu.Unlock()
+		kept := x.asleep[:0]
+		for _, row := range x.asleep {
+			if row.Target.Slot.WorktreeRoot != x.defs[1].Root {
+				kept = append(kept, row)
+			}
+		}
+		x.asleep = kept
+	}
+	got := x.wake(x.callers[0], "wake-gate")
+	if got.Code != "ok" || got.Wake == nil || len(x.guards) != 2 {
+		t.Fatalf("wake = %+v guards %v", got, x.guards)
+	}
+	if x.guards[0] == nil || !strings.Contains(x.guards[0].Error(), "bench:0 is no longer asleep") || x.guards[1] != nil {
+		t.Fatalf("effect gates %v", x.guards)
 	}
 }

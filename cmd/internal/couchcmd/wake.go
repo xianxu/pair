@@ -62,8 +62,10 @@ func (s *messageService) handleWake(ctx context.Context, r couchmessage.Request)
 			report.Refused = append(report.Refused, couchmessage.WakeRefusal{Target: ref, Code: "unavailable", Error: err.Error()})
 			continue
 		}
-		// The effect gate proves the caller is still the live main hub and
-		// the target still a hub, as checkHubSlotOperation does for a resume.
+		// The effect gate proves the caller is still the live main hub, the
+		// target still a hub (as checkHubSlotOperation does for a resume), and
+		// the target still asleep: a hub parked or resumed since admission is
+		// not wake's to resume.
 		guard := func(ctx context.Context) error {
 			if _, err := s.liveCaller(ctx, r); err != nil {
 				return fmt.Errorf("caller: %w", err)
@@ -76,7 +78,19 @@ func (s *messageService) handleWake(ctx context.Context, r couchmessage.Request)
 			if err != nil {
 				return fmt.Errorf("caller workspace: %w", err)
 			}
-			return s.authority.hubs.snapshot().Wakes(identity.WorktreeRoot, root)
+			if err := s.authority.hubs.snapshot().Wakes(identity.WorktreeRoot, root); err != nil {
+				return err
+			}
+			sleeping, err := s.authority.asleep(ctx)
+			if err != nil {
+				return fmt.Errorf("asleep set: %w", err)
+			}
+			for _, row := range sleeping {
+				if row.Target.Slot.WorktreeRoot == root {
+					return nil
+				}
+			}
+			return fmt.Errorf("%s is no longer asleep", ref)
 		}
 		response := s.slotOps.handle(ctx, caller, resume, guard)
 		if response.Code == "accepted" && response.Operation != nil {

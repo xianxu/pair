@@ -3567,7 +3567,9 @@ the main hub, brings back the other hubs.
   main hub's live binding (`HubOwnership.Wakes`). It reads the asleep set from
   the store alone (`Couch.AsleepSlots`, no liveness probes) and admits one
   ordinary `resume` per other asleep hub on the slot-operation queue. Each
-  resume's effect gate re-proves the caller and the target. The CLI polls every
+  resume's effect gate re-proves the caller, that the target is a hub, and that
+  it is still asleep, so a hub parked or resumed since admission is left alone.
+  The CLI polls every
   receipt (`pollSlotOperation`, shared with the slot-operation CLI) and prints one
   summary. A repeat is safe: a woken hub is no longer asleep, and one still
   resuming is refused busy. Workers wait for their hub, and plain parked slots

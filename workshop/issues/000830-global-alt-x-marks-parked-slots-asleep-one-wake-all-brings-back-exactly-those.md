@@ -46,9 +46,10 @@ So "wake all" at the Couch level means "wake the asleep hubs"; the per-hub order
 
 ## Done when
 
-- After a global Alt+x, previously live slots show asleep and previously parked ones show parked (test).
-- The operator's wake gesture resumes only asleep hubs (test); each hub then wakes its asleep workers, pending-work first (test with ariadne#564's resume); individually parked slots are untouched.
-- The flag survives a full restart and clears on wake.
+- After a global Alt+x, previously live slots are marked asleep (bound to that park's nonce) and previously parked ones stay plain parked; the switcher and summaries show asleep (tests).
+- `couch --wake` from the live main hub resumes exactly the other asleep hubs. Workers, plain parked slots and the main hub are untouched, other callers are refused, and a repeat starts nothing twice (rig tests). The effect gate refuses a hub that is no longer asleep (test).
+- `asleep_at` is on each thread row of `couch --recover-plan-from-sdlc`, so ariadne#564's resume can wake workers, pending work first, from it (test of the shape). The ordering of worker wakes is ariadne#564's.
+- The mark survives a restart and clears on resume (record tests). The native end-to-end run (`TestDisposableCouchFleetWake`) is skipped until pair#863.
 
 ## Plan
 
@@ -75,6 +76,8 @@ Durable plan: `workshop/plans/000830-global-alt-x-marks-parked-slots-asleep-one-
   - The fleet test drives: full quit, resume the main hub, `couch --wake`.
 
 - 2026-10-24 (TL): T6 is blocked by pair#863. #830 lands on the T5b rig tests. The T6 test is committed but skipped, with a reason naming #863, so it can run as soon as #863 lands. There will be no staged operator check of the wake flow before then, since it would hit the same bug.
+
+- 2026-10-24 (close review): the Done-when now matches what this repo delivers and proves. Waking is the main hub's `couch --wake`, worker ordering is ariadne#564's, and the native run waits for #863. The durable plan has a Revisions section and ticked tasks. Wake's effect gate also re-proves that the target is still asleep.
 
 ## Log
 

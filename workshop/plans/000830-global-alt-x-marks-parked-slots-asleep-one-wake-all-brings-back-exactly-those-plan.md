@@ -101,36 +101,43 @@ use the existing store and lifecycle fakes and the `testcouch` native harness.
 
 ## Tasks
 
-- [ ] **T1 Record field.** `threadrecord.SleepMark{Nonce, At, Cause}` (born additive) plus `Record.Asleep`;
+- [x] **T1 Record field.** `threadrecord.SleepMark{Nonce, At, Cause}` (born additive) plus `Record.Asleep`;
   mirrored in `couchcore.ThreadRecord`, with the clone and convert sites; validation (nonce non-empty, cause in
   enum).
   - Tests: round trip; unknown member inside the mark preserved; older-shape rewrite keeps the top-level member;
     a bad cause refuses.
-- [ ] **T2 Pure predicate.** `ThreadAsleep(record) (time.Time, bool)` with an exhaustive table: no receipt; receipt
+- [x] **T2 Pure predicate.** `ThreadAsleep(record) (time.Time, bool)` with an exhaustive table: no receipt; receipt
   with no mark; nonce mismatch; match.
-- [ ] **T3 BeginPark cause.** `BeginPark(address, rev, identity, cause)` writes or clears the mark in the same CAS.
+- [x] **T3 BeginPark cause.** `BeginPark(address, rev, identity, cause)` writes or clears the mark in the same CAS.
   `StartRegistered` and `ClearVerifiedPark` clear it. Thread `ParkCause` through `parkAwaiting`/`park`/`parkExpected`;
   `Park`/`ParkExpected` pass plain, `parkJoined` takes the cause, and Leave passes `ParkCauseSleep` on fresh drives
   only.
   - Tests: Leave over the `fleetLifecycle` fake marks fresh parks asleep, leaves already-parked and
     open-individual-park slots plain, and keeps the mark through rollback then fresh retry (new nonce, new mark).
     An individual park after a failed quit is plain. Recover keeps an interrupted quit's mark.
-- [ ] **T4 Summary + switcher.** `ActionableThreadSummary.AsleepAt`; the `threadStateText` rendering above; the
+- [x] **T4 Summary + switcher.** `ActionableThreadSummary.AsleepAt`; the `threadStateText` rendering above; the
   counted read test.
-- [ ] **T5 Wake operation.** `Couch.WakeHubs(ctx) (WakeResult, error)`: snapshot, filter asleep ∧ hub, bounded
+- [x] **T5 Wake operation.** `Couch.WakeHubs(ctx) (WakeResult, error)`: snapshot, filter asleep ∧ hub, bounded
   resume, summary.
   - Dispatch op `wake`; switcher key with a confirm frame; `couch --wake [--json]`; `couch --asleep --json`;
     cost-class entries; help text.
   - Tests: a fake with 2 asleep hubs, 2 asleep workers and 1 parked hub wakes exactly the 2 hubs. A failure is
     reported and retried by the second wake.
-- [ ] **T6 Native fleet acceptance.** Extend `TestDisposableCouchFleetFullQuit`, or add a sibling, at 4 slots, on
+- [x] **T6 Native fleet acceptance.** Extend `TestDisposableCouchFleetFullQuit`, or add a sibling, at 4 slots, on
   Claude and Codex:
   1. individually park one worker, then Alt+x;
   2. restart Couch, then `--asleep --json` lists the hub and live workers but not the individually parked one;
   3. wake: the hub is live, the workers still asleep, the parked one still parked;
   4. one worker resumed, then the flag is cleared.
-- [ ] **T7 Docs.** `atlas/couch.md` (asleep, wake, `--asleep` contract), `atlas/index.md`, lessons; tell ariadne#564's
+- [x] **T7 Docs.** `atlas/couch.md` (asleep, wake, `--asleep` contract), `atlas/index.md`, lessons; tell ariadne#564's
   owner the `--asleep --json` contract via the hub.
+
+## Revisions
+
+- **2026-10-23 (TL-approved, first revision):** no switcher wake key and no `couch --asleep --json`. The asleep set reaches ariadne#564 as `asleep_at` on each thread row of `couch --recover-plan-from-sdlc` (additive, schema 1). Decision 7's `--asleep` surface is dropped.
+- **2026-10-23 (operator, via TL):** waking is **`couch --wake`, run from the live main hub**, not a key. Alt+Shift+x is removed (Open question 1 closed: no key). `couch --wake` is a broker op, and only the main hub may call it (`HubOwnership.Wakes`). It reads the asleep set from the store (`Couch.AsleepSlots`) and admits one ordinary slot resume per other asleep hub, each through an effect gate that re-proves the caller, that the target is a hub, and that the target is still asleep (close review). The CLI polls the receipts to one summary. There is no `Couch.WakeHubs` core operation: the broker handler composes the existing resume queue (ARCH-DRY). Workers are never woken here; each woken hub's tl-lead resume (ariadne#564) wakes its own from `asleep_at`. Decision 6 stands; Decision 7's "two surfaces" became this one. Open question 2 (`--all`): not done.
+- **2026-10-23:** the mark's cause is a non-empty string validated at write time, not an enum (T1).
+- **2026-10-24 (TL):** T6 is written as `TestDisposableCouchFleetWake` (the harness gains `Options.Hubs`, `StartCold` and `QuitConsole`) and skipped until pair#863 lands. Since #739, an explicit-hub fleet can't start through `Fleet.Start`. It drives the operator's flow instead: start each hub from the switcher, full quit, cold start, Resume from disk, then `couch --wake`.
 
 ## Open questions for the TL / operator
 
