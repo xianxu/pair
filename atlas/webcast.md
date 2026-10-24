@@ -46,6 +46,17 @@ The cast Chrome uses the viewer's `mountAnnotation` (`web/annotate.js`) and
 shadow host. `operator_script.go` assembles these trusted embedded modules into
 isolated-world script scopes; `operator.js` supplies local page coordinates and
 the CDP binding transport. No page-origin HTTP or localStorage is involved.
+The all-open notes list is a yellow 300×320 panel, bounded by the viewport, with
+a fixed header and scrolling rows. Minimize produces a draggable Notes (N) button;
+the header and button share one position until the context reloads. Arrow keys
+on their handles move them (Shift moves farther). Cancellation rolls back a drag;
+resize cancels and clamps it. New notes update the count without restoring the panel.
+`web/floating-panel.js` owns this presentation; moving/minimizing changes neither
+anchored feedback nor submission selection. `web/sketch-notes.js` projects eligible sketches from the existing paint into one clamped
+Sketch notes (N) selector. Its bounded scrolling list has an identified row for
+each sketch, so overlapping ink cannot hide another note. Add note follows the
+unfinished-label flow; View note inspects a final label read-only. Neither introduces new commands.
+
 Off/Pen/Note start Off. The shared note gesture previews nothing on pointer-down;
 crossing the movement threshold draws a drag box, while a click places its default
 box only on release. The completed box stays visible while its draft is edited.

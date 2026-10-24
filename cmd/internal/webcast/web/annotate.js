@@ -13,6 +13,7 @@
 // terminal viewer's (served from broadcast.CollabJS; the file here is a
 // symlink, for the node tests).
 
+import { mountFloatingPanel } from './floating-panel.js';
 import { captureDraftController } from './capture-draft.js';
 import { annotationPolicy } from './annotation-policy.js';
 import { HEX_COLOR, pointerColor, colorStore, safeStorage, poster, sayer, railAt, renderSwatches, noteDialog, sessionNoteOwner, gestureBox, noteGesture, dragMin, boxCentre, validName, VIEWER_NAME_KEY, MAX_VIEWER_NAME } from './collab.js';
@@ -354,7 +355,9 @@ export function mountAnnotation(doc, win, v, { root, box, stage, palette, who, c
   const layer = el('div', 'annotate', box);
   const canvas = el('canvas', 'strokes', layer);
   const pins = el('div', 'pins', layer);
-  const noteRows = el('div', 'annotation-notes', root);
+  const noteBody = el('div', 'annotation-note-list');
+  const notesPanel = mountFloatingPanel(doc, win, {parent: root, body: noteBody});
+  const noteRows = notesPanel.root;
   noteRows.setAttribute('aria-label', 'Open notes');
   noteRows.setAttribute('role', 'group');
   const rail = el('div', 'annotate-rail', root);
@@ -637,7 +640,7 @@ export function mountAnnotation(doc, win, v, { root, box, stage, palette, who, c
     }
   };
   const pinned = pinLayer(doc, pins, openNote);
-  const listed = noteList(doc, noteRows, openNote);
+  const listed = noteList(doc, noteBody, openNote);
   function drawPins() {
     const visibilityToken=v.feedbackVisibility?.token();
     const notes = openNotes(v.model,operator?undefined:v.feedbackMask);
@@ -646,6 +649,7 @@ export function mountAnnotation(doc, win, v, { root, box, stage, palette, who, c
     const placementOf = n => placements.get(n.id);
     pinned.draw(notes, (id) => v.boxOf(id), place, { placementOf });
     listed.draw(notes, placementOf);
+    notesPanel.setCount(notes.length);
     dialog.update({ notes });
     v.feedbackVisibility?.notesPaint(visibilityToken,(operator&&policy?.driver?[]:notes).map(n=>({id:n.id,revision:v.model.note_revisions?.[n.id],box:placements.get(n.id)})));
   }
@@ -705,5 +709,6 @@ export function mountAnnotation(doc, win, v, { root, box, stage, palette, who, c
   }, operator);
   sync();
   schedule();
-  return { setMode, setAnnotationAllowed(allowed, reset = false, availability = 'off') { availabilityState = availability; if (reset) { gestureVersion++; endGesture(true); setMode('watch'); } annotationAllowed = allowed === true; sync(); }, captureBusy:()=>dialog.open||!!state.drag||!!state.stroke,dialog, strokes, who, annotate, get mode() { return state.mode; } };
+  win.addEventListener('pagehide', () => notesPanel.dispose(), {once:true});
+  return { dispose: () => notesPanel.dispose(), setMode, setAnnotationAllowed(allowed, reset = false, availability = 'off') { availabilityState = availability; if (reset) { gestureVersion++; endGesture(true); setMode('watch'); } annotationAllowed = allowed === true; sync(); }, captureBusy:()=>dialog.open||!!state.drag||!!state.stroke,dialog, strokes, who, annotate, get mode() { return state.mode; } };
 }

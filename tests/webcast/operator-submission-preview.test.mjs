@@ -1,5 +1,6 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
+import {mountFloatingPanel} from '../../cmd/internal/webcast/web/floating-panel.js';
 import {Element} from './dom-fixture.mjs';
 import {createOperatorSketchReceiver,createOperatorSubmissionPreview} from '../../cmd/internal/webcast/operator-sketch.js';
 
@@ -138,4 +139,24 @@ test('only deferred feedback keeps its count reachable without blocking capture'
  assert.equal(f.preview.captureBusy(),false);
  f.preview.publish({...f.value,revision:'2',operation:'2',note_remaining:0});
  assert.equal(panel.hidden,true);
+});
+
+
+test('notes panel presentation leaves the shown exact selection and stamps intact',()=>{
+ const f=fixture();
+ const previewBefore=f.preview.publish(f.value);
+ const panel=mountFloatingPanel(f.doc,{innerWidth:800,innerHeight:600,addEventListener(){},removeEventListener(){}},{parent:f.root});
+ panel.setCount(12);
+ const e={preventDefault(){},stopPropagation(){},detail:0};
+ panel.root.querySelector('.floating-panel-minimize').listeners.click[0](e);
+ panel.setCount(13);
+ const button=panel.root.querySelector('.floating-panel-restore');
+ button.listeners.keydown[0]({...e,key:'ArrowLeft'});
+ button.listeners.click[0](e);
+ assert.deepEqual(f.preview.publish(structuredClone(f.value)),previewBefore,'presentation cannot change accepted stamps or selected versions');
+ const cards=f.root.querySelector('.sketch-submission-cards');
+ assert.equal(cards.children.length,2);
+ assert.equal(cards.children[0].querySelector('.sketch-submission-note').textContent,'note 0');
+ assert.throws(()=>f.preview.publish({...f.value,items:[f.value.items[1]]}),/conflicting/i,'a real feedback change still refuses the same publication identity');
+ panel.dispose();
 });

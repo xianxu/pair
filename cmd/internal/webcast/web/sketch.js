@@ -1,5 +1,6 @@
 import { createSketchPolicy, createSketchGesture } from './sketch-policy.js';
 import { createSketchRecordDisplay, paintSketchPaths, createSketchPaintScheduler } from './sketch-render.js';
+import { sketchNoteEntries, mountSketchNoteControls } from './sketch-notes.js';
 
 // The controller owns input and drafts. The injected scene owns frozen DOM;
 // send/status are the only mutation/reconciliation boundary.
@@ -84,11 +85,19 @@ export function mountSketch(doc, win, view, options) {
   });
   const undoButton = button('Undo', () => undo()),
     redoButton = button('Redo', () => redo());
-  const noteButton = button('Note', () => leave('watch'));
+  const noteButton = button('Add note', () => leave('watch'));
   noteButton.title = 'Open text for this unfinished sketch';
   const doneButton = button('Done', () => leave('watch'));
   const retryButton = button('Check confirmation', () => dispatch({ type: 'retry' }));
   const continueButton = button('Continue drawing', () => continueDrawing());
+  const noteControls = mountSketchNoteControls(doc, { parent: box, onAdd: (key) => {
+    // UI entries are display snapshots. The existing policy still owns label
+    // capability, including an old author's unfinished label after handoff.
+    const slot = state().slots.find(s => s.sketch === key && !s.retired && !s.finishing);
+    if (!slot || disposed) return;
+    if (state().active === key && ['drawing', 'preparing'].includes(state().phase)) leave('watch');
+    else openLabel(key);
+  }});
   const state = () => policy.snapshot();
   const active = () => state().active;
   const track = (p) => {
@@ -145,7 +154,7 @@ export function mountSketch(doc, win, view, options) {
       for (const key of s.pendingLabels) {
         const b = make('button', '', labels);
         b.dataset.sketch = key;
-        b.textContent = 'Note';
+        b.textContent = 'Add note';
         b.title = 'Open text for this unfinished sketch';
         b.addEventListener('click', () => openLabel(key));
       }
@@ -801,15 +810,27 @@ export function mountSketch(doc, win, view, options) {
         key = pathKey(p),
         previous = ink.get(key),
         start = previous?.length || 0;
-      if (start < p.pts.length)
-        paintSketchPaths(g, [{ ...p, pts: p.pts.slice(Math.max(0, start - 1)) }], {
+      let bounds = previous?.bounds || null;
+      if (start < p.pts.length) {
+        const addedBounds = paintSketchPaths(g, [{ ...p, pts: p.pts.slice(Math.max(0, start - 1)) }], {
           project: () => paintTargets[i],
           toClient,
           scale,
         });
-      ink.set(key, { points: p.pts, length: p.pts.length, box: targets[i], width: p.width, color: p.color });
+        if(addedBounds) bounds = bounds ? {
+          left:Math.min(bounds.left,addedBounds.left),top:Math.min(bounds.top,addedBounds.top),
+          right:Math.max(bounds.right,addedBounds.right),bottom:Math.max(bounds.bottom,addedBounds.bottom),
+        } : addedBounds;
+      }
+      ink.set(key, { bounds, points: p.pts, length: p.pts.length, box: targets[i], width: p.width, color: p.color });
       seenInk.add(key);
     }
+    const viewport={width:rect.width,height:rect.height};
+    noteControls.update(sketchNoteEntries(paths, paths.map(p=>ink.get(pathKey(p))?.bounds), {
+      metadata: key => options.sketchMetadata ? options.sketchMetadata(key) : recordDisplay?.metadata(key),
+      editable: new Set(state().slots.filter(s => !s.retired && !s.finishing).map(s => s.sketch)),
+      viewport,
+    }), viewport);
     forceInk = false;
     inkTransform = transformKey;
     // Reconcile by accepted point prefix. Unconfirmed samples remain visibly
@@ -943,6 +964,7 @@ export function mountSketch(doc, win, view, options) {
       paintGeneration++;
       cancel();
       scheduler.dispose();
+      noteControls.dispose();
       recordDisplay = null;
       displayModel = null;
       placements.clear();

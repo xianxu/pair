@@ -1,13 +1,24 @@
 ---
 id: 000825
-status: open
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-10-22
-updated: 2026-10-22
+updated: 2026-10-23
 estimate_hours:
 collaboration-mode: collaboration
-card_mirror: 'fae932d51ee1f5cf541c03ab177eb5d82f1cc9f8' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: 'af9daa45f66b329b55a058fe36e735523add0336' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-23T19:43:32-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: Xian’s MacBook Pro
+    workspace: pair:9
+    worktree: /Users/xianxu/workspace/worktree/pair-slot9/pair
+    repository: github.com/xianxu/pair
+flake_tests: [github.com/xianxu/pair/cmd/internal/testcouch/agentfixture.TestCancellationRetirementAllowsIDReuseWithoutInheritedRevocation]
+flow: {kind: quick, provenance: inferred, spec: "210d6aa8", done: "8753b161"}
+actual_hours: 0.20
 ---
 
 # flake: TestCancellationRetirementAllowsIDReuseWithoutInheritedRevocation
@@ -20,14 +31,45 @@ Known flaky tests (#394), registered with same-head fail→pass evidence:
 
 ## Spec
 
+Retirement assertions count mailbox records, excluding atomic publication scratch while it is still owned by the publisher. Preserve the command/result/cancellation fences, joined-child guarantee, exact ID reuse and capacity behavior. Reuse countMailboxEntries rather than changing runtime publication/retirement or removing another producer's scratch. A genuine leftover result or cancellation must still fail. No production state, format, deadline or retry changes.
+
+Alternatives: joining or locking the publisher inside RetireResult would add a runtime mechanism to satisfy a test oracle that disagrees with the existing capacity contract; waiting/retrying the directory-empty assertion would hide that mismatch. Use the existing counter and deterministic held-scratch controls instead (ARCH-DRY, ARCH-PURE, ARCH-PURPOSE).
+
 ## Done when
 
 - The root cause is fixed (never a retry loop or a longer timeout); closing this issue unregisters the tests.
+- Held publisher scratch cannot fail either live-publication retirement assertion; real mailbox records still count as leaks.
+- Existing cancellation, uncertain-result preservation, ID reuse, joined-child and bounded-capacity controls pass, with race and the required recorded pre-close check.
 
 ## Plan
 
-- [ ]
+- [x] Pin the false-positive state with a held .publish-* file in the reuse and joined-child retirement controls; observe RED with the raw-directory oracle.
+- [x] Use the existing countMailboxEntries for both live-publication retirement assertions, include entry names on failure, and add scratch-versus-genuine-record negative controls.
+- [x] Run targeted lifecycle/capacity controls, repeated reuse and race, lint and reader inventory; prepare pushed pre-close verification and close. Recorded pre-close pass, mandatory fresh review and landing remain downstream gates until their own results.
+
+Quick flow, test-only correction. ARCH-ORDER: producer owns temporary hard-link cleanup after final result becomes visible; RetireResult removes cancellation then command then final result under the admission lock. No new state or effects. ARCH-CONSTRAINTS: preserve MaxRequests+1 cycles and existing limits; no new hot path or growth driver, and no timing-based waits. ARCH-FUNERAL: test-owned held scratch dies with t.TempDir; never unlink another publisher's temporary file. ARCH-EVOLVE/SECURE: production wire fields and identity validation unchanged. Existing stateful fixture remains the integration seam (ARCH-MOCK).
 
 ## Log
 
 ### 2026-10-22
+
+### 2026-10-23 — Root-cause work with retained #841 check
+- 2026-10-23: closed — Test-only oracle correction, no architectural surface. Unchanged stress reproduced cycle127 leak42.148s; modeled held .publish-held made both raw-directory assertions RED0.439s, then shared mailbox count GREEN5.198s. Genuine-record and unexpected-entry negatives retained. Full agentfixture PASS13.794s, race PASS15.420s, held-scratch reuse count10 PASS35.054s, lint PASS5.078s, exact audited reader inventory PASS immediately before close, diff clean. Production publication/cancellation/ID fences/budgets unchanged. Recorded pre-close affected started on pushed917c97e6; required pass before landing. TL-authorized overlapping #841 detached check retained. (done-when: contract moved since change-code; judged by the close review); review verdict: SHIP
+
+Claimed and started from fresh main84d84dd0298c7b1cf2d02ed7b90d127fcc4952bb after #852 landed. Latest #852 integration suite reproduced this test at cycle66 with one leaked result, followed by managed same-head exact-test pass3.297s (parent82a29a2a767de75660985214b5feb1e8, child64235cd95e13c908ddccc3466535cc55); root-cause repair is required, never a retry or timeout bump.
+
+TL295d506f-33e6-4f3b-a09a-89a60e9a0537 authorizes both open claims: #825 active root-cause work and #841 accepted SHIP/high awaiting recorded check/landing. #841 check lease-1223841125 remains live in runner81109 at detached HEAD954e3caea7078371c91c7523e86a70bdad751658 (/Volumes/TestScratch/local-checks/sdlc-local-1464763110); verified detached and matching dependency/policy/build inputs before switching. Its docs-only tip is af5785f92. Return to board #841 on pass; do not cancel/restart it. ariadne#580 tracks overlapping-time attribution. A bounded read-only agent investigates result publication/retirement ordering while this session reproduces and traces the lifecycle.
+
+### 2026-10-23 — Publication scratch caused the false leak assertion
+
+Unchanged focused stress (count10) reproduced cycle127 leaked results:1 in42.148s. Read-only investigation traced atomicJSON: os.Link publishes the final name, then deferred os.Remove retires scratch; ReadResult and RetireResult can finish between them. Existing TestRunRetiredResultsKeepMailboxBoundedBeyondLifetimeQuota already holds .publish-held and excludes scratch. Directory-snapshot/ID-fence ordering revealed no request replay or inherited cancellation defect. Agentfixture subtree e774d056251c5e40d77b20c3e46fc3d8037323dc is identical on current main and the original #841 executable diagnostic tree.
+
+In the disposable diagnostic tree, seeding results/.publish-held reproduces deterministically: cycle0 fails0.249s with entries=[- .publish-held]. This is a modeled publisher interval, not a claimed capture of the intermittent filename. On the issue branch, both held-scratch regressions RED0.439s with the raw oracle; after using countMailboxEntries both GREEN5.198s, including genuine-result/unknown-entry negative controls. Full agentfixture PASS13.794s, full package race PASS15.420s, held-scratch reuse count10 PASS35.054s; all keep existing cancellation, uncertain-result, ID reuse and capacity checks. Lint catalog PASS5.078s; diff clean.
+
+Reader inventory initially named request_lifetime_test.go as changed. Audited fixtureConfig/startLifetimeFixture: all OS reads/writes are under t.TempDir-owned ControlDir/Root, and new fs.ReadDir uses fstest.MapFS in memory. No tracked repository input or fallback changed. Recorded only that file's existing local_or_literal_fixture disposition; inventory PASS. No production files, state, wire formats or timeout/retry policy changed; lessons updated. No new generic lint rule is proposed for distinguishing live-publisher from quiescent directory assertions; both applicable sites now have deterministic held-scratch guards. The stale-shutdown assertion targets the separate ordinary-result directory with no ordinary publisher and remains valid. Push, recorded pre-close, fresh close review and landing follow; no recorded pass claimed yet.
+
+## Revisions
+
+### 2026-10-23 — Specify the verified test-oracle defect
+
+The root cause is counting publisher-owned scratch as a retained mailbox result. Fill the previously empty Spec/Plan and add explicit acceptance for held scratch plus real-record negatives; preserve the original no-retry/no-timeout requirement. Correct the two live-publication test assertions using the existing counter; runtime lifecycle changes would solve the wrong contract.

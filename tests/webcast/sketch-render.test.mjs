@@ -264,3 +264,14 @@ test('display metadata is an owned constant-size lifecycle projection', async ()
  assert.equal(d.metadata('s','p').phase,'interrupted');assert.equal(d.metadata('s','p').stroke.sealed,true);
  assert.equal(d.metadata('missing'),null);assert.equal(d.stats().points,before.points);
 });
+
+test('painter returns pressure-expanded bounds from only its existing projection walk',async()=>{
+ const {paintSketchPaths}=await mod();
+ const g={save(){},restore(){},beginPath(){},moveTo(){},lineTo(){},closePath(){},fill(){},arc(){}};
+ for(const n of [128,256]){
+  let visits=0;const pts=Array.from({length:n},(_,i)=>[i,i-400,1]);
+  const bounds=paintSketchPaths(g,[{width:4,pts}],{toClient:(x,y)=>{visits++;return [x,y];}});
+  assert.equal(visits,n);assert.deepEqual(bounds,{left:-2,top:-402,right:n+1,bottom:n-399});
+ }
+ assert.equal(paintSketchPaths(g,[{width:4,pts:[[NaN,1,.5]]}]),null);
+});
