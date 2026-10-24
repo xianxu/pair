@@ -1,12 +1,12 @@
 ---
 id: 000863
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-10-24
 updated: 2026-10-24
 estimate_hours: 1.333
-card_mirror: '4fd092766f657f1e4bcb64c796571240b59e037a' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '375ed4c444050ffdefdd3be60d4fc60b3acf0de2' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-24T00:18:23-07:00
 claimant:
     operator: Xian Xu
@@ -16,6 +16,7 @@ claimant:
     worktree: /Users/xianxu/workspace/worktree/pair-slot7/pair
     repository: github.com/xianxu/pair
 flow: {kind: full, provenance: operator}
+actual_hours: N/A
 ---
 
 # Native fleet: explicit-hub Fleet.Start broken since #739; second explicit hub fails attach at a fresh start
