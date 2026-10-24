@@ -7,7 +7,7 @@ created: 2026-10-24
 updated: 2026-10-24
 estimate_hours: 5.5
 severity: high
-card_mirror: '6080339f10e7f4f852b1dd7eb8c61d9b9a6af788' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '883bb04aa8c78d4f48276b6dd0dc9afd76b15313' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-24T02:48:13-07:00
 claimant:
     operator: Xian Xu
