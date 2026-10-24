@@ -72,3 +72,5 @@ Targeted commands: `go test ./cmd/internal/launcher -run 'ListingEvidence|Listin
 ## Revisions
 
 2026-10-24 — Diagnostic phase approved; original issue still requires measured classification and any approved correction. This plan cannot establish that root cause in advance. Return the one native result before changing behavior.
+
+2026-10-24 — Corrected a budget attribution before native execution: the existing96MiB guard is the internal/couchcmd TestMain self-process write counter, not a native-child cap, and cmd/couch has no such TestMain guard. Preserve actual existing fixture byte/file limits, setup180s/runtime120s, CLI deadlines and exact cleanup; no new budget mechanism is authorized or needed. This supersedes the per-process write96MiB phrase in the task above. Report that qualification limit plainly.
