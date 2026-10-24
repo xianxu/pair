@@ -35,6 +35,11 @@ func hubMessageRigWithWorkerEndpoint(t *testing.T, endpoint couchmessage.Deliver
 	r.world.hub = "/repo0"
 	authority := r.world.authority()
 	authority.hubs = guardHubState(t)
+	initial := map[string]bool{}
+	for _, hub := range authority.hubs.snapshot().Hubs() {
+		initial[hub.Root] = true
+	}
+	authority.automation = newHubAutomationOwner(initial, couchcore.StartupNormal, nil)
 	var clock atomic.Int64
 	clock.Store(time.Now().UnixNano())
 	authority.now = func() time.Time { return time.Unix(0, clock.Load()) }

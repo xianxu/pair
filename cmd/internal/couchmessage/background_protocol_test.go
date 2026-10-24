@@ -295,7 +295,7 @@ func TestBackgroundNegotiationOlderSchemas(t *testing.T) {
 			go func() { done <- c.session(ctx, socket, selfBinding("pair:1"), time.Millisecond) }()
 			select {
 			case got := <-hellos:
-				if !reflect.DeepEqual(got, versions[:accepted+1]) {
+				if !reflect.DeepEqual(got, append([]string{FrameHelloV5}, versions[:accepted+1]...)) {
 					t.Fatalf("hellos=%v", got)
 				}
 			case err := <-failures:
@@ -347,7 +347,7 @@ func TestBackgroundNegotiationRefusalAndMalformedAckDoNotFallback(t *testing.T) 
 			if err := c.session(context.Background(), socket, selfBinding("pair:1"), time.Millisecond); err == nil || errors.Is(err, errNoAck) {
 				t.Fatalf("refusal=%v", err)
 			}
-			if got := <-first; got != FrameHelloV4 {
+			if got := <-first; got != FrameHelloV5 {
 				t.Fatalf("first hello=%s", got)
 			}
 			_ = l.SetDeadline(time.Now().Add(30 * time.Millisecond))
@@ -389,7 +389,7 @@ func TestBackgroundNegotiationTimeoutDoesNotFallback(t *testing.T) {
 	if !errors.As(err, &timeout) || !timeout.Timeout() || errors.Is(err, errNoAck) {
 		t.Fatalf("timeout=%v", err)
 	}
-	if got := <-first; got != FrameHelloV4 {
+	if got := <-first; got != FrameHelloV5 {
 		t.Fatalf("first hello=%s", got)
 	}
 	_ = l.SetDeadline(time.Now().Add(30 * time.Millisecond))

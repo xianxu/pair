@@ -135,6 +135,8 @@ func ParseCLI(args []string, operations []couchcore.Operation) (inv cliInvocatio
 			return parseHubMoveCLI(args)
 		case "--notify":
 			return parseNotifyCLI(args)
+		case "--automation":
+			return parseAutomationCLI(args)
 		case submissionFlag:
 			return parseSubmissionCLI(args)
 		case "--adopt-store":

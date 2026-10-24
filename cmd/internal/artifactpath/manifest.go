@@ -676,6 +676,14 @@ var SourceClassifications = []SourceClassification{
 // the artifact namespace requires an explicit SourceClassification.
 // pair:m5-concept pure
 var NonArtifactSources = []string{
+	// #739 startup/automation/cue policy delegates to existing stores and
+	// transports; none constructs or names Pair artifact filenames.
+	"cmd/internal/couchcmd/automation.go",
+	"cmd/internal/couchcmd/worker_cue_coordinator.go",
+	"cmd/internal/couchcore/hub_automation.go",
+	"cmd/internal/couchcore/startup_policy.go",
+	"cmd/internal/couchmessage/worker_start_notice.go",
+	"cmd/internal/couchtty/console_automation.go",
 	// #753 historical sketch evidence uses Couch recording/submission namespaces,
 	// private caller-selected exports and in-memory projections; no Pair artifact family.
 	"cmd/internal/submission/codec.go",

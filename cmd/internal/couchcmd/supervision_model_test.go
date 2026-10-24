@@ -192,3 +192,23 @@ func TestHubSupervisionDelayedHubAvailability(t *testing.T) {
 		t.Fatalf("late hub prompts: %+v", effects)
 	}
 }
+
+func TestSupervisionAutomationOffConsumesNudgeWithoutHubAndKeepsEscalation(t *testing.T) {
+	now := time.Unix(1000, 0)
+	b := couchmessage.Binding{Slot: "pair:7"}
+	s := newSupervisionState()
+	s.report(b, "report", now, 0, true)
+	f := supervisionFacts{binding: b, known: true, settled: true, resting: true, quiet: time.Minute, automationOff: true}
+	fx := s.tick(now.Add(31*time.Minute), []supervisionFacts{f}, false)
+	if countSupervision(fx, supervisionNudge) != 0 || countSupervision(fx, supervisionEscalate) != 1 || !s.notified(b) {
+		t.Fatalf("off did not retire nudge and preserve escalation: %+v", fx)
+	}
+	f.automationOff = false
+	if fx := s.tick(now.Add(32*time.Minute), []supervisionFacts{f}, true); countSupervision(fx, supervisionNudge) != 0 || countSupervision(fx, supervisionEscalate) != 0 {
+		t.Fatalf("on replayed off occurrence: %+v", fx)
+	}
+	s.report(b, "new-report", now.Add(32*time.Minute), 0, true)
+	if fx := s.tick(now.Add(47*time.Minute), []supervisionFacts{f}, true); countSupervision(fx, supervisionNudge) != 1 {
+		t.Fatalf("new report remained muted: %+v", fx)
+	}
+}

@@ -24,8 +24,9 @@ type SessionHandler struct {
 // SessionHello is what a wrapper said when it connected. Build is non-nil
 // exactly for hello-v2 and newer sessions, which may report Settled.
 type SessionHello struct {
-	Binding Binding
-	Build   *BuildIdentity
+	Binding   Binding
+	Build     *BuildIdentity
+	WorkerCue *WorkerCueReport
 }
 
 // SessionServer holds long-lived wrapper connections on the registry socket.
@@ -105,10 +106,10 @@ func (s *SessionServer) serve(conn *net.UnixConn, token SessionToken, full bool)
 		return
 	}
 	hello, err := readSessionFrame(conn)
-	if err != nil || (hello.Op != FrameHello && hello.Op != FrameHelloV2 && hello.Op != FrameHelloV3 && hello.Op != FrameHelloV4) {
+	if err != nil || (hello.Op != FrameHello && hello.Op != FrameHelloV2 && hello.Op != FrameHelloV3 && hello.Op != FrameHelloV4 && hello.Op != FrameHelloV5) {
 		return
 	}
-	v2, v3, v4 := hello.Op != FrameHello, hello.Op == FrameHelloV3 || hello.Op == FrameHelloV4, hello.Op == FrameHelloV4
+	v2, v3, v4, v5 := sessionVersions(hello.Op)
 	refuse := func(code string, err error) {
 		_ = writeSessionFrame(conn, SessionFrame{Op: FrameAck, Code: code, Error: err.Error()})
 	}
@@ -122,7 +123,7 @@ func (s *SessionServer) serve(conn *net.UnixConn, token SessionToken, full bool)
 		refuse("refused", errors.New("session peer is not the binding's process"))
 		return
 	}
-	if err := s.handler.Open(token, SessionHello{Binding: *hello.Binding, Build: hello.Build}); err != nil {
+	if err := s.handler.Open(token, SessionHello{Binding: *hello.Binding, Build: hello.Build, WorkerCue: CopyWorkerCueReport(hello.WorkerCue)}); err != nil {
 		refuse("refused", err)
 		return
 	}
@@ -135,7 +136,7 @@ func (s *SessionServer) serve(conn *net.UnixConn, token SessionToken, full bool)
 	}
 	for {
 		f, err := readSessionFrame(conn)
-		if err != nil || (f.Op != FrameActivity && f.Op != FrameSubmit) || (!v2 && f.Settled != nil) || (!v3 && f.Picker != nil) || (!v4 && f.BackgroundWork != nil) {
+		if err != nil || (f.Op != FrameActivity && f.Op != FrameSubmit) || (!v2 && f.Settled != nil) || (!v3 && f.Picker != nil) || (!v4 && f.BackgroundWork != nil) || (!v5 && f.WorkerCue != nil) {
 			return // EOF is the wrapper's departure; a malformed frame ends only this session
 		}
 		s.handler.Frame(token, f)
@@ -178,6 +179,7 @@ type SessionClient struct {
 	settled        bool
 	picker         bool
 	backgroundWork *bool
+	workerCue      *WorkerCueReport
 	wake           chan struct{}
 	connected      chan struct{} // test hook: signalled after each ack
 }
@@ -245,6 +247,23 @@ func (c *SessionClient) BackgroundWork(active *bool) {
 	}
 }
 
+// WorkerCue records a compact launch witness without IO. Nil remains unknown.
+func (c *SessionClient) WorkerCue(r *WorkerCueReport) {
+	c.mu.Lock()
+	changed := (r == nil) != (c.workerCue == nil)
+	if r != nil && c.workerCue != nil {
+		changed = *r != *c.workerCue
+	}
+	if changed {
+		c.workerCue = CopyWorkerCueReport(r)
+		c.dirty = c.have || c.dirty
+	}
+	c.mu.Unlock()
+	if changed {
+		c.signal()
+	}
+}
+
 // Update records the wrapper's current observation; the sender coalesces.
 func (c *SessionClient) Update(o Observation) {
 	c.mu.Lock()
@@ -290,11 +309,14 @@ var errNoAck = errors.New("broker closed before acknowledging hello")
 
 // sessionHandshake sends the hello op (build rides hello-v2 and newer)
 // and reads the ack.
-func sessionHandshake(conn net.Conn, b Binding, build *BuildIdentity, op string) error {
+func sessionHandshake(conn net.Conn, b Binding, build *BuildIdentity, op string, cue *WorkerCueReport) error {
 	if err := conn.SetDeadline(time.Now().Add(AdmissionTimeout)); err != nil {
 		return err
 	}
 	hello := SessionFrame{Op: op, Binding: &b}
+	if op == FrameHelloV5 {
+		hello.WorkerCue = CopyWorkerCueReport(cue)
+	}
 	if op != FrameHello {
 		hello.Build = build
 	}
@@ -326,7 +348,7 @@ func (c *SessionClient) session(ctx context.Context, socket string, b Binding, m
 	// own connection; only the one that took a hello outlives the loop.
 	hellos := []string{FrameHello}
 	if build != nil {
-		hellos = []string{FrameHelloV4, FrameHelloV3, FrameHelloV2, FrameHello}
+		hellos = []string{FrameHelloV5, FrameHelloV4, FrameHelloV3, FrameHelloV2, FrameHello}
 	}
 	var conn net.Conn
 	var op string
@@ -338,7 +360,10 @@ func (c *SessionClient) session(ctx context.Context, socket string, b Binding, m
 		if err != nil {
 			return err
 		}
-		err = sessionHandshake(attempt, b, build, op)
+		c.mu.Lock()
+		cue := CopyWorkerCueReport(c.workerCue)
+		c.mu.Unlock()
+		err = sessionHandshake(attempt, b, build, op, cue)
 		if err == nil {
 			conn = attempt
 			break
@@ -349,7 +374,7 @@ func (c *SessionClient) session(ctx context.Context, socket string, b Binding, m
 		}
 	}
 	defer conn.Close()
-	v2, v3, v4 := op != FrameHello, op == FrameHelloV3 || op == FrameHelloV4, op == FrameHelloV4
+	v2, v3, v4, v5 := sessionVersions(op)
 	if err := conn.SetDeadline(time.Time{}); err != nil {
 		return err
 	}
@@ -386,6 +411,10 @@ func (c *SessionClient) session(ctx context.Context, socket string, b Binding, m
 		f := SessionFrame{}
 		obs := c.latest
 		var settled, picker, backgroundWork *bool
+		var cue *WorkerCueReport
+		if v5 {
+			cue = CopyWorkerCueReport(c.workerCue)
+		}
 		if v2 {
 			v := c.settled
 			settled = &v
@@ -400,13 +429,13 @@ func (c *SessionClient) session(ctx context.Context, socket string, b Binding, m
 		}
 		switch {
 		case c.submit:
-			f = SessionFrame{Op: FrameSubmit, Observation: &obs, Settled: settled, Picker: picker, BackgroundWork: backgroundWork}
+			f = SessionFrame{Op: FrameSubmit, Observation: &obs, Settled: settled, Picker: picker, BackgroundWork: backgroundWork, WorkerCue: cue}
 			c.submit, c.dirty = false, false
 		case c.dirty && throttle == nil:
 			if wait := minInterval - time.Since(last); !last.IsZero() && wait > 0 {
 				throttle = time.After(wait)
 			} else {
-				f = SessionFrame{Op: FrameActivity, Observation: &obs, Settled: settled, Picker: picker, BackgroundWork: backgroundWork}
+				f = SessionFrame{Op: FrameActivity, Observation: &obs, Settled: settled, Picker: picker, BackgroundWork: backgroundWork, WorkerCue: cue}
 				c.dirty = false
 			}
 		}
@@ -427,5 +456,21 @@ func (c *SessionClient) session(ctx context.Context, socket string, b Binding, m
 			return err
 		}
 		last = time.Now()
+	}
+}
+
+// sessionVersions keeps the negotiation ladder and field gates in one order.
+func sessionVersions(op string) (v2, v3, v4, v5 bool) {
+	switch op {
+	case FrameHelloV5:
+		return true, true, true, true
+	case FrameHelloV4:
+		return true, true, true, false
+	case FrameHelloV3:
+		return true, true, false, false
+	case FrameHelloV2:
+		return true, false, false, false
+	default:
+		return false, false, false, false
 	}
 }
