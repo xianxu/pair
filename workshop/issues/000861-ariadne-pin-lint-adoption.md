@@ -6,7 +6,7 @@ github_issue:
 created: 2026-10-24
 updated: 2026-10-24
 estimate_hours: 4.11
-card_mirror: '22ce41ab12b34d396c94b31c08306edd15bca75d' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '816f4d9eb3bf354278a2e14f069950b4d746e31a' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-24T00:02:47-07:00
 claimant:
     operator: Xian Xu
@@ -16,7 +16,7 @@ claimant:
     worktree: /Users/xianxu/workspace/worktree/pair-slot3/pair
     repository: github.com/xianxu/pair
 flow: {kind: full, provenance: operator}
-actual_hours: 1.78
+actual_hours: N/A
 ---
 
 # Adopt Ariadne shared sidedoc pin and qualify newly active lint rules
