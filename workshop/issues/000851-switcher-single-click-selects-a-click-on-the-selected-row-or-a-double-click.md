@@ -79,6 +79,8 @@ Envelope: one decision per accepted press, no IO before the existing declared op
 
 ## Log
 
+
+- 2026-10-24: closed — BR-3 fixed by evaluating Filter within retained GroupScope after membership proof; mixed Focus/scoped-fuzzy/outside-exact regression RED before fix, GREEN after; converse legitimate scope/filter clearing pinned. Ten focused repetitions PASS18.612s, focused race3.882s, full couchtty61.516s, fresh inventory PASS. New pushed-head pre-close768030bc is retained (suite fallback); pass required before landing. Prior recorded suite13m54s and operator combined3d0135b0 click PASS remain documented. BR-1/2 addressed. Measurement refused: measurement branch proof: measurement sources exceed snapshot limit 128; attempt window2026-10-23T20:43:25-07:00 through2026-10-24T10:40:39-07:00; hub818613af/20d35b9a authorizes precise --no-actual, no typed hours.; review verdict: SHIP
 ### 2026-10-23
 
 

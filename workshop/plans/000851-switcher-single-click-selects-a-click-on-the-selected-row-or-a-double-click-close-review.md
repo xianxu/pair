@@ -189,3 +189,95 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000411
+
+---
+
+## Re-review — 2026-10-24T11:04:25-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 851 — Switcher: single click selects, a click on the selected row or a double click switches |
+| repo | pair |
+| issue file | workshop/issues/000851-switcher-single-click-selects-a-click-on-the-selected-row-or-a-double-click.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 715b1e199cf2368c46c7e43cb9a4d8c67c4624e3..768030bc64f275c875e4cee671b0dd1873b96426 |
+| command | sdlc close --issue 851 |
+| reviewer | codex (openai; author openai) |
+| isolation | fenced |
+| timestamp | 2026-10-24T11:04:25-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+The pinned implementation matches the revised select-first contract. BR-3 is corrected with a meaningful regression that fails when the fix is removed. Documentation and acceptance criteria are synchronized, and no additional findings remain.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      README.md:1226-1227 qualifies warm retry by selection; README.md:1926-1937 documents row/chip selection, activation, hidden/nested targets and manual switching, matching terminal_input.go:278-289 and menu_mouse.go:7-35.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      The issue's Done-when:69-72 now matches the timer-free Spec and explicitly covers scoped chips, selective reveal, nested frames, external chips and keyboard behavior; reducer and real SGR tests substantiate these outcomes.
+  - id: BR-3
+    disposition: addressed
+    note: |
+      menu_mouse.go:24 retains GroupScope when evaluating Filter. TestSwitcherRevealPreservesEffectiveFilterContext covers scoped preservation and necessary scope/filter removal. Reverting only this fix through a temporary overlay makes the preservation case fail with filter=""; pinned HEAD passes.
+```
+
+1. **Strengths**
+
+   - Canonical row keys preserve selection across recordless slots and inventory replacement (`menu_mouse_test.go:51-85`).
+   - Activation shares existing manual dispatch and operation vetoes (`menu.go:2002`).
+   - Real SGR tests cover rapid/delayed presses, chip routing and non-activation reports (`console_mouse_test.go:297-537`).
+
+2. **Critical findings:** None.
+
+3. **Important findings:** None.
+
+4. **Minor findings:** None.
+
+5. **Test coverage notes**
+
+   Independently passed:
+
+   - Full couchtty suite: 78.647s.
+   - Focused race tests: 5.539s.
+   - Production artifact classification: 8.333s.
+   - Affected-config qualification against the pinned dependency: 120.855s.
+   - Diff whitespace checks.
+
+   The BR-3 regression failed without the fix. Pure tests exercise reducer logic without IO; integration fixtures inject host, child and dispatcher dependencies. Tracked files remain unchanged.
+
+6. **Architectural notes**
+
+   - **ARCH-DRY: pass** — shared activation authority.
+   - **ARCH-PURE: pass** — deterministic selection logic with thin Console routing.
+   - **ARCH-PURPOSE: pass** — row/chip consumers implement the scoped contract, including effective-context preservation.
+   - **ARCH-EVOLVE: pass** — no persisted-format changes.
+
+   Core-concept classifications match the code. README and atlas updates cover the changed surface.
+
+7. **Plan revision recommendations:** None; the existing revisions cover the corrections.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"0123dc84-3d19-4834-bb81-ddef1e8edec6","repository":"github.com/xianxu/pair","issue_id":"000851","recipe":"small-diff-review","round":3,"attempt":1,"agent":"codex","root":"/Volumes/TestScratch/review-checkouts/b7b86c82c440adfb","reviewed_head":"768030bc64f275c875e4cee671b0dd1873b96426","slot":"pair:2","requested_at":"2026-10-24T18:01:37.764022Z"},"phase":"finished","pid":57521,"started_at":"2026-10-24T18:01:37.938383Z","finished_at":"2026-10-24T18:04:17.61944Z","session_id":"01a16f13-4d4b-77d1-bc71-3a2449a00f2e","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 47.781204291s
+head: "768030bc64f275c875e4cee671b0dd1873b96426"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000413

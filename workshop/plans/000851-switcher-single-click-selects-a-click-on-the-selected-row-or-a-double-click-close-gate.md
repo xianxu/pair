@@ -93,6 +93,49 @@ rounds:
       recipe: small-diff-review
       isolation: fenced
       blocked: true
+    - reviewer_runs:
+        - version: 1
+          intent:
+            disposable_root: true
+            id: 0123dc84-3d19-4834-bb81-ddef1e8edec6
+            repository: github.com/xianxu/pair
+            issue_id: "000851"
+            recipe: small-diff-review
+            round: 3
+            attempt: 1
+            agent: codex
+            root: /Volumes/TestScratch/review-checkouts/b7b86c82c440adfb
+            reviewed_head: 768030bc64f275c875e4cee671b0dd1873b96426
+            slot: pair:2
+            requested_at: "2026-10-24T18:01:37.764022Z"
+          phase: finished
+          pid: 57521
+          started_at: "2026-10-24T18:01:37.938383Z"
+          finished_at: "2026-10-24T18:04:17.61944Z"
+          session_id: 01a16f13-4d4b-77d1-bc71-3a2449a00f2e
+          outcome: returned
+      "n": 3
+      timestamp: "2026-10-24T11:04:25-07:00"
+      dispatched: "2026-10-24T11:00:49-07:00"
+      agent: codex
+      reviewer: codex (openai; author openai)
+      dispose:
+        - id: BR-1
+          disposition: addressed
+          note: README.md:1226-1227 qualifies warm retry by selection; README.md:1926-1937 documents row/chip selection, activation, hidden/nested targets and manual switching, matching terminal_input.go:278-289 and menu_mouse.go:7-35.
+          round: 3
+        - id: BR-2
+          disposition: addressed
+          note: The issue's Done-when:69-72 now matches the timer-free Spec and explicitly covers scoped chips, selective reveal, nested frames, external chips and keyboard behavior; reducer and real SGR tests substantiate these outcomes.
+          round: 3
+        - id: BR-3
+          disposition: addressed
+          note: menu_mouse.go:24 retains GroupScope when evaluating Filter. TestSwitcherRevealPreservesEffectiveFilterContext covers scoped preservation and necessary scope/filter removal. Reverting only this fix through a temporary overlay makes the preservation case fail with filter=""; pinned HEAD passes.
+          round: 3
+      recipe: small-diff-review
+      isolation: fenced
+      reviewed: 768030bc64f275c875e4cee671b0dd1873b96426
+      blocked: false
 ---
 
 # Gate ledger — pair#851 (boundary-review)
@@ -121,6 +164,14 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-3** [Critical] `preserve-effective-reveal-context` (kind: defect) Chip reveal evaluates the filter outside its retained group and can erase valid context.
   cmd/internal/couchtty/menu_mouse.go:24-25 tests Filter using a frame without GroupScope. Filtering has exact-over-fuzzy precedence (menu.go:430-433), so results depend on the candidate group. Reproduced with a pair-group slot tagged foo-more, an outside brain-group slot tagged foo, Filter="foo", and Focus view hiding the summaryless target: the target matches the scoped filter, but clicking its chip clears both Focus view and Filter. Only Focus view should clear, per Done-when:70. A temporary overlay regression, TestReviewRevealPreservesScopedFuzzyFilter, failed with filter="" on pinned HEAD. ARCH-PURPOSE: preserve restrictions in their effective context. Evaluate the filter with the retained GroupScope after any necessary scope removal, then evaluate View. Family enumeration: the sole context-losing predicate is lines 24-25; scope membership at lines 21-22 is independent of filtering, and the final view check at lines 27-28 already uses the retained frame. Add regression coverage for this mixed-restriction case.
 
+## Round 3 — 2026-10-24T11:04:25-07:00 (codex) — passed
+
+### Disposed
+
+- BR-1 — addressed — README.md:1226-1227 qualifies warm retry by selection; README.md:1926-1937 documents row/chip selection, activation, hidden/nested targets and manual switching, matching terminal_input.go:278-289 and menu_mouse.go:7-35.
+- BR-2 — addressed — The issue's Done-when:69-72 now matches the timer-free Spec and explicitly covers scoped chips, selective reveal, nested frames, external chips and keyboard behavior; reducer and real SGR tests substantiate these outcomes.
+- BR-3 — addressed — menu_mouse.go:24 retains GroupScope when evaluating Filter. TestSwitcherRevealPreservesEffectiveFilterContext covers scoped preservation and necessary scope/filter removal. Reverting only this fix through a temporary overlay makes the preservation case fail with filter=""; pinned HEAD passes.
+
 ## Open findings
 
-- **BR-3** [Critical] `preserve-effective-reveal-context` (kind: defect) Chip reveal evaluates the filter outside its retained group and can erase valid context.
+(none — every finding has been disposed)
