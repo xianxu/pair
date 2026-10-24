@@ -1,13 +1,22 @@
 ---
 id: 000825
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-10-22
-updated: 2026-10-22
+updated: 2026-10-23
 estimate_hours:
 collaboration-mode: collaboration
-card_mirror: 'fae932d51ee1f5cf541c03ab177eb5d82f1cc9f8' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '4791762c50f1085e7a427f9538712a95156867ae' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-23T19:43:32-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: Xian’s MacBook Pro
+    workspace: pair:9
+    worktree: /Users/xianxu/workspace/worktree/pair-slot9/pair
+    repository: github.com/xianxu/pair
+flake_tests: [github.com/xianxu/pair/cmd/internal/testcouch/agentfixture.TestCancellationRetirementAllowsIDReuseWithoutInheritedRevocation]
 ---
 
 # flake: TestCancellationRetirementAllowsIDReuseWithoutInheritedRevocation
@@ -31,3 +40,9 @@ Known flaky tests (#394), registered with same-head fail→pass evidence:
 ## Log
 
 ### 2026-10-22
+
+### 2026-10-23 — Root-cause work with retained #841 check
+
+Claimed and started from fresh main84d84dd0298c7b1cf2d02ed7b90d127fcc4952bb after #852 landed. Latest #852 integration suite reproduced this test at cycle66 with one leaked result, followed by managed same-head exact-test pass3.297s (parent82a29a2a767de75660985214b5feb1e8, child64235cd95e13c908ddccc3466535cc55); root-cause repair is required, never a retry or timeout bump.
+
+TL295d506f-33e6-4f3b-a09a-89a60e9a0537 authorizes both open claims: #825 active root-cause work and #841 accepted SHIP/high awaiting recorded check/landing. #841 check lease-1223841125 remains live in runner81109 at detached HEAD954e3caea7078371c91c7523e86a70bdad751658 (/Volumes/TestScratch/local-checks/sdlc-local-1464763110); verified detached and matching dependency/policy/build inputs before switching. Its docs-only tip is af5785f92. Return to board #841 on pass; do not cancel/restart it. ariadne#580 tracks overlapping-time attribution. A bounded read-only agent investigates result publication/retirement ordering while this session reproduces and traces the lifecycle.
