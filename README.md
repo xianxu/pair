@@ -1697,7 +1697,10 @@ capability is enabled:
 - `👽` controls remote driving; its **drive link** also lets viewers ask to
   drive while driving is on.
 
-Annotation and remote driving start **OFF**, independently. A link and its code
+Viewer annotation and remote driving start **OFF**, independently. In the cast
+Chrome, the trusted operator can use **Note** and **Pointer** without enabling
+viewer annotation. Pausing, remote driving and unresolved cleanup still block
+those tools. A link and its code
 remain valid when a capability is off, but holding them does not enable it:
 the server refuses annotation or driving until the operator enables that
 capability. Turning annotation off clears the current marks while preserving
@@ -1824,7 +1827,8 @@ click your 💭 pin for a populated editor, **Save** to revise its text, or
 **Cancel** to leave it unchanged. The original author and box stay the same,
 and revised notes show **edited**. The operator's overlay in cast Chrome also
 opens existing pins with the pen Off, but can edit only notes made by the
-operator, not viewers' notes. Annotation OFF and view-only links are read-only;
+operator, not viewers' notes. For viewers, Annotation OFF and view-only links
+are read-only; the Notes panel explains how to request access from the owner;
 while a new note's Save is pending, its text is temporarily locked to prevent
 a duplicate creation. Text revisions and resolver attribution stay in the web
 recording; resolved notes still disappear from the live page.

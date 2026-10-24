@@ -1,0 +1,4 @@
+=== RUN   TestOperatorLiveAnnotation
+--- PASS: TestOperatorLiveAnnotation (4.93s)
+PASS
+ok  	github.com/xianxu/pair/cmd/internal/webcast	5.170s

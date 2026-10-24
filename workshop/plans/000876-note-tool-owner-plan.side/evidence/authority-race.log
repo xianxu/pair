@@ -1,0 +1,4 @@
+ok  	github.com/xianxu/pair/cmd/internal/webcast/board	1.326s
+ok  	github.com/xianxu/pair/cmd/internal/webcast/recorder	1.739s
+ok  	github.com/xianxu/pair/cmd/internal/webcast/notedraft	3.521s
+ok  	github.com/xianxu/pair/cmd/internal/webcast	2.074s

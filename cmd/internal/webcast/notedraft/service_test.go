@@ -12,9 +12,17 @@ import (
 
 func preparation(t *testing.T) (board.AnnotationAdmission, board.PreparedNote) {
 	t.Helper()
+	_, a, p := preparationAuthority(t, false)
+	return a, p
+}
+
+func preparationAuthority(t *testing.T, operator bool) (*board.Board, board.AnnotationAdmission, board.PreparedNote) {
+	t.Helper()
 	bd := board.New(notes.Structural{}, nil)
-	if err := bd.SetAnnotationAllowed(context.Background(), true); err != nil {
-		t.Fatal(err)
+	if !operator {
+		if err := bd.SetAnnotationAllowed(context.Background(), true); err != nil {
+			t.Fatal(err)
+		}
 	}
 	b := recording.NewBuilder("test")
 	el := b.El("p", []string{"id", "card"}, b.Txt("Original card"))
@@ -22,15 +30,21 @@ func preparation(t *testing.T) (board.AnnotationAdmission, board.PreparedNote) {
 	for _, r := range b.Recs {
 		bd.Put(r)
 	}
-	a, err := bd.AdmitAnnotation()
+	var a board.AnnotationAdmission
+	var err error
+	if operator {
+		a, err = bd.AdmitOperatorAnnotationGeneration(0)
+	} else {
+		a, err = bd.AdmitAnnotation()
+	}
 	if err != nil {
 		t.Fatal(err)
 	}
-	p, err := a.PrepareNote(board.PrepareNoteIn{Seg: 1, Node: el.ID, Box: recording.Box{10, 10, 100, 50}, Region: recording.Box{10, 10, 100, 50}}, false)
+	p, err := a.PrepareNote(board.PrepareNoteIn{Seg: 1, Node: el.ID, Box: recording.Box{10, 10, 100, 50}, Region: recording.Box{10, 10, 100, 50}}, operator)
 	if err != nil {
 		t.Fatal(err)
 	}
-	return a, p
+	return bd, a, p
 }
 
 type heldCapture struct {

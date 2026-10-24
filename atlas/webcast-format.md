@@ -327,6 +327,23 @@ landmark's box. The full DOM at that moment stays available through the agent qu
 The operator's box is the crop, so there is no snapping to structure and no per-URL hint. #461's landmark snapping
 and `notes.Hints` were retired by #488. The landmark still gives the context and the anchor's path.
 
+## Owner and viewer annotation (#876)
+
+Viewer annotation remains OFF by default and HTTP mutation admission requires
+an ON permit at the request's original generation. The cast operator's Note and
+Pointer instead use an in-process owner authority at the same generation in
+settled OFF or ON; this does not enable viewer annotation. Disabling cleanup
+(running, retryable or broken), ended/paused pages and a remote driver still
+fence owner work.
+
+The recorder issues this authority only after proving the actual CDP binding
+came from its registered current top session/frame's couchcast isolated context
+and current document stamp. Names, cookies, headers and page claims cannot grant
+it. Prepared notes retain the same Board, authority and surface binding through
+capture, reservation and authenticated token restoration; ordered writes recheck
+both generation and current CDP/document ownership. Console sketch admission
+keeps its separate existing generation policy.
+
 ## Annotation clear (#523)
 
 `annotation-clear` is an operator-authored event in `events.jsonl`:

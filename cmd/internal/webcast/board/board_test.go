@@ -27,6 +27,10 @@ type rig struct {
 }
 
 func newRig(t *testing.T) *rig {
+	return newRigWithAnnotation(t, true)
+}
+
+func newRigWithAnnotation(t *testing.T, allowed bool) *rig {
 	r := &rig{t: t, b: recording.NewBuilder("rec"), mem: &recording.MemSink{}}
 	r.bd = New(notes.Structural{}, func(rec recording.Record, doc int) error {
 		if r.before != nil {
@@ -36,8 +40,10 @@ func newRig(t *testing.T) *rig {
 	})
 	r.w = NewWriter(recording.Tee(r.mem, r.bd), nil)
 	r.bd.WithAnnotationCleanup(r.w.ClearAnnotations)
-	if err := r.bd.SetAnnotationAllowed(context.Background(), true); err != nil {
-		t.Fatal(err)
+	if allowed {
+		if err := r.bd.SetAnnotationAllowed(context.Background(), true); err != nil {
+			t.Fatal(err)
+		}
 	}
 	return r
 }

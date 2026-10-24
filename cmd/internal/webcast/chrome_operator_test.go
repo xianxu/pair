@@ -38,16 +38,21 @@ func TestOperatorModeRejectsInvalidOrUnavailableWithoutFocus(t *testing.T) {
 	}
 }
 
-func TestOperatorWorkerDeliversDefaultOffToExactContext(t *testing.T) {
+func TestOperatorWorkerDeliversOwnerAvailabilityWithViewersOffToExactContext(t *testing.T) {
 	c, p := startPeer(t, nil)
 	b := board.New(notes.Structural{}, nil)
 	defer b.Close()
 	done := make(chan struct{})
-	c.do(func(s *loopState) { s.contexts["S1"] = 17; close(done) })
+	c.do(func(s *loopState) {
+		s.contexts["S1"] = 17
+		s.sessions["S1"] = "T1"
+		s.tracker.Apply(TargetCreated{ID: "T1"})
+		close(done)
+	})
 	<-done
 	c.startOperator(b)
 	call := p.expect("S1", "Runtime.evaluate")
-	if !strings.Contains(string(call.Params), "__couchcastAnnotationAllowed") || !strings.Contains(string(call.Params), `"contextId":17`) {
+	if !strings.Contains(string(call.Params), "hook(true,") || !strings.Contains(string(call.Params), `"contextId":17`) {
 		t.Fatalf("missing exact-context permission: %s", call.Params)
 	}
 }
@@ -148,12 +153,21 @@ func TestOperatorPermissionMissingHookDoesNotAcknowledge(t *testing.T) {
 	}
 }
 
-func TestOperatorModeChecksBoardAuthorityBeforeBrowserDispatch(t *testing.T) {
+func TestOperatorModeChecksClosedBoardAuthorityBeforeBrowserDispatch(t *testing.T) {
 	c, p := startPeer(t, nil)
 	b := board.New(notes.Structural{}, nil)
 	defer b.Close()
 	c.opts.Record = &RecordOptions{Operator: b}
-	if err := c.SetAnnotationMode("note"); !errors.Is(err, board.ErrDisabled) {
+	b.Close()
+	done := make(chan struct{})
+	c.do(func(s *loopState) {
+		s.contexts["S1"] = 17
+		s.sessions["S1"] = "T1"
+		s.tracker.Apply(TargetCreated{ID: "T1"})
+		close(done)
+	})
+	<-done
+	if err := c.SetAnnotationMode("note"); !errors.Is(err, board.ErrClosed) {
 		t.Fatalf("off mode: %v", err)
 	}
 	p.never("Runtime.evaluate", 20*time.Millisecond)
@@ -206,10 +220,10 @@ func TestOperatorWorkerReplacementDoesNotInheritDelayedEnable(t *testing.T) {
 			t.Fatal(err)
 		}
 		if strings.Contains(params.Expression, "__couchcastAnnotationAllowed") {
-			if params.Context != 18 || !strings.Contains(params.Expression, "hook(false,") {
-				t.Fatalf("replacement inherited permission: %s", call.Params)
+			if params.Context != 18 || !strings.Contains(params.Expression, "hook(true,") {
+				t.Fatalf("replacement missing fresh owner permission: %s", call.Params)
 			}
-			p.send(fmt.Sprintf(`{"id":%d,"result":{"result":{"value":{"revision":"2","generation":"2","allowed":false}}}}`, call.ID))
+			p.send(fmt.Sprintf(`{"id":%d,"result":{"result":{"value":{"revision":"2","generation":"2","allowed":true}}}}`, call.ID))
 			break
 		}
 		p.send(fmt.Sprintf(`{"id":%d,"result":{}}`, call.ID))
@@ -217,4 +231,32 @@ func TestOperatorWorkerReplacementDoesNotInheritDelayedEnable(t *testing.T) {
 	// Release the ordinary view call so test shutdown does not wait its timeout.
 	call := p.expect("S1", "Runtime.evaluate")
 	p.send(fmt.Sprintf(`{"id":%d,"result":{}}`, call.ID))
+}
+
+func TestOperatorModeUsesOwnerAuthorityWithViewersOff(t *testing.T) {
+	c, p := startPeer(t, func(p *peer) { p.ignore["Runtime.evaluate"] = true })
+	b := board.New(notes.Structural{}, nil)
+	defer b.Close()
+	c.opts.Record = &RecordOptions{Operator: b}
+	done := make(chan struct{})
+	c.do(func(s *loopState) {
+		s.contexts["S1"] = 17
+		s.sessions["S1"] = "T1"
+		s.tracker.Apply(TargetCreated{ID: "T1"})
+		close(done)
+	})
+	<-done
+	result := make(chan error, 1)
+	go func() { result <- c.SetAnnotationMode("note") }()
+	call := p.expect("S1", "Runtime.evaluate")
+	if !strings.Contains(string(call.Params), `"contextId":17`) {
+		t.Fatalf("wrong context: %s", call.Params)
+	}
+	p.send(fmt.Sprintf(`{"id":%d,"result":{"result":{"value":true}}}`, call.ID))
+	if err := <-result; err != nil {
+		t.Fatal(err)
+	}
+	if _, err := b.AdmitAnnotation(); !errors.Is(err, board.ErrDisabled) {
+		t.Fatalf("viewer acquired authority: %v", err)
+	}
 }
