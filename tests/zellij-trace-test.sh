@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/pair-test-bootstrap.sh"
 # tests/zellij-trace-test.sh — zellij action tracing logs metadata without
 # leaking prompt bodies.
 set -euo pipefail

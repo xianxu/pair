@@ -2887,3 +2887,5 @@ and external temporary roots rather than relying on the host's TMPDIR.
 - #866 helper migration fixtures: Native CLI integration owns both the exact candidate Pair executable and a private native socket namespace. PATH must not resolve an older installed helper, and injected tracing executors must retain the guarded helper rather than invoke raw native commands.
 
 - #866 second pre-close: Put the exact candidate binary on PATH at Lua/native recipe entry, preserve it across fixture bootstrap, and prove an incompatible installed Pair cannot win. Run both complete review and Lua targets before requeuing after a helper migration failure; update caller assets and helper binary together.
+
+- #866 BR-6: Exact executable ownership is stronger than directory ownership. Normalize an arbitrary supplied test candidate to a private pair alias via the shared builder; test a differently named candidate beside a wrong sibling pair.

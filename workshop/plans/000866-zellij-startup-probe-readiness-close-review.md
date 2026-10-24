@@ -403,3 +403,108 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000413
+
+---
+
+## Re-review — 2026-10-24T08:16:30-07:00 (FIX-THEN-SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 866 — Wait for Zellij readiness before startup probe clients |
+| repo | pair |
+| issue file | workshop/issues/000866-zellij-startup-probe-readiness.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 4851d20b3a46d52348c455316bf7084348f4f4cf..bb896e034063c6891c3639ae7ee7ef1418eef261 |
+| command | sdlc close --issue 866 |
+| reviewer | codex (openai; author openai) |
+| isolation | fenced |
+| timestamp | 2026-10-24T08:16:30-07:00 |
+| verdict | FIX-THEN-SHIP |
+
+## Review
+
+```verdict
+verdict: FIX-THEN-SHIP
+confidence: high
+```
+
+The interdiff repairs the four failing fixtures, preserves their effect assertions, and passes the complete review and Lua targets. Prior dispositions remain supported. One Important gap remains: the new Make selector can execute an installed Pair instead of a valid `PAIR_TEST_BINARY` whose filename differs from `pair`. No scope expansion was found.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      The complete native-read classifier remains intact; TestInternalZellijCommandQualifiesEveryNativeRead passes at pinned head.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      Recovery still uses testpair.ShortRoot; the long inherited TMPDIR regression passes.
+  - id: BR-3
+    disposition: addressed
+    note: |
+      README.md:884-897 retains legacy-session refusal, rebuild/relaunch guidance, authorized recovery and coverage limits, consistent with the admission implementation.
+  - id: BR-4
+    disposition: addressed
+    note: |
+      PlanProbeAdmission remains absent. The plan identifies the production qualifyCandidates loop; its counted qualification tests pass.
+  - id: BR-5
+    disposition: addressed
+    note: |
+      Plan lines 367-378 retain the corrected resolver mapping, supported by constructors in artifactpath/zellij_readiness.go and bindings in manifest.go.
+findings:
+  - id: new
+    severity: Important
+    kind: defect
+    family: exact-test-candidate-ownership
+    title: |
+      Make selects a candidate directory rather than the exact supplied executable
+    detail: |
+      Makefile.local:325 prefixes dirname(PAIR_TEST_BINARY), but native callers execute bare pair. The existing builder accepts any absolute executable filename, and README.md:2208 illustrates plain-pair. Running the new Make/bootstrap regression with shared/plain-pair as the candidate produces ['installed', 'installed'] for the two targets instead of ['shared', 'shared']; a sibling pair could likewise select a different build. ARCH-PURPOSE: create a suite-owned pair alias to the exact candidate using the existing builder, and extend the regression to cover candidate basenames other than pair.
+```
+
+1. **Strengths**
+
+   - All four changed fixtures retain their original query, delivery, trace and overlay assertions.
+   - Fixtures reuse `pair-test-binary.sh` and own private native namespaces.
+   - The Make regression exercises real Make export and bootstrap behavior. Removing the PATH fix makes it fail with installed-Pair selection.
+
+2. **Critical findings:** None.
+
+3. **Important findings**
+
+   - [Makefile.local:325](/Volumes/TestScratch/review-checkouts/154ac811aefe243f/Makefile.local:325): resolve the exact supplied executable, as detailed above. The regression currently assumes every candidate is named `pair`.
+
+4. **Minor findings:** None.
+
+5. **Test coverage notes**
+
+   Passed complete shared-candidate `test-review` and `test-lua`, both environment-test invocations, affected-reader inventory, focused prior-finding regressions, shell syntax and diff whitespace checks. The renamed-candidate counterexample fails reproducibly. Real-docflow smoke skipped because its external script was unavailable; no native-fleet rerun was performed.
+
+6. **Architectural notes**
+
+   - **ARCH-DRY — pass:** fixtures reuse the existing candidate builder.
+   - **ARCH-PURE — pass:** changes remain in test orchestration and integration fixtures.
+   - **ARCH-PURPOSE — flag:** directory selection does not guarantee exact candidate ownership.
+   - **ARCH-EVOLVE — pass:** no persisted-format semantics change.
+
+   This window adds no user-facing or architectural surface requiring README or atlas updates.
+
+7. **Plan revision recommendations**
+
+   Append a `## Revisions` correction stating that supplied candidates resolve through an exact executable alias, independently of filename, with a regression covering a differently named candidate ahead of an incompatible installed Pair.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"d4465ca7-60a6-433d-9d80-c6c8a2123a77","repository":"github.com/xianxu/pair","issue_id":"000866","recipe":"fix-review","round":5,"attempt":1,"agent":"codex","root":"/Volumes/TestScratch/review-checkouts/154ac811aefe243f","reviewed_head":"bb896e034063c6891c3639ae7ee7ef1418eef261","slot":"pair:5","requested_at":"2026-10-24T15:11:46.355224Z"},"phase":"finished","pid":84044,"started_at":"2026-10-24T15:11:46.485313Z","finished_at":"2026-10-24T15:16:21.773702Z","session_id":"01a16e77-cbea-79a0-bddd-b83b217b261c","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 3.143508167s
+head: "bb896e034063c6891c3639ae7ee7ef1418eef261"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412

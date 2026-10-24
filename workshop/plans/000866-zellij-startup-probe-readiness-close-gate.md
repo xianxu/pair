@@ -196,6 +196,65 @@ rounds:
       isolation: fenced
       reviewed: 0465f3846b724d833335a1540709f2d3e4327c40
       blocked: false
+    - reviewer_runs:
+        - version: 1
+          intent:
+            disposable_root: true
+            id: d4465ca7-60a6-433d-9d80-c6c8a2123a77
+            repository: github.com/xianxu/pair
+            issue_id: "000866"
+            recipe: fix-review
+            round: 5
+            attempt: 1
+            agent: codex
+            root: /Volumes/TestScratch/review-checkouts/154ac811aefe243f
+            reviewed_head: bb896e034063c6891c3639ae7ee7ef1418eef261
+            slot: pair:5
+            requested_at: "2026-10-24T15:11:46.355224Z"
+          phase: finished
+          pid: 84044
+          started_at: "2026-10-24T15:11:46.485313Z"
+          finished_at: "2026-10-24T15:16:21.773702Z"
+          session_id: 01a16e77-cbea-79a0-bddd-b83b217b261c
+          outcome: returned
+      "n": 5
+      timestamp: "2026-10-24T08:16:30-07:00"
+      dispatched: "2026-10-24T08:11:43-07:00"
+      agent: codex
+      reviewer: codex (openai; author openai)
+      dispose:
+        - id: BR-1
+          disposition: addressed
+          note: The complete native-read classifier remains intact; TestInternalZellijCommandQualifiesEveryNativeRead passes at pinned head.
+          round: 5
+        - id: BR-2
+          disposition: addressed
+          note: Recovery still uses testpair.ShortRoot; the long inherited TMPDIR regression passes.
+          round: 5
+        - id: BR-3
+          disposition: addressed
+          note: README.md:884-897 retains legacy-session refusal, rebuild/relaunch guidance, authorized recovery and coverage limits, consistent with the admission implementation.
+          round: 5
+        - id: BR-4
+          disposition: addressed
+          note: PlanProbeAdmission remains absent. The plan identifies the production qualifyCandidates loop; its counted qualification tests pass.
+          round: 5
+        - id: BR-5
+          disposition: addressed
+          note: Plan lines 367-378 retain the corrected resolver mapping, supported by constructors in artifactpath/zellij_readiness.go and bindings in manifest.go.
+          round: 5
+      findings:
+        - kind: defect
+          id: BR-6
+          severity: Important
+          title: Make selects a candidate directory rather than the exact supplied executable
+          detail: 'Makefile.local:325 prefixes dirname(PAIR_TEST_BINARY), but native callers execute bare pair. The existing builder accepts any absolute executable filename, and README.md:2208 illustrates plain-pair. Running the new Make/bootstrap regression with shared/plain-pair as the candidate produces [''installed'', ''installed''] for the two targets instead of [''shared'', ''shared'']; a sibling pair could likewise select a different build. ARCH-PURPOSE: create a suite-owned pair alias to the exact candidate using the existing builder, and extend the regression to cover candidate basenames other than pair.'
+          family: exact-test-candidate-ownership
+          round: 5
+      recipe: fix-review
+      isolation: fenced
+      reviewed: bb896e034063c6891c3639ae7ee7ef1418eef261
+      blocked: false
 ---
 
 # Gate ledger — pair#866 (boundary-review)
@@ -242,6 +301,21 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 
 ## Round 4 — 2026-10-24T06:11:50-07:00 (codex) — passed
 
+## Round 5 — 2026-10-24T08:16:30-07:00 (codex) — passed
+
+### Disposed
+
+- BR-1 — addressed — The complete native-read classifier remains intact; TestInternalZellijCommandQualifiesEveryNativeRead passes at pinned head.
+- BR-2 — addressed — Recovery still uses testpair.ShortRoot; the long inherited TMPDIR regression passes.
+- BR-3 — addressed — README.md:884-897 retains legacy-session refusal, rebuild/relaunch guidance, authorized recovery and coverage limits, consistent with the admission implementation.
+- BR-4 — addressed — PlanProbeAdmission remains absent. The plan identifies the production qualifyCandidates loop; its counted qualification tests pass.
+- BR-5 — addressed — Plan lines 367-378 retain the corrected resolver mapping, supported by constructors in artifactpath/zellij_readiness.go and bindings in manifest.go.
+
+### Raised
+
+- **BR-6** [Important] `exact-test-candidate-ownership` (kind: defect) Make selects a candidate directory rather than the exact supplied executable
+  Makefile.local:325 prefixes dirname(PAIR_TEST_BINARY), but native callers execute bare pair. The existing builder accepts any absolute executable filename, and README.md:2208 illustrates plain-pair. Running the new Make/bootstrap regression with shared/plain-pair as the candidate produces ['installed', 'installed'] for the two targets instead of ['shared', 'shared']; a sibling pair could likewise select a different build. ARCH-PURPOSE: create a suite-owned pair alias to the exact candidate using the existing builder, and extend the regression to cover candidate basenames other than pair.
+
 ## Open findings
 
-(none — every finding has been disposed)
+- **BR-6** [Important] `exact-test-candidate-ownership` (kind: defect) Make selects a candidate directory rather than the exact supplied executable

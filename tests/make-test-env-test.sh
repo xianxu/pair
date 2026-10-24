@@ -83,21 +83,24 @@ with tempfile.TemporaryDirectory(prefix="pair-native-candidate-", dir=os.environ
     for name in ("built", "shared", "installed"):
         folder = root / name
         folder.mkdir()
-        binary = folder / "pair"
+        binary = folder / ("plain-pair" if name == "shared" else "pair")
         binary.write_text("#!/bin/sh\nprintf '%s\\n' '" + name + "'\n")
         binary.chmod(0o700)
+    (root / "shared/pair").write_text("#!/bin/sh\nprintf '%s\\n' 'wrong-sibling'\n")
+    (root / "shared/pair").chmod(0o700)
     script = root / "probe.sh"
     script.write_text("#!/usr/bin/env bash\n. " + str(pathlib.Path.cwd() / "tests/lib/pair-test-bootstrap.sh") + "\npair --candidate-probe\n")
     mk = root / "probe.mk"
-    mk.write_text("include Makefile.local\ntest-review test-lua:\n\t@bash " + str(script) + "\n")
+    mk.write_text("include Makefile.local\ntest-review-recipes test-lua-recipes:\n\t@bash " + str(script) + "\n")
     base = dict(os.environ, PATH=str(root / "installed") + os.pathsep + os.environ["PATH"],
                 MAKEFLAGS="", MAKEOVERRIDES="", MFLAGS="")
     for shared in (False, True):
         base.pop("PAIR_TEST_BINARY", None)
         if shared:
-            base["PAIR_TEST_BINARY"] = str(root / "shared/pair")
+            base["PAIR_TEST_BINARY"] = str(root / "shared/plain-pair")
         output = subprocess.check_output(["make", "-s", "--no-print-directory", "-f", str(mk),
             "-o", str(root / "built/pair"), "BIN_DIR=" + str(root / "built"),
+            "MAKE=make -s --no-print-directory -f " + str(mk),
             "test-lua", "test-review"], env=base, text=True, stderr=subprocess.PIPE).splitlines()
         assert output == (["shared"] if shared else ["built"]) * 2, (shared, output)
 print("PASS Lua/review recipes use built/shared candidate across fixture bootstrap, never installed Pair")
