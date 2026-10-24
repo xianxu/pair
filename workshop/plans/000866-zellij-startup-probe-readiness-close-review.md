@@ -663,3 +663,112 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000409
+
+---
+
+## Re-review — 2026-10-24T12:01:59-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 866 — Wait for Zellij readiness before startup probe clients |
+| repo | pair |
+| issue file | workshop/issues/000866-zellij-startup-probe-readiness.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 0859007d1bdee7f723eef4ba086e3ec18ff79312..f443e10748b4febc409571bd29ace9835dec3369 |
+| command | sdlc close --issue 866 |
+| reviewer | codex (openai; author openai) |
+| isolation | fenced |
+| timestamp | 2026-10-24T12:01:59-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+The pinned implementation matches the governing plan revisions. No new blocking defects were found. BR-7 is addressed by this full whole-issue review, including the added startup diagnostic; its regression fails when that diagnostic is removed through a temporary overlay.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      The complete native-read classifier and real CLI admission regression remain intact; the pair-go package passes.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      Recovery uses testpair.ShortRoot, and the query package passes its long inherited TMPDIR regression.
+  - id: BR-3
+    disposition: addressed
+    note: |
+      README.md:884-897 documents legacy-session refusal, coordinated rollout, explicit recovery and accepted coverage limits consistently with the implementation.
+  - id: BR-4
+    disposition: addressed
+    note: |
+      PlanProbeAdmission is absent; production uses qualifyCandidates, exercised by the passing counted-work controls.
+  - id: BR-5
+    disposition: addressed
+    note: |
+      The authoritative plan revision at lines 367-378 matches the pinned file statuses and actual resolver and handoff implementations.
+  - id: BR-6
+    disposition: addressed
+    note: |
+      Both Make targets use the exact-candidate alias owner. The Make/bootstrap regression passes with plain-pair beside an incompatible sibling pair.
+  - id: BR-7
+    disposition: addressed
+    note: |
+      This full whole-issue close review covers the expanded diagnostic scope recorded at plan lines 400-408. TestCreatorMissingPaneReadinessNamesSessionAtBound passes at head and fails with the diagnostic wrapper removed through a temporary Go overlay.
+```
+
+1. **Strengths**
+
+   - Exact first-pane identity releases exclusion independently of AgentReady, avoiding the bootstrap rename deadlock (`cmd/internal/launcher/session_handoff_os.go:205`).
+   - Admission retains the namespace lease through qualification and joined native execution; unknown evidence refuses conservatively.
+   - Strict codecs preserve nested unknown fields, with round-trip and malformed-input coverage.
+   - Retirement preserves successor generations and requires existing authorized lifecycle confirmation.
+   - README and atlas describe the new surfaces and their accepted limits.
+
+2. **Critical findings:** None.
+
+3. **Important findings:** None.
+
+4. **Minor findings:** None.
+
+5. **Test coverage notes**
+
+   Passed complete packages: `zellijquery`, `panebirth`, `artifactpath`, `launcher`, `pair-go`, and `internal/repolint`. Query and codec race checks passed. Native-admission regressions passed across all seven migrated caller packages. Make environment/candidate checks and `make test-affected-inventory` passed.
+
+   The diagnostic removal control failed as expected. Retained Claude/Codex native qualification results were inspected, and their capture SHA256 matched `016720b0388837bb50cb1faa75a448d6a1033575005e6591885107ba3e2676e1`. Native qualification and the entire repository suite were not rerun during this review. The checkout remains unchanged.
+
+6. **Architectural notes**
+
+   | Principle | Result | Evidence |
+   |---|---|---|
+   | ARCH-DRY | Pass | Shared lease implementation and one production qualification loop. |
+   | ARCH-PURE | Pass | Identity/codec logic is directly tested without IO; filesystem/process work stays at integration seams. |
+   | ARCH-PURPOSE | Pass | Covers global native scanning across migrated bounded callers. |
+   | ARCH-MOCK | Pass | Stateful initialization controls share production admission; retained native qualification checks conformance. |
+   | ARCH-CONSTRAINTS | Pass | Existing deadlines include lock waits; capacity, record size and counted work are bounded. |
+   | ARCH-SECURE | Pass | Strict metadata parsing, exact identities, inode checks and private test roots. |
+   | ARCH-ORDER | Pass | Encapsulated creator phases and controlled stale-publication, cancellation, owner-death and successor tests. |
+   | ARCH-FUNERAL | Pass | Fixed lock stripes, capped markers, exact retirement and joined helper lifetimes. |
+   | ARCH-EVOLVE | Pass | Additive records preserve unknown members and reject malformed known fields and duplicates. |
+
+7. **Plan revision recommendations:** None. Existing superseding revisions reconcile the implementation locations, accepted limits, rollout requirements and expanded review scope.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"d35ecbff-f66a-494a-b2d1-df3abeb3096b","repository":"github.com/xianxu/pair","issue_id":"000866","recipe":"milestone-review","round":8,"attempt":1,"agent":"codex","root":"/Volumes/TestScratch/review-checkouts/ab6df6f7c13e4c05","reviewed_head":"f443e10748b4febc409571bd29ace9835dec3369","slot":"pair:5","requested_at":"2026-10-24T18:58:39.592094Z"},"phase":"finished","pid":32410,"started_at":"2026-10-24T18:58:39.715448Z","finished_at":"2026-10-24T19:01:54.589022Z","session_id":"01a16f47-8346-7ab3-9015-39cb423e050a","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 2.548567s
+head: "f443e10748b4febc409571bd29ace9835dec3369"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000409

@@ -327,6 +327,65 @@ rounds:
       recipe: fix-review
       isolation: fenced
       blocked: false
+    - reviewer_runs:
+        - version: 1
+          intent:
+            disposable_root: true
+            id: d35ecbff-f66a-494a-b2d1-df3abeb3096b
+            repository: github.com/xianxu/pair
+            issue_id: "000866"
+            recipe: milestone-review
+            round: 8
+            attempt: 1
+            agent: codex
+            root: /Volumes/TestScratch/review-checkouts/ab6df6f7c13e4c05
+            reviewed_head: f443e10748b4febc409571bd29ace9835dec3369
+            slot: pair:5
+            requested_at: "2026-10-24T18:58:39.592094Z"
+          phase: finished
+          pid: 32410
+          started_at: "2026-10-24T18:58:39.715448Z"
+          finished_at: "2026-10-24T19:01:54.589022Z"
+          session_id: 01a16f47-8346-7ab3-9015-39cb423e050a
+          outcome: returned
+      "n": 8
+      timestamp: "2026-10-24T12:02:00-07:00"
+      dispatched: "2026-10-24T11:58:37-07:00"
+      agent: codex
+      reviewer: codex (openai; author openai)
+      dispose:
+        - id: BR-1
+          disposition: addressed
+          note: The complete native-read classifier and real CLI admission regression remain intact; the pair-go package passes.
+          round: 8
+        - id: BR-2
+          disposition: addressed
+          note: Recovery uses testpair.ShortRoot, and the query package passes its long inherited TMPDIR regression.
+          round: 8
+        - id: BR-3
+          disposition: addressed
+          note: README.md:884-897 documents legacy-session refusal, coordinated rollout, explicit recovery and accepted coverage limits consistently with the implementation.
+          round: 8
+        - id: BR-4
+          disposition: addressed
+          note: PlanProbeAdmission is absent; production uses qualifyCandidates, exercised by the passing counted-work controls.
+          round: 8
+        - id: BR-5
+          disposition: addressed
+          note: The authoritative plan revision at lines 367-378 matches the pinned file statuses and actual resolver and handoff implementations.
+          round: 8
+        - id: BR-6
+          disposition: addressed
+          note: Both Make targets use the exact-candidate alias owner. The Make/bootstrap regression passes with plain-pair beside an incompatible sibling pair.
+          round: 8
+        - id: BR-7
+          disposition: addressed
+          note: This full whole-issue close review covers the expanded diagnostic scope recorded at plan lines 400-408. TestCreatorMissingPaneReadinessNamesSessionAtBound passes at head and fails with the diagnostic wrapper removed through a temporary Go overlay.
+          round: 8
+      recipe: milestone-review
+      isolation: fenced
+      reviewed: f443e10748b4febc409571bd29ace9835dec3369
+      blocked: false
 ---
 
 # Gate ledger — pair#866 (boundary-review)
@@ -401,6 +460,18 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-7** [Important] `post-close-scope-control` (kind: defect) scope changed after close — run a full `sdlc close`
   cmd/internal/launcher/session_handoff_os.go:197 adds a new phase/session error wrapper, documented as new behavior in workshop/plans/000866-zellij-startup-readiness-plan.md:404. None of BR-1–BR-6 requested this runtime diagnostic; its regression fails against the base implementation, confirming an executable change. Run a full sdlc close covering the expanded scope, or remove this addition from the narrow fix bundle.
 
+## Round 8 — 2026-10-24T12:02:00-07:00 (codex) — passed
+
+### Disposed
+
+- BR-1 — addressed — The complete native-read classifier and real CLI admission regression remain intact; the pair-go package passes.
+- BR-2 — addressed — Recovery uses testpair.ShortRoot, and the query package passes its long inherited TMPDIR regression.
+- BR-3 — addressed — README.md:884-897 documents legacy-session refusal, coordinated rollout, explicit recovery and accepted coverage limits consistently with the implementation.
+- BR-4 — addressed — PlanProbeAdmission is absent; production uses qualifyCandidates, exercised by the passing counted-work controls.
+- BR-5 — addressed — The authoritative plan revision at lines 367-378 matches the pinned file statuses and actual resolver and handoff implementations.
+- BR-6 — addressed — Both Make targets use the exact-candidate alias owner. The Make/bootstrap regression passes with plain-pair beside an incompatible sibling pair.
+- BR-7 — addressed — This full whole-issue close review covers the expanded diagnostic scope recorded at plan lines 400-408. TestCreatorMissingPaneReadinessNamesSessionAtBound passes at head and fails with the diagnostic wrapper removed through a temporary Go overlay.
+
 ## Open findings
 
-- **BR-7** [Important] `post-close-scope-control` (kind: defect) scope changed after close — run a full `sdlc close`
+(none — every finding has been disposed)
