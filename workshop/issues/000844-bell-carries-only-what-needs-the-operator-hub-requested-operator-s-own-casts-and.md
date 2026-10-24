@@ -5,9 +5,9 @@ deps: []
 github_issue:
 created: 2026-10-23
 updated: 2026-10-24
-estimate_hours: 3.24
+estimate_hours: 4.12
 collaboration-mode: collaboration
-card_mirror: 'c446c605ef046f6d5aedf081f511de06c1e5b06b' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '9caa93e948d4470ffb0375ad9db867baf8596807' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-24T10:30:06-07:00
 claimant:
     operator: Xian Xu
@@ -170,6 +170,10 @@ NEXT ACTION: present the committed revised plan to hub and await approval. No so
 
 Ops:0 approved exact-root generation validation, accepted-handoff adoption of destination Root/epoch, and one non-admitting AwaitingDisposition phase after confirmed refusal, with connected/feed, unavailable/bell, unknown/wait dispositions and unchanged bounds (authenticated submitted delivery a5bd7b97-5321-4e2f-8353-ab458864d057). Any fourth design delta must stop for scope reduction rather than another mechanism extension. Plan-quality owns the fresh-eyes check; run change-code before implementation. Revised plan request c4442aa0-0594-42f3-ae97-0ed0ba50b4b8 was submitted. No production changes have been made since round2's reviewed head.
 
+### 2026-10-24 — revised change-code admitted
+
+change-code passed revised plan-quality round 4 with no open findings; accepted-design commit 07101ce59. Estimate-quality INFO requested explicit revised-work/live/landing allocation, without blocking. Updated the estimate derivation from 3.24 to 4.12 h using the same v3.1 primitive calibration, adding only the approved pure extension and integration qualification, not duplicating the original producer sweep. Actuals remain unmeasurable under the recorded authorized refusal, and no estimate is used as actuals. Implementation now proceeds test-first under the approved contract; a fourth design delta must stop for hub scope reduction.
+
 ## Estimate
 
 Produced via brain/data/life/42shots/velocity/estimate-logic-v3.1.md against baseline-v3.1.md. Method A only. Calibration is flagged stale by estimate-source, so these are provisional ship-wall-clock hours. Read v2/v2.1 procedure and table: retain issue/spec design cost; use x0.2 design discount for approved module/integration/refactor decisions, 40% implementation conversion, familiarity 1.0 and 15% design buffer.
@@ -188,8 +192,12 @@ item: cross-cutting-refactor design=0.1 impl=0.2
 item: tui-screen design=0.1 impl=0.2
 item: atlas-docs design=0.05 impl=0.04
 item: milestone-review design=0.0 impl=0.2
+item: smaller-go-module design=0.04 impl=0.2
+item: api-integration design=0.2 impl=0.4
 design-buffer: 0.15
-total: 3.24
+total: 4.12
 ```
 
-Design subtotal 1.29 x 1.15 + implementation subtotal 1.76 = 3.2435, rounded 3.24 h. One final boundary review is included; no extra milestone review. Implementation includes focused and recorded verification, exact-count effect tests and inventory audit.
+2026-10-24 revised allocation after plan-quality round 4 passed: the previous 3.24 h estimate remains recorded in the Log; the approved owner-scoped/disposition repair adds a well-specced smaller Go extension (design 0.04, impl 0.20) and integration/test qualification (design 0.20, impl 0.40), using the same table, approved-plan discount and 40% conversion. These fund the new pure phase/revocation fact, existing backend seam extension, handoff/readiness matrix and counted observations; no new greenfield module or producer sweep is counted again. Design subtotal 1.53 x 1.15 + implementation subtotal 2.36 = 4.1195, rounded 4.12 h. This is a revised estimate, not actuals.
+
+Original milestone-review/process impl 0.20 allocation includes the one final boundary plus coordinated live acceptance and PR/merge/archive/report; repeated convergence reviews remain convergence rather than new milestones. Focused/recorded tests are included in component implementation, and the new integration allocation covers the expanded deterministic qualification. The provisional stale calibration caveat still applies.
