@@ -1,6 +1,6 @@
 ---
 id: 000856
-status: codecomplete
+status: done
 created: 2026-10-23
 updated: 2026-10-24
 estimate_hours: 2.43
@@ -21,6 +21,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: fec09fd2b22508e04d9d2d4706ad9c3970793699
         evidence_commit: b3bc76310414666b44a1ad0b069efd533309d487
+        landed_commit: 556c8a2de25c66d8ca71009a46bd38cdcb07ef9a
 ---
 
 # Cast tool: one Notes panel for notes and sketches, and one toolbar column with tools revealed on toggle
