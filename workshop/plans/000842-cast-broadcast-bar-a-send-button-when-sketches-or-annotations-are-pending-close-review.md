@@ -198,3 +198,85 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000410
+
+---
+
+## Re-review — 2026-10-24T03:24:50-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 842 — Cast broadcast bar: a ⏎ send button when sketches or annotations are pending |
+| repo | pair |
+| issue file | workshop/issues/000842-cast-broadcast-bar-a-send-button-when-sketches-or-annotations-are-pending.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | be6c46fc61047946d3277658cb8681a95f3793c8..7b0b8e601bc099c82ec15011de13a310fb69c1bc |
+| command | sdlc close --issue 842 |
+| reviewer | codex (openai; author openai) |
+| isolation | fenced |
+| timestamp | 2026-10-24T03:24:50-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+The interdiff correctly adds `console_send.go` to the exhaustive non-artifact inventory. The regression test passes with the fix and fails without it. The issue’s new Revisions record this correction without changing scope. Both prior dispositions remain valid; no new defects were found. Full-suite and operator acceptance remain separate landing requirements.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      README.md:1819–1830 retains the button visibility, wider shortcut availability, and terminal limitation documentation; this interdiff leaves those instructions unchanged.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      console_send_test.go:61–118 retains, flushes, and checks the successor endpoint alongside the original endpoint. The focused endpoint-isolation test passes; this interdiff preserves the corrected oracle.
+```
+
+1. **Strengths**
+
+   - `cmd/internal/artifactpath/manifest.go:679` accurately classifies a source that constructs no artifact paths.
+   - The existing exhaustive-inventory test directly exercises the correction without weakening enforcement or expanding the violations baseline.
+   - Issue Revisions at lines 124–134 distinguish the correction from pending suite and live-acceptance evidence.
+
+2. **Critical findings:** None.
+
+3. **Important findings:** None.
+
+4. **Minor findings:** None.
+
+5. **Test coverage notes**
+
+   - Three focused artifact-inventory tests passed.
+   - Removing only the new entry through a temporary compiler overlay made `TestProductionArtifactReferencesAreExactlyClassified` fail with the exact missing-source error.
+   - `TestStatusSendClickExactEndpoint`, `make test-affected-inventory`, and range `git diff --check` passed.
+   - Repository files remained unchanged.
+
+6. **Architectural notes**
+
+   - **ARCH-DRY — pass:** extends the existing inventory.
+   - **ARCH-PURE — pass:** adds declarative data without introducing IO or business logic.
+   - **ARCH-PURPOSE — pass:** fixes the recorded inventory omission while preserving enforcement.
+   - **ARCH-EVOLVE — pass:** no persisted-format or reader/writer changes.
+   - No new architectural or user-facing surface requires atlas or README updates in this window.
+
+7. **Plan revision recommendations:** None.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"271a74cf-2714-43b6-a954-0e0b16a55683","repository":"github.com/xianxu/pair","issue_id":"000842","recipe":"fix-review","round":3,"attempt":1,"agent":"codex","root":"/Volumes/TestScratch/review-checkouts/d1daaf92c4282285","reviewed_head":"7b0b8e601bc099c82ec15011de13a310fb69c1bc","slot":"pair:7","requested_at":"2026-10-24T10:23:01.97201Z"},"phase":"finished","pid":86301,"started_at":"2026-10-24T10:23:02.124506Z","finished_at":"2026-10-24T10:24:47.327701Z","session_id":"01a16d6f-718a-7b91-8bc8-678c364bce5b","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 2.6194735s
+head: "7b0b8e601bc099c82ec15011de13a310fb69c1bc"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000410

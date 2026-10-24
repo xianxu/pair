@@ -248,6 +248,45 @@ rounds:
       isolation: fenced
       reviewed: 27f192b8930fe672722112a425c97ca21a5d774e
       blocked: false
+    - reviewer_runs:
+        - version: 1
+          intent:
+            disposable_root: true
+            id: 271a74cf-2714-43b6-a954-0e0b16a55683
+            repository: github.com/xianxu/pair
+            issue_id: "000842"
+            recipe: fix-review
+            round: 3
+            attempt: 1
+            agent: codex
+            root: /Volumes/TestScratch/review-checkouts/d1daaf92c4282285
+            reviewed_head: 7b0b8e601bc099c82ec15011de13a310fb69c1bc
+            slot: pair:7
+            requested_at: "2026-10-24T10:23:01.97201Z"
+          phase: finished
+          pid: 86301
+          started_at: "2026-10-24T10:23:02.124506Z"
+          finished_at: "2026-10-24T10:24:47.327701Z"
+          session_id: 01a16d6f-718a-7b91-8bc8-678c364bce5b
+          outcome: returned
+      "n": 3
+      timestamp: "2026-10-24T03:24:50-07:00"
+      dispatched: "2026-10-24T03:22:59-07:00"
+      agent: codex
+      reviewer: codex (openai; author openai)
+      dispose:
+        - id: BR-1
+          disposition: addressed
+          note: README.md:1819–1830 retains the button visibility, wider shortcut availability, and terminal limitation documentation; this interdiff leaves those instructions unchanged.
+          round: 3
+        - id: BR-2
+          disposition: addressed
+          note: console_send_test.go:61–118 retains, flushes, and checks the successor endpoint alongside the original endpoint. The focused endpoint-isolation test passes; this interdiff preserves the corrected oracle.
+          round: 3
+      recipe: fix-review
+      isolation: fenced
+      reviewed: 7b0b8e601bc099c82ec15011de13a310fb69c1bc
+      blocked: false
 ---
 
 # Gate ledger — pair#842 (boundary-review)
@@ -270,6 +309,13 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 
 - BR-1 — addressed — README.md:1819–1830 now documents availability from any Pair pane, fullscreen right-terminal reservation, Chrome Send visibility, and the terminal-feedback limitation. These match workbenchshortcut/shortcut.go:183 and couchtty/console_presentation.go:17.
 - BR-2 — addressed — console_send_test.go:61–118 retains and cleans up the successor, flushes both endpoints, and checks both sinks. In a disposable copy, deliberately routing to the current successor made the replacement test fail at line 114: “successor received 1 send chord(s).”
+
+## Round 3 — 2026-10-24T03:24:50-07:00 (codex) — passed
+
+### Disposed
+
+- BR-1 — addressed — README.md:1819–1830 retains the button visibility, wider shortcut availability, and terminal limitation documentation; this interdiff leaves those instructions unchanged.
+- BR-2 — addressed — console_send_test.go:61–118 retains, flushes, and checks the successor endpoint alongside the original endpoint. The focused endpoint-isolation test passes; this interdiff preserves the corrected oracle.
 
 ## Open findings
 
