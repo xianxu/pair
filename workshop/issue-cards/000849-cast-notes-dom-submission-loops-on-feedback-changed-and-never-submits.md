@@ -1,6 +1,6 @@
 ---
 id: 000849
-status: codecomplete
+status: done
 created: 2026-10-23
 updated: 2026-10-23
 estimate_hours:
@@ -21,6 +21,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: f18b57703a6a24792522ce52633687bcc97f7a04
         evidence_commit: e129be46fa2ca4626d5ad286baed343edd53652a
+        landed_commit: 5d8fd7648caa64ecfcb6d9e2d20716a881d0397c
 ---
 
 # Cast notes: DOM submission loops on 'Feedback changed' and never submits
