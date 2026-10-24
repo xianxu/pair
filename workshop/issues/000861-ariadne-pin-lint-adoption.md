@@ -183,3 +183,5 @@ Retained attempt412e0007e3f221a2893dcc6195396815 on pushed b578e7ab6b98bd3c78337
 Authoritative raw record: /Users/xianxu/workspace/pair/.git/sdlc/local-checks/b578e7ab6b98bd3c783372a9d6df1c8cd1d2ea2f/suite.log. SHA256 b5fd724afaf96c15a87f28bdba3738ce1031dc31216349d2477f02ca5740228c. The reported unowned SSD temp folders belong to other processes; this worktree gained0 folders/0 bytes outside test scratch. No live fleet state was used. Draft PR580 local-gates guard is green with no protected configuration paths touched.
 
 Next: required fresh inventory check, mandatory whole-issue close review with measured actuals, then ready PR580 and enter sdlc merge --yes. After landing861, resume838 from its checkpoint, integrate main and run its pre-close; joint operator stage remains pending.
+
+Pre-close scratch-attribution clarification: SDLC reported31 unattributed SSD temp folders, not proved owners. The positive result is0 folders/0 bytes attributed to this worktree; the unattributed population remains unknown.
