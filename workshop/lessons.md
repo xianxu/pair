@@ -7,7 +7,18 @@ representative evidence, not an exhaustive index.
 
 ## Proof and verification
 
+- #841 BR-1/BR-2/BR-3: For a conservative visual aid, match final fitted display words and permit false negatives. Exclude generated metadata and ambiguous path/link/bracket chunks; skip wrapped row edges that may be fragments. Source-substring projection fails when fitting removes zero-width characters. Use fixed-clock grammar boundaries and exact clipped-row accents, not a test satisfied by any earlier colored label.
+- #852: Retry-count fixtures with synchronous fake completion must drive injected completion and whole-operation deadlines explicitly. A real deadline can expire during coordinated store finalization after proof is already present, adding spurious recovery drives. Pair a tiny-budget positive with withheld-proof, cancellation and whole-budget controls; keep production budgets unchanged.
+- #679 BR-1: A source census must classify each relevant IPC contract from its actual producer/consumer behavior. A list of Mkfifo paths does not justify calling every remaining use metadata validation; payload barriers and held lifetimes are distinct, valid patterns.
+
+- #679: An empty FIFO open/close is not a reliable read-completion barrier on Darwin. Exchange a checked payload, and put an otherwise uncancellable native reader in an owned child with one joined Wait; a timeout around an in-process goroutine leaves the blocked syscall alive. Cap exec diagnostics with an explicit buffer field so a promoted ReadFrom cannot bypass Write's limit.
+
+- #833: A failed component's later refusal must wrap its retained cause, not replace it with a generic unavailable error or join a new synthetic leaf. Publish the failed state and first cause together under the same mutex; pin queued, later and owner-completion paths plus the real shutdown caller, including physical errors joined with cancellation.
+
 - #827 PQ-1: joining dispatch callers does not join their asynchronous producers. When cancellation can return from Await early, retain the exact admitted future and defer gate/capacity release and final reporting until producer completion; pin ordinary caller behavior when adding an opt-in joined path.
+- #811 BR-1: A keyboard fallback must work without the capability that made the original chord unavailable. Check every suggested fallback against the shared binding encodings; enhanced-only Ctrl+Alt+a cannot replace Ctrl+Return on a host without enhanced keys. Document the bell click instead.
+
+
 - #832: A process-group kill can precede publication of an in-progress fork. Keep the direct parent unreaped until terminal observation, then send the final group signal before retiring authority and joining output. Execution cancellation or writer failure must not skip the cleanup barrier; pin ordering and unknown-proof refusal with stateful seams and repeat the native race.
 
 - #758 BR-4: write-call and record-count assertions do not prove a byte budget. Measure actual payload lengths at the writer boundary, count cumulative bytes and compare N/2N against the stated growth model; retry/no-op and repeated-reopen tests must assert byte effects, not infer them from row counts.
@@ -38,7 +49,7 @@ representative evidence, not an exhaustive index.
 - Cached parent inventory is also a pass-wide capacity ledger: reserve a slot for every potentially completed create, retain it after an uncertain acknowledgment, and carry confirmed IDs forward. A per-attempt full-parent guard alone permits successive creates to exceed the reader limit. Test both root/year and year/month creation sequences near capacity. (#706 BR-1)
 
 
-- A durable plan names each risky function and its adversarial input class plus mechanical guard. Prefer fuzz, generated event sequences and independent invariants over prose case inventories; keep resource and operation-count assertions explicit. (#706 PQ-1)
+- A durable plan names each risky function and its adversarial input class plus mechanical guard. Prefer fuzz, generated event sequences and independent invariants over prose case inventories; keep resource and operation-count assertions explicit. (#706 PQ-1; #823 PQ-1)
 - Additive wire fields still break an older strict decoder. Inspect the actual mixed-version reader before promising compatibility; pin the legacy refusal and current-reader absence behavior, and name the coordinated upgrade contract when that is the intended rollout. (#736 PQ-1)
 
 - #735: Replay native recordings with resize events as well as bytes before blaming footer wording. A duplicate geometry update may receive no native repaint; preserve existing cursor/frame evidence on a synchronized no-op, while a retry after an aborted real resize must still restore synchronization and await a fresh cursor. Regress both paths and expose the missing evidence in retained wait receipts without copying screen contents.
@@ -2527,6 +2538,20 @@ and external temporary roots rather than relying on the host's TMPDIR.
 - #746 BR-1: A generated repair command must satisfy the same current constraints as its executor, ahead of historical classification. Execute emitted commands in private fixtures for each classification transition; checking only their text or the manual command misses advice that cannot work.
 - #749: Acceptance fixtures must execute the one shared Pair image through testpair.At or tests/lib/pair-test-binary.sh, preserving inode identity even across volumes. A raw executable copy triggers another AMFI assessment before the CLI starts and can consume a fixture deadline; verify file identity rather than extending the timeout. Resolve the shared binary before installing a hermetic fixture environment.
 
+- #739 pre-close audit: A receipt witness is not an admission fence. When exec can preserve a binding/socket, reject an old launch's message before native input, not only when updating attribution. Exercise old-message/new-receiver ordering through real endpoints, including batch followers; sending only the replacement's new message misses the race.
+- #739 inventory preflight: Bounded implementation handoffs must name the artifact-source disposition of each new production file. Reader-inventory checks alone do not cover the separate exhaustive production-source inventory; run both cheap guards before queueing a full suite.
+
+- #739 BR-1/BR-2: Before close, reconcile the plan's Core concepts rows with the actual changed-file list: name pure reducers separately from stateful IO owners, and audit every existing integration test of a deliberately changed entry point, not just the new focused tests. A pre-implementation location or old automatic-launch assertion can survive a passing focused group.
+
+- #739 BR-3: Pure classifier tests should construct typed snapshots directly, leaving store-backed IO only in observation/attachment tests. When a physical-write cap fails, compare added tests, the complete package, and the package excluding additions before changing fixtures; a passing focused group alone does not establish the ordinary package envelope. Preserve the cap and report any unreproduced measurement honestly.
+
+- #739 BR-4: Before queueing a full suite, run the complete artifactpath package, including production-symbol reachability, rather than only its source-classification subtest. A pure helper with only test callers should be deleted; do not manufacture a production call or allowlist to retain an unused design layer.
+
+- #739 BR-5: An epoch checked before routing or endpoint IO is not an admission fence. Carry the occurrence's original authority to the exact mailbox commit and serialize it with policy transitions using one lifetime-owned mutex, held only across the in-memory commit. Exercise off/off-on inside routing, observation and reservation and both enqueue paths; keep already-admitted canonical receipts intact. Document the total cross-feature lock order, not only each local pair.
+
+- #739 completed-suite repair: Changing a startup default requires auditing shipped-command PTY tests as well as internal orchestration tests. Preserve real launcher/registration coverage by driving the existing explicit action after asserting empty startup; remove deadline overrides from paths that must never register, rather than retaining irrelevant test timing knobs.
+
+- #739 BR-3: A process write budget includes Go cache-access logging. Compare identical cache-enabled commands on main and branch with cold/warm private caches before attributing a failure; retain the trace and separate test cohorts when an aggregate delta changes. A passing cache-disabled suite and a single positive aggregate delta each leave causation unproved. Track invocation-envelope policy separately rather than raising caps in a feature.
 - #728: A refusal test must establish the intended refusal cause. Seed compatibility settings through an initialized store: writing only a JSON file can leave store.lock absent and make an invalid-argument regression pass on unrelated ENOENT. Observe the intended red before adding the admission guard.
 - #743 native image: privileged symlinks inherit the private guest umask. Darwin may execute through a root-owned unreadable link while readlink fails, breaking relocated Go root discovery. Set explicit searchable/readable modes on generated tool links and regress strict realpath as well as execution.
 
@@ -2672,6 +2697,15 @@ and external temporary roots rather than relying on the host's TMPDIR.
 - #778 verification: Every new non-test Go helper must enter artifactpath's exhaustive source inventory, even when it owns no Pair session artifact. Run TestProductionArtifactReferencesAreExactlyClassified alongside reader inventory and lint before a full suite; classify the source through its ordinary inventory, never the known-violation quarantine.
 
 - #778 BR-1: after main integration or a compatibility fix, mark final verification pending in the active Plan checklist until the replacement exact-source suite completes. Keep older green receipts as history; review/suite overlap permits concurrent work, not a completed acceptance claim.
+
+- #789 BR-1/BR-2: A source-derived string catalog cannot infer every fixed value passed through selectors, formatting or callbacks. Enumerate finite built-in variants and test their actual output; keep source scans as a complementary guard. When shortening a producer family, run the concrete invariant tests too: a name-based selection for LifecycleNotice missed LifecycleDrainReportsOnlyUntargetedFacts.
+- #789 BR-3/BR-4: A display-only change can alter full-text recovery precedence. Sweep every user-facing copy contract, and reconcile Done-when with documented dynamic-input exemptions and new acceptance cases when appending the design revision.
+
+- #789 scope split: keep the hard layout invariant in the shared display projection, with full diagnostic recovery. A request to improve common wording should not turn into exhaustive static dataflow proof across every diagnostic origin; define a bounded wording cleanup separately when the cap already guarantees the operator's requirement.
+
+- #789 BR-5: Introducing a presentation cap changes every screen-level expectation for a long notice, even when producers remain unchanged. Sweep rendered-text assertions, retain full payload checks separately, and run the whole affected UI package; a name-based Status/Notice selection misses lifecycle and security feedback tests.
+
+- #789 suite: a shared Console renderer also changes caller-package screen fixtures. Audit and run couchcmd alongside couchtty before submitting a presentation cap; preserve full error/clipboard checks separately from bounded paint. Do not force asynchronous notice ordering merely to make the latest-notice clipboard point at an earlier event.
 # #803 — shared native read boundaries
 
 - #753 shared preview: when a complete admission witness changes, sweep every producer, including opt-in native fixtures. Construct integration witnesses through the production selector; a manually populated item list can correctly fail closed yet hide that mismatch behind a long retry. Keep close-time native evidence pinned to committed source.
@@ -2729,6 +2763,28 @@ and external temporary roots rather than relying on the host's TMPDIR.
   keep semantic mismatches non-retriable. Audit structural call-site manifests
   when a collector method changes, even when the effect remains read-only.
 
+- #809 MISTAKE CLASS: a test that asserts a wrapper's int exit code while passing
+  io.Discard as the wrapper's diagnostic writer cannot classify its own failure.
+  Every fatal site in such a wrapper collapses to the same int, so the assertion
+  reports the wrapper's abort as the subject's misbehavior ("child exit 42
+  propagated as 1" when the child never started) and the one string naming the
+  site is destroyed. Capture the diagnostic writer and assert it empty *first*,
+  separately, before asserting the int. Assessed as a mechanical rule for
+  ariadne's pkg/golint catalog and rejected: io.Discard is correct for most
+  writers, and telling a diagnostic sink from an output sink needs semantics the
+  catalog's Match funcs do not have, so any such rule fires on false positives.
+  Recorded here instead; a real rule would need its own ariadne issue.
+- #809: on darwin/arm64 a failing syscall can hand back a *negated* errno —
+  XNU's ptmx allocation race was measured rendering "errno -6" for ENXIO at the
+  open of /dev/ptmx, where every observed failure occurred; the ioctl path
+  shares that convention and is normalised as a precaution, not because it was
+  seen failing. errors.Is(err, syscall.ENXIO) is false for the negated value,
+  while an ordinary failure such
+  as ENOENT arrives positive. A guard written the obvious way compiles, reads
+  correctly, passes review, and never fires. Normalise the sign of
+  syscall.Errno before comparing, and measure the actual error rather than
+  assuming the platform's convention; the first harness here used unix.Open
+  (libSystem, positive) and so attributed a step it had not really exercised.
 - #791 PQ-1: Active plan concept tables must name the production transition/encoder functions as well as their data types. State one adversarial test strategy per risky function (generated event sequences for timing/once/reset invariants, fuzzed styled data for valid bounded encoding); put case inventories in executable tests.
 
 - #791 BR-1: A diagnostic byte cap must preserve evidence that actually fits. Do not divide the raw-screen allowance by worst-case escaping expansion and discard fitting screens; count actual escaped bytes incrementally under a hard construction bound. Pair cap/truncation oracles with a fitting styled-screen preservation regression.
@@ -2774,6 +2830,27 @@ and external temporary roots rather than relying on the host's TMPDIR.
 
 - #796: When adding a display mode, parameterize established pending/reattach regressions over both modes. A legacy fixture that explicitly selects the compatibility mode cannot prove the new default preserves pending states. Count branches also need owner/style invariants from ordinary chips, not only correct text and hit spans.
 
+- #739 live acceptance: label immutable startup observations as history in persistent status output. A recovered actor must not appear currently missing because its startup absence was retained. Startup safety notices must name the explicit recovery action as well as explain what automation was suppressed.
+
+- #739: host bytes are not a presentation-complete barrier. A startup-ordering test must finish through the console event loop, with a held-write control; asynchronous Stop exercises cancellation instead. Qualify the current exit semantics (Escape need not quit an empty switcher), and track shared cancellation-cause loss separately rather than ignoring generic presenter errors.
+- #789 integration: a package timeout can catch an innocent next test after an earlier failure spent the budget. Inspect preceding named failures and elapsed durations before attributing the final goroutine stack; screen assertions on newly integrated features must respect shared display caps and pin full diagnostics through their recovery action.
+- #823 PQ-2: Additive persisted JSON contracts require recursive duplicate-key rejection as well as strict owned-field presence/type checks and raw unknown-field preservation. Reuse strictjson split/encode helpers at each changed boundary; plain json.Unmarshal is not an authority validator.
+
+- #823 codec review: validate each positional tuple coordinate independently before ordering endpoints. A later end line does not make a negative end column valid; retain cross-line negative-column regression coverage.
+
+- #823 compiler review: preserve the isolated YAML key/value mapping context when decoding owned values. Removing key indentation changes explicit block-scalar indentation and instruction text. Test quoted/indented mappings, explicit indent/chomp modifiers and mixed header/body line endings independently of canonical flat fixtures.
+- #823 integration: apply base-coordinate transforms before automatic restamping. A restamp can grow with an extreme year; applying earlier offsets after that growth truncates output and bypasses prospective byte-limit tests.
+
+- #823 guard review: preserve parsed marker identity and extent, not only old bytes. Endpoint appends or deleting separators can forge a new human turn; code examples never grant approval. Source-coordinate code masks must reach proposal exceptions as well as scope classification.
+- #823 guard review: choose chat asks by the section's shallowest source indentation, not each Markdown list root. Preserve pending escaped answer links as linked; distinguish line-ending real links from code and prose mentions.
+- #823 integration: attribute final spans from validated base pieces. Re-resolving at a heading boundary can lend the next section's policy to content inserted before it.
+
+- #823 BR-1: Markdown AST content Lines are not full source ownership: fences and empty blocks may omit delimiters or all lines. Observe source membership at existing parser container transitions, preserve lazy continuations, and test exact protected bytes plus final append location through the production seam.
+- #823 BR-2: New operator settings and migration commands need README examples at close, even when CLI help and atlas already document them. Name defaults, heading adjacency, ownership and exact preview/confirm steps.
+
+- #823 BR-1 round2: Original bytes can survive while their Markdown role changes. A permitted append needs a renderable base tail and a real candidate link at the exact inserted source location; use independent rendering regressions for fence/code/HTML/thematic tails and a positive ordinary continuation.
+
+- #823 suite: rewrite a function's full godoc when refactoring its authority/presentation contract; appending a replacement opener leaves contradictory prose and fails the existing cross-package TestNoDeclarationCarriesTwoStackedGodocs guard. Run that guard after broad function-comment edits.
 - #827 BR-1: when a plan's state table maps outcomes to visible states, enumerate every outcome the code can produce (here leaveSkipped) against it, not only the error paths. A full operation reports complete only on positive proof for every target; any outcome short of that proof is unresolved.
 - #827: a recovery hint belongs to one field. If a summary carries a dedicated next-action field, strip the same advice from the reason text, or the operator reads it twice.
 - #827: before adding a context-aware path through a nested lock, check every acquirer of that lock, including readers outside the outer coordinator. A nonblocking inner acquire under a blocking outer lock fails at once against an uncoordinated reader.
@@ -2784,3 +2861,15 @@ and external temporary roots rather than relying on the host's TMPDIR.
 - **Design a startup-dependent gesture against the startup that will ship, not main's.** #830's wake key looked redundant because main cold-resumes explicit hubs at start. #739, which was landing at the same time, keeps them down. Read the in-flight sibling's branch before you drop or add a gesture.
 - **A flag about a durable transition is written in that transition's CAS and bound to its identity.** A follow-up write can fail after the effect has happened. A flag no reader derives from the transition's identity outlives the transition it described. Derive the reading (`ThreadAsleep`: mark nonce = receipt nonce) so that every ending path, and every older build, leaves the flag inert.
 - **Before ruling out a CLI verb for a post-shutdown action, ask which slot comes back first.** Broker ops need a live calling slot. After a full shutdown the operator resumes the main hub anyway, so the main hub can run the verb (`couch --wake`). #830 first built a switcher key on the false premise that no live slot exists, then replaced it.
+- #162 BR-1/BR-2: Composer text used as input authority must retain styling provenance for mixed authored/suggested cells, not merely recognize wholly faint placeholders. Test completion suffixes across every profile. Compare authored command targets with the terminal projector's whitespace representation only after validating the full original grammar, and pin the real projector-to-writer path; reducer-only fabricated text can conceal representation mismatches.
+
+- #162 BR-3: Never erase blank composer rows to prove a single-line command. Preserve the positively bounded input structure independently of cursor position; right-padding normalization is per row. Where terminal padding and authored blank rows are indistinguishable, decline command authority instead of inferring from the cursor. Preserve established peer-envelope comparison separately through the shared geometry/projector, and make synthetic agents render the native boundary their command proof needs.
+- #819 PQ-1: express planned tests as named production functions, adversarial input classes and mechanical invariants. Keep executable case inventories in test code; preserve cost bounds and verification commands in the plan.
+
+- #845: A command selected for an isolated PATH may depend on basename-dispatched helpers. Resolve only needed helpers from that executable’s own installation and pin the actual private-PATH operation; Apple’s /usr/bin/git launcher can hide the physical Git executable’s helper lookup failure. Preserve helper invocation names when symlinks resolve to a multicall binary.
+
+- #845 inventory: untracked Go tests are absent from the tracked reader inventory. Stage new tests before the final audit, inspect the command’s completed exit status, and only then start close or queue verification; never batch a gate mutation after a verification result that has not been checked.
+
+- #845 review execution: a native harness watchdog must cover the test’s own startup/scenario context plus cleanup. A shorter go-test deadline aborts defers and creates unverifiable residue; inspect/reconcile that exact owner before starting another fleet, and do not call the watchdog a product failure.
+- #802 BR-1: operator-facing notice wording is restated in the embedded `skills/couch/SKILL.md` and the atlas. When a producer string changes, grep the literal shape and reason labels repo-wide and update every live restatement; archived issues and comments that describe the condition are not copies. Updating the atlas alone is not the sweep.
+- #849 BR-1/BR-2: a submission contract is restated for agents in `submission.ReadingGuide` (stored in every bundle), the embedded couch `SKILL.md` and README, besides the atlas. When the contract changes (what is selected, what refuses, a provenance value), grep its key phrases across `cmd/` and README before close and move the tests that pin them; the atlas alone is not the sweep (same class as #802 BR-1).

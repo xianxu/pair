@@ -223,7 +223,8 @@ The focused agent receives all workbench shortcuts except **Shift+Alt+T**,
 **Shift+Alt+Left/Right**, and **Alt+Shift+Return**, which create/switch
 right-terminal tabs or toggle the right terminal's normal/focus views. Under
 Couch, **Ctrl+Space**, **Ctrl+Backspace** (the Mac Delete key), and
-**Ctrl+Return** remain Couch navigation shortcuts. Couch owns Alt+n/Ctrl+Alt+n
+**Ctrl+Return** remain Couch shortcuts (switcher, previous tab and attention
+list). Couch owns Alt+n/Ctrl+Alt+n
 outside the right terminal, except Alt+n in the review pane (next marker in normal mode). In a right-terminal full-screen TUI, Pair retains
 only Alt+k, Alt+Shift+Enter, Alt+Shift+t and Alt+Shift+Left/Right; other program
 chords pass through. Couch forwards the restart chords based on the actual
@@ -438,9 +439,9 @@ Zellij metadata routing waits until no native server is running, normally the
 next machine reboot, and retains the original directory as `session_info.disk`.
 See [Couch scratch](atlas/couch-scratch.md) for the lifecycle and fallback rules.
 
-Opening Couch launches or attaches each requested hub, including the cwd hub
-when no directory is given. A hub listed live uses Continue; otherwise its
-normal startup resumes a proven conversation or starts fresh. Other slots are
+Opening Couch attaches surviving requested hubs, including the cwd hub when no
+directory is given. Missing or uncertain hubs remain in the switcher; startup
+never starts a new agent or resumes a stopped conversation. Other slots are
 observed and attached in the background when projected Continue. Startup never
 launches or resumes their agents, completes interrupted starts, or replays their
 recovery journals. Attachments use bounded parallelism and one retry; a failure
@@ -453,8 +454,27 @@ time; a finished row keeps one result until its next action. A second action on
 a busy slot is refused with the running action's name. Other slots and the hub
 remain available. Select a busy row to wait for its new terminal; navigating
 elsewhere prevents its eventual completion from pulling focus back. On a failed
-row, `Ctrl+Y` copies its retained diagnostic; otherwise it copies the last notice.
+row, `Ctrl+Y` copies its retained diagnostic; otherwise a current capability
+diagnostic takes precedence over the last notice. Status text in chrome is limited
+to 40 display cells, with `…`; copying retains the full diagnostic.
 Recovery confirmations stay on their row until you select it to review them.
+
+Hub automation controls Couch's generated input and scheduled runs. It starts on
+for a positively surviving hub after a normal restart, and off for missing hubs
+or a full-shutdown/unknown start. After a cold start, hubs stay stopped by design:
+choose **Resume from disk** on a retained switcher row, or **Ctrl+Space → Start**
+with the hub directory when no row exists. Normal warm reattachment is unchanged.
+The retained startup notice names missing hubs and says
+`hub automation off; say turn it on`. Automation status labels these hubs
+`missing at startup:`: that is startup history, not current liveness, and remains
+after a hub is manually attached. The TL uses
+`couch --automation on|off|status [hub]` for its own hub. **Ctrl+G** in the
+switcher toggles the selected hub automation on/off; the result names the hub.
+Worker reports, operator input and desktop notices still arrive while off.
+Suppressed notices and missed scheduled runs are never replayed when turned on.
+Each newly started worker receives one generic restart cue; surviving wrappers
+do not receive that cue again after a Couch-only restart. The separate request
+to resend an unanswered report remains once per Couch lifetime.
 
 Couch keeps agent-pane context titles and cmux activity heat titles current from
 its existing inventory and minute activity refreshes. Hosted Pair starts no
@@ -518,12 +538,24 @@ couch --session-sync read --frontmatter FILE [--json]
 couch --session-sync write --frontmatter BODYFILE FILE --if-hash H
                          light: read or replace the complete leading --- block only; preserves body bytes
                          (including Updated) and unread body edits in diff, even without a previous baseline
+couch --session-sync read --all FILE --json
+                         the captured source/hash plus Read.Editorial: independently inherited collaboration,
+                         presentation and processing settings, briefs, scope/frontier and instruction. Region
+                         ranges use complete-document byte offsets, even on section reads. Section hashes are
+                         opaque: reuse the returned token; document or ancestor policy changes also stale it.
 couch --session-sync apply EDITS.json FILE --if-hash H [--fold ID] [--json]
                          a precise edit: {old, occurrence, new, explain} records applied all or none (edits-invalid
-                         lists each bad record); under presentation: propose Couch writes per-line accept/reject
+                         lists each bad record); under a region's presentation-mode: propose Couch writes per-line accept/reject
                          markers (propose-too-large / propose-unencodable mean: use a side-doc proposal);
                          frontmatter, side-doc links answering a marker and their folds apply directly, and
-                         presentation / collaboration-mode are operator-owned
+                         all canonical mode keys, processing-instruction, readable legacy aliases/maps and
+                         immediately adjacent heading mode comments are operator-owned in every display mode
+couch --session-sync migrate-editorial FILE [--json]
+couch --session-sync migrate-editorial FILE --confirm --if-hash H [--json]
+                         operator-run exact preview, then confirmation using its full source SHA256. Converts
+                         legacy section maps to heading comments and fills missing canonical defaults while
+                         preserving aliases and opaque metadata. No supplied body or automatic review migration;
+                         held locks, stale source, conflicts, unmatched names and multiple legacy modes refuse.
 couch --session-sync round FILE --json
                          the last agent round (every changing agent write keeps one), with reasons from apply,
                          and whether the operator's next submit has cleared it; parley highlights it
@@ -586,6 +618,32 @@ couch --skill            print the bundled agent coordination skill
 couch --adopt-store /absolute/store     preview adoption of an existing store
 ```
 
+Registered Markdown uses independent editorial settings. Without settings, the
+defaults are `collaboration-mode: discussion`, `presentation-mode: highlight`
+and `processing-mode: free-form`. Frontmatter sets document defaults;
+`processing-instruction` adds the operator's instruction. A mode comment on the
+line immediately after an ATX heading overrides the named settings for that
+section and its descendants; omitted settings inherit independently:
+
+```markdown
+---
+collaboration-mode: discussion
+presentation-mode: highlight
+processing-mode: free-form
+---
+# Draft
+<!-- presentation-mode: propose; processing-mode: copy-edit -->
+Text to review.
+```
+
+These settings and attached comments belong to the operator. Agents read the
+resolved policy through session-sync and preserve its source. To migrate a
+legacy document, the operator first runs `couch --session-sync migrate-editorial
+FILE --json`, inspects the exact preview, then confirms with `--confirm --if-hash
+H` using that preview's full source hash. See the
+[editorial policy map](atlas/couch-agentic-documents.md) for inheritance and
+compatibility details.
+
 `couch --keys` and `couch --set-model` require a verified owning hub and one
 other exact live slot with an idle, empty agent composer. The separate Neovim
 draft does not block these controls. A busy turn, open picker, occupied composer
@@ -603,7 +661,7 @@ composer came back. `couch --keys --help` lists the steps, the limits, these
 rules and that round trip.
 
 ```sh
-couch --keys pair:7 clear-line text:/model submit wait:200 down enter
+couch --keys pair:7 clear-line text:/model enter wait:200 down enter
 couch --set-model pair:7 --model gpt-6.1-sol --effort medium --confirm
 ```
 
@@ -614,8 +672,9 @@ Named raw steps are `text:…`, `enter`, `submit`, the arrows, `tab`,
 step: `couch --interrupt pair:7 --confirm` sends one into a working turn, refuses
 with no working turn, and is never retried. Codex work is proved by its current
 Working or Waiting for… status with its interrupt hint above the composer; confirmation
-requires a fresh idle composer. `enter` follows Pair's Return behavior: newline in
-the composer, selection in a picker; `submit` follows Alt+Return. Each `esc`
+requires a fresh idle composer. `enter` follows Pair's Return behavior: native submission for a proved single-line
+slash command, newline for ordinary composer text, and selection in a picker;
+`submit` follows Alt+Return. Each `esc`
 is a separate input step. Raw success confirms the writes and final observation.
 Use `--set-model` when you need a confirmed model, effort and scope: it follows
 observed labels, uses the picker's current effort if omitted, and verifies a
@@ -1046,12 +1105,13 @@ Codex, Qoder and non-hub receivers keep singleton delivery, as do older wrappers
 that explicitly refuse the batch protocol.
 
 Couch also sends its configured hub system notices for confirmed slot starts,
-resumes, parks, relaunches, recovery and needs-relaunch transitions. Restart
-reattachments form one summary after the existing pass drains; larger summaries
-use numbered parts through the same delivery queue. Rows include known cached
+resumes, parks, relaunches, recovery and needs-relaunch transitions while hub
+automation is on. Automatic startup observations stay in Slots and the retained
+startup notice; they do not produce a later hub summary. Larger ordinary
+summaries use numbered parts through the same delivery queue. Rows include known cached
 agent/model, branch/issue and initiation; unknown fields stay unknown. These are
-Slots information, with no reply or work requested. Native-agent exit is not
-reported: an attachment ending does not prove the agent exited (#657).
+Slots information, with no reply or work requested. A native-agent exit requires
+the wrapper's reaped-child proof; an attachment ending does not prove it (#657).
 
 `COUCH_LIFECYCLE_NOTICES=off` disables lifecycle notices for this Couch process;
 the default is `on`, and other nonempty values refuse startup. No configured hub
@@ -1068,6 +1128,8 @@ Lifecycle notices keep bounded current state, not durable event history. Repeate
 unsent changes coalesce with a count. A busy hub waits on its existing composer;
 uncertain input is not replayed. Failed publication produces a local diagnostic,
 with later confirmed changes or receiver readiness enabling a fresh snapshot.
+Automation off retires unsent occurrences; turning it back on only admits new
+events, including across a rapid off/on during a delayed publication.
 An ownership move drops pending lifecycle history and tells the new hub to check
 Slots. Input already admitted to the previous hub finishes there with its original
 receipt; Couch does not replay or reroute it. New events follow the new owner.
@@ -1137,13 +1199,13 @@ below 1 second; adversarial OS starvation is outside that claim. Pair cleanup
 retains its 10-second outer deadline and 5-second exact-Zellij inner wait.
 Leave Couch applies one disposition to every live actor and returns to the
 shell: in the switcher, `Alt+d` **detaches** them, so quitting never kills a running agent, and
-`Alt+x` **parks** them behind the same confirmation a single park needs. A later bare `couch` returns to the work already in
-that repository: **detached first, then parked, most recently
-active within each class**. It starts a new thread only when there is nothing to
-return to. Ranking replaced an exactness rule that was a ratchet -- two
-resumable rows at one path created a third, guaranteeing the next startup
-created a fourth -- and wanting a fresh agent instead costs one chord inside
-Pair (`Alt+Shift+N` restarts the conversation, keeping the workbench).
+`Alt+x` **parks** them behind the same confirmation a single park needs. A later
+bare `couch` reattaches a positively surviving session, most recently active
+first. Parked or missing sessions stay stopped; without a surviving launch hub,
+Couch opens the switcher. Use **Ctrl+Space** to open the explicit Start form and
+enter the hub directory. An empty configured hub names that action in its
+display-only entry. Inside a live Pair, `Alt+Shift+N` restarts the conversation
+while keeping the workbench.
 
 **One primary per repository.** A repository has at most one primary (`:0`)
 thread; more agents in it are slots (`:1+`). `couch` anywhere inside a
@@ -1339,10 +1401,18 @@ hub and repository group, including the slots folded into it. The scope survives
 refreshes and returning from an action. Escape clears a text filter first, then
 the group scope; opening the ordinary switcher starts with the full list.
 
+When space remains, each group count adds one checkout-state marker per hidden
+live slot in slot order. Dirty `*` wins over diverged `±`, ahead `+` or behind `-`,
+then the existing issue-branch glyph; clean, resting or unknown evidence uses `·`.
+These markers describe checkouts, not whether an agent is working. A strip fits
+whole or the count stays plain `+N`; optional detail never displaces tabs or
+controls. The entire count, separator and strip open the same group, retaining
+its owner dimming.
+
 The active and attention chips win space before ordinary chips. At impossible
 widths, some labels must be hidden: the remaining overflow count says `+N !`
 when hidden slots need attention, if that complete marker fits. The bell still
-opens the full attention list. A clipped or omitted count has no click action.
+opens the full notification list (bell). A clipped or omitted count has no click action.
 
 Use `couch --tab-style multiline` for the previous packer, which uses one row
 when everything fits and wraps onto a second row before hiding overflow. The
@@ -1424,9 +1494,9 @@ too; under the Kitty protocol the two separate cleanly. Couch maintains the
 keyboard disambiguation its shortcuts require on supporting terminals, including
 after child output and thread replay. `Ctrl-Return` accepts the Kitty protocol's
 `CSI 13;5u`, explicit press (`CSI 13;5:1u`) and repeat (`CSI 13;5:2u`); release
-does not jump. On unsupported terminals it remains indistinguishable from plain
-`Return`, which Couch forwards unchanged. Use `Ctrl-Space` then `Return` to reach
-the notification there. While displaying an actor, Couch forwards every other
+does not toggle. On unsupported terminals it remains indistinguishable from plain
+`Return`, which Couch forwards unchanged. Click the bell to open the notification
+list on those terminals; `Ctrl+Alt+a` also requires enhanced key encoding. While displaying an actor, Couch forwards every other
 keyboard chord to the focused Pair pane. The agent reserves only the three
 terminal-tab chords described above; paste content stays literal. That includes
 `Alt+h`: in the draft it opens Pair's help, which lists Couch's keys first when
@@ -1435,7 +1505,7 @@ Couch presents the thread, and the agent pane still receives it.
 `Ctrl-Space` means one thing: **open the switcher**, from any actor, focused on
 the actor with the most recent notification (or on the thread you are leaving
 when nothing is paging). There is no focus ladder and no home actor. Following a
-page through the normal switcher is one key plus `Enter`; `Ctrl-Return` does it in one.
+page through the normal switcher is one key plus `Enter`.
 In focus view, a hidden target falls back to the first visible row.
 
 `Ctrl-Backspace` means **previous**: return to the actor you were working in.
@@ -1444,16 +1514,14 @@ pages, or detouring manually to check a third thread, still brings you back to
 where you actually were. Returning home twice is deliberately a no-op: you are
 home, and there is nowhere to bounce to.
 
-`Ctrl-Return` means **answer the newest page**: from an actor, it lands on the
-thread `Ctrl-Space` would have selected in the normal switcher, with no switcher in
-between. This jump is independent of focus-view filtering and counts as a
-notification hop, and `Ctrl-Backspace` afterwards still brings you back to where
-you were working. Pressed again, it goes to the next page. With nothing paging it
-stays put and says so on the status row. Inside the switcher it is not claimed
-and acts as the switcher's own `Enter`.
+`Ctrl-Return` opens or closes the **notification list (bell)**, exactly like `Ctrl+Alt+a`
+or clicking the bell. It toggles from both an actor and the switcher; opening or
+closing it leaves the active thread, switcher selection and previous-thread
+history in place. With an empty list it stays put and says nothing is waiting.
+It no longer jumps to the newest page or accepts a switcher row. Ordinary
+`Enter` still selects a switcher row or the selected attention item.
 
-`Ctrl+Alt+a` opens the **attention list** (pair#673): what is waiting on you,
-newest first. It holds three kinds of item: the hub's `couch --notify` messages,
+The **notification list (bell)** (pair#673) shows what is waiting on you, newest first. It holds three kinds of item: the hub's `couch --notify` messages,
 slots blocked on a permission prompt or picker, and slots whose turn ended with
 a question to you. While the list has items, the right end of the status row
 shows `🔔N`, red if a slot is blocked on a prompt; click it to open the list too.
@@ -1499,7 +1567,7 @@ it asks the running Couch to share the recording and prints its replay link
 alone on stdout (any note goes to stderr), and with no Couch it refuses.
 `couch --broadcast-web-query` alone prints its usage. See [atlas/webcast-format.md](atlas/webcast-format.md#agent-queries-462).
 
-🤖{Sketch evidence uses the same operator submission chord, Shift+Ctrl+Alt+Return: the console shows Pending feedback with sketch and annotation counts, indexed shape thumbnails and notes before submission. It submits only feedback actually visible on the current console, with up to eight completed sketches; deferred feedback stays visible as N more sketches and N more annotations. A stale visible selection refuses preparation. One full-viewport replay image reconstructs the current recorded prefix pinned at the submission chord, with matching number badges and current projections for the chosen shapes; original page URLs, literal element IDs and pressure paths stay unchanged. Saved note crops retain their original draw-time pixels. The sketch_page provenance is replay-rendered-current-view; pointer gestures and private tool UI are excluded. Legacy shared and per-sketch bundles remain readable. Confirmed delivery removes only the submitted sketch versions and note revisions from the live display; unsent or newer feedback stays. Original ink and notes remain in recording history and replay. Local tools can inspect `couch --broadcast-web-query DIR sketches [--sketch ID] [--at MS] [--json]` or export a private image and metadata with `couch --broadcast-web-query DIR sketch-image --sketch ID --out NEW_DIR [--at MS]`. These tools never dispatch to an agent. See [sketch evidence and retry behavior](atlas/webcast-submission.md).}
+🤖{Sketch evidence uses the same operator submission chord, Shift+Ctrl+Alt+Return: the console shows Pending feedback with sketch and annotation counts, indexed shape thumbnails and notes before submission. The press submits the board's open notes and finished sketches as they are, offscreen ones included, with up to eight sketches; the rest wait for the next submission. What the page is doing never refuses it; only a note still being written does. One full-viewport replay image reconstructs, from the recording, where the newest chosen sketch finished, with matching number badges; original page URLs, literal element IDs and pressure paths stay unchanged. Saved note crops retain their original draw-time pixels. The sketch_page provenance is replay-rendered; pointer gestures and private tool UI are excluded. The Pending feedback panel is information, never a gate. Legacy shared and per-sketch bundles remain readable. Confirmed delivery removes only the submitted sketch versions and note revisions from the live display; unsent or newer feedback stays. Original ink and notes remain in recording history and replay. Local tools can inspect `couch --broadcast-web-query DIR sketches [--sketch ID] [--at MS] [--json]` or export a private image and metadata with `couch --broadcast-web-query DIR sketch-image --sketch ID --out NEW_DIR [--at MS]`. These tools never dispatch to an agent. See [sketch evidence and retry behavior](atlas/webcast-submission.md).}
 
 `couch --broadcast-web-replay [ID|DIR] [--at MS]` plays recordings in the
 viewer: play, pause, speed, and a timeline that shows pauses as gaps, notes,
@@ -1809,9 +1877,12 @@ focus view explains how to tag a thread. The switcher remembers the last view us
 exits. Reopening clears search text but keeps the view. With text in the filter,
 Space is a literal search character; it does not toggle views.
 
-In the switcher, `Ctrl+Y` copies the full last retained status notice, including
-text clipped from the status row and after that row expires. Repeating it copies
-the same notice until another arrives. A failed or unconfirmed attempt keeps its
+In the switcher, `Ctrl+Y` copies a selected operation diagnostic/error first,
+then the current capability diagnostic, then the full last retained status notice.
+Chrome shows at most 40 display cells of a status; copying includes clipped text,
+and retained feed notices remain copyable after expiry. Repeating the copy uses
+the current capability diagnostic while one is displayed, or the same feed notice
+until another arrives. A failed or unconfirmed attempt keeps its
 original notice for **Ctrl+Y** retry even if a newer notice arrives; **Esc** dismisses
 the copy feedback without leaving the switcher. Navigation and background refreshes
 keep that feedback and ordinary operation errors independently visible.

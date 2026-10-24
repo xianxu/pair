@@ -676,6 +676,14 @@ var SourceClassifications = []SourceClassification{
 // the artifact namespace requires an explicit SourceClassification.
 // pair:m5-concept pure
 var NonArtifactSources = []string{
+	// #739 startup/automation/cue policy delegates to existing stores and
+	// transports; none constructs or names Pair artifact filenames.
+	"cmd/internal/couchcmd/automation.go",
+	"cmd/internal/couchcmd/worker_cue_coordinator.go",
+	"cmd/internal/couchcore/hub_automation.go",
+	"cmd/internal/couchcore/startup_policy.go",
+	"cmd/internal/couchmessage/worker_start_notice.go",
+	"cmd/internal/couchtty/console_automation.go",
 	// #753 historical sketch evidence uses Couch recording/submission namespaces,
 	// private caller-selected exports and in-memory projections; no Pair artifact family.
 	"cmd/internal/submission/codec.go",
@@ -733,6 +741,14 @@ var NonArtifactSources = []string{
 	"cmd/internal/couchcore/startup_progress.go",
 	"cmd/internal/launcher/startup_budget.go",
 	"cmd/internal/startupbudget/budget.go",
+	// #823 editorial settings and embedded mode briefs name no Pair artifacts.
+	"cmd/internal/editorial/catalog.go",
+	"cmd/internal/editorial/document.go",
+	"cmd/internal/editorial/markdown.go",
+	"cmd/internal/editorial/source.go",
+	"cmd/internal/editorial/migrate.go",
+	"cmd/internal/editorial/edits.go",
+	"cmd/internal/editorial/markers.go",
 	// #758 endpoint model and native editor transport name no Pair artifact paths.
 	"cmd/internal/editorendpoint/model.go",
 	"cmd/internal/editorendpoint/state.go",
@@ -788,6 +804,7 @@ var NonArtifactSources = []string{
 	"cmd/internal/agentdrive/screen.go",
 	"cmd/internal/agentdrive/panel.go",
 	"cmd/internal/agentdrive/model.go",
+	"cmd/internal/agentdrive/command.go",
 	"cmd/internal/tailmarkup/markup.go",
 	"cmd/internal/couchmessage/drive_endpoint.go",
 	"cmd/internal/couchmessage/refusal.go",
@@ -1317,6 +1334,8 @@ var NonArtifactSources = []string{
 	"cmd/internal/couchcore/operationdispatch.go",
 	"cmd/internal/couchcore/ops.go",
 	"cmd/internal/couchtty/console.go",
+	// #789: pure chrome text projection; no artifact paths.
+	"cmd/internal/couchtty/chrome_status.go",
 	"cmd/internal/couchtty/console_continuation.go",
 	// #488/#647 note anchors: deterministic Couch frame/layout; no artifact paths.
 	"cmd/internal/couchtty/console_noteanchor.go",
@@ -1336,6 +1355,9 @@ var NonArtifactSources = []string{
 	// #661 apply and rounds: pure resolution, diff and marker code, plus a
 	// round sidecar beside the shadow; no Pair artifact filenames.
 	"cmd/internal/sessionsync/edits.go",
+	"cmd/internal/sessionsync/editorial_codec.go",
+	"cmd/internal/sessionsync/editorial.go",
+	"cmd/internal/sessionsync/editorial_migration.go",
 	"cmd/internal/sessionsync/file.go",
 	"cmd/internal/sessionsync/gap.go",
 	"cmd/internal/sessionsync/ledger.go",
@@ -1659,6 +1681,7 @@ var NonArtifactSources = []string{
 	"cmd/internal/couchcore/worktree.go",
 	"cmd/internal/mouseinput/mouseinput.go",
 	"cmd/internal/couchtty/attention.go",
+	"cmd/internal/couchtty/attention_references.go",
 	"cmd/internal/couchtty/console_completion.go",
 	"cmd/internal/couchtty/console_presentation.go",
 	"cmd/internal/couchtty/console_slotgit.go",
@@ -1941,6 +1964,7 @@ var NonArtifactSources = []string{
 	"cmd/internal/workbenchshortcut/terminal_command.go",
 	"cmd/internal/workbenchshortcut/render_lua.go",
 	"cmd/internal/wrapcmd/composer_recognizers.go",
+	"cmd/internal/wrapcmd/composer_input.go",
 	"cmd/internal/wrapcmd/codex_working.go",
 	"cmd/internal/wrapcmd/harness_tty.go",
 	"cmd/internal/wrapcmd/composer_rows.go",

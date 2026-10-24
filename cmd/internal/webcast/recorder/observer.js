@@ -53,6 +53,7 @@
   let scheduled = false;
   const scrolls = new Map(); // target -> true, coalesced per frame
   let selDirty = false;
+  let lastSel = null; // the last selection sent, as JSON
   let held = null; // the hold's expiry timer while held
   let heldBy = ''; // whose input the hold is around
 
@@ -87,7 +88,7 @@
   };
   const flush = () => {
     scheduled = false;
-    if (!on) { pending = []; scrolls.clear(); selDirty = false; return; }
+    if (!on) { pending = []; scrolls.clear(); selDirty = false; lastSel = null; return; }
     collect();
     // While held, what goes is sent at once, tagged with whose input the
     // hold is around: a click that navigates must leave before its document.
@@ -153,12 +154,21 @@
   document.addEventListener('scroll', (e) => { if (on) { scrolls.set(target(e), true); schedule(); } }, true);
 
   // Selection.
+  // A page that re-sets the same caret (echo's live board, pair#849) fires
+  // selectionchange many times a second: only a different selection is
+  // news. A resync sends it again for the new snapshot.
   const selectionItem = () => {
     const s = document.getSelection();
-    if (!s || s.rangeCount === 0 || !s.anchorNode) { push({ k: 'sel' }); return; }
-    const a = path(s.anchorNode), f = path(s.focusNode);
-    if (!a || !f) return;
-    push({ k: 'sel', a: [a, s.anchorOffset], f: [f, s.focusOffset] });
+    let item = { k: 'sel' };
+    if (s && s.rangeCount > 0 && s.anchorNode) {
+      const a = path(s.anchorNode), f = path(s.focusNode);
+      if (!a || !f) return;
+      item = { k: 'sel', a: [a, s.anchorOffset], f: [f, s.focusOffset] };
+    }
+    const key = JSON.stringify(item);
+    if (key === lastSel) return;
+    lastSel = key;
+    push(item);
   };
   document.addEventListener('selectionchange', () => { if (on) { selDirty = true; schedule(); } });
 
@@ -216,6 +226,7 @@
     const a = document.activeElement;
     if (a && a !== document.body) { const p = path(a); if (p) push({ k: 'focus', p }); }
     selDirty = true;
+    lastSel = null;
     sheets();
     schedule();
   };

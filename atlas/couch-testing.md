@@ -45,12 +45,29 @@ shutdown proof: the helper waits for the fixture's exact process generation to
 end after its CLI workers and cancellable native TTY reader join. These stand-ins
 qualify our transport and lifecycle adapter, not a real installed agent's reaction.
 
+## Slash journal qualification (#837)
+
+`cmd/couch/slash_keys_acceptance_test.go` checks public slash Enter, retained
+ordinary prose and recovery with both fixture personalities. Wrapper Idle is not
+a barrier for asynchronous system delivery. Its test-only journal oracle pins
+all observed rows and tolerates later system envelopes only with exact public
+`message-status` proof of server origin, Submitted status and captured sender/
+receiver bindings. Known in-flight receipts wait inside the original scenario
+context; spoofed, duplicate or authored additions fail. Submitted proofs are
+reused only within the subtest. Portable adversarial tests replay the retained
+delayed restart envelope; opt-in conformance uses
+`PAIR_NATIVE_SLASH_KEYS=1 PAIR_NATIVE_SLASH_AGENT=claude` (or `codex`) with
+`go test ./cmd/couch -run '^TestDisposableSlashKeys$' -count=1 -v -timeout=5m`.
+
 ## Isolation and teardown
 
 One fresh root lease owns HOME, all XDG roots, Pair/Couch/identity state, native
 Zellij sockets/config/data, fixture control and all three private SDLC queue
 controls. The environment starts empty. PATH contains only owned candidate files
-and explicit tool links, with no installed-agent fallback. Canonical physical
+and explicit tool links, with no installed-agent fallback. The selected Git's
+`--exec-path` supplies only its validated `git-upload-pack` helper, installed
+under that name in the private bin for local upstream transport. No Git helper
+directory or ambient `GIT_EXEC_PATH` enters the replacement environment. Canonical physical
 paths are checked against the ambient live-root deny-set before launch. Short
 owned roots keep AF_UNIX addresses within the native limit; TestScratch is
 preferred when available. Messaging uses the same explicit isolation selection

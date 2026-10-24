@@ -29,6 +29,8 @@ func TestAgentDriveCodexTextQuietBeforeEnter(t *testing.T) {
 			if out.String() != "/model" {
 				t.Fatalf("text %q", out.String())
 			}
+			f.output("\x1b[?2026h\x1b[2J" + slashComposerPaint("codex", "/model") + "\x1b[?2026l")
+			f.proxy.dispatchAgentDrive(&out) // echo proof does not waive quiet time
 			now = now.Add(PeerSubmitDelay - time.Nanosecond)
 			f.proxy.dispatchAgentDrive(&out)
 			if out.String() != "/model" {

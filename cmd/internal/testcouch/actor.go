@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/xianxu/pair/cmd/internal/couchmessage"
+	"github.com/xianxu/pair/cmd/internal/pathscope"
 	"github.com/xianxu/pair/cmd/internal/procutil"
 	"github.com/xianxu/pair/cmd/internal/testcouch/agentfixture"
 )
@@ -190,6 +191,74 @@ func (f *Fleet) Actors(ctx context.Context) (couchmessage.Response, error) {
 		err = fmt.Errorf("actors: %s %s", response.Code, response.Error)
 	}
 	return response, err
+}
+
+// ObserveDrive reads one current wrapper observation without sending input.
+// The public actor registry supplies the complete binding; fixture readiness
+// verifies the requested workspace and personality. Callers own any bounded
+// polling and must still treat the later public command's admission as final.
+// The test process must select this fleet's canonical COUCH_ISOLATED_ROOT so
+// the existing endpoint client derives the owned socket directory.
+func (f *Fleet) ObserveDrive(ctx context.Context, n int) (couchmessage.DriveObservation, error) {
+	ctx, done, err := f.begin(ctx)
+	if err != nil {
+		return couchmessage.DriveObservation{}, err
+	}
+	defer done()
+	root, err := filepath.EvalSymlinks(f.Roots.Root)
+	if err != nil || !filepath.IsAbs(root) || root != f.Roots.Root || os.Getenv("COUCH_ISOLATED_ROOT") != root {
+		return couchmessage.DriveObservation{}, fmt.Errorf("COUCH_ISOLATED_ROOT must select the canonical owned fleet root")
+	}
+	namespace := f.Roots.Mutable["store"]
+	if !filepath.IsAbs(namespace) || !pathscope.Within(f.Roots.Root, namespace) {
+		return couchmessage.DriveObservation{}, fmt.Errorf("owned store namespace required")
+	}
+	ready, err := f.Agent(n)
+	if err != nil {
+		return couchmessage.DriveObservation{}, err
+	}
+	actors, err := f.Actors(ctx)
+	if err != nil {
+		return couchmessage.DriveObservation{}, err
+	}
+	binding, err := f.driveBinding(n, ready, actors.Actors)
+	if err != nil {
+		return couchmessage.DriveObservation{}, err
+	}
+	endpoint := couchmessage.RemoteEndpoint{Namespace: namespace, Binding: binding}
+	return endpoint.ObserveDrive(ctx)
+}
+
+func (f *Fleet) driveBinding(n int, ready agentfixture.Ready, actors []couchmessage.Candidate) (couchmessage.Binding, error) {
+	workspace := f.Workspaces.Primary
+	if n != 0 {
+		workspace = f.Workspaces.Workers[n]
+	}
+	if n < 0 || workspace == "" || ready.CWD != workspace || ready.Agent != f.Options.AgentKind {
+		return couchmessage.Binding{}, fmt.Errorf("actor %d does not match owned workspace and personality", n)
+	}
+	slot := fmt.Sprintf("fixture:%d", n)
+	var binding couchmessage.Binding
+	found := false
+	for _, actor := range actors {
+		if actor.Binding.Slot != slot {
+			continue
+		}
+		if found {
+			return couchmessage.Binding{}, fmt.Errorf("duplicate actor %s", slot)
+		}
+		binding, found = actor.Binding, true
+	}
+	if !found {
+		return couchmessage.Binding{}, fmt.Errorf("registered actor %s unavailable", slot)
+	}
+	if err := binding.Validate(); err != nil {
+		return couchmessage.Binding{}, err
+	}
+	if binding.Repository != filepath.Join(f.Workspaces.Primary, ".git") || binding.Agent != ready.Agent {
+		return couchmessage.Binding{}, fmt.Errorf("registered actor %s does not match owned repository and personality", slot)
+	}
+	return binding, nil
 }
 
 // WaitActors waits for at least count registrations. Restarting a supervisor

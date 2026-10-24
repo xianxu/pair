@@ -26,8 +26,8 @@ func seedStartupDetached(t *testing.T, env *testEnv, tag ThreadTag, layout Layou
 	return created
 }
 
-// A selected hub starts without changing other retained layouts.
-func TestStartupLaunchesHubOverOtherRetainedLayouts(t *testing.T) {
+// A missing selected hub remains idle regardless of other retained layouts.
+func TestStartupMissingHubLeavesOtherRetainedLayoutsUntouched(t *testing.T) {
 	for _, parked := range []bool{false, true} {
 		env := newTestEnv(t, "/repo")
 		address := detachedThreadAt(t, env, "/other", "layout")
@@ -45,7 +45,7 @@ func TestStartupLaunchesHubOverOtherRetainedLayouts(t *testing.T) {
 			}
 		}
 		start, err := env.Couch.StartInteractive(context.Background(), StartArgs{Cwd: "/repo"})
-		if err != nil || start.Handle == nil || len(env.Runner.Ops) != 2 {
+		if err != nil || start.Handle != nil || len(env.Runner.Ops) != 0 {
 			t.Fatalf("startup: %+v %v %v", start, err, env.Runner.Ops)
 		}
 	}

@@ -442,3 +442,33 @@ func TestRegistryReconnectSeedsWorkWithoutRenewingSettledRefreshes(t *testing.T)
 		})
 	}
 }
+
+func TestRegistryWorkerCueSnapshotOwnedAndReconnectNotNewLaunch(t *testing.T) {
+	r := NewRegistry()
+	b := registryBinding("pair:1", "a", 7)
+	cue := &WorkerCueReport{LaunchOrdinal: 7, State: WorkerCueNeeded}
+	step(t, r, RegistryEvent{Kind: SessionOpened, Token: 1, Binding: b, Build: &testBuild, WorkerCue: cue})
+	step(t, r, RegistryEvent{Kind: AdmissionDone, Token: 1})
+	cue.State = WorkerCueUncertain
+	if r.Liveness()[b.Slot].WorkerCue.State != WorkerCueNeeded {
+		t.Fatal("open aliased caller")
+	}
+	committed := &WorkerCueReport{LaunchOrdinal: 7, State: WorkerCueCommitted, ID: WorkerStartNoticeID(b, 7)}
+	step(t, r, RegistryEvent{Kind: SessionActivity, Token: 1, WorkerCue: committed})
+	snapshot := r.Liveness()[b.Slot]
+	snapshot.WorkerCue.State = WorkerCueNeeded
+	if r.Liveness()[b.Slot].WorkerCue.State != WorkerCueCommitted {
+		t.Fatal("snapshot aliases registry")
+	}
+	step(t, r, RegistryEvent{Kind: SessionOpened, Token: 2, Binding: b, Build: &testBuild, WorkerCue: committed})
+	step(t, r, RegistryEvent{Kind: AdmissionDone, Token: 2})
+	step(t, r, RegistryEvent{Kind: SessionActivity, Token: 1, WorkerCue: &WorkerCueReport{LaunchOrdinal: 99, State: WorkerCueNeeded}})
+	if got := r.Liveness()[b.Slot].WorkerCue; *got != *committed {
+		t.Fatalf("stale session/reconnect changed launch: %+v", got)
+	}
+	step(t, r, RegistryEvent{Kind: SessionOpened, Token: 3, Binding: b})
+	step(t, r, RegistryEvent{Kind: AdmissionDone, Token: 3})
+	if r.Liveness()[b.Slot].WorkerCue != nil {
+		t.Fatal("legacy session inherited cue capability")
+	}
+}

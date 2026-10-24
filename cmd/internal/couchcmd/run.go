@@ -915,7 +915,28 @@ var processStartedAt = time.Now()
 func runConsole(console *couchtty.Console, c *couchcore.Couch, start couchcore.StartResult, stdout io.Writer, configuredHubs ...*hubRuntime) int {
 	// Wire the switcher's actionable projection HERE, on the path that actually
 	// runs a console. Typeahead stays pure over the resulting in-memory rows.
-	wireResolver(console, c, configuredHubs...)
+	hubs, roots, hubErr := prepareConsoleHubs(context.Background(), c, configuredHubs...)
+	wireResolver(console, c, hubs)
+	startup, err := c.ObserveStartupContext(context.Background(), roots)
+	if err != nil {
+		renderError(stdout, err)
+		return 1
+	}
+	if hubErr != nil {
+		startup.Kind, startup.ParkedUnknown, startup.Diagnostic = couchcore.StartupUnknown, true, errors.Join(startup.Diagnostic, hubErr)
+		for root, hub := range startup.Hubs {
+			hub.Unknown = true
+			startup.Hubs[root] = hub
+		}
+	}
+	if hubs != nil {
+		console.SetHubOwnership(hubs.snapshot())
+	}
+	launchHub := ""
+	if len(roots) > 0 {
+		launchHub = roots[0]
+	}
+	console.Notify(couchtty.Notice{Kind: "startup", Control: true, Body: startupSummary(startup, launchHub)})
 
 	_, ok := start.Handle.(couchcore.TerminalHandle)
 	if start.Handle != nil && !ok {
@@ -926,11 +947,11 @@ func runConsole(console *couchtty.Console, c *couchcore.Couch, start couchcore.S
 		}
 		return 1
 	}
-	if err := beginConsole(console, start); err != nil {
+	if err := beginConsole(console, start, startup.Kind != couchcore.StartupNormal || !startup.Hubs[launchHub].Survived); err != nil {
 		renderError(stdout, err)
 		return 1
 	}
-	messages, messageErr := startMessageService(console, c, configuredHubs...)
+	messages, messageErr := startMessageServiceWithStartup(console, c, &startup, hubs)
 	if messageErr != nil {
 		renderError(stdout, messageErr)
 		return 1
@@ -938,8 +959,8 @@ func runConsole(console *couchtty.Console, c *couchcore.Couch, start couchcore.S
 	if messages != nil {
 		defer messages.Close()
 	}
-	if len(configuredHubs) > 0 && configuredHubs[0] != nil {
-		startExplicitHubs(console, configuredHubs[0], c)
+	if hubs != nil {
+		startExplicitHubs(console, hubs, c)
 	}
 	code := console.Run()
 	recordConsoleExit(console.TerminalFailure())
@@ -958,11 +979,12 @@ func recordConsoleExit(failure error) {
 // beginConsole attaches the explicitly started hub child, then arms the existing
 // bounded warm-only pass before Run admits its first inventory. No background
 // attempt may launch or recover a conversation whose terminal is absent.
-func beginConsole(console *couchtty.Console, start couchcore.StartResult) error {
+func beginConsole(console *couchtty.Console, start couchcore.StartResult, background ...bool) error {
 	if start.Handle == nil {
+		console.ArmReattachPass(couchcore.ThreadAddress{})
 		return nil
 	}
-	if err := dispatchInitialAttach(console, start); err != nil {
+	if err := dispatchInitialAttach(console, start, background...); err != nil {
 		return err
 	}
 	console.ArmReattachPass(start.Record.Thread)
@@ -974,17 +996,18 @@ func beginConsole(console *couchtty.Console, start couchcore.StartResult) error 
 	return nil
 }
 
-func dispatchInitialAttach(console *couchtty.Console, start couchcore.StartResult) error {
+func dispatchInitialAttach(console *couchtty.Console, start couchcore.StartResult, background ...bool) error {
 	dispatch := console.Ops()
 	if dispatch == nil {
 		return fmt.Errorf("console operation dispatcher is unavailable")
 	}
+	args := map[string]string{"repo-scope": start.Record.Thread.RepoScope, "tag": string(start.Record.Thread.Tag)}
+	if len(background) > 0 && background[0] {
+		args["background"] = "true"
+	}
 	_, err := dispatch(couchcore.OperationCall{
-		Name: "attach",
-		Args: map[string]string{
-			"repo-scope": start.Record.Thread.RepoScope,
-			"tag":        string(start.Record.Thread.Tag),
-		},
+		Name:     "attach",
+		Args:     args,
 		Implicit: true, TypedPayload: start,
 	})
 	return err
@@ -1506,6 +1529,12 @@ func usageWith(w io.Writer, bindings []couchkeys.Binding) {
 	verbLine(w, "--session-sync", "       couch --session-sync register FILE --owner SLOT [--json]")
 	fmt.Fprintln(w, "             lookup FILE | list | forget FILE | rename OLD NEW [--json]")
 	fmt.Fprintln(w, "             read|diff|status|write ... FILE: registered markdown and legacy session files.")
+	fmt.Fprintln(w, "             read --all FILE --json includes resolved editorial briefs and document byte offsets.")
+	fmt.Fprintln(w, "             All mode settings and adjacent heading directives are operator-owned in every mode.")
+	fmt.Fprintln(w, "             Section CAS tokens also bind document and ancestor policy; reuse the returned hash.")
+	verbLine(w, "--session-sync", "       couch --session-sync migrate-editorial FILE [--json]")
+	fmt.Fprintln(w, "             Operator preview; --confirm --if-hash H applies only that exact source's verified transform.")
+	fmt.Fprintln(w, "             No arbitrary body or automatic migration; a stale source requires another preview.")
 	verbLine(w, "--session-sync", "       couch --session-sync read --frontmatter FILE [--json]")
 	verbLine(w, "--session-sync", "       couch --session-sync write --frontmatter BODYFILE FILE --if-hash H")
 	fmt.Fprintln(w, "             Read or replace only the leading --- block; body bytes and unread body edits stay intact.")
@@ -1534,6 +1563,10 @@ func usageWith(w io.Writer, bindings []couchkeys.Binding) {
 	fmt.Fprintln(w, "             message containing code or shell syntax with an editor, never quote it.")
 	verbLine(w, "--message-status", "       couch --message-status ID [--json]")
 	fmt.Fprintln(w, "             Full ID or unique prefix of a receipt you sent or received; ambiguous prefixes list full IDs.")
+	verbLine(w, "--automation", "       couch --automation off|on|status [hub]")
+	fmt.Fprintln(w, "             A hub controls only its own automation. The operator uses switcher Ctrl+G")
+	fmt.Fprintln(w, "             across hubs. Automation starts from observed surviving hubs; no implicit on.")
+	fmt.Fprintln(w, "             Turning on resumes future automatic work without replaying suppressed notices.")
 	verbLine(w, "--notify", "       couch --notify [--title T] MESSAGE")
 	fmt.Fprintln(w, "             Only a live hub notifies (default title: Couch); other slots send to their hub.")
 	fmt.Fprintln(w, "             Slots' OSC 9/777/99 notifications are swallowed, including the hub's; BEL is unchanged.")

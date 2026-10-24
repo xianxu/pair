@@ -13,9 +13,9 @@ import (
 
 // The attention list (pair#673): what waits on the operator, owned here as a
 // couchcore.AttentionList. Couch's sources report facts (ObserveAttention);
-// the status row shows 🔔N, Ctrl+Alt+a or a click on it opens the list over
+// the status row shows 🔔N, Ctrl+Return, Ctrl+Alt+a or a click opens the list over
 // the top right, and picking an item jumps to its slot through switchTo, the
-// funnel Ctrl+Return and chip clicks use. The panel is drawn on the
+// funnel notification hops and chip clicks use. The panel is drawn on the
 // operator-only layer, so a broadcast never shows it.
 
 // attentionState is a leaf: its lock is taken under c.mu (the status model)
@@ -126,7 +126,7 @@ func (c *Console) layoutAttentionLocked(cols, screenRows int) {
 	}
 	for i, r := range rows {
 		c.attn.ids = append(c.attn.ids, r.item.ID)
-		items = append(items, menuItem{ID: i + 2, Text: r.text, Chip: true, Bg: r.bg})
+		items = append(items, menuItem{ID: i + 2, Text: r.text, Chip: true, Bg: r.bg, refStart: len("15:04  ")})
 	}
 	c.attn.box = renderMenuAt(attentionTitle, items, cols, screenRows, true)
 	if !c.attn.box.Open() {
@@ -136,7 +136,7 @@ func (c *Console) layoutAttentionLocked(cols, screenRows int) {
 	c.attn.sel = min(max(c.attn.sel, 0), len(c.attn.box.items)-1)
 }
 
-// toggleAttention is Ctrl+Alt+a and a click on 🔔N.
+// toggleAttention is Ctrl+Return, Ctrl+Alt+a and a click on 🔔N.
 func (c *Console) toggleAttention() {
 	c.expireAttention()
 	cols, rows := c.attentionScreen()

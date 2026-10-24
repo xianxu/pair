@@ -38,8 +38,9 @@ type lifecycleAttempt struct {
 // unresolvedFact is a fact waiting for its slot identity, and when it began
 // waiting (an ordinary fact expires, see lifecycleOrdinaryWait).
 type unresolvedFact struct {
-	fact couchtty.LifecycleObservation
-	at   time.Time
+	fact    couchtty.LifecycleObservation
+	at      time.Time
+	permits map[string]lifecycleAutomationPermit
 }
 
 // lifecycleOrdinaryWait bounds how long an ordinary-target fact waits for its
@@ -47,6 +48,11 @@ type unresolvedFact struct {
 // connect and verification (seconds, admission itself is capped at 10 s); a
 // fact older than this would be published as stale news (pair#693).
 const lifecycleOrdinaryWait = 2 * time.Minute
+
+type lifecycleAutomationPermit struct {
+	enabled bool
+	epoch   uint64
+}
 
 type lifecycleAdmission struct {
 	token   uint64
@@ -58,6 +64,8 @@ type lifecycleAdmission struct {
 // callbacks reduce memory only; admission runs on owned, cancellable workers.
 type lifecyclePublisher struct {
 	mu          sync.Mutex
+	collecting  bool
+	permits     map[string]lifecycleAutomationPermit
 	service     *messageService
 	state       couchcore.LifecycleNoticeState
 	ready       map[uint64]couchcore.LifecycleNoticeEffect
@@ -108,7 +116,7 @@ func (p *lifecyclePublisher) advanceLocked(e couchcore.LifecycleNoticeEvent) {
 				// reducer can freeze against the replacement recipient.
 				p.advanceLocked(couchcore.LifecycleNoticeEvent{Kind: couchcore.LifecycleNoticeAdmission, Hub: fx.Hub, Token: fx.Token, Outcome: "unavailable"})
 			}
-			if a, ok := p.attempts[fx.Token]; ok && !a.admitted {
+			if a, ok := p.attempts[fx.Token]; ok && !a.admitted && (!a.retired || !a.started) {
 				a.cancel()
 			}
 		}
@@ -153,16 +161,63 @@ func (p *lifecyclePublisher) ownershipChanged(newOwner string) {
 	p.mu.Unlock()
 	p.signal()
 }
+
+// automationSnapshot reads bounded memory only. Keeping the snapshot with an
+// unresolved fact prevents a later identity from reviving an off occurrence.
+func (p *lifecyclePublisher) automationSnapshot() map[string]lifecycleAutomationPermit {
+	permits := map[string]lifecycleAutomationPermit{}
+	if p.service == nil {
+		return permits
+	}
+	roots := []string{p.service.authority.hub}
+	if p.service.authority.hubs != nil {
+		roots = nil
+		for _, hub := range p.service.authority.hubs.snapshot().Hubs() {
+			roots = append(roots, hub.Root)
+		}
+	}
+	for _, root := range roots {
+		if root != "" {
+			on, epoch := p.service.hubAutomationPermit(root)
+			permits[root] = lifecycleAutomationPermit{enabled: on, epoch: epoch}
+		}
+	}
+	return permits
+}
+
+// Each epoch transition consumes old unadmitted work before a new observation
+// can qualify. Already-started attempts remain owned for canonical receipts.
+func (p *lifecyclePublisher) syncAutomationLocked(permits map[string]lifecycleAutomationPermit) {
+	for root, prior := range p.permits {
+		current, exists := permits[root]
+		if exists && current == prior {
+			continue
+		}
+		for token, a := range p.attempts {
+			if a.hub == root {
+				a.retired = true
+				p.attempts[token] = a
+			}
+		}
+		p.advanceLocked(couchcore.LifecycleNoticeEvent{Kind: couchcore.LifecycleNoticeSuppressHub, Hub: root})
+	}
+	p.permits = permits // snapshots are immutable after publication
+}
+
 func (p *lifecyclePublisher) observe(e couchtty.LifecycleObservation) {
 	var identities map[string]couchcore.WorkspaceIdentity
 	if e.Kind == "restart-drained" {
 		identities = p.workspaceSnapshot()
 	}
 	p.mu.Lock()
+	permits := p.automationSnapshot()
+	p.syncAutomationLocked(permits)
 	switch e.Kind {
 	case "restart-armed":
+		p.collecting = true
 		p.advanceLocked(couchcore.LifecycleNoticeEvent{Kind: couchcore.LifecycleNoticeArm})
 	case "restart-drained":
+		p.collecting = false
 		p.cacheIdentitiesLocked(identities)
 		p.reducePendingLocked()
 		// Missing cached metadata cannot establish slot ownership. Ordinary or
@@ -176,17 +231,20 @@ func (p *lifecyclePublisher) observe(e couchtty.LifecycleObservation) {
 			}
 		}
 		if missing > 0 {
-			p.diagnostics[""] = fmt.Sprintf("Couch lifecycle: %d observations lacked verified slot metadata at restart drain", missing)
+			p.diagnostics[""] = fmt.Sprintf("Lifecycle: metadata unverified for %d slot(s) at restart drain", missing)
 		}
 		clear(p.unresolved)
 		p.advanceLocked(couchcore.LifecycleNoticeEvent{Kind: couchcore.LifecycleNoticeDrain, Reason: fmt.Sprintf("restart reattachments complete; %d failed", e.Failures)})
 	default:
-		p.observeFactLocked(e)
+		if p.collecting && e.Initiation != "operator" && e.Initiation != "peer" {
+			break
+		}
+		p.observeFactLocked(e, permits)
 	}
 	p.mu.Unlock()
 	p.signal()
 }
-func (p *lifecyclePublisher) observeFactLocked(e couchtty.LifecycleObservation) {
+func (p *lifecyclePublisher) observeFactLocked(e couchtty.LifecycleObservation, permits map[string]lifecycleAutomationPermit) {
 	if e.Path == "" || e.Path == p.service.authority.hub {
 		return
 	}
@@ -204,7 +262,7 @@ func (p *lifecyclePublisher) observeFactLocked(e couchtty.LifecycleObservation) 
 	// session connects and its workspace is verified (pair#693). It waits for
 	// the next refresh rather than being lost.
 	if !ok {
-		p.retainUnresolvedLocked(e)
+		p.retainUnresolvedLocked(e, permits)
 		return
 	}
 	hub := p.service.authority.owner(id)
@@ -229,11 +287,17 @@ func (p *lifecyclePublisher) observeFactLocked(e couchtty.LifecycleObservation) 
 		}
 	}
 	if !p.roots[hub] && len(p.roots) >= 128 {
-		p.diagnostics[""] = "Couch lifecycle: hub projection capacity reached; inspect Slots"
+		p.diagnostics[""] = "Lifecycle: hub projection full; inspect Slots"
 		return
 	}
 	p.roots[hub] = true
-	p.advanceLocked(couchcore.LifecycleNoticeEvent{Kind: couchcore.LifecycleNoticeConfirmed, Fact: couchcore.LifecycleNoticeFact{
+	outcome := ""
+	on, epoch := p.service.hubAutomationPermit(hub)
+	observed := permits[hub]
+	if !observed.enabled || !on || observed.epoch != epoch {
+		outcome = "suppressed"
+	}
+	p.advanceLocked(couchcore.LifecycleNoticeEvent{Kind: couchcore.LifecycleNoticeConfirmed, Outcome: outcome, Fact: couchcore.LifecycleNoticeFact{
 		Hub: hub, Slot: slot, Address: e.Address, Incarnation: e.Incarnation, Observation: e.Observation, Kind: couchcore.LifecycleNoticeKind(e.Kind), Operation: e.Operation, Agent: e.Agent, Model: e.Model, Branch: e.Branch, Issue: e.Issue, Initiation: e.Initiation, Mode: e.Mode,
 	}})
 }
@@ -243,11 +307,14 @@ func (p *lifecyclePublisher) observeFactLocked(e couchtty.LifecycleObservation) 
 // never verify (no slot workspace) cannot crowd out one that will. Drain and
 // ownership change clear the set; refresh also drops an ordinary fact older
 // than lifecycleOrdinaryWait (reducePendingLocked).
-func (p *lifecyclePublisher) retainUnresolvedLocked(e couchtty.LifecycleObservation) {
+func (p *lifecyclePublisher) retainUnresolvedLocked(e couchtty.LifecycleObservation, snapshots ...map[string]lifecycleAutomationPermit) {
 	if len(e.Path) > 4096 {
 		return
 	}
 	u := unresolvedFact{fact: e, at: p.clock()}
+	if len(snapshots) > 0 {
+		u.permits = snapshots[0]
+	}
 	if previous, exists := p.unresolved[e.Path]; exists {
 		if e.Observation > previous.fact.Observation {
 			p.unresolved[e.Path] = u
@@ -280,7 +347,7 @@ func (p *lifecyclePublisher) reducePendingLocked() {
 	for path, u := range p.unresolved {
 		if _, ok := p.identities[path]; ok {
 			delete(p.unresolved, path)
-			p.observeFactLocked(u.fact)
+			p.observeFactLocked(u.fact, u.permits)
 		} else if u.fact.Target.Kind == couchcore.ThreadTargetOrdinary && now.Sub(u.at) > lifecycleOrdinaryWait {
 			delete(p.unresolved, path)
 		}
@@ -292,6 +359,7 @@ func (p *lifecyclePublisher) reducePendingLocked() {
 func (p *lifecyclePublisher) refresh() {
 	identities := p.workspaceSnapshot()
 	p.mu.Lock()
+	p.syncAutomationLocked(p.automationSnapshot())
 	p.cacheIdentitiesLocked(identities)
 	p.reducePendingLocked()
 	var roots []string
@@ -335,6 +403,7 @@ func (p *lifecyclePublisher) run(ctx context.Context) {
 			}
 		}
 		jobs := p.ready
+		jobPermits := p.permits
 		generation := p.generation
 		p.ready = map[uint64]couchcore.LifecycleNoticeEffect{}
 		diagnostics := p.diagnostics
@@ -346,6 +415,14 @@ func (p *lifecyclePublisher) run(ctx context.Context) {
 			}
 		}
 		for token, fx := range jobs {
+			expected := jobPermits[fx.Hub]
+			on, epoch := p.service.hubAutomationPermit(fx.Hub)
+			if !expected.enabled || !on || epoch != expected.epoch {
+				p.mu.Lock()
+				p.advanceLocked(couchcore.LifecycleNoticeEvent{Kind: couchcore.LifecycleNoticeAdmission, Hub: fx.Hub, Token: token, Outcome: "suppressed"})
+				p.mu.Unlock()
+				continue
+			}
 			p.mu.Lock()
 			if generation != p.generation {
 				p.mu.Unlock()
@@ -383,7 +460,7 @@ func (p *lifecyclePublisher) run(ctx context.Context) {
 			p.attempts[token] = lifecycleAttempt{id: id, hub: fx.Hub, from: b, cancel: cancel}
 			p.mu.Unlock()
 			workers.Add(1)
-			go func(token uint64, body string, b couchmessage.Binding, id string) {
+			go func(token uint64, body string, b couchmessage.Binding, id string, permit hubInputPermit) {
 				defer workers.Done()
 				var r couchmessage.Receipt
 				release, err := holdHubEffect(admissionCtx, p.service.authority.hubs)
@@ -397,7 +474,11 @@ func (p *lifecyclePublisher) run(ctx context.Context) {
 					}
 					p.mu.Unlock()
 					if valid {
-						r, err = p.service.broker.SendSystem(admissionCtx, b, id, couchmessage.Route{Target: b.Slot}, body)
+						if !permit.current(p.service) {
+							err = errHubAutomationOff
+						} else {
+							r, err = p.service.sendAutomaticSystem(admissionCtx, b, b, id, body, permit)
+						}
 					} else {
 						err = couchmessage.ErrUnavailable // proven not admitted
 					}
@@ -409,7 +490,7 @@ func (p *lifecyclePublisher) run(ctx context.Context) {
 				case p.results <- lifecycleAdmission{token: token, receipt: r, err: err}:
 				case <-ctx.Done():
 				}
-			}(token, fx.Body, b, id)
+			}(token, fx.Body, b, id, hubInputPermit{root: fx.Hub, enabled: expected.enabled, epoch: expected.epoch})
 		}
 		select {
 		case <-ctx.Done():
@@ -426,6 +507,9 @@ func (p *lifecyclePublisher) run(ctx context.Context) {
 				outcome := "accepted"
 				if result.err != nil {
 					outcome = "refused"
+					if errors.Is(result.err, errHubAutomationOff) {
+						outcome = "suppressed"
+					}
 					if errors.Is(result.err, couchmessage.ErrUnsupported) {
 						outcome = "unsupported"
 					}
@@ -442,10 +526,12 @@ func (p *lifecyclePublisher) run(ctx context.Context) {
 						if !a.retired {
 							p.advanceLocked(couchcore.LifecycleNoticeEvent{Kind: couchcore.LifecycleNoticeAdmission, Hub: a.hub, Token: result.token, Outcome: "uncertain"})
 						}
+						if !a.retired {
+							p.diagnostics[a.hub] = "Couch lifecycle admission uncertain; polling canonical receipt without retry"
+						}
 						a.admitted = true
 						a.retired = true
 						p.attempts[result.token] = a
-						p.diagnostics[a.hub] = "Couch lifecycle admission uncertain; polling canonical receipt without retry"
 					} else {
 						a.cancel()
 						delete(p.attempts, result.token)

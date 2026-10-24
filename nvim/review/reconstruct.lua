@@ -82,7 +82,12 @@ function M.is_marker_proposal(text)
   return type(text) == 'string' and text:match('🤖[<{~]') ~= nil
 end
 
-function M.decorate(records, content, which)
+-- One presentation fallback for live rounds and resume records.
+function M.presentation(span, round_presentation)
+  return span.presentation or round_presentation or 'highlight'
+end
+
+function M.decorate(records, content, which, round_presentation)
   which = which or 'new'
   local highlights, diagnostics = {}, {}
   for _, r in ipairs(records) do
@@ -90,10 +95,11 @@ function M.decorate(records, content, which)
     if which == 'old' then anchor, occ = r.old, r.occurrence
     else anchor, occ = r.new, r.new_occurrence end
     local off = anchor and anchor ~= '' and M.nth_offset(content, anchor, occ or 1)
-    if off then
+    local presentation = M.presentation(r, round_presentation)
+    if off and presentation ~= 'direct' then
       local lnum, col = M.pos_at(content, off)
       local last, end_col = M.pos_at(content, off + #anchor)
-      if not M.is_marker_proposal(anchor) then
+      if presentation == 'highlight' and not M.is_marker_proposal(anchor) then
         highlights[#highlights + 1] = { line = lnum, col = col, end_line = last, end_col = end_col }
       end
       diagnostics[#diagnostics + 1] = {

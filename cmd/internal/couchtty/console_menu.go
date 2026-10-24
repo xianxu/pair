@@ -213,6 +213,10 @@ func (c *Console) reduceMenu(event MenuEvent) {
 }
 
 func (c *Console) onMenuKey(key PanelKey) {
+	if key.Kind == KeyToggleAutomation {
+		c.toggleSelectedAutomation()
+		return
+	}
 	if key.Kind == KeyCopyNotice {
 		c.copyLastNotice()
 		return
@@ -477,6 +481,10 @@ func (c *Console) copyLastNotice() {
 	}
 	if !found && c.menu.Notice.Level == MenuNoticeError && c.menu.Notice.Text != "" {
 		text, found = c.menu.Notice.Text, true
+	}
+	if !found && c.wcast.cast != nil {
+		text = capabilityNotice(c.wcast.cast.Capabilities())
+		found = text != ""
 	}
 	if !found {
 		messages := c.feed.Messages()

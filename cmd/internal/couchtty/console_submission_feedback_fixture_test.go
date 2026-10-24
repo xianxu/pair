@@ -31,6 +31,12 @@ func (f *submissionCastFake) FreezeSubmissionPreview(host core.PreviewHost, sele
 	}
 	return f.feedback.FreezeSubmissionPreview(host, selection)
 }
+func (f *submissionCastFake) SubmissionUnsavedNote(ctx context.Context) (string, error) {
+	if f.feedback == nil {
+		return "", nil
+	}
+	return f.feedback.SubmissionUnsavedNote(ctx)
+}
 func (f *submissionCastFake) SubmissionCandidateUpdates() (<-chan struct{}, func()) {
 	if f.feedback == nil {
 		return nil, func() {}

@@ -33,7 +33,7 @@ type waitReason string
 const (
 	waitPrompt   waitReason = "on a prompt"
 	waitQuestion waitReason = "after asking"
-	waitIdle     waitReason = "idle off its resting branch"
+	waitIdle     waitReason = "idle off resting branch"
 	waitPicker   waitReason = "behind a picker"
 )
 
@@ -198,7 +198,7 @@ func waitNoticeBody(slot string, quiet time.Duration, reason waitReason, summary
 	if summary == "" {
 		summary = "(no text on screen)"
 	}
-	return fmt.Sprintf("slot %s waiting %d min %s: %s (couch --peek %s; mute: add %s to %s)",
+	return fmt.Sprintf("slot %s waiting %dm %s: %s (couch --peek %s; mute: add %s to %s)",
 		slot, int(quiet/time.Minute), reason, summary, slot, slot, optOutPath)
 }
 
@@ -388,10 +388,7 @@ func (w *waitWatcher) tick(ctx context.Context, now time.Time) {
 		if w.svc.isHubBinding(b) || !row.Known {
 			continue
 		}
-		hub, hasHub := w.svc.hubBindingFor(b)
-		if !hasHub {
-			continue
-		}
+		permit := w.svc.captureOwnerHubInputPermit(b)
 		reportID := ""
 		if coordinator != nil {
 			reportID, _ = coordinator.waitState(b)
@@ -461,17 +458,20 @@ func (w *waitWatcher) tick(ctx context.Context, now time.Time) {
 		// From the waiting slot to the hub's exact slot: the notice is an
 		// ordinary message, so it gets the hub's breaker, delivery and ledger.
 		// Tail reading may yield while ownership changes. Resolve again at admission.
-		hub, hasHub = w.svc.hubBindingFor(b)
-		if !hasHub {
-			continue
-		}
+		hub, hasHub := w.svc.hubBindingFor(b)
 		var sendErr error
-		if coordinator != nil {
-			_, sendErr = coordinator.sendGenerated(ctx, b, hub, id, body, false)
+		if !permit.current(w.svc) {
+			sendErr = errHubAutomationOff
+		} else if !hasHub {
+			continue
+		} else if w.svc.generatedHubInputOff(hub) {
+			sendErr = errHubAutomationOff
+		} else if coordinator != nil {
+			_, sendErr = coordinator.sendGenerated(ctx, b, hub, id, body, false, permit)
 		} else {
-			_, sendErr = w.svc.broker.Send(ctx, b, id, couchmessage.Route{Target: hub.Slot}, body)
+			_, sendErr = w.svc.sendAutomaticSystem(ctx, b, hub, id, body, permit)
 		}
-		if sendErr != nil {
+		if sendErr != nil && !errors.Is(sendErr, errHubAutomationOff) {
 			continue // hub busy or out of allowance: retried next tick
 		}
 		w.seen[b] = waitEpisode{key: key, notified: true, judged: judged}

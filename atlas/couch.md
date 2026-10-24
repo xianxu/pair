@@ -12,6 +12,50 @@ the pty console, actor panel, notices, and complete local lifecycle shipped in
 
 ## What exists today
 
+### Startup and hub automation (#739)
+
+`couchcore/startup_policy.go` classifies one read-only bulk session observation.
+Implicit startup only warm-attaches surviving hubs; missing or unknown hubs stay
+in the switcher. After a cold start, no hub is launched automatically by design:
+choose Resume from disk on its retained row, or Ctrl+Space → Start with its hub
+directory if no row exists. Normal warm reattachment is unchanged. The retained
+startup notice names this recovery path. The `missing at startup:` field in
+automation status is the initial observation, not a live inventory; manually
+attaching a hub does not erase that startup history. Explicit lifecycle operations
+keep their existing authority.
+`couchcmd/automation.go` owns per-hub memory policy, initialized on only for a
+positively surviving hub. Its authenticated CLI controls the caller's own hub;
+the switcher's Ctrl+G can control any configured hub. Turning automation off
+suppresses machine-generated hub input and scheduled due runs, while human and
+worker communication, status and desktop output remain independent. Suppressed
+occurrences are retired rather than replayed on enable.
+
+Generated occurrences retain their original canonical hub and automation epoch
+through routing and endpoint IO. `sendAutomaticSystem` pins the exact recipient
+and supplies the internal broker `AdmissionGuard`. Direct admission and both
+busy enqueue paths check it under the broker mutex; the guard holds the
+automation mutex only across the in-memory mailbox commit. Off before that
+commit retires the occurrence, even after off/on. Admission before off keeps its
+canonical receipt and ordinary delivery rules. Neither mutex covers endpoint IO,
+and no admitted message is retracted or retried by changing automation.
+
+The shared lock order with #737 is **hub-effect gate → scheduler authority →
+broker → automation**. Scheduler notice admission may consult the automation
+getter while holding the earlier scheduler locks, but releases that read before
+entering the broker. Broker commit guards acquire only automation, never an
+earlier lock, and contain no IO or broker reentry. Automation controls acquire
+only automation. The second lander wires #737's due/script/notice consumers and
+verifies this order; its unlanded behavior is not claimed by #739's provider.
+Broker tests assert both mutexes remain held through receipt publication; policy
+tests prove the automation mutex is free during routing and released after the
+commit. The source guard rejects a generated send with a missing/nil policy.
+
+`couchmessage/worker_start_notice.go` models one wrapper launch's cue witness.
+Negotiated hello-v5 carries its bounded report; `wrapcmd` retains the exact
+system cue receipt independently of normal receipt eviction. Launch ordinals
+distinguish a same-PID re-exec. This is separate from the existing per-Couch
+restart resend prompt.
+
 ### Tab styles (#796, #779)
 
 `couch --tab-style collapse` is the launch default; `--tab-style multiline`
@@ -31,8 +75,20 @@ when space permits. Counts carry actor cardinality, so later scarcity overflow n
 double-counts folded actors. The shared measured planner and drawing pass in
 `status_layout.go` and `reserve.go` retain active/attention chips first. At
 impossible widths the overflow marker includes `!` when hidden actors need
-attention (`+N !` when it fits); the bell still opens the full attention list.
+attention (`+N !` when it fits); the bell still opens the full notification list (bell).
 A tiny host prioritizes a clipped, clickable active span over fixed controls.
+
+`couchcore.CompactSlotGlyph` projects the existing closed `SlotGlyph` grammar
+to one cell: dirty, diverged, ahead/behind, issue branch, otherwise neutral `·`.
+The collapse pass retains one marker per exact hidden live member in presentation
+slot order on frame-local `StatusActor.FoldedStateStrip`. After base packing,
+`decorateFoldedCounts` measures the winning cells once and admits whole strips
+left-to-right into spare columns. A non-fitting group stays plain `+N`; later
+smaller strips can still fit. No detail displaces actors, counts, controls or
+attention. Global mixed-group overflow has no strip, and multiline is unchanged.
+The shared drawing pass applies existing glyph colour/owner shading and extends
+the same count hit span through the separator and final marker. Markers convey
+checkout evidence, never agent activity; all detail dies with the frame.
 
 A complete drawn group count opens the root switcher scoped to its exact owner
 hub and repository group, using the same presentation membership before text
@@ -54,6 +110,13 @@ notices use free space on the final row. Beyond two rows, retained actors keep
 their original order after priority selection; the final overflow counts hidden
 actors and flags hidden attention. Labels are sanitized/measured once, with
 O(B + A log A) bounded planning shared by both styles.
+
+Both styles share `ChromeStatusText`, which projects transient and capability
+notices to at most40 display cells, including an ellipsis, after terminal
+sanitization. Feed and diagnostic records retain full text; switcher Ctrl+Y
+copies held retries, selected failures, current capability diagnostics, then the
+last feed notice. Producers retain complete upstream wording; common wording
+cleanup is tracked separately in #802.
 
 Collapse keeps child height constant across changes in actor content, focus and
 attention, removing #810's content-driven one/two-row resize trigger. Physical
@@ -742,7 +805,7 @@ counts enter the existing COUCH_TRACE diagnostics as `notify-suppressed`, and
 ordinary BEL is unchanged. Each aggregate names the pane endpoint and cumulative
 count; a fresh attachment starts a new counter. No notification text is logged.
 
-**Attention list (pair#673, ephemeral lifecycle pair#733).** Ctrl+Alt+a or the
+**Notification list (bell) (pair#673, ephemeral lifecycle pair#733).** Ctrl+Return, Ctrl+Alt+a or the
 status row's 🔔N badge opens the top-right panel. Enter/click opens and removes
 an item, `d` dismisses, and the always-visible Clear all row or `c` empties it.
 Three sources report facts through the message service: hub notifications,
@@ -755,7 +818,14 @@ starts with no remembered events or suppressions and re-derives live state.
 The legacy `NAMESPACE/attention/list.json` is neither read nor written; no saver
 worker remains. Count and in-memory payload byte bounds still evict oldest
 notifications first. The badge stays red while a visible prompt is outstanding;
-the panel is operator-only. The hub's Needs-you section is the durable record.
+the panel is operator-only. Standalone slot (`repo:N`) and issue (`repo#N`, `#N`)
+references use the existing actionable-link blue. Matching uses fitted display
+rows and plain punctuation boundaries; generated timestamps and words touching
+paths, URLs, brackets or Markdown links stay plain. Wrapped row edge words may
+be fragments and conservatively stay plain too. This is a visual aid: ambiguous
+or split references can be uncolored. Notification text, Ctrl+Y's full-notice
+payload, selection, chip colors and other notes menus are unchanged (#841).
+The hub's Needs-you section is the durable record.
 See `couchcore/attention_list.go`, `attention_store.go` (byte-size encoding only),
 `couchcmd/attention.go`, and `couchtty/console_attention.go`.
 
@@ -1481,7 +1551,8 @@ report it. `waitWatcher` (`couchcmd/wait_notice.go`) ticks every 15s
   exact slot (`messageService.hubBinding`, the connected binding in
   `messageAuthority.hub`; the registry's newest incarnation of that slot),
   so the hub's breaker, delivery and ledger apply
-  unchanged. The body puts `slot repo:N waiting M min <reason>` first (pair#211).
+  unchanged. The body puts `slot repo:N waiting Mm <reason>` first (pair#211);
+  #789 caps the chrome row at 40 cells and #802 shortened the built-in notices.
 - **Not watched:** the hub itself (its operator is the one it would tell;
   the strict form of #441's self-addressed rule), and slots listed in
   `<store>/wait-notice-off` (one `repo:N` per line, `#` comments; the
@@ -1980,7 +2051,9 @@ by its leading position, reverse-video tab chip (pair#521), and underlined switc
   lines under it, sits one indent level (2 spaces) deeper. The hub main row
   is underlined; only the selected row uses reverse video. A selected hub keeps
   underline and adds bold beside the cursor arrow, preserving red
-  for a blocked hub. Attention detail lines keep their usual styling.
+  for a blocked hub. Owner focus does not dim switcher rows (#840); parked
+  age treatment and existing activity/status cues remain. The tab bar retains
+  inactive-owner dimming. Attention detail lines keep their usual styling.
 - **Data path:** couchcmd hands the root to `Console.SetHub` at startup. It is
   reduced as `MenuEventHub` into `MenuState.Hub`, which re-sorts the installed
   inventory (`reorderMenuInventory`). `PresentThreads(rows, git, hub)` puts the
@@ -2607,8 +2680,15 @@ or a pre-existing footer. Omitted effort follows the observed picker value.
 Raw steps are the `agentdrive.Steps` rows: `text:…`, `enter`, `submit`, the
 arrows, `tab`, `shift-tab`, `backspace`, `delete`, `home`, `end`, `pageup`,
 `pagedown`, `esc`, `clear-line`, `wait:MS`, `f1-f12`, `ctrl-LETTER` and
-`alt-LETTER`. Return translation stays shared with Pair: `enter` means newline
-in the qualified composer and selection in a picker; `submit` means Alt+Return.
+`alt-LETTER`. Return translation stays shared with Pair: `enter` natively submits a positively
+proved single-line slash command, inserts newline in ordinary composer text and
+selects in a picker; `submit` means Alt+Return. Paths, leading user whitespace,
+multiline input and incomplete text proof retain the existing newline mapping.
+Known authored slash sequences wait for exact fresh echo within the existing
+drive deadline. The final command proof and Return decision share one immutable
+frame; changed ownership or command text vetoes the write. Unsupported raw edits
+do not gain command prediction. Ordinary peer/prose sends and exact /model
+cleanup authority remain separate. Draft-pane Enter is unchanged.
 A lone ESC is flushed as one separate step. Raw success confirms acknowledged
 input and the final styled observation, without claiming an arbitrary command's
 semantic result. Printable UTF-8 text cannot hide terminal controls.
@@ -3182,40 +3262,30 @@ then ignored it for backspace, so the CSI-u form decoded as a plain backspace;
 that is fixed as defence in depth, since the interceptor claims both encodings
 before the panel sees them but forwards paste content verbatim.
 
-`ctrl+return` **answers the newest page** (`pair#221`). From an actor it lands on
-`attention.NewestActor()` -- the thread `ctrl-space` would have opened the
-normal switcher on -- with no switcher in between. Focus-view filtering does
-not constrain this jump. In code it is `ctrl+backspace`'s
-mirror image: `onNewestPageHotkey` computes a target from console-local state and
-calls `switchTo` directly. It does not dispatch the switcher's queued `switch`
-operation, which would add the queue hop, a dependency on the inventory having
-loaded, and `ctrl-space`'s first-visible-row fallback for a thread missing from
-a stale inventory. The arrival is `arrivalNotification`, because the target is
-paging by construction, and that is exactly what the switcher's Return derives
-from a non-zero capture. So the jump is non-pinning: a second press answers the
-next page, and `ctrl+backspace` still goes home. One test,
-`TestNewestPageLandsWhereCtrlSpaceThenReturnWould`, drives both paths from one
-attention state and compares the whole landing, `SwitchTracker` included.
+`ctrl+return` toggles the existing **notification list (bell)** (`pair#811`), sharing
+`couchkeys.ActionAttention`, `HitAttention` and `Console.toggleAttention` with
+Ctrl+Alt+a and the bell. This applies from both actors and the switcher; the
+underlying focus, active thread, switcher selection, paging acknowledgements and
+previous-thread history do not change. A second press closes the overlay. An
+empty list shows the existing “Nothing is waiting on you.” notice.
 
-Three edge cases:
+This replaces #221's direct newest-page jump and its switcher modified-Return
+acceptance; `onNewestPageHotkey` and the separate newest-page action are removed.
+Ordinary Enter still accepts a switcher row, while Enter or clicking an attention
+item uses the existing notification arrival funnel. Ctrl+Space then Enter remains
+the paging route and Ctrl+Backspace still returns to the previous thread.
 
-- **Nothing paging.** It stays put and says so on the status row. There is no
-  `ActiveAddress` fallback: a jump to where you already are reads as a dropped
-  key.
-- **Paging thread's child done, exit not yet reduced.** It refuses the same way.
-- **The newest pager is the actor already in use.** Reachable only through the
-  `focusedAtDelivery` race. `switchTo(..., force=false, ...)` acknowledges and
-  stays, with no takeover. It also shows a notice, because the row never draws
-  the active actor's bell, so the acknowledgement alone would be invisible.
-
-The chord uses Kitty keyboard disambiguation (`couchkeys.NewestPageSequence`,
-`\x1b[13;5u`); explicit press and repeat forms also jump, while release does
-not. The presenter owns one keyboard-protocol stack entry per screen it presents on
-and restores both at release (`atlas/terminal.md`, #279).
-Child protocol negotiation stays in the endpoint and determines child input
-encoding. Plain Return still reaches the agent; terminals without enhanced keys
-retain Ctrl+Space then Return as the fallback. In the switcher, Return keeps its
-panel behavior. Selection and input share one acknowledged presentation order.
+The chord uses Kitty keyboard disambiguation (`couchkeys.CtrlReturnSequence`,
+`\x1b[13;5u`); explicit press and repeat also toggle, while release does not.
+The presenter owns one keyboard-protocol stack entry per screen it presents on
+and restores both at release (`atlas/terminal.md`, #279). Child protocol
+negotiation stays in the endpoint and determines child input encoding. Plain
+Return still reaches the agent; on terminals without enhanced keys, click the
+bell to open the notification list. Ctrl+Alt+a also requires enhanced encoding.
+Paste content remains literal.
+Physical-key tests cover child protocol changes and both main/alternate screens;
+production-input regressions cover all three encodings from actor/switcher focus,
+ordinary Enter, and both encodings of previous-thread navigation.
 
 `SwitchTracker` (`couchtty/switchrule.go`) is the whole rule: one `previous`
 slot and one boolean carried on the CURRENT actor. `Console.switchTo` is the
@@ -3841,31 +3911,21 @@ and established #155 native root, and read-only validates Pair's existing
 established address marker. It rechecks that root immediately before child
 effects. Verified park is cleared only after the exact Pair session registers;
 ambiguous execution remains occupied/unknown. TUI Resume, alongside new-thread
-`start`, is a singleton-owner operation: after a later Couch launch the
+`start`, is a singleton-owner operation: an explicit request in a later Couch
 switcher resumes that exact thread and makes it the root console. It never
 creates an intervening actor that would occupy the parked thread's address
 (`ARCH-PURPOSE`, `ARCH-PURE`).
 
-Interactive `couch [<repo>]` startup resolves the requested repository scope,
-then applies `SelectResumableRoot` to the same proof-bearing actionable
-inventory used by the switcher, over that scope's primary (ordinary-target) rows
-at any working path -- one primary per repository (`pair#363`). It RANKS: detached
-before parked, most recently active within each class, and starts a new thread
-only when nothing matches. Inventory failure or a Resume refusal stops startup
-without creating a fallback actor, and `startupResumeRefusal` wraps that refusal
-with the thread it names and the ways forward -- no-fallback was right, refusing
-mutely was not. The selector is bounded O(n) with no fleet scan or remembered
-root identity (`ARCH-DRY`, `ARCH-CONSTRAINTS`).
-
-**The ranking reverses `SelectUniqueResumableRoot`'s documented refusal to have
-one** ("Preferring warm over cold would be a policy, and this selector
-deliberately has none", `pair#170` M3). Exactness turned out to be a ratchet:
-two resumable rows at one path were two matches, so startup created a third,
-which guaranteed the next startup created a fourth. One repository reached six
-threads that way. Warm beats cold because a detached agent is already running,
-so reattaching preserves what it was doing; recency because that is the thread
-the operator was last in, and a wrong guess costs one `ctrl-space`
-(`pair#181`).
+Interactive `couch [<repo>]` startup uses `ObserveStartupContext` and
+`ClassifyStartup` to report surviving sessions and seed hub automation.
+`StartInteractive` selects only a positively surviving session for the exact
+primary or numbered hub. It ranks surviving candidates by recency and
+revalidates the selected session before attachment. Parked, missing
+or unknown sessions never authorize implicit cold resume or Fresh. Without a
+surviving launch hub, the switcher stays focused; extra surviving hubs attach in
+the background. Configured empty hubs have display-only entries naming the
+existing Ctrl+Space Start form. Explicit Resume/Start retain their own guards.
+This replaces the earlier warm-before-cold startup ranking (#739).
 
 **A record couch cannot READ is a third answer, not a verdict.** `Snapshot`
 carries such addresses as `ThreadSnapshot.Unreadable` rather than raising, so one
@@ -4538,7 +4598,7 @@ Four rules outlive the sweep:
   fixture through the real store. That test exists here because the claim was
   made twice and was wrong twice.
 - **Guidance belongs at the consumer that needs it**, not as a marker every
-  producer must carry: `startupResumeRefusal` decorates any failure. An earlier
+  producer must carry: the explicit Resume consumer decorates its structured refusal. An earlier
   attempt at the latter changed what `ResumeDiagnosticCode` *meant* — from "is a
   structured refusal" to "came out of resume" — and broke every reader that used
   the distinction.

@@ -33,7 +33,32 @@ type submissionPreviewRun struct {
 	host   core.PreviewHost
 }
 
-var errSubmissionPreview = errors.New("Feedback changed; review Pending feedback and submit again")
+// submissionStaleCast marks the private panel out of date. Display only.
+type submissionStaleCast interface {
+	MarkSubmissionPreviewStale(context.Context, core.PreviewHost, string) error
+}
+
+var errPreviewHostRetired = errors.New("the private console host was replaced")
+
+// previewProblem is the worker's one-line account of a refresh it could not
+// complete, shown on the panel.
+func previewProblem(host, selection, latest, delivery error, delivered, board bool) string {
+	switch {
+	case host != nil:
+		return "the feedback could not be read: " + host.Error()
+	case selection != nil:
+		return "the board selection is unavailable: " + selection.Error()
+	case delivery != nil:
+		return "the delivered feedback could not be read: " + delivery.Error()
+	case latest != nil:
+		return "the board selection is unavailable: " + latest.Error()
+	case delivered:
+		return "a delivery completed while the preview was read"
+	case board:
+		return "the feedback changed while the preview was read"
+	}
+	return ""
+}
 
 func (m *submissionManager) startSubmissionPreview(cast submissionCast) {
 	m.previewStart.Lock()
@@ -132,11 +157,15 @@ func (m *submissionManager) runSubmissionPreview(ctx context.Context, run *submi
 		latest, latestErr := cast.SubmissionSelection()
 		select {
 		case <-life:
-			err = errSubmissionPreview
+			err = errPreviewHostRetired
 		default:
 		}
+		stale := ""
 		if err != nil || selectionErr != nil || latestErr != nil || deliveryErr != nil || deliveredGeneration != m.deliveredGeneration || latest.SketchGeneration != selected.SketchGeneration {
 			m.previewState, _ = core.NextPreview(m.previewState, core.PreviewHostChanged{})
+			if problem := previewProblem(err, selectionErr, latestErr, deliveryErr, deliveredGeneration != m.deliveredGeneration, latest.SketchGeneration != selected.SketchGeneration); problem != m.previewProblem {
+				m.previewProblem, stale = problem, problem
+			}
 		} else {
 			run.host = host
 			m.previewState, _ = core.NextPreview(m.previewState, core.PreviewHostChanged{Host: host})
@@ -151,6 +180,9 @@ func (m *submissionManager) runSubmissionPreview(ctx context.Context, run *submi
 			}
 		}
 		m.mu.Unlock()
+		if stale != "" && host.ID != "" {
+			m.markPreviewStale(ctx, cast, host, stale)
+		}
 		if publication != nil {
 			ioctx, stop := context.WithTimeout(ctx, 5*time.Second)
 			result := make(chan error, 1)
@@ -190,15 +222,27 @@ func (m *submissionManager) runSubmissionPreview(ctx context.Context, run *submi
 			if refresh {
 				<-result
 			}
+			failed := ""
 			m.mu.Lock()
 			if m.previewRun == run {
 				if accepted && ctx.Err() == nil {
 					m.previewState, _ = core.NextPreview(m.previewState, core.PreviewPublishAccepted{Publication: *publication})
+					m.previewProblem = ""
 				} else {
 					m.previewState, _ = core.NextPreview(m.previewState, core.PreviewPublishFailed{Publication: *publication})
+					if !refresh && ctx.Err() == nil {
+						if publishErr == nil {
+							publishErr = ioctx.Err()
+						}
+						m.previewProblem = "the panel did not show it: " + publishErr.Error()
+						failed = m.previewProblem
+					}
 				}
 			}
 			m.mu.Unlock()
+			if failed != "" {
+				m.markPreviewStale(ctx, cast, publication.Host(), failed)
+			}
 			if refresh {
 				continue
 			}
@@ -220,37 +264,16 @@ func (m *submissionManager) runSubmissionPreview(ctx context.Context, run *submi
 	}
 }
 
-// Called with manager.mu held; Board's generation fence is the atomic boundary.
-func (m *submissionManager) freezeSubmissionPreview(cast submissionCast, selected board.Selection, fresh ...*core.PreviewSelection) (board.Selection, error) {
-	if len(selected.Sketches) == 0 && len(selected.Notes) == 0 {
-		return selected, nil
+// markPreviewStale is bounded display IO outside manager.mu. A host that is
+// gone has no panel to mark, so its failure changes nothing.
+func (m *submissionManager) markPreviewStale(ctx context.Context, cast submissionPreviewCast, host core.PreviewHost, reason string) {
+	c, ok := cast.(submissionStaleCast)
+	if !ok {
+		return
 	}
-	run := m.previewRun
-	if run == nil || run.cast != cast {
-		return board.Selection{}, errSubmissionPreview
-	}
-	var proposal *core.PreviewSelection
-	if len(fresh) > 0 {
-		proposal = fresh[0]
-	}
-	var effects []core.PreviewEffect
-	m.previewState, effects = core.NextPreview(m.previewState, core.PreviewPrepare{Fresh: proposal, Host: run.host, Stamp: core.PreviewStamp{Board: selected.SketchGeneration, Delivered: m.deliveredGeneration}})
-	for _, effect := range effects {
-		if p, ok := effect.(core.PreviewFreezeProposal); ok {
-			frozen, err := run.cast.FreezeSubmissionPreview(p.Publication.Host(), p.Publication.Selection())
-			if err == nil {
-				frozen.SketchRemaining = p.Publication.Selection().Remaining
-				frozen.NoteRemaining = p.Publication.Selection().NoteRemaining
-				return frozen, nil
-			}
-			m.previewState, _ = core.NextPreview(m.previewState, core.PreviewFreezeRejected{Publication: p.Publication})
-		}
-	}
-	select {
-	case run.wake <- struct{}{}:
-	default:
-	}
-	return board.Selection{}, errSubmissionPreview
+	ioctx, stop := context.WithTimeout(ctx, 2*time.Second)
+	defer stop()
+	_ = c.MarkSubmissionPreviewStale(ioctx, host, reason)
 }
 func (m *submissionManager) submissionDeliveredLocked() {
 	m.deliveredGeneration++

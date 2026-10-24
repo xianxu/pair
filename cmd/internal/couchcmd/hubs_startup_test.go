@@ -7,9 +7,12 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"sync"
+	"syscall"
 	"testing"
+	"time"
 
 	"github.com/xianxu/pair/cmd/internal/couchcore"
 	"github.com/xianxu/pair/cmd/internal/couchtty"
@@ -29,6 +32,7 @@ type hubStartupRig struct {
 	host     *hostty.FakeHost
 	input    *io.PipeWriter
 	first    couchcore.StartResult
+	startup  couchcore.StartupObservation
 	hubs     *hubRuntime
 	paths    []string
 	calls    chan dispatchedCall
@@ -37,7 +41,12 @@ type hubStartupRig struct {
 	history  []dispatchedCall
 }
 
-func newHubStartupRig(t *testing.T, detached bool, beforeAdoption ...func(*hubStartupRig)) *hubStartupRig {
+// The legacy detached flag remains for shared startup fixtures; every hub
+// terminal must now be explicitly seeded as surviving.
+func newHubStartupRig(t *testing.T, _ bool, beforeAdoption ...func(*hubStartupRig)) *hubStartupRig {
+	return newHubStartupRigWithFirst(t, true, beforeAdoption...)
+}
+func newHubStartupRigWithFirst(t *testing.T, firstSurvived bool, beforeAdoption ...func(*hubStartupRig)) *hubStartupRig {
 	t.Helper()
 	root, err := filepath.EvalSymlinks(t.TempDir())
 	if err != nil {
@@ -68,9 +77,16 @@ func newHubStartupRig(t *testing.T, detached bool, beforeAdoption ...func(*hubSt
 	rt.runner = couchcore.NewFakeRunner()
 	other := seedDetachedThread(t, rt, ordinary)
 	rt.artifacts.SetDetachedSession(other.Address, "pair-"+other.Address.RepoScope+"-"+string(other.Address.Tag))
-	if detached {
-		thread := seedDetachedThread(t, rt, paths[1])
-		rt.artifacts.SetDetachedSession(thread.Address, "pair-"+string(thread.Address.Tag))
+	// Directory selection authorizes only surviving terminal attachment. These
+	// fixtures explicitly seed both hub sessions rather than relying on Fresh.
+	for index, path := range paths {
+		if index == 0 && !firstSurvived {
+			continue
+		}
+		thread := seedDetachedThread(t, rt, path)
+		name := "pair-" + thread.Address.RepoScope + "-" + string(thread.Address.Tag)
+		rt.artifacts.SetDetachedSession(thread.Address, name)
+		rt.artifacts.SetSessionPresence(thread.Address, couchcore.SessionObservation{State: couchcore.SessionPresent, Name: name})
 	}
 	c, err := rt.NewCouch()
 	if err != nil {
@@ -99,7 +115,7 @@ func newHubStartupRig(t *testing.T, detached bool, beforeAdoption ...func(*hubSt
 		child := rt.runner.Child(id)
 		address := couchcore.ThreadAddress{RepoScope: envValue(child.Env, "COUCH_THREAD_SCOPE"), Tag: couchcore.ThreadTag(envValue(child.Env, "COUCH_THREAD_TAG"))}
 		rt.artifacts.SetPairSession(address, managedChildSession(t, rt.runner, id), true)
-		rt.artifacts.SetSessionPresence(address, couchcore.SessionObservation{State: couchcore.SessionPresent})
+		rt.artifacts.SetSessionPresence(address, couchcore.SessionObservation{State: couchcore.SessionPresent, Name: managedChildSession(t, rt.runner, id)})
 		return nil
 	}
 	rt.runner.AfterBlockedStart = func(id string) {
@@ -118,6 +134,12 @@ func newHubStartupRig(t *testing.T, detached bool, beforeAdoption ...func(*hubSt
 		t.Fatal(err)
 	}
 	rig.first = first
+	startup, err := c.ObserveStartupContext(context.Background(), paths)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rig.startup = startup
+	console.SetHubOwnership(hubs.snapshot())
 	for _, setup := range beforeAdoption {
 		setup(rig)
 	}
@@ -131,7 +153,7 @@ func newHubStartupRig(t *testing.T, detached bool, beforeAdoption ...func(*hubSt
 		rig.calls <- dispatchedCall{call, e}
 		return v, e
 	})
-	if err := beginConsole(console, first); err != nil {
+	if err := beginConsole(console, first, !startup.Hubs[paths[0]].Survived); err != nil {
 		t.Fatal(err)
 	}
 	return rig
@@ -193,6 +215,18 @@ func TestHubStartupTwoHubsPreserveFirstFocus(t *testing.T) {
 	}
 }
 
+type hubRefusingRunner struct {
+	couchcore.Runner
+	path string
+}
+
+func (r hubRefusingRunner) StartBlocked(ctx context.Context, dir string, argv, env []string, timeout time.Duration) (couchcore.BlockedHandle, error) {
+	if dir == r.path {
+		return nil, errors.New("isolated second hub launch refusal")
+	}
+	return r.Runner.StartBlocked(ctx, dir, argv, env, timeout)
+}
+
 func TestHubStartupLaterFailureLeavesFirstUsable(t *testing.T) {
 	testHubStartupLaterFailure(t, false)
 }
@@ -206,7 +240,8 @@ func TestHubStartupLaterFailureAfterWarmWorkerLeavesFirstUsable(t *testing.T) {
 
 func testHubStartupLaterFailure(t *testing.T, warmFirst bool) {
 	r := newHubStartupRig(t, false)
-	r.rt.runner.FailNextStartIn(r.paths[1], errors.New("isolated second hub launch refusal"))
+	// Warm attachment owns one retry; both helper attempts must fail here.
+	r.c.Runner = hubRefusingRunner{Runner: r.rt.runner, path: r.paths[1]}
 	if warmFirst {
 		actual := r.console.Ops()
 		r.console.SetOperationDispatcher(func(call couchcore.OperationCall) (any, error) {
@@ -224,11 +259,12 @@ func testHubStartupLaterFailure(t *testing.T, warmFirst bool) {
 	}
 	startExplicitHubs(r.console, r.hubs)
 	r.run(t)
-	if call := r.await(t, "start-hub"); call.err == nil || !strings.Contains(call.err.Error(), "isolated second hub launch refusal") {
+	call := r.await(t, "start-hub")
+	if call.err == nil || !strings.Contains(call.err.Error(), "isolated second hub launch refusal") || !strings.Contains(call.err.Error(), r.paths[1]) || !strings.Contains(call.err.Error(), "diagnostics ") {
 		t.Fatalf("second launch did not report its injected refusal: %v", call.err)
 	}
 	waitWarmAcceptance(t, "visible hub refusal and retry action", func() bool {
-		return strings.Contains(r.host.Written(), "hub failed; open it in the switcher to retry:")
+		return strings.Contains(r.host.Written(), "hub failed; open it in the switcher to …")
 	})
 	r.assertFirstUsable(t)
 	waitWarmAcceptance(t, "warm worker starts despite failed hub", func() bool { r.mu.Lock(); defer r.mu.Unlock(); return len(r.children) == 2 })
@@ -241,7 +277,7 @@ func testHubStartupLaterFailure(t *testing.T, warmFirst bool) {
 }
 
 func TestHubStartupDetachedExtraLaunchesWithoutDuplicateWarmAttempt(t *testing.T) {
-	r := newHubStartupRig(t, true)
+	r := newHubStartupRig(t, false)
 	entered, release := make(chan struct{}), make(chan struct{})
 	var once sync.Once
 	actual := r.console.Ops()
@@ -313,6 +349,11 @@ func TestHubStartupDetachedExtraLaunchesWithoutDuplicateWarmAttempt(t *testing.T
 
 func TestHubStartupSingleHubDoesNotEnqueueAnotherLaunch(t *testing.T) {
 	r := newHubStartupRig(t, false)
+	// The single-hub fixture must not leave its second seeded terminal as an
+	// ordinary warm worker once ownership narrows to the first root.
+	extraScope, _ := launcher.ResolveRepoScope(r.paths[1])
+	r.rt.artifacts.SetDetachedSession(couchcore.ThreadAddress{RepoScope: extraScope.Key, Tag: "couch-0102030405060708"}, "")
+
 	// The existing no-arguments branch never calls startExplicitHubs. Even an
 	// explicit single-directory launch has no extra job and no alternate loop.
 	single, err := prepareExplicitHubs(context.Background(), r.c, r.paths[:1])
@@ -335,5 +376,311 @@ func TestHubStartupSingleHubDoesNotEnqueueAnotherLaunch(t *testing.T) {
 		if call.call.Name == "start-hub" {
 			t.Fatal("single hub queued extra launch")
 		}
+	}
+}
+
+func TestHubStartupMissingFirstKeepsSwitcherWhileExtraSurvives(t *testing.T) {
+	r := newHubStartupRigWithFirst(t, false)
+	screen := startupWarmScreen(t, 100, 30, r.host.Written)
+	if r.first.Handle != nil || r.startup.Kind != couchcore.StartupNormal || r.startup.Hubs[r.paths[0]].Survived || !r.startup.Hubs[r.paths[1]].Survived {
+		t.Fatalf("mixed startup: first=%+v observation=%+v", r.first, r.startup)
+	}
+	if !r.console.ReattachPassArmed() {
+		t.Fatal("missing first hub prevented warm pass")
+	}
+	startExplicitHubs(r.console, r.hubs)
+	r.run(t)
+	if call := r.await(t, "start-hub"); call.err != nil {
+		t.Fatal(call.err)
+	}
+	waitWarmAcceptance(t, "surviving extra and worker attached", func() bool { r.mu.Lock(); defer r.mu.Unlock(); return len(r.children) == 2 })
+	waitWarmAcceptance(t, "missing first leaves switcher focused", func() bool { return strings.Contains(r.host.Written(), "threads") })
+	if _, err := r.input.Write([]byte("SWITCHER-INPUT")); err != nil {
+		t.Fatal(err)
+	}
+	waitWarmAcceptance(t, "switcher receives input while extra stays background", func() bool { return strings.Contains(screen(), "SWITCHER-INPUT") })
+	r.mu.Lock()
+	children := append([]string(nil), r.children...)
+	r.mu.Unlock()
+	for _, id := range children {
+		child := r.rt.runner.Child(id)
+		if strings.Contains(strings.Join(child.Argv, " "), "--layout") {
+			t.Fatalf("implicit startup created native agent: %v", child.Argv)
+		}
+		if len(r.rt.runner.Terminal(id).Writes()) != 0 {
+			t.Fatalf("background hub stole switcher input: %s", id)
+		}
+	}
+}
+
+func TestStartupSummaryDescribesMissingHubAndAutomation(t *testing.T) {
+	observation := couchcore.StartupObservation{Kind: couchcore.StartupNormal, Hubs: map[string]couchcore.StartupHubObservation{"/first": {}, "/extra": {Survived: true}}, MissingHubs: []string{"/first"}, ParkedCount: 3}
+	text := startupSummary(observation, "/first")
+	for _, want := range []string{"normal", "missing hubs: /first", "verified parked: 3", "hub automation off; say turn it on"} {
+		if !strings.Contains(text, want) {
+			t.Fatalf("summary %q misses %q", text, want)
+		}
+	}
+	if text = startupSummary(observation, "/extra"); !strings.Contains(text, "hubs /first (hub automation off; say turn it on)") || strings.Contains(text, "hubs /extra (hub automation off") {
+		t.Fatalf("mixed startup failed to name only missing hub's disabled automation: %s", text)
+	}
+}
+
+// startupPaintBarrierHost exposes the distinction between bytes reaching the
+// host and the presenter completing the startup frame. It changes no production seam.
+type startupPaintBarrierHost struct {
+	*hostty.FakeHost
+	entered   chan struct{}
+	release   chan struct{}
+	cancelled chan struct{}
+	once      sync.Once
+}
+
+func (h *startupPaintBarrierHost) WriteContext(ctx context.Context, p []byte) (int, error) {
+	n, err := h.FakeHost.WriteContext(ctx, p)
+	if err != nil || !bytes.Contains(p, []byte("startup: normal")) {
+		return n, err
+	}
+	h.once.Do(func() {
+		close(h.entered)
+		select {
+		case <-h.release:
+		case <-ctx.Done():
+			close(h.cancelled)
+		}
+		err = ctx.Err()
+	})
+	return n, err
+}
+
+func TestRunConsoleObservesStartupBeforeArmingProducers(t *testing.T) {
+	hubs, defs, _ := moveFixture(t)
+	paths := []string{defs[0].Root, defs[1].Root, defs[2].Root}
+	rt := newRT(t, paths...)
+	retained := seedDetachedThread(t, rt, paths[0])
+	name := "pair-" + retained.Address.RepoScope + "-" + string(retained.Address.Tag)
+	rt.artifacts.SetDetachedSession(retained.Address, name)
+	rt.artifacts.SetSessionPresence(retained.Address, couchcore.SessionObservation{State: couchcore.SessionPresent, Name: name})
+	c, err := rt.NewCouch()
+	if err != nil {
+		t.Fatal(err)
+	}
+	host := &startupPaintBarrierHost{FakeHost: hostty.NewFakeHost(ptychild.Size{Rows: 30, Cols: 160}), entered: make(chan struct{}), release: make(chan struct{}), cancelled: make(chan struct{})}
+	console := couchtty.New(host, strings.NewReader(""))
+	beforeArm := 0
+	rt.artifacts.SessionPresenceHook = func([]couchcore.ThreadAddress) error {
+		if !console.ReattachPassArmed() {
+			beforeArm++
+		}
+		return nil
+	}
+	var output bytes.Buffer
+	done := make(chan int, 1)
+	go func() {
+		done <- runConsole(console, c, couchcore.StartResult{}, &output, hubs)
+		close(done)
+	}()
+	t.Cleanup(func() {
+		console.Stop()
+		select {
+		case <-done:
+		case <-testwait.After(t):
+			t.Error("startup console cleanup did not join Run")
+		}
+	})
+	select {
+	case <-host.entered:
+	case <-testwait.After(t):
+		t.Fatal("startup frame did not reach held write")
+	}
+	select {
+	case code := <-done:
+		t.Fatalf("console exited %d before startup paint was released", code)
+	default:
+	}
+	// Queue a normal host termination while the startup paint is held. Only
+	// Run handles it, after publication; Stop would cancel the paint itself.
+	host.Terminate(syscall.SIGTERM)
+	close(host.release)
+	select {
+	case code := <-done:
+		if code != 0 {
+			t.Fatalf("console startup=%d: %s", code, output.String())
+		}
+	case <-testwait.After(t):
+		t.Fatal("startup console did not stop")
+	}
+	select {
+	case <-host.cancelled:
+		t.Fatal("startup paint cancelled before release")
+	default:
+	}
+	if beforeArm != 1 {
+		t.Fatalf("bulk startup observations before producers=%d", beforeArm)
+	}
+	if !console.ReattachPassArmed() || len(rt.runner.Ops) != 0 {
+		t.Fatalf("missing hubs launched or warm pass unarmed: %v", rt.runner.Ops)
+	}
+	if !strings.Contains(host.Written(), "startup: normal") {
+		t.Fatalf("startup notice missing: %s", host.Written())
+	}
+}
+
+func TestBareCwdHubBindsSwitcherAutomationToVerifiedWorkspace(t *testing.T) {
+	root, _ := filepath.EvalSymlinks(t.TempDir())
+	primary := filepath.Join(root, "repo")
+	layout := couchcore.NewSlotLayout(primary, "", 7)
+	path := layout.Host()
+	if err := os.MkdirAll(path, 0700); err != nil {
+		t.Fatal(err)
+	}
+	t.Chdir(path)
+	number, address, branch := 7, "repo:7", "main-slot7"
+	identity := couchcore.WorkspaceIdentity{SchemaVersion: 2, Repo: "repo", RepoIdentity: filepath.Join(primary, ".git"), PrimaryRoot: primary, FleetRoot: root, EnvironmentRoot: layout.Env(), WorktreeRoot: path, Kind: "slot", Slot: &number, Address: &address, RestingBranch: &branch}
+	rt := newRT(t, path)
+	retained := seedDetachedThread(t, rt, path)
+	name := "pair-" + retained.Address.RepoScope + "-" + string(retained.Address.Tag)
+	rt.artifacts.SetDetachedSession(retained.Address, name)
+	rt.artifacts.SetSessionPresence(retained.Address, couchcore.SessionObservation{State: couchcore.SessionPresent, Name: name})
+	c, err := rt.NewCouch()
+	if err != nil {
+		t.Fatal(err)
+	}
+	catalog := &couchcore.SlotCatalogFake{Workspaces: map[string]couchcore.WorkspaceIdentity{path: identity}}
+	c.Slots = catalog
+	verified, roots, verifyErr := prepareConsoleHubs(context.Background(), c)
+	if verifyErr != nil || verified == nil || len(roots) != 1 || roots[0] != path || verified.snapshot().Hubs()[0].Slot != (couchcore.HubSlot{Repository: primary, Number: 7}) {
+		t.Fatalf("bare identity guessed instead of using verified :7: hubs=%v roots=%v err=%v", verified, roots, verifyErr)
+	}
+	before, _ := c.Threads.PreviewSnapshot()
+	host := hostty.NewFakeHost(ptychild.Size{Rows: 30, Cols: 240})
+	reader, input := io.Pipe()
+	console := couchtty.New(host, reader)
+	screen := startupWarmScreen(t, 240, 30, host.Written)
+	controlled := make(chan string, 1)
+	console.SetAutomationControl(func(hub, action string) (bool, error) { controlled <- hub + "|" + action; return true, nil })
+	done := make(chan int, 1)
+	go func() { done <- runConsole(console, c, couchcore.StartResult{}, io.Discard) }()
+	t.Cleanup(func() {
+		console.Stop()
+		input.Close()
+		reader.Close()
+		select {
+		case <-done:
+		case <-testwait.After(t):
+			t.Error("bare console did not stop")
+		}
+	})
+	waitWarmAcceptance(t, "bare hub row ready", func() bool { return strings.Contains(screen(), "Continue") })
+	if _, err := input.Write([]byte{7}); err != nil {
+		t.Fatal(err)
+	}
+	got := ""
+	waitWarmAcceptance(t, "bare hub toggle accepted or refused", func() bool {
+		select {
+		case got = <-controlled:
+			return true
+		default:
+			return strings.Contains(screen(), "no verified hub selected")
+		}
+	})
+	if got != path+"|toggle" {
+		t.Fatalf("bare verified :7 hub toggle=%q, screen=%s", got, screen())
+	}
+	console.Stop()
+	after, _ := c.Threads.PreviewSnapshot()
+	if !reflect.DeepEqual(before, after) || len(rt.runner.Ops) != 0 || len(catalog.Calls) != 0 || rt.artifacts.BindingResolutions() != 0 {
+		t.Fatalf("bare ownership binding changed stores or launched/provisioned: ops=%v discover=%v", rt.runner.Ops, catalog.Calls)
+	}
+}
+
+func TestHubStartupEmptyConfiguredHubRemainsListed(t *testing.T) {
+	r := newHubStartupRigWithFirst(t, false)
+	rows, err := r.console.ActionableProvider()(context.Background(), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	state := couchtty.NewMenuState(rows, couchcore.ThreadAddress{})
+	state, _ = couchtty.ReduceMenu(state, couchtty.MenuEvent{Kind: couchtty.MenuEventHubOwnership, HubOwnership: r.hubs.snapshot()})
+	rendered := couchtty.RenderMenuView(state, 240, 30, time.Time{}, false)
+	if !strings.Contains(rendered.Body, "Ctrl+Space: start "+r.paths[0]) {
+		t.Fatalf("empty configured launch hub disappeared from startup switcher: hub=%s UI=%s", r.paths[0], rendered.Body)
+	}
+}
+
+func TestBareCwdHubResolverFailureStaysUnknownAndUsable(t *testing.T) {
+	path, _ := filepath.EvalSymlinks(t.TempDir())
+	t.Chdir(path)
+	rt := newRT(t, path)
+	c, err := rt.NewCouch()
+	if err != nil {
+		t.Fatal(err)
+	}
+	catalog := &couchcore.SlotCatalogFake{Errors: map[string]error{path: errors.New("workspace identity unavailable")}}
+	c.Slots = catalog
+	hubs, roots, err := prepareConsoleHubs(context.Background(), c)
+	if err == nil || hubs != nil || len(roots) != 1 || roots[0] != path {
+		t.Fatalf("unverified hub was guessed: %v %v %v", hubs, roots, err)
+	}
+	want := startupSummary(couchcore.StartupObservation{
+		Kind: couchcore.StartupUnknown, Diagnostic: err,
+		MissingHubs: []string{path}, ParkedUnknown: true,
+		Hubs: map[string]couchcore.StartupHubObservation{path: {Unknown: true}},
+	}, path)
+	before, _ := c.Threads.PreviewSnapshot()
+	host := hostty.NewFakeHost(ptychild.Size{Rows: 30, Cols: 240})
+	reader, writer := io.Pipe()
+	console := couchtty.New(host, reader)
+	assertCopied := noticeCopyAssertion(t, console)
+	done := make(chan int, 1)
+	go func() { done <- runConsole(console, c, couchcore.StartResult{}, io.Discard) }()
+	t.Cleanup(func() {
+		console.Stop()
+		_ = writer.Close()
+		select {
+		case <-done:
+		case <-testwait.After(t):
+			t.Error("unknown startup console did not stop")
+		}
+	})
+	waitWarmAcceptance(t, "unverified bare hub has visible unknown notice", func() bool { return strings.Contains(host.Written(), couchtty.ChromeStatusText(want)) })
+	assertCopied(writer, want)
+	if _, err := console.Ops()(couchcore.OperationCall{Name: "list"}); err != nil {
+		t.Fatalf("unknown hub blocked switcher operations: %v", err)
+	}
+	console.Stop()
+	after, _ := c.Threads.PreviewSnapshot()
+	if !reflect.DeepEqual(before, after) || len(rt.runner.Ops) != 0 || len(catalog.Calls) != 0 || rt.artifacts.BindingResolutions() != 0 {
+		t.Fatalf("unverified bare startup mutated or launched: ops=%v discover=%v", rt.runner.Ops, catalog.Calls)
+	}
+}
+
+func TestBareOutsideCheckoutDoesNotGuessHubOwnership(t *testing.T) {
+	t.Chdir(t.TempDir())
+	rt := newRT(t)
+	c, err := rt.NewCouch()
+	if err != nil {
+		t.Fatal(err)
+	}
+	c.Slots = &couchcore.SlotCatalogFake{}
+	hubs, roots, err := prepareConsoleHubs(context.Background(), c)
+	if err != nil || hubs != nil || len(roots) != 0 {
+		t.Fatalf("outside checkout invented hub: %v %v %v", hubs, roots, err)
+	}
+}
+
+func TestStartupSummaryMissingHubNamesExplicitRecovery(t *testing.T) {
+	for _, kind := range []couchcore.StartupKind{couchcore.StartupFullShutdown, couchcore.StartupUnknown, couchcore.StartupNormal} {
+		observation := couchcore.StartupObservation{Kind: kind, Hubs: map[string]couchcore.StartupHubObservation{"/ops": {}}, MissingHubs: []string{"/ops"}}
+		text := startupSummary(observation, "/ops")
+		for _, want := range []string{"switcher", "Resume from disk", "Ctrl+Space", "Start"} {
+			if !strings.Contains(text, want) {
+				t.Fatalf("%s missing-hub notice gives no recovery %q: %s", kind, want, text)
+			}
+		}
+	}
+	observation := couchcore.StartupObservation{Kind: couchcore.StartupNormal, Hubs: map[string]couchcore.StartupHubObservation{"/ops": {Survived: true}}}
+	if text := startupSummary(observation, "/ops"); strings.Contains(text, "Resume from disk") {
+		t.Fatalf("surviving hub was told to recover: %s", text)
 	}
 }

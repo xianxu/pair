@@ -21,6 +21,7 @@ type MenuControl struct {
 
 var menuControls = []MenuControl{
 	{Keys: "typeahead", Action: "filter"},
+	{Keys: "Ctrl+G", Action: "toggle the selected hub automation on/off"},
 	{Keys: "Ctrl+Y", Action: "copy the full last notice from the switcher"},
 	{Keys: "Space", Action: "toggle normal/focus view when filter is empty"},
 	{Keys: "↑↓", Action: "select"},
@@ -30,7 +31,7 @@ var menuControls = []MenuControl{
 	{Keys: "Right", Action: "forward"},
 	{Keys: "Ctrl-Space", Action: "start"},
 	{Keys: "Ctrl-Backspace", Action: "previous"},
-	{Keys: "Ctrl-Return", Action: "jump to the newest page, from an actor"},
+	{Keys: "Ctrl-Return", Action: "open or close the notification list (bell)"},
 	{Keys: "Alt+d", Action: "detach this thread · all + leave couch here"},
 	{Keys: "Alt+x", Action: "park this thread · all + leave couch here"},
 	{Keys: "click", Action: "an actor's chip or row switches to it · empty space does nothing"},
@@ -521,6 +522,9 @@ func ReduceMenu(state MenuState, event MenuEvent) (MenuState, []MenuEffect) {
 	}
 	if event.Kind == MenuEventNotice {
 		next.Notice = errorMenuNotice(event.Error)
+		if event.Success {
+			next.Notice.Level = MenuNoticeInfo
+		}
 		return next, nil
 	}
 	if event.Kind == MenuEventParkHotkey {

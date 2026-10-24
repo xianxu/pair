@@ -12,6 +12,16 @@ import (
 // Copy the shared catalog before extending it: Pair rules must not alter the
 // upstream catalog used by sleepSites to identify existing sleep debt.
 var pairCatalog = append(append([]golint.Rule(nil), golint.Catalog...), golint.Rule{
+	Name:     "test-fifo-empty-handoff",
+	Incident: "pair#679",
+	Message:  "write a nonempty FIFO payload before closing a test writer; an empty open/close can strand Darwin readers",
+	Match:    func(*ast.File) []ast.Node { return nil }, // bound to test filenames by pairCatalogFor
+}, golint.Rule{
+	Name:     "slash-command-submit",
+	Incident: "pair#162",
+	Message:  "execute authored slash commands with KeyEnter and exact command echo proof; KeySubmit is prose submission (Alt+Return)",
+	Match:    func(*ast.File) []ast.Node { return nil }, // bound to the filename by pairCatalogFor
+}, golint.Rule{
 	Name:     "quit-trigger-private-home",
 	Incident: "pair#797",
 	Message:  "set a private HOME before in-process TriggerQuit/TriggerBoundQuit tests; a private data directory does not isolate compatibility quit markers",

@@ -22,6 +22,9 @@ type Screen struct {
 	// interrupt request may use it (pair#717).
 	Interruptible bool
 	ComposerText  string
+	// CommandText is the complete recognized composer region, independent of model cleanup.
+	CommandText  string
+	CommandKnown bool
 }
 
 func (s Screen) Admission() Admission {

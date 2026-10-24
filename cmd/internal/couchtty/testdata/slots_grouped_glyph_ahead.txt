@@ -1,5 +1,5 @@
 threads
-Ctrl+Y copy last notice / selected error
+Ctrl+Y copy last notice / selected error · Ctrl+G hub automation on/off
 ▸ pair  /workspace/pair  Continue
     pair:1+  /workspace/worktree/pair-slot1/pair  Continue
     └─ review ready

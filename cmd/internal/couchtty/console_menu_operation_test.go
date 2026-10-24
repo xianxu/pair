@@ -109,6 +109,7 @@ func TestConsoleMenuStartAttachesBeforeSuccessfulRestoration(t *testing.T) {
 }
 
 func TestConsoleMenuResumeLandsOnExactReturnedHandle(t *testing.T) {
+	copied := noticeClipboard(t)
 	f := newFixture(t, 24, 80)
 	target := menuAddress("couch-two")
 	state := NewMenuState(menuThreads(), menuAddress("couch-one"))
@@ -142,7 +143,10 @@ func TestConsoleMenuResumeLandsOnExactReturnedHandle(t *testing.T) {
 	if got := f.con.menuSnapshot().Notice.Text; got != started.Warning() {
 		t.Fatalf("borrowed attachment notice lost after landing: %q", got)
 	}
-	if !strings.Contains(f.screenText(), "BORROWED ATTACH: lifecycle claim is open") {
+	if got := f.notice(); got != started.Warning() {
+		t.Fatalf("borrowed warning lost from feed: %q", got)
+	}
+	if !strings.Contains(f.lastRow(), "BORROWED ATTACH: lifecycle claim is ope…") {
 		t.Fatalf("borrowed attachment reason was not painted: %q", f.host.Written())
 	}
 	if strings.Contains(f.screenText(), "threads") {
@@ -150,6 +154,10 @@ func TestConsoleMenuResumeLandsOnExactReturnedHandle(t *testing.T) {
 	}
 	if !f.con.menuSnapshot().ProjectionPending {
 		t.Fatal("successful resume silently presented the pre-resume inventory as current")
+	}
+	f.con.copyLastNotice()
+	if got := copied(); got != started.Warning() {
+		t.Fatalf("borrowed warning copied %q; want full %q", got, started.Warning())
 	}
 }
 

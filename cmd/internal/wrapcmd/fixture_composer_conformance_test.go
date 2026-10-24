@@ -1,6 +1,7 @@
 package wrapcmd
 
 import (
+	"bytes"
 	"fmt"
 	"strings"
 	"testing"
@@ -48,6 +49,42 @@ func TestDisposableFixtureComposerConformance(t *testing.T) {
 					text, ok := qualifiedComposerText(agent, snapshot)
 					if ok != (tc.want != PeerComposerUnknown) || text != tc.text {
 						t.Fatalf("fixture text=%q recognized=%t want=%q recognized=%t", text, ok, tc.text, tc.want != PeerComposerUnknown)
+					}
+				})
+			}
+		}
+	}
+}
+
+func TestDisposableFixtureSlashReturnConformance(t *testing.T) {
+	for _, size := range []struct{ cols, rows int }{{120, 32}, {132, 36}, {20, 10}} {
+		for _, agent := range []string{"claude", "codex"} {
+			for _, text := range []string{"/model", "/model\n", "/model\n   ", "ordinary input"} {
+				t.Run(fmt.Sprintf("%s/%dx%d/%q", agent, size.cols, size.rows, text), func(t *testing.T) {
+					model, err := newTerminalModel(size.cols, size.rows)
+					if err != nil {
+						t.Fatal(err)
+					}
+					defer model.Close()
+					if err := model.Feed([]byte(agentfixture.Paint(agentfixture.AgentState{Agent: agent, Phase: agentfixture.Idle, Draft: text}, size.cols, size.rows))); err != nil {
+						t.Fatal(err)
+					}
+					s := model.Snapshot()
+					profile, _ := profileForHarness(agent, true)
+					r := profile.recognize(s)
+					if !r.Active || !r.region.valid {
+						t.Fatal("fixture composer missing")
+					}
+					for _, row := range []int{s.Cursor.Y, r.region.top} {
+						s.Cursor.Y, s.Cursor.X = row, r.region.left
+						got := decidePlainReturn(profile, false, &s)
+						want := profile.keymap.plainCR
+						if text == "/model" {
+							want = profile.keymap.altCR
+						}
+						if got.submits != (text == "/model") || !bytes.Equal(got.bytes, want) {
+							t.Fatalf("cursor row%d gave %+v, want %q", row, got, want)
+						}
 					}
 				})
 			}

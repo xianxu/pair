@@ -94,9 +94,11 @@ SOURCE_GUARDS = {'cmd/internal/adapt': ('TestDetailTruncatedToValidUTF8',
                                   'TestRun_NoRestartFlagSuppressesInCompaction',
                                   'TestRun_TriggersRestartInCompaction'),
  'cmd/internal/couchcmd': ('TestARefusalsNamedCommandsActuallyWork',
+                           'TestAutomaticSystemSendHasOnePolicyOwner',
                            'TestAnUnreadableRecordCanBeRebootedThroughTheRuntime',
                            'TestAtlasDocumentsEveryTypedOperation',
                            'TestBeginConsoleArmsWarmPassOnlyAfterSuccessfulAttach',
+                           'TestBeginConsoleArmsWarmPassWithoutInitialHandle',
                            'TestBindArgsAcceptsPrepareStartFlagsAndPositionals',
                            'TestBindArgsRejectsMissingOrEmptyValueBearingFlag',
                            'TestCLICompositeReferencesDeriveCurrentRepositoryScope',
@@ -129,8 +131,8 @@ SOURCE_GUARDS = {'cmd/internal/adapt': ('TestDetailTruncatedToValidUTF8',
                            'TestInitialConsoleAttachDispatchesDeclaredOperation',
                            'TestInitialHubBorrowedAttachmentNoticeAppearsOnFirstPaint',
                            'TestInteractiveHubLaunchResumesDetachedSession',
-                           'TestInteractiveHubLaunchResumesProvenParkedThread',
-                           'TestInteractiveHubLaunchStartsFreshWithoutResumeProof',
+                           'TestInteractiveHubLaunchLeavesProvenParkedThreadIdle',
+                           'TestInteractiveHubLaunchLeavesMissingSessionIdle',
                            'TestIsQuestionToleratesTrailingMarkdown',
                            'TestLastProseLineSkipsChrome',
                            'TestListOnEmptyThreadStore',
@@ -424,6 +426,7 @@ SOURCE_GUARDS = {'cmd/internal/adapt': ('TestDetailTruncatedToValidUTF8',
 # widen the provider's selected-package argv. Reader certificates still name the
 # original repository-relative package, while Go runs within its module.
 SOURCE_MODULES = ("examples/mock-to-real",)
+SOURCE_GUARDS["cmd/internal/editorial"] = ("TestContractPinnedSourceBytes",)
 SOURCE_GUARDS["examples/mock-to-real/internal/app"] = (
     "TestRealAppAndContract", "TestMissingRealHandler", "TestPreparedRoutesAndNavigationOwnSnapshot")
 SOURCE_GUARDS["examples/mock-to-real/internal/buildsample"] = (
