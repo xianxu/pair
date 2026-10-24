@@ -1,12 +1,12 @@
 ---
 id: 000869
-status: codecomplete
+status: done
 deps: []
 github_issue:
 created: 2026-10-24
 updated: 2026-10-24
 estimate_hours:
-card_mirror: '8c2ac40d0929be6b89fc2f39b7448fc8c439f54c' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: 'df6f0aae063b2d7e3f788f3579f96b70d99b80f8' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-24T08:28:06-07:00
 claimant:
     operator: Xian Xu
@@ -17,6 +17,7 @@ claimant:
     repository: github.com/xianxu/pair
 flow: {kind: quick, provenance: inferred, spec: "ccb7b222", done: "55fd417f"}
 actual_hours: 0.27
+flake_tests: [github.com/xianxu/pair/cmd/internal/testcouch/agentfixture.TestCLILiveLeaderCancellationJoinsBeforeCompletion]
 ---
 
 # Publish cancellation fixture PID readiness atomically
