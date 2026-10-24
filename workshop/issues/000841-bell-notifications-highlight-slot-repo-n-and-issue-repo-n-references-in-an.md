@@ -43,7 +43,9 @@ inside paths, URLs or longer words).
 
 - [x] Add RED-first terminal-cell controls for bell references, punctuation, paths/URLs, longer words, Unicode, wrapping/clipping and hover; retain default notes-menu geometry/style controls and a real clipboard plain-text assertion.
 - [x] Opt bell items into pure source-span detection before existing wrapping. Project accents onto cells using existing notesMenuLink; preserve text, IDs, chips and selection. Keep other menus unchanged.
-- [ ] Run targeted/race tests, reader inventory and recorded affected check; close with review and land through SDLC.
+- [x] Run targeted/race tests and reader inventory; publish the PR, start recorded affected verification and prepare close.
+
+Downstream release gates remain outstanding until their own result: recorded affected PASS on the pushed executable head, SDLC close review, TL stage disposition and SDLC landing.
 
 Quick-flow design: source references are display hints, never resolved addresses or navigation authority. Scan whitespace-delimited source chunks; reject path/URL chunks and recognize whole reference tokens adjacent to prose punctuation. Reuse canonical slot validation for repo:N. Accent spans refer to sanitized source bytes; forward projection through unchanged wrapNote output keeps hard-wrapped fragments colored without recognizing a path fragment as a new reference. No settings, format changes or new IO.
 
@@ -58,3 +60,11 @@ Claimed after #840 landed and cleanup returned a clean resting branch. TL plan p
 Implementation qualification: reference-cell regression RED before the change (0.368s; every expected token lacked accent), then GREEN including notify bodies, prompt/question titles, slot labels, punctuation, Unicode, hard wrapping and clipped paths. A separate zero-width-source regression exposed byte-mask drift, RED before its correction; advance the source byte offset even for skipped zero-width graphemes. Final targeted bell/notes/toggle/notification controls PASS 1.838s and targeted race PASS 2.697s. Clipboard test drives Ctrl+Y while the bell overlays the switcher and reads the isolated fake pbcopy output: exact original plain body. N=8/16 classifier counts are exactly 2N, with mask byte size equal to source bytes. Atlas updated in place. Reader inventory PASS; new pure helper classified as non-artifact after the exhaustive inventory failed on its missing entry. No artifact paths are read or constructed by that helper. Lint/godoc controls PASS 4.658s/0.429s.
 
 Final exhaustive artifact guard PASS 4.005s after the one audited non-artifact classification; final renderer/clipboard/notes subset PASS 1.111s. Production additions total 100 lines, within the quick-flow shell. Implementation checkpoint precedes recorded affected verification.
+
+PR #571 opened on implementation f2257a6dc2532c77257969cd90e99851fee33f09. Recorded affected runner started on that pushed head; no passing recorded result claimed yet. Close may overlap verification under tl-worker rules, and landing remains gated on the pass. Asked TL to explicitly confirm proposed render-only/no-stage acceptance; no slot :0 or live fleet touched.
+
+## Revisions
+
+### 2026-10-23 — Make release-gate sequencing explicit
+
+Split the final Plan checkbox into completed pre-close preparation and downstream release gates in prose. Close review and landing cannot truthfully be pre-ticked before running their own verbs; scope and Done when are unchanged.
