@@ -15,7 +15,7 @@ claimant:
     workspace: pair:4
     worktree: /Users/xianxu/workspace/worktree/pair-slot4/pair
     repository: github.com/xianxu/pair
-flow: {kind: quick, provenance: inferred, spec: "ccce414c", done: "1e787a6b"}
+flow: {kind: full, provenance: inferred}
 ---
 
 # Cast Note tool is missing or undiscoverable in the live tool column
@@ -59,6 +59,8 @@ Filed from the operator's accepted-layout live feedback. No private capture is c
 
 
 ### 2026-10-24 — Cause-first native diagnosis and approved scope
+- 2026-10-24: closed — BR-1 all Core concepts paths/statuses reconciled with delivered diff, Revision appended. BR-2 exact reviewed95f06244a39371e5d3ec8f68183ec22e4b6a2dcd native host PASS4.46s/package4.709s exit0, Go1.27.3 darwin/arm64, command/env/output pinned in canonical plan.side/evidence, formal dispute recorded. Runtime source unchanged from queued lease-1020414290; inventory PASS before this close. Prior focused race,72 JS tests, native owner and existing operator, signed recovery exactly-once and counted4/8 checks PASS. TL407daf9b authorizes no-actual for exact initial refusal: measurement branch proof: measurement snapshot does not serialize: json: error calling MarshalJSON for type *gatestate.MeasurementInputs: measurement exceeds 65536 bytes; no window printed. Operator recheck remains outstanding before landing.; review verdict: SHIP
+- 2026-10-24: flow upgraded quick → full — 121 added lines in code files (limit 100); an earlier round of this close already ran the full review
 
 Claimed and started from main56986a072ef70b7ee0d00c317395088b2bb44915, no #857 commits copied; existing combined stage remains untouched. Start-plan catch-up deferred the seeded workflow refresh correctly, with no seeded-file mutation. Queried the supplied local recording and inspected the older screenshot read-only; private capture not copied. A single disposable native probe at1728×997 proves Note is present/hit-testable at1664,284.75,48×36, within a216.75px-high column with no overflow, but disabled/opacity0.4 by default Annotation OFF. Existing enable changes availability to enabled/opacity1 without layout changes. PASS2.342s, log SHA256fc79f964d1284100bd034ee2a0119701775dd7d00b7d1aa2f27bcab050053401; probe source and log retained in canonical plan.side evidence, temporary Go test removed. This reproduces a default-availability defect; the exact old private UI state is not in the recording.
 

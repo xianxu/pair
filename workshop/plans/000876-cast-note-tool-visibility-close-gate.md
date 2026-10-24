@@ -47,6 +47,45 @@ rounds:
       recipe: milestone-review
       isolation: fenced
       blocked: true
+    - reviewer_runs:
+        - version: 1
+          intent:
+            disposable_root: true
+            id: b6a4a8ba-4dce-4139-bf8c-e4dfb2f6bf7a
+            repository: github.com/xianxu/pair
+            issue_id: "000876"
+            recipe: milestone-review
+            round: 2
+            attempt: 1
+            agent: codex
+            root: /Volumes/TestScratch/review-checkouts/a332e1f50d6b9dd4
+            reviewed_head: e6b5b58320432d7aeaec870ddad0b8681e232f95
+            slot: pair:4
+            requested_at: "2026-10-24T22:39:22.573883Z"
+          phase: finished
+          pid: 97215
+          started_at: "2026-10-24T22:39:22.779726Z"
+          finished_at: "2026-10-24T22:40:37.835147Z"
+          session_id: 01a17011-982f-7971-b795-90bdd802ba87
+          outcome: returned
+      "n": 2
+      timestamp: "2026-10-24T15:40:43-07:00"
+      dispatched: "2026-10-24T15:39:15-07:00"
+      agent: codex
+      reviewer: codex (openai; author openai)
+      dispose:
+        - id: BR-1
+          disposition: addressed
+          note: The Core concepts tables now match delivered locations and statuses. The Revisions passage at workshop/plans/000876-note-tool-owner-plan.md:123 correctly identifies board/annotation.go, operator_owner_live_test.go, and unchanged CSS, policy and adapters; verified against the pinned diff and files. This is a prose-only correction.
+          round: 2
+        - id: BR-2
+          disposition: withdrawn
+          note: Re-running WEBCAST_LIVE_CHROME=1 go test ./cmd/internal/webcast -run '^TestOperatorOwnerLiveAnnotationOff$' -count=1 -timeout=75s -v reproduced Chrome's pre-page GPU startup failure. The submitted metadata and PASS log match both supplied SHA256 hashes and identify head 95f06244a39371e5d3ec8f68183ec22e4b6a2dcd; git diff confirms no webcast changes between that head and this review head. The measured host evidence answers native reachability without requiring a production change.
+          round: 2
+      recipe: milestone-review
+      isolation: fenced
+      reviewed: e6b5b58320432d7aeaec870ddad0b8681e232f95
+      blocked: false
 disputes:
     - id: BR-2
       rationale: The fenced reviewer Chrome GPU startup failure is environmental. The exact reviewed head completes the native scenario on the working host with private headless Chrome; no production change is needed.
@@ -70,6 +109,13 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-2** [Important] `native-conformance-evidence` (kind: unverifiable) Native owner-tool reachability could not be verified on this host
   WEBCAST_LIVE_CHROME=1 go test ./cmd/internal/webcast -run '^TestOperatorOwnerLiveAnnotationOff$' -count=1 -timeout=75s -v failed at operator_owner_live_test.go:48 before opening a page: Chrome reported “GPU process isn't usable.” This prevents verification of actual Note/Pointer hit-testing, capture/save and short-viewport reachability (ARCH-MOCK). Supply a successful run on pinned head 95f06244a39371e5d3ec8f68183ec22e4b6a2dcd from a working Chrome environment, with command, environment and output; the retained PASS log does not identify its tested head.
 
+## Round 2 — 2026-10-24T15:40:43-07:00 (codex) — passed
+
+### Disposed
+
+- BR-1 — addressed — The Core concepts tables now match delivered locations and statuses. The Revisions passage at workshop/plans/000876-note-tool-owner-plan.md:123 correctly identifies board/annotation.go, operator_owner_live_test.go, and unchanged CSS, policy and adapters; verified against the pinned diff and files. This is a prose-only correction.
+- BR-2 — withdrawn — Re-running WEBCAST_LIVE_CHROME=1 go test ./cmd/internal/webcast -run '^TestOperatorOwnerLiveAnnotationOff$' -count=1 -timeout=75s -v reproduced Chrome's pre-page GPU startup failure. The submitted metadata and PASS log match both supplied SHA256 hashes and identify head 95f06244a39371e5d3ec8f68183ec22e4b6a2dcd; git diff confirms no webcast changes between that head and this review head. The measured host evidence answers native reachability without requiring a production change.
+
 ## Disputes
 
 Findings the implementer declined (`sdlc finding dispute`), each answered by the
@@ -81,4 +127,4 @@ next review round.
 
 ## Open findings
 
-- **BR-1** [Critical] `core-concept-traceability` (kind: defect) Core concepts tables contradict the delivered file locations and statuses
+(none — every finding has been disposed)
