@@ -5,8 +5,8 @@ deps: []
 github_issue:
 created: 2026-10-24
 updated: 2026-10-24
-estimate_hours:
-card_mirror: '763876b2c3f8dec156e13d9f8aa3a8c7c6646208' # card fields mirrored from issue-cards; edit via sdlc
+estimate_hours: 2.92325
+card_mirror: 'c2760f428b48d58b38fcb8ca4965925094a3ca17' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-24T02:51:38-07:00
 claimant:
     operator: Xian Xu
@@ -15,6 +15,7 @@ claimant:
     workspace: pair:9
     worktree: /Users/xianxu/workspace/worktree/pair-slot9/pair
     repository: github.com/xianxu/pair
+flow: {kind: full, provenance: inferred}
 ---
 
 # Live Couch sustains ~1.3 cores: attribute and bound it
@@ -74,3 +75,30 @@ ARCH-DRY uses the existing Runtime/Getenv, Console notice and testcouch owners; 
 ### 2026-10-24 — plan gate round1
 
 Plan-quality returned PQ-1 explicit-transition-ownership and PQ-2 test-strategy-compression. Added the pure StepProfile lifecycle and single serialized effect interpreter, including cancelled successful acquisition requiring release; compressed prose case inventories into one adversarial strategy per risky function. No implementation admitted or written. No change to TL-approved public M1 behavior.
+
+## Estimate
+
+Produced via brain/data/life/42shots/velocity/estimate-logic-v3.1.md against baseline-v3.1.md (calibration marked stale by estimate-source). Method A primitives plus Method B for the unresolved M2 design. These are ship wall-clock hours, not operator attention.
+
+M1 lifecycle is one greenfield single-concern module: table midpoint design1.25, halved for available runtime/pprof, then thorough-spec x0.2 gives0.125; midpoint implementation0.6 x0.4 gives0.24. Runtime/file integration: table midpoint design2 x0.2=0.4, implementation1 x0.4=0.4. Existing native controls: smaller-module upper design0.3 x0.2=0.06, implementation0.5 x0.4=0.2. One runtime/native conformance discovery budget uses0.6 x0.4=0.24. Two genuine review boundaries use0.4 x0.4=0.16 each. Atlas work uses design0.1 x0.2=0.02 and implementation0.1 x0.4=0.04.
+
+M2 has three unresolved decisions (measured owner, minimal transition correction, workload/budget regression), Method B3 x0.15=0.45 design, code-heavy x1.5 x0.4=0.27 implementation. That is a provisional allowance, not approval to implement an unknown optimization. Revisit after the M1 measurement and TL approval; append any scope/estimate revision rather than fit the work to this allowance. Familiarity1.0; thorough-plan design buffer15%. Sum design1.055, implementation1.71, total2.92325.
+
+```estimate
+model: estimate-logic-v3.1
+familiarity: 1.0
+item: greenfield-go-module design=0.125 impl=0.24
+item: api-integration design=0.4 impl=0.4
+item: smaller-go-module design=0.06 impl=0.2
+item: real-api-discovery design=0 impl=0.24
+item: method-b-decisions design=0.45 impl=0.27
+item: milestone-review design=0 impl=0.16
+item: milestone-review design=0 impl=0.16
+item: atlas-docs design=0.02 impl=0.04
+design-buffer: 0.15
+total: 2.92325
+```
+
+### 2026-10-24 — plan gate round2
+
+CLEAN/high: PQ-1 and PQ-2 addressed, no new findings. Derived estimate only after this clearance. The M2 allowance remains provisional pending measurement and TL's design approval.
