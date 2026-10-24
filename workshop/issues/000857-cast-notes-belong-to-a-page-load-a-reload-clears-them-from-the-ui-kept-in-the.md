@@ -15,6 +15,7 @@ claimant:
     workspace: pair:4
     worktree: /Users/xianxu/workspace/worktree/pair-slot4/pair
     repository: github.com/xianxu/pair
+flow: {kind: quick, provenance: inferred, spec: "e5754e5e", done: "b0cebfd5"}
 ---
 
 # Cast notes belong to a page load; a reload clears them from the UI (kept in the recording)
