@@ -95,6 +95,13 @@ BR2 count-growth and BR3 mode-sequence regressions observed RED, then passed. Mi
 
 Corrected-source native pair passed non-skipped11.242s, complete operator scenario8.60s. Raw log workshop/evidence/000850/native-qualification.log and JSON manifest retain SHA256 plus exact tested source Git blobs, avoiding reliance on a prose claim after the review host GPU startup refusal. Extended native panel check uses the actual painter for scroll/multipath/all-edge controls, and real layout for count growth. These are no longer unverified browser scenarios; operator acceptance itself still awaits the combined staged look (TL explicitly says no restage).
 
+
+### 2026-10-23 — operator accepted; retained suite survived restart
+
+Authenticated TL receipt a7dcd3bb reports the combined-stage operator acceptance PASSED (about20:45, “works now”) and directs full re-close and merge. This completes the outstanding operator portion of BR4; corrected-source native evidence remains the retained11.242s pass with source-blob manifest. Per prior TL direction no restage was performed after the viewport/reducer corrections.
+
+Polled retained terminal9613 after restart: lease-3061314793 survived, acquired the suite lock after2366s, and is now running make test from the independent bac53fc98 snapshot; no restart or duplicate check. Next: inventory and full re-close while this existing recorded suite finishes; finalize only after its pass, then sdlc merge on SHIP. The final orchestration Plan checkbox remains open until the recorded check and landing finish; review may overlap the already running check under tl-worker rules.
+
 ## Revisions
 
 ### 2026-10-23 — TL approved design (19f42a37)

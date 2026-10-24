@@ -165,3 +165,7 @@ Additional concept changed by the approved BR1 correction:
 | Existing `mountSketch` per-path ink cache (retains incremental painted bounds) | INTEGRATION | `web/sketch.js` | modified |
 
 Native proof for the correction is retained in workshop/evidence/000850/native-qualification.log with source-blob manifest; full panel/operator pair passed11.242s. Operator look remains on the authorized combined stage, held by pair:6, without restaging per TL f0df15c2.
+
+### 2026-10-23 — operator acceptance (TL a7dcd3bb)
+
+The hub reports the combined-stage operator look passed (“works now”, about20:45) and directs full re-close and merge. The staged visual look plus corrected-source source-bound native11.242s evidence completes BR4's two distinct acceptance requirements. Retained corrected-source suite survived restart and is running; final recorded pass and SHIP still precede landing. The last task is orchestration, not an unimplemented product change.
