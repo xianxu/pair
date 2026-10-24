@@ -81,6 +81,7 @@ func TestBuildOwnedExplicitCheckoutAndPartialCleanup(t *testing.T) {
 
 func TestBuildOwnedUsesOnlySelectedCandidateAndOfflineCommands(t *testing.T) {
 	t.Setenv("PAIR_TEST_BINARY", "/foreign/installed-pair")
+	t.Setenv("GIT_EXEC_PATH", "/foreign/git-core")
 	t.Setenv("GOFLAGS", "-toolexec=/foreign/compiler")
 	t.Setenv("HTTPS_PROXY", "https://foreign")
 	source := t.TempDir()
@@ -103,6 +104,9 @@ func TestBuildOwnedUsesOnlySelectedCandidateAndOfflineCommands(t *testing.T) {
 	pairBuilds := 0
 	deps := buildDependencies{resolve: func(name string) (string, error) {
 		selectedTools[name] = true
+		if name == filepath.Join(scratch, "git-core", "git-upload-pack") {
+			return "/bin/sh", nil
+		}
 		if name == override {
 			return override, nil
 		}
@@ -120,6 +124,9 @@ func TestBuildOwnedUsesOnlySelectedCandidateAndOfflineCommands(t *testing.T) {
 		}
 		if !strings.Contains(text, "GOPROXY=off") || !strings.Contains(text, "GOFLAGS=-mod=readonly") {
 			t.Fatalf("build not offline: %s", text)
+		}
+		if len(args) == 1 && args[0] == "--exec-path" {
+			return filepath.Join(scratch, "git-core") + "\n", nil
 		}
 		output := ""
 		if len(args) > 3 && args[0] == "build" {
@@ -150,6 +157,9 @@ func TestBuildOwnedUsesOnlySelectedCandidateAndOfflineCommands(t *testing.T) {
 	}
 	if err != nil {
 		t.Fatal(err)
+	}
+	if owner.Binaries.GitUploadPack != "/bin/sh" || !selectedTools[filepath.Join(scratch, "git-core", "git-upload-pack")] {
+		t.Fatalf("selected Git helper not retained: %+v lookups=%v", owner.Binaries, selectedTools)
 	}
 	if owner.Binaries.Couch != override || owner.Binaries.Nvim != "/bin/sh" || owner.Binaries.Evidence["source-head"] != "selected-head" {
 		t.Fatalf("candidate provenance: %+v", owner.Binaries)

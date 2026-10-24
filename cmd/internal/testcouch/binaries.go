@@ -19,9 +19,9 @@ import (
 // Binaries names one qualification owner's candidates and installed read-only
 // tools. Build registers cleanup before fleets, so later fleet cleanups run first.
 type Binaries struct {
-	Source, Dir, Couch, Pair, Helper, Fixture string
-	Git, SDLC, Weave, Zellij, Nvim            string
-	Evidence                                  map[string]string
+	Source, Dir, Couch, Pair, Helper, Fixture     string
+	Git, GitUploadPack, SDLC, Weave, Zellij, Nvim string
+	Evidence                                      map[string]string
 }
 
 const buildOutputLimit = 64 * 1024
