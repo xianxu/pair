@@ -16,6 +16,7 @@ claimant:
     worktree: /Users/xianxu/workspace/worktree/pair-slot6/pair
     repository: github.com/xianxu/pair
 flake_tests: [github.com/xianxu/pair/cmd/internal/couchcore.TestRepoConfigurationPublicationBoundsCompetingWriter]
+flow: {kind: quick, provenance: inferred, spec: "9d9e8613", done: "79b590e7"}
 ---
 
 # flake: TestRepoConfigurationPublicationBoundsCompetingWriter
