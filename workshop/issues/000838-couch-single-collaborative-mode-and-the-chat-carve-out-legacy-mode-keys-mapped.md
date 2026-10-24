@@ -256,6 +256,63 @@ axis tests with shared-grammar oracles; delete Catalog arguments and wire the
 existing transaction owner. Bounded migration and new-round tasks are delegated
 in disjoint files. Fixture pin and docs edits are checkpointed here for recovery.
 
+### 2026-10-23 17:41 — single-mode implementation checkpoint
+
+Removed the runtime Catalog, processing briefs/axis resolver/fill paths and new
+proposal generation. Compile/ValidateEdits now accept only immutable source
+facts. New rounds/spans explicitly highlight; old direct/propose decoding,
+rendering and nested unknown-member preservation remain in their existing codec.
+Tag bytes and heading attachment are owned independently of routing, including
+whole-document legacy; section freshness includes ancestor tags. CLI human reads
+print the notice sequence once; JSON exposes the snapshot diagnostics once.
+
+Lossless map-to-tag migration uses shared headings/sections and exact translated
+ask projections. No settings are filled, asks renumbered or independent resolver
+introduced. Bullet/preamble asks, setext attachment and changed continuation
+refuse with a section name. Frontmatter removal precedes ordered insertions,
+so the transform needs no sort. Existing transaction stale/lock/uncertain tests
+remain effective. ARCH-DRY, ARCH-ORDER and ARCH-EVOLVE shaped these choices.
+
+Verification: full sessionsync PASS (9.613s); focused shared CLI/migration/round
+checks PASS, authored native-input preflight PASS, sessionsync editorial+new-round
+race PASS (7.195s). All 13 shared authored primary documents replay through public
+CLI with exact notices, owned sources and final bytes; two move cases remain
+historical fixture evidence. The existing coarse line diff can coalesce adjacent
+chat changes; the chat-tag fixture uses four localized apply transactions. A
+coarse-fullfile refusal is characterized, not bypassed. No new submission diff
+is introduced (#839 remains separate). Generated shared interval fuzz PASS
+5,570 executions; edit-batch oracle fuzz PASS 7,218; migration fuzz PASS 6,314.
+These are bounded runs, not a recorded affected/suite result.
+
+Read-only real ops and brain session audits both compile and validate a no-op;
+second reads prove unchanged bytes. Metadata-only digests/counts are retained in
+workshop/evidence/000838/read-only-legacy-audit.json; no live contents copied.
+Brain's existing legacy chat yields seven eligible items and remains unchanged.
+
+The only current pure-package failure is upstream: malformed and empty answer
+URLs incorrectly set shared ChatItems.Answered. Authenticated ariadne:2 receipt
+f1e61901-6801-4963-92e0-1fd48f09ed01 confirms ariadne#581 owns the correction.
+Both regression cases remain RED; no local fork or weakened expectation. Hub
+incident receipt d28e7692-a776-434c-bda1-0a3ffda1637d is submitted. Final close
+waits for the landed #581 pin, followed by full pure-package/race qualification.
+
+Audited reader inputs before exact certificate commands: historical contract
+reads only its frozen 39 members and #823 provenance (existing fixed scanner);
+new contract reads its 77 exported members plus #838 provenance, under non-Go
+full fallback. document/edits/markdown tests read only frozen editorial fixtures,
+keeping their non-Go fallback. marker_test has no repository reads after retired
+fixture selection was removed, so its certificate is removed. Native acceptance
+reads the selected candidate skill, shared fixtures and testcouch runtime/assets;
+new CLI replay reads exported fixture data. Both retain non-Go full fallback.
+No local-gate configuration or seeded workflow was changed.
+
+Exact next step: run committed-head disposable native editorial qualification
+(Claude/Codex fixture personalities, mechanical CLI conformance, not model
+judgment); retain cleanup evidence. Then pin #581 when landed, complete pure
+checks/inventory, push and record affected per the fleet notice; request the
+hub-authorized operator stage using operator-check.md, then whole close/landing.
+No recorded suite, landing runner or stage lease is active at this checkpoint.
+
 ## Revisions
 
 ### 2026-10-23 — initial implementation design

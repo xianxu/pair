@@ -42,17 +42,17 @@ type validationStats struct {
 // ValidateEdits validates a complete sorted batch atomically, returning one
 // classification per input change in the same order. It never obtains authority
 // from candidate-written declarations.
-func ValidateEdits(base []byte, policy *DocumentPolicy, changes []Change, catalog *Catalog) ([]EditPolicy, error) {
-	out, _, e := validateEdits(base, policy, changes, catalog)
+func ValidateEdits(base []byte, policy *DocumentPolicy, changes []Change) ([]EditPolicy, error) {
+	out, _, e := validateEdits(base, policy, changes)
 	return out, e
 }
-func validateEdits(base []byte, p *DocumentPolicy, changes []Change, c *Catalog) ([]EditPolicy, validationStats, error) {
+func validateEdits(base []byte, p *DocumentPolicy, changes []Change) ([]EditPolicy, validationStats, error) {
 	stats := validationStats{}
 	fail := func(code, reason string, r Range) ([]EditPolicy, validationStats, error) {
 		return nil, stats, &PolicyError{Code: code, Reason: reason, Range: r}
 	}
-	if p == nil || c == nil {
-		return fail("editorial-invalid", "compiled base policy and catalog are required", Range{})
+	if p == nil {
+		return fail("editorial-invalid", "compiled base policy is required", Range{})
 	}
 	hash := sha256.Sum256(base)
 	if hex.EncodeToString(hash[:]) != p.SourceHash {
@@ -110,7 +110,7 @@ func validateEdits(base []byte, p *DocumentPolicy, changes []Change, c *Catalog)
 		}
 		result = append(result, EditPolicy{Change: ch, Effective: effective, Presentation: effective.Presentation})
 	}
-	after, err := Compile(candidate.Bytes(), c)
+	after, err := Compile(candidate.Bytes())
 	if err != nil {
 		return fail("editorial-invalid", err.Error(), Range{})
 	}
@@ -361,7 +361,7 @@ func (m *positionMapper) mapEnd(pos int) (int, bool) {
 	return pos + m.delta, true
 }
 func sameEffective(a, b Effective) bool {
-	return a.Collaboration == b.Collaboration && a.Presentation == b.Presentation && a.Processing == b.Processing && a.Instruction == b.Instruction && a.Scope == b.Scope && a.Frontier == b.Frontier
+	return a.Collaboration == b.Collaboration && a.Legacy == b.Legacy
 }
 func overlapsChange(c Change, r Range) bool {
 	if c.Start == c.End {

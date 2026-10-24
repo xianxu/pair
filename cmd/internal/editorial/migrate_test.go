@@ -2,161 +2,109 @@ package editorial
 
 import (
 	"bytes"
-	"fmt"
-	"math/rand"
+	"crypto/sha256"
+	"encoding/hex"
 	"strings"
 	"testing"
 )
 
-func TestPlanMigrationPreservesRouting(t *testing.T) {
-	c, _ := DefaultCatalog()
-	src := []byte("---\nopaque: {keep: yes}\ncollaboration-mode:\n  default: discussion\n  chat: [Notes]\n---\n# Notes (open)\n<!-- presentation-mode: direct -->\n- ask\n## Child\nbody\n# Notes\nbody\n")
-	before, err := Compile(src, c)
+func TestMigrationMapToTagsPreservesBytesAndItems(t *testing.T) {
+	src := []byte("---\nopaque: {keep: yes}\ncollaboration-mode:\n  default: discussion\n  chat: [Notes]\nprocessing-mode: retired\n---\n# Notes (open)\n<!-- presentation-mode: direct -->\n7. ask\n## Child\nbody\n\n# Notes\n3. another\n")
+	want := []byte("---\nopaque: {keep: yes}\nprocessing-mode: retired\n---\n@@chat@@\n# Notes (open)\n<!-- presentation-mode: direct -->\n7. ask\n## Child\nbody\n\n@@chat@@\n# Notes\n3. another\n")
+	m, err := PlanMigration(src)
 	if err != nil {
 		t.Fatal(err)
 	}
-	m, err := PlanMigration(src, c)
-	if err != nil {
-		t.Fatal(err)
+	if !bytes.Equal(m.After, want) {
+		t.Fatalf("got:\n%s\nwant:\n%s", m.After, want)
 	}
-	after, err := Compile(m.After, c)
-	if err != nil {
-		t.Fatal(err)
+	digest := sha256.Sum256(src)
+	if m.BeforeHash != hex.EncodeToString(digest[:]) {
+		t.Fatal("wrong original snapshot hash")
 	}
-	if len(before.Headings) != len(after.Headings) {
-		t.Fatal("headings changed")
-	}
-	for i := range before.Regions {
-		if before.Regions[i].Effective.Collaboration != after.Regions[i].Effective.Collaboration {
-			t.Fatal("routing changed")
-		}
-	}
-	if !bytes.Contains(m.After, []byte("<!-- presentation-mode: direct; collaboration-mode: chat -->")) || !bytes.Contains(m.After, []byte("opaque: {keep: yes}")) {
-		t.Fatalf("%s", m.After)
-	}
-	again, err := PlanMigration(m.After, c)
+	again, err := PlanMigration(m.After)
 	if err != nil || !bytes.Equal(again.After, m.After) {
 		t.Fatal("not idempotent", err)
 	}
 }
-func TestMigrationUnmatchedRefuses(t *testing.T) {
-	c, _ := DefaultCatalog()
-	m, e := PlanMigration([]byte("---\ncollaboration-mode: {chat: [Absent]}\n---\n# Present\n"), c)
-	if e == nil || m != nil {
-		t.Fatal("unmatched migration returned candidate")
+
+func TestMigrationLossRefusesWithSection(t *testing.T) {
+	for _, tc := range []struct{ name, src, section string }{
+		{"bullet", "---\ncollaboration-mode: {chat: [Notes]}\n---\n# Notes\n- ask\n", "Notes"},
+		{"overlapping-tag-bullet", "---\ncollaboration-mode: {chat: [Notes]}\n---\n@@chat@@\n# Notes\n* ask\n", "Notes"},
+		{"preamble", "---\ncollaboration-mode: {default: chat}\n---\n1. preamble ask\n# Notes\n2. ask\n", "preamble"},
+		{"setext", "---\ncollaboration-mode: {chat: [Notes]}\n---\nNotes\n=====\n1. ask\n", "Notes"},
+		{"tag-in-ask-continuation", "---\ncollaboration-mode: {chat: [Notes]}\n---\n# Notes\n1. ask\n# Notes\n2. next\n", "Notes"},
+		{"unmatched", "---\ncollaboration-mode: {chat: [Absent]}\n---\n# Present\n", "Absent"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			m, err := PlanMigration([]byte(tc.src))
+			if err == nil || m != nil {
+				t.Fatal("lossy migration returned candidate")
+			}
+			if !strings.Contains(err.Error(), tc.section) {
+				t.Fatalf("refusal lacks section %q: %v", tc.section, err)
+			}
+		})
 	}
 }
-func TestMigrationAncestorConflictRefuses(t *testing.T) {
-	c, _ := DefaultCatalog()
-	m, e := PlanMigration([]byte("---\ncollaboration-mode: {chat: [Child]}\n---\n# Parent\n<!-- collaboration-mode: collaboration -->\n## Child\ntext\n"), c)
-	if e == nil || m != nil {
-		t.Fatal("migration changed inherited comment authority")
+
+func TestMigrationRetainsIndependentAuthority(t *testing.T) {
+	for _, tc := range []struct{ name, src, want string }{
+		{"comment-bullets", "---\ncollaboration-mode: {chat: [Notes]}\n---\n# Notes\n<!-- collaboration-mode: chat -->\n- ask\n", "---\n---\n# Notes\n<!-- collaboration-mode: chat -->\n- ask\n"},
+		{"existing-tag", "---\ncollaboration-mode: {chat: [Notes]}\n---\n@@chat@@\n# Notes\n1. ask\n", "---\n---\n@@chat@@\n# Notes\n1. ask\n"},
+		{"default-chat", "---\ncollaboration-mode: {default: chat}\n---\n# Parent\n1. ask\n## Child\n2. next\n\n# Other\n3. last\n", "---\n---\n@@chat@@\n# Parent\n1. ask\n## Child\n2. next\n\n@@chat@@\n# Other\n3. last\n"},
+		{"retired-map", "---\ncollaboration-mode: {discussion: [Notes], default: future}\n---\n# Notes\nbody\n", "---\n---\n# Notes\nbody\n"},
+		{"scalar-noop", "---\ncollaboration-mode: chat\n---\n- ask\n", "---\ncollaboration-mode: chat\n---\n- ask\n"},
+		{"code-heading", "---\ncollaboration-mode: {chat: [Notes]}\n---\n```\n# Notes\n```\n# Notes\n1. ask\n", "---\n---\n```\n# Notes\n```\n@@chat@@\n# Notes\n1. ask\n"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			m, err := PlanMigration([]byte(tc.src))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if string(m.After) != tc.want {
+				t.Fatalf("got:\n%s\nwant:\n%s", m.After, tc.want)
+			}
+		})
 	}
 }
+
 func FuzzPlanMigration(f *testing.F) {
-	for _, s := range []string{"# A\n", "---\ncollaboration-mode: {chat: [Notes]}\n---\n# Notes\nbody\n# Notes (open)\ntext\n", "---\ncollaboration-mode: {default: chat, collaboration: [Child]}\n---\n# Parent\n## Child\n"} {
+	for _, s := range []string{"# A\n", "---\ncollaboration-mode: {chat: [Notes]}\n---\n# Notes\n1. ask\n", "---\ncollaboration-mode: {default: chat}\n---\n- preamble\n# Notes\n1. ask\n"} {
 		f.Add(s)
 	}
-	c, _ := DefaultCatalog()
 	f.Fuzz(func(t *testing.T, s string) {
 		if len(s) > 65536 {
 			t.Skip()
 		}
-		m, e := PlanMigration([]byte(s), c)
-		if e != nil {
+		m, err := PlanMigration([]byte(s))
+		if err != nil {
 			if m != nil {
-				t.Fatal("refusal returned candidate")
+				t.Fatal("refusal returned bytes")
 			}
 			return
 		}
-		before, e := Compile([]byte(s), c)
-		if e != nil {
-			t.Fatal(e)
+		before, err := Compile([]byte(s))
+		if err != nil {
+			t.Fatal(err)
 		}
-		after, e := Compile(m.After, c)
-		if e != nil {
-			t.Fatal(e)
+		after, err := Compile(m.After)
+		if err != nil {
+			t.Fatal(err)
 		}
-		if len(before.Headings) != len(after.Headings) {
-			t.Fatal("heading structure changed")
+		if len(before.items) != len(after.items) {
+			t.Fatal("eligible ask count changed")
 		}
-		for i := range before.Regions {
-			a, b := before.Regions[i].Effective, after.Regions[i].Effective
-			if a.Collaboration != b.Collaboration || a.Presentation != b.Presentation || a.Processing != b.Processing || a.Instruction != b.Instruction {
-				t.Fatal("effective policy changed")
+		for i, item := range before.items {
+			next := after.items[i]
+			if s[item.Range.Start:item.Range.End] != string(m.After[next.Range.Start:next.Range.End]) || item.AppendAt-item.Range.Start != next.AppendAt-next.Range.Start || item.Linked != next.Linked {
+				t.Fatal("eligible ask projection changed")
 			}
 		}
-		again, e := PlanMigration(m.After, c)
-		if e != nil || !bytes.Equal(m.After, again.After) {
-			t.Fatal("migration not idempotent", e)
+		again, err := PlanMigration(m.After)
+		if err != nil || !bytes.Equal(again.After, m.After) {
+			t.Fatal("not idempotent", err)
 		}
 	})
-}
-func TestMigrationIndependentRoutingOracle(t *testing.T) {
-	c, _ := DefaultCatalog()
-	modes := []string{"discussion", "collaboration", "chat"}
-	for seed := int64(0); seed < 30; seed++ {
-		rng := rand.New(rand.NewSource(seed))
-		var src bytes.Buffer
-		src.WriteString("---\nopaque: keep exactly\ncollaboration-mode:\n  default: discussion\n")
-		assignments := map[string]string{}
-		for group, mode := range modes {
-			fmt.Fprintf(&src, "  %s: [", mode)
-			for i := 0; i < 12; i++ {
-				name := fmt.Sprintf("Group%dN%d", group, i)
-				if i > 0 {
-					src.WriteString(", ")
-				}
-				src.WriteString(name)
-				assignments[strings.ToLower(name)] = mode
-			}
-			src.WriteString("]\n")
-		}
-		src.WriteString("---\npreamble\n")
-		want := []string{"discussion"}
-		type frame struct {
-			level int
-			mode  string
-		}
-		stack := []frame{}
-		for i := 0; i < 150; i++ {
-			level := rng.Intn(6) + 1
-			for len(stack) > 0 && stack[len(stack)-1].level >= level {
-				stack = stack[:len(stack)-1]
-			}
-			mode := "discussion"
-			if len(stack) > 0 {
-				mode = stack[len(stack)-1].mode
-			}
-			name := fmt.Sprintf("Group%dN%d", rng.Intn(3), rng.Intn(12))
-			if i < 36 {
-				name = fmt.Sprintf("Group%dN%d", i/12, i%12)
-			}
-			if i >= 36 && rng.Intn(3) == 0 {
-				name = fmt.Sprintf("Unmapped%d", i)
-			}
-			if mapped, ok := assignments[strings.ToLower(name)]; ok {
-				mode = mapped
-			}
-			fmt.Fprintf(&src, "%s %s (open)\nbody %d\n", strings.Repeat("#", level), name, i)
-			want = append(want, mode)
-			stack = append(stack, frame{level, mode})
-		}
-		migration, e := PlanMigration(src.Bytes(), c)
-		if e != nil {
-			t.Fatal(e)
-		}
-		after, e := Compile(migration.After, c)
-		if e != nil {
-			t.Fatal(e)
-		}
-		for i, mode := range want {
-			if after.Regions[i].Effective.Collaboration != mode {
-				t.Fatalf("seed %d region %d got %s want %s", seed, i, after.Regions[i].Effective.Collaboration, mode)
-			}
-		}
-		if !bytes.Contains(migration.After, []byte("opaque: keep exactly")) {
-			t.Fatal("opaque changed")
-		}
-	}
 }

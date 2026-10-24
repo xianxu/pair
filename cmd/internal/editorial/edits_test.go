@@ -8,17 +8,15 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
-	"testing/fstest"
 )
 
 func validateCase(t *testing.T, source string, changes []Change, want string) {
 	t.Helper()
-	c, _ := DefaultCatalog()
-	p, e := Compile([]byte(source), c)
+	p, e := Compile([]byte(source))
 	if e != nil {
 		t.Fatal(e)
 	}
-	got, e := ValidateEdits([]byte(source), p, changes, c)
+	got, e := ValidateEdits([]byte(source), p, changes)
 	if want == "" {
 		if e != nil {
 			t.Fatal(e)
@@ -38,18 +36,17 @@ func validateCase(t *testing.T, source string, changes []Change, want string) {
 }
 
 func TestValidateInsertionBeforeHeadingUsesPrecedingPolicy(t *testing.T) {
-	c, _ := DefaultCatalog()
 	base := []byte("# A\n<!-- presentation-mode: direct -->\nleft\n# B\n<!-- presentation-mode: highlight -->\nright\n")
-	p, err := Compile(base, c)
+	p, err := Compile(base)
 	if err != nil {
 		t.Fatal(err)
 	}
 	at := bytes.Index(base, []byte("# B"))
-	pieces, err := ValidateEdits(base, p, []Change{{Start: at, End: at, New: "\n"}}, c)
+	pieces, err := ValidateEdits(base, p, []Change{{Start: at, End: at, New: "\n"}})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(pieces) != 1 || pieces[0].Presentation != "direct" {
+	if len(pieces) != 1 || pieces[0].Presentation != "highlight" {
 		t.Fatalf("borrowed later policy: %+v", pieces)
 	}
 }
@@ -68,7 +65,7 @@ func TestValidateBasePresentationAndBoundary(t *testing.T) {
 	a := strings.Index(src, "one")
 	b := strings.Index(src, "two")
 	validateCase(t, src, []Change{{Start: a, End: a + 3, New: "ONE"}, {Start: b, End: b + 3, New: "TWO"}}, "")
-	validateCase(t, src, []Change{{Start: a, End: b + 3, New: "all"}}, "editorial-boundary")
+	validateCase(t, src, []Change{{Start: a, End: b + 3, New: "all"}}, "operator-owned")
 }
 func TestValidateChatPreservesAsks(t *testing.T) {
 	src := "# Chat\n<!-- collaboration-mode: chat -->\n- Why retry?\n- Existing → [answer](note.side/2026-10/a.md)\n"
@@ -87,34 +84,15 @@ func TestValidatePendingAndCode(t *testing.T) {
 	p = strings.Index(src, "code")
 	validateCase(t, src, []Change{{Start: p, End: p + 4, New: "literal"}}, "")
 }
-func scopeCatalog(t *testing.T) *Catalog {
-	t.Helper()
-	c, e := NewCatalog(fstest.MapFS{"modes/free.md": {Data: []byte("---\nname: free-form\norder: 1\nscope: whole-doc\nfrontier: off\n---\nfree\n")}, "modes/mark.md": {Data: []byte("---\nname: markers\norder: 2\nscope: markers-only\nfrontier: on\n---\nmarkers\n")}})
-	if e != nil {
-		t.Fatal(e)
-	}
-	return c
-}
-func TestValidateScopeAndFrontier(t *testing.T) {
-	c := scopeCatalog(t)
-	src := []byte("---\nprocessing-mode: markers\n---\nSettled paragraph.\n\nTarget sentence. 🤖[tighten]\n\nUnasked paragraph.\n")
-	p, e := Compile(src, c)
-	if e != nil {
-		t.Fatal(e)
-	}
-	for _, tc := range []struct {
-		needle  string
-		allowed bool
-	}{{"Settled", false}, {"Target", true}, {"Unasked", false}} {
-		at := bytes.Index(src, []byte(tc.needle))
-		got, e := ValidateEdits(src, p, []Change{{Start: at, End: at + len(tc.needle), New: "Changed"}}, c)
-		if (e == nil) != tc.allowed || (!tc.allowed && got != nil) {
-			t.Fatalf("%s got=%+v err=%v", tc.needle, got, e)
-		}
+func TestRetiredScopeDoesNotConstrainCommands(t *testing.T) {
+	src := "---\nprocessing-mode: proofreading\n---\nSettled paragraph.\n\nTarget sentence. 🤖[tighten]\n\nUnasked paragraph.\n"
+	for _, needle := range []string{"Settled", "Target", "Unasked"} {
+		at := strings.Index(src, needle)
+		validateCase(t, src, []Change{{Start: at, End: at + len(needle), New: "Changed"}}, "")
 	}
 }
 func TestValidateStructuralAuthorityAndAtomicBatch(t *testing.T) {
-	src := "# A\n<!-- presentation-mode: direct -->\nfirst\n# B\nsecond\n"
+	src := "# A\n<!-- collaboration-mode: chat -->\nfirst\n# B\nsecond\n"
 	at := strings.Index(src, "# B")
 	validateCase(t, src, []Change{{Start: at, End: at + 4, New: ""}}, "editorial-boundary")
 	src = "# Parent\n## Child\n<!-- presentation-mode: direct -->\nbody\n"
@@ -124,7 +102,6 @@ func TestValidateStructuralAuthorityAndAtomicBatch(t *testing.T) {
 	validateCase(t, src, []Change{{Start: 0, End: 4, New: "okay"}, {Start: p, End: p + 7, New: "changed"}}, "editorial-pending")
 }
 func TestValidateLinearOwnTraversal(t *testing.T) {
-	c, _ := DefaultCatalog()
 	for _, n := range []int{100, 200} {
 		var src bytes.Buffer
 		changes := []Change{}
@@ -134,38 +111,17 @@ func TestValidateLinearOwnTraversal(t *testing.T) {
 			fmt.Fprintf(&src, "word%03d\n", i)
 			changes = append(changes, Change{Start: start, End: start + 4, New: "WORD"})
 		}
-		p, e := Compile(src.Bytes(), c)
+		p, e := Compile(src.Bytes())
 		if e != nil {
 			t.Fatal(e)
 		}
-		got, stats, e := validateEdits(src.Bytes(), p, changes, c)
+		got, stats, e := validateEdits(src.Bytes(), p, changes)
 		if e != nil {
 			t.Fatal(e)
 		}
 		if len(got) != n || stats.EditVisits != n || stats.RegionComparisons > 4*n || stats.SourceComparisons > 4*n || stats.ChatComparisons > 4*n {
 			t.Fatalf("stats %+v", stats)
 		}
-	}
-}
-func TestValidateFrontierDomainsAndReadyCode(t *testing.T) {
-	c := scopeCatalog(t)
-	src := []byte("# A\n<!-- processing-mode: markers -->\nSettled.\n\nTarget. 🤖[tighten]\n# B\nuntouched sibling\n")
-	p, e := Compile(src, c)
-	if e != nil {
-		t.Fatal(e)
-	}
-	at := bytes.Index(src, []byte("sibling"))
-	if _, e := ValidateEdits(src, p, []Change{{Start: at, End: at + 7, New: "SIBLING"}}, c); e != nil {
-		t.Fatal(e)
-	}
-	src = []byte("---\nprocessing-mode: markers\n---\n```\ncode 🤖[ask]\n```\nUnasked.\n")
-	p, e = Compile(src, c)
-	if e != nil {
-		t.Fatal(e)
-	}
-	at = bytes.Index(src, []byte("Unasked"))
-	if got, e := ValidateEdits(src, p, []Change{{Start: at, End: at + 7, New: "Changed"}}, c); e == nil || got != nil {
-		t.Fatal("code marker granted scope")
 	}
 }
 func TestValidateChatPrefixRefuses(t *testing.T) {
@@ -198,7 +154,7 @@ func TestValidateChatAnswerLinkRecognition(t *testing.T) {
 	cases := []struct {
 		name, item string
 		linked     bool
-	}{{"direct", "- Why? → [answer](note.side/old.md)\n", true}, {"pending escaped", "- Why? 🤖{ → \\[answer\\](note.side/old.md)}\n", true}, {"inline example", "- Why? `→ [answer](note.side/example.md)`\n", false}, {"fenced example", "- Why?\n\n  ```\n  → [answer](note.side/example.md)\n  ```\n\n  Follow-up text.\n", false}, {"malformed", "- Why? → [answer](broken path)\n", false}, {"mention", "- Why? → [answer](note.side/example.md) is an example\n", false}, {"pending example", "- Why? 🤖{literal \\[answer\\](example)}\n", false}}
+	}{{"direct", "- Why? → [answer](note.side/old.md)\n", true}, {"pending escaped", "- Why? 🤖{ → \\[answer\\](note.side/old.md)}\n", true}, {"inline example", "- Why? `→ [answer](note.side/example.md)`\n", false}, {"fenced example", "- Why?\n\n  ```\n  → [answer](note.side/example.md)\n  ```\n\n  Follow-up text.\n", false}, {"malformed", "- Why? → [answer](broken path)\n", false}, {"empty destination", "- Why? → [answer]()\n", false}, {"mention", "- Why? → [answer](note.side/example.md) is an example\n", false}, {"pending example", "- Why? 🤖{literal \\[answer\\](example)}\n", false}}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			src := "# Chat\n<!-- collaboration-mode: chat -->\n" + tc.item
@@ -242,7 +198,7 @@ func generatedBatch(data []byte) ([]byte, []Change, []string, bool) {
 		fmt.Fprintf(&src, "word%d\n", i)
 		if i < 2 || data[i%len(data)]&8 != 0 {
 			changes = append(changes, Change{Start: at, End: at + 4, New: "WORD"})
-			want = append(want, presentation)
+			want = append(want, "highlight")
 		}
 	}
 	src.WriteString("\n```\n🤖[literal example]\n```\n🤖{pending}\n")
@@ -273,12 +229,11 @@ func generatedBatch(data []byte) ([]byte, []Change, []string, bool) {
 func assertGeneratedBatch(t *testing.T, data []byte) {
 	t.Helper()
 	source, changes, want, valid := generatedBatch(data)
-	c, _ := DefaultCatalog()
-	p, e := Compile(source, c)
+	p, e := Compile(source)
 	if e != nil {
 		t.Fatal(e)
 	}
-	got, e := ValidateEdits(source, p, changes, c)
+	got, e := ValidateEdits(source, p, changes)
 	if !valid {
 		if e == nil || got != nil {
 			t.Fatalf("invalid batch admitted, scenario %d changes=%+v got=%+v err=%v", data[0]%8, changes, got, e)
@@ -334,10 +289,10 @@ func TestValidateChatShallowestIndentPerSection(t *testing.T) {
 	at = strings.Index(src, "Example")
 	validateCase(t, src, []Change{{Start: at, End: at + 7, New: "Illustration"}}, "")
 	at = strings.Index(src, "Own ask")
-	validateCase(t, src, []Change{{Start: at, End: at + 7, New: "Changed"}}, "editorial-chat")
+	validateCase(t, src, []Change{{Start: at, End: at + 7, New: "Changed"}}, "")
 }
 func TestValidateChatIndentCodeControls(t *testing.T) {
-	src := "# Chat\n<!-- collaboration-mode: chat -->\n\t- Code example?\n\n  - Actual?\n\n```\n- Fenced example?\n```\n"
+	src := "# Chat\n<!-- collaboration-mode: chat -->\n\t- Code example?\n\n  - Actual?\n\nOutside prose.\n\n```\n- Fenced example?\n```\n"
 	for _, needle := range []string{"Code example", "Fenced example"} {
 		at := strings.Index(src, needle)
 		validateCase(t, src, []Change{{Start: at, End: at + len(needle), New: "Illustration"}}, "")
@@ -347,9 +302,11 @@ func TestValidateChatIndentCodeControls(t *testing.T) {
 }
 func TestValidateChatAnswerPreservesSyntaxTail(t *testing.T) {
 	for _, item := range []string{"- Ask?\n\n  ```\n  example\n  ```\n", "- Ask?\n\n  ```\n  ```\n", "- Ask?\n\n      code tail\n", "- Ask?\n\n  ---\n", "- Ask?\n\n  <div>\n  html tail\n  </div>\n", "- # Ask #\n"} {
-		src := "# Chat\n<!-- collaboration-mode: chat -->\n" + item
-		at := len(strings.TrimRight(src, "\r\n"))
-		validateCase(t, src, []Change{{Start: at, End: at, New: " → [answer](note.side/answer.md)"}}, "editorial-chat")
+		t.Run(item, func(t *testing.T) {
+			src := "---\ncollaboration-mode: chat\n---\n# Chat\n" + item
+			at := len(strings.TrimRight(src, "\r\n"))
+			validateCase(t, src, []Change{{Start: at, End: at, New: " → [answer](note.side/answer.md)"}}, "editorial-chat")
+		})
 	}
 }
 func TestValidateChatAnswerMustBeActualLink(t *testing.T) {
@@ -383,8 +340,7 @@ func TestValidateChatReadyReferralCanReshapeItem(t *testing.T) {
 	validateCase(t, src, []Change{{Start: start, End: len(src) - 1, New: ""}}, "")
 }
 func TestCompileAnswerLinksExcludeImageAlt(t *testing.T) {
-	c, _ := DefaultCatalog()
-	p, e := Compile([]byte("# A\n![alt [answer](note.side/a.md)](image.png)\n\n[answer](note.side/real.md)\n"), c)
+	p, e := Compile([]byte("# A\n![alt [answer](note.side/a.md)](image.png)\n\n[answer](note.side/real.md)\n"))
 	if e != nil {
 		t.Fatal(e)
 	}
@@ -393,7 +349,6 @@ func TestCompileAnswerLinksExcludeImageAlt(t *testing.T) {
 	}
 }
 func TestValidateChatFactJoinGrowth(t *testing.T) {
-	c, _ := DefaultCatalog()
 	previousTail, previousItem := 0, 0
 	for _, n := range []int{64, 128} {
 		var source strings.Builder
@@ -406,11 +361,11 @@ func TestValidateChatFactJoinGrowth(t *testing.T) {
 			changes = append(changes, Change{Start: at, End: at, New: fmt.Sprintf(" → [answer](note.side/answer%d.md)", i)})
 		}
 		raw := []byte(source.String())
-		p, e := Compile(raw, c)
+		p, e := Compile(raw)
 		if e != nil {
 			t.Fatal(e)
 		}
-		got, stats, e := validateEdits(raw, p, changes, c)
+		got, stats, e := validateEdits(raw, p, changes)
 		if e != nil {
 			t.Fatal(e)
 		}

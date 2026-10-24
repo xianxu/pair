@@ -177,9 +177,3 @@ func sourceLines(src []byte) []Range {
 	}
 	return out
 }
-func scalar(f sourceField) (string, error) {
-	if f.value.Kind != yaml.ScalarNode {
-		return "", fmt.Errorf("%s at byte %d must be a scalar", f.Key, f.Range.Start)
-	}
-	return f.value.Value, nil
-}

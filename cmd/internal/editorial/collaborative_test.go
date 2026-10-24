@@ -6,12 +6,8 @@ import (
 )
 
 func TestCompileSharedChatContract(t *testing.T) {
-	catalog, err := DefaultCatalog()
-	if err != nil {
-		t.Fatal(err)
-	}
 	source := "# Ordinary\nA paragraph.\n\n@@chat@@\n## Questions\n1. Why wait?\n\n# Ordinary again\nAnother paragraph.\n"
-	policy, err := Compile([]byte(source), catalog)
+	policy, err := Compile([]byte(source))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -38,10 +34,6 @@ func TestCompileSharedChatContract(t *testing.T) {
 }
 
 func TestCompileRetiredValuesNeverRefuse(t *testing.T) {
-	catalog, err := DefaultCatalog()
-	if err != nil {
-		t.Fatal(err)
-	}
 	for _, metadata := range []string{
 		"presentation-mode: direct\nprocessing-mode: no-such-mode\n",
 		"presentation-mode: [unterminated\n",
@@ -51,7 +43,7 @@ func TestCompileRetiredValuesNeverRefuse(t *testing.T) {
 	} {
 		t.Run(metadata, func(t *testing.T) {
 			source := "---\n" + metadata + "---\n# Text\nOperator content.\n"
-			policy, err := Compile([]byte(source), catalog)
+			policy, err := Compile([]byte(source))
 			if err != nil {
 				t.Fatalf("retired metadata must be nonfatal: %v", err)
 			}
@@ -66,19 +58,15 @@ func TestCompileRetiredValuesNeverRefuse(t *testing.T) {
 }
 
 func TestCollaborativeTagsAreOwnedUnderWholeLegacyChat(t *testing.T) {
-	catalog, err := DefaultCatalog()
-	if err != nil {
-		t.Fatal(err)
-	}
 	for _, prefix := range []string{"", "---\ncollaboration-mode: chat\n---\n"} {
 		t.Run(prefix, func(t *testing.T) {
 			source := prefix + "@@chat@@\n# Questions\n1. Why?\n"
-			policy, err := Compile([]byte(source), catalog)
+			policy, err := Compile([]byte(source))
 			if err != nil {
 				t.Fatal(err)
 			}
 			at := strings.Index(source, "@@chat@@")
-			_, err = ValidateEdits([]byte(source), policy, []Change{{Start: at, End: at + len("@@chat@@\n")}}, catalog)
+			_, err = ValidateEdits([]byte(source), policy, []Change{{Start: at, End: at + len("@@chat@@\n")}})
 			refusal, ok := err.(*PolicyError)
 			if !ok || refusal.Code != "operator-owned" {
 				t.Fatalf("deleting a real tag must refuse operator-owned, got %v", err)

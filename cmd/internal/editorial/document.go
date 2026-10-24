@@ -10,7 +10,6 @@ import (
 	"github.com/xianxu/ariadne/pkg/sidedoc"
 
 	"github.com/yuin/goldmark/ast"
-	"go.yaml.in/yaml/v3"
 )
 
 // Effective is the single collaborative policy plus the chat item grammar.
@@ -18,23 +17,17 @@ type Effective struct {
 	Collaboration string `json:"collaboration"`
 	Legacy        bool   `json:"legacy,omitempty"`
 	Presentation  string `json:"presentation"`
-	Processing    string `json:"processing"`
-	Instruction   string `json:"instruction,omitempty"`
-	Modes         []Mode `json:"modes"`
-	Scope         Scope  `json:"scope"`
-	Frontier      bool   `json:"frontier"`
 }
 
 // Heading identifies an ATX heading and its nearest parent in source coordinates.
 type Heading struct {
-	Range     Range             `json:"range"`
-	Level     int               `json:"level"`
-	Parent    int               `json:"parent"`
-	Name      string            `json:"name"`
-	Directive *OwnedSource      `json:"directive,omitempty"`
-	Overrides map[string]string `json:"overrides,omitempty"`
-	Tag       *OwnedSource      `json:"tag,omitempty"`
-	Protected bool              `json:"-"`
+	Range     Range        `json:"range"`
+	Level     int          `json:"level"`
+	Parent    int          `json:"parent"`
+	Name      string       `json:"name"`
+	Directive *OwnedSource `json:"directive,omitempty"`
+	Tag       *OwnedSource `json:"tag,omitempty"`
+	Protected bool         `json:"-"`
 }
 
 // Region is a contiguous source interval with one effective editorial policy.
@@ -47,14 +40,13 @@ type Region struct {
 
 // CompileStats counts this package's source/heading/map work, excluding Goldmark internals.
 type CompileStats struct {
-	LineAdvances      int
-	HeadingVisits     int
-	LegacyAssignments int
-	ListSourceEvents  int
-	SharedScans       int
-	SectionEvents     int
-	ItemSourceBytes   int
-	ItemJoins         int
+	LineAdvances     int
+	HeadingVisits    int
+	ListSourceEvents int
+	SharedScans      int
+	SectionEvents    int
+	ItemSourceBytes  int
+	ItemJoins        int
 }
 
 // RenderableBlock retains source placement and the actual content tail of a
@@ -86,38 +78,24 @@ type DocumentPolicy struct {
 	ListItems   []Range           `json:"-"`
 	CodeRanges  []Range           `json:"-"`
 	SourceHash  string            `json:"sourceHash"`
-	legacy      map[string]string
-	legacyField *sourceField
 	parsed      parsedSource
-	multiple    bool
 	scan        sidedoc.ChatScan
 	items       []chatItem
 }
 
-func defaultEffective(c *Catalog) Effective {
-	return Effective{Collaboration: "collaboration", Presentation: "highlight", Scope: WholeDocument}
-}
-
-// NormalizeHeading is retained only for the explicit legacy migration.
-func NormalizeHeading(s string) string {
-	s = strings.ToLower(strings.Join(strings.Fields(s), " "))
-	if strings.HasSuffix(s, ")") {
-		if i := strings.LastIndex(s, " ("); i >= 0 {
-			s = s[:i]
-		}
-	}
-	return strings.TrimSpace(s)
+func defaultEffective() Effective {
+	return Effective{Collaboration: "collaboration", Presentation: "highlight"}
 }
 
 // Compile adapts shared chat facts to one immutable original-byte snapshot.
 // Retired values never select processing or presentation and never refuse.
-func Compile(src []byte, c *Catalog) (*DocumentPolicy, error) {
+func Compile(src []byte) (*DocumentPolicy, error) {
 	p, err := parseOwnedSource(src)
 	if err != nil {
 		return nil, err
 	}
 	scan := sidedoc.ChatSections(string(src))
-	d := &DocumentPolicy{Defaults: defaultEffective(c), Owned: p.owned, parsed: p, legacy: map[string]string{}, scan: scan}
+	d := &DocumentPolicy{Defaults: defaultEffective(), Owned: p.owned, parsed: p, scan: scan}
 	d.Stats.SharedScans = 1
 	hash := sha256.Sum256(src)
 	d.SourceHash = hex.EncodeToString(hash[:])
@@ -126,9 +104,6 @@ func Compile(src []byte, c *Catalog) (*DocumentPolicy, error) {
 	}
 	for _, line := range scan.Misplaced {
 		d.Diagnostics = append(d.Diagnostics, Diagnostic{Message: fmt.Sprintf("@@chat@@ at line %d is not directly above a heading", line)})
-	}
-	if f, ok := p.fields["collaboration-mode"]; ok && f.value.Kind == yaml.MappingNode {
-		d.legacyField = &f
 	}
 	// Goldmark owns Markdown structure, including code masking and heading recognition.
 	body := src[p.body:]
@@ -243,7 +218,7 @@ func Compile(src []byte, c *Catalog) (*DocumentPolicy, error) {
 		if fact.Line < 1 || fact.Line > len(lines) {
 			continue
 		}
-		h := Heading{Range: lines[fact.Line-1], Level: fact.Level, Parent: -1, Name: fact.Name}
+		h := Heading{Range: lines[fact.Line-1], Level: fact.Level, Parent: -1, Name: strings.TrimSpace(fact.Name)}
 		for len(stack) > 0 && d.Headings[stack[len(stack)-1]].Level >= h.Level {
 			stack = stack[:len(stack)-1]
 		}
@@ -262,6 +237,16 @@ func Compile(src []byte, c *Catalog) (*DocumentPolicy, error) {
 	}
 	// Source ownership is independent of effective routing. In particular a
 	// whole-document legacy alias must not hide the tags inside it.
+	codeAtLine := make(map[int]bool)
+	cursor := 0
+	for i, r := range lines {
+		for cursor < len(d.CodeRanges) && d.CodeRanges[cursor].End <= r.Start {
+			cursor++
+		}
+		if cursor < len(d.CodeRanges) && d.CodeRanges[cursor].Start < r.End {
+			codeAtLine[i+1] = true
+		}
+	}
 	for line, index := range headingsByLine {
 		h := &d.Headings[index]
 		if line > 1 && tags[line-1] {
@@ -270,7 +255,7 @@ func Compile(src []byte, c *Catalog) (*DocumentPolicy, error) {
 			h.Tag = &o
 			h.Protected = true
 		}
-		if line < len(lines) && legacyDirective(string(src[lines[line].Start:lines[line].End])) {
+		if line < len(lines) && !codeAtLine[line+1] && legacyDirective(string(src[lines[line].Start:lines[line].End])) {
 			r := lines[line]
 			o := OwnedSource{Range: r, Key: "heading-directive", Raw: bytes.Clone(src[r.Start:r.End]), Heading: index}
 			h.Directive = &o
