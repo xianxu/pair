@@ -348,7 +348,8 @@ export function projectSketchPoint(point, from, to) {
 // Variable-width ribbons and endpoint discs retain each sample's pressure.
 // The viewer scale applies to widths, independently of anchor aspect ratio.
 export function paintSketchPaths(g, paths, { toClient = (x, y) => [x, y], scale = 1, project } = {}) {
-  if (!Number.isFinite(scale) || scale <= 0) return;
+  if (!Number.isFinite(scale) || scale <= 0) return null;
+  let bounds = null;
   g.save();
   for (const path of paths) {
     if (!Number.isFinite(path.width) || path.width <= 0) continue;
@@ -387,12 +388,18 @@ export function paintSketchPaths(g, paths, { toClient = (x, y) => [x, y], scale 
       g.fill();
     }
     for (const [x, y, r] of pts) {
+      if (!bounds) bounds = {left:x-r,top:y-r,right:x+r,bottom:y+r};
+      else {
+        bounds.left=Math.min(bounds.left,x-r);bounds.top=Math.min(bounds.top,y-r);
+        bounds.right=Math.max(bounds.right,x+r);bounds.bottom=Math.max(bounds.bottom,y+r);
+      }
       g.beginPath();
       g.arc(x, y, r, 0, Math.PI * 2);
       g.fill();
     }
   }
   g.restore();
+  return bounds;
 }
 
 // Coalesce a burst of accepted patches into one projection walk and paint.

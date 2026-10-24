@@ -149,7 +149,15 @@ Live pins follow a connected anchor or a confident unique replacement on the sam
 route, projecting the original region onto its new box. Removed, hidden, clipped,
 offscreen, conflicting or ambiguous anchors show no box. The shared list retains
 all open notes, including notes on earlier documents, labelled **not on this view**
-when placement is unavailable. Weak/common text cannot select a replacement;
+when placement is unavailable. Its yellow floating panel can be minimized to
+Notes (N), moved by its header/button or arrow keys, and restored at that same
+session-local position. The list scrolls inside its fixed height. Presentation
+changes do not hide anchored feedback or resolve selected revisions. One Sketch notes (N) button opens a bounded scrolling list of all eligible
+on-view sketches, each with an identified Add note or View note row. Add note
+uses the existing unfinished-label flow; View note inspects a completed label
+read-only. Overlapping sketches remain individually selectable. Pending feedback remains the separate exact
+submission preview; its acknowledgment and stale-selection checks are unchanged.
+Weak/common text cannot select a replacement;
 truncated searches cannot claim uniqueness. Operator originals arrive as actual DOM
 objects through a bounded, document-scoped recorder/CDP bridge; weak references
 expire with the last open note or document. A mutable path never grants original
