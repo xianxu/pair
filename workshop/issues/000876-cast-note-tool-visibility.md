@@ -63,6 +63,11 @@ Claimed and started from main56986a072ef70b7ee0d00c317395088b2bb44915, no #857 c
 
 TL9a388ca5 approves owner-default semantics and visible viewer recovery; TLeed8fb98 includes both Note and Pointer. Read-only authority audit confirms exact CDP context/frame/document proof and all prepared-note permit consumers must be handled, not just UI or AnnotationAdmission.Check. The plan uses one comparable private authority binding, preserves viewer OFF and existing cleanup/generation fencing, and creates no new wire/persisted state. Plan sent for hub approval; no production code changed. #875 still waits for #857 landing.
 
+
+### 2026-10-24 — Hub plan approval
+
+TL4b0ceec1 approves the durable plan in full and directs change-code. No production implementation before that gate.
+
 ## Revisions
 
 ### 2026-10-24 — Separate operator authority from viewer permission

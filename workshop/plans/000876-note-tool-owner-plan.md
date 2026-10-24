@@ -108,3 +108,8 @@ Targeted iterations run one command at a time: relevant Board/recorder operator 
 ### 2026-10-24 — Owner/viewer semantics approved; implementation pending plan approval
 
 TL9a388ca5 selects owner Note default availability, keeping other viewers OFF; TLeed8fb98 extends the same rule to owner Pointer. This revises the original preserve-OFF wording only for a proved operator, not a blanket client bypass. Root-cause evidence rejects overflow at the supplied viewport and identifies default shared-capability gating. Exact historical private UI state remains unavailable; a live recheck is still required. No production implementation has started.
+
+
+### 2026-10-24 — Plan approved
+
+TL4b0ceec1 approves the exact CDP owner proof, one binding through all preparation/final-write consumers, settled OFF/ON owner generation rule, viewer ON grant, unresolved cleanup fence, visible viewer reason and forgery/retirement/race qualification. Proceed to change-code; implementation remains gated on plan quality.
