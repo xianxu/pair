@@ -1,6 +1,6 @@
 ---
 id: 000679
-status: codecomplete
+status: done
 created: 2026-10-18
 updated: 2026-10-23
 estimate_hours:
@@ -21,6 +21,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: 6dfbc3b346f083a1397845262ab57ddc187811f0
         evidence_commit: c9011965acc8a6b55c7a98c4f198475332a0b945
+        landed_commit: 3d6200bf2de4486aacf4a7d991cb5b8f60b45c3a
 ---
 
 # flake: changelogcmd distiller FIFO test hangs 20m in os.ReadFile
