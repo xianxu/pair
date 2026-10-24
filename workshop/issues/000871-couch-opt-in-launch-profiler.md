@@ -89,3 +89,7 @@ Reader audit: singleton_runtime_test.go reads only its disposable roots/child-en
 ### 2026-10-24 — recorded pre-close queued
 
 Runtime/test head64ca9573ea78dac536e567dd3897764bc58477fb pushed. Pre-close selected affected, then full suite because the audited singleton reader certificate changed. Retained lease-484894997, attempt4174e87836b2cc9812c66c20b0e0eae5, tool session8988, log /Users/xianxu/workspace/pair/.git/sdlc/test-stats/inflight/4174e87836b2cc9812c66c20b0e0eae5/run.log; FIFO position3 on admission. No result claimed. No continuation restart while this run is queued/running. Mandatory close review may overlap the queue under tl-worker; final recorded pass is required before landing, and any executable correction requires a new head check. Do not chase main manually after this branch check; merge owns integration. Exact next step is check this result, close review and self-merge on SHIP.
+
+### 2026-10-24 — known actual-snapshot limit refused close
+
+Normal actual adoption attempted first. Close session1378 refused before review: measurement branch proof: measurement snapshot does not serialize: json: error calling MarshalJSON for type *gatestate.MeasurementInputs: measurement exceeds65536bytes. Exact refusal retained in measurement-snapshot-refusal.txt. Standing TLf039e10f explicitly retains --no-actual with evidence for this separate ariadne#593 limit; using that precise exception, no guessed hours or rewritten history. The retained pre-close lease advanced to FIFO1 and remains untouched; no test result claimed.
