@@ -1,6 +1,6 @@
 ---
 id: 000845
-status: codecomplete
+status: done
 created: 2026-10-23
 updated: 2026-10-23
 estimate_hours:
@@ -21,6 +21,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: 4651b220e5ddb2f2a88b166dc0734c0200ec0fa6
         evidence_commit: bbdda6a61e83203a54ed5df096f8222a4621fd30
+        landed_commit: 1e000bc5401f909adee4a32f61e4a5c7a72becc3
 ---
 
 # Native Couch conformance isolation omits Git upload-pack helper
