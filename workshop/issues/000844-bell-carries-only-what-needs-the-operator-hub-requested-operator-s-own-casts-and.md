@@ -1,13 +1,21 @@
 ---
 id: 000844
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-10-23
-updated: 2026-10-23
+updated: 2026-10-24
 estimate_hours:
 collaboration-mode: collaboration
-card_mirror: '34173ce91692fb313b6f555e3f3ac58b8faddf18' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '830c90aaaec9940181ff7be99db3735ffaac4728' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-24T10:30:06-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: Xian’s MacBook Pro
+    workspace: pair:1
+    worktree: /Users/xianxu/workspace/worktree/pair-slot1/pair
+    repository: github.com/xianxu/pair
 ---
 
 # Bell carries only what needs the operator (hub-requested, operator's own casts and drives, no hub able to act); the rest goes to the hub
@@ -39,8 +47,22 @@ so adding a class back is a one-line change.
 
 ## Plan
 
-- [ ]
+Durable plan: [human attention routing](../plans/000844-human-attention-routing-plan.md).
+
+- [ ] Implement the pure typed routing table and bounded delivery reducer after TL approval.
+- [ ] Integrate Console startup/shutdown and existing guarded system-message delivery.
+- [ ] Sweep every producer, direct prompt/question/archive/stall path and duplicate-effect case.
+- [ ] Update atlas, audit reader certificates, run recorded pre-close, close and land.
 
 ## Log
 
 ### 2026-10-23
+
+
+### 2026-10-24 — claim, audit and proposed plan
+
+Started independently from main after #812 landed; #853 is blocked on ariadne#598 and contributes no unlanded commits to this branch. Two bounded read-only audits enumerated all warning producers and existing hub-routing seams. Findings: status/warning Kind is not a policy class; two sites directly call publishWarningLocked; prompt/question and archive/stall paths bypass Warn; wait questions already send a hub message; startup warnings precede service creation. The plan addresses the full enumerable class, preserving existing admission/automation guards (ARCH-DRY, ARCH-PURPOSE).
+
+TL approved policy in delivery 84c76ec1-c90f-40f0-885d-bfeafba9b898: automation OFF gives feed only/no replay; connected disabled hub is not absent; missing connected owning hub gives actionable fallback while routine feedback stays feed-only. The detailed design proposes typed classes, one table, buffered startup and bounded asynchronous hub delivery with exact occurrence IDs; global diagnostics retain primary ownership. Capacity fallback and live-hub picker interpretation are explicit approval questions in the plan. No code or tests changed and no passing verification claimed.
+
+**NEXT ACTION:** receive TL approval of the durable design, resolve the bounded dispatch/overflow and hub-picker details, then run change-code (plan-quality review before estimate/implementation). No code before that boundary.
