@@ -93,3 +93,7 @@ Hubc8becfbf authorized exact-head targeted evidence, register under869, then res
 ### 2026-10-24 — saved-attempt resume admitted
 
 Registration of the single test under869 succeeded using the honest fail/focused-pass evidence authorized by Hubc8becfbf; notified869 owner to retain it in that issue Log. Supported local-check resume accepted exact parent9b1291dfa24852860d0188feb71beb0f at c6644e8d and created child82d1856f1cf35eeb1b90f18c122bdc14, lease-138335625 (tool77994). It reruns only known869, but currently requests a machine suite slot, FIFO position10 at admission; reported this economy surprise to hub, no bypass or cancellation. Preserve the admitted resume. PR594 is open and CI pending. Next: join tool77994, inspect its exact result; if pass, re-enter merge (no live merge runner currently) and follow its printed prerequisites. No unchanged full rerun.
+
+### 2026-10-24 — saved resume PASS; re-enter landing
+
+Supported resume tool77994 joined exit0. Parent9b1291dfa24852860d0188feb71beb0f plus child82d1856f1cf35eeb1b90f18c122bdc14 now records affected PASS at runtime c6644e8d, with the single known #869 rerun; no full rerun was requested. The display retains the parent failure's exit2/14m2s as provenance, while the resume command and combined classification are pass. All runtime files remain identical to that tested commit; later commits are close, Log, evidence and lesson only. Re-enter sdlc merge --yes after #878/#869 per hubd8b9652a; no other merge runner is alive.
