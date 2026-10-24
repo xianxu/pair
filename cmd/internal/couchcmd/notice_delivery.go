@@ -178,7 +178,7 @@ func (d *noticeDelivery) validLocked(effect couchcore.NoticeDeliveryEffect) bool
 		return false
 	}
 	for _, entry := range d.state.Entries {
-		if entry.Occurrence.ID == effect.Occurrence.ID && entry.Token == effect.Token && entry.Phase == couchcore.NoticeDeliverySending {
+		if entry.Occurrence.ID == effect.Occurrence.ID && entry.Token == effect.Token && entry.Owner == effect.Owner && entry.Phase == couchcore.NoticeDeliverySending {
 			return true
 		}
 	}
@@ -227,27 +227,17 @@ func (d *noticeDelivery) reconcile() {
 			return
 		}
 		switch entry.Phase {
-		case couchcore.NoticeDeliveryPending:
+		case couchcore.NoticeDeliveryPending, couchcore.NoticeDeliveryAwaitingDisposition:
 			owner := backend.NoticeOwner(entry.Occurrence)
 			d.mu.Lock()
 			if !d.state.Closed {
-				// An old owner-loop snapshot cannot clear a now-started attempt. Frozen
-				// admission effects retain their original epoch for backend validation.
-				pending := false
+				// Match the exact prior fact before using its scoped generation witness.
+				// A concurrent completion or accepted handoff supersedes this observation.
 				for _, current := range d.state.Entries {
-					if current.Occurrence.ID == entry.Occurrence.ID && current.Phase == couchcore.NoticeDeliveryPending && current.Owner == entry.Owner {
-						pending = true
+					if current.Occurrence.ID == entry.Occurrence.ID && current.Owner == entry.Owner && current.Token == entry.Token && current.Phase == entry.Phase {
+						revoked := !backend.NoticeOwnerCurrent(entry.Owner)
+						d.advanceLocked(couchcore.NoticeDeliveryEvent{Kind: couchcore.NoticeDeliveryOwnerChanged, Now: time.Now(), ID: entry.Occurrence.ID, Token: entry.Token, Owner: owner, Revoked: revoked})
 						break
-					}
-				}
-				if pending {
-					// NoticeOwner retains the resolved owner's automation epoch even
-					// while unavailable: same-epoch absence reaches RouteNotice's Bell,
-					// whereas OFF/ON invalidation retires without reviving the event.
-					if entry.Owner.State != couchcore.NoticeOwnerBooting && owner.Epoch != entry.Owner.Epoch {
-						d.advanceLocked(couchcore.NoticeDeliveryEvent{Kind: couchcore.NoticeDeliveryConditionCleared, Now: time.Now(), ID: entry.Occurrence.ID})
-					} else {
-						d.advanceLocked(couchcore.NoticeDeliveryEvent{Kind: couchcore.NoticeDeliveryOwnerChanged, Now: time.Now(), ID: entry.Occurrence.ID, Owner: owner})
 					}
 				}
 			}
@@ -342,8 +332,12 @@ func (d *noticeDelivery) worker() {
 				owner = backend.NoticeOwner(effect.Occurrence)
 			}
 			d.mu.Lock()
-			if !d.state.Closed {
-				d.advanceLocked(couchcore.NoticeDeliveryEvent{Kind: couchcore.NoticeDeliverySendResult, Now: time.Now(), ID: effect.Occurrence.ID, Token: effect.Token, Result: result, Owner: owner})
+			if !d.state.Closed && d.validLocked(effect) {
+				revoked := false
+				if result == couchcore.NoticeDeliveryRefused {
+					revoked = !backend.NoticeOwnerCurrent(effect.Owner)
+				}
+				d.advanceLocked(couchcore.NoticeDeliveryEvent{Kind: couchcore.NoticeDeliverySendResult, Now: time.Now(), ID: effect.Occurrence.ID, Token: effect.Token, Result: result, Owner: owner, Revoked: revoked})
 			}
 			d.mu.Unlock()
 			d.signal()

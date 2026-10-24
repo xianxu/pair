@@ -40,6 +40,7 @@ const (
 	NoticeDeliveryPending NoticeDeliveryPhase = iota
 	NoticeDeliverySending
 	NoticeDeliveryAwaitingReceipt
+	NoticeDeliveryAwaitingDisposition
 )
 
 type NoticeDeliveryEntry struct {
@@ -84,6 +85,8 @@ type NoticeDeliveryEvent struct {
 	Owner      NoticeDeliveryOwner
 	Token      uint64
 	Result     NoticeDeliveryResult
+	// Revoked is an explicit observation of the retained Root generation.
+	Revoked bool
 }
 type NoticeDeliveryEffectKind uint8
 
@@ -167,31 +170,46 @@ func AdvanceNoticeDelivery(previous NoticeDeliveryState, event NoticeDeliveryEve
 		}
 		state.Entries = append(state.Entries, NoticeDeliveryEntry{Occurrence: occurrence, Owner: event.Owner, CreatedAt: event.Now, AdmissionID: occurrence.ID})
 	case NoticeDeliveryOwnerChanged:
-		for i := range state.Entries {
-			entry := &state.Entries[i]
-			if entry.Phase == NoticeDeliveryPending && (event.ID == "" || entry.Occurrence.ID == event.ID) {
-				entry.Owner = event.Owner
-				if event.Owner.Root != "" {
-					entry.Occurrence.OwnerRoot = event.Owner.Root
+		keep = state.Entries[:0]
+		for _, entry := range state.Entries {
+			local := entry.Phase == NoticeDeliveryPending || entry.Phase == NoticeDeliveryAwaitingDisposition
+			matched := (event.ID == "" || entry.Occurrence.ID == event.ID) && entry.Token == event.Token
+			if local && matched {
+				if event.Revoked {
+					continue
+				}
+				entry.Owner = noticeDeliveryObserveOwner(entry.Owner, event.Owner)
+				if entry.Owner.Root != "" {
+					entry.Occurrence.OwnerRoot = entry.Owner.Root
 				}
 			}
+			keep = append(keep, entry)
 		}
+		state.Entries = keep
 	case NoticeDeliverySendResult, NoticeDeliveryReceiptObserved:
 		for i := range state.Entries {
 			entry := &state.Entries[i]
-			if entry.Occurrence.ID != event.ID || entry.Token != event.Token || entry.Phase == NoticeDeliveryPending {
+			if entry.Occurrence.ID != event.ID || entry.Token != event.Token {
 				continue
 			}
-			if event.Kind == NoticeDeliveryReceiptObserved || entry.Phase == NoticeDeliverySending && event.Result == NoticeDeliveryRefused {
-				if event.Kind == NoticeDeliverySendResult && entry.Owner.Epoch == event.Owner.Epoch {
-					route := RouteNotice(NoticeRouteInput{Class: entry.Occurrence.Class, Origin: entry.Occurrence.Origin, Owner: event.Owner.State, HubHandled: entry.Occurrence.HubHandled})
-					if route.Bell {
-						effects = append(effects, NoticeDeliveryEffect{Kind: NoticeDeliveryBell, Occurrence: entry.Occurrence})
-					}
+			if event.Kind == NoticeDeliveryReceiptObserved {
+				if entry.Phase == NoticeDeliverySending || entry.Phase == NoticeDeliveryAwaitingReceipt {
+					state.Entries = append(state.Entries[:i], state.Entries[i+1:]...)
 				}
-				state.Entries = append(state.Entries[:i], state.Entries[i+1:]...)
 			} else if entry.Phase == NoticeDeliverySending {
-				entry.Phase = NoticeDeliveryAwaitingReceipt
+				if event.Result == NoticeDeliveryRefused {
+					if event.Revoked {
+						state.Entries = append(state.Entries[:i], state.Entries[i+1:]...)
+					} else {
+						entry.Phase = NoticeDeliveryAwaitingDisposition
+						entry.Owner = noticeDeliveryObserveOwner(entry.Owner, event.Owner)
+						if entry.Owner.Root != "" {
+							entry.Occurrence.OwnerRoot = entry.Owner.Root
+						}
+					}
+				} else {
+					entry.Phase = NoticeDeliveryAwaitingReceipt
+				}
 			}
 			break
 		}
@@ -213,7 +231,7 @@ func AdvanceNoticeDelivery(previous NoticeDeliveryState, event NoticeDeliveryEve
 	}
 	keep = state.Entries[:0]
 	for _, entry := range state.Entries {
-		if entry.Phase != NoticeDeliveryPending {
+		if entry.Phase != NoticeDeliveryPending && entry.Phase != NoticeDeliveryAwaitingDisposition {
 			keep = append(keep, entry)
 			continue
 		}
@@ -221,6 +239,12 @@ func AdvanceNoticeDelivery(previous NoticeDeliveryState, event NoticeDeliveryEve
 		if route.Bell {
 			effects = append(effects, NoticeDeliveryEffect{Kind: NoticeDeliveryBell, Occurrence: entry.Occurrence})
 			continue
+		}
+		if entry.Phase == NoticeDeliveryAwaitingDisposition {
+			if route.Defer {
+				keep = append(keep, entry)
+			}
+			continue // A confirmed refusal can only receive local disposition.
 		}
 		if !route.Hub && !route.Defer {
 			continue
@@ -236,4 +260,16 @@ func AdvanceNoticeDelivery(previous NoticeDeliveryState, event NoticeDeliveryEve
 	}
 	state.Entries = keep
 	return state, effects
+}
+
+// Unknown readiness has no authority to erase a verified generation witness.
+// A verified destination Root adopts its own epoch; epochs are never compared
+// across roots in the reducer. The backend supplies explicit Revoked facts.
+func noticeDeliveryObserveOwner(prior, current NoticeDeliveryOwner) NoticeDeliveryOwner {
+	if current.State == NoticeOwnerBooting && current.Root == "" {
+		current.Root = prior.Root
+		current.Epoch = prior.Epoch
+		current.Binding = prior.Binding
+	}
+	return current
 }

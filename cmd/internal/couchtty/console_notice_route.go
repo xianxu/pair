@@ -9,6 +9,9 @@ import (
 // broker ingress. Console never invokes its IO methods while holding locks.
 type NoticeDeliveryBackend interface {
 	NoticeOwner(couchcore.NoticeDeliveryOccurrence) couchcore.NoticeDeliveryOwner
+	// NoticeOwnerCurrent compares only the retained root's cached generation;
+	// both ownership methods are memory-only and invoke no callbacks.
+	NoticeOwnerCurrent(couchcore.NoticeDeliveryOwner) bool
 	DeliverNotice(context.Context, couchcore.NoticeDeliveryEffect) couchcore.NoticeDeliveryResult
 	NoticeReceipt(string) (known, terminal bool)
 }

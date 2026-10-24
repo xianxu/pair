@@ -26,12 +26,17 @@ type noticeDeliveryWorld struct {
 }
 
 func newNoticeDeliveryWorld() *noticeDeliveryWorld {
-	return &noticeDeliveryWorld{owner: couchcore.NoticeDeliveryOwner{State: couchcore.NoticeOwnerEnabled, Binding: "hub", Epoch: 1}, receipts: map[string]bool{}, entered: make(chan couchcore.NoticeDeliveryEffect, 4), release: make(chan struct{}), result: couchcore.NoticeDeliveryUncertain}
+	return &noticeDeliveryWorld{owner: couchcore.NoticeDeliveryOwner{State: couchcore.NoticeOwnerEnabled, Root: "/hub", Binding: "hub", Epoch: 1}, receipts: map[string]bool{}, entered: make(chan couchcore.NoticeDeliveryEffect, 4), release: make(chan struct{}), result: couchcore.NoticeDeliveryUncertain}
 }
 func (w *noticeDeliveryWorld) NoticeOwner(couchcore.NoticeDeliveryOccurrence) couchcore.NoticeDeliveryOwner {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 	return w.owner
+}
+func (w *noticeDeliveryWorld) NoticeOwnerCurrent(owner couchcore.NoticeDeliveryOwner) bool {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	return owner.Root == "" || owner.Root == w.owner.Root && owner.Epoch == w.owner.Epoch
 }
 func (w *noticeDeliveryWorld) NoticeReceipt(id string) (bool, bool) {
 	w.mu.Lock()
@@ -331,6 +336,9 @@ type noticeGuardedAdmission struct {
 func (g *noticeGuardedAdmission) NoticeOwner(o couchcore.NoticeDeliveryOccurrence) couchcore.NoticeDeliveryOwner {
 	return g.service.NoticeOwner(o)
 }
+func (g *noticeGuardedAdmission) NoticeOwnerCurrent(owner couchcore.NoticeDeliveryOwner) bool {
+	return g.service.NoticeOwnerCurrent(owner)
+}
 func (g *noticeGuardedAdmission) NoticeReceipt(id string) (bool, bool) {
 	return g.service.NoticeReceipt(id)
 }
@@ -519,5 +527,112 @@ func TestNoticeDeliveryOwnerLossAfterBootResolution(t *testing.T) {
 	defer d.mu.Unlock()
 	if len(d.projections) != 1 || d.projections[0].Occurrence.Body != "buffered-before-bind" {
 		t.Fatal("boot resolution failed to retain exact owner provenance")
+	}
+}
+
+func TestNoticeDeliveryUnknownReadinessPreservesPending(t *testing.T) {
+	r, slots := hubMessageRig(t)
+	for _, action := range []string{"off", "on"} {
+		if _, err := r.s.controlAutomation("/repo0", action); err != nil {
+			t.Fatal(err)
+		}
+	}
+	d := pausedNoticeDelivery()
+	d.Bind(r.s)
+	for i := 0; i < 5; i++ {
+		d.Publish(couchtty.Notice{Class: couchcore.NoticeDispatcherDiagnostic, Body: "global diagnostic"})
+	}
+	if len(d.state.Entries) != 5 || len(d.admissions) != 4 {
+		t.Fatal("fixture did not occupy four admissions")
+	}
+	// This is exactly the registry publication-before-EffectConnect cache window:
+	// connected has an unrelated binding which has not committed its identity.
+	r.s.mu.Lock()
+	unrelated := r.s.workspaces[slots[3]]
+	delete(r.s.workspaces, slots[3])
+	r.s.mu.Unlock()
+	r.s.broker.Disconnect(slots[0])
+	owner := r.s.NoticeOwner(d.state.Entries[4].Occurrence)
+	if owner.State != couchcore.NoticeOwnerBooting {
+		t.Fatalf("fixture owner=%+v", owner)
+	}
+	d.reconcile()
+	if len(d.state.Entries) != 5 {
+		t.Errorf("unknown readiness cleared pending occurrence: owner=%+v retained=%d", owner, len(d.state.Entries))
+	}
+	r.s.mu.Lock()
+	r.s.workspaces[slots[3]] = unrelated
+	r.s.mu.Unlock()
+	d.reconcile()
+	if len(d.projections) != 1 {
+		t.Errorf("completed identity witness lost fallback: bells=%d", len(d.projections))
+	}
+}
+
+func TestNoticeDeliveryUnknownReadinessDoesNotEraseEpoch(t *testing.T) {
+	r, slots := hubMessageRig(t)
+	for _, action := range []string{"off", "on"} {
+		if _, err := r.s.controlAutomation("/repo0", action); err != nil {
+			t.Fatal(err)
+		}
+	}
+	d := pausedNoticeDelivery()
+	d.Bind(r.s)
+	for i := 0; i < 5; i++ {
+		d.Publish(couchtty.Notice{Class: couchcore.NoticeDispatcherDiagnostic, Body: "global diagnostic"})
+	}
+	r.s.mu.Lock()
+	unrelated := r.s.workspaces[slots[3]]
+	delete(r.s.workspaces, slots[3])
+	r.s.mu.Unlock()
+	r.s.broker.Disconnect(slots[0])
+	d.reconcile()
+	if len(d.state.Entries) != 5 {
+		t.Fatalf("unknown readiness lost notice before revocation: entries=%d", len(d.state.Entries))
+	}
+	for _, action := range []string{"off", "on"} {
+		if _, err := r.s.controlAutomation("/repo0", action); err != nil {
+			t.Fatal(err)
+		}
+	}
+	d.reconcile()
+	r.s.mu.Lock()
+	r.s.workspaces[slots[3]] = unrelated
+	r.s.mu.Unlock()
+	d.reconcile()
+	if len(d.projections) != 0 {
+		t.Fatalf("unknown-readiness transition erased original epoch: bells=%d", len(d.projections))
+	}
+}
+
+func TestNoticeDeliveryUnknownReadinessAfterGuardRefusal(t *testing.T) {
+	r, slots := hubMessageRig(t)
+	for _, action := range []string{"off", "on"} {
+		if _, err := r.s.controlAutomation("/repo0", action); err != nil {
+			t.Fatal(err)
+		}
+	}
+	d, g := noticeDeliveryWithoutOwnerLoop(t, r.s)
+	d.Publish(couchtty.Notice{Class: couchcore.NoticeDispatcherDiagnostic, Body: "global guard diagnostic"})
+	noticeEnterAdmission(t, g)
+	r.s.mu.Lock()
+	unrelated := r.s.workspaces[slots[3]]
+	delete(r.s.workspaces, slots[3])
+	r.s.mu.Unlock()
+	r.s.broker.Disconnect(slots[0])
+	close(g.release)
+	noticeDeliveryEventually(t, func() bool {
+		d.mu.Lock()
+		defer d.mu.Unlock()
+		return len(d.state.Entries) == 1 && d.state.Entries[0].Phase == couchcore.NoticeDeliveryAwaitingDisposition
+	})
+	r.s.mu.Lock()
+	r.s.workspaces[slots[3]] = unrelated
+	r.s.mu.Unlock()
+	d.reconcile()
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	if len(d.projections) != 1 {
+		t.Fatalf("unknown-readiness refusal lost later unavailable fallback: bells=%d", len(d.projections))
 	}
 }

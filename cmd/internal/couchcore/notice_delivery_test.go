@@ -249,7 +249,7 @@ func TestNoticeDeliveryRefusedOwnerLossFallback(t *testing.T) {
 			now := time.Unix(100, 0)
 			state, effects := AdvanceNoticeDelivery(NoticeDeliveryState{}, NoticeDeliveryEvent{Kind: NoticeDeliveryOccurrenceAdded, Now: now, Occurrence: NoticeDeliveryOccurrence{ID: "owner-loss", Class: NoticeChildExited}, Owner: NoticeDeliveryOwner{State: NoticeOwnerEnabled, Epoch: 7}})
 			token := effects[0].Token
-			state, effects = AdvanceNoticeDelivery(state, NoticeDeliveryEvent{Kind: NoticeDeliverySendResult, Now: now, ID: "owner-loss", Token: token, Result: tc.result, Owner: tc.owner})
+			state, effects = AdvanceNoticeDelivery(state, NoticeDeliveryEvent{Kind: NoticeDeliverySendResult, Now: now, ID: "owner-loss", Token: token, Result: tc.result, Owner: tc.owner, Revoked: tc.name == "automation-revoked"})
 			want := 0
 			if tc.bell {
 				want = 1
@@ -262,5 +262,77 @@ func TestNoticeDeliveryRefusedOwnerLossFallback(t *testing.T) {
 				t.Fatal("duplicate/uncertain completion generated fallback")
 			}
 		})
+	}
+}
+
+func TestNoticeDeliveryRefusalAwaitsOnlyDisposition(t *testing.T) {
+	now := time.Unix(100, 0)
+	prior := NoticeDeliveryOwner{Root: "/old", State: NoticeOwnerEnabled, Binding: "old", Epoch: 7}
+	for _, tc := range []struct {
+		name    string
+		owner   NoticeDeliveryOwner
+		revoked bool
+		bell    bool
+	}{
+		{"connected-destination", NoticeDeliveryOwner{Root: "/new", State: NoticeOwnerEnabled, Binding: "new", Epoch: 0}, false, false},
+		{"disabled-destination", NoticeDeliveryOwner{Root: "/new", State: NoticeOwnerDisabled, Epoch: 0}, false, false},
+		{"unavailable-destination", NoticeDeliveryOwner{Root: "/new", State: NoticeOwnerUnavailable, Epoch: 0}, false, true},
+		{"prior-revoked", NoticeDeliveryOwner{Root: "/new", State: NoticeOwnerUnavailable, Epoch: 0}, true, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			state, effects := AdvanceNoticeDelivery(NoticeDeliveryState{}, NoticeDeliveryEvent{Kind: NoticeDeliveryOccurrenceAdded, Now: now, Occurrence: NoticeDeliveryOccurrence{ID: "disposition", Class: NoticeChildExited}, Owner: prior})
+			token := effects[0].Token
+			state, effects = AdvanceNoticeDelivery(state, NoticeDeliveryEvent{Kind: NoticeDeliverySendResult, Now: now, ID: "disposition", Token: token, Result: NoticeDeliveryRefused, Owner: NoticeDeliveryOwner{State: NoticeOwnerBooting}})
+			if len(effects) != 0 || len(state.Entries) != 1 || state.Entries[0].Phase != NoticeDeliveryAwaitingDisposition {
+				t.Fatal("confirmed refusal lost unknown-readiness disposition")
+			}
+			entry := state.Entries[0]
+			if entry.Owner.Root != "/old" || entry.Owner.Epoch != 7 {
+				t.Fatal("unknown root erased generation witness")
+			}
+			// A duplicate completion must not turn disposition waiting into receipt IO.
+			state, effects = AdvanceNoticeDelivery(state, NoticeDeliveryEvent{Kind: NoticeDeliverySendResult, Now: now, ID: "disposition", Token: token, Result: NoticeDeliveryAdmitted})
+			if len(effects) != 0 || state.Entries[0].Phase != NoticeDeliveryAwaitingDisposition {
+				t.Fatal("duplicate completion changed phase")
+			}
+			state, effects = AdvanceNoticeDelivery(state, NoticeDeliveryEvent{Kind: NoticeDeliveryOwnerChanged, Now: now, ID: "disposition", Token: token, Owner: tc.owner, Revoked: tc.revoked})
+			want := 0
+			if tc.bell {
+				want = 1
+			}
+			if len(state.Entries) != 0 || len(effects) != want || want > 0 && effects[0].Kind != NoticeDeliveryBell {
+				t.Fatalf("disposition state=%+v effects=%+v", state, effects)
+			}
+		})
+	}
+}
+
+func TestNoticeDeliveryPendingScopedGeneration(t *testing.T) {
+	now := time.Unix(100, 0)
+	prior := NoticeDeliveryOwner{Root: "/old", State: NoticeOwnerEnabled, Binding: "old", Epoch: 7}
+	var state NoticeDeliveryState
+	for i := 0; i < 5; i++ {
+		state, _ = AdvanceNoticeDelivery(state, NoticeDeliveryEvent{Kind: NoticeDeliveryOccurrenceAdded, Now: now, Occurrence: NoticeDeliveryOccurrence{ID: fmt.Sprint(i), Class: NoticeChildExited}, Owner: prior})
+	}
+	destination := NoticeDeliveryOwner{Root: "/new", State: NoticeOwnerEnabled, Binding: "new", Epoch: 0}
+	moved, effects := AdvanceNoticeDelivery(state, NoticeDeliveryEvent{Kind: NoticeDeliveryOwnerChanged, Now: now, ID: "4", Owner: destination})
+	if len(effects) != 0 || moved.Entries[4].Owner != destination || moved.Entries[4].Occurrence.OwnerRoot != "/new" {
+		t.Fatal("accepted handoff did not adopt destination witness")
+	}
+	moved, effects = AdvanceNoticeDelivery(moved, NoticeDeliveryEvent{Kind: NoticeDeliverySendResult, Now: now, ID: "0", Token: moved.Entries[0].Token, Result: NoticeDeliveryRefused, Owner: prior})
+	if len(effects) != 1 || effects[0].Kind != NoticeDeliveryAdmit || effects[0].Owner != destination {
+		t.Fatalf("handoff admission=%+v", effects)
+	}
+	revoked, effects := AdvanceNoticeDelivery(state, NoticeDeliveryEvent{Kind: NoticeDeliveryOwnerChanged, Now: now, ID: "4", Owner: destination, Revoked: true})
+	if len(effects) != 0 || len(revoked.Entries) != 4 {
+		t.Fatal("revoked prior generation followed handoff")
+	}
+	unknown, effects := AdvanceNoticeDelivery(state, NoticeDeliveryEvent{Kind: NoticeDeliveryOwnerChanged, Now: now, ID: "4", Owner: NoticeDeliveryOwner{State: NoticeOwnerBooting}})
+	if len(effects) != 0 || unknown.Entries[4].Owner.Root != "/old" || unknown.Entries[4].Owner.Epoch != 7 {
+		t.Fatal("unknown readiness erased rooted witness")
+	}
+	stale, effects := AdvanceNoticeDelivery(unknown, NoticeDeliveryEvent{Kind: NoticeDeliveryOwnerChanged, Now: now, ID: "4", Token: 99, Owner: destination})
+	if len(effects) != 0 || stale.Entries[4].Owner != unknown.Entries[4].Owner {
+		t.Fatal("stale owner token changed pending episode")
 	}
 }

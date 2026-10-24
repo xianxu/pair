@@ -82,3 +82,24 @@ func TestNoticeOwnerLossRetainsAutomationEpoch(t *testing.T) {
 		t.Fatalf("absent owner hid automation revocation: before=%+v after=%+v", before, revoked)
 	}
 }
+
+func TestNoticeOwnerCurrentIsScopedToRetainedRoot(t *testing.T) {
+	r, slots := hubMessageRig(t)
+	noticeNonzeroEpoch(t, r.s)
+	prior := r.s.NoticeOwner(couchcore.NoticeDeliveryOccurrence{Thread: bindingThread(slots[2])})
+	if !r.s.NoticeOwnerCurrent(prior) || !r.s.NoticeOwnerCurrent(couchcore.NoticeDeliveryOwner{}) {
+		t.Fatal("valid/rootless witness rejected")
+	}
+	for _, action := range []string{"off", "on"} {
+		if _, err := r.s.controlAutomation("/repo0", action); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if !r.s.NoticeOwnerCurrent(prior) {
+		t.Fatal("another root revoked retained generation")
+	}
+	noticeNonzeroEpoch(t, r.s)
+	if r.s.NoticeOwnerCurrent(prior) {
+		t.Fatal("retained-root OFF/ON did not revoke")
+	}
+}

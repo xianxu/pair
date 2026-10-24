@@ -49,6 +49,16 @@ func (s *messageService) NoticeOwner(o couchcore.NoticeDeliveryOccurrence) couch
 	return s.resolveNoticeOwner(o)
 }
 
+// NoticeOwnerCurrent validates the retained owner, never a destination's
+// independently scoped epoch. Rootless pre-bind facts have no witness yet.
+func (s *messageService) NoticeOwnerCurrent(owner couchcore.NoticeDeliveryOwner) bool {
+	if owner.Root == "" {
+		return true
+	}
+	_, epoch := s.hubAutomationPermit(owner.Root)
+	return epoch == owner.Epoch
+}
+
 func (s *messageService) resolveNoticeOwner(o couchcore.NoticeDeliveryOccurrence) couchcore.NoticeDeliveryOwner {
 	root := o.OwnerRoot
 	var identity couchcore.WorkspaceIdentity
@@ -101,7 +111,8 @@ func (s *messageService) resolveNoticeOwner(o couchcore.NoticeDeliveryOccurrence
 		// Registry publication precedes EffectConnect's identity/broker commit.
 		// That in-flight witness is unknown readiness, never proof of absence.
 		if booting || pendingIdentity {
-			return couchcore.NoticeDeliveryOwner{State: couchcore.NoticeOwnerBooting, Root: root}
+			_, epoch := s.hubAutomationPermit(root)
+			return couchcore.NoticeDeliveryOwner{State: couchcore.NoticeOwnerBooting, Root: root, Epoch: epoch}
 		}
 		// Availability is independent of automation generation. Retain the
 		// resolved owner's epoch after disconnect so a queued occurrence can

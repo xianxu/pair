@@ -55,7 +55,7 @@ Durable plan: [human attention routing](../plans/000844-human-attention-routing-
 - [x] Sweep every producer, direct prompt/question/archive/stall path and duplicate-effect case.
 - [x] Complete atlas, audited reader inventory and start recorded pre-close verification.
 
-- [ ] Repair owner-scoped generation and refused-disposition transitions under the approved revised contract, then rerun verification.
+- [x] Repair owner-scoped generation and refused-disposition transitions under the approved revised contract, then rerun verification.
 
 Workflow postconditions: binary-owned close review, PR/merge, then verify landing/archive/runner and report to hub.
 
@@ -173,6 +173,16 @@ Ops:0 approved exact-root generation validation, accepted-handoff adoption of de
 ### 2026-10-24 — revised change-code admitted
 
 change-code passed revised plan-quality round 4 with no open findings; accepted-design commit 07101ce59. Estimate-quality INFO requested explicit revised-work/live/landing allocation, without blocking. Updated the estimate derivation from 3.24 to 4.12 h using the same v3.1 primitive calibration, adding only the approved pure extension and integration qualification, not duplicating the original producer sweep. Actuals remain unmeasurable under the recorded authorized refusal, and no estimate is used as actuals. Implementation now proceeds test-first under the approved contract; a fourth design delta must stop for hub scope reduction.
+
+### 2026-10-24 — revised scoped/disposition implementation verified
+
+Implemented the approved contract without a fourth delta. Pure reducer owns Revoked observations, root-scoped handoff adoption and AwaitingDisposition. Backend NoticeOwnerCurrent validates only the retained Root's cached automation epoch; known-root Booting retains that epoch. Shell rechecks exact Owner/Token/Phase before using observations. Confirmed-refused entries can wait for local disposition but never Admit; admitted/uncertain retain only canonical receipt ownership.
+
+Main independently ran the old-model semantic Go overlay: four TestNoticeDeliveryRefusalAwaitsOnlyDisposition cases fail 'confirmed refusal lost unknown-readiness disposition', and PendingScopedGeneration fails 'revoked prior generation followed handoff' (0.211s). Existing tests also reproduced five old-shell handoff/readiness failures. New real-protocol hub-move fixtures hold four admissions and a fifth pending, prove enabled exact-root admission, destination-loss fallback, disabled/no replay, pre-handoff revocation and post-handoff old-root non-authority; guarded refusal does one attempt, then feed/bell/unknown disposition. N=16/32 and doubled history count at most two cached observations per active entry with zero additional IO/admissions/workers. No new external reader inputs; paths are disposable service fixture state.
+
+Main final integrated race run x3 PASS: core 14.412s, tty 3.952s, cmd 17.884s, testnotice 1.160s, covering notice/Console/condition/picker/wait/automation/archive/stall/analyzer tests. Main repolint catalog PASS 6.555s; make test-affected-inventory and git diff --check PASS with the new test staged. Atlas updated for scoped generations, accepted handoff and the non-admitting disposition phase. These are targeted passes; no recorded suite or live acceptance claimed.
+
+NEXT ACTION: commit/push repaired head; finish plan bookkeeping, recorded pre-close check and close round3 (overlap allowed). Any fourth design delta stops for TL scope cut. Once review and recorded check pass, send pair:4 exact head and short operator steps for combined stage; live acceptance precedes PR/merge/landing report.
 
 ## Estimate
 

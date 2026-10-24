@@ -176,12 +176,19 @@ the focused actor. Raw child BEL and actor chips remain separate UI facts.
 
 `couchcore/notice_delivery.go:AdvanceNoticeDelivery` owns ephemeral routing
 transitions. The `couchcmd/notice_delivery.go` shell buffers startup until cached
-service readiness, freezes the occurrence's owner/automation epoch and uses the
-existing guarded system-message ingress. It bounds pending occurrences to 128,
+service readiness, freezes the occurrence's exact owner root/automation epoch and
+uses the existing guarded system-message ingress. Generation validity is checked
+against that root, independently of current destination readiness. An accepted
+pending handoff adopts the destination's root and epoch; the previous hub then
+ceases to control it. It bounds pending occurrences to 128,
 copied bodies to 4 KiB and concurrent admissions to four, with two-second
 admission contexts and two-minute tracking expiry. Uncertain admission keeps its
-canonical receipt ID and never resends. Pending state dies with Console; local
-workers cancel and join at shutdown. Capacity loss updates one aggregated bell
+canonical receipt ID and never resends. A confirmed admission refusal can retain
+one AwaitingDisposition entry while readiness is unknown: connected owners retire
+it feed-only, unavailable owners produce one fallback bell item, and a revoked
+generation retires it without replay. That phase cannot admit again. Unknown
+readiness preserves an already verified root/epoch. Pending state dies with
+Console; local workers cancel and join at shutdown. Capacity loss updates one aggregated bell
 item without resurrecting it after dismissal. Queue refusal/expiry with a live
 hub remains feed-only. Owner lookup is memory-only; broker IO and repaint run
 outside Console/publication locks.
