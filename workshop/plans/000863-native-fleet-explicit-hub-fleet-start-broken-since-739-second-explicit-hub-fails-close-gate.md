@@ -93,6 +93,13 @@ rounds:
       recipe: milestone-review
       isolation: fenced
       blocked: true
+disputes:
+    - id: BR-2
+      rationale: 'Dispute the broad matrix as a landing blocker for the narrowed startup correction, not the retained failures or their unknown original cause. Fresh two-hub callers and dirty/force pass for both personalities on corrected code; later StartupArguments failure has a measured matching pinned-main Zellij panic now owned by #866. The single Codex idle refusal did not reproduce in either bounded comparison and is preserved in #867, not declared independent or flaky. TL24a27ad0 approves proceeding on this measured scope; TL1d357557 directs this formal dispute instead of further native retries. The original reviewer attach-input-ended/omitted-server signature remains unclassified; neither later passes nor TL approval is offered as proof of its cause.'
+      evidence: 'Retained branch-required-native-7a71f335.log: FreshHubCaller PASS Claude14.34s/Codex20.08s and dirty-force PASS both; second StartupArguments switch has Zellij0.45.1 lib.rs1462 panic. Pinned-main4053f3da main-startup-arguments-4053f3da.log has same lib.rs1462 panic before worker start (different phase, not original signature). Exact EditedRestart/Codex pinned-main comparison PASS48.85s and one instrumented branch comparison PASS99.20s, both exact cleanup; branch original refusal retained with receipt dda5ab2f-ae24-4aca-9841-7b19f75d54a8. Full captures and SHA256 are committed under workshop/evidence/000863; #866 and #867 explicitly preserve the limitations. No deadline increase, weakened idle guard, new native repeat or complete-matrix pass claim.'
+      after: 2
+      timestamp: "2026-10-24T10:45:15Z"
+      by: Xian Xu on Xian’s MacBook Pro at pair:7 (/Users/xianxu/workspace/worktree/pair-slot7/pair)
 ---
 
 # Gate ledger — pair#863 (boundary-review)
@@ -121,7 +128,15 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-3** [Critical] `committed-starts-require-terminal-disposition` (kind: defect) Post-commit discovery or enrollment failure strands a creating hub transaction
   cmd/internal/couchcore/slotrecovery.go:491-499 returns directly after claimFreshRecord has published the local creating incarnation and native address claim. Discovery failure, identity disagreement, or enrollment failure bypasses launchClaimedThread and its rollback handling. In a disposable pinned-head copy, injecting a discovery failure after artifact Claim reproduced an error with zero launched children but a persisted creating transaction owned by the live supervisor. Finalize every post-publication failure through exact-record/nonce cleanup that also works before enrollment, and add regressions covering these exits. ARCH-ORDER and ARCH-FUNERAL.
 
+## Disputes
+
+Findings the implementer declined (`sdlc finding dispute`), each answered by the
+next review round.
+
+- **BR-2** — after round 2 (2026-10-24T10:45:15Z, Xian Xu on Xian’s MacBook Pro at pair:7 (/Users/xianxu/workspace/worktree/pair-slot7/pair))
+  rationale: Dispute the broad matrix as a landing blocker for the narrowed startup correction, not the retained failures or their unknown original cause. Fresh two-hub callers and dirty/force pass for both personalities on corrected code; later StartupArguments failure has a measured matching pinned-main Zellij panic now owned by #866. The single Codex idle refusal did not reproduce in either bounded comparison and is preserved in #867, not declared independent or flaky. TL24a27ad0 approves proceeding on this measured scope; TL1d357557 directs this formal dispute instead of further native retries. The original reviewer attach-input-ended/omitted-server signature remains unclassified; neither later passes nor TL approval is offered as proof of its cause.
+  evidence: Retained branch-required-native-7a71f335.log: FreshHubCaller PASS Claude14.34s/Codex20.08s and dirty-force PASS both; second StartupArguments switch has Zellij0.45.1 lib.rs1462 panic. Pinned-main4053f3da main-startup-arguments-4053f3da.log has same lib.rs1462 panic before worker start (different phase, not original signature). Exact EditedRestart/Codex pinned-main comparison PASS48.85s and one instrumented branch comparison PASS99.20s, both exact cleanup; branch original refusal retained with receipt dda5ab2f-ae24-4aca-9841-7b19f75d54a8. Full captures and SHA256 are committed under workshop/evidence/000863; #866 and #867 explicitly preserve the limitations. No deadline increase, weakened idle guard, new native repeat or complete-matrix pass claim.
+
 ## Open findings
 
-- **BR-2** [Important] `native-acceptance-evidence` (kind: unverifiable) The required ExplicitHub native acceptance matrix is not established
 - **BR-3** [Critical] `committed-starts-require-terminal-disposition` (kind: defect) Post-commit discovery or enrollment failure strands a creating hub transaction
