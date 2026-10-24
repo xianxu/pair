@@ -383,3 +383,96 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-24T07:02:46-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 863 — Native fleet: explicit-hub Fleet.Start broken since #739; second explicit hub fails attach at a fresh start |
+| repo | pair |
+| issue file | workshop/issues/000863-native-fleet-explicit-hub-fleet-start-broken-since-739-second-explicit-hub-fails.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | a02d54abfccd88b47c8f4063bd7e9b269c023905..8b13b536b24b1a30bf122d7c40acbdc4dd37aafe |
+| command | sdlc close --issue 863 |
+| reviewer | codex (openai; author openai) |
+| isolation | fenced |
+| timestamp | 2026-10-24T07:02:46-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+The interdiff preserves both sides’ intent in every listed conflict resolution. Updated tests retain meaningful behavioral assertions, reader certificates match their sources, and focused checks passed. No new blocking defect or scope expansion was found.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      Retained as addressed. Empty-only creation guards and regression tests are unchanged; retained-history and history-appearance tests passed.
+  - id: BR-2
+    disposition: withdrawn
+    note: |
+      Retained as withdrawn under the previously reviewed acceptance revision. This window changes neither the acceptance contract nor its documented native-evidence limits.
+  - id: BR-3
+    disposition: addressed
+    note: |
+      Retained as addressed. Exact-store rollback and its regressions are unchanged; post-claim failure, uncertainty, and ownership-transfer tests passed.
+```
+
+1. **Strengths**
+
+   - `cmd/internal/couchcmd/hubs.go:115` preserves warning attention routing while forwarding the original startup observation.
+   - `cmd/internal/couchcmd/hubs_startup_test.go:695` checks both visible diagnostic causes while retaining exact clipboard and no-effects assertions.
+   - Fleet conflict resolutions preserve `StartCold` behavior; all three refreshed reader certificates match their source hashes.
+   - `atlas/index.md` retains both fresh-start and asleep/wake descriptions.
+
+2. **Critical findings:** None.
+
+3. **Important findings:** None.
+
+4. **Minor findings:** None.
+
+5. **Test coverage notes**
+
+   Passed:
+
+   - Affected startup, attention, and summary tests: 8.534s.
+   - Fresh orchestration, cancellation, and known-shutdown tests: 16.024s.
+   - History-preservation and post-claim cleanup regressions: 35.062s.
+   - Complete `testcouch` package: 52.607s.
+   - Reader inventory and diff whitespace checks.
+
+   Full-suite, native acceptance, and fix-removal controls were not repeated.
+
+6. **Architectural notes**
+
+   - **ARCH-DRY — pass:** resolutions retain shared orchestration and fleet helpers.
+   - **ARCH-PURE — pass:** integration seams remain unchanged; no business logic is added to IO.
+   - **ARCH-PURPOSE — pass:** resolutions preserve fresh-start authority and warning attention behavior.
+   - **ARCH-EVOLVE — pass:** no persisted format or reader/writer semantics change.
+
+   No new surface requires additional README or atlas documentation.
+
+7. **Plan revision recommendations:** None. The durable implementation plan is unchanged.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"c507b4ef-b524-4e88-a82d-d1a4f5ac1c4c","repository":"github.com/xianxu/pair","issue_id":"000863","recipe":"fix-review","round":5,"attempt":1,"agent":"codex","root":"/Volumes/TestScratch/review-checkouts/ec9601e1806bd23d","reviewed_head":"8b13b536b24b1a30bf122d7c40acbdc4dd37aafe","slot":"pair:7","requested_at":"2026-10-24T14:00:29.43935Z"},"phase":"finished","pid":76103,"started_at":"2026-10-24T14:00:29.623831Z","finished_at":"2026-10-24T14:02:42.434109Z","session_id":"01a16e36-8a6d-7ca2-b42d-2c6604eeb1d3","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 3.554193208s
+head: "8b13b536b24b1a30bf122d7c40acbdc4dd37aafe"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412

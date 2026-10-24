@@ -179,6 +179,49 @@ rounds:
       isolation: fenced
       reviewed: db3c572e729063328540b68d194bed58547055a1
       blocked: false
+    - reviewer_runs:
+        - version: 1
+          intent:
+            disposable_root: true
+            id: c507b4ef-b524-4e88-a82d-d1a4f5ac1c4c
+            repository: github.com/xianxu/pair
+            issue_id: "000863"
+            recipe: fix-review
+            round: 5
+            attempt: 1
+            agent: codex
+            root: /Volumes/TestScratch/review-checkouts/ec9601e1806bd23d
+            reviewed_head: 8b13b536b24b1a30bf122d7c40acbdc4dd37aafe
+            slot: pair:7
+            requested_at: "2026-10-24T14:00:29.43935Z"
+          phase: finished
+          pid: 76103
+          started_at: "2026-10-24T14:00:29.623831Z"
+          finished_at: "2026-10-24T14:02:42.434109Z"
+          session_id: 01a16e36-8a6d-7ca2-b42d-2c6604eeb1d3
+          outcome: returned
+      "n": 5
+      timestamp: "2026-10-24T07:02:46-07:00"
+      dispatched: "2026-10-24T07:00:25-07:00"
+      agent: codex
+      reviewer: codex (openai; author openai)
+      dispose:
+        - id: BR-1
+          disposition: addressed
+          note: Retained as addressed. Empty-only creation guards and regression tests are unchanged; retained-history and history-appearance tests passed.
+          round: 5
+        - id: BR-2
+          disposition: withdrawn
+          note: Retained as withdrawn under the previously reviewed acceptance revision. This window changes neither the acceptance contract nor its documented native-evidence limits.
+          round: 5
+        - id: BR-3
+          disposition: addressed
+          note: Retained as addressed. Exact-store rollback and its regressions are unchanged; post-claim failure, uncertainty, and ownership-transfer tests passed.
+          round: 5
+      recipe: fix-review
+      isolation: fenced
+      reviewed: 8b13b536b24b1a30bf122d7c40acbdc4dd37aafe
+      blocked: false
 disputes:
     - id: BR-2
       rationale: 'Dispute the broad matrix as a landing blocker for the narrowed startup correction, not the retained failures or their unknown original cause. Fresh two-hub callers and dirty/force pass for both personalities on corrected code; later StartupArguments failure has a measured matching pinned-main Zellij panic now owned by #866. The single Codex idle refusal did not reproduce in either bounded comparison and is preserved in #867, not declared independent or flaky. TL24a27ad0 approves proceeding on this measured scope; TL1d357557 directs this formal dispute instead of further native retries. The original reviewer attach-input-ended/omitted-server signature remains unclassified; neither later passes nor TL approval is offered as proof of its cause.'
@@ -229,6 +272,14 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - BR-1 — addressed — Retained as addressed. Empty-only creation guards are unchanged; FreshHub history-preservation regressions passed.
 - BR-2 — withdrawn — Retained as withdrawn under the previously reviewed narrowed acceptance revision. This interdiff adds no full native-matrix acceptance claim.
 - BR-3 — addressed — Retained as addressed. The cleanup implementation and regression tests are unchanged; post-claim failure, uncertainty, and ownership-transfer tests passed.
+
+## Round 5 — 2026-10-24T07:02:46-07:00 (codex) — passed
+
+### Disposed
+
+- BR-1 — addressed — Retained as addressed. Empty-only creation guards and regression tests are unchanged; retained-history and history-appearance tests passed.
+- BR-2 — withdrawn — Retained as withdrawn under the previously reviewed acceptance revision. This window changes neither the acceptance contract nor its documented native-evidence limits.
+- BR-3 — addressed — Retained as addressed. Exact-store rollback and its regressions are unchanged; post-claim failure, uncertainty, and ownership-transfer tests passed.
 
 ## Disputes
 
