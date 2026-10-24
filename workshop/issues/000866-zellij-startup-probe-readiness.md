@@ -48,8 +48,8 @@ Installed binary /opt/homebrew/Cellar/zellij/0.45.1/bin/zellij. Verified local t
 
 ## Plan
 
-- [ ] Approve the readiness/coordination contour in [the durable plan](../plans/000866-zellij-startup-readiness-plan.md), then enter change-code; no estimate before its gate.
-- [ ] Implement one readiness authority and bounded shared admission with deterministic regression controls and normal bypass prevention.
+- [x] Approve the readiness/coordination contour in [the durable plan](../plans/000866-zellij-startup-readiness-plan.md), then enter change-code; no estimate before its gate.
+- [x] Implement one readiness authority and bounded shared admission with deterministic regression controls and normal bypass prevention.
 - [ ] Qualify shared disposable native startup, retain exact cleanup/failure evidence, record pre-close verification, then close/land through the gates.
 
 ## Log
@@ -100,6 +100,12 @@ The finite bypass rule lives in Pair's existing **internal/repolint** catalog ex
 Native qualification at source a14881593ed58eeabcf58e12863c15208d39bc66 failed before any Pair startup: TestDisposableZellijStartupReadiness Claude245.83s/full278.52s, Fleet.Start waited for Agent0 while the attachment-only startup UI offered `hub · Ctrl+Space: start`. There were241 empty native listing samples, no wrapper records and a zero-byte server log; no readiness/panic avoidance coverage is claimed. Shared testcouch confirmed all exact owned generations absent and direct child/IO joined. Full capture [native-startup-readiness-a14881593.log](../evidence/000866/native-startup-readiness-a14881593.log), SHA256e213c94e337e0a8cb59fc3f2f499fc2aa9fd54f7863d9869b2861ee68b0ff864.
 
 Authenticated submitted TL a4eabbf3 authorizes driving the existing public start form in this qualification rather than waiting for #863's unlanded shared harness repair. Submitted pair:6 measurement8c904b9c corrects the exact sequence: wait for switcher root, Ctrl+Space to form, input primary path, Down requests preview, choose agent, wait `args  repo-default`, then **one Enter** starts. There is no resolve Enter and never a repeated Enter. The test now drives that observed form while joining Fleet.Start's existing wait; no production harness, private native owner or readiness mechanism added. Rerun after this checkpoint. All certificate changes were audited per reader; scanner registration adds only the new test names. Complete launcher passed178.379s, wrapcmd135.718s; three Couch fixture contamination failures passed targeted after private isolation. Explicit controlled-native fixture observations now retain exclusion-only test admission after their existing screen-render witness; ordinary probes still refuse their unmarked endpoint.
+
+### 2026-10-24 — shared native startup qualification PASS
+
+At source6f05e60447f4244d6ed438a6fa9925e27330604b the public-form qualification passed59.68s: Claude23.98s and Codex27.29s (startup windows18.260s/21.537s), each with real Zellij0.45.1, native fixture agents, primary+worker exact pane/namespace marker/AgentReady identity checks, and concurrent bounded automatic listing traffic. Complete bounded native logs contained no panic; warning/retry-queue lines and teardown's mouse-mode IO errors remain retained rather than filtered. Both owned fleets confirmed all exact generations absent and direct child/IO joined. This is a bounded sample, not a flake-rate estimate or interactive/crash-case coverage.
+
+Full passing capture [native-startup-readiness-form-6f05e6044.log](../evidence/000866/native-startup-readiness-form-6f05e6044.log), SHA2563ed9ae274e99f983b46d58fb28f6e2c095048e929fe5e784d7ab308a6dd91882. The earlier pre-start failure stays separate and byte-for-byte intact (terminal padding makes raw evidence fail whitespace-only diff checks; source checks exclude these captures). No standalone upstream reproducer succeeded; no report filed. Fresh combined targeted packages passed zellijquery15.545s, panebirth0.135s, pairlifecycletest1.810s, pair-go15.003s and repolint14.101s. Interactive negative control passed its race run3 times; it demonstrates the accepted uncovered overlap rather than certifying it safe. Final affected-reader audit passed after individual input reviews and minimal scanner-name registration. Atlas now maps the implemented boundaries and limits. Next: recorded pre-close on the pushed head, operator smoke coordination, one binary-owned close review and landing.
 
 ## Revisions
 
