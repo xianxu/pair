@@ -63,6 +63,13 @@ Read the echo operator's original side document and screenshot locally. Obstruct
 
 Pair:6 messages15fa9f8e and06588197 confirm #849 root cause is still under operator diagnosis. Preserve Shown acknowledgment, exact fresh comparison/freeze, board/delivered stamps and completed visibility witnesses; do not leave paint busy or change label commit/witness flow. Annotation-list presentation is independent of the scene paint selection; all new sketch changes remain affordance-only. They will report shared-file changes before implementation. Full design records explicit panel state, local-lifetime cleanup, counted costs, direct tests and stage look. Pending TL approval on panel geometry and final-label view semantics; no code, no estimate or change-code yet.
 
+
+### 2026-10-23 — design gate passed; panel integration
+
+Full-flow change-code round3 passed plan quality and estimate quality, with an advisory INFO only. Test-authoring cost is inside the two UI items and metadata mapping; the review/native/operator overhead item covers execution, not all test development. The UX allowance covers expected polish within the approved constraints, not new product choices. Queue wait remains excluded.
+
+Floating-panel Task1 tests observed semantic RED before implementation, then8/8 GREEN including3,000 generated transitions and N/2N constant-cost movement. Annotation integration regression first failed because the scrolling body did not exist; after wrapping the existing keyed list,63 focused Node tests pass. Minimize preserves anchored feedback and note state; later data updates preserve local mode. Existing guard tests remain green. Added shared module to viewer embedding and isolated operator assembly; assembly initially refused the unmapped import, then both focused assembly tests passed after wiring. Panel resource disposal is exposed and registered on pagehide for both mount contexts; no changes to feedback/preview owners. Sketch controls and native layout proof are the remaining implementation tasks; no recorded check, merge runner or stage owned here.
+
 ## Revisions
 
 ### 2026-10-23 — TL approved design (19f42a37)
