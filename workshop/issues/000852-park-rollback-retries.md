@@ -16,6 +16,7 @@ claimant:
     workspace: pair:9
     worktree: /Users/xianxu/workspace/worktree/pair-slot9/pair
     repository: github.com/xianxu/pair
+flow: {kind: quick, provenance: inferred, spec: "f17ff17f", done: "c8321a29"}
 ---
 
 # Park rollback retries fail on main
