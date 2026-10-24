@@ -1,8 +1,8 @@
 ---
 id: 000825
-status: codecomplete
+status: done
 created: 2026-10-22
-updated: 2026-10-23
+updated: 2026-10-24
 estimate_hours:
 github_issue:
 flake_tests: [github.com/xianxu/pair/cmd/internal/testcouch/agentfixture.TestCancellationRetirementAllowsIDReuseWithoutInheritedRevocation]
@@ -22,6 +22,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: 917c97e6a4bda90ecfac2f11e879e685539fdc40
         evidence_commit: 7a467e337f1d8fdeee7f05b2978c84c6c93effe5
+        landed_commit: 667e0b1e88f51a163dc19df630d5cb5a778c32c7
 ---
 
 # flake: TestCancellationRetirementAllowsIDReuseWithoutInheritedRevocation
