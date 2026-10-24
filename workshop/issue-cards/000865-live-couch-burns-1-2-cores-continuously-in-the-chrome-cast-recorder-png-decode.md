@@ -15,6 +15,6 @@ claimant:
     repository: github.com/xianxu/pair
 ---
 
-# Live Couch burns ~1.2 cores continuously in the Chrome cast recorder (PNG decode, LowRes) while a cast records
+# Live Couch sustains ~1.3 cores: attribute and bound it
 
 ## Problem
