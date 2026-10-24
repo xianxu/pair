@@ -28,7 +28,7 @@ func runtimeFilesFixture(t *testing.T) (Binaries, RootsPlan, func(string) (strin
 		}
 		return path
 	}
-	b := Binaries{Source: source, Pair: executable("candidate-pair"), Couch: executable("candidate-couch"), Helper: executable("candidate-helper"), Fixture: executable("candidate-fixture"), Git: executable("git"), SDLC: executable("sdlc"), Weave: executable("weave"), Zellij: executable("zellij"), Nvim: executable("nvim")}
+	b := Binaries{Source: source, Pair: executable("candidate-pair"), Couch: executable("candidate-couch"), Helper: executable("candidate-helper"), Fixture: executable("candidate-fixture"), Git: executable("git"), GitUploadPack: executable("git-helper"), SDLC: executable("sdlc"), Weave: executable("weave"), Zellij: executable("zellij"), Nvim: executable("nvim")}
 	utility := executable("utility")
 	return b, p, func(string) (string, error) { return utility, nil }
 }
@@ -56,7 +56,7 @@ func TestInstallRuntimeCopiesPhysicalAgentsAndPinsTools(t *testing.T) {
 			t.Fatalf("%s copy changed bytes", name)
 		}
 	}
-	for name, source := range map[string]string{"git": b.Git, "sdlc": b.SDLC, "weave": b.Weave, "zellij": b.Zellij, "nvim": b.Nvim} {
+	for name, source := range map[string]string{"git": b.Git, "git-upload-pack": b.GitUploadPack, "sdlc": b.SDLC, "weave": b.Weave, "zellij": b.Zellij, "nvim": b.Nvim} {
 		got, err := os.Readlink(filepath.Join(p.Mutable["bin"], name))
 		if err != nil || got != source {
 			t.Fatalf("%s target = %q %v", name, got, err)
@@ -82,11 +82,17 @@ func TestInstallRuntimeCopiesPhysicalAgentsAndPinsTools(t *testing.T) {
 	}
 }
 func TestInstallRuntimeRefusesUnsafeFactsBeforeEffects(t *testing.T) {
-	for _, scenario := range []string{"source-missing", "source-symlink", "source-nonexec", "source-oversized", "tool-relative", "utility-missing", "bin-escape", "existing-bin-entry", "existing-config"} {
+	for _, scenario := range []string{"helper-missing", "helper-nonexec", "source-missing", "source-symlink", "source-nonexec", "source-oversized", "tool-relative", "utility-missing", "bin-escape", "existing-bin-entry", "existing-config"} {
 		t.Run(scenario, func(t *testing.T) {
 			b, p, lookup := runtimeFilesFixture(t)
 			outside := t.TempDir()
 			switch scenario {
+			case "helper-missing":
+				b.GitUploadPack = filepath.Join(outside, "missing")
+			case "helper-nonexec":
+				if err := os.Chmod(b.GitUploadPack, 0600); err != nil {
+					t.Fatal(err)
+				}
 			case "source-missing":
 				b.Fixture = filepath.Join(outside, "missing")
 			case "source-symlink":

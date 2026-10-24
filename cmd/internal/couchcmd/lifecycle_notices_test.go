@@ -681,7 +681,7 @@ func TestLifecycleDrainReportsOnlyUntargetedFacts(t *testing.T) {
 		select {
 		case message := <-diagnostic:
 			if strings.Contains(message, "metadata unverified") {
-				if message != "Lifecycle: 1 slots' metadata unverified at restart drain" {
+				if message != "Lifecycle: metadata unverified for 1 slot(s) at restart drain" {
 					t.Fatalf("drain diagnostic: %q", message)
 				}
 				return
