@@ -1,6 +1,6 @@
 ---
 id: 000873
-status: working
+status: codecomplete
 created: 2026-10-24
 updated: 2026-10-24
 estimate_hours:
@@ -14,6 +14,14 @@ claimant:
     workspace: pair:7
     worktree: /Users/xianxu/workspace/worktree/pair-slot7/pair
     repository: github.com/xianxu/pair
+actual_hours: N/A
+tracker:
+    version: 1
+    completion:
+        token: close-72da6d849d0b
+        repository: github.com/xianxu/pair
+        reviewed_head: 55c0fe32201270273c9aa5ff360c0b8ba62498e4
+        evidence_commit: e242ef74d68d4bcbddd9b14ee80a9e70991f73ea
 ---
 
 # flake: TestFreshStartupRunSerializesLaunchThroughAdoption
