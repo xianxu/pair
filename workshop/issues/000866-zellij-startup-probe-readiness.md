@@ -1,13 +1,13 @@
 ---
 id: 000866
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-10-24
 updated: 2026-10-24
 estimate_hours: 5.5
 severity: high
-card_mirror: '24b09c75df20a849af40816d6c8c35055c3a90b2' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '4e5403ed7808ee5a5f79f005f0624375ca2200c3' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-24T02:48:13-07:00
 claimant:
     operator: Xian Xu
@@ -17,6 +17,7 @@ claimant:
     worktree: /Users/xianxu/workspace/worktree/pair-slot5/pair
     repository: github.com/xianxu/pair
 flow: {kind: full, provenance: operator}
+actual_hours: N/A
 ---
 
 # Wait for Zellij readiness before startup probe clients
