@@ -228,6 +228,10 @@ The coverage reader was audited: production roots and generated runtime/doc fixt
 
 Round4 narrow review returned REWORK solely for close-review-scope-integrity: the approved typed-constant checker extension is executable behavior beyond BR-1/2/3 and therefore requires full close. All three prior findings remain addressed; no implementation defect was found, artifactpath and inventory independently passed in review. Follow BR-4 with a full close on the existing ledger; do not dispute or waive the scope guard. Fresh recorded attempt fcad99b65b2ba86d678b4544b601bcdd, lease-3796038393, remains queued on f7f4ec084657b6f4bfcd669254f40f694a2b835a. No code changes after that tested candidate. NEXT ACTION: full close, retain queued check, then coordinated live handoff after both pass.
 
+### 2026-10-24 — full review SHIP, recorded head retained
+
+Full close round5 SHIP, high confidence, zero new findings and all BR-1/2/3/4 addressed; no blocking findings. Evidence commit 2def2b24dbee3001277eefef1d619510cf2b7504; card mirror HEAD fba8c54e797dfa12be29324282256ee6b569b5b0, confirmed by Git. The reviewed head 6724410b13b26b54f352dff9d6f698ff57cb3835 differs from the queued candidate f7f4ec084657b6f4bfcd669254f40f694a2b835a only in plan/review bookkeeping. No code changed after the queued check began. Retain session49557, run lease-3796038393, attempt fcad99b65b2ba86d678b4544b601bcdd; queue position3 at last observation. Do not restart while it is retained. NEXT ACTION: inspect its complete result; green means send pair:4 exact head and checklist for the hub-authorized combined stage, with live acceptance preceding merge. No pair:0 action by this slot.
+
 ## Estimate
 
 Produced via brain/data/life/42shots/velocity/estimate-logic-v3.1.md against baseline-v3.1.md. Method A only. Calibration is flagged stale by estimate-source, so these are provisional ship-wall-clock hours. Read v2/v2.1 procedure and table: retain issue/spec design cost; use x0.2 design discount for approved module/integration/refactor decisions, 40% implementation conversion, familiarity 1.0 and 15% design buffer.
