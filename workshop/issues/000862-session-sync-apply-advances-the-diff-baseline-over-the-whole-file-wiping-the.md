@@ -163,6 +163,24 @@ Inventory rerun passed; the original queued suite39827 is unchanged.
 GitHub conformance, merge-check and both local-gates checks were observed green.
 Next: retry whole close under that measurement-only exception.
 
+### 2026-10-24 — BR-1 receiving handoff corrected on Ariadne main
+
+Close round1 found no runtime defect and returned FIX-THEN-SHIP, but its
+Important BR-1 blocked finalization: the receiving ariadne#615 Spec still
+prescribed the obsolete scoped-read recovery despite Pair's corrected plan.
+Corrected the unclaimed ticket through sdlc issue publish --issue615 from
+the clean resting dependency checkout, preserving status/dependency and
+adding its own Revisions. Publication exited0; verified origin/main's ticket
+at commit91fc60bdc81e1091943c61df2a374669b8d87ac0 states inspect diff,
+review remaining edits, then read --all, with section reads non-acknowledging.
+No peer code, runtime state or Pair executable changed. The issue stays
+unclaimed, depends on pair#862, and waits for the hub's post-land assignment.
+
+The review independently passed the whole session-sync package, focused
+apply/fuzz seeds, public CLI and diff check. Runtime proof is unchanged;
+original recorded suite39827/lease-2922290125 remains queued. Resubmit close
+to dispose BR-1, retaining the precise authorized actuals exception.
+
 ## Revisions
 
 ### 2026-10-24 — separate dependent fake adoption, TL-approved

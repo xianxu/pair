@@ -7,6 +7,8 @@ representative evidence, not an exhaustive index.
 
 ## Proof and verification
 
+- #862 BR-1: A corrected cross-repository contract must reach the receiving ticket before its handoff is complete. Local Revisions and a future instruction to consult the landed source do not supersede a stale prescription in the receiving Spec; publish the correction and verify its main copy.
+
 - #863 suite: when a result gains an ownership predicate, sweep existing positive fixtures for the required authority and retain separate empty/metadata-only negatives. A startup fixture must declare its history explicitly; an empty namespace is not evidence of a previous shutdown. Keep exact joined-diagnostic and declared-operation assertions current with the same approved contract.
 
 - #863 BR-3: A published start claim needs one failure owner before launch ownership begins. Discovery/enrollment failures must roll back against the store that accepted the claim, independently of whether namespace routing is available; release native authority only after exact nonce/revision cleanup and positive absence. Pin post-publication failures and successful handoff, not only the later launch tail.
