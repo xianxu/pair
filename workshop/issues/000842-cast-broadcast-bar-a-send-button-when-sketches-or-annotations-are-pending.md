@@ -16,7 +16,7 @@ claimant:
     workspace: pair:7
     worktree: /Users/xianxu/workspace/worktree/pair-slot7/pair
     repository: github.com/xianxu/pair
-flow: {kind: quick, provenance: inferred, spec: "fdec9e1a", done: "325e22f8"}
+flow: {kind: full, provenance: inferred}
 ---
 
 # Cast broadcast bar: a ⏎ send button when sketches or annotations are pending
@@ -58,6 +58,8 @@ Read #856 joint plan and mock HTML/CSS, then viewed its actual synthetic1280x900
 
 
 ### 2026-10-24 — first implementation and targeted proof
+- 2026-10-24: closed — BR-1: README now describes Chrome Send visibility, wider chord availability and terminal limitation, alongside help/atlas. BR-2: replacement control flushes and observes original AND successor; deliberate current-target misrouting fails with successor received 1 send chord, production restored unchanged; positive StatusSend -race passes 16.344s. Prior targeted Go and real headless nvim transaction checks passed; current inventory passes. Precise no-plan-check acknowledgement approved by hub563a3e8a: only remaining task combines queued final-head pre-close and externally scheduled live acceptance/landing. New --pre-close record is queued on 27f192b8930fe672722112a425c97ca21a5d774e; final pass and pair:4 coordinated combined morning cast stage still required before landing. No suite or live pass claimed; hub owns projects.; review verdict: SHIP
+- 2026-10-24: flow upgraded quick → full — 176 added lines in code files (limit 100); an earlier round of this close already ran the full review
 
 Change-code admitted the inferred quick flow; the binary will upgrade the close review if the real diff leaves the shell. Shared chord red failed because ESC[13;8u was undeclared, then workbenchshortcut/keyhelp tests passed after declaration, generated mapping, exact reservation-policy updates and removal of the duplicate manual map. make test-submission-transaction passed all existing real headless draft/DOM transaction tests. Focused wrapcmd/termcmd chord tests passed after updating the old four-reserved-chord expectation for the explicitly approved fifth chord.
 
