@@ -74,3 +74,84 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-24T16:25:32-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 862 — session-sync apply advances the diff baseline over the whole file, wiping the operator's unread edits elsewhere |
+| repo | pair |
+| issue file | workshop/issues/000862-session-sync-apply-advances-the-diff-baseline-over-the-whole-file-wiping-the.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | f01ccc06b55fd3c5ac383fe172f4a4bb3ab74bcf..52b8f9d5dd717833ee8906b7dd5659ba21d2f35f |
+| command | sdlc close --issue 862 |
+| reviewer | codex (openai; author openai) |
+| isolation | fenced |
+| timestamp | 2026-10-24T16:25:32-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+The implementation preserves unread edits outside safely mapped apply changes and retains the previous baseline when mapping is uncertain. The dependent handoff now documents the correct recovery. No blocking findings remain.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      Verified the pinned Ariadne commit 91fc60b before/after diff: workshop/issues/000615-session-sync-apply-shadow-fake.md:20 replaces scoped-read recovery with inspect diff, review remaining edits, then read --all, explicitly stating section reads do not advance the baseline. This matches sessionsync/sync.go:295-320 and TestApplyRetainsUnmappableBaseline. The correction is prose-only.
+```
+
+1. **Strengths**
+
+   - `apply_shadow.go:18-58` reuses existing diff logic, validates mapped bytes, and conservatively rejects uncertain insertion boundaries.
+   - `sync.go:593` integrates projection during preparation, before publication.
+   - Tests exercise registered/legacy documents, broad records, no-ops, missing baselines, aliases, and composed warnings.
+   - README, atlas, help, embedded skill, and receiving ticket consistently describe recovery.
+
+2. **Critical findings:** None.
+
+3. **Important findings:** None.
+
+4. **Minor findings:** None.
+
+5. **Test coverage notes**
+
+   Passed:
+
+   - `go test ./cmd/internal/sessionsync -count=1`
+   - `go test ./cmd/internal/couchcmd -run '^TestSessionSyncApplyShadowCLI$' -count=1`
+   - `git diff --check`
+
+   The session-sync run includes projection fixtures, growth assertions, fallback tests, recovery tests, and fuzz seeds. Reviewed files remain unchanged.
+
+6. **Architectural notes**
+
+   - **ARCH-DRY — pass:** reuses `changedRuns` and existing publication machinery.
+   - **ARCH-PURE — pass:** projection is deterministic and IO-free; integration remains in the existing transaction shell.
+   - **ARCH-PURPOSE — pass:** unread preservation and conservative recovery are delivered; the dependent contract handoff is corrected.
+   - **ARCH-EVOLVE — pass:** no persisted format changes.
+
+7. **Plan revision recommendations:** None.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"3a4460ad-75f0-4f97-a053-687c8e922c4f","repository":"github.com/xianxu/pair","issue_id":"000862","recipe":"small-diff-review","round":2,"attempt":1,"agent":"codex","root":"/Volumes/TestScratch/review-checkouts/38b47f83d5f89fe0","reviewed_head":"52b8f9d5dd717833ee8906b7dd5659ba21d2f35f","slot":"pair:3","requested_at":"2026-10-24T23:24:20.24284Z"},"phase":"finished","pid":39567,"started_at":"2026-10-24T23:24:20.380641Z","finished_at":"2026-10-24T23:25:30.969374Z","session_id":"01a1703a-c0d5-7d63-920b-99eb8215abc2","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 26.322700292s
+head: "52b8f9d5dd717833ee8906b7dd5659ba21d2f35f"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000413

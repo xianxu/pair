@@ -71,6 +71,7 @@ One atomic close boundary, no milestones. Await TL approval before code.
 ## Log
 
 ### 2026-10-24
+- 2026-10-24: closed — BR-1 corrected at the receiving authority: ariadne615 details published through SDLC to origin/main91fc60bdc81e1091943c61df2a374669b8d87ac0; active Spec now says inspect diff, review remaining edits, then read --all, and section reads do not advance baseline; receiving Revisions retains the superseded wording. Verified exact main copy. No Pair executable or peer code changed after reviewed95be8dec. Reviewer independently passed session-sync package, focused apply/fuzz seeds and CLI; our targeted race/public/alias/standalone/guard tests and portable14-case/count8-16 tests PASS. Inventory and diff-check PASS immediately before close. Original pre-close lease-2922290125 on6f6e6e216 is retained and must PASS before landing. README/atlas/skill/help and approved plan describe same contract; upstream fake remains unclaimed/dependent until Pair lands. Actual refusal before review: measurement branch proof: measurement sources exceed snapshot limit 128; window2026-10-24T15:58:12-07:00 to refused26fcc83e8 committed16:13:45-07:00, later commits documentation only. Standing hubf0056229/0cd7a589 authorizes precise --no-actual while ariadne603 is working/not-landed; no typed hours.; review verdict: SHIP
 
 ### 2026-10-24 — claim, investigation and plan for TL
 
