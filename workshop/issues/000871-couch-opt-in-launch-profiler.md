@@ -39,7 +39,7 @@ Seam: profiling_model.go/model_test.go from a40b597e; profiling.go/profiling_tes
 
 ## Plan
 
-- [ ] Execute [the extraction plan](../plans/000871-couch-launch-profiler-plan.md): preserve the approved finite lifecycle and launch/env ownership, exclude scaled/native harness consumers.
+- [ ] Execute [the extraction plan](../plans/000871-couch-opt-in-launch-profiler-plan.md): preserve the approved finite lifecycle and launch/env ownership, exclude scaled/native harness consumers.
 - [ ] Qualify deterministic ownership/fault/disabled controls, counted output bounds, real pprof parsing, inventory and pre-close; close, land and report the invocation for the operator's later restart decision.
 
 ## Log
@@ -49,3 +49,9 @@ Filed unclaimed by pair:9 at TL request for pair:7. Existing native four-actor c
 ### 2026-10-24 — planning checkpoint
 
 Claimed in pair:7 and start-plan created this branch from fresh main3470debf43a86144a9ca993e9065e2d0c8dfa8ef. Existing finite diagnostic design is approved via TL dispatch and #865 provenance; no live relaunch is authorized. Read-only extraction audit found no scaled dependencies in the four core files and confirmed real pprof parsing already exists in profiling_test.go. Small missing fault cases (partial creation, allocation-after, short write, pre-cancelled parent) and counted writer growth are planned as tests, not a new mechanism. Full flow applies because imported production exceeds100lines; durable plan posted to TL before change-code.
+
+## Revisions
+
+### 2026-10-24 — approved full-flow extraction
+
+TLbb7d18ab approved the finite extraction boundary and added the two-line operator handoff. The initial no-code change-code inferred quick because code is not imported yet; pin full for the approved >100production-line extraction so plan-quality and estimate gates run before implementation. Renamed the durable plan to the canonical issue stem; no design delta.
