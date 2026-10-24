@@ -232,6 +232,17 @@ Round4 narrow review returned REWORK solely for close-review-scope-integrity: th
 
 Full close round5 SHIP, high confidence, zero new findings and all BR-1/2/3/4 addressed; no blocking findings. Evidence commit 2def2b24dbee3001277eefef1d619510cf2b7504; card mirror HEAD fba8c54e797dfa12be29324282256ee6b569b5b0, confirmed by Git. The reviewed head 6724410b13b26b54f352dff9d6f698ff57cb3835 differs from the queued candidate f7f4ec084657b6f4bfcd669254f40f694a2b835a only in plan/review bookkeeping. No code changed after the queued check began. Retain session49557, run lease-3796038393, attempt fcad99b65b2ba86d678b4544b601bcdd; queue position3 at last observation. Do not restart while it is retained. NEXT ACTION: inspect its complete result; green means send pair:4 exact head and checklist for the hub-authorized combined stage, with live acceptance preceding merge. No pair:0 action by this slot.
 
+### 2026-10-24 — fresh recorded suite PASS; ready for coordinated live check
+
+Attempt fcad99b65b2ba86d678b4544b601bcdd, lease-3796038393, completed exit0 in 12m43s on f7f4ec084657b6f4bfcd669254f40f694a2b835a after a 2329s queue wait. Recorded as sdlc-local/suite; saved log /Users/xianxu/workspace/pair/.git/sdlc/local-checks/f7f4ec084657b6f4bfcd669254f40f694a2b835a/suite.log, sha256 prefix e718ed9f7b71. Artifactpath5.728s, couchcmd67.814s, couchcore254.169s, couchtty48.561s, testnotice0.140s and repolint8.357s all passed; no flake resume required. All shell/editor and Go package targets completed. Full close round5 SHIP and PR593 CI are green. Later commits contain only review/plan/log bookkeeping; runtime and checker code match the tested candidate.
+
+Operator checklist for pair:4's combined stage, only after explicit hub build go:
+1. After restart, open the bell: ordinary reattach/freshness feedback creates no per-slot storm; switcher feed retains feedback.
+2. TL sends an explicit notification titled #844 live check; one bell item opens the requesting hub.
+3. Start/end a cast with normal controls (or normally close its cast Chrome): progress, success and expected stop stay feed-only. Unexpected-error bell routing, ownership, automation OFF/no replay and no-hub fallback are covered by deterministic production-path fixtures; normal closure is not evidence of unexpected failure.
+
+NEXT ACTION: send pair:4 the exact current head plus checklist, then wait for hub-coordinated live acceptance. Do not touch pair:0 or independently build/stage. Once acceptance is recorded, enter sdlc merge --yes promptly and verify tracker done, archive and runner exit before reporting landing.
+
 ## Estimate
 
 Produced via brain/data/life/42shots/velocity/estimate-logic-v3.1.md against baseline-v3.1.md. Method A only. Calibration is flagged stale by estimate-source, so these are provisional ship-wall-clock hours. Read v2/v2.1 procedure and table: retain issue/spec design cost; use x0.2 design discount for approved module/integration/refactor decisions, 40% implementation conversion, familiarity 1.0 and 15% design buffer.
