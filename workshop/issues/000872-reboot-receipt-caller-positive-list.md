@@ -1,12 +1,20 @@
 ---
 id: 000872
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-10-24
 updated: 2026-10-24
 estimate_hours:
-card_mirror: '39bb72c98c0769cf2a93969facb71293c3164613' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: 'a0ae1aa1aa7fdc9bfae2779b246362d6a1612101' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-24T16:04:42-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: Xian’s MacBook Pro
+    workspace: pair:2
+    worktree: /Users/xianxu/workspace/worktree/pair-slot2/pair
+    repository: github.com/xianxu/pair
 ---
 
 # Admitted worker reboot loses steward positive-list authentication during receipt polling
@@ -35,3 +43,11 @@ The retained capture is /Volumes/TestScratch/tmp/pair865-scale.HgmR9S/evidence/c
 ## Log
 
 Filed unclaimed by pair:9 per TL ops:0 direction. Largest completed original cohort N5 (its waveform was separately invalid because startup system submissions stopped redraw before capture). #865 retains workload repair and measurement; #871 separately lands the opt-in profiler. No retained native owner remains from this failure.
+
+### 2026-10-24 — claim and initial causal trace
+
+Dispatched by verified ops:0 receipt 2fab61cc-ee8e-4641-abad-09e875dc45b2 after #851 landed, while #874's approved planning-only contract waits for #737. Claimed and start-plan completed on this separate main-based branch. The first start-plan correctly refused while on the parked #874 branch; its committed/pushed clean checkpoint was preserved, switched to main-slot2, then reran successfully. No stacked commits or runtime changes.
+
+Read retained collection.log and traced CLI admission -> pollSlotOperation -> handleSlotOperation/liveCaller -> messageAuthority.current -> messageThreadResolver -> ListedPairSessionContext. The exact captured error is the resolver's absent/non-present projection branch, not a stale-poller error, timeout, duplicate attribution error, wrapper PID mismatch or nonce mismatch. That narrows which evidence failed but does not prove why the session was absent. The capture lacks the raw listing/caller pane/binding census needed to distinguish actual disappearance from an erroneous listing. Preserve conservative uncertain outcome and no resend.
+
+Source investigation is read-only, including a bounded delegated listing/projection analysis. No native rerun, code, new timeout or authentication relaxation. Next: finish tracing listing parsing and namespace effects, inspect retained manifest and exact original source, then send the hub a causal classification and bounded diagnostic/correction plan before change-code.
