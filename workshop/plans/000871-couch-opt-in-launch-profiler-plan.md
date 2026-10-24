@@ -63,7 +63,7 @@ There is no retry, network listener, agent-system message or automation-gate dep
 ## Implementation and verification
 
 - [ ] Import the pure/model and adapter tests first; run the focused command to establish missing-profiler RED on main-based #871. Import the selected implementation and reconcile only named current-main launch/env/docs/artifact seams.
-- [ ] Keep existing pure transition sequence tests and controlled ownership/fault tests. Add dedicated controls for partial creation failure after an opened output, allocation-after failure, short write and pre-cancelled context; add the counted N/2N bounded-writer case. These fill concrete coverage gaps found during extraction audit, without changing the approved mechanism.
+- [ ] Qualify the production functions through the adversarial strategies below, keeping individual fault cases in executable tests. No new profiling mechanism is introduced.
 - [ ] Run `go test ./cmd/internal/couchcmd -run '^(TestProfile|TestParseProfileRequest|TestSingletonChildUsesSelectedRoots)' -count=1`. It includes actual CPU/alloc runtime files and three real `go tool pprof -top` reads against os.Executable. Run the model/window/launch cohort with `-race` after deterministic tests pass.
 - [ ] Audit launch-only integration on current main, preserve the existing Console finisher and child environment ownership. Validate artifact manifest and changed reader inventory; run make test-affected-inventory and git diff --check. No scaled harness or native conformance file should appear in the final diff.
 - [ ] Update issue Log with source provenance, red/green/fault/runtime results, and limits. Commit/push, run `sdlc local-check run --pre-close`, close with the binary-owned review, then promptly enter `sdlc merge --yes` on SHIP. The merge turn owns any later main integration and full suite. No manual chase of main after branch verification.
@@ -72,3 +72,21 @@ There is no retry, network listener, agent-system message or automation-gate dep
 ## Alternatives and exclusions
 
 Selective extraction is the approved choice (ARCH-PURPOSE): it makes real launch profiling available without waiting for scaled synthetic measurement. Landing the entire #865 branch would mix independent harness/optimization work. An HTTP pprof endpoint would add a listener and indefinite lifecycle; external sampling alone would not provide this runtime allocation evidence. Neither is needed here. No CPU-cost fix or complete native workload matrix is claimed.
+
+## Function-level verification strategies
+
+| Function | Adversarial strategy and mechanical guard |
+|---|---|
+| ParseProfileRequest | Malformed/empty path classes against syntax-only validation and zero disabled effects. |
+| StepProfile | Controlled event sequences against independent no-unowned-stop, at-most-once acquisition/release and terminal idempotence invariants. |
+| StartProfileWindow | Inject storage/parent cancellation failures across setup progress; assert partial ownership closes and no admitted work survives refusal. |
+| ProfileWindow.run / Close | Hold clock/backend effects and reorder cancellation/completion; assert joined extent, retained failures and exactly-owned profiler release. |
+| profileWriter.Write / Close | Inject IO faults and short progress; count forwarded bytes/calls at N and2N, assert saturation and retained first error across writes/close. |
+| runProfiledConsole | Exercise disabled/refused/active requests through one Console invocation; assert unchanged exit and no returned live worker. |
+| configuredRunner.childEnv via OSRuntime.runtimeRunner | Poison inherited profiler opt-in, inspect actual disposable child environment and assert selected namespace/env behavior is preserved. |
+
+## Revisions
+
+### 2026-10-24 — PQ-1 function-level test strategies
+
+Compressed the prose fault-case inventory into one adversarial strategy per production function. The executable tests retain the concrete missing coverage identified by the extraction audit; scope and operator-approved behavior are unchanged.
