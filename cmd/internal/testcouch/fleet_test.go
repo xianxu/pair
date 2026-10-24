@@ -22,6 +22,15 @@ func TestFleetOptionsRefuseBeforeAllocation(t *testing.T) {
 	if err := validateOptions(Options{Workers: 3, AgentKind: "installed"}); err == nil {
 		t.Fatal("allowed installed-agent fallback")
 	}
+	// pair#830: extra hubs are distinct provisioned workers after an explicit primary.
+	if err := validateOptions(Options{Workers: 2, ExplicitHub: true, Hubs: []int{1}}); err != nil {
+		t.Fatal(err)
+	}
+	for _, bad := range []Options{{Workers: 2, Hubs: []int{1}}, {Workers: 2, ExplicitHub: true, Hubs: []int{3}}, {Workers: 2, ExplicitHub: true, Hubs: []int{1, 1}}, {Workers: 2, ExplicitHub: true, Hubs: []int{0}}} {
+		if err := validateOptions(bad); err == nil {
+			t.Fatalf("accepted hubs %+v", bad)
+		}
+	}
 }
 
 func TestCanceledStartDoesNotLaunchOrPublish(t *testing.T) {

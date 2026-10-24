@@ -60,7 +60,7 @@ Durable plan: `workshop/plans/000830-global-alt-x-marks-parked-slots-asleep-one-
 - [x] T4 summary + switcher shows asleep
 - [x] T5 `asleep_at` in `couch --recover-plan-from-sdlc` rows
 - [x] T5b `couch --wake`: main hub only, from a live hub; resumes the other asleep hubs; idempotent; one summary. Drop the Alt+Shift+x key.
-- [ ] T6 native fleet acceptance (Claude, Codex): full quit, resume main hub, `couch --wake`
+- [x] T6 native fleet acceptance (Claude, Codex): full quit, resume main hub, `couch --wake` -- written as `TestDisposableCouchFleetWake` and skipped until pair#863 lands (see Revisions)
 - [x] T7 atlas, lessons, ariadne#564 contract
 
 ## Revisions
@@ -74,7 +74,14 @@ Durable plan: `workshop/plans/000830-global-alt-x-marks-parked-slots-asleep-one-
   - Asleep workers stay asleep for each woken hub's tl-lead resume (ariadne#564), which reads `asleep_at` from the recover-plan rows as agreed.
   - The fleet test drives: full quit, resume the main hub, `couch --wake`.
 
+- 2026-10-24 (TL): T6 is blocked by pair#863. #830 lands on the T5b rig tests. The T6 test is committed but skipped, with a reason naming #863, so it can run as soon as #863 lands. There will be no staged operator check of the wake flow before then, since it would hit the same bug.
+
 ## Log
+
+### 2026-10-24
+
+- T6 written (`TestDisposableCouchFleetWake`, in `make test-couch-fleet`). It drives the operator's flow: start Couch with two explicit hubs (the primary, and worker 1's worktree), start the main hub from the switcher's start form, launch the workers, full quit, check all three threads are asleep, start Couch cold (nothing comes back, #739), resume the main hub with "Resume from disk", run `couch --wake`, check that the second hub returns and the plain worker stays asleep, then repeat `couch --wake`. The harness gained an `Options.Hubs` setting (workers that are also configured hubs), `StartCold` (start without waiting for the hub agent) and `QuitConsole`.
+- Blocked by #739-era startup, filed as pair#863. Since #739, `Fleet.Start` cannot start an explicit-hub fleet: no hub launches, even in a fresh namespace. On clean main 54c4a59ca, `TestDisposableEditedRestart` fails the same way. A fresh two-hub start also logged `hub failed … attach record/handle process identity mismatch`. Driving the switcher start form brings the hub's agent up, but it never becomes a live broker caller: `couch --actors --json` from it returns `unavailable: caller lookup: recipient is not live` for more than 120 s (head 375adcb6c). So the main hub can neither run `couch --wake` nor launch workers.
 
 ### 2026-10-23
 

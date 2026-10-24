@@ -282,3 +282,193 @@ func TestDisposableCouchFleetFullQuit(t *testing.T) {
 		}
 	}
 }
+
+// pair#830 T6: a full quit puts every slot to sleep. Couch starts again with
+// its hubs and brings none back (#739). The operator resumes the main hub
+// from the switcher; its `couch --wake` brings back exactly the other asleep
+// hub, and the plain worker stays asleep for that hub to wake.
+func TestDisposableCouchFleetWake(t *testing.T) {
+	if os.Getenv("PAIR_NATIVE_COUCH_FLEET") != "1" {
+		t.Skip("set PAIR_NATIVE_COUCH_FLEET=1 or make test-couch-fleet")
+	}
+	// Remove this skip when pair#863 lands: it is the only thing stopping
+	// the run.
+	t.Skip("blocked by pair#863: a hub started from the switcher in a fresh explicit-hub fleet never becomes a live broker caller (couch --actors: caller lookup: recipient is not live)")
+	binaries := testcouch.Build(t)
+	for _, agent := range []string{"claude", "codex"} {
+		if !t.Run(agent, func(t *testing.T) {
+			// fixture:1 is a second hub; fixture:2 is a plain worker.
+			fleet := testcouch.New(t, binaries, testcouch.Options{Workers: 2, ExplicitHub: true, Hubs: []int{1}, AgentKind: agent})
+			setup, cancelSetup := context.WithTimeout(t.Context(), 240*time.Second)
+			err := fleet.Prepare(setup)
+			cancelSetup()
+			if err != nil {
+				t.Fatal(err)
+			}
+			ctx, cancel := context.WithTimeout(t.Context(), 300*time.Second)
+			defer cancel()
+			// Since #739 no hub starts by itself; the operator starts the main
+			// hub from the switcher (#863 tracks Fleet.Start).
+			if err := fleet.StartCold(ctx); err != nil {
+				t.Fatal(err)
+			}
+			wakeFleetStartHub(t, ctx, fleet, fleet.Workspaces.Primary, agent)
+			if err := fleet.WaitAgent(ctx, 0); err != nil {
+				t.Fatalf("main hub start: %v\n%s", err, fleet.Screen())
+			}
+			if err := fleet.WaitActors(ctx, 1); err != nil {
+				t.Fatalf("main hub registration: %v\n%s", err, fleet.Screen())
+			}
+			for n := 1; n <= 2; n++ {
+				if err := fleet.StartWorker(ctx, n); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if err := fleet.Resize(36, 132); err != nil {
+				t.Fatal(err)
+			}
+			if err := fleet.ParkAndQuit(ctx); err != nil {
+				t.Fatal(err)
+			}
+			asleep := func() map[string]bool {
+				t.Helper()
+				namespace, err := couchcore.ResolveCouchNamespace(fleet.Roots.Mutable["store"], fleet.Workspaces.Primary)
+				if err != nil {
+					t.Fatal(err)
+				}
+				snapshot, err := couchcore.NewThreadStore(namespace).Snapshot()
+				if err != nil {
+					t.Fatal(err)
+				}
+				out := map[string]bool{}
+				for _, record := range snapshot.Records {
+					_, ok := couchcore.ThreadAsleep(record)
+					out[string(record.Address.Tag)] = ok
+				}
+				return out
+			}
+			slept := asleep()
+			if len(slept) != 3 {
+				t.Fatalf("store threads after full quit: %v", slept)
+			}
+			for tag, ok := range slept {
+				if !ok {
+					t.Fatalf("%s not asleep after full quit: %v", tag, slept)
+				}
+			}
+			if err := fleet.QuitConsole(ctx); err != nil {
+				t.Fatal(err)
+			}
+			if err := fleet.StartCold(ctx); err != nil {
+				t.Fatal(err)
+			}
+			// Startup brings no hub back after a full quit (#739).
+			select {
+			case <-ctx.Done():
+				t.Fatal(ctx.Err())
+			case <-time.After(3 * time.Second):
+			}
+			for n := 0; n <= 2; n++ {
+				if ready, err := fleet.Agent(n); err == nil && syscall.Kill(ready.PID, 0) == nil {
+					t.Fatalf("fixture:%d came back at startup: %+v", n, ready)
+				}
+			}
+			// The operator resumes the main hub from the switcher.
+			forceFleetPress(t, fleet, "\x00", 32, 5)
+			forceFleetWaitScreen(t, ctx, fleet, "Ctrl+Y copy last notice / selected error")
+			if err := fleet.Input([]byte("fixture:0")); err != nil {
+				t.Fatal(err)
+			}
+			forceFleetPress(t, fleet, "\t", 9, 1)
+			if err := fleet.Input([]byte("Resume from disk")); err != nil {
+				t.Fatal(err)
+			}
+			forceFleetPress(t, fleet, "\r", 13, 1)
+			if err := fleet.WaitAgent(ctx, 0); err != nil {
+				t.Fatalf("main hub resume: %v\n%s", err, fleet.Screen())
+			}
+			if err := fleet.WaitActors(ctx, 1); err != nil {
+				t.Fatalf("main hub registration: %v\n%s", err, fleet.Screen())
+			}
+			result, err := fleet.ActorCLI(ctx, 0, "--wake")
+			if err != nil || result.ExitCode != 0 {
+				t.Fatalf("couch --wake: %+v %v", result, err)
+			}
+			t.Logf("couch --wake: %s", strings.TrimSpace(result.Stdout))
+			if err := fleet.WaitAgent(ctx, 1); err != nil {
+				t.Fatalf("asleep hub not woken: %v\n%s", err, fleet.Screen())
+			}
+			if ready, err := fleet.Agent(2); err == nil && syscall.Kill(ready.PID, 0) == nil {
+				t.Fatalf("plain worker woken by couch --wake: %+v", ready)
+			}
+			if woke := asleep(); woke["0"] || woke["1"] || !woke["2"] {
+				t.Fatalf("asleep after wake: %v", woke)
+			}
+			// A repeat finds nothing left for it to wake.
+			again, err := fleet.ActorCLI(ctx, 0, "--wake")
+			if err != nil || again.ExitCode != 0 {
+				t.Fatalf("repeat couch --wake: %+v %v", again, err)
+			}
+			t.Logf("repeat couch --wake: %s", strings.TrimSpace(again.Stdout))
+			cleanup, cancelCleanup := context.WithTimeout(context.Background(), 30*time.Second)
+			defer cancelCleanup()
+			if err := fleet.Close(cleanup); err != nil {
+				t.Fatal(err)
+			}
+			if err := fleet.AssertCleaned(); err != nil {
+				t.Fatal(err)
+			}
+		}) {
+			break
+		}
+	}
+}
+
+// wakeFleetStartHub is the operator's start gesture for a hub with no row:
+// the switcher's start form, its path, the agent, then Enter to resolve and
+// Enter to start.
+func wakeFleetStartHub(t *testing.T, ctx context.Context, fleet *testcouch.Fleet, dir, agent string) {
+	t.Helper()
+	// The switcher may already be open (a cold start opens it); Ctrl+Space
+	// opens it, and Ctrl+Space in it opens the start form.
+	settle, stop := context.WithTimeout(ctx, 5*time.Second)
+	open := waitFleet(settle, func() (bool, error) {
+		screen := fleet.Screen()
+		return strings.Contains(screen, "Ctrl+Y copy last notice / selected error") || strings.Contains(screen, "start thread"), nil
+	}) == nil
+	stop()
+	if !open {
+		forceFleetPress(t, fleet, "\x00", 32, 5)
+		forceFleetWaitScreen(t, ctx, fleet, "Ctrl+Y copy last notice / selected error")
+	}
+	if !strings.Contains(fleet.Screen(), "start thread") {
+		forceFleetPress(t, fleet, "\x00", 32, 5)
+	}
+	forceFleetWaitScreen(t, ctx, fleet, "start thread")
+	if err := fleet.Input([]byte(dir)); err != nil {
+		t.Fatal(err)
+	}
+	forceFleetPress(t, fleet, "\x1b[B", 57353, 1)
+	for i := 0; i < 8 && !strings.Contains(fleet.Screen(), "agent "+agent); i++ {
+		forceFleetPress(t, fleet, "\x1b[C", 57351, 1)
+		time.Sleep(100 * time.Millisecond)
+	}
+	forceFleetWaitScreen(t, ctx, fleet, "agent "+agent)
+	// Enter resolves the preview; once resolved, Enter starts it and the
+	// form closes.
+	if err := waitFleet(ctx, func() (bool, error) {
+		screen := fleet.Screen()
+		if !strings.Contains(screen, "start thread") {
+			return true, nil
+		}
+		if !strings.Contains(screen, "resolving") {
+			if err := fleet.Press("\r", 13, 1); err != nil {
+				return false, err
+			}
+		}
+		time.Sleep(400 * time.Millisecond)
+		return false, nil
+	}); err != nil {
+		t.Fatalf("start form for %s: %v\n%s", dir, err, fleet.Screen())
+	}
+}
