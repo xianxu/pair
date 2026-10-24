@@ -134,6 +134,12 @@ NEXT ACTION: inventory then binary-owned close review while the suite waits/runs
 
 Normal close on candidate 4e5772e3855d0126ad3a3fe943183181114eb319 refused before review: "can't auto-compute (measurement branch proof: measurement sources exceed snapshot limit 128)." It printed no measured window or sessions. Candidate window reconstructed from the authoritative card's started anchor and pinned last issue commit: 2026-10-24T10:30:06-07:00 through 2026-10-24T11:42:28-07:00 (tracker claim commit 2013428b9 at 10:30:07; no release). This identifies the failed candidate, not numeric actuals or a successful measurement. Using only --no-actual under ops:0's standing authorization 8ed4d3ff-1e37-4edf-9c60-5ecaf47edafe; no typed hours. The suite remains queued and live acceptance remains outstanding.
 
+### 2026-10-24 — boundary round 1 REWORK
+
+Review returned BR-1 Critical (notice-owner-loss-fallback), BR-2 Important (user-docs-behavior-parity) and BR-3 Minor (shared-analysis-single-source). Verified BR-1: pending epoch mismatch conflates unavailable owner epoch zero with automation revocation; confirmed SendResult Refused also retires without unavailable-owner routing. Repair covers pending and immediately-before-admission disconnect while preserving OFF/ON and admitted/uncertain no-replay. README's two obsolete unconditional bell descriptions are being corrected; duplicated producer AST analysis is being consolidated. Revisions and prevention lessons record the class sweep.
+
+Canceled old suite lease-3505757571 through sdlc local-check cancel while it was still queued (never executed), so obsolete code will not consume a full run; terminal confirmed context-canceled suite-lock wait. No check pass or flake classification. Queue a fresh check only after the review fixes are verified and pushed. Hub informed in submitted message 6f903a07-b5c1-442d-b57b-ea269732cc4d.
+
 ## Estimate
 
 Produced via brain/data/life/42shots/velocity/estimate-logic-v3.1.md against baseline-v3.1.md. Method A only. Calibration is flagged stale by estimate-source, so these are provisional ship-wall-clock hours. Read v2/v2.1 procedure and table: retain issue/spec design cost; use x0.2 design discount for approved module/integration/refactor decisions, 40% implementation conversion, familiarity 1.0 and 15% design buffer.

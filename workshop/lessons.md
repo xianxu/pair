@@ -2912,3 +2912,6 @@ and external temporary roots rather than relying on the host's TMPDIR.
 
 - #844 PQ-1: implementation plans name each risky production function and one adversarial testing strategy/mechanical guard. Keep scenario inventories in executable tests; generated event sequences should assert independent duplicate-effect, epoch and resource invariants.
 - #844: an async routing queue must freeze readiness and automation epoch when the event occurs. Resolving only on dequeue can revive an OFF-period event after OFF/ON; prove publication/dequeue ordering with a controlled backend. Keep existing episode owners for picker/question sends so a routing refactor preserves timing, mute and deduplication.
+
+- #844 BR-1: unavailable recipient and revoked automation are different facts. Keep the resolved owner's generation even across disconnect, and test queued, pre-admission-refused and uncertain outcomes independently. Only a confirmed unadmitted occurrence with a current generation may fall back; no uncertain replay.
+- #844 BR-2: an attention-policy change must update README's warning summary and bell interaction description alongside the atlas. Search live descriptions by the old promised behavior before close; documentation parity is a source audit, not a wording-presence test.

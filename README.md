@@ -1261,9 +1261,12 @@ its Zellij client; Couch's own detach is the switcher's Alt+d (#245).
 General messages no longer trail the tab bar, in either collapse or multiline
 mode. Open the switcher to see the latest retained message. Operation notices
 and clipboard feedback keep their own precedence there; a new feed message does
-not replace an operation error or progress notice. Actionable asynchronous
-warnings also appear in the attention list; routine progress, success and key
-feedback stay in the switcher.
+not replace an operation error or progress notice. Diagnostics go to the owning
+hub and the feed. The bell holds explicit hub notifications, failures of your
+own cast or drive actions, and actionable events without a connected owning hub.
+A connected hub with automation off keeps its diagnostics feed-only, with no
+replay when enabled. Routine progress, success and key feedback stay in the
+switcher.
 
 The first thread for a repository uses its primary checkout (`:0`). Starting
 another fills the lowest free number (`:1`, `:2`, …), under
@@ -1530,10 +1533,15 @@ history in place. With an empty list it stays put and says nothing is waiting.
 It no longer jumps to the newest page or accepts a switcher row. Ordinary
 `Enter` still selects a switcher row or the selected attention item.
 
-The **notification list (bell)** (pair#673) shows what is waiting on you, newest first. It holds the hub's `couch --notify` messages, actionable asynchronous Couch warnings,
-slots blocked on a permission prompt or picker, and slots whose turn ended with
-a question to you. While the list has items, the right end of the status row
-shows `🔔N`, red if a slot is blocked on a prompt; click it to open the list too.
+The **notification list (bell)** (pair#673) shows what needs you, newest first:
+the hub's `couch --notify` messages, failures of your own casts and drive actions,
+and actionable events with no connected owning hub. Other diagnostics, blocked
+prompts, pickers and judged questions go to their owning hub and the feed. A
+connected hub with automation off suppresses generated hub input and fallback
+bell items; enabling it does not replay those events. Couch crashes and failure
+to start its own hub also reach the bell. Routine progress and expected stops
+stay feed-only. While the list has items, the right end of the status row shows
+`🔔N`, red if a fallback item is a blocked prompt; click it to open the list too.
 The list opens at the top right. `Up`/`Down` (or `k`/`j`) move, `Enter` or a
 click jumps to the item's attached thread and removes the item. A global Couch
 warning or an item whose thread is no longer attached opens the switcher
