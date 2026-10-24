@@ -113,6 +113,10 @@ PR588 is open on pushed d1d1388cddeff9818feb1c3f7dff569318d8a149. `sdlc local-ch
 
 Authenticated submitted TL a48aa40a directs pre-close/close now and defers the operator look to pair:4's combined stage after pair:0 is free. Smoke steps were submitted to pair:4 as delivery43416c45: fresh Claude+Codex startup, pane title, ordinary terminal action/input; no pair:0 changes by this slot. Wait for TL's stage/landing sequencing. The final Plan row now separates completed qualification from these explicit outstanding gate actions, rather than implying the publication itself is already complete.
 
+### 2026-10-24 — close blocked on measurement serialization
+
+Close stopped before fresh-context review: measured actual unavailable because `measurement branch proof: measurement snapshot does not serialize: json: error calling MarshalJSON for type *gatestate.MeasurementInputs: measurement exceeds 65536 bytes`. The gate directs TL/hub recovery of measurement evidence, then `sdlc actual --issue 866` and a normal close retry. Reported to hub; no guessed hours, no no-actual waiver, no review or codecomplete claim. Recorded full suite lease-1599648425 remains live/queued, advancing to position3. Preserve the runner/session and wait for canonical recovery while it proceeds.
+
 ## Revisions
 
 ### 2026-10-24 — final plan bookkeeping and source ownership
