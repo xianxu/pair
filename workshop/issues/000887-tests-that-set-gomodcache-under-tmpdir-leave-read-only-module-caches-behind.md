@@ -50,6 +50,12 @@ read-only module cache across the suite instead of creating one per test, if tha
 
 ## Log
 
+### 2026-10-25 — Fresh boarding suite retained after merge readiness
+
+Recovery merge terminal49437 exited1 at train readiness (normal pending CI plus missing local record on new Log head), before holding a landing turn. Followed the named affected --boarding command; it refused full selection at tests/affected-readers/cmd/internal/launcher/session_quiescence_live_test.go.json and explicitly named a full-suite proof alternative. Started that exact supported command once: sdlc local-check run --name suite --rev bd1b2b1e2b8a6566433993515bfda92edbf1f72d.
+
+Retained terminal18283, lease-1813296862, attemptb05dcdd3b5a0895ab79c7c7d0673bee3 in independent snapshot /Volumes/TestScratch/local-checks/sdlc-local-2099088582. Initial FIFO8; no test result yet. Do not cancel, duplicate, retry the failed resume or restart the session while queued. Hub report d1d62e62-d31c-4998-aeb4-e2d1b0380e7f submitted/receipt to inspect. Exact next step: inspect this run on bd1b2b1e; pass means re-enter sdlc merge promptly, failure means classify/report by exact name before any retry. The canonical checkout is free (no merge runner), so authorized #857 work may continue on its own branch while this snapshot waits.
+
 ### 2026-10-25 — Resume infrastructure refusal; supported integrated recovery
 
 The public-repository CI hold was lifted by TL77666a8c; Pair uses public Actions and normal CI gates remain. Retained resume terminal10687 acquired after2518s and exited1 BEFORE the selected test ran. Exact build failure: cmd/internal/runtimebundle/embed.go:8:41: pattern assets/runtime/files: no matching files found. Parent4e5a9fb7f3bcf56333a82921fe7b9dc2, child5c61293150f7e75bd2686cd1eed845f2, tested head228ce8f808ed7723331a5ec2559a156f6b45eb2e. Exact final refusal: no saved attempt verifies: resume proof for parent 4e5a9fb7f3bcf56333a82921fe7b9dc2 is unavailable: child identity, completion or log digest is invalid; fix/advance the code and run a suite on a new head.
