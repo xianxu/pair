@@ -1322,6 +1322,25 @@ func (r OSRuntime) ClearCmuxOwner() {
 	r.Remove(filepath.Join(r.DataDir, "cmux-owner-"+wsID))
 }
 
+// AgentVersion probes the installed CLI; codex is the only agent whose launch
+// policy is version-gated (pair#891).
+func (r OSRuntime) AgentVersion(agent string) string {
+	if agent != "codex" {
+		return ""
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), agentVersionProbeTimeout)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, agent, "--version")
+	// A shim that forks the real CLI can keep stdout open after the kill;
+	// WaitDelay stops Wait on the inherited pipe too, so the bound holds.
+	cmd.WaitDelay = time.Second
+	out, err := cmd.Output()
+	if err != nil {
+		return ""
+	}
+	return parseAgentVersion(string(out))
+}
+
 // --- helpers ---------------------------------------------------------------
 
 func fileExists(path string) bool {

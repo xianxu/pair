@@ -16,6 +16,9 @@ import (
 type ReadyRecord struct {
 	AgentIdentity string `json:"agent_identity,omitempty"`
 	LaunchOrdinal uint64 `json:"launch_ordinal,omitempty"`
+	// AgentVersion is the CLI version the launcher probed at launch (e.g.
+	// codex "0.164.0"); empty when the probe is unavailable (pair#891).
+	AgentVersion string `json:"agent_version,omitempty"`
 	// DeprecatedOrientation is a TOMBSTONE: a wrapper before #522 published
 	// its composer-paste delivery state here. A ready record written by such a
 	// wrapper -- a slot launched by the old build, still running -- must still
@@ -87,6 +90,9 @@ func Validate(record ReadyRecord) error {
 		return fmt.Errorf("ready record: pid must be positive")
 	case record.TTY != "" && !ttyNamePattern.MatchString(record.TTY):
 		return fmt.Errorf("ready record: invalid tty name")
+	case len(record.AgentVersion) > 64 || !utf8.ValidString(record.AgentVersion) ||
+		strings.IndexFunc(record.AgentVersion, unicode.IsControl) >= 0:
+		return fmt.Errorf("ready record: invalid agent version")
 	default:
 		return nil
 	}
