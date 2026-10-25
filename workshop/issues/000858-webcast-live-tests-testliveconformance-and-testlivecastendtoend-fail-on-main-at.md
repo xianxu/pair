@@ -45,8 +45,8 @@ expectation, unless the control legitimately moved.
 
 ## Plan
 
-- [ ] Reproduce on main and trace the host/button geometry ownership.
-- [ ] Replace the stale fixture hit target with the actual closed-shadow control; keep real input and downstream state assertions.
+- [x] Reproduce on main and trace the host/button geometry ownership.
+- [x] Replace the stale fixture hit target with the actual closed-shadow control; keep real input and downstream state assertions.
 - [ ] Run the named native regressions and affected fixture consumers; inventory, recorded pre-close, close and merge.
 
 
@@ -62,3 +62,11 @@ Started from clean main63d35ac8295d6b4ff04001c683b038eca1d0e3d7. WEBCAST_LIVE_CH
 
 
 ### 2026-10-23
+
+### 2026-10-25 — Native pause fixture corrected
+
+Updated only liveHarness.clickControl in live_test.go. It asks CDP for the host's closed shadow root, queries the actual cast-button and reads that node's box model; missing roots/nodes or non-positive boxes remain unavailable until the existing10s readiness deadline. It dispatches real mouse press/release at the actual button center, preserving production hit testing and toggle binding rather than invoking a JavaScript handler. No production source or timeout changes.
+
+Before fix TestLiveConformance failed17.15s at pause with PhaseLive; after fix it passes1.56s/package1.815s including pause and resume. A separate, non-overlapping TestLiveCastEndToEnd run passes1.36s/package1.532s and sees the paused empty viewer state. Both commands set WEBCAST_LIVE_CHROME=1, use -count=1 and -timeout=90s; existing liveChrome launches Headless:true with private t.TempDir and joined cleanup. Shared-consumer sweep finds exactly these two native callers (conformance invokes pause and resume) and the fakeHarness equivalent. No stale host-center click remains in other fixture callers.
+
+No new global lint rule: the outer-host-center operation is valid when a host owns a single button and is not a generally forbidden API; the regression is the existing real column/native control path. Quick plan sent to hub (receipt7656d516 submitted), proceeding unless objection. Next: fake conformance, required inventory, commit/push, recorded pre-close and mandatory small-diff review. Pair:0 untouched and857 check retained independently.

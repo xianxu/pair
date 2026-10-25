@@ -107,27 +107,78 @@ func (h liveHarness) activate(t *testing.T, id string) {
 // position: its shadow root is closed, so nothing outside can reach it.
 func (h liveHarness) clickControl(t *testing.T) {
 	session := h.session(t, "")
-	var r struct {
-		Result struct {
-			Value struct{ X, Y float64 } `json:"value"`
-		} `json:"result"`
+	// The host contains fixed-position panels and no longer has the button's
+	// geometry. CDP can inspect its closed shadow root without weakening it.
+	var point [2]float64
+	locate := func() error {
+		var document struct {
+			Root struct {
+				NodeID int `json:"nodeId"`
+			} `json:"root"`
+		}
+		if err := h.c.call(session, "DOM.getDocument", map[string]any{"depth": 0}, &document); err != nil {
+			return err
+		}
+		query := func(parent int, selector string) (int, error) {
+			var result struct {
+				NodeID int `json:"nodeId"`
+			}
+			err := h.c.call(session, "DOM.querySelector", map[string]any{"nodeId": parent, "selector": selector}, &result)
+			if err == nil && result.NodeID == 0 {
+				err = errors.New("control node is not mounted")
+			}
+			return result.NodeID, err
+		}
+		host, err := query(document.Root.NodeID, "couchcast-control[data-couchcast-ui]")
+		if err != nil {
+			return err
+		}
+		var description struct {
+			Node struct {
+				ShadowRoots []struct {
+					NodeID int `json:"nodeId"`
+				} `json:"shadowRoots"`
+			} `json:"node"`
+		}
+		if err := h.c.call(session, "DOM.describeNode", map[string]any{"nodeId": host, "depth": 1, "pierce": true}, &description); err != nil {
+			return err
+		}
+		if len(description.Node.ShadowRoots) != 1 {
+			return errors.New("control shadow root is not mounted")
+		}
+		button, err := query(description.Node.ShadowRoots[0].NodeID, ".cast-button")
+		if err != nil {
+			return err
+		}
+		var box struct {
+			Model struct {
+				Border        []float64 `json:"border"`
+				Width, Height float64
+			} `json:"model"`
+		}
+		if err := h.c.call(session, "DOM.getBoxModel", map[string]any{"nodeId": button}, &box); err != nil {
+			return err
+		}
+		if len(box.Model.Border) != 8 || box.Model.Width <= 0 || box.Model.Height <= 0 {
+			return errors.New("control has no usable box")
+		}
+		point = [2]float64{(box.Model.Border[0] + box.Model.Border[4]) / 2, (box.Model.Border[1] + box.Model.Border[5]) / 2}
+		return nil
 	}
-	expr := `(() => { const r = document.querySelector('[data-couchcast-ui]').getBoundingClientRect();
-		return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; })()`
 	deadline := time.Now().Add(10 * time.Second)
 	for {
-		err := h.c.call(session, "Runtime.evaluate", map[string]any{"expression": expr, "returnByValue": true}, &r)
-		if err == nil && r.Result.Value.X > 0 {
+		err := locate()
+		if err == nil {
 			break
 		}
 		if time.Now().After(deadline) {
-			t.Fatalf("control not found: %v %+v", err, r)
+			t.Fatalf("control not found: %v", err)
 		}
 		time.Sleep(100 * time.Millisecond)
 	}
 	for _, typ := range []string{"mousePressed", "mouseReleased"} {
 		if err := h.c.call(session, "Input.dispatchMouseEvent", map[string]any{
-			"type": typ, "x": r.Result.Value.X, "y": r.Result.Value.Y, "button": "left", "clickCount": 1,
+			"type": typ, "x": point[0], "y": point[1], "button": "left", "clickCount": 1,
 		}, nil); err != nil {
 			t.Fatal(err)
 		}
