@@ -96,6 +96,10 @@ Narrow re-close terminal83135 completed exit0, round3 SHIP, zero new findings; B
 
 Fresh affected terminal92404 / lease-2014267621 / attempt8a63021a24988b3a2eaaa671d7c1eed6 runs on pushedc927d00d4d3b4840a771ad06dd80a5bd8c2f0754 in /Volumes/TestScratch/local-checks/sdlc-local-891964202; inflight log .git/sdlc/test-stats/inflight/8a63021a24988b3a2eaaa671d7c1eed6/run.log. Last observed FIFO2, not yet running. This supersedes the deterministically failed prior affected record; preserve that failure and do not register/resume it as a flake. Runtime/tests have not changed since this queued head. Next: open/update PR for CI overlap, read this exact check result, and enter sdlc merge --yes when green; report the actual landing. No duplicate check or merge runner, no pair:0 change. #857's separate integrated suite PASS12m57s is retained and waits for the hub/operator's morning re-look before its landing.
 
+### 2026-10-25 — Fixed-head affected PASS; enter landing
+
+Retained terminal92404 / lease-2014267621 completed exit0: affected check PASS3m29s, six packages plus shell group, on c927d00d4d3b4840a771ad06dd80a5bd8c2f0754. Saved .git/sdlc/local-checks/c927d00d4d3b4840a771ad06dd80a5bd8c2f0754/affected.log, SHA256 prefixb940c6ad856b. The catalog failure is fixed on this new head; no flake registration or unchanged-head retry. Later changes are review/card mirror/Log only. Narrow close is SHIP with zero open findings and exact measured0.84h; PR609 is open. TL0a4a3fa7 requests merge immediately on pass. Next: update PR head and sdlc merge --yes, preserve its runner and inspect the authoritative integration/train gates. Pair:0 remains untouched; #857 remains operator-look pending.
+
 ## Revisions
 
 ### 2026-10-25 — BR-1 readiness boundary and native refusal qualification
