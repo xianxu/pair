@@ -51,15 +51,16 @@ it ran (the hub notice on a version change is the follow-up #894).
 
 Part A of `workshop/plans/000891-codex-no-daemon-and-version-notice-plan.md` (Tasks 1–2); Part B is #894.
 
-- [ ] A1: launcher probes `codex --version` once per launch (3s bound, failure silent), exports
+- [x] A1: launcher probes `codex --version` once per launch (3s bound, failure silent), exports
       `PAIR_AGENT_VERSION` when known, and prepends `--no-daemon` at ≥ 0.164.0 unless the caller already passed
       it. All Codex launches; the shared server is never contacted or restarted.
-- [ ] A2: launcher tests pin 0.164.0 (flag + env), 0.163.0 and a failed probe (argv unchanged; the version is
-      still recorded when known), and an explicit `--no-daemon` (no duplicate).
-- [ ] A3: ready record carries the optional validated `agent_version`; the wrapper copies
+- [x] A2: launcher tests pin 0.164.0 (flag + env), 0.163.0 and a failed probe (argv unchanged; the version is
+      still recorded when known), and an explicit `--no-daemon` (no duplicate). `FreshAgentArgs` walks past the
+      new leading flag (it is in `codexBoolGlobalOption`), so a fresh start still drops `resume <id>`.
+- [x] A3: ready record carries the optional validated `agent_version`; the wrapper copies
       `PAIR_AGENT_VERSION` into it (the transport #894 will read).
-- [ ] V1: focused + package tests green.
-- [ ] V2: manual PTY check as stated in Done when, control included.
+- [x] V1: focused + package tests green.
+- [x] V2: manual PTY check as stated in Done when, control included.
 - [ ] V3: atlas `codex-resume.md`; `make test-affected-inventory` audited; suite recorded on the pushed head;
       PR merged; outcome reported to ops:0.
 
@@ -85,6 +86,27 @@ Part A of `workshop/plans/000891-codex-no-daemon-and-version-notice-plan.md` (Ta
   version-change notice plus its baseline store to a new unclaimed issue, #894 (filed, cites this plan). With
   Part B out, #891 is the launcher probe, `--no-daemon`, `PAIR_AGENT_VERSION` and the ready-record carrier:
   ~95 added non-test lines, inside the quick-flow shell.
+- Implemented on the Part A plan (commits fcc2ca3ac, 13b06a465): `agent_version.go` (`parseAgentVersion`,
+  `versionAtLeast`, `argumentPresent`), `AgentVersionOps` on `Runtime` + `OSRuntime` (codex only, 3s context),
+  the `createflow.go` seam (probe → `SetEnv(PAIR_AGENT_VERSION)` → prepend `--no-daemon` at ≥ 0.164.0),
+  `--no-daemon` in `codexBoolGlobalOption` (the plan-quality PQ-1 fix: without it the wrapper's fresh-start
+  strip stops at the new leading flag), and the ready record's validated `agent_version`. Measured code growth
+  at commit time: 107 added non-test lines, so the close will run the full boundary review rather than the
+  small-diff one (the flow itself stays quick; no refusal).
+- Probe cost on the launch path: `codex --version` measured 0.11–0.15 s real over 3 runs (3 s upper bound).
+- Manual PTY check (real Codex 0.164, 120×40 PTY, 12 s each, driven through Python `pty.fork` so no keys were
+  sent and nothing was answered; the machine's shared app-server daemon PID 6294 was left running, same
+  start time before and after; no leftover session processes):
+  - fixed argv `--no-daemon --disable shell_snapshot --sandbox read-only --no-alt-screen` → composer
+    ("Ask Codex to do anything"), `incompatible feature settings` count **0**.
+  - control argv `--disable shell_snapshot --sandbox read-only --no-alt-screen` → the three-way prompt
+    "Background server has incompatible feature settings / This session requires shell_snapshot to be
+    disabled / 1. Run without daemon this time 2. Restart with these settings 3. Cancel", count **1**. The
+    control proves the mismatch is live; the fixed leg proves the flag avoids it.
+  - A second control without `--disable shell_snapshot` showed no prompt (0): the mismatch is the
+    shell_snapshot setting, matching the spec's diagnosis.
+- Tests: `go test ./cmd/internal/launcher ./cmd/internal/readiness ./cmd/internal/wrapcmd -count=1` PASS
+  (launcher 112.0 s, wrapcmd 143.1 s), `go build ./...` and `go vet` on the three packages clean.
 
 ## Revisions
 
