@@ -45,6 +45,8 @@ everything. Keep the full-suite fallback for changes to the policy itself, the s
 
 ## Log
 
+
+- 2026-10-25: unclaimed: TL-directed handoff to pair:6 (delivery 8574f573-f5e1-40b6-b447-be6ab09aaa92). Preserve plan-wait commit 2522724fa851d612fb4222da91b60b0c2d35a5fe and existing Log; no implementation or review was started. ariadne:5 reports ariadne#598 M1 landed as PR435 merge 2001041f06cd576094266cc4b562c09cec7d0858: declared input ownership (owners/full excepts/sidecars with reads, read from main) is available after rebuilt ariadne:0 and weave refresh. Next owner verifies current capability and dependency, resumes planning for reader certificates plus cmd/couch test-only changes, sends plan to hub before change-code. pair:1 remains on #880 waiting for #857 landing.
 ### 2026-10-23
 
 
