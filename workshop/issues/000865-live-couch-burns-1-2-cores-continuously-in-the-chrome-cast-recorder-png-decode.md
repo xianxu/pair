@@ -5,8 +5,8 @@ deps: []
 github_issue:
 created: 2026-10-24
 updated: 2026-10-24
-estimate_hours: 2.92325
-card_mirror: 'c2760f428b48d58b38fcb8ca4965925094a3ca17' # card fields mirrored from issue-cards; edit via sdlc
+estimate_hours: 2.63925
+card_mirror: '3f55fb7ce324c01ed39691d0cf4fab43cbef60c9' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-24T02:51:38-07:00
 claimant:
     operator: Xian Xu
@@ -69,7 +69,27 @@ Plan-quality round1 returned PQ-1 existing-transition-fidelity and PQ-2 function
 
 ## Estimate
 
-The existing card estimate2.92325h belongs to the historical full M1/provisional-M2 plan and is preserved verbatim in pre-m2-issue.md. Reconcile the now-measured M2 design after plan-quality clears; do not backfit to elapsed work or type actuals.
+Produced via brain/data/life/42shots/velocity/estimate-logic-v3.1.md against baseline-v3.1.md. Method A only for the now-settled plan; the source is marked stale and this derivation remains provisional. Plan-quality round2 is CLEAN before this reconciliation. The original2.92325h derivation remains verbatim in pre-m2-issue.md; elapsed work and actuals do not set these numbers.
+
+Preserve the original M1 primitives rather than retroactively refitting them: profiler module midpoint design1.25 halved for standard runtime/pprof availability and thorough-spec x0.2 =0.125, impl0.6 x0.4=0.24; launch integration design2 x0.2=0.4, impl1 x0.4=0.4; native control module design0.3 x0.2=0.06, impl0.5 x0.4=0.2; its bounded discovery allowance impl0.6 x0.4=0.24. Two distinct boundary reviews retain impl0.4 x0.4=0.16 each; atlas design0.1 x0.2=0.02 and impl0.1 x0.4=0.04.
+
+Replace only the old unresolved M2 Method B allowance (design0.45, impl0.27) with known Method A work: capture reuse plus semantic controls is one smaller existing Go module at upper design0.3 x0.2=0.06 and impl0.5 x0.4=0.2. The separately bounded allocation-count/before-after replay proof is another smaller Go test/benchmark module at midpoint design0.15 x0.2=0.03 and upper impl0.5 x0.4=0.2. Existing emulator, fake transport and testing allocation/benchmark APIs remove a novel-stack/library search requirement. Familiarity1.0. Design subtotal0.695, implementation1.84, thorough-plan design buffer15%; total0.695 x1.15 +1.84 =2.63925h. No additional API, live fleet change, aged profiling or scale-harness work is costed into M2.
+
+```estimate
+model: estimate-logic-v3.1
+familiarity: 1.0
+item: greenfield-go-module design=0.125 impl=0.24
+item: api-integration design=0.4 impl=0.4
+item: smaller-go-module design=0.06 impl=0.2
+item: real-api-discovery design=0 impl=0.24
+item: milestone-review design=0 impl=0.16
+item: milestone-review design=0 impl=0.16
+item: atlas-docs design=0.02 impl=0.04
+item: smaller-go-module design=0.06 impl=0.2
+item: smaller-go-module design=0.03 impl=0.2
+design-buffer: 0.15
+total: 2.63925
+```
 
 ## Revisions
 
