@@ -848,3 +848,78 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000411
+
+---
+
+## Re-review — 2026-10-24T22:00:27-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 866 — Wait for Zellij readiness before startup probe clients |
+| repo | pair |
+| issue file | workshop/issues/000866-zellij-startup-probe-readiness.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 39896f59f60d393eb6e118f0e60fa6097f9aa0fa..69dfd71b963c5935245ea414e6d69d0792c39f28 |
+| command | sdlc close --issue 866 |
+| reviewer | codex (openai; author openai) |
+| isolation | fenced |
+| timestamp | 2026-10-24T22:00:27-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+The interdiff preserves both sides of the conflict resolutions, adapts the lint callbacks correctly, and registers the relocated diagnostic owner with meaningful regression coverage. No blocking defects or post-close scope changes found. There are no open prior findings; previously disposed findings remain disposed.
+
+```findings
+{}
+```
+
+1. **Strengths**
+
+   - `cmd/internal/artifactpath/manifest.go:709` retains both branches’ explicit source classifications.
+   - `internal/repolint/zellij_native_inventory_test.go:20` checks the current diagnostic owner, rejects the former owner, and rejects the same function in another file.
+   - Supplier resolution retains exact provider metadata, pinned-ref isolation and compatibility with older providers lacking optional packages.
+   - Reader certificates pass `make test-affected-inventory`.
+
+2. **Critical findings:** None.
+
+3. **Important findings:** None.
+
+4. **Minor findings:** None.
+
+5. **Test coverage notes**
+
+   Passed complete repolint and artifactpath packages, supplier qualification against the repository-pinned module, and affected-reader inventory. A temporary overlay restoring the former diagnostic exception makes both ownership regressions fail.
+
+   Qualification against the separately supplied newer substrate fails because its jsonstrict forwarding package imports an uncopied package. This dependency change is outside the interdiff; repository-pinned qualification passes.
+
+6. **Architectural notes**
+
+   - **ARCH-DRY — Pass:** existing owners and rule implementations are reused.
+   - **ARCH-PURE — Pass:** syntax checks remain pure; supplier IO stays in the test boundary.
+   - **ARCH-PURPOSE — Pass:** diagnostic ownership correction covers both admission and rejection controls; conflict resolutions preserve both inventories.
+   - **ARCH-EVOLVE — Pass:** no persisted format or field semantics change.
+
+   No new user-facing or architectural surface requires README or atlas updates.
+
+7. **Plan revision recommendations:** None.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"18d89b6f-254a-40f9-91e1-06d042a26577","repository":"github.com/xianxu/pair","issue_id":"000866","recipe":"fix-review","round":10,"attempt":1,"agent":"codex","root":"/Volumes/TestScratch/review-checkouts/ce282ad58ccf5185","reviewed_head":"69dfd71b963c5935245ea414e6d69d0792c39f28","slot":"pair:5","requested_at":"2026-10-25T04:59:26.790509Z"},"phase":"finished","pid":61760,"started_at":"2026-10-25T04:59:26.925542Z","finished_at":"2026-10-25T05:00:26.98345Z","session_id":"01a1716d-8ccb-7273-86e3-a876cbb7d985","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 3.391300708s
+head: "69dfd71b963c5935245ea414e6d69d0792c39f28"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412

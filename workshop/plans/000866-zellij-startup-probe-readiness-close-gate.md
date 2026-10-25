@@ -416,6 +416,36 @@ rounds:
       isolation: fenced
       reviewed: 2af137563f9f375555febae4129e2eada17a78f7
       blocked: false
+    - reviewer_runs:
+        - version: 1
+          intent:
+            disposable_root: true
+            id: 18d89b6f-254a-40f9-91e1-06d042a26577
+            repository: github.com/xianxu/pair
+            issue_id: "000866"
+            recipe: fix-review
+            round: 10
+            attempt: 1
+            agent: codex
+            root: /Volumes/TestScratch/review-checkouts/ce282ad58ccf5185
+            reviewed_head: 69dfd71b963c5935245ea414e6d69d0792c39f28
+            slot: pair:5
+            requested_at: "2026-10-25T04:59:26.790509Z"
+          phase: finished
+          pid: 61760
+          started_at: "2026-10-25T04:59:26.925542Z"
+          finished_at: "2026-10-25T05:00:26.98345Z"
+          session_id: 01a1716d-8ccb-7273-86e3-a876cbb7d985
+          outcome: returned
+      "n": 10
+      timestamp: "2026-10-24T22:00:28-07:00"
+      dispatched: "2026-10-24T21:59:23-07:00"
+      agent: codex
+      reviewer: codex (openai; author openai)
+      recipe: fix-review
+      isolation: fenced
+      reviewed: 69dfd71b963c5935245ea414e6d69d0792c39f28
+      blocked: false
 ---
 
 # Gate ledger — pair#866 (boundary-review)
@@ -503,6 +533,8 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - BR-7 — addressed — This full whole-issue close review covers the expanded diagnostic scope recorded at plan lines 400-408. TestCreatorMissingPaneReadinessNamesSessionAtBound passes at head and fails with the diagnostic wrapper removed through a temporary Go overlay.
 
 ## Round 9 — 2026-10-24T18:05:35-07:00 (codex) — passed
+
+## Round 10 — 2026-10-24T22:00:28-07:00 (codex) — passed
 
 ## Open findings
 
