@@ -94,3 +94,87 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-25T01:03:42-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 858 — Webcast live tests TestLiveConformance and TestLiveCastEndToEnd fail on main at the in-page pause click |
+| repo | pair |
+| issue file | workshop/issues/000858-webcast-live-tests-testliveconformance-and-testlivecastendtoend-fail-on-main-at.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 63d35ac8295d6b4ff04001c683b038eca1d0e3d7..d8b65cc621abe2fb9ba5356158cc23d7b5c026e2 |
+| command | sdlc close --issue 858 |
+| reviewer | codex (openai; author openai) |
+| isolation | fenced |
+| timestamp | 2026-10-25T01:03:42-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: medium
+```
+
+The fixture now targets the actual closed-shadow button and checks visibility and hit geometry before dispatching real mouse input. Both prior findings are resolved. Local native runs remain blocked during Chrome startup, but the retained host measurements match the reviewed source and substantiate the required behavior.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      live_test.go:183-201 checks ancestor visibility, opacity, viewport bounds and shadow/document hit targets before input. TestLiveControlReadiness exercises visible/restored, hidden, transparent, offscreen, clipped and missing controls, counting forwarded mouse events. Its refusal assertions catch the positive-box behavior identified previously; retained readiness evidence passes on source byte-identical to this head.
+  - id: BR-2
+    disposition: withdrawn
+    note: |
+      All four retained logs match their SHA-256 metadata. Both fixture files at evidence head 7b104dd5 are byte-identical to the reviewed head. Separate native conformance, end-to-end and readiness runs pass without skips; the controlled clean-main fixture reversion fails at the pause assertion, and its source hash matches the base. Local retries reproduce only the pre-page GPU/sandbox startup failure, which does not contradict this measured host evidence.
+```
+
+Done-when: current — it covers actual-button targeting, unusable-control refusal, both native consumers, headless execution and unchanged production behavior and deadlines.
+
+1. **Strengths**
+
+   - One shared readiness gate serves conformance pause/resume and end-to-end pause.
+   - Real mouse press/release preserves production hit testing and toggle handling ([live_test.go:214](/Volumes/TestScratch/review-checkouts/670b0764da03a015/cmd/internal/webcast/live_test.go:214)).
+   - The regression uses real closed-shadow DOM and verifies zero input on refusal ([live_control_test.go:51](/Volumes/TestScratch/review-checkouts/670b0764da03a015/cmd/internal/webcast/live_control_test.go:51)).
+   - Production code and existing timeout constants remain unchanged.
+
+2. **Critical findings:** None.
+
+3. **Important findings:** None.
+
+4. **Minor findings:** None.
+
+5. **Test coverage notes**
+
+   - `TestConformanceFake` and range whitespace checks pass locally.
+   - All three targeted native attempts fail before page creation because Chrome cannot initialize its GPU/sandbox.
+   - Retained host evidence supplies native passes and a baseline-reversion failure. The readiness regression’s sensitivity to the previous positive-box check is evident from its assertions; I could not independently rerun that reversal here.
+
+6. **Architectural notes**
+
+   - **ARCH-DRY: pass.** Shared gate; no duplicated readiness implementation.
+   - **ARCH-PURE: pass.** Browser inspection remains integration glue with an injected CDP caller.
+   - **ARCH-PURPOSE: pass.** Both consumers and the previously missing refusal contract are covered.
+   - **ARCH-EVOLVE: pass.** No persisted format changes.
+   - No new user-facing or architectural surface requires README or atlas updates. The quick plan has no Core concepts table.
+
+7. **Plan revision recommendations:** None; the existing `## Revisions` describes the implemented readiness rule and qualification scope.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"e774c23f-b31c-42dc-ac11-08e7b8d3df22","repository":"github.com/xianxu/pair","issue_id":"000858","recipe":"small-diff-review","round":2,"attempt":1,"agent":"codex","root":"/Volumes/TestScratch/review-checkouts/670b0764da03a015","reviewed_head":"d8b65cc621abe2fb9ba5356158cc23d7b5c026e2","slot":"pair:4","requested_at":"2026-10-25T07:57:39.748941Z"},"phase":"finished","pid":77789,"started_at":"2026-10-25T07:57:39.890556Z","finished_at":"2026-10-25T07:59:57.233602Z","session_id":"01a17210-b62b-7123-a1e0-13dc3acf726c","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 3.759443291s
+head: "d8b65cc621abe2fb9ba5356158cc23d7b5c026e2"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412
