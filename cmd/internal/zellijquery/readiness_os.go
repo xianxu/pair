@@ -20,8 +20,8 @@ import (
 const MaxReadySessions = 128
 
 type readinessStore struct {
-	namespace, transport string
-	paths                artifactpath.PairCachePaths
+	namespace string
+	paths     artifactpath.PairCachePaths
 }
 
 // ChildEnvironment uses the same last-value-wins snapshot for resolution and
@@ -54,11 +54,10 @@ func newReadinessStore(env []string) (readinessStore, error) {
 		return readinessStore{}, err
 	}
 	paths, err := artifactpath.ResolvePairCache(values["HOME"])
-	return readinessStore{namespace: namespace, transport: transport, paths: paths}, err
+	return readinessStore{namespace: namespace, paths: paths}, err
 }
 
-// Canonicalize the existing ancestor without creating native directories. The
-// transport spelling is separately preserved for Unix pathname length limits.
+// Canonicalize the existing ancestor without creating native directories.
 func canonicalNamespace(path string) (string, error) {
 	return canonicalNamespaceDepth(path, 0)
 }
@@ -154,72 +153,22 @@ func (s readinessStore) marker(ctx context.Context, session string) (ReadyMarker
 	return DecodeReadyMarker(raw)
 }
 
-func (s readinessStore) candidates() ([]string, error) {
-	entries, err := boundedDirectory(AppendNativeSocketPath(s.transport, "contract_version_1"), MaxReadySessions)
-	if err != nil {
-		return nil, err
-	}
-	candidates := make([]string, 0, len(entries))
-	for _, entry := range entries {
-		info, err := entry.Info()
-		if err != nil {
-			return nil, err
-		}
-		if info.Mode()&os.ModeSocket == 0 {
-			return nil, fmt.Errorf("unexpected native endpoint %s", entry.Name())
-		}
-		candidates = append(candidates, entry.Name())
-	}
-	return candidates, nil
-}
-
-func (s readinessStore) qualify(ctx context.Context) error {
-	return qualifyCandidates(ctx, s.namespace, s.candidates, s.marker)
-}
-
-// qualifyCandidates is the production admission pass, with passive filesystem
-// effects supplied explicitly so bounded work can be measured independently.
-func qualifyCandidates(ctx context.Context, namespace string, enumerate func() ([]string, error), readMarker func(context.Context, string) (ReadyMarker, error)) error {
-	if err := ctx.Err(); err != nil {
-		return err
-	}
-	candidates, err := enumerate()
-	if err != nil {
-		return fmt.Errorf("%w: %v", ErrReadinessUnknown, err)
-	}
-	if len(candidates) > MaxReadySessions {
-		return fmt.Errorf("%w: readiness candidate limit exceeded", ErrReadinessUnknown)
-	}
-	for _, session := range candidates {
-		if err := ctx.Err(); err != nil {
-			return err
-		}
-		marker, err := readMarker(ctx, session)
-		if err != nil {
-			return fmt.Errorf("%w: %s: %v", ErrReadinessUnknown, session, err)
-		}
-		if err := QualifyReadyMarker(marker, namespace, session); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
 // AcquireProbe owns exclusion through the joined native invocation. A caller
 // holding a creator's explicit permit must not recursively call this function.
+// Once exclusion is acquired, legacy/unmarked endpoints retain their existing
+// behavior: only the live creator lease witnesses an initialization window.
 func AcquireProbe(ctx context.Context, env []string) (io.Closer, error) {
-	return acquireNative(ctx, env, true)
+	return acquireNative(ctx, env)
 }
 
 // AcquireExplicitCommand serializes an explicitly authorized lifecycle command
-// with live creators without requiring positive readiness markers. This keeps
-// existing recovery available for legacy/unmarked endpoints; it grants no
-// retirement authority. Automatic background probes must use AcquireProbe.
+// with live creators using the same exclusion as background probes. It grants
+// no retirement authority and never requires receipts from legacy endpoints.
 func AcquireExplicitCommand(ctx context.Context, env []string) (io.Closer, error) {
-	return acquireNative(ctx, env, false)
+	return acquireNative(ctx, env)
 }
 
-func acquireNative(ctx context.Context, env []string, requireReady bool) (io.Closer, error) {
+func acquireNative(ctx context.Context, env []string) (io.Closer, error) {
 	s, err := newReadinessStore(env)
 	if err != nil {
 		return nil, err
@@ -227,11 +176,6 @@ func acquireNative(ctx context.Context, env []string, requireReady bool) (io.Clo
 	if permit, ok := ctx.Value(creatorPermitKey{}).(*creatorPermit); ok {
 		if !permit.active.Load() || permit.namespace != s.namespace {
 			return nil, fmt.Errorf("%w: expired or foreign creator preflight permit", ErrReadinessUnknown)
-		}
-		if requireReady {
-			if err := s.qualify(ctx); err != nil {
-				return nil, err
-			}
 		}
 		if err := ctx.Err(); err != nil {
 			return nil, err
@@ -241,11 +185,6 @@ func acquireNative(ctx context.Context, env []string, requireReady bool) (io.Clo
 	lease, err := s.lock(ctx)
 	if err != nil {
 		return nil, err
-	}
-	if requireReady {
-		if err := s.qualify(ctx); err != nil {
-			return nil, errors.Join(err, lease.Close())
-		}
 	}
 	if err := ctx.Err(); err != nil {
 		return nil, errors.Join(err, lease.Close())

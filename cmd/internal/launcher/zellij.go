@@ -33,8 +33,8 @@ var errSessionNameTooLong = errors.New("session name too long")
 // ZellijSource reads zellij session state through the zellij CLI.
 type ZellijSource struct {
 	Path string
-	// explicitRecovery preserves authorized recovery on unmarked endpoints;
-	// automatic observers always retain positive readiness qualification.
+	// explicitRecovery identifies authorized recovery at the existing query seam;
+	// both modes preserve legacy endpoints and exclude live creators.
 	explicitRecovery bool
 	// queryRun is the synchronous process-ownership boundary. Nil uses the OS collector.
 	queryRun func(*exec.Cmd) error

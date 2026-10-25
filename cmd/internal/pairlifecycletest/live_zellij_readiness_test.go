@@ -24,7 +24,7 @@ func TestControlledZellijWaitsForScreenRenderBeforeProbing(t *testing.T) {
 		t.Fatal(err)
 	}
 	// A raw conformance fixture creates an endpoint without Pair launch markers.
-	// Only its post-render observation may use explicit fixture admission.
+	// Its own owner waits for initial render before its first native observation.
 	endpoint, err := net.Listen("unix", filepath.Join(root, "contract_version_1", "owned-test"))
 	if err != nil {
 		t.Fatal(err)
@@ -70,9 +70,9 @@ exit 1
 	if _, err := os.Stat(early); !os.IsNotExist(err) {
 		t.Fatalf("session probed before initial client output: %v", err)
 	}
-	// Successful raw-fixture startup must not fabricate automatic readiness.
-	if _, err := (zellijquery.Source{}).Output(t.Context(), "list-sessions", "--no-formatting"); !errors.Is(err, zellijquery.ErrReadinessUnknown) {
-		t.Fatalf("fixture observation certified unmarked native endpoint: %v", err)
+	// The rendered legacy endpoint stays observable without a fabricated receipt.
+	if reply, err := (zellijquery.Source{}).Output(t.Context(), "list-sessions", "--no-formatting"); err != nil || !hasLiveSessionRow(string(reply), "owned-test") {
+		t.Fatalf("legacy fixture observation refused: reply=%q err=%v", reply, err)
 	}
 }
 

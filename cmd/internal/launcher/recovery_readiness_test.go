@@ -100,10 +100,10 @@ func TestExplicitRecoveryOfUnmarkedEndpointKeepsExactAuthority(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(root, "zellij"), []byte("#!/bin/sh\nif [ -e \"$PAIR_TEST_RECOVERY_STATE\" ]; then "+liveReply+"; else "+retiredReply+"; fi\n"), 0700); err != nil {
 		t.Fatal(err)
 	}
-	// An automatic observer cannot open a native client to this endpoint.
+	// Legacy listing and explicit recovery both retain their existing behavior.
 	_, err = (zellijquery.Source{}).ReadContext(t.Context(), "list-sessions", "--no-formatting")
-	if !errors.Is(err, zellijquery.ErrReadinessUnknown) {
-		t.Fatalf("automatic probe admitted: %v", err)
+	if err != nil {
+		t.Fatalf("legacy automatic observation refused: %v", err)
 	}
 	w := &unmarkedRecoveryWorld{statefulSessionQuiescenceOps: statefulSessionQuiescenceOps{present: true, serverPID: 4242, serverAlive: true}, endpoint: endpoint, state: state}
 	if err := quiesceZellijSession(t.Context(), "pair-work", w, time.Second, time.Millisecond); err != nil {

@@ -255,6 +255,16 @@ Hub dc7fe398 approved the simpler correction: the existing kernel creator lease 
 
 Hub3f5fdfe7 updates execution order: #879 (pair:9) owns the single reusable upgrade fixture and lands it first; #866 must not stack on its branch. Deterministic RED/GREEN and the lease-only correction may proceed meanwhile. After #879 lands, integrate main and run actual main-built unmarked sessions -> failed candidate RED/control and corrected candidate GREEN, covering startup adoption, explicit resume and listing for all original Claude/Codex actors with identity/socket continuity and markers still absent. Earlier demand for native RED before any correction is superseded by this explicit sequencing. No stage before hub sequencing; warm start is the next operator stage's first check. #859 is parked after M1 SHIP; no source carried between branches.
 
+### 2026-10-24 — lease-only correction deterministic checkpoint
+
+Hub cde9145a supersedes the #879 dependency order: the operator requests the correction now, with a one-off disposable main-built warm-session upgrade before the recorded check and full re-close. #879 remains an independent reusable fixture; no stacking or stage is authorized here.
+
+Removed namespace marker qualification from native admission. Automatic and explicit bounded commands take the existing creator lease; after acquisition, missing, malformed, stale or foreign receipts cannot deny legacy sessions. Exact first-pane publication, creator release before AgentReady, callback permit validation and joined native lifetimes remain. ARCH-SIMPLE: one kernel lease is the live-creator witness, without a second registry or namespace census. Creator death leaves unmarked survivors legacy and retains the accepted upstream crash-only limit.
+
+Independent private-endpoint regression was RED against the prior guard (no native invocation, missing marker refusal), then GREEN. Counterfactual overlay restored only old readiness_os.go while retaining corrected regression tests: all six selected query/pair-go/launcher/titlepoller/couchcmd/lifecycle packages failed; corrected source passes all six. Retained logs: /Volumes/TestScratch/tmp/pair-slot5/pair866-legacy-red.fUR0s2/red.log SHA256 e589685b1dac73f070066674d441c4c3e80dce928e73436de34bd444f69629ab; green.log SHA256 e39c50be165c8a76372ec59d74240079196464b25955427f6c97744c64dbb269. Controls cover marker contents, 129 legacy entries, counted 8/16 passive entries without admission scan, real lease-owner death/stable inode, initialization exclusion and exact recovery authority. Full query package race PASS14.352s; targeted five caller packages PASS; tracked Go lint catalog PASS5.424s; affected inventory PASS. No full local suite was run.
+
+Audited five changed reader certificates individually: couchcmd/titlepoller use private literal scripts; pair-go early route uses private CLI/socket/subprocess fixtures. Launcher and lifecycle also execute the real tests/lib/zellij_fixture_replies.py via zellijtest.ShellCase, so both conservatively use non_go_full_fallback. No bulk hash refresh. Native cross-build proof and recorded check remain outstanding.
+
 ## Revisions
 
 ### 2026-10-24 — final plan bookkeeping and source ownership

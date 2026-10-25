@@ -26,7 +26,7 @@ func TestInternalZellijCommandSubprocess(t *testing.T) {
 	os.Exit(runWithLegacyRuntime([]string{"internal", "zellij-command", "--", "action", "rename-pane", "test"}, os.Stdout, os.Stderr, nil))
 }
 
-func TestInternalZellijCommandQualifiesEveryNativeRead(t *testing.T) {
+func TestInternalZellijCommandPreservesEveryLegacyNativeRead(t *testing.T) {
 	root := testpair.ShortRoot(t)
 	t.Setenv("HOME", root)
 	t.Setenv("TMPDIR", root)
@@ -66,14 +66,14 @@ func TestInternalZellijCommandQualifiesEveryNativeRead(t *testing.T) {
 				args := append([]string{"internal", "zellij-command", "--"}, prefix...)
 				args = append(args, read...)
 				var stdout, stderr bytes.Buffer
-				if code := runWithLegacyRuntime(args, &stdout, &stderr, nil); code != 1 || !strings.Contains(stderr.String(), zellijquery.ErrReadinessUnknown.Error()) {
-					t.Errorf("unqualified read reached native: code=%d stdout=%q stderr=%q", code, stdout.String(), stderr.String())
+				if code := runWithLegacyRuntime(args, &stdout, &stderr, nil); code != 0 {
+					t.Errorf("legacy read refused: code=%d stdout=%q stderr=%q", code, stdout.String(), stderr.String())
 				}
 			})
 		}
 	}
-	if _, err := os.Stat(called); !errors.Is(err, os.ErrNotExist) {
-		t.Fatalf("unqualified native read effects: %v", err)
+	if raw, err := os.ReadFile(called); err != nil || string(raw) != strings.Repeat("native", len(reads)*4) {
+		t.Fatalf("legacy native read census: %q %v", raw, err)
 	}
 	// Explicit controls still retain their supported legacy-endpoint behavior.
 	for _, mutation := range [][]string{{"action", "rename-pane", "title"}, {"kill-session", "unmarked"}} {
@@ -101,7 +101,7 @@ func TestInternalZellijCommandQualifiesEveryNativeRead(t *testing.T) {
 		}
 	}
 	raw, err := os.ReadFile(called)
-	if err != nil || string(raw) != strings.Repeat("native", 2+len(reads)) {
+	if err != nil || string(raw) != strings.Repeat("native", 2+len(reads)*5) {
 		t.Fatalf("native invocation census: %q %v", raw, err)
 	}
 }

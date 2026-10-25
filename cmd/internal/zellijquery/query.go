@@ -20,9 +20,8 @@ var ErrNoReply = errors.New("zellij query returned no reply")
 // Source configures one read boundary. Nil Env inherits the caller environment;
 // disposable fixtures supply their complete environment explicitly.
 type Source struct {
-	// ExplicitRecovery preserves an explicitly authorized lifecycle operation's
-	// access to unmarked sessions. It still waits for live creator exclusion.
-	// Automatic/background observations must leave this false.
+	// ExplicitRecovery identifies a lifecycle observation at the existing caller
+	// seam. Both modes preserve legacy endpoints and exclude live creators.
 	ExplicitRecovery bool
 	Path             string
 	Env              []string

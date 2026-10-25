@@ -149,7 +149,25 @@ func TestLeaseOwnerDeathReleasesStableInodeWithoutReadiness(t *testing.T) {
 		fmt.Println("held")
 		select {}
 	}
-	path := filepath.Join(t.TempDir(), "lease")
+	env, identity := privateReadinessEnv(t)
+	root := testpair.ShortRoot(t)
+	env = append(env, "ZELLIJ_SOCKET_DIR="+root)
+	if err := os.MkdirAll(filepath.Join(root, "contract_version_1"), 0700); err != nil {
+		t.Fatal(err)
+	}
+	endpoint, err := net.Listen("unix", filepath.Join(root, "contract_version_1", identity.Session))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer endpoint.Close()
+	store, err := newReadinessStore(env)
+	if err != nil {
+		t.Fatal(err)
+	}
+	path, err := store.paths.ZellijNamespaceLease(store.namespace)
+	if err != nil {
+		t.Fatal(err)
+	}
 	cmd := exec.Command(os.Args[0], "-test.run=^TestLeaseOwnerDeathReleasesStableInodeWithoutReadiness$")
 	cmd.Env = append(os.Environ(), "PAIR_TEST_LEASE_OWNER="+path)
 	out, err := cmd.StdoutPipe()
@@ -192,6 +210,10 @@ func TestLeaseOwnerDeathReleasesStableInodeWithoutReadiness(t *testing.T) {
 	after, err := os.Stat(path)
 	if err != nil || !os.SameFile(before, after) {
 		t.Fatalf("lease inode replaced: %v", err)
+	}
+	calls := 0
+	if _, err := (Source{Env: env, Run: func(*exec.Cmd) error { calls++; return nil }}).ReadContext(ctx2, "list-sessions"); err != nil || calls != 1 {
+		t.Fatalf("dead creator's unmarked survivor was denied: calls=%d err=%v", calls, err)
 	}
 }
 
@@ -265,7 +287,7 @@ func mustIdentityJSON(t *testing.T, identity ReadyIdentity) []byte {
 	return raw
 }
 
-func TestReaderCandidateOverflowIsUnknownWithoutNativeScan(t *testing.T) {
+func TestLegacyEndpointCountDoesNotDenyNativeObservation(t *testing.T) {
 	env, identity := privateReadinessEnv(t)
 	root := filepath.Join(identity.Namespace, "contract_version_1")
 	for i := 0; i <= MaxReadySessions; i++ {
@@ -274,9 +296,13 @@ func TestReaderCandidateOverflowIsUnknownWithoutNativeScan(t *testing.T) {
 		}
 	}
 	calls := 0
-	result, err := (Source{Env: env, Run: func(*exec.Cmd) error { calls++; return nil }}).ReadContext(t.Context(), "list-sessions", "--no-formatting")
-	if !errors.Is(err, ErrReadinessUnknown) || calls != 0 || len(result.Stdout) != 0 {
-		t.Fatalf("overflow became observation: result=%+v calls=%d err=%v", result, calls, err)
+	result, err := (Source{Env: env, Run: func(cmd *exec.Cmd) error {
+		calls++
+		_, err := cmd.Stdout.Write([]byte("existing-session\n"))
+		return err
+	}}).ReadContext(t.Context(), "list-sessions", "--no-formatting")
+	if err != nil || calls != 1 || string(result.Stdout) != "existing-session\n" {
+		t.Fatalf("legacy endpoint count denied observation: result=%+v calls=%d err=%v", result, calls, err)
 	}
 }
 
@@ -300,7 +326,7 @@ func TestNamespaceCanonicalDanglingAliasKeepsSymlinkParentTraversal(t *testing.T
 	}
 }
 
-func TestExplicitRecoveryPreservesUnmarkedEndpointAccess(t *testing.T) {
+func TestLegacyUnmarkedEndpointPreservesAutomaticAndExplicitAccess(t *testing.T) {
 	env, identity := privateReadinessEnv(t)
 	shortRoot := testpair.ShortRoot(t)
 	identity.Namespace = shortRoot
@@ -308,8 +334,8 @@ func TestExplicitRecoveryPreservesUnmarkedEndpointAccess(t *testing.T) {
 	if err := os.MkdirAll(filepath.Join(shortRoot, "contract_version_1"), 0700); err != nil {
 		t.Fatal(err)
 	}
-	// A private endpoint without a marker is unavailable to automatic probes;
-	// explicit recovery must be able to inspect it using the same namespace lock.
+	// This endpoint predates the readiness contract. Its absent receipt cannot
+	// deny ordinary listing or explicit recovery after exclusion is acquired.
 	path := filepath.Join(identity.Namespace, "contract_version_1", "unmarked")
 	listener, err := net.Listen("unix", path)
 	if err != nil {
@@ -322,10 +348,10 @@ func TestExplicitRecoveryPreservesUnmarkedEndpointAccess(t *testing.T) {
 		_, err := cmd.Stdout.Write([]byte("existing-session\n"))
 		return err
 	}
-	if _, err := (Source{Env: env, Run: run}).ReadContext(t.Context(), "list-sessions"); !errors.Is(err, ErrReadinessUnknown) || calls != 0 {
+	if _, err := (Source{Env: env, Run: run}).ReadContext(t.Context(), "list-sessions"); err != nil || calls != 1 {
 		t.Fatalf("automatic probe: calls=%d err=%v", calls, err)
 	}
-	if _, err := (Source{Env: env, Run: run, ExplicitRecovery: true}).ReadContext(t.Context(), "list-sessions"); err != nil || calls != 1 {
+	if _, err := (Source{Env: env, Run: run, ExplicitRecovery: true}).ReadContext(t.Context(), "list-sessions"); err != nil || calls != 2 {
 		t.Fatalf("explicit recovery: calls=%d err=%v", calls, err)
 	}
 }
@@ -348,23 +374,21 @@ func TestExplicitRecoveryWaitsForCreatorAndHonorsCancellation(t *testing.T) {
 	}
 }
 
-func TestQualificationCandidateWorkIsLinear(t *testing.T) {
+func TestLegacyProbeAdmissionDoesNotScanNamespaceEntries(t *testing.T) {
 	for _, count := range []int{8, 16} {
 		t.Run(fmt.Sprint(count), func(t *testing.T) {
-			_, identity := privateReadinessEnv(t)
-			enumerations, reads := 0, 0
-			candidates := make([]string, count)
-			for i := range candidates {
-				candidates[i] = fmt.Sprintf("session-%d", i)
+			env, identity := privateReadinessEnv(t)
+			for i := 0; i < count; i++ {
+				path := filepath.Join(identity.Namespace, "contract_version_1", fmt.Sprintf("untrusted-%d", i))
+				// Passive namespace contents cannot be an admission prerequisite.
+				if err := os.WriteFile(path, []byte("not a socket or marker"), 0600); err != nil {
+					t.Fatal(err)
+				}
 			}
-			err := qualifyCandidates(t.Context(), identity.Namespace, func() ([]string, error) { enumerations++; return candidates, nil }, func(_ context.Context, session string) (ReadyMarker, error) {
-				reads++
-				id := identity
-				id.Session = session
-				return ReadyMarker{Identity: id}, nil
-			})
-			if err != nil || enumerations != 1 || reads != count {
-				t.Fatalf("count=%d enumeration=%d reads=%d err=%v", count, enumerations, reads, err)
+			calls := 0
+			_, err := (Source{Env: env, Run: func(*exec.Cmd) error { calls++; return nil }}).ReadContext(t.Context(), "list-sessions")
+			if err != nil || calls != 1 {
+				t.Fatalf("count=%d native invocations=%d err=%v", count, calls, err)
 			}
 		})
 	}
@@ -431,14 +455,71 @@ func TestBlockedAdmissionsAtEightAndSixteenNeverRunNative(t *testing.T) {
 	}
 }
 
-func TestExplicitRecoveryPreservesUnmarkedEndpointAccessWithLongTMPDIR(t *testing.T) {
+func TestLegacyUnmarkedEndpointPreservesAccessWithLongTMPDIR(t *testing.T) {
 	longRoot := filepath.Join(t.TempDir(), strings.Repeat("long", 40))
 	if err := os.MkdirAll(longRoot, 0700); err != nil {
 		t.Fatal(err)
 	}
 	t.Setenv("TMPDIR", longRoot)
-	t.Run("socket-safe-regression", TestExplicitRecoveryPreservesUnmarkedEndpointAccess)
+	t.Run("socket-safe-regression", TestLegacyUnmarkedEndpointPreservesAutomaticAndExplicitAccess)
 	if os.Getenv("TMPDIR") != longRoot {
 		t.Fatal("socket fixture changed inherited temporary directory")
+	}
+}
+
+func TestLegacyMarkerContentsCannotDenyProbe(t *testing.T) {
+	for _, kind := range []string{"absent", "malformed", "foreign", "stale"} {
+		t.Run(kind, func(t *testing.T) {
+			env, identity := privateReadinessEnv(t)
+			root := testpair.ShortRoot(t)
+			env = append(env, "ZELLIJ_SOCKET_DIR="+root)
+			if err := os.MkdirAll(filepath.Join(root, "contract_version_1"), 0700); err != nil {
+				t.Fatal(err)
+			}
+			listener, err := net.Listen("unix", filepath.Join(root, "contract_version_1", identity.Session))
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer listener.Close()
+			store, err := newReadinessStore(env)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if kind != "absent" {
+				path, err := store.paths.ZellijReadyMarker(store.namespace, identity.Session)
+				if err != nil {
+					t.Fatal(err)
+				}
+				raw := []byte("malformed receipt")
+				if kind != "malformed" {
+					identity.Namespace = store.namespace
+					if kind == "foreign" {
+						identity.Session = "another-session"
+					} else {
+						identity.Nonce = "start-old-generation"
+					}
+					raw, err = EncodeReadyMarker(ReadyMarker{Identity: identity})
+					if err != nil {
+						t.Fatal(err)
+					}
+				}
+				if err := os.MkdirAll(filepath.Dir(path), 0700); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.WriteFile(path, raw, 0600); err != nil {
+					t.Fatal(err)
+				}
+			}
+			calls := 0
+			for _, explicit := range []bool{false, true} {
+				_, err := (Source{Env: env, ExplicitRecovery: explicit, Run: func(*exec.Cmd) error { calls++; return nil }}).ReadContext(t.Context(), "list-sessions")
+				if err != nil {
+					t.Fatalf("explicit=%v: %v", explicit, err)
+				}
+			}
+			if calls != 2 {
+				t.Fatalf("native invocations=%d", calls)
+			}
+		})
 	}
 }

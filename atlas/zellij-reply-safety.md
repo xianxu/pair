@@ -157,11 +157,13 @@ confirmation. Visibility refusal keeps the completed activation and ready target
 ## Startup readiness and native exclusion (#866)
 
 `cmd/internal/zellijquery` coordinates cooperating bounded native commands with
-one kernel namespace lease. Automatic reads and background title observations
-also require a complete set of positive current-session markers. Missing,
-malformed or over-capacity evidence is unknown; it never becomes an empty native
-inventory. The original five-second/caller deadline includes exclusion waits.
-Passive marker/cache reads take no lease, and mutations are not replayed.
+one kernel namespace lease. Automatic reads, background title observations and
+explicit recovery wait behind a live cooperating creator until its exact first
+pane publishes and releases exclusion. Once a command holds the lease, legacy
+endpoints remain observable regardless of missing or stale markers; marker
+contents and namespace endpoint counts do not grant probe permission. The
+original five-second/caller deadline includes exclusion waits. Passive
+marker/cache reads take no lease, and mutations are not replayed.
 
 Cold creation holds the existing session handoff lease before the namespace
 lease. The first actual agent-pane command is `pair internal pane-ready`, before
@@ -178,16 +180,19 @@ stdio and exit collection and cancels/joins its child on termination. Native
 overrides retain their existing execution. Lua resolves the executable through
 the launcher's PATH, including copied runtime-bundle installations.
 
-Explicit authorized recovery selects exclusion-only `Source.ExplicitRecovery`;
-it can inspect unmarked endpoints after the live creator interval. This retains
-the existing recovery contract and its upstream risk outside that interval.
+Explicit authorized recovery retains its `Source.ExplicitRecovery` caller seam
+and the same exclusion as automatic reads. Ordinary startup adoption, listing,
+warm attach and explicit resume can all observe pre-upgrade unmarked sessions;
+no legacy receipt is synthesized. They retain the existing observation and
+recovery contracts and their upstream risk outside the live creator interval.
 Ordinary interactive attach/native reconnect also remains uncovered and never
 holds the namespace lease for its interactive lifetime. Creator death releases
 the kernel lease without proving readiness; foreign/older clients do not
 cooperate. This is bounded avoidance, not a repair to Zellij's lifecycle.
 
 `artifactpath/zellij_readiness.go` owns fixed256 permanent lock stripes and one
-current marker per session, with a128-session namespace envelope and8KiB records.
+current marker per session, with at most128 current markers per namespace and
+8KiB records. That publication bound never caps legacy endpoint discovery.
 Generic GC cannot unlink these families. `RetireReadyAfter` captures exact
 generation evidence before existing authorized retirement, then removes only
 that unchanged marker under namespace exclusion; successors and unknown bytes

@@ -2,17 +2,15 @@ package couchcmd
 
 import (
 	"context"
-	"errors"
 	"os"
 	"path/filepath"
 	"testing"
 
 	"github.com/xianxu/pair/cmd/internal/couchcore"
-	"github.com/xianxu/pair/cmd/internal/zellijquery"
 )
 
-// An unqualified namespace must refuse before launching even a named mutation.
-func TestNativeMutationRefusesUnqualifiedNamespace(t *testing.T) {
+// Legacy namespace entries do not deny a bounded native mutation.
+func TestNativeMutationPreservesLegacyNamespace(t *testing.T) {
 	root := t.TempDir()
 	t.Setenv("HOME", root)
 	t.Setenv("TMPDIR", root)
@@ -30,10 +28,10 @@ func TestNativeMutationRefusesUnqualifiedNamespace(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Setenv("PATH", root)
-	if err := (&osCouchTitles{}).RenamePane(context.Background(), couchcore.TitleTarget{Session: "pair-test"}, "terminal_7", "title"); !errors.Is(err, zellijquery.ErrReadinessUnknown) {
-		t.Errorf("call 0: error=%v, want readiness unknown", err)
+	if err := (&osCouchTitles{}).RenamePane(context.Background(), couchcore.TitleTarget{Session: "pair-test"}, "terminal_7", "title"); err != nil {
+		t.Errorf("legacy rename refused: %v", err)
 	}
-	if _, err := os.Stat(called); !errors.Is(err, os.ErrNotExist) {
-		t.Fatalf("native invoked before qualification: %v", err)
+	if data, err := os.ReadFile(called); err != nil || string(data) != "called" {
+		t.Fatalf("native invocation absent: %q %v", data, err)
 	}
 }

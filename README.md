@@ -881,14 +881,16 @@ admitted, a working interactive client is independent of the startup deadline.
 Inspect an unconfirmed attempt with its existing recovery action before starting
 another one; expiration alone does not prove that the native agent is absent.
 
-Automatic observations refuse to probe a Zellij namespace containing an unknown
-or unmarked legacy session; they retain unknown state. When upgrading, rebuild
-Pair/Couch and relaunch the cooperating clients with the updated binaries.
-Running processes keep their old behavior. Use the existing recovery workflow to
-inspect and relaunch affected legacy threads. Explicit authorized recovery can
-still inspect unmarked endpoints after the live creator releases exclusion; it
-keeps its existing authorization checks. Unknown state or a readiness marker does
-not authorize stopping a session.
+🤖~Automatic observations refuse to probe a Zellij namespace containing an unknown~
+🤖~or unmarked legacy session; they retain unknown state. When upgrading, rebuild~
+🤖~Pair/Couch and relaunch the cooperating clients with the updated binaries.~
+🤖~Running processes keep their old behavior. Use the existing recovery workflow to~
+🤖~inspect and relaunch affected legacy threads. Explicit authorized recovery can~
+🤖~still inspect unmarked endpoints after the live creator releases exclusion; it~
+🤖~keeps its existing authorization checks. Unknown state or a readiness marker does~
+🤖~not authorize stopping a session.~
+
+🤖{Automatic observations and explicit recovery acquire the same namespace lease. They wait behind a live cooperating creator until its exact first pane publishes and releases exclusion. Once they hold the lease, legacy sessions without markers remain observable and attachable, including startup adoption and explicit resume; no migration receipt or legacy-thread relaunch is required. Creator death releases the lease and an unmarked survivor follows legacy behavior, with the accepted upstream risk outside that window. Existing authorization checks remain; a marker never authorizes stopping a session.}
 
 🤖{Update the Pair binary, Lua assets, and layouts together. Custom or older layouts selected through `PAIR_HOME` or another asset root must run `pair internal pane-ready` as the initial agent pane command before guarded native actions. If startup reports `terminal first-pane readiness unverified`, check for an old layout that omits that command; startup stops at its existing bound.}
 
