@@ -90,6 +90,12 @@ The catalog deliberately admits only shrinking debt, so renaming its entry would
 
 Fresh separate native runs on committed5060c47a6f71f9b36740844ebbd955aacbabe874 all pass without skips: conformance, end-to-end and readiness, including the input-error no-retry assertion. Complete post-wait-owner-*.log/json evidence is retained alongside the earlier source/reversion evidence. Log SHA256 values: conformance2761ccb3662da23fdc1b21623434cc920387ac1c0177cbafc640e116859e7f86; end-to-end6e8ebe267594137614e8aa57a0547e83e1fedfd9d4f8b677845435cb3b940bbb; readiness274e3dcb85d8b1d598102b873080047f931047506713417922bb3438b21a980a. All use private-profile Headless:true, count1, sequential commands; metadata pins argv/head/exit and source cleanliness. Retain the deterministic affected failure; fresh recorded check must run on this fixed head. Next: push evidence, queue once, inventory and narrow re-close of this post-SHIP fix; then enter merge only with the recorded pass. No waiver, debt-file edit, new production behavior or pair:0 action.
 
+### 2026-10-25 — Post-SHIP fix re-close passed; fixed-head check retained
+
+Narrow re-close terminal83135 completed exit0, round3 SHIP, zero new findings; BR-1 remains addressed and BR-2 withdrawn. Evidence989d70091ce30fa7a0791ad8f753f2086fbbfc21, measured exact0.84h with the rebuilt #603 binary (no actual waiver). Reviewer independently passed the tracked-source catalog, fake conformance, reader inventory and whitespace; retained final native logs match reviewed source bytes. Completion/card mirror is pushed.
+
+Fresh affected terminal92404 / lease-2014267621 / attempt8a63021a24988b3a2eaaa671d7c1eed6 runs on pushedc927d00d4d3b4840a771ad06dd80a5bd8c2f0754 in /Volumes/TestScratch/local-checks/sdlc-local-891964202; inflight log .git/sdlc/test-stats/inflight/8a63021a24988b3a2eaaa671d7c1eed6/run.log. Last observed FIFO2, not yet running. This supersedes the deterministically failed prior affected record; preserve that failure and do not register/resume it as a flake. Runtime/tests have not changed since this queued head. Next: open/update PR for CI overlap, read this exact check result, and enter sdlc merge --yes when green; report the actual landing. No duplicate check or merge runner, no pair:0 change. #857's separate integrated suite PASS12m57s is retained and waits for the hub/operator's morning re-look before its landing.
+
 ## Revisions
 
 ### 2026-10-25 — BR-1 readiness boundary and native refusal qualification
