@@ -16,6 +16,7 @@ claimant:
     worktree: /Users/xianxu/workspace/worktree/pair-slot9/pair
     repository: github.com/xianxu/pair
 flake_tests: [github.com/xianxu/pair/cmd/internal/broadcast.TestSessionTunnelExitEndsSession]
+flow: {kind: quick, provenance: inferred, spec: "7eeb4c81", done: "36a31fc1"}
 ---
 
 # flake: TestSessionTunnelExitEndsSession
