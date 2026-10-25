@@ -18,13 +18,14 @@
 
 | Pure entity | Lives in | Status |
 |---|---|---|
-| Upgrade cohort comparison | cmd/internal/testcouch/upgrade.go | new: compare slot, complete actor binding and fixture PID/generation/native conversation identity before/after; no IO |
+| compareUpgradeCohort | cmd/couch/upgrade_acceptance_test.go | new: compare slot, complete actor binding and fixture PID/generation/native conversation identity before/after; no IO |
 | OwnedRun / RunEvent | cmd/internal/testcouch/ownership.go | reused: partial replacement poisons new admissions through existing unknown outcome; cleanup remains authorized |
 
 | Integration | Lives in | Status | Wraps |
 |---|---|---|---|
 | Fleet.ReplaceBuild | cmd/internal/testcouch/upgrade.go | new | existing runtime executable copier, detached console, private bin and explicit environment |
 | Two-build native qualification | cmd/couch/upgrade_acceptance_test.go | new | BuildOwned, NewOwned, public candidate startup/list/resume/attach, existing fixture mailbox and native terminal queries |
+| upgradeMarkerCount | cmd/couch/upgrade_acceptance_test.go | new | read-only diagnostic count of actual writer receipts; no absence requirement or receipt mutation |
 | Public document registration | cmd/internal/testcouchbridge/native.go:NativeOwner.Readiness pattern | reused | ordinary parent and side document registered by the old executable, read by candidate |
 
 The cohort comparison is unit-tested without IO. Existing fixture personalities are the stateful agent double; the native acceptance is the conformance check against actual Zellij. Portable replacement tests use a real temporary private filesystem and executable files, rather than mock call counts. No new process launcher or cleanup authority.
@@ -68,7 +69,7 @@ Files: add cmd/internal/testcouch/upgrade.go and upgrade_test.go; narrowly reuse
 Files: add cmd/couch/upgrade_acceptance_test.go; modify atlas/couch-testing.md; individually audit/add affected-reader certificate when inventory identifies it.
 
 - [x] Add opt-in TestDisposableCouchBuildUpgrade, reading explicit baseline/candidate source paths. It builds both coupled sets through BuildOwned and registers cleanup before fleets.
-- [x] For each personality prepare/start old explicit hub + worker. Assert old public actor bindings and fixture readiness; snapshot exact native socket file identity and thread/session identities. Check the pre-#866 readiness markers are naturally absent, without deleting or creating them.
+- [x] For each personality prepare/start old explicit hub + worker. Assert old public actor bindings and fixture readiness; snapshot exact native socket file identity and thread/session identities. Observe readiness-marker counts without deleting, creating or requiring their absence; naturally absent markers qualify the historical pre-#866 capture only.
 - [x] Register one ordinary parent and one side document through the old executable using the existing bridge's public registration pattern. Retain returned IDs; candidate lookup/read must return those same IDs and document content. Snapshot old thread records through the public list and typed store reader for comparison.
 - [x] Detach old console and replace the physical executable triplet plus candidate PAIR_HOME using Task1. Preserve existing actor processes, sockets, roots, registration and native conversation IDs.
 - [x] Start candidate and require fresh startup adoption, public --list and --actors showing every baseline slot; use explicit --resume for each warm target, follow the operation receipt to confirmed success, then exercise console selection/attach with the real terminal policy. Independently require positive clients on the exact old session and unchanged socket/actor identities. Do not treat an old ready.json or record alone as proof candidate startup/attachment succeeded.
@@ -99,3 +100,7 @@ Pure cohort facts/comparison live beside their acceptance consumer in cmd/couch/
 ### 2026-10-24 — executed oracle details and gate checklist
 
 Public --list is compact; --show provides the candidate process's typed read of the complete old composite record address. Public --resume internally polls and prints a raw final OperationReceipt; an already-live no-op may omit Tag, so full old-cohort proof is checked immediately after every success. The stage RED captures the initialization-unverified listing refusal at adoption, preceding the helper timeout; the clipped path and unreached later oracles are explicit in evidence, and helper_started is not invented when unavailable. Implemented steps are ticked; workflow gates remain outstanding prose/Log so they do not circularly block the close that performs them.
+
+### 2026-10-24 18:10 — boundary review: reusable baseline independence
+
+BR-1 identifies the class of historical prerequisites accidentally embedded in generic upgrade oracles. Enumerated all snapshot marker reads and all reusable guidance: snapshots now only log actual marker counts, accepting both marker-bearing baselines and later candidate publication, while the already captured pre-#866 absence remains historical evidence. No receipt is created or removed by the native driver. Portable generated-file regressions cover both permitted writer states, preserved bytes, empty/absent directories and failed observations. BR-2 corrects the authoritative PURE table to compareUpgradeCohort's actual consumer-side path; all table referents were checked. BR-3 adds README discovery and source-generation prerequisites alongside the existing fleet entry. These repairs preserve the approved replacement/identity/cleanup design (ARCH-PURPOSE, ARCH-PURE).

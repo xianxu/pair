@@ -2699,6 +2699,14 @@ models or credentials. Portable helper tests run normally; the native consumer
 opts in only through this target or `PAIR_NATIVE_COUCH_FLEET=1`.
 See [fleet ownership and evidence](atlas/couch-testing.md).
 
+For warm upgrades, run the [two-build native qualification](atlas/couch-testing.md#warm-build-upgrade-qualification-879)
+with `PAIR_NATIVE_COUCH_UPGRADE=1`, `PAIR_COUCH_UPGRADE_BASE_SOURCE` and
+`PAIR_COUCH_UPGRADE_CANDIDATE_SOURCE` pointing to clean absolute source checkouts.
+Generate each checkout's ignored runtime bundle first with
+`go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime`
+from that checkout, then follow the linked invocation. The same fixture checks
+Claude and Codex warm adoption, listing, resume, attachment and old registries.
+
 External editor conformance consumers can build `make couch-conformance-bridge`
 and launch the absolute `bin/couch-conformance-bridge --scratch-parent /private/tmp`
 (with optional `--couch ABS`). The existing parent is shared; the producer creates

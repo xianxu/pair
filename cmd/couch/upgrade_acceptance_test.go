@@ -292,13 +292,83 @@ func snapshotUpgrade(t *testing.T, ctx context.Context, fleet *testcouch.Fleet) 
 			t.Fatalf("missing old slot %s", slot)
 		}
 	}
-	// This path is the captured pre-#866 compatibility contract. Observe only:
-	// deleting or seeding markers would cease to exercise an actual old writer.
-	markerRoot := filepath.Join(fleet.Roots.Mutable["home"], ".cache", "pair", "zellij-ready-v1")
-	if entries, err := os.ReadDir(markerRoot); !os.IsNotExist(err) && (err != nil || len(entries) != 0) {
-		t.Fatalf("legacy marker state changed: %s %v", markerRoot, err)
+	count, err := upgradeMarkerCount(fleet.Roots.Mutable["home"])
+	if err != nil {
+		t.Fatal(err)
 	}
+	// Marker state is diagnostic evidence, not an upgrade compatibility oracle.
+	// Historical pre-#866 writers have none; later writers may publish them.
+	t.Logf("upgrade readiness-marker observation: entries=%d", count)
 	return out
+}
+
+func upgradeMarkerCount(home string) (int, error) {
+	markerRoot := filepath.Join(home, ".cache", "pair", "zellij-ready-v1")
+	entries, err := os.ReadDir(markerRoot)
+	if os.IsNotExist(err) {
+		return 0, nil
+	}
+	if err != nil {
+		return 0, fmt.Errorf("observe readiness markers: %w", err)
+	}
+	return len(entries), nil
+}
+
+func TestUpgradeMarkerObservationAcceptsRealWriterStates(t *testing.T) {
+	for _, baselineMarked := range []bool{false, true} {
+		t.Run(fmt.Sprintf("baseline-marked=%t", baselineMarked), func(t *testing.T) {
+			home := t.TempDir()
+			root := filepath.Join(home, ".cache", "pair", "zellij-ready-v1")
+			publish := func(name string) {
+				t.Helper()
+				if err := os.MkdirAll(root, 0700); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.WriteFile(filepath.Join(root, name), []byte("writer-owned evidence"), 0600); err != nil {
+					t.Fatal(err)
+				}
+			}
+			want := 0
+			if baselineMarked {
+				publish("baseline")
+				want++
+			}
+			if got, err := upgradeMarkerCount(home); err != nil || got != want {
+				t.Fatalf("baseline observation: count=%d err=%v", got, err)
+			}
+			publish("candidate")
+			if got, err := upgradeMarkerCount(home); err != nil || got != want+1 {
+				t.Fatalf("candidate publication: count=%d err=%v", got, err)
+			}
+			if contents, err := os.ReadFile(filepath.Join(root, "candidate")); err != nil || string(contents) != "writer-owned evidence" {
+				t.Fatalf("observation changed candidate evidence: %q %v", contents, err)
+			}
+			if baselineMarked {
+				if contents, err := os.ReadFile(filepath.Join(root, "baseline")); err != nil || string(contents) != "writer-owned evidence" {
+					t.Fatalf("observation changed baseline evidence: %q %v", contents, err)
+				}
+			}
+		})
+	}
+	t.Run("empty directory and failed observation", func(t *testing.T) {
+		home := t.TempDir()
+		root := filepath.Join(home, ".cache", "pair", "zellij-ready-v1")
+		if err := os.MkdirAll(root, 0700); err != nil {
+			t.Fatal(err)
+		}
+		if got, err := upgradeMarkerCount(home); err != nil || got != 0 {
+			t.Fatalf("empty marker directory: count=%d err=%v", got, err)
+		}
+		if err := os.Remove(root); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(root, []byte("not a directory"), 0600); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := upgradeMarkerCount(home); err == nil {
+			t.Fatal("failed observation must not be reported as absent markers")
+		}
+	})
 }
 
 func compareUpgradeCohort(before, after map[string]upgradeActor) error {

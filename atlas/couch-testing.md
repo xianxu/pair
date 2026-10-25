@@ -230,8 +230,10 @@ partial publication refuses further commands and retains cleanup authority.
 The candidate must adopt the configured hub, list both old slots, read the old
 document registrations, explicitly resume and physically attach to each old
 session. Distinct old drafts, native clients and unchanged actor/process/socket
-identities qualify attachment. Naturally absent old readiness receipts are
-observed, never deleted or synthesized. A failed candidate makes the test fail;
+identities qualify attachment. Readiness-marker counts are observed, never
+deleted or synthesized. Absence qualifies the historical pre-#866 capture;
+marker-bearing baselines and candidate publication are equally valid for the
+reusable test. A failed candidate makes the test fail;
 there is no expected-failure switch. Preserve the actual error and cleanup
 evidence when recording an incompatibility RED. Provisioning, runtime and
 cleanup use bounded independent contexts; uncertain cleanup retains the exact
