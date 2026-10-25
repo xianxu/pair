@@ -308,6 +308,14 @@ This satisfies the independent integrated warm-stage prerequisite of hub c04b128
 
 Authenticated hub844eb822 reports operator PASS (working: warm restart, fresh agents and right pane) on combined evening stage9bfd7ab51cef5f9d563b19dea087c9ef084c19c9. Hub explicitly directs normal sdlc merge, integrating main and running its required suite, without touching pair:0; pair:4 owns clearing the stage later. This satisfies the pending live acceptance gate. Enter normal landing now; integration and its verification remain required, and no gate bypass is authorized by this PASS.
 
+### 2026-10-24 — machine-thrashing freeze; normal merge interrupted before integration
+
+Normal sdlc merge --yes entered the landing line at18:53:53, ready at81545ea5ee75e8a08fb04b51b89fe4cefb0eab8f (PR588), waiting first behind #862. The PR metadata was corrected to the final lease-only/legacy contract through gh pr edit because sdlc pr has no custom-body option; source/head were unchanged. No main integration or verification started for this slot.
+
+Authenticated hub1faf0af1 freezes every new local build/test, including targeted runs, while allowing already-running suites to finish; load-window timeouts must not be classified as flakes. The first read-only queue observation was running with no pause owners. Asked the hub to install/confirm the supported graceful pause, then interrupted only the exact own queued merge PID94049 (verified sdlc merge --yes) with SIGINT, the documented Ctrl-C waiting-exit path, to prevent automatic new work. The command exited130 without launching an own build/suite. Its final output also confirmed the newly visible hold: queue paused: tl-fsevents-1024: machine thrashing (fseventsd25GB, swap full); no new suite admissions until the operator restarts fseventsd. Thus a graceful admission hold was installed during the observation/interrupt interval. No other slot, running suite, machine setting or pair:0 checkout was changed. Read-only landing status named an orphaned #862 runner; that is for its owner/hub and was left untouched.
+
+All existing SHIP, recorded suite, independent integrated warm-stage and operator PASS evidence remains valid and retained. This interruption is not a failed test or a flake and is not a landing. No owned runner remains. Wait for the hub's explicit freeze lift; then re-enter normal sdlc merge --yes on this issue branch, integrating main and running its required suite. Pair:4 still owns stage cleanup. #859 remains parked after M1 SHIP and #722's watched rerun remains pending.
+
 ## Revisions
 
 ### 2026-10-24 — final plan bookkeeping and source ownership
