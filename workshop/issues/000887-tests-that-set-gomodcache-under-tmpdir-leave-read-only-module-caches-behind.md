@@ -45,7 +45,7 @@ read-only module cache across the suite instead of creating one per test, if tha
 - [x] Pin nested read-only cache deletion, symlink preservation, idempotence and automatic cleanup.
 - [x] Add testpair.RemoveCacheTree and CacheTempDir; convert launcher teardown and named cache-capable fixture allocations. Cleanup errors fail the owner after children join.
 - [x] Add a Pair catalog guard with positive/negative fixtures; audit disposable-HOME Go writers.
-- [ ] Run targeted checks, inventory, pushed pre-close, close and merge.
+- [x] Run targeted checks and inventory, push the implementation and queue the required pre-close check.
 
 ## Log
 
@@ -61,6 +61,10 @@ Build-owner/legacy compatibility tests PASS1.726s; native cmd/go cache conforman
 
 Reader audit before individual certificate refresh: launcher reads only controlled fixture roots; owner_build and legacy_build retain existing non-Go builder/environment fallback; testdisk retains fixed-scanner ownership of repo go.mod/go.sum and its explicit local fixture; new catalog matcher and filename binding consume AST/literal inputs only. Refreshed each named certificate separately, then inventory PASS. Other real Go consumers already pass/inherit ambient caches or capture buildEnv before disposable HOME; the retained whole-package HOME producer was launcher. No machine settings, shared caches, retained631 trees or pair:0 state changed. Next: commit/push, required recorded pre-close and mandatory close, then merge.
 
+### 2026-10-25 — Recorded check retained; workflow-row correction
+
+PR612 is open. Required pre-close selected the full-suite fallback on pushed8449f364138d32169f871f1b9ca0f0badc267c6c, retained terminal31020 / lease-1191244849 / attempt15583ade57ba5289e60f01326d854790 in its independent snapshot /Volumes/TestScratch/local-checks/sdlc-local-1723631917. Latest observed next in FIFO, not yet a test result. Do not cancel or duplicate it. Close terminal46722 measured exact0.50h but refused before review because its own close/merge gates were incorrectly grouped in an implementation checkbox. The completed check-queue operation is now the checkbox; close and landing remain outstanding here in the Log. No runtime/test change. Next: fresh close, inspect this exact recorded result, then merge when reviewed and green; no measurement waiver.
+
 ## Revisions
 
 ### 2026-10-25 — Correct the producer census; approved by hub dfef3fa6
@@ -68,3 +72,7 @@ Reader audit before individual certificate refresh: launcher reads only controll
 The retained producer is launcher/session_quiescence_live_test.go's TestMain: private HOME implicitly supplies GOPATH and GOMODCACHE, and ignored RemoveAll leaves extracted read-only modules. Preserve the named fixtures' isolation while giving cache-capable owned roots shared cleanup. One chmod-before-descent directory walk plus RemoveAll skips symlinks and returns errors; CacheTempDir registers cleanup before returning. Launcher cleanup runs after testpair.Run and converts failure to exit1. No shared cache or retained ariadne#631 evidence is removed. No new user state, format, timer or registry. Cost O(N) walk plus O(N) removal, once per owned tree. ARCH-DRY/ARCH-RETENTION: the allocating fixture owns teardown.
 
 The catalog guard rejects raw temporary GOMODCACHE allocations and private-HOME TestMain removal that bypasses shared cleanup; syntax enforcement does not prove arbitrary computed environments. Filesystem tests cover nested0555 directories, files0444, symlink targets unchanged, absence and cleanup order.
+
+### 2026-10-25 — Separate verification setup from lifecycle gates
+
+The final implementation checkbox records completed targeted checks, inventory, push and recorded-check queueing. Close and merge are lifecycle operations tracked in the Log, preventing a circular unchecked close/merge requirement. Required verification and landing criteria are unchanged.
