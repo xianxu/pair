@@ -67,11 +67,14 @@ smaller payload, write-budget bypass or production cap increase.
 - [x] Stream the two oversize suffixes from the existing helper in bounded blocks;
   keep small prefix files and assert their setup size. Pin exact max+1 output
   length/content and bounded write sizes with an in-memory fixture test.
-- [ ] Run protocol/refusal/cancellation/descriptor tests and compare native
-  before/after write counters; run complete couchcmd once at the unchanged
-  96 MiB cap and retain excess-budget refusal coverage.
-- [ ] Audit changed reader inputs, repair only its inventory, update the
-  testing atlas, then run the recorded pre-close and close boundary review.
+- [x] Verify protocol/refusal/cancellation/descriptor tests and compare native
+  before/after write counters; retain excess-budget refusal coverage.
+- [x] Audit changed reader inputs, repair only its inventory, update the
+  testing atlas, and queue the recorded pre-close check.
+
+Workflow postconditions: the recorded check must pass complete couchcmd at the
+unchanged 96 MiB cap before landing. Close owns the mandatory boundary review;
+landing follows the TL's SHIP instruction.
 
 ## Log
 
@@ -128,3 +131,21 @@ local_or_literal_fixture and repair only this file's inventory. Atlas records
 fixture ownership, exact payload contract, retained log writes and measured saving.
 TL confirms recorded pre-close may run complete couchcmd through machine queue;
 targeted-only applies to ad-hoc runs. Checkpointing before that queued run.
+
+### 2026-10-25 — recorded check queued
+
+PR #613, implementation head dd3570f1aa18dcffc1eed4beb2a387088362103b.
+The targeted testdisk TestWriteBudgetVerdict (including over/two-runs-over)
+passed. make test-affected-inventory passed after the single audited repair.
+sdlc local-check run --pre-close selected affected, then fell back to suite due
+to the inventory JSON change. Run lease-3072633283 queues on the machine FIFO;
+its complete couchcmd result is pending. No check cancellation or restart.
+Close review may overlap the retained queued check under tl-worker rules;
+a real final-code check pass remains required before landing.
+
+## Revisions
+
+- 2026-10-25 09:44 PDT — Separate verification deliverables from workflow
+  postconditions so close is not asked to tick its own future review. Plan now
+  records completed targeted verification and queue admission; full recorded
+  pass and review remain explicit requirements before landing. Scope unchanged.
