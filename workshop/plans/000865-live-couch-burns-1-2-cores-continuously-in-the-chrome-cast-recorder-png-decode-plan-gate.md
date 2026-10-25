@@ -1,4 +1,24 @@
 ---
+reviewer_runs:
+    - version: 1
+      intent:
+        id: 6d063b77-5a55-4129-bb0a-e231293cbafc
+        repository: github.com/xianxu/pair
+        issue_id: "000865"
+        recipe: estimate-quality
+        round: 1
+        attempt: 1
+        agent: codex
+        root: /Users/xianxu/workspace/worktree/pair-slot9/pair-m2
+        reviewed_head: 07eff7e967b532d29c863567c8d5dede6a22ded2
+        slot: pair:9
+        requested_at: "2026-10-25T03:22:05.754265Z"
+      phase: finished
+      pid: 59277
+      started_at: "2026-10-25T03:22:05.865904Z"
+      finished_at: "2026-10-25T03:22:32.428282Z"
+      session_id: 01a17114-6c2c-7413-be45-cab90c4e2507
+      outcome: returned
 gate: plan-quality
 issue: 865
 id_prefix: PQ
@@ -75,7 +95,41 @@ rounds:
           note: Named-function adversarial strategies and mechanical guards replace the semantic case inventory; allocation budgets and controlled ordering remain explicit.
           round: 2
       blocked: false
-content_hash: 6535ec996931cd7c27928c896f2004d141d8d0e40fe699ba47fd9ca13f9005da
+    - reviewer_runs:
+        - version: 1
+          intent:
+            id: 239f23e8-a254-4e05-89a0-7bf1fad243f0
+            repository: github.com/xianxu/pair
+            issue_id: "000865"
+            recipe: plan-quality
+            round: 3
+            attempt: 1
+            agent: codex
+            root: /Users/xianxu/workspace/worktree/pair-slot9/pair-m2
+            reviewed_head: 07eff7e967b532d29c863567c8d5dede6a22ded2
+            slot: pair:9
+            requested_at: "2026-10-25T03:21:45.838454Z"
+          phase: finished
+          pid: 42757
+          started_at: "2026-10-25T03:21:45.965348Z"
+          finished_at: "2026-10-25T03:22:04.360698Z"
+          session_id: 01a17114-1e53-7fb3-800b-4ae9f81ded0f
+          outcome: returned
+      "n": 3
+      timestamp: "2026-10-24T20:22:04-07:00"
+      agent: codex
+      reviewer: codex (openai; author openai)
+      dispose:
+        - id: PQ-1
+          disposition: addressed
+          note: The corrected resize transitions remain consistent with the current implementation.
+          round: 3
+        - id: PQ-2
+          disposition: addressed
+          note: Named-function adversarial strategies and mechanical guards remain present.
+          round: 3
+      blocked: false
+content_hash: b98e0a3f27fd448eb5075b7b3138cb3b8144f55d918af881a55b042eda32eaed
 ---
 
 # Gate ledger — pair-m2#865 (plan-quality)
@@ -98,6 +152,13 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 
 - PQ-1 — addressed — The plan correctly preserves resize hold cancellation, no-op/refused resize behavior, next-publication geometry and retained-clone independence.
 - PQ-2 — addressed — Named-function adversarial strategies and mechanical guards replace the semantic case inventory; allocation budgets and controlled ordering remain explicit.
+
+## Round 3 — 2026-10-24T20:22:04-07:00 (codex) — passed
+
+### Disposed
+
+- PQ-1 — addressed — The corrected resize transitions remain consistent with the current implementation.
+- PQ-2 — addressed — Named-function adversarial strategies and mechanical guards remain present.
 
 ## Open findings
 
