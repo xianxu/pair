@@ -73,6 +73,14 @@ PR612 is open. Required pre-close selected the full-suite fallback on pushed8449
 
 ## Revisions
 
+### 2026-10-25 — Integration blocked by an independently classified fixture flake
+
+Retained merge terminal78202 exited1 after integration228ce8f808ed7723331a5ec2559a156f6b45eb2e. Integration attempt4e5a9fb7f3bcf56333a82921fe7b9dc2 failed only wrapcmd.TestTerminalDriveSnapshotCoherentAcrossConcurrentPaints (12m25s, log prefixf4d8f54eb95f). Exact diagnostic: generation2, completefalse, cellB, tail[A,B cursor]. Automatic main baseline11fece5cfb3b7da9ab93e6e592ec4f940919887a passed16m44s (unrecorded diagnostic, SysV warning). wrapcmd source/test diff between those heads is empty.
+
+One original-test targeted run on the exact failing head passed0.03s/package0.425s. Deterministic two-feed control independently returns that exact alleged mixed state: Tail intentionally includes scrollback before current screen, cursor row2 is B; the fixture incorrectly checks the first historical row. Evidence/driver: /Volumes/TestScratch/tmp/pair-slot4/pair887-wrap-flake.U9Vjev. Filed and registered unclaimed pair#897 under the standing exact-head fail/pass flake rule; no unrelated fixture change folded into887.
+
+Supported resume retained terminal10687, parent4e5a9fb7f3bcf56333a82921fe7b9dc2 / child5c61293150f7e75bd2686cd1eed845f2 / lease-1731530244 at228ce8f8, independent checkout /Volumes/TestScratch/local-checks/sdlc-local-4235769819. Last observed FIFO7, no result yet. Hold merge re-entry until the hub announces GitHub Actions billing recovery; no Actions rerun or bypass. Canonical checkout may handle already-authorized857 locally while this isolated exact-test resume waits. Do not duplicate the resume or restart the session.
+
 ### 2026-10-25 — Correct the producer census; approved by hub dfef3fa6
 
 The retained producer is launcher/session_quiescence_live_test.go's TestMain: private HOME implicitly supplies GOPATH and GOMODCACHE, and ignored RemoveAll leaves extracted read-only modules. Preserve the named fixtures' isolation while giving cache-capable owned roots shared cleanup. One chmod-before-descent directory walk plus RemoveAll skips symlinks and returns errors; CacheTempDir registers cleanup before returning. Launcher cleanup runs after testpair.Run and converts failure to exit1. No shared cache or retained ariadne#631 evidence is removed. No new user state, format, timer or registry. Cost O(N) walk plus O(N) removal, once per owned tree. ARCH-DRY/ARCH-RETENTION: the allocating fixture owns teardown.
