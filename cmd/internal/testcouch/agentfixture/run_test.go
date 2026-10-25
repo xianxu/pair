@@ -295,42 +295,77 @@ func TestRunRepaintsAfterNativeResize(t *testing.T) {
 }
 
 func TestRunStopAfterOrdinaryRequestQuotaExhausted(t *testing.T) {
-	config := fixtureConfig(t, "claude")
+	for _, agent := range []string{"claude", "codex"} {
+		t.Run(agent, func(t *testing.T) { runQuotaExhaustion(t, agent) })
+	}
+}
+
+func runQuotaExhaustion(t *testing.T, agent string) {
+	t.Helper()
+	config := fixtureConfig(t, agent)
 	input, writer := io.Pipe()
 	defer writer.Close()
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	done := make(chan error, 1)
-	go func() { done <- Run(ctx, config, input, io.Discard); close(done) }()
+	gate := newRepaintGate()
+	go func() { done <- Run(ctx, config, input, gate); close(done) }()
+	awaiting := "ready.json"
 	t.Cleanup(func() {
 		cancel()
+		gate.open()
 		_ = writer.Close()
 		select {
 		case <-done:
 		case <-time.After(4 * time.Second):
-			t.Error("fixture failed to join during test cleanup")
+			t.Errorf("fixture failed to join during test cleanup; awaiting %s", awaiting)
+		}
+		if t.Failed() {
+			for _, sub := range []string{"commands", "results"} {
+				entries, err := os.ReadDir(filepath.Join(config.ControlDir, sub))
+				t.Logf("awaiting %s; %s entries=%v error=%v", awaiting, sub, entries, err)
+			}
 		}
 	})
 	waitFixture(t, func() bool { _, e := os.Stat(filepath.Join(config.ControlDir, "ready.json")); return e == nil })
 	if err := os.WriteFile(filepath.Join(config.ControlDir, "commands", ".publish-held"), []byte("publication in progress"), 0600); err != nil {
 		t.Fatal(err)
 	}
-
 	for i := 0; i < MaxRequests; i++ {
-		if err := WriteCommand(config.ControlDir, Command{ID: fmt.Sprintf("ordinary-%03d", i), Kind: SetState, State: Idle}); err != nil {
+		id := fmt.Sprintf("ordinary-%03d", i)
+		awaiting = id
+		if err := WriteCommand(config.ControlDir, Command{ID: id, Kind: SetState, State: Idle}); err != nil {
 			t.Fatal(err)
 		}
+		gate.wait(t, i+2)
+		if i == MaxRequests-1 {
+			// Hold the final repaint to reject premature completion evidence.
+			if _, err := ReadResult(config.ControlDir, id); !errors.Is(err, os.ErrNotExist) {
+				t.Fatalf("held final request completed early: %v", err)
+			}
+			entries, err := os.ReadDir(filepath.Join(config.ControlDir, "results"))
+			if err != nil || countMailboxEntries(entries) != MaxRequests-1 {
+				t.Fatalf("held final request results=%d error=%v", countMailboxEntries(entries), err)
+			}
+			select {
+			case err := <-done:
+				t.Fatalf("fixture exited before final repaint release: %v", err)
+			default:
+			}
+		}
+		gate.advance <- struct{}{}
+		waitFixture(t, func() bool {
+			result, err := ReadResult(config.ControlDir, id)
+			return err == nil && result.ID == id && result.Error == "" && result.ExitCode == 0
+		})
 	}
-	waitFixture(t, func() bool {
-		entries, e := os.ReadDir(filepath.Join(config.ControlDir, "results"))
-		return e == nil && len(entries) == MaxRequests
-	})
 	if err := WriteCommand(config.ControlDir, Command{ID: "overflow", Kind: SetState, State: Idle}); !errors.Is(err, ErrMailboxFull) {
 		t.Fatalf("full result mailbox not classified: %v", err)
 	}
 	if err := WriteCommand(config.ControlDir, Command{ID: "shutdown", Kind: Stop}); err != nil {
 		t.Fatalf("shutdown refused after %d completed ordinary requests: %v", MaxRequests, err)
 	}
+	awaiting = "shutdown"
 	select {
 	case err := <-done:
 		if err != nil {
@@ -346,6 +381,116 @@ func TestRunStopAfterOrdinaryRequestQuotaExhausted(t *testing.T) {
 	entries, err := os.ReadDir(filepath.Join(config.ControlDir, "results"))
 	if err != nil || len(entries) != MaxRequests {
 		t.Fatalf("result count=%d error=%v", len(entries), err)
+	}
+	if err := os.RemoveAll(config.ControlDir); err != nil {
+		t.Fatalf("joined quota actor left a results writer: %v", err)
+	}
+}
+
+// repaintGate holds each ordinary repaint after Run's initial screen. Opening
+// it releases every write, including writes a broken drain starts afterward.
+type repaintGate struct {
+	arrived chan int
+	advance chan struct{}
+	opened  chan struct{}
+	once    sync.Once
+	writes  int // Read only after Run has joined.
+}
+
+func newRepaintGate() *repaintGate {
+	return &repaintGate{arrived: make(chan int, 1), advance: make(chan struct{}), opened: make(chan struct{})}
+}
+
+func (g *repaintGate) open() { g.once.Do(func() { close(g.opened) }) }
+
+func (g *repaintGate) Write(b []byte) (int, error) {
+	g.writes++
+	if g.writes > 1 {
+		select {
+		case <-g.opened:
+			return len(b), nil
+		default:
+		}
+		select {
+		case g.arrived <- g.writes:
+		case <-g.opened:
+		}
+		select {
+		case <-g.advance:
+		case <-g.opened:
+		}
+	}
+	return len(b), nil
+}
+
+func (g *repaintGate) wait(t *testing.T, want int) {
+	t.Helper()
+	select {
+	case got := <-g.arrived:
+		if got != want {
+			t.Fatalf("repaint=%d, want %d", got, want)
+		}
+	case <-time.After(4 * time.Second):
+		t.Fatalf("repaint %d did not reach controlled writer", want)
+	}
+}
+
+func TestRunCancellationStopsMailboxSnapshot(t *testing.T) {
+	for _, agent := range []string{"claude", "codex"} {
+		t.Run(agent, func(t *testing.T) {
+			config := fixtureConfig(t, agent)
+			input, writer := io.Pipe()
+			ctx, cancel := context.WithCancel(t.Context())
+			gate := newRepaintGate()
+			done := make(chan struct{})
+			var runErr error
+			go func() { runErr = Run(ctx, config, input, gate); close(done) }()
+			t.Cleanup(func() {
+				cancel()
+				gate.open()
+				_ = writer.Close()
+				select {
+				case <-done:
+				case <-time.After(4 * time.Second):
+					t.Error("canceled snapshot actor did not join after writer release")
+				}
+			})
+			waitFixture(t, func() bool { _, err := os.Stat(filepath.Join(config.ControlDir, "ready.json")); return err == nil })
+			write := func(i int) {
+				t.Helper()
+				if err := WriteCommand(config.ControlDir, Command{ID: fmt.Sprintf("ordinary-%03d", i), Kind: SetState, State: Idle}); err != nil {
+					t.Fatal(err)
+				}
+			}
+			write(0)
+			gate.wait(t, 2)
+			for i := 1; i < MaxRequests; i++ {
+				write(i)
+			}
+			// The next repaint belongs to a fresh snapshot containing the rest.
+			gate.advance <- struct{}{}
+			gate.wait(t, 3)
+			cancel()
+			gate.open()
+			select {
+			case <-done:
+			case <-time.After(4 * time.Second):
+				t.Fatal("canceled snapshot did not join")
+			}
+			if runErr != nil {
+				t.Fatal(runErr)
+			}
+			entries, err := os.ReadDir(filepath.Join(config.ControlDir, "results"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got := countMailboxEntries(entries); got != 2 || gate.writes != 3 {
+				t.Errorf("snapshot continued after cancellation: completed=%d want2, writes=%d want3", got, gate.writes)
+			}
+			if err := os.RemoveAll(config.ControlDir); err != nil {
+				t.Fatalf("joined actor left a results writer: %v", err)
+			}
+		})
 	}
 }
 
