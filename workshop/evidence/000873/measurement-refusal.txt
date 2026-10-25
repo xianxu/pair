@@ -1,0 +1,3 @@
+Normal close on c6644e8d0ef6b81e7920e902d5cd7b592ad6c200 refused before review:
+measurement branch proof: measurement snapshot does not serialize: json: error calling MarshalJSON for type *gatestate.MeasurementInputs: measurement exceeds 65536 bytes
+Standing TL authorization f039e10f-2410-4c68-a1dc-bd908a2fe6ac permits --no-actual for this ariadne#593 refusal; no guessed actual or history rewrite.

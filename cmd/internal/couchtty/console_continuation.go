@@ -144,7 +144,7 @@ func (c *Console) acceptContinuationRequests(result continuationScanResult) {
 		text := boundedNoticeText("Continuation status unavailable: "+result.err.Error(), 4096)
 		if text != c.continuationScanError {
 			c.continuationScanError = text
-			paintWarning = c.publishWarningLocked(Notice{Kind: "continuation", Body: text})
+			paintWarning = c.publishWarningLocked(Notice{Class: couchcore.NoticeContinuationScannerFailed, Kind: "continuation", Body: text})
 		}
 	} else if result.err == nil {
 		c.continuationScanError = ""
@@ -222,7 +222,7 @@ func (c *Console) finishContinuationOperation(completed operationCompletion, err
 		}
 		label, live := c.threadRowLocked(completed.origin.Address)
 		c.mu.Unlock()
-		c.Warn(Notice{Kind: "continuation", Thread: completed.origin.Address, Label: label, Body: missed.Line(label, live)})
+		c.Warn(Notice{Class: couchcore.NoticeContinuationMissed, Kind: "continuation", Thread: completed.origin.Address, Label: label, Body: missed.Line(label, live)})
 		return
 	}
 	if completed.origin.ContinuationID == "" && completed.name == "resume" {
@@ -280,10 +280,10 @@ func (c *Console) finishContinuationOperation(completed operationCompletion, err
 	if missed != nil {
 		// The one visible line (#522): the request is gone and nothing waits
 		// on it. The slot's row keeps it until the next start or compaction.
-		c.Warn(Notice{Kind: "continuation", Thread: address, Label: label, Body: missed.Line(label, live)})
+		c.Warn(Notice{Class: couchcore.NoticeContinuationMissed, Kind: "continuation", Thread: address, Label: label, Body: missed.Line(label, live)})
 	} else if err != nil && !busy {
 		// A busy refusal is retried on the next scan, silently.
-		c.Warn(Notice{Kind: "continuation", Thread: address, Label: label, Body: fmt.Sprintf("Continuation %s: %v", address.Tag, couchcore.OperatorError(err))})
+		c.Warn(Notice{Class: couchcore.NoticeContinuationFailed, Kind: "continuation", Thread: address, Label: label, Body: fmt.Sprintf("Continuation %s: %v", address.Tag, couchcore.OperatorError(err))})
 	}
 	c.requestMenuRefresh()
 }

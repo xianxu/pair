@@ -3,104 +3,91 @@ package couchcmd
 import (
 	"context"
 	"errors"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 	"unicode/utf8"
 
 	"github.com/xianxu/pair/cmd/internal/couchcore"
 	"github.com/xianxu/pair/cmd/internal/couchmessage"
+	"github.com/xianxu/pair/cmd/internal/couchtty"
 	"github.com/xianxu/pair/cmd/internal/notifyosc"
 )
 
-func TestArchiveWarningPrimaryHub(t *testing.T) {
-	r, slots := hubMessageRig(t)
-	for _, b := range slots {
-		r.waitWorkspace(b)
-	}
-	owner, ok := r.s.archiveWarningOwner()
-	if !ok || owner != slots[0] {
-		t.Fatalf("owner=%+v ok=%v", owner, ok)
-	}
-	var facts []couchcore.AttentionFact
-	var events []string
-	r.s.SetAttention(func(f couchcore.AttentionFact) { facts = append(facts, f); events = append(events, "attention") })
-	var heading, desktop, status string
-	r.s.SetDesktopNotify(func(_ context.Context, title, body string) error {
-		heading, desktop = title, body
-		events = append(events, "desktop")
-		return nil
-	})
-	body := "database stale; see /archive/continuous.log"
-	got, err := r.s.notifyArchiveWarning(context.Background(), body, func(v string) { status = v; events = append(events, "status") })
-	if err != nil || got != body || status != body || desktop != body {
-		t.Fatalf("body=%q status=%q desktop=%q err=%v", got, status, desktop, err)
-	}
-	if len(facts) != 1 {
-		t.Fatalf("facts=%+v", facts)
-	}
-	n := facts[0]
-	if n.Kind != couchcore.AttentionNotify || n.Notify.Thread != bindingThread(slots[0]) || n.Notify.Label != "pair:0" || n.Notify.Title != "History backup" || n.Notify.Body != body || !strings.HasPrefix(n.Notify.ID, "notify-") {
-		t.Fatalf("fact=%+v", n)
-	}
-	if heading != "[pair:0] History backup" || strings.Join(events, ",") != "attention,status,desktop" {
-		t.Fatalf("heading=%q events=%v", heading, events)
-	}
-}
-
-func TestArchiveWarningUnavailableOwner(t *testing.T) {
-	for _, fault := range []string{"missing", "disconnected"} {
-		t.Run(fault, func(t *testing.T) {
+func TestArchiveWarningTypedPrimaryOwnership(t *testing.T) {
+	for _, state := range []string{"enabled", "disabled", "missing", "disconnected"} {
+		t.Run(state, func(t *testing.T) {
 			r, slots := hubMessageRig(t, func(a messageAuthority) messageAuthority {
-				if fault == "missing" {
+				if state == "missing" {
 					a.hub = ""
 				}
 				return a
 			})
-			for _, b := range slots {
-				r.waitWorkspace(b)
+			for _, binding := range slots {
+				r.waitWorkspace(binding)
 			}
-			if fault == "disconnected" {
+			if state == "disabled" {
+				r.s.automation = newHubAutomationOwner(map[string]bool{"/repo0": false, "/repo1": true}, couchcore.StartupUnknown, nil)
+			}
+			if state == "disconnected" {
 				r.disconnect(slots[0])
 			}
-			var facts []couchcore.AttentionFact
-			r.s.SetAttention(func(f couchcore.AttentionFact) { facts = append(facts, f) })
-			var desktop, status string
-			r.s.SetDesktopNotify(func(_ context.Context, _, body string) error { desktop = body; return nil })
-			got, err := r.s.notifyArchiveWarning(context.Background(), "stale; /archive/continuous.log", func(v string) { status = v })
-			if err != nil || len(facts) != 1 || facts[0].Notify.Thread != (couchcore.ThreadAddress{}) || facts[0].Notify.Body != got || got != desktop || got != status || !strings.Contains(got, "primary hub unavailable; full report in continuous.log") {
-				t.Fatalf("got=%q desktop=%q status=%q facts=%+v err=%v", got, desktop, status, facts, err)
+			var notices []couchtty.Notice
+			output := func(n couchtty.Notice) { notices = append(notices, n) }
+			r.s.noticeOutput.Store(&output)
+			effects := 0
+			r.s.SetAttention(func(couchcore.AttentionFact) { effects++ })
+			r.s.SetDesktopNotify(func(context.Context, string, string) error { effects++; return errors.New("desktop unavailable") })
+			got, err := r.s.notifyArchiveWarning(context.Background(), "database stale; continuous.log", func(string) { effects++ })
+			if err != nil || effects != 0 || len(notices) != 1 {
+				t.Fatalf("notices=%+v direct effects=%d err=%v", notices, effects, err)
+			}
+			n := notices[0]
+			if n.Class != couchcore.NoticeArchiveInventoryWarning || n.Body != got || n.Thread != (couchcore.ThreadAddress{}) || n.OwnerRoot != "" || n.HubHandled {
+				t.Fatalf("global archive notice=%+v", n)
+			}
+			owner := r.s.NoticeOwner(couchcore.NoticeDeliveryOccurrence{})
+			want := couchcore.NoticeOwnerEnabled
+			if state == "disabled" {
+				want = couchcore.NoticeOwnerDisabled
+			}
+			if state == "missing" || state == "disconnected" {
+				want = couchcore.NoticeOwnerUnavailable
+			}
+			if owner.State != want {
+				t.Fatalf("owner=%+v want state=%d", owner, want)
+			}
+			if want != couchcore.NoticeOwnerUnavailable && owner.Binding != lifecycleBindingKey(slots[0]) {
+				t.Fatalf("global warning selected alternate hub: %+v", owner)
 			}
 		})
 	}
 }
 
-func TestArchiveWarningDesktopFailures(t *testing.T) {
-	for _, fault := range []string{"uncertain", "no-console"} {
-		t.Run(fault, func(t *testing.T) {
-			r, slots := hubMessageRig(t)
-			for _, b := range slots {
-				r.waitWorkspace(b)
-			}
-			facts, writes, notices := 0, 0, 0
-			r.s.SetAttention(func(couchcore.AttentionFact) { facts++ })
-			uncertain := errors.New("uncertain write")
-			if fault == "uncertain" {
-				r.s.SetDesktopNotify(func(context.Context, string, string) error { writes++; return uncertain })
-			}
-			got, err := r.s.notifyArchiveWarning(context.Background(), "stale; continuous.log", func(string) { notices++ })
-			if err == nil || got != "stale; continuous.log" || facts != 1 || notices != 1 {
-				t.Fatalf("body=%q facts=%d notices=%d err=%v", got, facts, notices, err)
-			}
-			if fault == "uncertain" && (writes != 1 || !errors.Is(err, uncertain)) {
-				t.Fatalf("writes=%d err=%v", writes, err)
-			}
-		})
+func TestArchiveWarningLegacyCallbackWithoutTypedOutput(t *testing.T) {
+	r, slots := hubMessageRig(t)
+	for _, b := range slots {
+		r.waitWorkspace(b)
+	}
+	calls := 0
+	got, err := r.s.notifyArchiveWarning(context.Background(), "stale", func(body string) {
+		calls++
+		if body != "stale" {
+			t.Errorf("body=%q", body)
+		}
+	})
+	if err != nil || got != "stale" || calls != 1 {
+		t.Fatalf("body=%q calls=%d err=%v", got, calls, err)
 	}
 }
 
 func TestArchiveWarningCancelledHasNoEffects(t *testing.T) {
 	r, _ := hubMessageRig(t)
 	effects := 0
+	output := func(couchtty.Notice) { effects++ }
+	r.s.noticeOutput.Store(&output)
 	r.s.SetAttention(func(couchcore.AttentionFact) { effects++ })
 	r.s.SetDesktopNotify(func(context.Context, string, string) error { effects++; return nil })
 	ctx, cancel := context.WithCancel(context.Background())
@@ -111,45 +98,29 @@ func TestArchiveWarningCancelledHasNoEffects(t *testing.T) {
 	}
 }
 
-func TestArchiveWarningSingleHubAndBoundedFallback(t *testing.T) {
-	world := newMessageWorld()
-	world.hub = "/repo0"
-	r := &serviceRig{t: t, world: world, slotGit: map[string]couchcore.SlotGitStatus{}}
-	r.init()
-	hub := r.connect(0)
-	r.waitWorkspace(hub)
-	var title, body string
-	r.s.SetDesktopNotify(func(_ context.Context, h, b string) error { title, body = h, b; return nil })
-	got, err := r.s.notifyArchiveWarning(context.Background(), "stale\x1b\a; continuous.log", nil)
-	if err != nil || title != "History backup" || got != "stale; continuous.log" || got != body {
-		t.Fatalf("title=%q body=%q got=%q err=%v", title, body, got, err)
-	}
-	got, err = r.s.notifyArchiveWarning(context.Background(), strings.Repeat("界", 5000), nil)
-	if err != nil || len(got) > notifyosc.MaxMessageBytes || !utf8.ValidString(got) || got != body {
-		t.Fatalf("connected bytes=%d valid=%v err=%v", len(got), utf8.ValidString(got), err)
-	}
-	r.disconnect(hub)
-	got, err = r.s.notifyArchiveWarning(context.Background(), strings.Repeat("界", 5000), nil)
-	if err != nil || len(got) > notifyosc.MaxMessageBytes || !utf8.ValidString(got) || !strings.Contains(got, "primary hub unavailable; full report in continuous.log") {
-		t.Fatalf("bytes=%d valid=%v err=%v", len(got), utf8.ValidString(got), err)
-	}
-}
-
-func TestArchiveWarningKeepsExactThreadAfterAttention(t *testing.T) {
+func TestArchiveWarningSanitizedBoundedFallback(t *testing.T) {
 	r, slots := hubMessageRig(t)
 	for _, b := range slots {
 		r.waitWorkspace(b)
 	}
-	var item couchcore.AttentionItem
-	r.s.SetAttention(func(f couchcore.AttentionFact) { item = f.Notify; r.disconnect(slots[0]) })
-	writes := 0
-	r.s.SetDesktopNotify(func(context.Context, string, string) error { writes++; return nil })
-	_, err := r.s.notifyArchiveWarning(context.Background(), "stale", nil)
-	if err != nil || item.Thread != bindingThread(slots[0]) || writes != 1 {
-		t.Fatalf("item=%+v writes=%d err=%v", item, writes, err)
+	var notice couchtty.Notice
+	output := func(n couchtty.Notice) { notice = n }
+	r.s.noticeOutput.Store(&output)
+	got, err := r.s.notifyArchiveWarning(context.Background(), "stale\x1b\a; continuous.log", nil)
+	if err != nil || got != "stale; continuous.log" || notice.Body != got {
+		t.Fatalf("body=%q notice=%+v err=%v", got, notice, err)
 	}
-	if _, ok := r.s.archiveWarningOwner(); ok {
-		t.Fatal("disconnected primary was replaced by a secondary")
+	for _, disconnected := range []bool{false, true} {
+		if disconnected {
+			r.disconnect(slots[0])
+		}
+		got, err = r.s.notifyArchiveWarning(context.Background(), strings.Repeat("界", 5000), nil)
+		if err != nil || len(got) > notifyosc.MaxMessageBytes || !utf8.ValidString(got) || notice.Body != got {
+			t.Fatalf("bytes=%d valid=%v err=%v", len(got), utf8.ValidString(got), err)
+		}
+		if disconnected && !strings.Contains(got, "primary hub unavailable; full report in continuous.log") {
+			t.Fatalf("fallback lost retained report: %q", got)
+		}
 	}
 }
 
@@ -159,30 +130,55 @@ func TestArchiveWarningOwnerUsesLatestBinding(t *testing.T) {
 		r.waitWorkspace(b)
 	}
 	old := slots[0]
-	// Model an admitted replacement's published liveness and connected snapshot.
 	latest := old
 	latest.Session += "-replacement"
 	latest.Tag += "-replacement"
 	latest.Nonce += "-replacement"
 	live := *r.s.liveness.Load()
-	nextLive := make(map[string]couchmessage.SlotLiveness, len(live))
+	next := make(map[string]couchmessage.SlotLiveness, len(live))
 	for k, v := range live {
-		nextLive[k] = v
+		next[k] = v
 	}
-	v := nextLive[old.Slot]
+	v := next[old.Slot]
 	v.Binding = latest
-	nextLive[old.Slot] = v
-	r.s.liveness.Store(&nextLive)
+	next[old.Slot] = v
+	r.s.liveness.Store(&next)
 	connected := map[couchmessage.Binding]bool{latest: true}
 	r.s.connected.Store(&connected)
 	owner, ok := r.s.archiveWarningOwner()
 	if !ok || owner != latest {
 		t.Fatalf("owner=%+v ok=%v", owner, ok)
 	}
-	var item couchcore.AttentionItem
-	r.s.SetAttention(func(f couchcore.AttentionFact) { item = f.Notify })
-	r.s.SetDesktopNotify(func(context.Context, string, string) error { return nil })
-	if _, err := r.s.notifyArchiveWarning(context.Background(), "stale", nil); err != nil || item.Thread != bindingThread(latest) {
-		t.Fatalf("item=%+v err=%v", item, err)
+}
+
+func TestArchiveWarningDailyGatePublishesTypedFeedOnce(t *testing.T) {
+	r, slots := hubMessageRig(t)
+	for _, b := range slots {
+		r.waitWorkspace(b)
+	}
+	var notices []couchtty.Notice
+	output := func(n couchtty.Notice) { notices = append(notices, n) }
+	r.s.noticeOutput.Store(&output)
+	legacy := 0
+	scheduler := newArchiveScheduler(t.TempDir(), func(string) { legacy++ })
+	if err := os.MkdirAll(scheduler.store, 0700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(scheduler.store, "continuous.log"), nil, 0600); err != nil {
+		t.Fatal(err)
+	}
+	scheduler.warn = func(ctx context.Context, body string) (string, error) {
+		return r.s.notifyArchiveWarning(ctx, body, scheduler.notify)
+	}
+	now := time.Date(2026, 10, 24, 12, 0, 0, 0, time.UTC)
+	key := archiveWarningKey{Destination: "remote-backup"}
+	scheduler.warnOnce(context.Background(), now, key, "remote backup stale")
+	scheduler.warnOnce(context.Background(), now, key, "remote backup stale")
+	if len(notices) != 1 || legacy != 0 {
+		t.Fatalf("one daily occurrence published typed=%+v legacy=%d", notices, legacy)
+	}
+	scheduler.warnOnce(context.Background(), now.Add(24*time.Hour), key, "remote backup stale")
+	if len(notices) != 2 || legacy != 0 {
+		t.Fatalf("next day typed=%+v legacy=%d", notices, legacy)
 	}
 }

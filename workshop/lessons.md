@@ -7,6 +7,10 @@ representative evidence, not an exhaustive index.
 
 ## Proof and verification
 
+- #872: Every new production Go file needs an explicit artifactpath inventory classification, including pure evidence structs and private test-harness diagnostics. Run TestProductionArtifactReferencesAreExactlyClassified with the focused qualification before queuing a full check; reader-hash inventory alone does not cover that separate source census.
+- #869 BR-1: Publishing a complete payload is insufficient when cancellation can race its external helper. Reap that helper first, then publish a payload-free readiness marker with a leader builtin. Qualify held-write and held-after-publication intervals; enumerate every readiness consumer.
+- #869: A readiness filename must publish the completed value. Shell redirection creates a file before printf writes its PID; write an adjacent private temporary file and rename only after success. Hold the writer in a conformance control so early visibility fails deterministically.
+
 - #863 suite: when a result gains an ownership predicate, sweep existing positive fixtures for the required authority and retain separate empty/metadata-only negatives. A startup fixture must declare its history explicitly; an empty namespace is not evidence of a previous shutdown. Keep exact joined-diagnostic and declared-operation assertions current with the same approved contract.
 
 - #863 BR-3: A published start claim needs one failure owner before launch ownership begins. Discovery/enrollment failures must roll back against the store that accepted the claim, independently of whether namespace routing is available; release native authority only after exact nonce/revision cleanup and positive absence. Pin post-publication failures and successful handoff, not only the later launch tail.
@@ -2913,6 +2917,8 @@ and external temporary roots rather than relying on the host's TMPDIR.
 
 - #871: implementation Plan checkboxes describe deliverable behavior and qualification. Keep close/merge/report as explicit workflow postconditions rather than an unchecked self-reference that close itself demands; never tick a future landing to satisfy the guard.
 
+- #873: Lifecycle serialization does not exclude preview readers that take a subordinate store lock outside the coordinator. Empty-only startup reservations are foreground work: select the existing bounded foreground policy at every global/local acquisition, preserve before/after evidence checks, and pin maintenance as a zero-wait negative control.
+- #878: A context-aware outer select does not bound a synchronous mailbox snapshot. Check cancellation at each request admission, retain the existing joined cleanup owner, and test with a channel-held write plus queued work. Observe quota completion per correlated request; one short deadline over128 filesystem transactions measures aggregate load instead of the transition.
 - #851 BR-1/BR-2: When an approved input gesture changes, sweep every user-facing restatement, including retry instructions and selection-versus-activation language, rather than only the atlas's headline. Reconcile Done-when with the approved Spec and tested modes before close; remove superseded timing assumptions and enumerate inside/outside, hidden and nested behavior. Record the revision without changing the implementation contract.
 
 - #851 BR-3: Evaluate composed filters in their effective candidate universe. Exact-over-fuzzy matching is nonmonotonic: an outside exact match can suppress a valid scoped fuzzy result. Reveal checks must retain applicable scope for the filter, then retain both for view checks. Pin a mixed-restriction case and the converse cases where scope/filter removal is actually needed.
@@ -2921,3 +2927,14 @@ and external temporary roots rather than relying on the host's TMPDIR.
 
 - #876 BR-1: before close, compare every Core concepts path and status with the actual diff, including proposed files consolidated into existing files and unchanged adapters/CSS. Plan traceability is part of the delivered design; add a Revision when placement changes.
 - #876 BR-2: native evidence must retain the exact tested Git head, command/environment and exit result. A successful unpinned log cannot answer a review checkout whose browser fails to start; rerun on the pinned head and retain the environment distinction.
+- #844 PQ-1: implementation plans name each risky production function and one adversarial testing strategy/mechanical guard. Keep scenario inventories in executable tests; generated event sequences should assert independent duplicate-effect, epoch and resource invariants.
+- #844: an async routing queue must freeze readiness and automation epoch when the event occurs. Resolving only on dequeue can revive an OFF-period event after OFF/ON; prove publication/dequeue ordering with a controlled backend. Keep existing episode owners for picker/question sends so a routing refactor preserves timing, mute and deduplication.
+
+- #844 BR-1: unavailable recipient and revoked automation are different facts. Keep the resolved owner's generation even across disconnect, and test queued, pre-admission-refused and uncertain outcomes independently. Only a confirmed unadmitted occurrence with a current generation may fall back; no uncertain replay.
+- #844 BR-2: an attention-policy change must update README's warning summary and bell interaction description alongside the atlas. Search live descriptions by the old promised behavior before close; documentation parity is a source audit, not a wording-presence test.
+
+- #844 BR-1 round2: a generation counter has authority only inside its root. Validate the retained root separately from observing a handoff; accepting a destination adopts its own generation. Unknown readiness cannot erase that witness, and confirmed refusal needs an explicit non-admitting disposition state if readiness is deferred. Test old-root revocation before/after handoff as different orderings.
+
+- #844 recorded check: after adding production Go files, run the existing focused artifactpath source-classification test before queuing the long suite; reader inventory and repolint cover different contracts. Classify each file by actual artifact usage, and add exact vocabulary use-site support with rejection tests when legitimate typed constants are inexpressible. Never rename vocabulary to evade the guard or grow its known-debt list.
+
+- #844 BR-4: an approved post-close verification fix that adds an executable checker contract can require full close even when it changes no product policy. Follow the scope guard with the existing ledger; do not treat plan approval as authority to narrow that review.
