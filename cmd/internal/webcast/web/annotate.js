@@ -485,7 +485,14 @@ export function mountAnnotation(doc, win, v, { root, box, stage, palette, who, c
       b.setAttribute('aria-pressed', String(state.mode === m));
     }
     const off = unavailable();
-    const reason = policy?.phase === 'disabled' ? (availabilityState === 'broken' ? 'Cast broken. Wait for the operator to end the cast.' : availabilityState === 'retry' ? 'Annotation is off. Waiting for the operator to retry.' : 'Annotation is off.') : policy?.driver ? `${policy.driver} is driving.` : 'The cast is paused.';
+    let reason = policy?.driver ? `${policy.driver} is driving.` : 'The cast is paused.';
+    if (policy?.phase === 'disabled') {
+      if (availabilityState === 'broken') reason = 'Cast broken. Wait for the operator to end the cast.';
+      else if (availabilityState === 'retry') reason = 'Annotation is off. Waiting for the operator to retry.';
+      else if (!annotate) reason = 'This link is read-only. Ask the cast owner for an annotating link.';
+      else if (!operator) reason = 'Annotation is off. Ask the cast owner to enable viewer annotation in Couch.';
+      else reason = 'Annotation is off.';
+    }
     rail.classList.toggle('paused', off);
     for (const b of [...Object.values(modeButtons), ...swatches.querySelectorAll('button')]) b.disabled = off;
     if (v.tools) v.tools.groups.pointerColors.hidden = state.mode === 'watch' || off;

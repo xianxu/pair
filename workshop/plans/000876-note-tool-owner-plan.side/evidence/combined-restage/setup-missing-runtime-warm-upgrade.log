@@ -1,0 +1,8 @@
+=== RUN   TestCombinedStageMainWarmUpgrade
+    one_off_combined_warm_test.go:38: build ./cmd/couch: exit status 1: cmd/internal/runtimebundle/embed.go:8:41: pattern assets/runtime/files: no matching files found
+        : cmd/internal/runtimebundle/embed.go:8:41: pattern assets/runtime/files: no matching files found
+        
+--- FAIL: TestCombinedStageMainWarmUpgrade (1.64s)
+FAIL
+FAIL	github.com/xianxu/pair/cmd/couch	1.793s
+FAIL

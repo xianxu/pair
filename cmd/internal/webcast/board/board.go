@@ -228,7 +228,7 @@ func (a AnnotationAdmission) Stroke(in StrokeIn) error {
 	b.command.Lock()
 	defer b.command.Unlock()
 	b.mu.Lock()
-	if err := b.admissionLocked(a.permit); err != nil {
+	if err := b.surfaceAdmissionLocked(a.authority, false); err != nil {
 		b.mu.Unlock()
 		return err
 	}
@@ -269,7 +269,7 @@ func (a AnnotationAdmission) Note(in NoteIn) (string, error) {
 	b.command.Lock()
 	defer b.command.Unlock()
 	b.mu.Lock()
-	if err := b.admissionLocked(a.permit); err != nil {
+	if err := b.surfaceAdmissionLocked(a.authority, false); err != nil {
 		b.mu.Unlock()
 		return "", err
 	}
@@ -340,7 +340,7 @@ func (a AnnotationAdmission) SetState(in StateIn) error {
 	b.command.Lock()
 	defer b.command.Unlock()
 	b.mu.Lock()
-	if err := b.admissionLocked(a.permit); err != nil {
+	if err := b.surfaceAdmissionLocked(a.authority, false); err != nil {
 		b.mu.Unlock()
 		return err
 	}

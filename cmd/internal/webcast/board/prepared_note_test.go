@@ -14,6 +14,9 @@ import (
 func prepareNoteFixture(t *testing.T, r *rig, operator bool) (AnnotationAdmission, PreparedNote) {
 	t.Helper()
 	a, err := r.bd.AdmitAnnotation()
+	if operator {
+		a, err = r.bd.admitOperatorAnnotation()
+	}
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -2922,6 +2922,11 @@ and external temporary roots rather than relying on the host's TMPDIR.
 - #851 BR-1/BR-2: When an approved input gesture changes, sweep every user-facing restatement, including retry instructions and selection-versus-activation language, rather than only the atlas's headline. Reconcile Done-when with the approved Spec and tested modes before close; remove superseded timing assumptions and enumerate inside/outside, hidden and nested behavior. Record the revision without changing the implementation contract.
 
 - #851 BR-3: Evaluate composed filters in their effective candidate universe. Exact-over-fuzzy matching is nonmonotonic: an outside exact match can suppress a valid scoped fuzzy result. Reveal checks must retain applicable scope for the filter, then retain both for view checks. Pin a mixed-restriction case and the converse cases where scope/filter removal is actually needed.
+
+- #876: splitting trusted-owner authority from viewer permission requires matching roles at every prepared-note consumer, including authenticated restoration. A signed token with the correct owner tuple does not make a viewer admission an operator admission; pin both directions and exact unknown-ACK reconciliation.
+
+- #876 BR-1: before close, compare every Core concepts path and status with the actual diff, including proposed files consolidated into existing files and unchanged adapters/CSS. Plan traceability is part of the delivered design; add a Revision when placement changes.
+- #876 BR-2: native evidence must retain the exact tested Git head, command/environment and exit result. A successful unpinned log cannot answer a review checkout whose browser fails to start; rerun on the pinned head and retain the environment distinction.
 - #844 PQ-1: implementation plans name each risky production function and one adversarial testing strategy/mechanical guard. Keep scenario inventories in executable tests; generated event sequences should assert independent duplicate-effect, epoch and resource invariants.
 - #844: an async routing queue must freeze readiness and automation epoch when the event occurs. Resolving only on dequeue can revive an OFF-period event after OFF/ON; prove publication/dequeue ordering with a controlled backend. Keep existing episode owners for picker/question sends so a routing refactor preserves timing, mute and deduplication.
 

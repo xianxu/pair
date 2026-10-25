@@ -246,7 +246,7 @@ func (f *storedSubmissionFixture) page(t *testing.T, url string) {
 }
 func (f *storedSubmissionFixture) draw(t *testing.T, request string) notedraft.Status {
 	t.Helper()
-	a, err := f.c.board.AdmitAnnotation()
+	a, err := f.c.board.AdmitOperatorAnnotationGeneration(f.c.board.AnnotationCapability().Generation)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -128,7 +128,7 @@ func TestOperatorEditHasNoOverrideOrFalseUnknownProof(t *testing.T) {
 	if r.bd.st.Notes[0].Owner != broadcast.OperatorNoteOwner {
 		t.Fatal("operator ownership missing")
 	}
-	a, _ := r.bd.AdmitAnnotation()
+	a, _ := r.bd.admitOperatorAnnotation()
 	in := EditIn{Seg: r.seg(), ID: n.ID, Text: "edit"}
 	if got := s.EditAdmitted(a, "2", in); got.Outcome != OperatorPending || got.ID != "" {
 		t.Fatal(got)

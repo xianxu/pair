@@ -368,7 +368,7 @@ func TestOperatorUnknownResolveRemainsConservative(t *testing.T) {
 	}
 }
 
-func TestOperatorDefaultOffRefusesMutation(t *testing.T) {
+func TestOperatorDefaultOffStillRequiresLivePage(t *testing.T) {
 	b := New(nil, nil)
 	calls := 0
 	op := b.NewOperator(func(recording.Record, int, AnnotationAdmission, func(OperatorOutcome, error)) error {
@@ -376,8 +376,8 @@ func TestOperatorDefaultOffRefusesMutation(t *testing.T) {
 		return nil
 	})
 	got := op.Stroke("1", StrokeIn{Seg: 1, ID: "pen", Pts: [][3]float64{{1, 2, 0}}})
-	if got.Outcome != OperatorRefused || got.Error != ErrDisabled.Error() || calls != 0 {
-		t.Fatalf("disabled operator: %+v calls=%d", got, calls)
+	if got.Outcome != OperatorRefused || got.Error != ErrNotLive.Error() || calls != 0 {
+		t.Fatalf("operator before first page: %+v calls=%d", got, calls)
 	}
 }
 
