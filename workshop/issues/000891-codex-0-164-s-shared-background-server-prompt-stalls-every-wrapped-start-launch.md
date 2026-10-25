@@ -33,36 +33,34 @@ slot will meet it on its next start.
 
 `pair wrap` launches Codex so the prompt can't appear: either opt out of the shared server for wrapped sessions (the
 equivalent of "run without daemon", via a supported flag or config if 0.164 has one), or launch with settings that
-match the shared server's. Never restart the shared server from a slot. Also: Couch records the Codex version per
-launch and surfaces a version change to the hub, so the next upstream change is noticed before slots stall.
+match the shared server's. Never restart the shared server from a slot. Each launch also records the Codex version
+it ran (the hub notice on a version change is the follow-up #894).
 
 ## Done when
 
-- A wrapped Codex 0.164 start with a mismatched shared server reaches its composer with no prompt (native test, or a
-  documented manual check if the server can't be faked), and the old-version path is unchanged.
-- A Codex version change since the last launch is reported to the hub once.
+- A wrapped Codex ≥ 0.164 launch passes `--no-daemon` (a private app server), so a mismatched shared server cannot
+  stop it at a prompt; below 0.164 or when the version probe fails, the launch argv is exactly unchanged.
+- The probed version is recorded per launch: `PAIR_AGENT_VERSION` in the launch env, carried into the ready
+  record as `agent_version`.
+- Verified by launcher/readiness/wrap tests plus a documented manual PTY check: with this machine's mismatched
+  shared server left running and untouched, the fixed argv reaches the composer with no "Background server has
+  incompatible feature settings", and the control argv (without the flag) shows it.
 
 ## Plan
 
-Durable plan: `workshop/plans/000891-codex-no-daemon-and-version-notice-plan.md`.
+Part A of `workshop/plans/000891-codex-no-daemon-and-version-notice-plan.md` (Tasks 1–2); Part B is #894.
 
-- [ ] A1: ready record carries `agent_version` (validated, optional); the wrapper publishes it from
-      `PAIR_AGENT_VERSION`.
-- [ ] A2: launcher probes `codex --version` once per launch (3s bound, failure silent), exports the version,
-      and prepends `--no-daemon` at ≥ 0.164.0 unless the caller already passed it. All Codex launches; the
-      shared server is never contacted or restarted.
-- [ ] A3: launcher/readiness/wrap tests pin 0.164.0 (flag + env), 0.163.0 and failed probe (argv unchanged,
-      version still recorded when known), and an explicit `--no-daemon` (no duplicate).
-- [ ] B1: `OSReadyReader.RecordedAgentVersion` reads the version from the ready file alone.
-- [ ] B2: durable `agent-versions.json` store + observer: first observation is the silent baseline, a change
-      reports the previous version exactly once (in-process mutex; one Couch writes a namespace).
-- [ ] B3: `NoticeAgentVersionChanged` routes to the hub by default; the message service wraps
-      `c.FreshRegistration` and publishes one `status` notice per change.
-- [ ] V1: focused + package tests green; `make test-affected-inventory` audited.
-- [ ] V2: documented manual check: wrapped Codex 0.164 with this machine's mismatched shared server reaches
-      its composer with no prompt; the same argv without `--no-daemon` shows the prompt.
-- [ ] V3: atlas updated (`codex-resume.md`, `couch.md`); suite recorded on the pushed head; PR merged;
-      outcome reported to ops:0.
+- [ ] A1: launcher probes `codex --version` once per launch (3s bound, failure silent), exports
+      `PAIR_AGENT_VERSION` when known, and prepends `--no-daemon` at ≥ 0.164.0 unless the caller already passed
+      it. All Codex launches; the shared server is never contacted or restarted.
+- [ ] A2: launcher tests pin 0.164.0 (flag + env), 0.163.0 and a failed probe (argv unchanged; the version is
+      still recorded when known), and an explicit `--no-daemon` (no duplicate).
+- [ ] A3: ready record carries the optional validated `agent_version`; the wrapper copies
+      `PAIR_AGENT_VERSION` into it (the transport #894 will read).
+- [ ] V1: focused + package tests green.
+- [ ] V2: manual PTY check as stated in Done when, control included.
+- [ ] V3: atlas `codex-resume.md`; `make test-affected-inventory` audited; suite recorded on the pushed head;
+      PR merged; outcome reported to ops:0.
 
 ## Log
 
@@ -82,3 +80,16 @@ Durable plan: `workshop/plans/000891-codex-no-daemon-and-version-notice-plan.md`
   it is silent anyway (empty store = baseline).
 - Size: ~230 added non-test lines across launcher/readiness/wrapcmd/couchcore/couchcmd — outside the
   quick-flow shell (100 lines), so this is a full-flow close. Estimate proposed in the durable plan.
+- TL steer (same day): land Part A first — it removes the stall every Codex restart hits — and move the
+  version-change notice plus its baseline store to a new unclaimed issue, #894 (filed, cites this plan). With
+  Part B out, #891 is the launcher probe, `--no-daemon`, `PAIR_AGENT_VERSION` and the ready-record carrier:
+  ~95 added non-test lines, inside the quick-flow shell.
+
+## Revisions
+
+### 2026-10-25 — scope to Part A (TL steer)
+
+Reason: the stall fix should land now, in the cheap window; the version notice is independent follow-up work.
+Delta: Done when, Plan and the manual check now cover only the launcher probe, `--no-daemon`,
+`PAIR_AGENT_VERSION` and the ready-record carrier. Tasks 3–5 of the durable plan (ready-record reader,
+store/observer, notice) moved to #894; the durable plan keeps the full design and gains a Revisions note.

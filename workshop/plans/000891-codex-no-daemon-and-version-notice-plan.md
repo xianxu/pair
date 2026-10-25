@@ -679,3 +679,13 @@ the outcome to ops:0.
 
 Proposed `estimate_hours: 3` (two packages, a durable store with tests, one manual check). Derived after the
 plan-quality gate, as the flow requires.
+
+## Revisions
+
+### 2026-10-25 — split Part B out (TL steer)
+
+Reason: land the stall fix first, in the cheap window; the notice is independent follow-up work.
+Delta: #891 implements Task 1 (ready-record carrier), Task 2 (launcher probe + `--no-daemon`) and the manual
+check only. Tasks 3–5 (ready-record reader, store/observer, notice) and their tests move to unclaimed #894.
+Task 6's atlas split: `codex-resume.md` stays with #891; `couch.md`'s store/notice text goes with #894. The
+estimate note above applies only if #891 ends up outside the shell; as scoped it should stay inside.
