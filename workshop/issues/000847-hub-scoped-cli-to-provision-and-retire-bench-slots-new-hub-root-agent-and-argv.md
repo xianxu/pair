@@ -1,13 +1,13 @@
 ---
 id: 000847
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-10-23
 updated: 2026-10-25
 estimate_hours: 3.48
 collaboration-mode: collaboration
-card_mirror: '6ad9c85a18d9c26b3d7ab342d27faf60a01c9dd3' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: 'bfdf559af8f37445f2afc4214855634cab3561c0' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-25T03:06:32-07:00
 claimant:
     operator: Xian Xu
@@ -17,6 +17,7 @@ claimant:
     worktree: /Users/xianxu/workspace/worktree/pair-slot6/pair
     repository: github.com/xianxu/pair
 flow: {kind: full, provenance: operator}
+actual_hours: 1.56
 ---
 
 # Hub-scoped CLI to provision and retire bench slots (new hub root, agent and argv, fresh) without a Couch restart or console steps
