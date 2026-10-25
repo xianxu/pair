@@ -5,10 +5,9 @@ package.path=repo..'/nvim/?.lua;'..package.path
 local module=require('review.restore_client')
 local route=require('workbench_route')
 local old_remote=_G.PairReviewPane
-local envkeys={'PATH','PAIR_FAKE_ZELLIJ_STATE','ZELLIJ_SESSION_NAME','ZELLIJ_PANE_ID','PAIR_ZELLIJ_TRACE'}
-local original={PATH=vim.env.PATH,PAIR_FAKE_ZELLIJ_STATE=vim.env.PAIR_FAKE_ZELLIJ_STATE,
- ZELLIJ_SESSION_NAME=vim.env.ZELLIJ_SESSION_NAME,ZELLIJ_PANE_ID=vim.env.ZELLIJ_PANE_ID,
- PAIR_ZELLIJ_TRACE=vim.env.PAIR_ZELLIJ_TRACE}
+local envkeys={'PATH','HOME','ZELLIJ_SOCKET_DIR','PAIR_FAKE_ZELLIJ_STATE','ZELLIJ_SESSION_NAME','ZELLIJ_PANE_ID','PAIR_ZELLIJ_TRACE'}
+local original={}
+for _,key in ipairs(envkeys)do original[key]=vim.env[key]end
 local made=vim.system({'mktemp','-d',(vim.env.TMPDIR or '/tmp')..'/pair-review-admission.XXXXXX'},{text=true}):wait()
 assert(made.code==0,made.stderr)
 local root=vim.trim(made.stdout);assert(root~='')
@@ -24,6 +23,16 @@ local function model()
 end
 local function main()
  vim.fn.mkdir(root..'/bin','p')
+ -- Use the suite-owned executable when supplied; standalone runs use the same
+ -- builder. No fake Pair route may stand in for namespace admission.
+ local built=vim.system({'bash',repo..'/tests/lib/pair-test-binary.sh',root..'/bin/pair'},
+  {text=true}):wait()
+ assert(built.code==0,'Pair helper build failed: '..(built.stderr or ''))
+ vim.fn.mkdir(root..'/home','p')
+ vim.env.HOME=root..'/home'
+ -- No real native endpoints are published: the stateful fake's model supplies
+ -- replies, while the real helper qualifies this private empty socket namespace.
+ vim.env.ZELLIJ_SOCKET_DIR=root..'/native'
  vim.fn.writefile(vim.fn.readfile(repo..'/tests/lib/fake-zellij.py'),root..'/bin/zellij')
  vim.fn.writefile(vim.fn.readfile(repo..'/tests/lib/zellij_fixture_replies.py'),root..'/bin/zellij_fixture_replies.py')
  assert(vim.fn.setfperm(root..'/bin/zellij','rwx------')==1)
@@ -49,20 +58,28 @@ local function main()
   local sf=dir..'/pane.open'
   vim.fn.writefile({tostring(vim.fn.getpid()),wanted.repo..'/old.md',vim.json.encode(metadata)},sf)
   local notices,published={},{}
+  local pair_lookups,native_runs=0,0
   local client=module.new({state_file=function()return sf end,session=function()return 'session-a'end,
    cwd=function()return '/private/repo'end,read_target=function()return nil end,
-   pair_bin=function()error('must not open a replacement pane')end,
+   pair_bin=function()pair_lookups=pair_lookups+1;return root..'/bin/pair'end,
    prompt=function()error('must not prompt')end,
    write_target=function(file,status,id)published[#published+1]={file=file,status=status,identity=id}end,
    notify=function(msg)notices[#notices+1]=msg end,
    hide=function(b,admitted)return route.return_to_draft(b,admitted)end,
    run=function(cmd,opts,callback)
-    if cmd[1]=='zellij' then
+    assert(cmd[1]~='zellij','native action bypassed the guarded Pair helper')
+    assert(not vim.tbl_contains(cmd,'open'),'must not open a replacement review pane')
+    if cmd[1]==root..'/bin/pair' then
+     native_runs=native_runs+1
+     assert(pair_lookups==native_runs,'native binary lookup count diverged')
+     assert(vim.deep_equal(vim.list_slice(cmd,2,4),{'internal','zellij-command','--'}),
+      'native action must traverse the real internal helper')
      if vim.tbl_contains(cmd,'list-panes') or vim.tbl_contains(cmd,'are-floating-panes-visible') then
       assert(opts.timeout>0 and opts.timeout<=5000,'query lost admission timeout')
      end
      return vim.system(cmd,opts,callback)
     end
+    assert(pair_lookups==native_runs,'identity/RPC triggered native binary lookup')
     local result={code=0,stdout='',stderr=''}
     if vim.tbl_contains(cmd,'--resolve') then result.stdout=vim.json.encode(wanted)
     elseif vim.tbl_contains(cmd,'--remote-expr') then
@@ -78,6 +95,8 @@ local function main()
    end})
   client:toggle()
   assert(vim.wait(5000,function()return not client.busy end,5),'restore did not finish: '..scenario)
+  assert(pair_lookups==native_runs,'identity/RPC triggered native binary lookup: '..vim.inspect(notices))
+  assert(native_runs>0,'native helper route was not exercised')
   local observed=read(statefile)
   assert(#published==1 and published[1].status=='ready' and published[1].file==wanted.repo..'/'..wanted.file,
    'activation target publication lost on '..scenario)

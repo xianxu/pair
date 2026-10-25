@@ -584,6 +584,7 @@ need no registration and keep their legacy owner compatibility.
 - **Edits with reasons (`apply`):** use `apply` for an edit to existing text, giving each record an `explain` written for the operator.
   - `old` must be non-empty, and `occurrence` is the 1-based plain match. To insert, repeat nearby text inside `new`.
   - Every record resolves against the file as it stands, before anything is written. One empty, missing or overlapping record refuses the whole batch with exit 1 and `edits-invalid`, which lists each bad record. Nothing is written: fix the records and apply again.
+  - Apply acknowledges only safely mapped changed ranges; unread edits elsewhere remain in `diff`. If any range cannot map to the previous baseline, the document still applies but the whole old baseline is retained with a warning, so own edits may also appear in `diff`. Inspect it, review the remaining edits, then explicitly `read --all` to acknowledge them. Section reads do not acknowledge edits.
   - Exit 6 has one answer: `read --all` again, rebuild the records, apply again.
   - Keep `write` for generated content that isn't an edit.
 - **In pair's review workbench (no Couch)**, use `pair review apply EDITS.json FILE --if-hash H --json` instead. It takes the same records and exits, with clean edits and highlight metadata. Commit its `Body` verbatim with docflow right after it lands. A review with no edits still applies, with records `[]`; that reply has no `Body`, so commit nothing (pair#690).

@@ -102,9 +102,14 @@ func (r OSRuntime) SessionAlive(session string) bool {
 }
 
 func (r OSRuntime) RenamePane(session, paneID, title string) error {
-	_, err := exec.Command("zellij", "--session", session, "action",
-		"rename-pane", "--pane-id", paneID, title).Output()
-	return err
+	env := zellijquery.ChildEnvironment(nil)
+	return zellijquery.WithReadyProbe(context.Background(), env, func(ctx context.Context) error {
+		cmd := exec.CommandContext(ctx, "zellij", "--session", session, "action", "rename-pane", "--pane-id", paneID, title)
+		cmd.Env = env
+		cmd.WaitDelay = time.Second
+		_, err := cmd.Output()
+		return err
+	})
 }
 
 func (OSRuntime) CmuxAvailable() bool {

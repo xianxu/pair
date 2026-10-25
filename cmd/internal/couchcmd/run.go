@@ -1587,6 +1587,8 @@ func usageWith(w io.Writer, bindings []couchkeys.Binding) {
 	verbLine(w, "--session-sync", "       couch --session-sync apply EDITS.json FILE --if-hash H [--fold ID] [--json]")
 	fmt.Fprintln(w, "             Apply {old, occurrence, new, explain} records to the whole file, all or none")
 	fmt.Fprintln(w, "             (edits-invalid lists each bad record). Every agent write keeps a round.")
+	fmt.Fprintln(w, "             Only mapped changes advance diff; a retained-baseline warning leaves unread edits visible.")
+	fmt.Fprintln(w, "             Inspect diff, review remaining edits, then read --all to acknowledge them.")
 	verbLine(w, "--session-sync", "       couch --session-sync round FILE --json")
 	fmt.Fprintln(w, "             The last agent round's spans, and whether a submit has cleared it.")
 	fmt.Fprintln(w, "             Registration lasts until forget; rename moves metadata only. See couch --skill.")

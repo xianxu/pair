@@ -14,6 +14,7 @@ import (
 	"github.com/xianxu/pair/cmd/internal/procutil"
 	"github.com/xianxu/pair/cmd/internal/readiness"
 	"github.com/xianxu/pair/cmd/internal/zellijpane"
+	"github.com/xianxu/pair/cmd/internal/zellijquery"
 )
 
 // RecoveryTerminalPlan is ephemeral exact-process authorization. Only Prepare
@@ -60,7 +61,9 @@ func PrepareRecoveryTerminal(ctx context.Context, root, scope, tag, session stri
 	return (recoveryTerminalDriver{ops: newRecoveryTerminalOS(), timeout: zjTimeout, poll: 25 * time.Millisecond}).prepare(ctx, root, scope, tag, session)
 }
 func RetireRecoveryTerminal(ctx context.Context, plan RecoveryTerminalPlan) error {
-	return (recoveryTerminalDriver{ops: newRecoveryTerminalOS(), timeout: zjTimeout, poll: 25 * time.Millisecond}).retire(ctx, plan)
+	return zellijquery.RetireReadyAfter(ctx, nil, plan.session, func(ctx context.Context) error {
+		return (recoveryTerminalDriver{ops: newRecoveryTerminalOS(), timeout: zjTimeout, poll: 25 * time.Millisecond}).retire(ctx, plan)
+	})
 }
 
 func (d recoveryTerminalDriver) prepare(ctx context.Context, root, scope, tag, session string) (RecoveryTerminalPlan, error) {

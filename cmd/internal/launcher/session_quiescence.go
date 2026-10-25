@@ -158,7 +158,7 @@ func newOSSessionQuiescenceOps(sources ...procutil.Source) osSessionQuiescenceOp
 }
 
 func (osSessionQuiescenceOps) SessionPresent(ctx context.Context, session string) (bool, error) {
-	out, err := (ZellijSource{}).runContext(ctx, "list-sessions", "--no-formatting")
+	out, err := (ZellijSource{explicitRecovery: true}).runContext(ctx, "list-sessions", "--no-formatting")
 	if err != nil {
 		return false, err
 	}

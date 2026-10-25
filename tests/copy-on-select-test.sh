@@ -23,10 +23,16 @@ set -eu
 
 REPO=$(cd "$(dirname "$0")/.." && pwd)
 export PAIR_TEST_ZELLIJ_REPLIES="$REPO/tests/lib/zellij_fixture_replies.py"
-tmp=$(mktemp -d "${TMPDIR:-/tmp}/pair-copyonselect.XXXXXX"); trap 'rm -rf "$tmp"' EXIT
+tmp=$(mktemp -d "${TMPDIR:-/tmp}/pair-copyonselect.XXXXXX") || exit 1
+trap 'status=$?
+  if [ "$status" -ne 0 ]; then
+    cat "$tmp/cache/pair/clipboard-debug.log" "$tmp/orchestrator.stderr" >&2 2>/dev/null || :
+  fi
+  rm -rf "${tmp:?}"' EXIT
 
 # The hook self-execs its `pair` sibling. Alias the shared image beside the
 # completion wrapper; copying it would trigger a new AMFI assessment (#749).
+export ZELLIJ_SOCKET_DIR="$tmp/native"
 export PAIR_HOME="$tmp/home"
 export PAIR_DATA_DIR="$tmp/data"
 export PAIR_TAG=t
@@ -41,10 +47,15 @@ PY
 fi
 export PAIR_TEST_COPY_BINARY="$PAIR_HOME/bin/pair-real"
 export PAIR_TEST_COPY_DONE="$tmp/done"
+export PAIR_TEST_COPY_LOG="$tmp/orchestrator.stderr"
 mkfifo "$PAIR_TEST_COPY_DONE"
 cat > "$PAIR_HOME/bin/pair" <<'SH'
 #!/bin/sh
-"$PAIR_TEST_COPY_BINARY" "$@"
+# Native reset helpers share this sibling; they do not complete an orchestrator.
+if [ "$#" -ne 3 ] || [ "${1:-}" != clip ] || [ "${2:-}" != copy-on-select ] || [ "${3:-}" != --orchestrate ]; then
+  exec "$PAIR_TEST_COPY_BINARY" "$@" 2>>"$PAIR_TEST_COPY_LOG"
+fi
+"$PAIR_TEST_COPY_BINARY" "$@" 2>>"$PAIR_TEST_COPY_LOG"
 result=$?
 printf '%s\n' "$result" > "$PAIR_TEST_COPY_DONE"
 exit "$result"
@@ -73,6 +84,27 @@ EOF
 chmod +x "$fakebin/pbcopy" "$fakebin/pbpaste" "$fakebin/zellij"
 export PATH="$fakebin:$PATH"
 export XDG_CACHE_HOME="$tmp/cache"
+
+# #866: pane-color reset now self-execs the guarded native helper through the
+# same sibling Pair. Only --orchestrate owns this fixture's completion FIFO.
+# Complete an unrelated real helper before any orchestrator is started, so a
+# spurious status is detected without depending on background reset timing.
+python3 - "$PAIR_HOME/bin/pair" "$PAIR_TEST_COPY_DONE" <<'PYTHON'
+import os, subprocess, sys
+fd = os.open(sys.argv[2], os.O_RDONLY | os.O_NONBLOCK)
+try:
+    subprocess.run([sys.argv[1], 'internal', 'zellij-command', '--', 'action',
+                    'set-pane-color', '--pane-id', 'terminal_0', '--reset'],
+                   check=True, timeout=3)
+    try:
+        unexpected = os.read(fd, 32)
+    except BlockingIOError:
+        unexpected = b''
+    if unexpected:
+        raise SystemExit(f'unrelated reset helper wrote orchestrator completion {unexpected!r}')
+finally:
+    os.close(fd)
+PYTHON
 
 # Agent pane: a deliberately HOSTILE title containing "nvim" (via a legacy
 # pre-#133 cwd suffix — production no longer emits one), while terminal_command is

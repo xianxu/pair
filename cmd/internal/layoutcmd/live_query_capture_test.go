@@ -18,6 +18,8 @@ func TestLiveQueryCaptureKeepsRawStreamsSeparate(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Setenv("PATH", dir)
+	t.Setenv("HOME", dir)
+	t.Setenv("ZELLIJ_SOCKET_DIR", filepath.Join(dir, "native"))
 	var trace bytes.Buffer
 	rt := &fullscreenLiveRuntime{session: "private", caller: "3", queryLog: func(format string, args ...any) { fmt.Fprintf(&trace, format, args...) }}
 	raw, err := rt.ListPanesJSONContext(context.Background())

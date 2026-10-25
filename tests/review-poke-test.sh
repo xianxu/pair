@@ -18,7 +18,10 @@ RESULT="$RT/result.txt"; ZLOG="$RT/zlog.txt"; : > "$ZLOG"
 # reordered panes: unrelated right terminal precedes agent (id 7, tiled, "claude"), draft (id 3), review (id 9, floating, focused)
 python3 "$PAIR_TEST_ZELLIJ_REPLIES" --case review-poke.panes > "$RT/panes.json"
 
-mkdir -p "$RT/bin"
+mkdir -p "$RT/bin" "$RT/home"
+# Exercise the real guarded Pair helper with the suite-owned executable.
+# Standalone runs use the same builder; no ambient Pair/socket state is input.
+bash "$ROOT/tests/lib/pair-test-binary.sh" "$RT/bin/pair"
 cat > "$RT/bin/zellij" <<EOF
 #!/usr/bin/env bash
 if [ "\$1" = action ] && [ "\$2" = list-panes ]; then cat "$RT/panes.json"; exit 0; fi
@@ -42,7 +45,7 @@ poke.send('updated, please review foo.md')
 OUT:write('sent\n'); OUT:close()
 LUA
 
-PATH="$RT/bin:$PATH" PAIR_ROOT="$ROOT" RESULT="$RESULT" PAIR_DATA_DIR="$RT" PAIR_TAG=poke ZELLIJ_PANE_ID=9 \
+PATH="$RT/bin:$PATH" HOME="$RT/home" ZELLIJ_SOCKET_DIR="$RT/native" PAIR_ROOT="$ROOT" RESULT="$RESULT" PAIR_DATA_DIR="$RT" PAIR_TAG=poke ZELLIJ_PANE_ID=9 \
   PAIR_ZELLIJ_ACTIONS_PATH="$RT/zellij-actions-poke.jsonl" \
   run_headless --timeout 30 -- nvim --headless -u NONE -c "luafile $RT/driver.lua" -c 'qa!'
 

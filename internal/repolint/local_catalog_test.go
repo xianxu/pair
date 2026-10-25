@@ -12,6 +12,11 @@ import (
 // Copy the shared catalog before extending it: Pair rules must not alter the
 // upstream catalog used by sleepSites to identify existing sleep debt.
 var pairCatalog = append(append([]golint.Rule(nil), golint.Catalog...), golint.Rule{
+	Name:     "zellij-native-admission",
+	Incident: "pair#866",
+	Message:  "route bounded native commands through namespace admission; preserve explicit creator/interactive exceptions",
+	Match:    func(*ast.File, *golint.CheckContext) []ast.Node { return nil },
+}, golint.Rule{
 	Name:     "test-fifo-empty-handoff",
 	Incident: "pair#679",
 	Message:  "write a nonempty FIFO payload before closing a test writer; an empty open/close can strand Darwin readers",

@@ -1,0 +1,114 @@
+[
+  {
+    "name": "equal",
+    "shadow": "a old z\n",
+    "base": "a old z\n",
+    "next": "a new z\n",
+    "want": "a new z\n",
+    "ok": true
+  },
+  {
+    "name": "unread before",
+    "shadow": "old\nwork\n",
+    "base": "unread longer\nwork\n",
+    "next": "unread longer\ndone\n",
+    "want": "old\ndone\n",
+    "ok": true
+  },
+  {
+    "name": "unread after",
+    "shadow": "work\nold\n",
+    "base": "work\nunread\n",
+    "next": "done\nunread\n",
+    "want": "done\nold\n",
+    "ok": true
+  },
+  {
+    "name": "same line",
+    "shadow": "old work tail\n",
+    "base": "unread work tail\n",
+    "next": "unread done tail\n",
+    "want": "old done tail\n",
+    "ok": true
+  },
+  {
+    "name": "target unread",
+    "shadow": "old\n",
+    "base": "unread\n",
+    "next": "done\n",
+    "want": "old\n",
+    "ok": false
+  },
+  {
+    "name": "missing baseline",
+    "shadow": "",
+    "base": "work\n",
+    "next": "done\n",
+    "want": "",
+    "ok": false
+  },
+  {
+    "name": "noop unread",
+    "shadow": "old\n",
+    "base": "unread\n",
+    "next": "unread\n",
+    "want": "old\n",
+    "ok": true
+  },
+  {
+    "name": "delete",
+    "shadow": "work\nold\n",
+    "base": "work\nunread\n",
+    "next": "unread\n",
+    "want": "old\n",
+    "ok": true
+  },
+  {
+    "name": "unicode crlf",
+    "shadow": "旧 作業\r\n",
+    "base": "未読 作業\r\n",
+    "next": "未読 完了\r\n",
+    "want": "旧 完了\r\n",
+    "ok": true
+  },
+  {
+    "name": "changed occurrences",
+    "shadow": "repeat\nanchor\nrepeat\nend\n",
+    "base": "operator\nanchor\nrepeat\nend\n",
+    "next": "operator\nanchor\ndone\nend\n",
+    "want": "repeat\nanchor\ndone\nend\n",
+    "ok": true
+  },
+  {
+    "name": "two changes",
+    "shadow": "a old\nkeep\nz old\n",
+    "base": "a old\nunread\nz old\n",
+    "next": "a new\nunread\nz new\n",
+    "want": "a new\nkeep\nz new\n",
+    "ok": true
+  },
+  {
+    "name": "insert inside equal span",
+    "shadow": "old\nwork tail\n",
+    "base": "unread\nwork tail\n",
+    "next": "unread\nwork new tail\n",
+    "want": "old\nwork new tail\n",
+    "ok": true
+  },
+  {
+    "name": "insert at unread boundary",
+    "shadow": "a Xb\n",
+    "base": "a b\n",
+    "next": "a newb\n",
+    "want": "a Xb\n",
+    "ok": false
+  },
+  {
+    "name": "all-or-none baseline",
+    "shadow": "work\nold\n",
+    "base": "work\nunread\n",
+    "next": "done\nchanged\n",
+    "want": "work\nold\n",
+    "ok": false
+  }
+]

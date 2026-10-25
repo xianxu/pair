@@ -43,6 +43,24 @@ local function append_record(record)
   f:close()
 end
 
+-- Keep native argv as data. All bounded native calls share Pair's admission
+-- helper; callers retain their existing timeout and output collection boundary.
+function M.command(argv, pair)
+  if argv[1] ~= 'zellij' then return argv end
+  -- Installed runtime bundles contain assets, not the Pair executable. The
+  -- launcher puts its executable directory first in PATH for these children.
+  local executable = pair or 'pair'
+  if pair and vim.fn.executable(pair) ~= 1 then executable = 'pair' end
+  local command = {executable,
+    'internal', 'zellij-command', '--'}
+  for i = 2, #argv do command[#command + 1] = argv[i] end
+  return command
+end
+
+function M.system(argv)
+  return vim.fn.system(M.command(argv))
+end
+
 function M.action(label, argv, opts)
   opts = opts or {}
   local start = vim.loop.hrtime()
@@ -55,10 +73,10 @@ function M.action(label, argv, opts)
     stdout = result.stdout or ''
     code = result.code
   elseif opts.timeout_ms ~= nil then
-    local result = vim.system(argv, {text=true, timeout=math.max(1, math.floor(opts.timeout_ms))}):wait()
+    local result = vim.system(M.command(argv), {text=true, timeout=math.max(1, math.floor(opts.timeout_ms))}):wait()
     stdout, code = result.stdout or '', result.code
   else
-    stdout = vim.fn.system(argv)
+    stdout = M.system(argv)
     code = vim.v.shell_error
   end
   local elapsed_ms = math.floor(((vim.loop.hrtime() - start) / 1000000) + 0.5)

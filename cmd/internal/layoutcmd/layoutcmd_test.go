@@ -457,6 +457,8 @@ func TestOSRuntimePreservesFocusActionEvidence(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Setenv("PATH", dir)
+	t.Setenv("HOME", dir)
+	t.Setenv("ZELLIJ_SOCKET_DIR", filepath.Join(dir, "native"))
 	err := (OSRuntime{}).RunZellijAction("focus-pane-id", "2")
 	var actionErr *zellijActionError
 	if exitCode(err) != 2 || !errors.As(err, &actionErr) || actionErr.output != "Pane Terminal(2) is already focused\n" {

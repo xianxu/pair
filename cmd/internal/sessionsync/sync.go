@@ -540,6 +540,7 @@ func (f *file) publishShadow(content string, pinState []byte) error {
 // preparedWrite is the complete immutable publication input. Preparation owns
 // all deterministic refusals; effects never re-validate an older mutable state.
 type preparedWrite struct {
+	warning                   string
 	document, shadow, hash    string
 	state                     State
 	stateBytes, pinStateBytes []byte
@@ -588,6 +589,16 @@ func (f *file) prepareWrite(req WriteRequest, rows []Entry, now time.Time) (prep
 		return preparedWrite{}, refuse("the new content must keep the frontmatter (`type: session-sync` and owner %q, as `couch-owner:` or legacy `owner:`)", f.owner)
 	}
 	shadow := f.shadowAfter(req.Section, body, next, now)
+	var warning string
+	if req.edits != nil {
+		var mapped bool
+		shadow, mapped, _ = applyShadow(f.shadow, f.content, req.Body)
+		if mapped {
+			shadow = Restamp(shadow, now)
+		} else {
+			warning = "apply kept the previous diff baseline because its changes could not be mapped safely; own edits may remain in diff; inspect diff, review the remaining edits, then read --all to acknowledge them"
+		}
+	}
 	if req.Frontmatter {
 		block, _ := FrontmatterBody(next) // replacement already validated the block
 		if shadow, err = f.frontmatterShadow(block); err != nil {
@@ -621,7 +632,7 @@ func (f *file) prepareWrite(req WriteRequest, rows []Entry, now time.Time) (prep
 	if err != nil {
 		return preparedWrite{}, err
 	}
-	prepared := preparedWrite{document: next, shadow: shadow, hash: nextHash, state: state, stateBytes: stateBytes, pinStateBytes: pinStateBytes}
+	prepared := preparedWrite{warning: warning, document: next, shadow: shadow, hash: nextHash, state: state, stateBytes: stateBytes, pinStateBytes: pinStateBytes}
 	if content.Changed {
 		prepared.roundChanged = true
 		prepared.round, _ = encodeRound(content.Round)
@@ -678,13 +689,19 @@ func (s *Sync) write(f *file, req WriteRequest) (Result, error) {
 		return Result{}, err
 	}
 	f.content, f.state = prepared.document, prepared.state
-	res := Result{Owner: f.owner, Folded: req.Fold, Hash: prepared.hash}
+	res := Result{Owner: f.owner, Folded: req.Fold, Hash: prepared.hash, Warning: prepared.warning}
+	warn := func(message string) {
+		if res.Warning != "" {
+			res.Warning += "; "
+		}
+		res.Warning += message
+	}
 	if prepared.roundChanged {
 		switch {
 		case prepared.round == nil:
-			res.Warning = "this round is too large to keep; parley shows no highlight for it"
+			warn("this round is too large to keep; parley shows no highlight for it")
 		case s.writeRound(f.paths.Round, prepared.round) != nil:
-			res.Warning = "the round could not be saved; parley shows no highlight for this write"
+			warn("the round could not be saved; parley shows no highlight for this write")
 		}
 	}
 	// Registered operator-acquire shares this writer's registry transaction.
@@ -707,11 +724,11 @@ func (s *Sync) write(f *file, req WriteRequest) (Result, error) {
 			lock, exists, lockErr = readOptional(path)
 		}
 		if lockErr != nil && !errors.Is(lockErr, os.ErrNotExist) {
-			res.Warning = "the operator lock could not be inspected after this write; check the editor before continuing"
+			warn("the operator lock could not be inspected after this write; check the editor before continuing")
 			break
 		}
 		if ParseHolder(lock, exists) == HolderOperator {
-			res.Warning = "the operator took the lock during this write; their buffer reloads with it"
+			warn("the operator took the lock during this write; their buffer reloads with it")
 			break
 		}
 	}

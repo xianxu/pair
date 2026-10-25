@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"github.com/xianxu/pair/cmd/internal/osfs"
+	"github.com/xianxu/pair/cmd/internal/zellijquery"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -12,7 +13,9 @@ import (
 
 func (r OSRuntime) DeleteSessionContext(ctx context.Context, session string) error {
 	ops, wait, poll := r.sessionQuiescenceSettings()
-	return quiesceZellijSession(ctx, session, ops, wait, poll)
+	return zellijquery.RetireReadyAfter(ctx, nil, session, func(ctx context.Context) error {
+		return quiesceZellijSession(ctx, session, ops, wait, poll)
+	})
 }
 
 // DeleteOwnedSessionContext retains the positively observed server generation
@@ -23,7 +26,9 @@ func (r OSRuntime) DeleteOwnedSessionContext(ctx context.Context, owner SessionO
 		return errors.New("delete owned session requires positive exact server ownership")
 	}
 	ops, wait, poll := r.sessionQuiescenceSettings()
-	return quiesceAuthorizedSession(ctx, owner.Name, []SessionServerIdentity{owner.Server}, ops, wait, poll)
+	return zellijquery.RetireReadyAfter(ctx, nil, owner.Name, func(ctx context.Context) error {
+		return quiesceAuthorizedSession(ctx, owner.Name, []SessionServerIdentity{owner.Server}, ops, wait, poll)
+	})
 }
 
 func (r OSRuntime) sessionQuiescenceSettings() (sessionQuiescenceOps, time.Duration, time.Duration) {
