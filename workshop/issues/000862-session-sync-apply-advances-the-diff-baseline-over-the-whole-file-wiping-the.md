@@ -204,6 +204,24 @@ re-enter one sdlc merge --yes; on failure classify before any repeat. Preserve
 queue place and do not checkpoint/restart a continuation while it is active.
 No operator stage, native matrix or out-of-queue full run was started.
 
+### 2026-10-24 — retained final-code suite PASS
+
+The original runner terminal39827 completed EXIT0 in17m31s on implementation
+6f6e6e216390727a39408ab588a2e1f078eaeeba, recorded sdlc-local/suite.
+Attempt a7d4b27fdd25c235d58c12a6a549d612 and lease-2922290125 were retained
+through the machine queue, without cancellation, requeue or unqueued full runs.
+Saved log .git/sdlc/local-checks/6f6e6e216390727a39408ab588a2e1f078eaeeba/suite.log
+has SHA256 cf9cf4d03bcbaf454174853bad9b347d1ffcdebe0a212d503a7144e26a60f7e8.
+All shell/editor/Go checks passed; session-sync19.261s, couchcmd125.028s,
+couchcore458.123s, artifactpath15.244s and repolint11.169s. The informational
+scratch census attributed zero SSD temp folders to this worktree and one to
+other/unattributed processes; it was not a test failure.
+
+Close remains SHIP with no findings; later commits change only prose/review
+and close evidence. GitHub conformance, merge-check and both local-gates
+checks were green on71974fc8fb33326976e1ed1eca7dbddf16dbb0d6. Next: push
+this proof and re-enter one authoritative merge runner, preserving its turn.
+
 ## Revisions
 
 ### 2026-10-24 — separate dependent fake adoption, TL-approved
