@@ -71,6 +71,9 @@ Plan-quality round1 returned PQ-1 existing-transition-fidelity and PQ-2 function
 
 Plan-quality round3 remained CLEAN and estimate-quality INFO; change-code admitted implementation atfbff1659a after the settled derivation. Advisory concerns are retained: this is a whole-issue estimate, M2 semantic/performance verification may exceed its optimistic module allowance, and active final-integration work must be accounted explicitly. M1 attribution is ready for its mandatory boundary review; M2 production code remains unchanged. Added the live-attribution link and causal limits to the already-indexed profiling atlas page.
 
+
+2026-10-24 M2 RED: unchanged capture failed the new allocation tests exactly: 64 captures allocated128 objects,128 allocated256, at both80x24 and160x24. Actual synchronized Feed/Snapshot replaced fixed-geometry backing on cycle0. Erased glyph/style/link and row metadata, retained consumer/edit isolation, absent real-backend cells and held no-op/refused/successful resize controls passed on baseline. Capture benchmark100 iterations:80x24 221568B/op2allocs/op49362ns/op;160x24 434562B/op2allocs/op112715ns/op. Tests and DEC2026 replay are committed before production correction; M1 closed SHIP7688351eb1ae, no findings. No second full check and no lessons edit while879 waits.
+
 ## Estimate
 
 Produced via brain/data/life/42shots/velocity/estimate-logic-v3.1.md against baseline-v3.1.md. Method A only for the now-settled plan; the source is marked stale and this derivation remains provisional. Plan-quality round2 is CLEAN before this reconciliation. The original2.92325h derivation remains verbatim in pre-m2-issue.md; elapsed work and actuals do not set these numbers.
