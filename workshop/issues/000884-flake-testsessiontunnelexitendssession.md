@@ -1,12 +1,12 @@
 ---
 id: 000884
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-10-25
 updated: 2026-10-25
 estimate_hours:
-card_mirror: '06d72f07c9ab3b153c48bdbef25e7747403d0d81' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '8a421df6467045f742c2f68e5958b064b064feb3' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-25T07:59:14-07:00
 claimant:
     operator: Xian Xu
@@ -17,6 +17,7 @@ claimant:
     repository: github.com/xianxu/pair
 flake_tests: [github.com/xianxu/pair/cmd/internal/broadcast.TestSessionTunnelExitEndsSession]
 flow: {kind: quick, provenance: inferred, spec: "7eeb4c81", done: "36a31fc1"}
+actual_hours: 0.21
 ---
 
 # flake: TestSessionTunnelExitEndsSession
