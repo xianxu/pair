@@ -293,35 +293,93 @@ func TestCouchEnablesItsOwnMouseTracking(t *testing.T) {
 	})
 }
 
-// A click in the SWITCHER takes the same declared operation Return takes, chosen
-// by the same rule -- live rows switch, resumable rows resume.
+// The real SGR path acknowledges a different row before manual activation.
 func TestClickInTheSwitcherTakesTheReturnPath(t *testing.T) {
+	for _, delay := range []time.Duration{100 * time.Millisecond, 5 * time.Second} {
+		t.Run(delay.String(), func(t *testing.T) {
+			clock := &testClock{now: time.Unix(100, 0)}
+			con, writer, _, calls := newMouseFixture(t, func(c *Console) { c.now = clock.Now })
+			con.mu.Lock()
+			con.focus = FocusPanel()
+			con.mu.Unlock()
+			con.showMenu()
+			waitFor(t, "the menu extents", func() bool { con.mu.Lock(); defer con.mu.Unlock(); return len(con.menuExtents) == 2 })
+			con.mu.Lock()
+			extent := con.menuExtents[1]
+			generation := con.navigationGeneration
+			con.mu.Unlock()
+			clickAt(t, writer, 3, extent.Start+1)
+			waitFor(t, "first press to select without dispatch", func() bool {
+				con.mu.Lock()
+				defer con.mu.Unlock()
+				return con.navigationGeneration > generation
+			})
+			con.mu.Lock()
+			selected, panel := con.menu.CurrentFrame().SelectedAddress, con.focus.IsPanel()
+			con.mu.Unlock()
+			if selected != extent.Thread || !panel {
+				t.Fatalf("first press: selection=%v panel=%v", selected, panel)
+			}
+			select {
+			case got := <-calls:
+				t.Fatalf("first press dispatched %q", got.call.Name)
+			default:
+			}
+			waitFor(t, "selection paint confirmed", con.chromeConfirmed)
+			clock.advance(delay)
+			clickAt(t, writer, 3, extent.Start+1)
+			select {
+			case got := <-calls:
+				if got.call.Name != "switch" || got.call.Args["tag"] != string(extent.Thread.Tag) || !got.manual {
+					t.Fatalf("selected-row press: %+v", got)
+				}
+			case <-testwait.After(t):
+				t.Fatal("selected-row press dispatched nothing")
+			}
+		})
+	}
+}
+
+func TestChipInsideSwitcherSelectsBeforeSwitching(t *testing.T) {
 	con, writer, _, calls := newMouseFixture(t)
 	con.mu.Lock()
 	con.focus = FocusPanel()
+	con.menu.Frames[0].Filter = "one"
 	con.mu.Unlock()
 	con.showMenu()
-	waitFor(t, "the menu to record its extents", func() bool {
+	waitFor(t, "switcher chips", func() bool {
 		con.mu.Lock()
 		defer con.mu.Unlock()
-		return len(con.menuExtents) == 2
+		return len(con.statusChips) == 2 && len(con.menuExtents) == 1
 	})
 	con.mu.Lock()
-	extent := con.menuExtents[1]
+	chip := con.statusChips[1]
+	top := int(con.size.Rows) - con.statusRows + 1
+	generation := con.navigationGeneration
 	con.mu.Unlock()
-
-	// 1-based row, as a terminal reports it.
-	clickAt(t, writer, 3, extent.Start+1)
+	clickAt(t, writer, chip.Start+1, top+chip.Row)
+	waitFor(t, "chip selection", func() bool { con.mu.Lock(); defer con.mu.Unlock(); return con.navigationGeneration > generation })
+	con.mu.Lock()
+	frame := con.menu.CurrentFrame()
+	panel := con.focus.IsPanel()
+	con.mu.Unlock()
+	if frame.SelectedAddress != chip.Thread || frame.Filter != "" || !panel {
+		t.Fatalf("chip did not reveal and select: %+v panel=%v", frame, panel)
+	}
 	select {
 	case got := <-calls:
-		if got.call.Name != "switch" {
-			t.Fatalf("dispatched %q, want the declared switch Return dispatches", got.call.Name)
-		}
-		if got.call.Args["tag"] != string(extent.Thread.Tag) {
-			t.Fatalf("switched to %q, want the clicked row's thread %q", got.call.Args["tag"], extent.Thread.Tag)
+		t.Fatalf("first chip press dispatched %q", got.call.Name)
+	default:
+	}
+	waitFor(t, "revealed selection paint", con.chromeConfirmed)
+	clickAt(t, writer, chip.Start+1, top+chip.Row)
+	select {
+	case got := <-calls:
+		if got.call.Name != "switch" || !got.manual {
+			t.Fatalf("activation %+v", got)
 		}
 	case <-testwait.After(t):
-		t.Fatal("a click in the switcher dispatched nothing")
+		t.Fatal("second chip press did not activate")
 	}
 }
 
@@ -438,6 +496,40 @@ func TestCouchParentCaptureStableAcrossChildMouseModes(t *testing.T) {
 			con.repaint()
 			if got := host.Written(); strings.Contains(got, "\x1b[?1000h") || strings.Contains(got, "\x1b[?1002h") || strings.Contains(got, "\x1b[?1003l") {
 				t.Fatalf("child changed parent capture: %q", got)
+			}
+		})
+	}
+}
+
+func TestSwitcherNonLeftPressesCannotActivate(t *testing.T) {
+	for _, report := range []struct {
+		name   string
+		button int
+		suffix string
+	}{
+		{"release", 0, "m"}, {"right", 2, "M"}, {"shift", 4, "M"}, {"alt", 8, "M"}, {"control", 16, "M"}, {"motion", 32, "M"}, {"wheel", 64, "M"},
+	} {
+		t.Run(report.name, func(t *testing.T) {
+			c, input, _, calls := newMouseFixture(t)
+			c.mu.Lock()
+			c.focus = FocusPanel()
+			c.mu.Unlock()
+			c.showMenu()
+			waitFor(t, "root extents", func() bool { c.mu.Lock(); defer c.mu.Unlock(); return len(c.menuExtents) == 2 })
+			waitFor(t, "confirmed panel", c.chromeConfirmed)
+			c.mu.Lock()
+			extent := c.menuExtents[0]
+			c.mu.Unlock()
+			// The selected row would activate on a left press. A following text key
+			// proves the input loop consumed the negative report before assertions.
+			if _, err := fmt.Fprintf(input, "\x1b[<%d;3;%d%sx", report.button, extent.Start+1, report.suffix); err != nil {
+				t.Fatal(err)
+			}
+			waitFor(t, "key after non-activation report", func() bool { c.mu.Lock(); defer c.mu.Unlock(); return c.menu.CurrentFrame().Filter == "x" })
+			select {
+			case got := <-calls:
+				t.Fatalf("non-left report dispatched %+v", got)
+			default:
 			}
 		})
 	}

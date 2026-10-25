@@ -676,6 +676,9 @@ var SourceClassifications = []SourceClassification{
 // the artifact namespace requires an explicit SourceClassification.
 // pair:m5-concept pure
 var NonArtifactSources = []string{
+	// #871 owns explicit private diagnostics and in-memory lifecycle only.
+	"cmd/internal/couchcmd/profiling.go",
+	"cmd/internal/couchcmd/profiling_model.go",
 	// #739 startup/automation/cue policy delegates to existing stores and
 	// transports; none constructs or names Pair artifact filenames.
 	"cmd/internal/couchcmd/automation.go",
@@ -747,7 +750,6 @@ var NonArtifactSources = []string{
 	"cmd/internal/launcher/startup_budget.go",
 	"cmd/internal/startupbudget/budget.go",
 	// #823 editorial settings and embedded mode briefs name no Pair artifacts.
-	"cmd/internal/editorial/catalog.go",
 	"cmd/internal/editorial/document.go",
 	"cmd/internal/editorial/markdown.go",
 	"cmd/internal/editorial/source.go",
@@ -1701,6 +1703,8 @@ var NonArtifactSources = []string{
 	"cmd/internal/couchtty/mouse.go",
 	"cmd/internal/couchtty/mousetrace.go",
 	"cmd/internal/couchtty/menu.go",
+	// #851 pure mouse selection owns no artifact paths or I/O.
+	"cmd/internal/couchtty/menu_mouse.go",
 	"cmd/internal/couchtty/console_operation_adoption.go",
 	"cmd/internal/couchtty/menu_operations.go",
 	"cmd/internal/couchtty/menu_copy.go",

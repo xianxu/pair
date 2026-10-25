@@ -271,7 +271,7 @@ func (r OSRuntime) runtimeRunner(runner couchcore.Runner) couchcore.Runner {
 	// Pair's PAIR_DATA_DIR is already repository-scoped. Clear the inherited
 	// actor destination and pass the selected global root separately so the
 	// launcher computes this actor's scope once, from its own checkout.
-	env := []string{"COUCH_CAPTURE_DIR=", "COUCH_CAPTURE_MAX_MIB=", "PAIR_DATA_DIR=", "COUCH_PAIR_DATA_DIR=" + roots.PairDataDir, "COUCH_STORE_DIR=" + roots.StoreDir, "COUCH_IDENTITY_DIR=" + roots.IdentityDir, "COUCH_ISOLATED_ROOT=" + r.isolatedRoot}
+	env := []string{"COUCH_PROFILE_DIR=", "COUCH_CAPTURE_DIR=", "COUCH_CAPTURE_MAX_MIB=", "PAIR_DATA_DIR=", "COUCH_PAIR_DATA_DIR=" + roots.PairDataDir, "COUCH_STORE_DIR=" + roots.StoreDir, "COUCH_IDENTITY_DIR=" + roots.IdentityDir, "COUCH_ISOLATED_ROOT=" + r.isolatedRoot}
 	// The executable captures this before any temp overlay. Keep the same
 	// namespace authoritative even when an actor supplies a different value.
 	if socketRoot := r.Getenv("ZELLIJ_SOCKET_DIR"); socketRoot != "" {

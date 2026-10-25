@@ -1,0 +1,631 @@
+---
+id: 000838
+status: done
+deps: [ariadne#575]
+github_issue:
+created: 2026-10-23
+updated: 2026-10-24
+estimate_hours: 3.73
+collaboration-mode: collaboration
+card_mirror: '6e6de6296ecbfd81f18aa34f2eda839c638126ab' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-23T14:02:12-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: Xian’s MacBook Pro
+    workspace: pair:3
+    worktree: /Users/xianxu/workspace/worktree/pair-slot3/pair
+    repository: github.com/xianxu/pair
+flow: {kind: full, provenance: operator}
+actual_hours: N/A
+---
+
+# Couch: single collaborative mode and the @@chat@@ carve-out; legacy mode keys mapped or ignored
+
+## Problem
+
+## Spec
+
+Implements ariadne's single-collaborative-mode spec (filed alongside, from the operator's 10-23 pivot) in Couch,
+simplifying pair#823's per-section mode machinery:
+- Rounds follow the one collaborative mode; presentation is always highlight for agent edits.
+- `@@chat@@` above a heading marks a chat section (numbered inputs always get side-doc replies); Couch recognises it,
+  protects the tag as operator-owned, and enforces the chat rule there.
+- Legacy keys: `collaboration-mode: chat` (document-wide or per-section map) maps to the chat carve-out; the
+  presentation and processing keys and instructions are ignored with one deprecation notice per round; nothing new
+  writes them. pair#823's migration command converts old maps to `@@chat@@` tags (operator-run).
+- Remove the per-section mode compiler paths that only served the retired keys, keeping the legacy reads above.
+
+## Done when
+
+- A round on a document with a `@@chat@@` section follows the chat rule there and the collaborative rule elsewhere
+  (test against the spec's fixtures).
+- Documents with legacy keys resolve as mapped, with one notice and no refusal (test; plus a read-only audit of the
+  real ops and brain session docs like pair#823's).
+- Brain's chat document keeps working unchanged.
+
+## Plan
+
+Draft: [single collaborative mode and chat plan](../plans/000838-collaborative-chat-plan.md).
+One atomic full-flow implementation, one issue-close review (no Mx tags).
+
+- [x] Approve design and verify ariadne#575 landing; qualify final scanner/notices against ariadne#576.
+- [x] Pin shared fixtures; simplify the editorial compiler/guards around sidedoc.ChatSections.
+- [x] Wire new highlight rounds, legacy notices and lossless operator map-to-tag migration.
+- [x] Prove public seams, old rounds, real-doc read-only audit and disposable native acceptance; update atlas/help.
+- [x] Inventory and recorded pre-close qualification complete; operator acceptance received; submit the close review and land through the SDLC gates.
+
+## Estimate
+
+Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md` against
+`baseline-v3.1.md`. Method A only. Calibration source reports stale; figures
+are provisional ship wall-clock hours, not machine queue elapsed time.
+
+The design is settled by the approved plan and shared scanner. Library check:
+Goldmark, sidedoc and the stateful session-sync/testcouch rigs already exist;
+there is no greenfield parser or transport. The three smaller Go units are
+compiler/byte adapter, edit-guard projection, and lossless migration. The
+cross-cutting refactor is the distinct wiring/retirement across round, read,
+CLI and source inventory consumers. Native API discovery budgets Claude and
+Codex separately, bounded synthetic runs through the existing harness.
+
+For design choose v2 raw1.0h for issue/spec and skill, raw0.3h per smaller Go
+unit, raw1.0h for cross-cutting refactor, raw0.2h for atlas and raw0.1h for the
+one close review; apply x0.2 thorough-spec discount. Implementation uses the
+upper v2 bounds (0.2h issue, 0.5h per Go/refactor/skill/review, 0.2h atlas,
+0.6h per native API discovery), scaled once by v3.1 x0.4. Familiarity1.5:
+Couch is familiar but this bounded Goldmark/editorial policy and native fixture
+integration is new in this slot. Thorough plan gives +15% design buffer.
+No separate cross-repo implementation overhead: upstream fixes are owned by
+ariadne:2, and no vendor propagation or peer source edits are planned here.
+
+```estimate
+model: estimate-logic-v3.1
+familiarity: 1.5
+item: issue-spec design=0.20 impl=0.08
+item: smaller-go-module design=0.06 impl=0.20
+item: smaller-go-module design=0.06 impl=0.20
+item: smaller-go-module design=0.06 impl=0.20
+item: cross-cutting-refactor design=0.20 impl=0.20
+item: skill-or-dispatcher design=0.20 impl=0.20
+item: atlas-docs design=0.04 impl=0.08
+item: milestone-review design=0.02 impl=0.20
+item: real-api-discovery design=0.00 impl=0.24
+item: real-api-discovery design=0.00 impl=0.24
+design-buffer: 0.15
+total: 3.73
+```
+
+Design0.84 x1.15 + implementation1.84 x1.5 =3.726h, rounded3.73h.
+The operator acceptance is one short stage check already approved in principle;
+Qoder conformance is conditional on credits, with no speculative extra build.
+
+## Log
+
+### 2026-10-23
+
+### 2026-10-23 — claimed and draft plan
+
+#811 completed before claim: its merge runner exited0, tracker/archive and
+main reachability verified, final proof Log published. Claimed #838 in pair:3,
+then start-plan created its fresh-main branch and refreshed the ordinary
+Ariadne dependency. No code, live store or :0 changes.
+
+Read the operator's ops side doc and ariadne#575's issue and committed candidate
+6ae80e4e69aacb72d8745e479791ada7c4454c17. Its shared sidedoc.ChatSections
+already owns tag/legacy grammar and notices (ARCH-DRY). Current Pair source
+still has independent three-axis resolution, runtime briefs and mode filling;
+the durable plan removes those paths while preserving transaction/marker/chat
+ownership and old saved-round decoding.
+
+Cost inspection found shared #575 prefix counting and heading-end scans can
+cost O(B*H+H²). Authenticated ariadne:2 receipt
+c8bda0b0-3e7f-43f4-9301-6a5521d89dc6 confirms it, with no current bound/test;
+the owner takes the linear scanner/count tests and two notice corrections in
+ariadne#576 and is informing the TL. Plan proposes #576 before final fixture
+pin/performance qualification/close, with no Pair scanner fork (ARCH-CONSTRAINTS).
+
+Draft also names a migration compatibility trap: new tags accept numbered
+items, old chat accepts bullets and whole-document/preamble asks. Proposed
+operator transform refuses conversions that alter the eligible-item projection,
+leaving legacy reads fully functional and source untouched. This is explicit
+in the approval request, not a silently chosen product refusal.
+
+Next: commit/push this design and send it to ops:0; wait for plan approval and
+#575 landing before change-code, and #576 for final qualification. No estimate
+yet and no implementation started.
+
+### 2026-10-23 14:08 — approved; waiting for upstream landing
+
+Design commit f6ac0a46af6ffb9a75a28c1c6d520195c8eb426e is pushed. Plan report
+d8885e44-dd35-4de8-af81-86f68720e9e6 is submitted. Authenticated ops:0
+a7ad7cf6-257b-419f-b538-e40f2b0a457b approves the design: migration refusal
+names the affected section, no renumbering; code after ariadne#575 lands;
+final fixture pin/performance/close after ariadne#576; stage check is the
+project live acceptance. Approval is preserved in the plan's Revisions.
+
+Fresh tracker observation still reports ariadne#575 codecomplete/not-landed
+on candidate6ae80e4e69aacb72d8745e479791ada7c4454c17. Exact next step:
+verify its landing on main, refresh the ordinary Ariadne dependency, then run
+sdlc change-code --issue 838 --flow full and satisfy plan-quality before
+deriving the estimate or writing code. No code/change-code or tests yet;
+only design changed and git diff --check passed. No own background check,
+merge runner or stage remains.
+
+### 2026-10-23 — #575 landed; first plan gate blocked
+
+Authenticated ariadne:2 receipt64863819-3103-415b-a904-e29579a5cebf
+reports #575/PR418 landed; GitHub reports MERGED at
+df49c55b9c768a37dfbf4455d13f3ff63543539b. A normal weave refresh correctly
+refused the issue branch before updates; `weave refresh --substrate --planning`
+then advanced the ordinary private substrate to
+c39d1899c04e1176d5bdce47f9f06848dd17ce2c, containing that merge (Git
+ancestor check EXIT0), preserving Pair HEAD. The stale seeded CI workflow was
+deferred without tracked source changes.
+
+change-code --issue838 --flow full ran its mandatory first plan review and
+exited1 before estimates/code: PQ-1 shared-authority-preserves-provenance and
+PQ-2 function-scoped-test-strategy, both Important. PQ-2 is revised into named
+function/adversarial-input/mechanical-guard strategies. PQ-1 was verified:
+Source=tag loses independent legacy grammar; whole-document legacy also
+suppresses valid inner tags needed for source ownership. Upstream #576 owns
+the correction, with Legacy and Tags APIs and their independent invariants
+now explicit in the plan. The item-parser extraction's final signature is
+still forthcoming from its owner. No fallback parser or candidate dependency.
+
+TL ccfe62c7-130f-4095-944f-e13cfa85b3d8 confirmed the upstream fix and normal
+pinned module update. `go get` updated go.mod/go.sum to the verified landed
+#575 pseudo-version v0.0.0-20261023212235-df49c55b9c76 (no replace).
+Existing focused catalog/contract tests passed0.155s with that dependency;
+this is module compatibility evidence, not new feature acceptance.
+
+Next: commit the revised design/ledger and module preparation, rerun the plan
+gate against the explicit #576 API, then derive estimates only on acceptance.
+#576's landed provenance API is necessary before the core adapters can compile;
+final fixture pin/performance/close continue to wait for it. No implementation
+or own long-running check is active.
+
+### 2026-10-23 14:36 — gate accepted; RED baseline; waiting for #576 API
+
+Plan round2 CLEAN disposed PQ-1/PQ-2, no new findings. Derived estimate3.73h
+from the named v3.1 source after acceptance; card setter and deterministic
+reconciliation passed. Estimate review INFO: explicitly account for fixture,
+old-round/public-seam verification and audit/stage preparation within the
+existing items; implementation allowances may be optimistic. Retain those
+risks for actual comparison, not a fabricated precision claim. Issue/spec
+includes completed authoring, cross-cutting work includes public-seam/old-codec
+tests and inventory preparation, atlas/skill includes source fixture guidance
+and real-doc read-only audit; provider discovery covers native qualification
+and its shared harness/stage preparation. Queue and operator idle waits are
+excluded from focused work.
+
+Session86711 exited0 and checkpointed accepted full-flow design at
+4ed7f036fac126928237ad92e9f4e89a17483710. I misread its return status and
+started a redundant confirmation86711->89599: plan passed through cached and
+only estimate review repeated INFO; session89599 also exited0. No bypass or
+code mutation. Do not repeat it merely to reconfirm success.
+
+Added collaborative_test.go against the real existing API. Focused run EXIT1
+with expected RED behavior: tag item resolves non-chat, malformed/unknown or
+duplicate retired values refuse, and deleting a real tag (including under
+whole-document legacy chat) incorrectly succeeds. This is deliberate TDD
+evidence, not a recorded passing suite. Existing catalog/source-pin tests
+on the #575 dependency passed0.155s.
+
+Upstream now exposes Legacy, Tags and shared ChatItems on #576's unlanded
+branch. These APIs are required for the core adapter; no copied candidate or
+local replace. New item API and a suspected mixed-fence defect are recorded
+in the plan Revisions; its owner was asked to qualify that class.
+
+Exact next step: on #576 landing notice verify its Git/main reachability,
+update the pinned Go module and substrate, reconcile final API/fixtures and
+rerun change-code for the clarified plan, then implement the RED regressions
+and remaining planned tasks. No feature implementation or long-running check
+is active. Expected-red tests are checkpointed with this dependency wait.
+
+### 2026-10-23 14:39 — upstream fence qualification corrected
+
+Authenticated ariadne:2 receipt1fbe8bfc-2363-4734-a721-86910b5b597c confirms
+the suspected shared ChatItems fence defect with measured pre-fix failures.
+Fix f8b819032777535397f4eb4be6af4c020def126a on #576's branch uses the
+Goldmark-backed sidedoc.CodeLines mask. Verified the committed shared call and
+test definition by Git inspection; no candidate installed and no local test
+pass claimed. Owner reports mixed/long-fence, indented-code and item-boundary
+coverage plus linear counted CodeLines tests.
+
+Plan Revisions records the CommonMark item-boundary detail and shared CodeLines
+API for final provenance. #838's existing RED baseline remains the current
+local feature evidence. Exact next step is still #576 landing verification,
+normal module/substrate update, final API/fixture reconciliation and required
+change-code refresh before core implementation. No active runner or stage.
+
+### 2026-10-23 17:34 — landed shared API and first core GREEN
+
+Verified ariadne#576 landed; normal weave substrate refresh contains its merge,
+and go.mod pins v0.0.0-20261024002258-354e5fac5c96 without replacement.
+Final API change-code passed (plan round 4 CLEAN, estimate INFO). The three
+previously behavioral-RED collaborative regressions now PASS through the first
+shared scanner adapter: tags route chat, retired values are nonfatal, and tags
+remain owned under whole-document legacy. This is partial implementation,
+not whole-package acceptance. Full editorial tests expose both retired-axis
+expectations and live chat-item integrity cases that must be resolved before
+close. Runtime catalog/API deletion, transaction wiring, migration and broader
+qualification remain outstanding. No recorded suite or stage is active.
+
+Exact next step: preserve the item/structural guards while replacing retired
+axis tests with shared-grammar oracles; delete Catalog arguments and wire the
+existing transaction owner. Bounded migration and new-round tasks are delegated
+in disjoint files. Fixture pin and docs edits are checkpointed here for recovery.
+
+### 2026-10-23 17:41 — single-mode implementation checkpoint
+
+Removed the runtime Catalog, processing briefs/axis resolver/fill paths and new
+proposal generation. Compile/ValidateEdits now accept only immutable source
+facts. New rounds/spans explicitly highlight; old direct/propose decoding,
+rendering and nested unknown-member preservation remain in their existing codec.
+Tag bytes and heading attachment are owned independently of routing, including
+whole-document legacy; section freshness includes ancestor tags. CLI human reads
+print the notice sequence once; JSON exposes the snapshot diagnostics once.
+
+Lossless map-to-tag migration uses shared headings/sections and exact translated
+ask projections. No settings are filled, asks renumbered or independent resolver
+introduced. Bullet/preamble asks, setext attachment and changed continuation
+refuse with a section name. Frontmatter removal precedes ordered insertions,
+so the transform needs no sort. Existing transaction stale/lock/uncertain tests
+remain effective. ARCH-DRY, ARCH-ORDER and ARCH-EVOLVE shaped these choices.
+
+Verification: full sessionsync PASS (9.613s); focused shared CLI/migration/round
+checks PASS, authored native-input preflight PASS, sessionsync editorial+new-round
+race PASS (7.195s). All 13 shared authored primary documents replay through public
+CLI with exact notices, owned sources and final bytes; two move cases remain
+historical fixture evidence. The existing coarse line diff can coalesce adjacent
+chat changes; the chat-tag fixture uses four localized apply transactions. A
+coarse-fullfile refusal is characterized, not bypassed. No new submission diff
+is introduced (#839 remains separate). Generated shared interval fuzz PASS
+5,570 executions; edit-batch oracle fuzz PASS 7,218; migration fuzz PASS 6,314.
+These are bounded runs, not a recorded affected/suite result.
+
+Read-only real ops and brain session audits both compile and validate a no-op;
+second reads prove unchanged bytes. Metadata-only digests/counts are retained in
+workshop/evidence/000838/read-only-legacy-audit.json; no live contents copied.
+Brain's existing legacy chat yields seven eligible items and remains unchanged.
+
+The only current pure-package failure is upstream: malformed and empty answer
+URLs incorrectly set shared ChatItems.Answered. Authenticated ariadne:2 receipt
+f1e61901-6801-4963-92e0-1fd48f09ed01 confirms ariadne#581 owns the correction.
+Both regression cases remain RED; no local fork or weakened expectation. Hub
+incident receipt d28e7692-a776-434c-bda1-0a3ffda1637d is submitted. Final close
+waits for the landed #581 pin, followed by full pure-package/race qualification.
+
+Audited reader inputs before exact certificate commands: historical contract
+reads only its frozen 39 members and #823 provenance (existing fixed scanner);
+new contract reads its 77 exported members plus #838 provenance, under non-Go
+full fallback. document/edits/markdown tests read only frozen editorial fixtures,
+keeping their non-Go fallback. marker_test has no repository reads after retired
+fixture selection was removed, so its certificate is removed. Native acceptance
+reads the selected candidate skill, shared fixtures and testcouch runtime/assets;
+new CLI replay reads exported fixture data. Both retain non-Go full fallback.
+No local-gate configuration or seeded workflow was changed.
+
+Exact next step: run committed-head disposable native editorial qualification
+(Claude/Codex fixture personalities, mechanical CLI conformance, not model
+judgment); retain cleanup evidence. Then pin #581 when landed, complete pure
+checks/inventory, push and record affected per the fleet notice; request the
+hub-authorized operator stage using operator-check.md, then whole close/landing.
+No recorded suite, landing runner or stage lease is active at this checkpoint.
+
+### 2026-10-23 17:43 — native harness setup failure classified
+
+Committed/pushed candidate e1e529ee010157fc0a3e1bf29714235798d34f3a native
+editorial run EXIT1 after 26.284s, before fixture mutation. The added read helper
+unnecessarily invoked session-sync diff, but testcouch's intentionally isolated
+PATH has no diff executable. This is a branch test-harness setup error, not a
+policy failure or registered flake. Exact candidate skill/prefix passed. Shared
+owner teardown confirmed all generations absent, direct child and IO joined;
+Codex did not start. Retained native-e1e529ee-failed.log SHA256
+c13c0cff549e3bdaa724c7d45f549fe7a51b1a2457ab8753292d1b872823901d.
+
+Removed that extra diff call: Read already provides/acknowledges the snapshot
+and no tested editorial action needs a diff subprocess. The harness still uses
+real ActorCLI reads/writes and the same isolated PATH; no provisioner broadening,
+timeout change or blind same-head retry. Re-audited native reader inputs (same
+candidate skill/fixtures/runtime bundle), exact certificate refreshed. Next is
+a new committed-head native run. Pure-core scoped race PASS 4.776s; the two
+confirmed #581 cases remain the only full-package blockers.
+
+### 2026-10-23 17:44 — native PASS; upstream gate remains
+
+Corrected committed/pushed head afb420dc6863376050548e1e7f40697ca09345d2:
+TestNativeEditorial EXIT0, 29.166s total; Claude personality12.31s and Codex
+personality10.02s. Each runs the real selected Couch/Zellij path in an isolated
+store with synthetic fixture workers. Five authored cases per personality cover
+numbered question/command chat, prose marker, legacy bullet map, ordinary command,
+question side-doc and all retired-key notices. Exact parent/side-doc bytes,
+new highlight rounds, unchanged owned-refusal artifacts, migration preview /
+confirm / stale / lossy refusal and candidate skill/prefix passed. Both owners
+explicitly confirm all generations absent and direct child/IO joined.
+Native log native-afb420dc-passed.log SHA256
+580bd3d79b9031008dc194c3c10e76e53e117f275b6b47a10bc0faeea97519c5.
+
+This is mechanical native CLI qualification, not a real model judgment about
+questions versus commands. That semantic/editor experience is in the prepared
+operator checklist and remains required before close. Qoder is installed, but
+the existing shared fixture owner supports only Claude/Codex; no Qoder model
+credits or semantic run is claimed and no speculative adapter was built.
+
+Fresh whole editorial package on this same head fails ONLY the two confirmed
+shared #581 malformed/empty-destination subtests (0.311s); retained exact output
+in core-afb420dc-upstream-581.log. No recorded affected check was queued against
+this known-red dependency. Last inventory PASS; no active stage or landing turn.
+Next: await #581 landing notice, update the normal pinned module, require the
+unmodified regression/full pure package and race PASS, then recorded affected
+on pushed head, hub-authorized operator stage and one issue-close review.
+
+### 2026-10-23 19:27 — pre-close selection contract updated
+
+Authenticated hub receipt3ac9bb0c-8bd5-4c73-bf96-a90900380800 supersedes the
+explicit affected command above: after the #581 pin and passing targeted checks,
+run `sdlc local-check run --pre-close` on the pushed head for close and boarding.
+Current installed help exposes that flag and explains affected selection for a
+train-enabled repository whose main declares it. Inspect its printed choice and
+reason and report a discrepancy to the hub. No check was queued against the
+known-red dependency. Fresh authoritative #581 observation: still not landed,
+claimed by ariadne:2. All other next steps and preserved evidence remain valid.
+
+### 2026-10-23 20:28 — #581 pinned; pure checks GREEN
+
+Authenticated hub dispatch dfeecc73-2520-4a73-815d-b45c926cd920 resumes final
+qualification. Independently verified ariadne PR423 MERGED at
+5a17f789619d3dcaafec62ae51b350833836a3e7, and ordinary weave substrate refresh
+contains that merge. Normal module pin is now
+v0.0.0-20261024032245-5a17f789619d; no replace or candidate fork. Seeded workflow
+refresh remains deferred as its own operator-verified change, not included here.
+
+Repinned export v4 at that landed revision:84 members plus manifest,15 active
+editorial cases and2 historical moves. New authored fixtures cover invalid answer
+links and unread closed frontmatter; all15 replay through public CLI. Historical
+#823 bytes stay unchanged. Native harness now includes both new cases too.
+
+A targeted integration test caught Pair's remaining duplicate direct-link regex:
+Unicode whitespace destinations still marked an ask answered, including an old
+escaped pending marker. Both public edit-guard cases were RED before the fix.
+Removed the duplicate direct-link scan (shared ChatItems already owns it), and
+reused sidedoc.ValidAnswerTarget for appends and decoded historical marker links.
+Both new cases and the old malformed/empty cases now GREEN. No alternate target
+rule, scanner, retry or timeout was introduced (ARCH-DRY).
+
+Fresh whole editorial PASS0.396s, whole sessionsync PASS6.880s; full race on both
+PASS3.823s/19.952s. Focused CLI Editorial/Round/SessionSync/Collaborative PASS1.199s;
+authored native input preflight PASS. Go reports1.27.3. Reader inventory PASS after
+individual re-audits of the four changed readers: same candidate skill/runtime
+and manifest roots, now with the two new exported fixtures; same frozen fuzz
+inputs. Exact certificate commands retained each non-Go full fallback.
+
+Next: commit/push this qualified head; retain `sdlc local-check run --pre-close`
+to completion, inspect its printed selection, and run final exact-head native
+fixtures. Then send the verified revision and checklist to the hub for its
+possibly coordinated #838/#419 stage. No :0 mutation before that coordination.
+Whole issue close/review and landing follow actual operator acceptance.
+
+### 2026-10-23 21:18 — native PASS; recorded fixture dependency failure repaired
+
+Exact-head native run on 8e92803f80a2fef84918d40adc7b35baaac83d70 passed
+34.999s (Claude and Codex, seven authored cases each). Both disposable fleet
+owners proved every generation absent and joined child/IO cleanup. This proves
+the real CLI path using synthetic personalities; semantic real-agent acceptance
+remains the operator's stage check. Raw evidence: native-8e92803f-passed.log,
+SHA256 1237dc29fcc08cb288051e83383819179c181d922369a9b43cd26cc03137f2f0.
+
+Pre-close attempt f933ba7bdbd58992b61fba928e9c6c8e waited normally, selected
+affected then the expected cmd/couch full fallback (hub tracks policy in #853),
+and exited failed before the Go suite. Its source fixture copied affected and
+jsonstrict only, but the pinned planner now imports processgroup, which imports
+pkg/procgroup and x/sys. Targeted repeat reproduced the exact compile failure;
+this is a deterministic fixture assembly defect, never flake or infrastructure
+acceptance. Retained pre-close-8e92803f-qualification-failed.log SHA256
+107ee33a30b1eb4c2ada26ce2e9446861419cd825acd9b73338ceb75861b23ed.
+
+Repair b3da4973e copies all four unmodified provider packages plus that same
+snapshot's go.mod/go.sum into a disposable root module. No planner fork, fake
+process implementation, gate configuration change, retry or timeout change
+(ARCH-DRY). Sibling qualification PASS18.146s, installed #581 module PASS20.091s,
+exact #581 Git-ref PASS22.022s; each checked778 distinct group/file inputs.
+Affected inventory and diff whitespace checks PASS. Hub and pair:2 were informed;
+#851 holds the :0 stage lease. No stage mutation was made.
+
+Next: push the repaired checkpoint and run one new recorded --pre-close check.
+After PASS, coordinate with pair:2 for the authorized staging-only combined
+main+#851+#838 build, not pair:6's superseded stage. Operator checklist is
+workshop/evidence/000838/operator-check.md. Actual live acceptance, whole-issue
+close/review and landing remain outstanding. Never restart while the new own
+recorded check is queued/running; retain its runner and FIFO.
+
+### 2026-10-24 00:03 — pre-close pin-integration failure; adoption #861 first
+- 2026-10-24: closed — BR-1 fixed at dfdfb47c5: preserved declaration owner must equal the mapped original heading independently of routing. Tag and chat/retired directive transfers reproduced before fix in pure ValidateEdits, BuildEdit, and seven public write seams; regressions now PASS with refusal artifact preservation and legitimate index shifts. Full editorial/session-sync race PASS5.127s/146.408s; inventory EXIT0 immediately before close. Fresh --pre-close running on pushed fix and must pass before landing; prior full PASS13m57s on11ebba30. Operator PASS command/question/chat steps on combined3d0135b0, stage cleared through SDLC. This fix completes existing operator-owned attachment protection, no new UI. Atlas/help current; hub owns project. Precise --no-actual approved in authenticated hub f0056229 for observed refusal measurement branch proof: measurement sources exceed snapshot limit 128; issue window 2026-10-23T14:02:12-07:00 through 2026-10-24 current dfdfb47c5 checkpoint; no typed hours.; review verdict: SHIP
+
+Retained pre-close attempt5966ebc327601a4b5febe2c1bdf4ed3f on8448a507ba579038d83eadf15ab70810bc8a030f finished FAILED11m41s. Qualification fixture repair passed. The complete named failure set was repolint build (Rule.Match now requires CheckContext) and artifactpath.TestProductionArtifactReferencesAreExactlyClassified (retired editorial/catalog.go still named in NonArtifactSources). Targeted tests reproduced both; removed only that stale inventory entry, artifactpath whole package then PASS34.182s. Suite log retained as pre-close-8448a507-pin-adoption-failed.log, SHA25669149fe9335d1b664e172bc0a7bcd1482b04a33bb54c68f828ab00d279f0d9c0.
+
+A minimal AST-only catalog adapter compiled, revealing51 newly active lint findings:40 test-shrunk-deadline,5 test-socket-fixture-root,5 json-recursive-scanner,1 tmp-literal. Raw capture retained as catalog-pin-findings.log. Adapter patch saved at /tmp/pair838-contextual-lint-adapter.patch, removed from this checkout for the independent main-based adoption. No rules were disabled, no waivers, no new suite or stage.
+
+Filed unclaimed #861 with exact evidence and findings. Authenticated hub dispatch a942ac93-44d3-441a-90c6-a627e3cd83ed assigns adoption to this slot, on its own branch from main, and approves adoption-first sequencing. #838 cannot use main's old81c832d5: production requires ChatSections and RetiredKeys (#575), Legacy/Tags/Headings/ChatItems provenance and linear CommonMark behavior (#576), and ValidAnswerTarget plus unread-header fixes (#581). Keep the normal required pin; never fork this shared authority.
+
+Next for #838: after #861 lands, integrate main, verify inventory and rerun --pre-close. On PASS coordinate main+#851+#838 staging-only combined build with pair:2 (owns :0 lease); parley.nvim#419 is separately staged. Actual operator acceptance, whole-close/review and landing remain pending. No own runner remains live now. Work resumes on #861 next.
+
+
+### 2026-10-24 — adoption landed; integrated targeted qualification
+
+#861 landed PR580 as965ba1ee6097dba463e75a3409547bf589904430, tracker done/archive verified. Merged landed main75594fccb65aee96bc538d8690ff7396c669f19c into this original issue branch. Resolved modify/delete catalog.go/catalog_test.go by preserving this issue's approved deletion; no runtime consumers remain. Adopted main's go.sum, removing only obsolete intermediate pin sums; go.mod stays normal581. Combined artifact manifest preserves this issue's deleted catalog removal and861's new root scanner/cue helper entries. No protected gate config changed.
+
+Fresh targeted checks PASS: full editorial race5.736s, full sessionsync race61.458s, public CLI Editorial/Round/SessionSync/Collaborative11.126s, full artifactpath23.433s and repolint21.042s. Reader inventory and diff whitespace checks PASS without certificate refresh. No runtime behavior resolution beyond the approved catalog deletion, no new pin, timeout or suppression.
+
+Next: commit/push integration, rerun exact-head native editorial through shared disposable Claude/Codex personalities, then one recorded --pre-close. On PASS send exact qualified head to pair:2 for the authorized combined main+#851+#838 stage. Pair:2 reports851 repaired-head suite PASS and preserves its lease. Operator semantic/render acceptance and this issue's mandatory whole close/landing still remain pending.
+
+### 2026-10-24 — integrated native blocked by shared startup harness
+
+Exact integrated229e2925ab14c8ad7d537a76c89ed046563e3a47 native editorial rerun EXIT1 after324.602s. Claude personality failed Fleet.Start before any editorial case, with steward startup context deadline exceeded; terminal shows threads, hub Ctrl+Space:start and startup:full-shutdown; missing hubs. No actor was started (startup_sources=0, no wrapper-startup.log; empty Zellij server log). Default Options.ExplicitHub=false uses bare Couch, so this extends #863's documented startup-waits-for-auto-agent symptom beyond its explicit-hub reproduction. Fleet.Start still calls WaitAgent(ctx,0) without driving the public start gesture. No #838 edit/read/migration case ran. Codex was not attempted after the first personality failed.
+
+Retained native-229e2925-startup-failed.log, SHA256 27c423eb7f20746631a44c145cb6cd3208b85f8d924d68c930ce53873103da3e. Native owner61220568ef76be9721ce154d6f9af34f cleaned root /Volumes/TestScratch/pc-1766773190: all owned generations absent; direct child/IO joined. Failure capture includes empty server tail and absent wrapper diagnostics. Prior exact8e928 native14 authored cases passed before this main startup change; that evidence remains historical, not current-head native acceptance. No timeout, retry or startup workaround added.
+
+Hub notified of the #863 family occurrence; shared harness repair/acceptance sequencing is its call. Proceeding with the already-required recorded --pre-close on this integrated source while preserving the native qualification gap. Stage still requires recorded PASS and hub coordination with851; no :0 mutation.
+
+### 2026-10-24 — authorized native operator bootstrap
+
+Authenticated hub2da96548 authorizes native qualification to bootstrap via the operator's explicit start gesture instead of waiting for863. Peer pair:6 supplied the measured root/form/path/agent-preview/Enter sequence (f304cdb7); no unlanded runtime code imported. Added only an opt-in PAIR_NATIVE_EDITORIAL_BOOTSTRAP=1 path to the native test. It runs Fleet.Start concurrently, waits for the cold switcher root before Ctrl+Space, supplies the absolute primary path, selects the requested agent through the real form, waits for accepted repo-default preview, and presses Enter once. Start is joined on success and on failure/cancel. Existing editorial steps and300s whole-operation budget remain unchanged; no new timing threshold, shared harness mutation or product behavior. Once863 repairs default startup, ordinary runs omit this temporary qualification flag.
+
+The earlier queued check a802e54730ddd8193f255cffcb6f7b8a / lease-231693481 was still waiting at FIFO6, never executing. Cancelled exactly that owned lease through sdlc; terminal joined EXIT1 naming suite lock interrupted:context canceled, with no test result. Requeue only the final bootstrap head. This avoids an obsolete recorded test head.
+
+Re-audited the one changed reader: original candidate embedded skill/runtime and contract838 fixture trees, generated native mailbox/files, and existing public agent inventory; no new repository read population. Re-recorded only editorial_acceptance_test.go with its existing non_go_full_fallback. Fresh inventory PASS, public authored fixture tests PASS0.213s, full catalog PASS9.377s. Next: commit/push this test-only adaptation, native run with explicit bootstrap on both personalities, then final-head recorded --pre-close.
+
+### 2026-10-24 — integrated native operator-bootstrap PASS
+
+Exact committed fa4d09531 native qualification with PAIR_NATIVE_EDITORIAL=1 PAIR_NATIVE_EDITORIAL_BOOTSTRAP=1 completed EXIT0 in62.010s. Claude and Codex each passed all7 authored cases (14 total), exact parent/side-doc outputs, highlight rounds, shared notices, ownership refusals, and migration preview/confirm/stale/lossy checks. Both isolated owners proved all generations absent and direct child/IO joined. This is mechanical synthetic-agent conformance; operator semantic/render acceptance remains pending. No live fleet was touched.
+
+Raw native-fa4d0953-bootstrap-passed.log SHA256 cbf894e8473c96015c315a9d6b4298c2eb5bb81a2bb4b64221109661692ad9ba. The explicit start gesture resolved the previously captured startup-only failure without changing editorial assertions, product code or budgets. Default startup remains owned by863. Next: push this evidence-only checkpoint, queue one final --pre-close, retain runner/FIFO and tell hub its exact queue identity for offered priority. On PASS coordinate exact reviewed head/checklist with851's owner for the combined stage; never overwrite its lease independently.
+
+### 2026-10-24 — final pre-close PASS; combined stage authorized
+
+Final attempt d5ff06fcc08943438e527f71129b0428 / lease-349662035 completed EXIT0 on11ebba30e8e9d15e399f7c2f26d0ac0ad5858f16, full fallback runtime13m57s after826s FIFO. All shell/editor and Go packages PASS, including editorial, sessionsync, artifact ownership and full lint catalog. Raw /Users/xianxu/workspace/pair/.git/sdlc/local-checks/11ebba30e8e9d15e399f7c2f26d0ac0ad5858f16/suite.log SHA2564ccc4bb02b24017a3983d95ba367a6565c3ca3f5fcf367c415729e2def3dc040. No retries or waivers. No own recorded runner remains.
+
+Authenticated hub fee71432 assigns this slot the morning combined stage: fresh main with856, plus qualified851,838 and842;857 only if already green, never wait. Fresh main7cb0b672ebb6aca081ae63f19c27b0aafc45270f includes856 merge556c8a2de25c66d8ca71009a46bd38cdcb07ef9a by ancestor proof.851 owner supplies d74a152d8b18978dbcda2c9961067678f5854069;842 owner supplies7b76b99218dccced46a984e41f8bea00d6681af8 and corrected suite PASS12m25s (9060ae6a). Git comparison independently confirms both heads differ from their recorded passes only in issue/review Markdown.857 owner says still implementing; excluded at assembly.
+
+Combined checklist is workshop/evidence/000838/morning-combined-check.md. Assemble a local staging-only branch without changing any issue source branch, verify the combined candidate, then ask851 owner to clear its lease through sdlc stage --clear. Wait for its verified clear before sdlc stage --build. Keep the combined ref while staged; after joint acceptance clear this combined stage before individual landing. Operator acceptance and this issue's whole close remain outstanding; no project tick by this worker. Future close measures normally after authenticated hub610633cc deployed ariadne591 and ended the resting-window --no-actual exception.
+
+### 2026-10-24 — combined morning stage BUILT; operator acceptance pending
+
+Hub-authorized staging-only ref000838-stage-morning-20261024 is3d0135b0021209730956929c8926e30f9799ba79, containing pinned main7cb0b672 with856,838 checkpoint907ff487,851d74a152d and8427b76b992.857 was not green at assembly and was excluded without waiting. All three local staging merges were clean; no conflict resolution or issue source edits. Full combined targeted UI/editorial/board/shortcut checks PASS, focused feedback/send PASS,30 Node cases PASS, lint/artifact/inventory PASS. Exact evidence is workshop/evidence/000838/morning-stage-provenance.md.
+
+851 owner authenticated1bbd6f4f released its lease through supported clear. Then sdlc stage --build EXIT0 acquired838 stage on pair:0. All5 binaries report vcs.revision=3d0135b0021209730956929c8926e30f9799ba79, vcs.modified=false. Fresh Git confirms target HEAD at that pin, tracked tree clean. Already-running Couch is not restarted by this worker; the operator restarts once for the joint check. Returned to this original838 feature branch; retained combined local ref for stage reachability. Owner851's later f3f461bf4 is Log-only; its handed-off source is unchanged.
+
+Next: wait for the operator's per-issue acceptance through the hub using morning-combined-check.md, jointly with parley.nvim419's separate stage. On feedback fix the owning branch and requalify/restage through coordination; never edit the combined stage as development. On all required acceptance, clear this combined838 lease through sdlc stage --clear while838 is active, then fresh inventory and whole sdlc close with measured actuals, make PR584 ready and land through normal sdlc merge. Do not land the staging-only merge; keep its local ref until clear. No own test/review/merge process remains active now.
+
+### 2026-10-24 10:32 — partial operator results; retain combined stage
+
+Authenticated hub56354f08 explicitly says keep the combined stage and do not clear.851 switcher PASS and856 Notes panel PASS;851 lands independently.842 Send FAIL sends to the focused pane instead of the draft; pair:7 owns that repair.838 with parley.nvim419 is not checked yet; operator is still on it. No838 acceptance inferred from another issue's PASS. Pair:0 was freshly observed at combined3d0135b0021209730956929c8926e30f9799ba79; no target mutation.
+
+Next: remain available for the hub's editorial result, retaining the838 lease and combined local ref. Follow the hub's subsequent clear/restage instruction through supported SDLC; never clear on851 acceptance alone.838 whole close and landing remain pending. No test, review or merge runner is active.
+
+### 2026-10-24 — operator acceptance and supported stage release
+
+Authenticated hub receipt 541f5c7b-9a3d-4fe8-a2bb-3e620c907431
+(ops:0 to pair:3, submitted) records the operator's #838 PASS on combined
+3d0135b0021209730956929c8926e30f9799ba79: “works really well inside couch!”
+for checklist steps 1–3 (command, question side document, @@chat@@ answers).
+This completes the agreed real operator acceptance alongside the retained
+native mechanical proof. #851 and #856 also passed; #842 failed separately
+and remains pair:7's repair and re-look, outside this issue.
+
+Following the hub's explicit clear instruction, the original supported
+sdlc stage --clear runner completed EXIT0. pair:0 returned to clean main
+at e2f58424b124c38b4340acee459f21fa009394f2; all five rebuilt binaries report
+that revision and vcs.modified=false. The shared #838 stage lease is released.
+The staging-only combined branch is retained as provenance and will not land.
+The feature branch remains unchanged in code since the passing recorded
+11ebba30 suite (13m57s; SHA256 4ccc4bb02b24017a3983d95ba367a6565c3ca3f5fcf367c415729e2def3dc040).
+Next: inventory, whole close with normal measured actuals and its mandatory
+review, then the authoritative merge runner after SHIP. No landing is claimed.
+
+### 2026-10-24 — whole close blocked before review by measurement snapshot cap
+
+The first whole close on pushed dbbc04e6a exited1 before dispatching its review:
+“measurement branch proof: measurement sources exceed snapshot limit 128”.
+The measured-actual gate could not compute evidence; no hours were typed and
+no gate was waived. The runner terminated and released the shared repo lock.
+Requested evidence recovery or a precise measurement-only exception from the
+hub in receipt 772d2c5f-4cf3-4405-a5fb-bac736872ffe. Operator acceptance and
+recorded verification remain intact. Next: follow the hub's measurement recovery
+decision, rerun inventory immediately before whole close, then land after SHIP.
+
+### 2026-10-24 — BR-1 declaration attachment identity
+
+Whole close round1 returned REWORK with one Critical BR-1
+(operator-authority-association). Independently reproduced before the fix:
+ValidateEdits and BuildEdit accepted an inserted heading that stole an existing
+tag; all seven public registered/legacy whole/section/apply/ApplyFile paths
+accepted tag and heading-directive transfers under redundant legacy chat.
+Those regressions failed for the expected missing operator-owned refusal.
+
+The class is declaration-to-owner identity independent of effective routing:
+frontmatter remains document-owned; tags and legacy heading directives remain
+attached to their mapped original heading. Reuse the existing heading mapping
+and compare each candidate OwnedSource.Heading against that original owner;
+no parser, state, retry or timeout is added (ARCH-SECURE, ARCH-PURPOSE).
+Tests cover scalar/default-map redundancy, chat/retired directives, public
+artifact preservation, and permitted unrelated heading insertions that shift
+indexes. Re-audited edits_test.go's only non-Go input: unchanged contract
+editorial example glob used as fuzz seeds; retained non_go_full_fallback.
+Fresh executable verification and pre-close are required before another review.
+
+### 2026-10-24 — BR-1 targeted verification complete
+
+New regressions failed before the fix and passed afterward: focused editorial
+0.158s and session-sync 34.127s. Whole-package race checks passed editorial
+5.127s and session-sync 146.408s. Inventory and git diff --check passed.
+The new owner comparison adds constant work per declaration to existing
+monotone source/heading joins; counted traversal tests remain green.
+Authenticated hub f0056229 grants the precise --no-actual exception for the
+128-source refusal; retain its exact refusal and affected window in the next
+close's --verified. Next: push this fix, run --pre-close, and submit the whole
+close again (round1 was REWORK and did not finalize a close generation).
+
+### 2026-10-24 — SHIP, final-code recorded check retained before boarding
+
+Whole close round2 finalized SHIP with BR-1 addressed. Reviewer independently
+removed the owner comparison in a Go overlay and reproduced the pure and
+public-path failures; the pinned fix passed. No blocking finding remains.
+BR-2 is a Minor advisory: CLI help still says resolved briefs/every mode.
+It is retained in the close ledger; no post-close executable change is claimed.
+
+PR584 is ready. The first merge runner exited1 at the train boarding gate:
+“PR #584 needs recorded local checks on its head: affected or its full-suite
+fallback”. Its explicit recovery says retain a queued/running affected or suite
+check, then retry merge after it passes. The fresh final-code full fallback is
+already queued on dfdfb47c55bd4655d9401712bec710e1b7593b6f,
+attempt 0badb8a5914ae357e677a0deecab0ed7, lease-2996623973,
+retained terminal55443 (normal FIFO, last observed position7). No duplicate
+check or merge was started. Close/evidence descendants are documentation-only.
+Next: read that retained result; on PASS update the record and re-enter one
+sdlc merge --yes. On failure classify it before any repeat. The combined stage
+is cleared and operator acceptance remains recorded. No landing yet.
+
+### 2026-10-24 — final-code recorded suite PASS; resume landing
+
+The retained pre-close runner terminal55443 completed EXIT0 on repaired
+code dfdfb47c55bd4655d9401712bec710e1b7593b6f in 12m37s, recorded
+sdlc-local/suite. Attempt 0badb8a5914ae357e677a0deecab0ed7 and
+lease-2996623973 were retained through the normal machine queue without
+requeue, cancellation or manual full-suite execution. Saved log:
+.git/sdlc/local-checks/dfdfb47c55bd4655d9401712bec710e1b7593b6f/suite.log
+SHA256 38c2b54d76e219ea3bea2501409300e49b91597d8de48c57a6dcf62970a46af2.
+Close remains SHIP, operator PASS recorded, later descendants are documentation
+and close evidence only. The boarding precondition is now satisfied; next is
+one sdlc merge --yes and its authoritative integration/landing gates.
+The authenticated overload notice 4e752163 is in force: no out-of-queue full
+suites or native matrices; any integration verification stays queue-budgeted.
+
+## Revisions
+
+### 2026-10-23 — initial implementation design
+
+Expanded the empty Plan after the TL's dispatch, preserving the operator's
+Spec and Done when. Recorded the approved ariadne#575 dependency, shared
+scanner ownership and one atomic review boundary. Proposed (not yet approved)
+lossless-only migration refusals and ariadne#576 final qualification, with the
+reasons and alternatives in the durable plan.
+
+### 2026-10-23 14:08 — approved migration detail
+
+TL approval makes the draft's lossless-only migration refusal part of this
+implementation contract; the refusal must name the affected section. Upstream
+sequencing and project operator acceptance are approved as recorded above.
+
+### 2026-10-24 — checkpoint placement correction
+
+Moved the dated adoption, native-check, pre-close and stage checkpoints from below Revisions into the existing Log, preserving their text and evidence. They record execution outcomes, not design revisions. The original design revision entries remain unchanged; partial operator acceptance is appended to Log. No source or approved contract change.
+
+### 2026-10-24 — BR-1 attachment protection clarification
+
+The existing operator-owned declaration contract explicitly includes its
+original heading association even when redundant legacy chat leaves routing
+unchanged. Enumerate tags and legacy chat/retired heading directives under
+scalar/default-map authority; reject attachment transfer across pure and
+public write paths, while permitting unrelated heading/index shifts.

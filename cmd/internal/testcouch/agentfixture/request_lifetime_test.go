@@ -67,16 +67,18 @@ func TestRequestCancellationAcknowledgesJoinedChild(t *testing.T) {
 		t.Fatal(err)
 	}
 	marker := filepath.Join(config.Root, "child-pid")
-	if err := WriteCommand(config.ControlDir, Command{ID: "active", Kind: Exec, Timeout: time.Hour, Args: []string{"-c", `printf '%s' "$$" > "$1"; exec sleep 30`, "fixture", marker}}); err != nil {
+	if err := WriteCommand(config.ControlDir, Command{ID: "active", Kind: Exec, Timeout: time.Hour, Args: []string{"-c", fixtureLeaderPID, "fixture", marker}}); err != nil {
 		t.Fatal(err)
 	}
-	waitFixture(t, func() bool {
-		raw, err := os.ReadFile(marker)
-		_, parse := strconv.Atoi(string(raw))
-		return err == nil && parse == nil
-	})
-	raw, _ := os.ReadFile(marker)
-	pid, _ := strconv.Atoi(string(raw))
+	waitFixture(t, func() bool { return fixtureLeaderPIDReady(marker) })
+	raw, err := os.ReadFile(marker)
+	if err != nil {
+		t.Fatal(err)
+	}
+	pid, err := strconv.Atoi(string(raw))
+	if err != nil || pid <= 0 {
+		t.Fatalf("published PID=%q: %v", raw, err)
+	}
 	if err := CancelCommand(config.ControlDir, "active"); err != nil {
 		t.Fatal(err)
 	}

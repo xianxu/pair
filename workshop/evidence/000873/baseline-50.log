@@ -1,0 +1,9 @@
+--- FAIL: TestFreshStartupRunSerializesLaunchThroughAdoption (0.54s)
+    fresh_startup_run_test.go:199: startup failed: lock thread store: resource temporarily unavailable; effects:
+        launch:/Volumes/TestScratch/tmp/pair-slot7/TestFreshStartupRunSerializesLaunchThroughAdoption3396466492/001/bench
+        adopt:/Volumes/TestScratch/tmp/pair-slot7/TestFreshStartupRunSerializesLaunchThroughAdoption3396466492/001/bench
+        adopted:/Volumes/TestScratch/tmp/pair-slot7/TestFreshStartupRunSerializesLaunchThroughAdoption3396466492/001/bench
+FAIL
+write budget couchcmd: bytes=11812864 cap=5033164800 repeats=50
+FAIL	github.com/xianxu/pair/cmd/internal/couchcmd	102.680s
+FAIL

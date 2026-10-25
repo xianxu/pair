@@ -1,0 +1,10 @@
+{
+  "kind": "read-only-live-document-qualification",
+  "observed_on": "2026-10-23",
+  "method": "Compile plus ValidateEdits with no changes; reread confirms exact bytes unchanged",
+  "content_retained": false,
+  "documents": [
+    {"path": "/Users/xianxu/workspace/ops/session.md", "bytes": 11597, "sha256": "edbbef6f485848535c22acaa46d11f7863ffebdd24526d6b654103c70b882fc7", "headings": 16, "sections": 1, "items": 2, "notices": 2, "owned": 4},
+    {"path": "/Users/xianxu/workspace/brain/session.md", "bytes": 2393, "sha256": "209039c78a90e5e8ceae703735a2e76d0194dae1dded26fec8a2cb8b7883262d", "headings": 2, "sections": 1, "items": 7, "notices": 1, "owned": 1}
+  ]
+}

@@ -40,12 +40,11 @@ func TestSourceObserverMatchesDefaultGoldmark(t *testing.T) {
 }
 
 func TestListSourceObserverTrailingBlankAndOutsideBoundary(t *testing.T) {
-	c, _ := DefaultCatalog()
 	for _, tc := range []struct{ name, item, after string }{{"lazy rollback", "- Ask\nlazy continuation\n", "\nOutside paragraph.\n"}, {"interrupting heading", "- Ask\n", "# Outside heading\n"}, {"empty item", "-\n", "\nOutside.\n"}, {"quoted blank", " > - Ask\n", " >\n\nOutside.\n"}, {"unicode content", "- Ask\n  \u00a0\n", "\nOutside.\n"}} {
 		t.Run(tc.name, func(t *testing.T) {
 			prefix := "---\ncollaboration-mode: chat\n---\n# Chat\n"
 			src := prefix + tc.item + tc.after
-			p, e := Compile([]byte(src), c)
+			p, e := Compile([]byte(src))
 			if e != nil {
 				t.Fatal(e)
 			}
@@ -57,7 +56,6 @@ func TestListSourceObserverTrailingBlankAndOutsideBoundary(t *testing.T) {
 }
 
 func TestListSourceObserverGrowth(t *testing.T) {
-	c, _ := DefaultCatalog()
 	previous := 0
 	for _, n := range []int{64, 128} {
 		var source strings.Builder
@@ -65,7 +63,7 @@ func TestListSourceObserverGrowth(t *testing.T) {
 		for i := 0; i < n; i++ {
 			fmt.Fprintf(&source, "- Ask%d\n\n  ```\n  ```\n\n  Last continuation.\n\n", i)
 		}
-		p, e := Compile([]byte(source.String()), c)
+		p, e := Compile([]byte(source.String()))
 		if e != nil {
 			t.Fatal(e)
 		}
