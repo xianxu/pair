@@ -49,7 +49,10 @@
   the Go-reader inventory requires re-audit for new or changed source readers.
   Its per-reader certificates live in `tests/affected-readers/<reader-path>.json`;
   `make affected-readers READER=<path> DISPOSITION=<audited-kind>` refreshes just
-  that audited reader, preserving independent changes and unknown JSON fields.
+  that audited reader, preserving independent changes and unknown JSON fields
+  (including optional `reads`). Through SDLC's sidecar declaration (pair#853), a
+  certificate change selects its test's package, and `cmd/couch/*_test.go` selects
+  `cmd/couch` alone; `tests/affected-config-test.py` qualifies both on the real planner.
   `--remove` retires certificates after reader removal; no shared index is generated.
   The environment guard runs once; groups share a private Pair executable.
   The operator owns the local-gates label; the hub owns first recorded

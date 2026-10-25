@@ -2306,6 +2306,11 @@ refuse; SDLC records docs-only passes without invoking the runner.
 
 Non-Go source populations with Go file readers (`nvim`, `zellij`, `doctor`,
 `bin`, `scripts`, `tests` and shared `testdata`) conservatively force full coverage.
+Two narrowings rely on SDLC's declared ownership (pair#853): a reader certificate
+under `tests/affected-readers/` selects exactly what its test file selects (added,
+deleted and renamed certificates included), and a `cmd/couch/*_test.go` edit
+selects `cmd/couch` alone. A test file is not built into the binary that native
+consumers compile, so couch production files still force full.
 Makefiles, module metadata, gate configuration and executable dispatch also force
 full. Unknown, deleted or platform-excluded package paths retain the full fallback.
 Every valid selection runs the environment-inventory guard `test-make-env` once
@@ -2319,7 +2324,12 @@ coverage, regenerate only that certificate with
 `make affected-readers READER=cmd/path/example_test.go DISPOSITION=local_or_literal_fixture`
 (or `fixed_scanner` / `non_go_full_fallback`, as audited). New readers must be
 tracked first; source scanners require every test registered in `SOURCE_GUARDS`.
-`make test-affected-inventory` checks all certificates without refreshing hashes.
+`make test-affected-inventory` checks all certificates without refreshing hashes;
+every affected run runs it, so a certificate-only change is still audited.
+A certificate may declare optional audited `reads` (repository paths or globs).
+SDLC reads them from main, and a change to a declared input adds the test's
+package to the selection. They never remove an input's own full rule, so they
+narrow nothing by themselves. Refreshing a certificate keeps `reads`.
 For a removed reader, run the exact `--remove` command printed by the audit.
 Independent reader edits share no certificate or generated index.
 An independent source-walker check requires preflight registration even for a

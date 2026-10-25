@@ -7,7 +7,7 @@ require (
 	github.com/charmbracelet/x/ansi v0.11.7
 	github.com/charmbracelet/x/vt v0.0.0-20260510215043-e3181689be6b
 	github.com/creack/pty v1.1.24
-	github.com/xianxu/ariadne v0.0.0-20261024032245-5a17f789619d
+	github.com/xianxu/ariadne v0.0.0-20261025155159-9678ee65384b
 	golang.org/x/image v0.46.0
 	golang.org/x/net v0.55.0
 	golang.org/x/sys v0.48.0

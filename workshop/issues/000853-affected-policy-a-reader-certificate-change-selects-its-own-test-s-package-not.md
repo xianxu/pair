@@ -48,12 +48,12 @@ declares (ARCH-DRY). Quick flow: production change is a few lines of `.sdlc/affe
 **Local-gates:** `.sdlc/*` is on `local-gates-guard.yml`'s protected list, so the PR needs the operator's
 `local-gates-verified`; I never apply it.
 
-- [ ] Repair the qualification harness (`tests/affected-config-test.py`, run by `make test`). On the current provider it
+- [x] Repair the qualification harness (`tests/affected-config-test.py`, run by `make test`). On the current provider it
   fails to compile: `jsonstrict` moved to `cmd/internal/jsonstrict`, and `Plan` takes `(paths, g, cfg, m, isDoc)`.
   Copy the moved package, call `affected.Compile(cfg, sidecars)` with the repository's real certificates, and pass the
   mapping to every `Plan`. The provider gate requires #598 (`SidecarFile` in `mapping.go`), since an older planner's
   strict parse refuses the new members. Older providers make the test skip, not pass.
-- [ ] `.sdlc/affected.json`, additive members only:
+- [x] `.sdlc/affected.json`, additive members only:
   - `"sidecars": [{"prefix": "tests/affected-readers/", "suffix": ".json"}]`: a certificate path aliases its test,
     so it selects that test's package and its dependents.
   - `"tests/**"` becomes `{"glob": "tests/**", "except": ["tests/affected-readers/**"]}`. Everything else under
@@ -61,7 +61,7 @@ declares (ARCH-DRY). Quick flow: production change is a few lines of `.sdlc/affe
   - `"cmd/couch/**"` becomes `{"glob": "cmd/couch/**", "except": ["cmd/couch/*_test.go"]}`. A test file is not
     compiled into the couch binary that native consumers build, so a test-only edit selects `cmd/couch` alone. Its
     production files stay full, and `cmd/couch/testdata/**` is still full through `cmd/**/testdata/**`.
-- [ ] Qualification cases against the real planner and real certificates:
+- [x] Qualification cases against the real planner and real certificates:
   - `tests/affected-readers/cmd/internal/testcouch/agentfixture/request_lifetime_test.go.json` (#825) selects
     `…/testcouch/agentfixture` and its dependents, not full.
   - `cmd/couch/main_test.go` and `cmd/couch/editorial_acceptance_test.go` select `cmd/couch` exactly, not full;
@@ -73,17 +73,20 @@ declares (ARCH-DRY). Quick flow: production change is a few lines of `.sdlc/affe
     `cmd/couch/sub/x_test.go` (`*` does not cross `/`), and a certificate together with a full path.
   - A fixture certificate with `reads: ["nvim/x.lua"]` shows the declared read selecting the test's package. That
     input's own `full` rule still wins.
-- [ ] Recorder: `--record` keeps `reads` byte-for-byte when it refreshes a certificate's hash (a test beside the
+- [x] Recorder: `--record` keeps `reads` byte-for-byte when it refreshes a certificate's hash (a test beside the
   existing unknown-member round-trip test). Every affected run already runs `make test-affected-inventory`
   (`scripts/test-affected.py:500`), so a certificate-only change is still audited.
-- [ ] Docs: README's certificate paragraph and the atlas affected entry say what a certificate change selects, and
+- [x] Docs: README's certificate paragraph and the atlas affected entry say what a certificate change selects, and
   that `reads` is optional and narrows nothing by itself.
 
-**Out of scope (proposed follow-up, filed unclaimed):** adding audited `reads` to the 589 real certificates. Every
+**Out of scope (filed unclaimed as pair#893, TL-approved):** adding audited `reads` to the 589 real certificates. Every
 non-Go input a reader uses is covered today by a `full` glob or a group. A `reads` entry only adds the reader's package
 to an input's selection; it never removes the input's own `full` rule. So until those `full` rules narrow, populating
 `reads` changes no selection, and it costs one audit per reader. The issue's "(and the reads it declares)" is
 satisfied by the mechanism and the fixture case above.
+
+- [x] Bump pair's `go.mod` pin of ariadne to main 9678ee653 (contains #598), so the suite qualifies against a #598
+  planner instead of skipping (Revision 2026-10-25).
 
 ## Log
 
@@ -100,6 +103,28 @@ Ops approved the provider split (delivery e3fddf94-32aa-4044-99a5-c68e0cd84276).
 
 **NEXT ACTION:** after ariadne#598 lands, resume this branch, integrate main and the provider, audit all certificate readers, finalize the consumer plan and obtain TL approval before change-code. Include #825's request_lifetime certificate and cmd/couch main_test.go/editorial_acceptance_test.go exact selections, unknown/deleted/renamed cases, explicit full precedence and actual native fixture reads. Local-gates configuration needs operator verification. In the meantime TL explicitly directed pair:1 to work #844 on its own branch from main; no stacking.
 
+### 2026-10-25 — implemented (pair:6)
+
+TL approved the plan (delivery df08c2a2) and then option A for the pin (delivery 280602da).
+- **TL's question:** main's suite is green today. Its checkout has no sibling ariadne, so `tests/affected-config-test.py`
+  qualified against the `go.mod` pin ariadne@5a17f789619d, which predates #598. The suite logs for bf9f1501 and
+  9ff56625 both print that source. It is red only where a #598 sibling exists (this slot: compile failure on the moved
+  `jsonstrict` and `Plan`'s new arguments) or after a pin bump.
+- **Pin bump spread** (`go get github.com/xianxu/ariadne@9678ee653`): only ariadne moved. No source fixes were needed:
+  `go build ./...` passes, and so do editorial, repolint (golint catalog) and the couchcore/couchcmd layergraph and
+  sidedoc tests. ariadne#622 had not landed, so its rule needs no exclusion.
+- **Harness:** gated on `SidecarFile`, copies `cmd/internal/jsonstrict`, and compiles the real certificates once per test
+  binary (`sync.OnceValues`; the coverage tests plan 788 inputs). It qualifies against the sibling and against the
+  bumped module pin.
+- **New cases** `TestCertificatesAndCouchTestsNarrow` and `TestCertificateReads` pass. With main's affected.json they
+  fail: certificates full, `cmd/couch/main_test.go` full, and the sidecar under no convention.
+  `test_record_keeps_declared_reads` fails when `--record` drops existing members.
+- Follow-up filed unclaimed: pair#893.
+- **Local-gates:** `.sdlc/affected.json` changed, so the operator verifies (via the TL); I don't apply the label.
+
 ## Revisions
 
 - 2026-10-24: planning found a missing provider capability. At ops:0 direction, block on ariadne#598 and defer the consumer design until its contract lands; #844 proceeds independently meanwhile. Original Done-when remains in force, plus the TL's cmd/couch test-file scope.
+- 2026-10-25: TL chose option A. The `go.mod` ariadne pin bump to a #598 provider joins #853, so the suite's
+  qualification runs instead of skipping. Stop rule: if the spread exceeded a few mechanical fixes, split it out.
+  Measured spread: none.
