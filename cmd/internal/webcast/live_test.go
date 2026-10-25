@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"os"
 	"strings"
 	"syscall"
@@ -111,12 +110,25 @@ func (h liveHarness) clickControl(t *testing.T) {
 	t.Helper()
 	session := h.session(t, "")
 	call := func(method string, params, result any) error { return h.c.call(session, method, params, result) }
-	if err := clickLiveControl(call, time.Now().Add(10*time.Second)); err != nil {
-		t.Fatal(err)
+	deadline := time.Now().Add(10 * time.Second)
+	for {
+		ready, err := clickLiveControl(call)
+		if ready {
+			if err != nil {
+				t.Fatal(err)
+			}
+			return
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("control not found: %v", err)
+		}
+		time.Sleep(100 * time.Millisecond)
 	}
 }
 
-func clickLiveControl(call func(string, any, any) error, deadline time.Time) error {
+// clickLiveControl attempts once. Ready distinguishes input errors (never
+// retried) from a still-unavailable control, before any mouse input.
+func clickLiveControl(call func(string, any, any) error) (ready bool, err error) {
 	// The host contains fixed-position panels and no longer has the button's
 	// geometry. CDP can inspect its closed shadow root without weakening it.
 	var point [2]float64
@@ -201,24 +213,17 @@ func clickLiveControl(call func(string, any, any) error, deadline time.Time) err
 		point = [2]float64{inspection.Result.Value.X, inspection.Result.Value.Y}
 		return nil
 	}
-	for {
-		err := locate()
-		if err == nil {
-			break
-		}
-		if time.Now().After(deadline) {
-			return fmt.Errorf("control not found: %w", err)
-		}
-		time.Sleep(100 * time.Millisecond)
+	if err := locate(); err != nil {
+		return false, err
 	}
 	for _, typ := range []string{"mousePressed", "mouseReleased"} {
 		if err := call("Input.dispatchMouseEvent", map[string]any{
 			"type": typ, "x": point[0], "y": point[1], "button": "left", "clickCount": 1,
 		}, nil); err != nil {
-			return err
+			return true, err
 		}
 	}
-	return nil
+	return true, nil
 }
 
 // quitByHand closes Chrome without going through Close, as Cmd+Q would.

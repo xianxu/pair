@@ -79,6 +79,12 @@ On committed code7b104dd55c2078641b813b72b628e8e769314ec3, all three targeted na
 
 The stale858 check was still queued, not running, and was cancelled through sdlc local-check cancel --run lease-1361220752; its retained terminal80615 exited1 with context canceled, not a test failure. Queue the fixed source once after pushing the evidence/dispute. The independent857 suite finished PASS12m57s on70f5246cf (log prefixe80a0c145c3b), reported to hub; it remains waiting for tomorrow's stage look. Pair:0 untouched. BR-2 receives the measured host evidence via formal dispute; BR-1 receives the actual readiness fix and native refusal regression, not a waiver.
 
+### 2026-10-25 — Post-close catalog failure fixed at the original wait owner
+
+Round2 close finalized SHIP, BR-1 addressed and BR-2 withdrawn, evidence d0a83511ccdf1f34868433123fb9eff979e6370c; measured0.57h, no measurement waiver. The fixed-head affected attemptc66517e9f36331041b04c0835f978f67 then completed exit2 in56s, solely internal/repolint.TestTrackedGoFilesPassCatalog: unused sleep debt for liveHarness.clickControl's100ms sleep. Failure log .git/sdlc/test-stats/failed/c66517e9f36331041b04c0835f978f67.log, SHA256 prefix32974cb8f530. This is deterministic branch debt drift, not a flake; no retry or registration.
+
+The catalog deliberately admits only shrinking debt, so renaming its entry would be wrong. Retained the existing10s/100ms readiness wait in liveHarness.clickControl, its original exact admitted owner. The shared input helper now makes one attempt and distinguishes readiness misses from input errors so uncertain input is never retried. Native refusal coverage uses the one-attempt seam; added an injected input-error assertion requiring exactly one attempt. No catalog/gate/debt-file modification, production change or deadline change. Focused catalog PASS5.16s/package5.297s with all100 admitted sites, and native readiness PASS1.43s/package1.667s. Next: source-pinned native evidence, fresh pushed affected check and narrow re-close of this post-SHIP fix. Standing measurement waivers are retired by TL09ee0c34; omit actual flags and let close measure normally.
+
 ## Revisions
 
 ### 2026-10-25 — BR-1 readiness boundary and native refusal qualification

@@ -2,9 +2,9 @@ package webcast
 
 import (
 	"encoding/json"
+	"errors"
 	"strings"
 	"testing"
-	"time"
 )
 
 // TestLiveControlReadiness exercises actual closed-shadow geometry, not a
@@ -18,6 +18,8 @@ func TestLiveControlReadiness(t *testing.T) {
 		t.Fatal(err)
 	}
 	waitState(t, c, "live", func(s State) bool { return s.Phase == PhaseLive })
+	h.clickControl(t)
+	waitState(t, c, "initial control paused", func(s State) bool { return s.Phase == PhaseIdle })
 	inputs, button := 0, 0
 	call := func(method string, params, result any) error {
 		if method == "Input.dispatchMouseEvent" {
@@ -41,10 +43,10 @@ func TestLiveControlReadiness(t *testing.T) {
 		}
 		return err
 	}
-	if err := clickLiveControl(call, time.Now().Add(10*time.Second)); err != nil {
+	if _, err := clickLiveControl(call); err != nil {
 		t.Fatal(err)
 	}
-	waitState(t, c, "visible control paused", func(s State) bool { return s.Phase == PhaseIdle })
+	waitState(t, c, "visible control resumed", func(s State) bool { return s.Phase == PhaseLive })
 	if inputs != 2 || button == 0 {
 		t.Fatalf("visible inputs=%d button=%d", inputs, button)
 	}
@@ -59,13 +61,13 @@ func TestLiveControlReadiness(t *testing.T) {
 				t.Fatal(err)
 			}
 			before := inputs
-			if err := clickLiveControl(call, time.Now()); err == nil {
+			if ready, err := clickLiveControl(call); ready || err == nil {
 				t.Fatal("unusable control admitted")
 			}
 			if inputs != before {
 				t.Fatalf("refusal sent %d mouse events", inputs-before)
 			}
-			if c.State().Phase != PhaseIdle {
+			if c.State().Phase != PhaseLive {
 				t.Fatal("refusal changed cast state")
 			}
 			if err := c.call(session, "DOM.removeAttribute", map[string]any{"nodeId": button, "name": "style"}, nil); err != nil {
@@ -73,15 +75,27 @@ func TestLiveControlReadiness(t *testing.T) {
 			}
 		})
 	}
-	if err := clickLiveControl(call, time.Now()); err != nil {
+	if _, err := clickLiveControl(call); err != nil {
 		t.Fatal(err)
 	}
-	waitState(t, c, "restored control resumed", func(s State) bool { return s.Phase == PhaseLive })
+	waitState(t, c, "restored control paused", func(s State) bool { return s.Phase == PhaseIdle })
+	inputErr := errors.New("uncertain mouse input")
+	attempts := 0
+	ready, err := clickLiveControl(func(method string, params, result any) error {
+		if method == "Input.dispatchMouseEvent" {
+			attempts++
+			return inputErr
+		}
+		return call(method, params, result)
+	})
+	if !ready || !errors.Is(err, inputErr) || attempts != 1 {
+		t.Fatalf("input error must not enter readiness retry: ready=%t err=%v attempts=%d", ready, err, attempts)
+	}
 	if err := c.call(session, "DOM.removeNode", map[string]any{"nodeId": button}, nil); err != nil {
 		t.Fatal(err)
 	}
 	before := inputs
-	if err := clickLiveControl(call, time.Now()); err == nil || !strings.Contains(err.Error(), "not mounted") {
+	if ready, err := clickLiveControl(call); ready || err == nil || !strings.Contains(err.Error(), "not mounted") {
 		t.Fatalf("missing refusal: %v", err)
 	}
 	if inputs != before {

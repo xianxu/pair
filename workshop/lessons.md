@@ -2943,3 +2943,5 @@ and external temporary roots rather than relying on the host's TMPDIR.
 - #844 BR-4: an approved post-close verification fix that adds an executable checker contract can require full close even when it changes no product policy. Follow the scope guard with the existing ledger; do not treat plan approval as authority to narrow that review.
 
 - #858 BR-1: a native control fixture must prove visible, enabled, in-viewport hit geometry before dispatch; positive box dimensions alone admit visibility:hidden, opacity-zero and clipped controls. Exercise the real closed-shadow DOM and count forwarded mouse events so refusal means zero input.
+
+- #858 recorded-check follow-up: moving a wait loop changes the exact function-owned sleep-debt site even when its duration is unchanged. Keep admitted waits with their original owner or remove them; run the tracked-source catalog before queuing a refactored fixture. The debt list may only shrink and must not be expanded/renamed to bypass the failure.
