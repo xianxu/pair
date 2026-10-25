@@ -103,3 +103,91 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-24T18:24:37-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 879 — Reusable upgrade test: candidate build adopts, lists and resumes warm sessions created by main |
+| repo | pair |
+| issue file | workshop/issues/000879-reusable-upgrade-test-candidate-build-adopts-lists-and-resumes-warm-sessions.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 597d8b49bc89498fd6fa37094b3aac0723f1c360..4c59009edf9b02a565b385378342756c7be4d559 |
+| command | sdlc close --issue 879 |
+| reviewer | codex (openai; author openai) |
+| isolation | fenced |
+| timestamp | 2026-10-24T18:24:37-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+The pinned range satisfies the issue’s upgrade-fixture purpose. All three prior findings are addressed, with regression evidence for the behavior change. No new blocking findings emerged. Portable checks passed; retained native logs independently support the documented healthy control, failed-stage RED, and cleanup results.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      snapshotUpgrade now uses the diagnostic upgradeMarkerCount helper at cmd/couch/upgrade_acceptance_test.go:295. The regression at line 317 covers marker-bearing baselines and candidate publication. Restoring the old absence rule through a temporary Go overlay made both cases fail; pinned-head tests pass.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      The authoritative table at workshop/plans/000879-native-upgrade-plan.md:21 names compareUpgradeCohort in cmd/couch/upgrade_acceptance_test.go. The function exists at line 374, performs no IO, and has direct pure comparison tests.
+  - id: BR-3
+    disposition: addressed
+    note: |
+      README.md:2702 now links the native upgrade qualification, names all three environment variables, and documents runtime-bundle generation. The linked atlas/couch-testing.md:200 section supplies the complete invocation and preparation instructions matching the test.
+```
+
+1. **Strengths**
+
+   - Replacement reuses the existing executable copier and fleet owner, preserving cleanup authority.
+   - Partial-publication tests exercise cancellation and rename failure, verifying that further command admission closes.
+   - Attachment checks combine retained drafts, positive native-client evidence, and unchanged actor/socket identities.
+   - Evidence clearly distinguishes the requested compatibility RED from earlier fixture and native-startup failures.
+
+2. **Critical findings:** None.
+
+3. **Important findings:** None.
+
+4. **Minor findings:** None.
+
+5. **Test coverage notes**
+
+   Passed focused `TestReplaceBuild*` and `TestUpgrade*` tests, replacement tests under the race detector, affected-reader inventory, and diff whitespace checks. The temporary marker-rule mutation failed as expected and was removed. Native runs were not repeated; their retained logs match the documented SHA256 hashes and reported outcomes.
+
+6. **Architectural notes**
+
+   - **ARCH-DRY — pass:** existing copying, ownership, and cleanup seams reused.
+   - **ARCH-PURE — pass:** comparison and receipt validation remain pure; filesystem work is separate.
+   - **ARCH-PURPOSE — pass:** the reusable fixture exercises genuine warm-state adoption through public operations.
+   - **ARCH-MOCK — pass:** stateful fixture agents accompany actual native conformance checks.
+   - **ARCH-CONSTRAINTS — pass:** sequential workload, bounded contexts, and existing copy limits.
+   - **ARCH-SECURE — pass:** owned roots and executable validation constrain replacement effects.
+   - **ARCH-ORDER — pass:** publication excludes other admissions; partial progress enters the existing uncertain state.
+   - **ARCH-FUNERAL — pass:** staging, fleets, and build artifacts have explicit cleanup owners.
+   - **ARCH-EVOLVE — pass:** no production persisted-format changes; old records are consumed through candidate readers.
+
+7. **Plan revision recommendations:** None.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"dd1e3c40-b39f-44de-a32d-ac687f0053bc","repository":"github.com/xianxu/pair","issue_id":"000879","recipe":"milestone-review","round":2,"attempt":1,"agent":"codex","root":"/Volumes/TestScratch/review-checkouts/71d8b59e06440bf7","reviewed_head":"4c59009edf9b02a565b385378342756c7be4d559","slot":"pair:9","requested_at":"2026-10-25T01:23:01.679158Z"},"phase":"finished","pid":64284,"started_at":"2026-10-25T01:23:01.867232Z","finished_at":"2026-10-25T01:24:33.644725Z","session_id":"01a170a7-6ce3-7c71-9ff3-11591deaedb2","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 18.914832083s
+head: "4c59009edf9b02a565b385378342756c7be4d559"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000413

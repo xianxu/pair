@@ -15,7 +15,7 @@ claimant:
     workspace: pair:9
     worktree: /Users/xianxu/workspace/worktree/pair-slot9/pair
     repository: github.com/xianxu/pair
-flow: {kind: quick, provenance: inferred, spec: "2d363bc1", done: "02b75684"}
+flow: {kind: full, provenance: inferred}
 ---
 
 # Reusable upgrade test: candidate build adopts, lists and resumes warm sessions created by main
@@ -54,6 +54,8 @@ Durable plan: [native upgrade fixture](../plans/000879-native-upgrade-plan.md).
 ## Log
 
 ### 2026-10-24
+- 2026-10-24: closed — Native same-main control PASS127.301s and stage93a57a38 adoption RED214.126s, exact owned cleanup and honest unreached-oracle limits in workshop/evidence/000879/native-upgrade.md on their recorded original head. BR-1 boundary repair regression RED0.209s for marker-bearing baseline and candidate publication, then full portable upgrade controls GREEN0.235s; shared native snapshot observer now logs actual marker counts without an absence requirement. All identity/adoption/resume/attach assertions retained. BR-2 authoritative PURE table and all referents audited; BR-3 README discovery/runtime-generation guidance added with atlas consistency. Repolint PASS12.242s, audited affected-reader inventory PASS immediately before this close, staged diff check PASS. Corrected code4c59009e pushed in PR601; recorded pre-close lease-628078912 queued FIFO, runner95420 retained. Review overlaps queued verification under worker rules; passing final-code record still required before landing. No production or local-gates change.; review verdict: SHIP
+- 2026-10-24: flow upgraded quick → full — 102 added lines in code files (limit 100); an earlier round of this close already ran the full review
 
 Claimed and entered planning on a fresh main-based branch. Pair:5 confirmed it owns only the #866 zellijquery correction and deterministic controls, and has no duplicate native helper/test. #879 owns the reusable upgrade operation and native regression. Pair:5 supplies read/build-only clean baseline /Volumes/TestScratch/pair859-oldreader.QR5mna/tree at38fe8ea272d960705134e21ad3fbf61d26a4bb00. Git independently resolves the failed stage to93a57a380d290105b497dfd620ffb9e2e5a15528. Existing BuildOwned builds coupled pair/couch/helper, but NewOwned physically copies them: assigning Fleet.Binaries alone cannot perform an upgrade. Reuse the existing Fleet lifetime, private runtime, creator cleanup and exact-generation census (ARCH-DRY, ARCH-FUNERAL).
 
