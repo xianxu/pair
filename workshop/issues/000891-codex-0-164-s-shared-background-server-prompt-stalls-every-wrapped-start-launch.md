@@ -61,8 +61,9 @@ Part A of `workshop/plans/000891-codex-no-daemon-and-version-notice-plan.md` (Ta
       `PAIR_AGENT_VERSION` into it (the transport #894 will read).
 - [x] V1: focused + package tests green.
 - [x] V2: manual PTY check as stated in Done when, control included.
-- [ ] V3: atlas `codex-resume.md`; `make test-affected-inventory` audited; suite recorded on the pushed head;
-      PR merged; outcome reported to ops:0.
+- [x] V3: atlas `codex-resume.md`; `make test-affected-inventory` audited; suite recorded on the pushed head.
+
+Landing after close: `sdlc pr`; `sdlc merge --yes`; report the outcome to ops:0.
 
 ## Log
 
@@ -110,8 +111,21 @@ Part A of `workshop/plans/000891-codex-no-daemon-and-version-notice-plan.md` (Ta
 - Self-review fix before the boundary review: the seam's new `argumentPresent` ignored the `--` boundary (a
   prompt word `--no-daemon` after `--` would have suppressed the opt-out) and duplicated `hasFlag`; the seam now
   calls `hasFlag`, and `TestCodexLaunchTreatsPromptTextAsNoFlag` pins the post-`--` case.
+- Pre-close suite on the pushed head 0726d114 (after the artifact-inventory fix): `sdlc local-check run
+  --pre-close` resolved to the affected check, which upgraded to the full suite (trains on, full selection);
+  exit 0 in 17m11s, recorded as `sdlc-local/suite` on 0726d114. The only observation was a SysV segment
+  warning with unattributed segments. The prior run failed exactly on
+  `agent_version.go: production source is absent from the exhaustive inventory`; 0726d114 classifies it in
+  `NonArtifactSources`.
 
 ## Revisions
+
+### 2026-10-25 — V3 split from the landing steps
+
+Reason: the close gate refuses while any `## Plan` item is unchecked, and V3 bundled post-close steps (PR
+merged, outcome reported) that cannot be true before the close.
+Delta: V3 keeps only the pre-close evidence (atlas, affected inventory, suite); `sdlc pr`, `sdlc merge` and
+the ops:0 report moved to a non-checkbox landing line.
 
 ### 2026-10-25 — scope to Part A (TL steer)
 
