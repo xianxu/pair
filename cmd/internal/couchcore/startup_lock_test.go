@@ -89,6 +89,27 @@ func TestEmptyStartupLockExhaustionIsTypedAndNeverPublishes(t *testing.T) {
 	}
 }
 
+// pair#854: a caller with less budget than the wait waits only that long, and
+// the deadline, not busy, ends the reservation. Startup's check already polls
+// ctx, so this pins the contract the capped wait (storeLockBound) states.
+func TestEmptyStartupLockWaitEndsAtTheCallerDeadline(t *testing.T) {
+	env, local := slotRecoveryOperationFixture(t)
+	global := env.Couch.Threads
+	release := holdStoreLock(t, global)
+	defer release()
+	ctx, cancel := context.WithTimeout(t.Context(), 50*time.Millisecond)
+	defer cancel()
+	start := time.Now()
+	publications := 0
+	err := global.withEmptyStartupTarget(ctx, local, "empty-target", func() error { publications++; return nil })
+	if !errors.Is(err, context.DeadlineExceeded) || errors.Is(err, ErrThreadStoreBusy) || publications != 0 {
+		t.Fatalf("deadline-bound reservation: publications=%d err=%v", publications, err)
+	}
+	if waited := time.Since(start); waited >= storeReadLockWait {
+		t.Fatalf("waited %s, past the caller's 50ms budget", waited)
+	}
+}
+
 func TestEmptyStartupRechecksRetainedEvidenceAfterWaiting(t *testing.T) {
 	for _, family := range []string{"journal", "current", "archive"} {
 		for _, localHold := range []bool{false, true} {
