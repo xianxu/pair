@@ -112,7 +112,7 @@ func startExplicitHubs(console *couchtty.Console, hubs *hubRuntime, startup couc
 		enqueue = newLifecycleRemoteQueue(console, couches[0]).Queue
 	}
 	queueExplicitHubs(hubs.snapshot().Hubs()[1:], enqueue, func(root string, err error) {
-		console.Warn(couchtty.Notice{Kind: "status", Body: fmt.Sprintf("hub failed; open it in the switcher to retry: %s: %v", root, err)})
+		console.Warn(couchtty.Notice{Class: couchcore.NoticeHubStartFailed, OwnerRoot: root, SourceRoot: root, Kind: "status", Body: fmt.Sprintf("hub failed; open it in the switcher to retry: %s: %v", root, err)})
 	}, startup)
 }
 
@@ -160,13 +160,13 @@ func (s *messageService) sameHubBindings(from, to couchmessage.Binding) bool {
 
 // Equal-specificity conflicts are warned once at startup, including broad
 // claims for future slots. Different specificity is an intentional override.
-func hubConflictWarnings(state couchcore.HubOwnership) []string {
+func hubConflictNotices(state couchcore.HubOwnership) []couchtty.Notice {
 	seen := map[couchcore.HubSlot]string{}
 	selfOwned := map[couchcore.HubSlot]bool{}
 	for _, hub := range state.Hubs() {
 		selfOwned[hub.Slot] = true
 	}
-	var warnings []string
+	var warnings []couchtty.Notice
 	for _, hub := range state.Hubs() {
 		for _, claim := range hub.Claims.Claims() {
 			key := couchcore.HubSlot{Repository: filepath.Join(hub.Workspace, claim.Repository), Number: claim.Slot}
@@ -179,12 +179,21 @@ func hubConflictWarnings(state couchcore.HubOwnership) []string {
 					if key.Number >= 0 {
 						name += ":" + strconv.Itoa(key.Number)
 					}
-					warnings = append(warnings, fmt.Sprintf("hub claim conflict for %s: %s wins before %s; edit .hub claims to change ownership", name, first, hub.Root))
+					warnings = append(warnings, couchtty.Notice{Class: couchcore.NoticeHubClaimConflict, OwnerRoot: first, Kind: "status", Body: fmt.Sprintf("hub claim conflict for %s: %s wins before %s; edit .hub claims to change ownership", name, first, hub.Root)})
 				}
 			} else {
 				seen[key] = hub.Root
 			}
 		}
+	}
+	return warnings
+}
+
+func hubConflictWarnings(state couchcore.HubOwnership) []string {
+	notices := hubConflictNotices(state)
+	warnings := make([]string, len(notices))
+	for i, notice := range notices {
+		warnings[i] = notice.Body
 	}
 	return warnings
 }

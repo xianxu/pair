@@ -221,6 +221,8 @@ type Console struct {
 	// Its own field rather than something inferred from another: "is it safe to
 	// write to the operator's screen yet" is its own question.
 	started            bool
+	noticeRouter       func(Notice)
+	noticeDelivery     NoticeDelivery
 	exited             chan childExit
 	operationQueue     *operationQueue
 	resourceRows       []couchcore.ActionableThreadSummary
@@ -366,7 +368,7 @@ func (c *Console) SetInputTrace(path string, options ...diagnosticlog.Options) e
 	c.mu.Unlock()
 	_ = previous.Close()
 	if err != nil {
-		c.Warn(Notice{Kind: "trace", Control: true, Body: err.Error()})
+		c.Warn(Notice{Class: couchcore.NoticeInputTraceFailed, Kind: "trace", Control: true, Body: err.Error()})
 	}
 	return err
 }
@@ -383,7 +385,7 @@ func (c *Console) SetMouseTrace(path string, options ...diagnosticlog.Options) e
 	c.mu.Unlock()
 	_ = previous.Close()
 	if err != nil {
-		c.Warn(Notice{Kind: "trace", Control: true, Body: err.Error()})
+		c.Warn(Notice{Class: couchcore.NoticeMouseTraceFailed, Kind: "trace", Control: true, Body: err.Error()})
 	}
 	return err
 }
@@ -1147,6 +1149,7 @@ type contextualInput interface {
 // restoring raw state. Diagnostics are emitted only after ownership ends.
 func (c *Console) teardown(restore func() error) error {
 	c.Stop()
+	c.CloseNoticeDelivery()
 	// Viewers are told before the presenter goes, and the tunnel is closed
 	// rather than left running (#395).
 	c.endBroadcastForShutdown()
@@ -1262,13 +1265,14 @@ func (c *Console) onExit(event childExit) bool {
 		// push: one path decides that a notice is shown, and this one is the
 		// operator's only explanation for a pane that just vanished.
 		n := ExitNotice(p.actorID, p.label, event.code)
+		n.Class = couchcore.NoticeChildExited
 		n.Thread, n.Label = p.thread, p.label
 		c.Warn(n)
 	}
 
 	if forget != nil {
 		if err := forget(p.tree, p.actorID); err != nil {
-			c.Warn(Notice{Kind: "forget", Thread: p.thread, Label: p.label, Body: fmt.Sprintf("forget %s: %v", p.label, err)})
+			c.Warn(Notice{Class: couchcore.NoticeExitCleanupFailed, Kind: "forget", Thread: p.thread, Label: p.label, Body: fmt.Sprintf("forget %s: %v", p.label, err)})
 		}
 	}
 	c.requestMenuRefresh()
@@ -2092,7 +2096,7 @@ func (c *Console) finishOperation(completed operationCompletion) bool {
 		if message := warned.Warning(); message != "" {
 			c.reduceMenu(MenuEvent{Kind: MenuEventNotice, Error: message})
 			if source, actionable := lifecycleCompletionWarningSource(completed.value, completed.origin.Address); actionable {
-				c.Warn(Notice{Kind: "status", Thread: source, Body: message})
+				c.Warn(Notice{Class: couchcore.NoticeLifecycleResultWarning, Kind: "status", Thread: source, Body: message})
 			} else {
 				c.setNotice(message)
 			}
@@ -2287,7 +2291,9 @@ func (c *Console) Warn(n Notice) {
 	}
 }
 
-func (c *Console) setWarning(text string) { c.Warn(Notice{Kind: "warning", Body: text}) }
+func (c *Console) setWarning(text string) {
+	c.Warn(Notice{Class: couchcore.NoticeUnknown, Kind: "warning", Body: text})
+}
 
 // publishWarningLocked uses the existing console-to-attention lock order. No IO
 // or repaint occurs while either owner is held.
@@ -2295,7 +2301,34 @@ func (c *Console) publishWarningLocked(n Notice) bool {
 	if c.lifetime.Err() != nil {
 		return false
 	}
-	started := c.publishNoticeLocked(n)
+	if n.SourceSlot == nil && n.Thread != (couchcore.ThreadAddress{}) {
+		for _, row := range c.resourceRows {
+			if row.Address == n.Thread {
+				if n.SourceRoot == "" {
+					n.SourceRoot = row.StartingPath
+				}
+				if row.Target.Kind == couchcore.ThreadTargetSlot {
+					slot := couchcore.HubSlot{Repository: row.Target.Slot.PrimaryRoot, Number: row.Target.Slot.Number}
+					n.SourceSlot = &slot
+				}
+				break
+			}
+		}
+	}
+	started := c.started
+	if !n.Cleared {
+		started = c.publishNoticeLocked(n)
+	}
+	if c.noticeRouter != nil {
+		c.noticeRouter(n) // bounded memory handoff only; never re-enters Console
+		return started
+	}
+	if n.Cleared {
+		return false
+	}
+	if !couchcore.RouteNotice(couchcore.NoticeRouteInput{Class: n.Class, Origin: n.Origin, Owner: couchcore.NoticeOwnerUnavailable, HubHandled: n.HubHandled}).Bell {
+		return started
+	}
 	c.noticeSequence++
 	if item, ok := noticeAttention(n, c.noticeSequence); ok {
 		c.attn.mu.Lock()
