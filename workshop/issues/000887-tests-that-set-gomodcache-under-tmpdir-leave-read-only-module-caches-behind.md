@@ -50,6 +50,12 @@ read-only module cache across the suite instead of creating one per test, if tha
 
 ## Log
 
+### 2026-10-25 — Resume infrastructure refusal; supported integrated recovery
+
+The public-repository CI hold was lifted by TL77666a8c; Pair uses public Actions and normal CI gates remain. Retained resume terminal10687 acquired after2518s and exited1 BEFORE the selected test ran. Exact build failure: cmd/internal/runtimebundle/embed.go:8:41: pattern assets/runtime/files: no matching files found. Parent4e5a9fb7f3bcf56333a82921fe7b9dc2, child5c61293150f7e75bd2686cd1eed845f2, tested head228ce8f808ed7723331a5ec2559a156f6b45eb2e. Exact final refusal: no saved attempt verifies: resume proof for parent 4e5a9fb7f3bcf56333a82921fe7b9dc2 is unavailable: child identity, completion or log digest is invalid; fix/advance the code and run a suite on a new head.
+
+This is missing asset-generation preparation in the exact-test child, not another fixture assertion failure. Hub report c25b06e3-e4a8-48b8-ab03-5b2c19d269ab submitted. TL42b81fd4 filed ariadne#636 and directs supported recovery: re-enter sdlc merge for a fresh authoritative integrated suite on current main; #897 remains registered if its known fixture failure recurs. Do not retry the resume, modify its snapshot, bypass CI or substitute manual test evidence. #857 partial route implementation is separately committed/pushed and clean, with no background writer; it waits while this merge holds the canonical checkout. Next: push this Log and re-enter merge once, retain that runner to completion.
+
 ### 2026-10-25
 - 2026-10-25: closed — Shared read-only cleanup controls PASS0.182s; actual launcher TestMain subprocess PASS0.286s, proving cache removal and nonzero teardown failure. Original ignored-defer source overlay fails BOTH assertions. Build-owner/legacy PASS1.726s; native cmd/go cache conformance PASS12.494s; 30 catalog controls plus tracked-source census PASS6.743s; artifact census PASS3.455s. Inventory PASS after individual reader audits. Atlas and lesson updated. No shared cache or retained631 evidence touched. Implementation plan complete; required recorded full check on8449f364 is retained as lease-1191244849 with identical runtime/tests; its pass precedes landing. Close/merge lifecycle work remains in Log, no unimplemented code. (done-when: contract moved since change-code; judged by the close review); review verdict: SHIP
 
