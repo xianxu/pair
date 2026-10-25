@@ -102,6 +102,8 @@ Boundary repair: extracted the actual snapshot marker observer, added regression
 
 Final boundary-repair checks: internal/repolint PASS12.242s; individually refreshed reader inventory PASS; staged diff check PASS. All three review findings have concrete corrections for the next judge; no finding was bypassed or self-disposed.
 
+Round2 SHIP closed all three findings with no new findings; close evidence0d8cb02554eada189954c0d55a6c41e714132894, automatically measured actual0.90h, codecomplete card mirrora45a416f. Recorded final-code check on4c59009edf9b02a565b385378342756c7be4d559 used lease-628078912, attempt282a465e061232b785824bec50421402, retained terminal95420. It was admitted after2319s FIFO wait and passed non-Go checks plus cmd/couch16.149s, couchcmd128.387s, couchcore447.516s, terminal44.003s and testcouch48.631s. The suite was INTERRUPTED externally before its complete result: exit1, exact refusal 'queue interrupted: managed suite cancelled; rerun after the matching pause owners resume; context canceled'. No suite pass is claimed. Full retained log /Users/xianxu/workspace/pair/.git/sdlc/local-checks/4c59009edf9b02a565b385378342756c7be4d559/suite.interrupted.log. No lease or own runner remains. Read-only sdlc queue status afterward reports 'queue: running; complete=true' and every listed pause operation running. Reported interruption to hub79b517f9; preserve this occurrence rather than treating a later pass as uninterrupted evidence. Next is re-enter recorded pre-close under normal FIFO when queue permits, then merge on its pass. Do not manually integrate main or rerun close merely for this external interruption.
+
 ## Revisions
 
 ### 2026-10-24 — fixture-first landing, hub7aa4f471
