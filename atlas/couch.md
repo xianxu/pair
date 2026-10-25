@@ -2046,6 +2046,18 @@ and `couch --reboot repo:N --confirm` act on one slot from a live Couch slot:
    admission, removed 5 minutes after they turn terminal (swept on every
    admit and status) or when Couch exits; status answers only the slot that
    admitted them, and a receipt not held answers `unknown`.
+
+   When caller proof fails because its selected session is missing or EXITED,
+   the existing unavailable response carries `listing_evidence` JSON (#872).
+   `LivenessEvidenceContext` retains the exact parsed listing's completion time,
+   full byte count/SHA256 and a copied prefix of at most8192bytes, with explicit
+   truncation; JSON encodes those bytes as base64. `SelectedListingEvidence`
+   adds the selected address/name, claim count, row state and projected presence.
+   No second query substitutes for the judged frame, and a subsequent refresh
+   cannot rewrite it. Existing stale, malformed and ambiguous proofs still
+   refuse distinctly. Post-admission loss remains uncertain and never resends
+   the mutation. #872's one authorized native sample did not reproduce the
+   original loss; the cause remains unclassified until another occurrence.
 4. `consoleSlotOperations` wires `Console.EnqueueRemoteOperation`
    (`console_remote.go`) with `Couch.PrepareSlotOperation`: the job rides the
    switcher's `operationQueue`, `c.ops` and `finishOperation`. Prepare runs on

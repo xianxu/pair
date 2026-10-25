@@ -1716,7 +1716,15 @@ func messageThreadResolver(c *couchcore.Couch, listings *launcher.ListingPoller)
 			return "", err
 		}
 		if !session.Present || session.Name != binding.Session {
-			return "", &couchmessage.RelaunchRequiredError{Cause: errors.New("message terminal is not positively listed")}
+			detail := "message terminal is not positively listed"
+			if session.ListingEvidence != nil {
+				if raw, err := json.Marshal(session.ListingEvidence); err == nil {
+					detail += "; listing_evidence=" + string(raw)
+				} else {
+					detail += "; listing evidence unavailable: " + err.Error()
+				}
+			}
+			return "", &couchmessage.RelaunchRequiredError{Cause: errors.New(detail)}
 		}
 		return record.WorkingPath, ctx.Err()
 	}

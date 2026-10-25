@@ -688,6 +688,11 @@ var SourceClassifications = []SourceClassification{
 // the artifact namespace requires an explicit SourceClassification.
 // pair:m5-concept pure
 var NonArtifactSources = []string{
+	// pair#872: copied listing/projection values and private fixture diagnostics;
+	// no tagged Pair artifact paths are constructed or consumed here.
+	"cmd/internal/couchcore/listed_session_evidence.go",
+	"cmd/internal/launcher/listing_evidence.go",
+	"cmd/internal/testcouch/caller_evidence.go",
 	// #871 owns explicit private diagnostics and in-memory lifecycle only.
 	"cmd/internal/couchcmd/profiling.go",
 	"cmd/internal/couchcmd/profiling_model.go",
