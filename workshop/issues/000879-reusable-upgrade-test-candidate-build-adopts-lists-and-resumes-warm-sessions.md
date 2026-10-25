@@ -1,12 +1,20 @@
 ---
 id: 000879
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-10-24
 updated: 2026-10-24
 estimate_hours:
-card_mirror: 'dfe3c3f65bb8fd7fef1b673fc6ee52cbd5d2ad22' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '5c74e5497e758ccb4ae96fd56e96c1a061b06f33' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-24T17:15:49-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: Xian’s MacBook Pro
+    workspace: pair:9
+    worktree: /Users/xianxu/workspace/worktree/pair-slot9/pair
+    repository: github.com/xianxu/pair
 ---
 
 # Reusable upgrade test: candidate build adopts, lists and resumes warm sessions created by main
@@ -35,8 +43,23 @@ plus a persisted-state read (registries, thread store, side-doc records) created
 
 ## Plan
 
-- [ ]
+- [ ] Add one guarded build replacement operation to the existing native Fleet and portable publication controls.
+- [ ] Add an opt-in two-build native upgrade acceptance case for Claude and Codex, with exact identities, public listing/resume/attach and persisted document checks.
+- [ ] Qualify a same-build healthy control; capture the old-main to failed-stage RED without modifying readiness receipts; document invocation and cleanup proof.
+- [ ] Pass recorded checks and boundary review, then land the fixture so #866 can run the same case against its correction.
+
+Durable plan: [native upgrade fixture](../plans/000879-native-upgrade-plan.md).
 
 ## Log
 
 ### 2026-10-24
+
+Claimed and entered planning on a fresh main-based branch. Pair:5 confirmed it owns only the #866 zellijquery correction and deterministic controls, and has no duplicate native helper/test. #879 owns the reusable upgrade operation and native regression. Pair:5 supplies read/build-only clean baseline /Volumes/TestScratch/pair859-oldreader.QR5mna/tree at38fe8ea272d960705134e21ad3fbf61d26a4bb00. Git independently resolves the failed stage to93a57a380d290105b497dfd620ffb9e2e5a15528. Existing BuildOwned builds coupled pair/couch/helper, but NewOwned physically copies them: assigning Fleet.Binaries alone cannot perform an upgrade. Reuse the existing Fleet lifetime, private runtime, creator cleanup and exact-generation census (ARCH-DRY, ARCH-FUNERAL).
+
+Second coordination send to pair:5 was refused before delivery with breaker-exhausted: recipient peer-message allowance exhausted. No blind retry or alternate channel. Initial coordination receipt aa4331b5-25cb-4b25-b314-7426f205c9f1 was submitted and pair:5 replied with the required ownership seam. Hub will receive the concrete plan and this delivery limit.
+
+## Revisions
+
+### 2026-10-24 — fixture-first landing, hub7aa4f471
+
+Original Done-when's corrected-#866 GREEN remains the joint compatibility goal. For #879's independent landing, the hub explicitly requires the reusable fixture plus captured RED against93a57a38 first; #866 integrates it only after #879 lands and records the corrected GREEN. This removes a circular dependency without stacking branches or duplicating the fixture. #879 must also pass a same-build native control to demonstrate that its oracle and cleanup work. No production correction, live fleet manipulation or full local suite outside the queue is in scope. Targeted runs only; hub offers a queue grant.
