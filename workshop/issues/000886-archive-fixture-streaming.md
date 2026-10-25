@@ -1,12 +1,20 @@
 ---
 id: 000886
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-10-25
 updated: 2026-10-25
 estimate_hours:
-card_mirror: '7b19273f710ed4b677f70e84d0a1ab0b08a535b3' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: 'adef9bbcc37c2392a122739c6f7e7d08aec559f2' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-25T09:20:44-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: Xian’s MacBook Pro
+    workspace: pair:11
+    worktree: /Users/xianxu/workspace/worktree/pair-slot11/pair
+    repository: github.com/xianxu/pair
 ---
 
 # Stream oversized archive protocol fixtures and restore the couchcmd write allowance
@@ -55,7 +63,14 @@ smaller payload, write-budget bypass or production cap increase.
 
 ## Plan
 
-- [ ]
+- [ ] Stream the two oversize suffixes from the existing helper in bounded blocks;
+  keep small prefix files and assert their setup size. Pin exact max+1 output
+  length/content and bounded write sizes with an in-memory fixture test.
+- [ ] Run protocol/refusal/cancellation/descriptor tests and compare native
+  before/after write counters; run complete couchcmd once at the unchanged
+  96 MiB cap and retain excess-budget refusal coverage.
+- [ ] Audit changed reader inputs, repair only its inventory, update the
+  testing atlas, then run the recorded pre-close and close boundary review.
 
 ## Log
 
@@ -66,3 +81,23 @@ archiveProtocolFixture, TestArchiveProtocolProcess and
 TestRunArchivePassRefusesInvalidProtocol; existing budget constant in
 cmd/internal/testdisk/budget.go. Independent work can start from main; no
 stacking on #737, and no source edits were made to the archive fixtures here.
+
+### 2026-10-25 — resumed in pair:11
+
+Recovered the specified previous recording (startup only) and empty local Log;
+claim and start-plan brought fresh main details, including the filed scope.
+A generated merge-check.yml edit blocked start-plan. TL authorized restoring
+main's copy; refresh now correctly deferred that local-gates seed and planning
+passed. Generated missing runtime embed assets via make runtimebundle-generate.
+
+Quick-flow plan sent to ops:0, proceeding unless objected under tl-worker rules.
+ARCH-DRY: reuse the owned subprocess and report prefix fixture, adding only its
+bounded stdout suffix writer. ARCH-PURPOSE: both exact max+1 streams retain all
+existing refusal, log and cleanup checks. No production state, protocol, caps,
+secrets or lifecycle changes; fixture files retain t.TempDir cleanup and child
+ownership. Streaming is O(payload bytes), with a fixed 32 KiB block.
+
+Coordination: main still has 96 MiB. TL and pair:3 agree #886 lands independently;
+#737 then integrates it, removes its temporary 104 MiB allowance and qualifies
+the combined scheduler package. Do not edit or stack on #737. Targeted runs only,
+count <=10, one at a time, per dispatch; recorded pre-close remains required.
