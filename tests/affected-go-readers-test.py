@@ -263,6 +263,20 @@ class FastInventoryCLI(unittest.TestCase):
         self.assertEqual(json.loads(self.inventory.read_text())["future"], self.extra["future"])
         self.assertFalse(self.tool_record.exists(), "fast inventory mode invoked Go or Make")
 
+    def test_record_keeps_declared_reads(self):
+        # pair#853: sdlc reads a certificate's `reads` from main to select its
+        # test for a change to those inputs; refreshing the hash keeps them.
+        reads = ["nvim/x.lua", "tests/fixtures/**"]
+        record = json.loads(self.inventory.read_text())
+        self.inventory.write_text(json.dumps(dict(record, reads=reads)))
+        self.reader.write_text(self.reader.read_text() + "\n// audited change\n")
+        result = self.cli("--record", self.name, "--disposition", "local_or_literal_fixture")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        rewritten = json.loads(self.inventory.read_text())
+        self.assertEqual(rewritten["reads"], reads)
+        self.assertEqual(rewritten["sha256"], hashlib.sha256(self.reader.read_bytes()).hexdigest())
+        self.assertEqual(self.cli("--check").returncode, 0)
+
     def test_unknown_numbers_roundtrip_without_precision_or_type_changes(self):
         suffix = ', "future_numbers": {"fraction": 0.12345678901234567890123456789, "array": [1e400, -1e-400, -0.0, "1e400", true, null], "huge_integer": ' + "9" * 5000 + '}}'
         original = self.inventory.read_text().rstrip()[:-1] + suffix

@@ -18,9 +18,9 @@ from unittest import mock
 ROOT = Path(__file__).resolve().parents[1]
 PACKAGES = ("affected", "jsonstrict")
 PREFIX = "cmd/sdlc/internal/"
-# Same-provider closure of current affected/golist.go. These packages are
-# optional because supported older planners do not import processgroup.
-SUPPORTING_PACKAGES = (PREFIX + "processgroup", "pkg/procgroup")
+# Same-provider closure of current affected (golist.go's process group, and the
+# shared strict decoder jsonstrict wraps). Optional: older planners lack them.
+SUPPORTING_PACKAGES = (PREFIX + "processgroup", "pkg/procgroup", "cmd/internal/jsonstrict")
 
 
 def provider_sources():
@@ -55,10 +55,11 @@ def provider_sources():
                     if not path.name.endswith("_test.go"):
                         result[path.relative_to(candidate).as_posix()] = path.read_bytes()
         if all(any(name.startswith(PREFIX + p + "/") for name in result) for p in PACKAGES):
-            # This consumer requires #517, not merely the older planner. A stale
-            # sibling/module is unavailable qualification evidence, not a reason
-            # to compile against an API that predates graph_prepare.
-            if b"GraphPrepare" not in result.get(PREFIX + "affected/config.go", b""):
+            # This consumer requires ariadne#598 (sidecars, full excepts), not
+            # merely an older planner. A stale sibling/module is unavailable
+            # qualification evidence, not a reason to compile against an API
+            # whose strict parse refuses pair's declaration.
+            if b"SidecarFile" not in result.get(PREFIX + "affected/mapping.go", b""):
                 continue
             # Keep module identity and dependency versions byte-for-byte from
             # this provider/ref, including processgroup's Darwin x/sys import.
@@ -97,6 +98,7 @@ import (
     "reflect"
     "sort"
     "strings"
+    "sync"
     "syscall"
     "testing"
     "time"
@@ -117,6 +119,42 @@ func config(t *testing.T) (affected.Config, []byte) {
         t.Fatalf("group contract: %v", names)
     }
     return cfg, data
+}
+
+// loadMapping compiles the real certificates under main's sidecar convention,
+// as sdlc does from the trusted base.
+func loadMapping(cfg affected.Config) (affected.Mapping, error) {
+    root := os.Getenv("PAIR_AFFECTED_ROOT")
+    var files []affected.SidecarFile
+    for _, decl := range cfg.Sidecars {
+        err := filepath.WalkDir(filepath.Join(root, decl.Prefix), func(path string, entry os.DirEntry, err error) error {
+            if err != nil || entry.IsDir() || !strings.HasSuffix(path, decl.Suffix) { return err }
+            content, err := os.ReadFile(path)
+            if err != nil { return err }
+            relative, err := filepath.Rel(root, path)
+            files = append(files, affected.SidecarFile{Path: filepath.ToSlash(relative), Content: content})
+            return err
+        })
+        if err != nil { return affected.Mapping{}, err }
+    }
+    return affected.Compile(cfg, files)
+}
+
+// The mapping is compiled once per test binary: every caller reads the same
+// on-disk declaration, and the coverage tests plan hundreds of paths.
+var loadOnce = sync.OnceValues(func() (affected.Mapping, error) {
+    data, err := os.ReadFile(filepath.Join(os.Getenv("PAIR_AFFECTED_ROOT"), ".sdlc", "affected.json"))
+    if err != nil { return affected.Mapping{}, err }
+    cfg, err := affected.ParseConfig(data)
+    if err != nil { return affected.Mapping{}, err }
+    return loadMapping(cfg)
+})
+
+func plan(t *testing.T, paths []string, g affected.Graph, cfg affected.Config) affected.Selection {
+    t.Helper()
+    m, err := loadOnce()
+    if err != nil { t.Fatal(err) }
+    return affected.Plan(paths, g, cfg, m, nil)
 }
 
 func write(t *testing.T, root, name, text string) {
@@ -154,7 +192,7 @@ func graph(t *testing.T) affected.Graph {
 
 func exact(t *testing.T, cfg affected.Config, g affected.Graph, paths, packages, groups []string) {
     t.Helper()
-    selected := affected.Plan(paths, g, cfg, nil)
+    selected := plan(t, paths, g, cfg)
     if selected.Full { t.Fatalf("%v unexpectedly full: %s", paths, selected.Reason) }
     if len(selected.GoPkgs) != len(packages) || (len(packages) > 0 && !reflect.DeepEqual(selected.GoPkgs, packages)) {
         t.Fatalf("%v packages = %v, want %v", paths, selected.GoPkgs, packages)
@@ -242,7 +280,7 @@ func TestPathsAndFallbacks(t *testing.T) {
         []string{"example.com/fixture/cmd/internal/runtimebundle"}, []string{"build", "lua"})
     for _, path := range []string{"Makefile", "Makefile.local", "tests/lib/helper.sh", "go.mod", "go.sum", ".sdlc/affected.json", ".github/workflows/ci.yml", "tests/webcast/unclaimed.fixture", "tests/broadcast-viewer/unclaimed.fixture", "tests/terminal-oracle/unclaimed.fixture", "tests/new-unowned.fixture", "cmd/internal/absent_platform_package/deleted.go", "probes/absent_platform_package/deleted.go"} {
         t.Run(path, func(t *testing.T) {
-            selected := affected.Plan([]string{path}, g, cfg, nil)
+            selected := plan(t, []string{path}, g, cfg)
             if !selected.Full { t.Fatalf("%s must force full; got %+v", path, selected) }
         })
     }
@@ -277,9 +315,77 @@ func TestActualNonGoInputsForceFull(t *testing.T) {
     }
     for _, path := range paths {
         t.Run(path, func(t *testing.T) {
-            selected := affected.Plan([]string{path}, g, cfg, nil)
+            selected := plan(t, []string{path}, g, cfg)
             if !selected.Full { t.Errorf("non-Go input %s omitted its Go consumers: %+v", path, selected) }
         })
+    }
+}
+
+// pair#853: a reader certificate selects what its test selects, and a couch
+// test file selects its package alone; the policy, selector, inventory tool,
+// shared harness and couch production code stay full.
+func TestCertificatesAndCouchTestsNarrow(t *testing.T) {
+    cfg, _ := config(t)
+    g, err := affected.LoadGoGraph(context.Background(), os.Getenv("PAIR_AFFECTED_ROOT"))
+    if err != nil { t.Fatal(err) }
+    same := func(certificate, test string) {
+        t.Helper()
+        got, want := plan(t, []string{certificate}, g, cfg), plan(t, []string{test}, g, cfg)
+        if got.Full || want.Full || len(got.GoPkgs) == 0 || !reflect.DeepEqual(got, want) {
+            t.Errorf("%s selected %+v, want its test's %+v", certificate, got, want)
+        }
+    }
+    readers := "tests/affected-readers/"
+    // #825's certificate; an added (or deleted) certificate needs no base copy.
+    same(readers+"cmd/internal/testcouch/agentfixture/request_lifetime_test.go.json", "cmd/internal/testcouch/agentfixture/request_lifetime_test.go")
+    same(readers+"cmd/internal/slugcmd/added_test.go.json", "cmd/internal/slugcmd/added_test.go")
+    couch := []string{"github.com/xianxu/pair/cmd/couch"}
+    for _, path := range []string{"cmd/couch/main_test.go", "cmd/couch/editorial_acceptance_test.go",
+        readers + "cmd/couch/main_test.go.json", readers + "cmd/couch/editorial_acceptance_test.go.json"} {
+        exact(t, cfg, g, []string{path}, couch, nil)
+    }
+    // A rename is a deletion plus an addition: the union of both tests' selections.
+    renamed := plan(t, []string{readers + "cmd/couch/main_test.go.json", readers + "cmd/internal/slugcmd/renamed_test.go.json"}, g, cfg)
+    union := plan(t, []string{"cmd/couch/main_test.go", "cmd/internal/slugcmd/renamed_test.go"}, g, cfg)
+    if renamed.Full || !reflect.DeepEqual(renamed, union) { t.Errorf("rename selected %+v, want %+v", renamed, union) }
+    for _, path := range []string{
+        readers + "cmd/internal/absent_platform_package/gone_test.go.json", // no package owns its test
+        readers + "notes.json", readers + "README.md",
+        ".sdlc/affected.json", "scripts/test-affected.py", "tests/test-affected-test.py",
+        "tests/affected-go-readers-test.py", "tests/affected-config-test.py", "tests/lib/helper.sh",
+        "tests/autopair-test.sh", "cmd/couch/main.go", "cmd/couch/sub/nested_test.go", "cmd/couch/testdata/x.json",
+    } {
+        if selected := plan(t, []string{path}, g, cfg); !selected.Full { t.Errorf("%s must stay full: %+v", path, selected) }
+    }
+    if selected := plan(t, []string{readers + "cmd/couch/main_test.go.json", "scripts/test-affected.py"}, g, cfg); !selected.Full {
+        t.Errorf("a certificate beside the selector must stay full: %+v", selected)
+    }
+}
+
+// A certificate's declared reads add its test's package to an input's
+// selection; they never remove the input's own full rule, and a malformed
+// declaration refuses rather than narrowing.
+func TestCertificateReads(t *testing.T) {
+    cfg, _ := config(t)
+    g, err := affected.LoadGoGraph(context.Background(), os.Getenv("PAIR_AFFECTED_ROOT"))
+    if err != nil { t.Fatal(err) }
+    certificate := "tests/affected-readers/cmd/internal/slugcmd/slug_test.go"
+    sidecar := func(content string) (affected.Mapping, error) {
+        return affected.Compile(cfg, []affected.SidecarFile{{Path: certificate + ".json", Content: []byte(content)}})
+    }
+    m, err := sidecar(`{"version": 1, "disposition": "local_or_literal_fixture", "sha256": "00", "reads": ["atlas/fixture.dat", "nvim/x.lua"], "future": {"kept": true}}`)
+    if err != nil { t.Fatal(err) }
+    if selected := affected.Plan([]string{"atlas/fixture.dat"}, g, cfg, affected.Mapping{}, nil); !selected.Full {
+        t.Fatalf("undeclared input must stay unclassified: %+v", selected)
+    }
+    got := affected.Plan([]string{"atlas/fixture.dat"}, g, cfg, m, nil)
+    want := affected.Plan([]string{"cmd/internal/slugcmd/slug_test.go"}, g, cfg, m, nil)
+    if got.Full || !reflect.DeepEqual(got, want) { t.Errorf("declared read selected %+v, want %+v", got, want) }
+    if selected := affected.Plan([]string{"nvim/x.lua"}, g, cfg, m, nil); !selected.Full {
+        t.Errorf("a declared read narrowed a full input: %+v", selected)
+    }
+    for _, bad := range []string{`{"reads": "atlas/x"}`, `{"reads": ["../x"]}`, `{"reads": ["/abs"]}`, `{`} {
+        if _, err := sidecar(bad); err == nil { t.Errorf("malformed reads %s compiled", bad) }
     }
 }
 
@@ -326,7 +432,7 @@ func TestActualGroupConsumerCoverage(t *testing.T) {
                 for dep := range g.Deps[name] { dependencies[dep] = true }
                 for dep := range dependencies {
                     changed := filepath.ToSlash(filepath.Join(g.Dir[dep], "selection_probe.go"))
-                    selected := affected.Plan([]string{changed}, g, cfg, nil)
+                    selected := plan(t, []string{changed}, g, cfg)
                     covered := selected.Full // explicit full is conservative coverage
                     for _, got := range selected.Groups { if got == group { covered = true } }
                     if !covered {
@@ -377,7 +483,7 @@ func TestActualFileConsumerCoverage(t *testing.T) {
                     if seen[key] { continue }
                     seen[key] = true
                     checked++
-                    selected := affected.Plan([]string{relative}, g, cfg, nil)
+                    selected := plan(t, []string{relative}, g, cfg)
                     // These audited non-Go inputs can also alter Go test
                     // behavior. Selecting their shell/Lua group alone omits
                     // those Go consumers; the governing fallback is full.
@@ -396,7 +502,8 @@ class ProviderSourceTest(unittest.TestCase):
         sources = {
             "go.mod": b"module github.com/xianxu/ariadne\n\ngo 1.26.3\n",
             "go.sum": b"// source-acquisition metadata fixture\n",
-            PREFIX + "affected/config.go": b"package affected\n// GraphPrepare source-acquisition fixture\n",
+            PREFIX + "affected/config.go": b"package affected\n",
+            PREFIX + "affected/mapping.go": b"package affected\n// SidecarFile source-acquisition fixture\n",
             PREFIX + "jsonstrict/jsonstrict.go": b"package jsonstrict\n",
         }
         if supporting:

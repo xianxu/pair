@@ -10,13 +10,16 @@
   },
   "weight": 1,
   "timeout_minutes": 30,
+  "sidecars": [
+    {"prefix": "tests/affected-readers/", "suffix": ".json"}
+  ],
   "full": [
     ".github/workflows/**",
     ".sdlc/**",
     "Makefile*",
     "bin/**",
     "cmd/**/testdata/**",
-    "cmd/couch/**",
+    {"glob": "cmd/couch/**", "except": ["cmd/couch/*_test.go"]},
     "cmd/internal/dispatcher/**",
     "cmd/internal/runtimebundle/assets/runtime/manifest.json",
     "cmd/pair-go/**",
@@ -31,7 +34,7 @@
     "scripts/test-affected.py",
     "terminfo/**",
     "testdata/**",
-    "tests/**",
+    {"glob": "tests/**", "except": ["tests/affected-readers/**"]},
     "tests/affected-config-test.py",
     "tests/affected-consumers.json",
     "tests/lib/**",

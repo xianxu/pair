@@ -585,6 +585,7 @@ end cast or start a new cast. See `cast_capabilities.go`, `server_capabilities.g
       coordinator gates leaving a sketch on the required label acknowledgment.
     - `viewer_drive_live_test.go` drives two headless viewers, one by mouse and one by touch, through a real
       `Server` and `MemController`.
+- **Native fixture resize:** `live_viewport_test.go` owns `resizeLiveViewport`: arm a document-owned resize receipt before changing CDP metrics, then join the page's synchronous resize listeners before sampling click geometry. A metrics reply and a toolbar that already fits do not prove floating panels have clamped. Call it only after the fixture document is ready; held-event, unchanged-geometry and error-cleanup controls pin this ordering (#890).
 - **Viewer fidelity:** `replay_test.go` replays every fixture in headless Chrome (`WEBCAST_LIVE_CHROME=1`).
   - The drawn page's canonical equals the reducer's at every pin, and a join at any pin draws the same page.
   - Renders are within 3% of `frames/` (measured 0.2–2.3%). The last second before each frame is replayed in real
