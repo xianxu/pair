@@ -100,6 +100,9 @@ the operator says it on the call.
   - `pointer`: the lock is minted with the pointer token.
   - Both locks end in `teardown`, after the hub's `end` event, so viewers
     still see why the broadcast ended.
+  - A lost or last-unmounted `Mount` retains its exact Host close receipt.
+    `Unmount` joins it even after routing removal and Host reopening, so
+    Session cannot revoke those locks before its owned shutdown completes (#884).
 - **Lock page** (`web/lock.*`): asks for the code and the viewer's name; the
   name is stored as `couch.viewerName`.
   - `URL#NNNN` pre-fills the code, and the page strips it from history at

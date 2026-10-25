@@ -1,0 +1,6 @@
+=== RUN   TestLiveViewportResizeJoinsPageHandlers
+    live_viewport_test.go:59: resize completed before page handlers: <nil>
+--- FAIL: TestLiveViewportResizeJoinsPageHandlers (1.10s)
+FAIL
+FAIL	github.com/xianxu/pair/cmd/internal/webcast	1.347s
+FAIL

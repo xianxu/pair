@@ -1,0 +1,26 @@
+=== RUN   TestLiveViewportResizeJoinsPageHandlers
+=== RUN   TestLiveViewportResizeJoinsPageHandlers/metrics_error_cleanup
+=== RUN   TestLiveViewportResizeJoinsPageHandlers/wait_error_cleanup
+--- PASS: TestLiveViewportResizeJoinsPageHandlers (1.64s)
+    --- PASS: TestLiveViewportResizeJoinsPageHandlers/metrics_error_cleanup (0.00s)
+    --- PASS: TestLiveViewportResizeJoinsPageHandlers/wait_error_cleanup (0.00s)
+=== RUN   TestOperatorOwnerLiveAnnotationOff
+--- PASS: TestOperatorOwnerLiveAnnotationOff (4.62s)
+=== RUN   TestLiveViewportResizeJoinsPageHandlers
+=== RUN   TestLiveViewportResizeJoinsPageHandlers/metrics_error_cleanup
+=== RUN   TestLiveViewportResizeJoinsPageHandlers/wait_error_cleanup
+--- PASS: TestLiveViewportResizeJoinsPageHandlers (1.77s)
+    --- PASS: TestLiveViewportResizeJoinsPageHandlers/metrics_error_cleanup (0.01s)
+    --- PASS: TestLiveViewportResizeJoinsPageHandlers/wait_error_cleanup (0.01s)
+=== RUN   TestOperatorOwnerLiveAnnotationOff
+--- PASS: TestOperatorOwnerLiveAnnotationOff (4.94s)
+=== RUN   TestLiveViewportResizeJoinsPageHandlers
+=== RUN   TestLiveViewportResizeJoinsPageHandlers/metrics_error_cleanup
+=== RUN   TestLiveViewportResizeJoinsPageHandlers/wait_error_cleanup
+--- PASS: TestLiveViewportResizeJoinsPageHandlers (1.53s)
+    --- PASS: TestLiveViewportResizeJoinsPageHandlers/metrics_error_cleanup (0.00s)
+    --- PASS: TestLiveViewportResizeJoinsPageHandlers/wait_error_cleanup (0.00s)
+=== RUN   TestOperatorOwnerLiveAnnotationOff
+--- PASS: TestOperatorOwnerLiveAnnotationOff (4.23s)
+PASS
+ok  	github.com/xianxu/pair/cmd/internal/webcast	18.909s
