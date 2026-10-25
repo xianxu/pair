@@ -304,6 +304,10 @@ Authenticated pair:4 report834de67d confirms combined #857/#866/#844/#876 stage9
 
 This satisfies the independent integrated warm-stage prerequisite of hub c04b128d. Pair:4 sent the hub its full operator checklist and fresh profile restart line. The live operator verdict remains pending; stage-ready is not acceptance or landing. This slot has taken no pair:0 action, launched no further tests and entered no merge. Await the hub's live verdict and landing sequence.
 
+### 2026-10-24 — operator accepts evening stage; landing authorized
+
+Authenticated hub844eb822 reports operator PASS (working: warm restart, fresh agents and right pane) on combined evening stage9bfd7ab51cef5f9d563b19dea087c9ef084c19c9. Hub explicitly directs normal sdlc merge, integrating main and running its required suite, without touching pair:0; pair:4 owns clearing the stage later. This satisfies the pending live acceptance gate. Enter normal landing now; integration and its verification remain required, and no gate bypass is authorized by this PASS.
+
 ## Revisions
 
 ### 2026-10-24 — final plan bookkeeping and source ownership
