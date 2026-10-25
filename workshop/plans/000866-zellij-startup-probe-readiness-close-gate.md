@@ -446,6 +446,36 @@ rounds:
       isolation: fenced
       reviewed: 69dfd71b963c5935245ea414e6d69d0792c39f28
       blocked: false
+    - reviewer_runs:
+        - version: 1
+          intent:
+            disposable_root: true
+            id: 4fa7b253-22cb-47b6-a50a-0f7bbd8cea6c
+            repository: github.com/xianxu/pair
+            issue_id: "000866"
+            recipe: fix-review
+            round: 11
+            attempt: 1
+            agent: codex
+            root: /Volumes/TestScratch/review-checkouts/9a41d153df3bb8fa
+            reviewed_head: 691839ae94bbf2787c170d59a478cb5582a5013c
+            slot: pair:5
+            requested_at: "2026-10-25T06:22:56.024947Z"
+          phase: finished
+          pid: 35491
+          started_at: "2026-10-25T06:22:56.188877Z"
+          finished_at: "2026-10-25T06:24:11.770233Z"
+          session_id: 01a171b9-fc5e-79e3-8c63-dad4ae7b351a
+          outcome: returned
+      "n": 11
+      timestamp: "2026-10-24T23:24:13-07:00"
+      dispatched: "2026-10-24T23:22:52-07:00"
+      agent: codex
+      reviewer: codex (openai; author openai)
+      recipe: fix-review
+      isolation: fenced
+      reviewed: 691839ae94bbf2787c170d59a478cb5582a5013c
+      blocked: false
 ---
 
 # Gate ledger — pair#866 (boundary-review)
@@ -535,6 +565,8 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 ## Round 9 — 2026-10-24T18:05:35-07:00 (codex) — passed
 
 ## Round 10 — 2026-10-24T22:00:28-07:00 (codex) — passed
+
+## Round 11 — 2026-10-24T23:24:13-07:00 (codex) — passed
 
 ## Open findings
 

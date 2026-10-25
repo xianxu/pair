@@ -923,3 +923,75 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-24T23:24:13-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 866 — Wait for Zellij readiness before startup probe clients |
+| repo | pair |
+| issue file | workshop/issues/000866-zellij-startup-probe-readiness.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 40a6f727e3a713b82bed112de905c258695191dd..691839ae94bbf2787c170d59a478cb5582a5013c |
+| command | sdlc close --issue 866 |
+| reviewer | codex (openai; author openai) |
+| isolation | fenced |
+| timestamp | 2026-10-24T23:24:13-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+The interdiff fixes launcher test namespace allocation without changing production readiness behavior or the governing Spec/Plan. Regression evidence confirms the correction. No open prior findings require disposition, and no new defects were found.
+
+```findings
+{}
+```
+
+1. **Strengths**
+
+   - `cmd/internal/testpair/shortroot.go:30` exposes the existing allocator for TestMain owners while preserving `ShortRoot` cleanup behavior.
+   - `cmd/internal/launcher/session_quiescence_live_test.go:41` gives the native namespace a separate, bounded lifetime.
+   - `cmd/internal/launcher/session_quiescence_testmain_test.go:16` exercises the actual TestMain and checks canonical paths, socket path budget, private permissions, and cleanup after child exit.
+
+2. **Critical findings:** None.
+
+3. **Important findings:** None.
+
+4. **Minor findings:** None.
+
+5. **Test coverage notes**
+
+   Passed the focused launcher regression, existing real-listener short-root test, complete `testpair` package, affected-reader inventory, and diff whitespace checks. Restoring the former allocation through a temporary Go overlay makes the new regression fail. Repository files remained unchanged. Native conformance was not rerun.
+
+6. **Architectural notes**
+
+   - **ARCH-DRY — Pass:** both lifetime owners share one allocator.
+   - **ARCH-PURE — Pass:** filesystem allocation remains in test infrastructure.
+   - **ARCH-PURPOSE — Pass:** the correction covers launcher TestMain allocation and verifies cleanup through its real execution path.
+   - **ARCH-EVOLVE — Pass:** no persisted format or field semantics changed.
+
+   No new user-facing command or architectural flow requires README or atlas changes.
+
+7. **Plan revision recommendations:** None.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"4fa7b253-22cb-47b6-a50a-0f7bbd8cea6c","repository":"github.com/xianxu/pair","issue_id":"000866","recipe":"fix-review","round":11,"attempt":1,"agent":"codex","root":"/Volumes/TestScratch/review-checkouts/9a41d153df3bb8fa","reviewed_head":"691839ae94bbf2787c170d59a478cb5582a5013c","slot":"pair:5","requested_at":"2026-10-25T06:22:56.024947Z"},"phase":"finished","pid":35491,"started_at":"2026-10-25T06:22:56.188877Z","finished_at":"2026-10-25T06:24:11.770233Z","session_id":"01a171b9-fc5e-79e3-8c63-dad4ae7b351a","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 3.89725675s
+head: "691839ae94bbf2787c170d59a478cb5582a5013c"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000411
