@@ -298,6 +298,12 @@ Full close round9 returned SHIP/high confidence with0 new findings and0 open blo
 
 Report green exact pushed head, command and hashes to the hub and pair:4. Stage remains pair:4's authorized combined current-main build; its independent disposable main-built warm-session adoption/listing/resume/attach check comes first, before operator handoff. Operator reminder: if a new startup reports the named first-pane readiness error, an old/custom layout is in use and must be updated with the coupled binary/Lua/layout rollout. No pair:0 action or landing by this slot; await the hub's combined-stage verdict. Landing still integrates main and runs its required suite, as hub c04b128d requires.
 
+### 2026-10-24 — independent integrated-stage warm qualification PASS; live verdict pending
+
+Authenticated pair:4 report834de67d confirms combined #857/#866/#844/#876 stage9bfd7ab51cef5f9d563b19dea087c9ef084c19c9 is READY. Pair:4 independently adapted the retained one-off driver to the exact staged binaries against freshly pinned current main dc3031079bddd3c160cd9481fdef94f1ff29c83b: PASS146.58s (Go package146.745s), both Claude/Codex hub+worker cohorts, all four original actors. Reported controls cover startup adoption, public listing/resume, exact-tag attach and native clients; unchanged full bindings, PID/generations, native conversation IDs, transcripts and socket inodes; readiness markers still absent; both exact cleanups. Raw log SHA2567f87f8c973bcefd6cbf4950d01cadb5645c43d34c06a6811c4f19442c163340c is retained by pair:4 under its plan876.side/evidence/combined-restage. This is peer-owned independent evidence, not a second run by this slot.
+
+This satisfies the independent integrated warm-stage prerequisite of hub c04b128d. Pair:4 sent the hub its full operator checklist and fresh profile restart line. The live operator verdict remains pending; stage-ready is not acceptance or landing. This slot has taken no pair:0 action, launched no further tests and entered no merge. Await the hub's live verdict and landing sequence.
+
 ## Revisions
 
 ### 2026-10-24 — final plan bookkeeping and source ownership
