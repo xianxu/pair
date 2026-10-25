@@ -1,19 +1,19 @@
 ---
 id: 000853
-status: blocked
+status: working
 deps: [ariadne#598]
 github_issue:
 created: 2026-10-23
-updated: 2026-10-24
+updated: 2026-10-25
 estimate_hours:
-card_mirror: '8aad738d64b9ae14af32c09deb8c6141f87dc5e0' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '8cb6823933fb3dd0ebb92df33bde24f0d37f1709' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-24T10:26:38-07:00
 claimant:
     operator: Xian Xu
     machine: 4716879978a7b90f6b583da1716fd0e9
     machine_name: Xian’s MacBook Pro
-    workspace: pair:1
-    worktree: /Users/xianxu/workspace/worktree/pair-slot1/pair
+    workspace: pair:6
+    worktree: /Users/xianxu/workspace/worktree/pair-slot6/pair
     repository: github.com/xianxu/pair
 ---
 
@@ -41,7 +41,48 @@ everything. Keep the full-suite fallback for changes to the policy itself, the s
 
 ## Plan
 
-- [ ]
+Consumer of ariadne#598 M1 (installed sdlc 2bc11af1 contains merge 2001041f0). ariadne owns selection; pair only
+declares (ARCH-DRY). Quick flow: production change is a few lines of `.sdlc/affected.json`; the rest is tests.
+
+**Local-gates:** `.sdlc/*` is on `local-gates-guard.yml`'s protected list, so the PR needs the operator's
+`local-gates-verified`; I never apply it.
+
+- [ ] Repair the qualification harness (`tests/affected-config-test.py`, run by `make test`). On the current provider it
+  fails to compile: `jsonstrict` moved to `cmd/internal/jsonstrict`, and `Plan` takes `(paths, g, cfg, m, isDoc)`.
+  Copy the moved package, call `affected.Compile(cfg, sidecars)` with the repository's real certificates, and pass the
+  mapping to every `Plan`. The provider gate requires #598 (`SidecarFile` in `mapping.go`), since an older planner's
+  strict parse refuses the new members. Older providers make the test skip, not pass.
+- [ ] `.sdlc/affected.json`, additive members only:
+  - `"sidecars": [{"prefix": "tests/affected-readers/", "suffix": ".json"}]`: a certificate path aliases its test,
+    so it selects that test's package and its dependents.
+  - `"tests/**"` becomes `{"glob": "tests/**", "except": ["tests/affected-readers/**"]}`. Everything else under
+    `tests/` stays full: the selector's tests, the inventory tool, `tests/lib/**` and the shell/Lua tests.
+  - `"cmd/couch/**"` becomes `{"glob": "cmd/couch/**", "except": ["cmd/couch/*_test.go"]}`. A test file is not
+    compiled into the couch binary that native consumers build, so a test-only edit selects `cmd/couch` alone. Its
+    production files stay full, and `cmd/couch/testdata/**` is still full through `cmd/**/testdata/**`.
+- [ ] Qualification cases against the real planner and real certificates:
+  - `tests/affected-readers/cmd/internal/testcouch/agentfixture/request_lifetime_test.go.json` (#825) selects
+    `…/testcouch/agentfixture` and its dependents, not full.
+  - `cmd/couch/main_test.go` and `cmd/couch/editorial_acceptance_test.go` select `cmd/couch` exactly, not full;
+    their certificates do the same.
+  - Added, deleted and renamed certificates (path-only alias). A certificate whose test directory has no package goes
+    full. A certificate path that does not end in `_test.go.json` goes full.
+  - Still full: `.sdlc/affected.json`, `scripts/test-affected.py`, `tests/test-affected-test.py`,
+    `tests/affected-go-readers-test.py`, `tests/affected-config-test.py`, `tests/lib/x`, `cmd/couch/main.go`,
+    `cmd/couch/sub/x_test.go` (`*` does not cross `/`), and a certificate together with a full path.
+  - A fixture certificate with `reads: ["nvim/x.lua"]` shows the declared read selecting the test's package. That
+    input's own `full` rule still wins.
+- [ ] Recorder: `--record` keeps `reads` byte-for-byte when it refreshes a certificate's hash (a test beside the
+  existing unknown-member round-trip test). Every affected run already runs `make test-affected-inventory`
+  (`scripts/test-affected.py:500`), so a certificate-only change is still audited.
+- [ ] Docs: README's certificate paragraph and the atlas affected entry say what a certificate change selects, and
+  that `reads` is optional and narrows nothing by itself.
+
+**Out of scope (proposed follow-up, filed unclaimed):** adding audited `reads` to the 589 real certificates. Every
+non-Go input a reader uses is covered today by a `full` glob or a group. A `reads` entry only adds the reader's package
+to an input's selection; it never removes the input's own `full` rule. So until those `full` rules narrow, populating
+`reads` changes no selection, and it costs one audit per reader. The issue's "(and the reads it declares)" is
+satisfied by the mechanism and the fixture case above.
 
 ## Log
 
