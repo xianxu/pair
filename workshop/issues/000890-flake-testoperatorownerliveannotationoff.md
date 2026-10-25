@@ -58,6 +58,8 @@ Corrected document ordering plus resize receipt: controlled native regression an
 
 Catalog TestTrackedGoFilesPassCatalog PASS8.158s, whitespace check PASS. Final recorded pre-close check and normal merge still required before landing.
 
+BR-1 response: first close review REWORK solely because fenced Chrome cannot initialize its sandbox/GPU; static review found no defect. At exact requested head4b0b9f8e9d4d9b0c9d5c137bff879c5432319669 with no source changes, host focused tests count3 PASS18.909s; original metrics-only overlay on the same head fails held-event assertion1.347s exit1. [Pinned commands, environment, exit results, complete logs and hashes](../evidence/000890/host-proof.md). This supplies the requested executable counterexample and positive evidence without weakening Chrome isolation. Existing recorded affected run87687 remains queued on the code-identical head; no second check queued.
+
 ## Revisions
 
 ### 2026-10-25 — document-owned resize receipt
