@@ -83,6 +83,10 @@ Attempt6 (/tmp/pair879-upgrade-healthy5.log) failed199.343s during initial basel
 
 Attempt7 (/tmp/pair879-upgrade-healthy6.log) again reached candidate adoption, exact cohort preservation, old registry reads and successful public resume; it failed54.931s only because the already-live successful raw receipt omits Tag. Pair:5 independently captured the same legal no-op shape (7d94711c); source classifySlotOperationOutcome adds Tag only when a child/tag-bearing result exists. New portable no-op receipt RED0.218s, then accept an empty Tag only with the caller's immediate full old-cohort comparison after each successful resume. Wrong nonempty tag remains refused. Exact fleet root /Volumes/TestScratch/pc-1915950356 cleaned; driver exited1. No stage run yet. NEXT healthy control /tmp/pair879-upgrade-healthy7.log on unchanged baseline38fe8ea for both builds.
 
+Attempt8 /tmp/pair879-upgrade-healthy7.log is the first complete same-main healthy qualification: PASS127.301s (Claude60.22s, Codex58.19s). Both personalities passed actual triplet replacement, fresh candidate adoption, compact list/exact show, old parent/side registry identity and reads, public final resume receipts, physical exact-tag attachment with distinct retained drafts, positive native clients, and unchanged bindings/fixture PIDs/generations/native IDs/socket device+inode. Exact roots /Volumes/TestScratch/pc-733546003 and /Volumes/TestScratch/pc-3755470119 cleaned with all native generations absent, child/IO joined. This passing result does not erase the separately retained baseline-native panic occurrence in attempt6.
+
+NEXT requested RED: env PAIR_NATIVE_COUCH_UPGRADE=1 PAIR_COUCH_UPGRADE_BASE_SOURCE=/Volumes/TestScratch/pair879-stage.OeEwVU/baseline PAIR_COUCH_UPGRADE_CANDIDATE_SOURCE=/Volumes/TestScratch/pair879-stage.OeEwVU/tree go test ./cmd/couch -run '^TestDisposableCouchBuildUpgrade$' -count=1 -v -timeout=20m; output /tmp/pair879-upgrade-red.log. Same fixture/source head and real old state; only the selected coupled candidate source changes to93a57a38. No readiness-file mutation or expected-failure flag.
+
 ## Revisions
 
 ### 2026-10-24 — fixture-first landing, hub7aa4f471
