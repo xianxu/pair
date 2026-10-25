@@ -1,12 +1,20 @@
 ---
 id: 000887
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-10-25
 updated: 2026-10-25
 estimate_hours:
-card_mirror: 'a2bb7be9e9c6d7e6c0ba8b507cb085d8dedcadac' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: 'f63a9ed09c229a0959161b9c8b358662e5b5c903' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-25T08:28:36-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: Xian’s MacBook Pro
+    workspace: pair:4
+    worktree: /Users/xianxu/workspace/worktree/pair-slot4/pair
+    repository: github.com/xianxu/pair
 ---
 
 # Tests that set GOMODCACHE under TMPDIR leave read-only module caches behind; clean them via one helper
@@ -33,8 +41,21 @@ read-only module cache across the suite instead of creating one per test, if tha
 
 ## Plan
 
-- [ ]
+- [ ] Pin nested read-only cache deletion, symlink preservation, idempotence and automatic cleanup.
+- [ ] Add testpair.RemoveCacheTree and CacheTempDir; convert launcher teardown and named cache-capable fixture allocations. Cleanup errors fail the owner after children join.
+- [ ] Add a Pair catalog guard with positive/negative fixtures; audit disposable-HOME Go writers.
+- [ ] Run targeted checks, inventory, pushed pre-close, close and merge.
 
 ## Log
 
 ### 2026-10-25
+
+Hub and ariadne:5 independently identify retained pair-launcher-*/go/pkg/mod trees: 566 read-only directories, roughly6000 entries/77MB, from ignored cleanup after private HOME. No retained evidence tree touched. Current testdisk already reuses ambient GOMODCACHE; testcouch build settings are fakes. Hub dfef3fa6 approved the shared cleanup plan.
+
+## Revisions
+
+### 2026-10-25 — Correct the producer census; approved by hub dfef3fa6
+
+The retained producer is launcher/session_quiescence_live_test.go's TestMain: private HOME implicitly supplies GOPATH and GOMODCACHE, and ignored RemoveAll leaves extracted read-only modules. Preserve the named fixtures' isolation while giving cache-capable owned roots shared cleanup. One chmod-before-descent directory walk plus RemoveAll skips symlinks and returns errors; CacheTempDir registers cleanup before returning. Launcher cleanup runs after testpair.Run and converts failure to exit1. No shared cache or retained ariadne#631 evidence is removed. No new user state, format, timer or registry. Cost O(N) walk plus O(N) removal, once per owned tree. ARCH-DRY/ARCH-RETENTION: the allocating fixture owns teardown.
+
+The catalog guard rejects raw temporary GOMODCACHE allocations and private-HOME TestMain removal that bypasses shared cleanup; syntax enforcement does not prove arbitrary computed environments. Filesystem tests cover nested0555 directories, files0444, symlink targets unchanged, absence and cleanup order.
