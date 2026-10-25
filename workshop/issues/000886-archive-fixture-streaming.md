@@ -15,6 +15,7 @@ claimant:
     workspace: pair:11
     worktree: /Users/xianxu/workspace/worktree/pair-slot11/pair
     repository: github.com/xianxu/pair
+flow: {kind: quick, provenance: inferred, spec: "6129d9e9", done: "7e1e8089"}
 ---
 
 # Stream oversized archive protocol fixtures and restore the couchcmd write allowance
