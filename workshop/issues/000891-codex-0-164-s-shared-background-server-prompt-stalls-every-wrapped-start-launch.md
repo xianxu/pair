@@ -137,6 +137,10 @@ Landing after close: `sdlc pr`; `sdlc merge --yes`; report the outcome to ops:0.
     the leading flag and drops `resume <id>`.
   - Context choice kept: the probe uses `context.Background()`; it is read-only and bounded (3s + 1s worst
     case), so threading the launch context through the Runtime seam buys at most 3s of cancellation.
+- Main moved again during the fix cycle (#890 and #886 landed through 774eb26bf); merged origin/main a second
+  time (01e0396cd, clean, build clean) so the freshness gate and the suite describe the shipping tree. The
+  BR-1 dispute commit (be35a41f) rides below it. Full suite on 01e0396cd: exit 0 in 13m39s, recorded as
+  `sdlc-local/suite`; `make test-affected-inventory` passes.
 
 ## Revisions
 
