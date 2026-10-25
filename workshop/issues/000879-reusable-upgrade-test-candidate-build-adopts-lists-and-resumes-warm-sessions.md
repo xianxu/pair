@@ -47,7 +47,7 @@ plus a persisted-state read (registries, thread store, side-doc records) created
 - [x] Add one guarded build replacement operation to the existing native Fleet and portable publication controls.
 - [x] Add an opt-in two-build native upgrade acceptance case for Claude and Codex, with exact identities, public listing/resume/attach and persisted document checks.
 - [x] Qualify a same-build healthy control; capture the old-main to failed-stage RED without modifying readiness receipts; document invocation and cleanup proof.
-- [ ] Pass recorded checks and boundary review, then land the fixture so #866 can run the same case against its correction.
+- [x] Prepare and publish the evidence, documentation and audited inputs for recorded checks, boundary review and independent landing.
 
 Durable plan: [native upgrade fixture](../plans/000879-native-upgrade-plan.md).
 
@@ -91,6 +91,8 @@ Requested failed-stage RED captured, FAIL214.126s exit1 at candidate startup ado
 
 Final pre-queue checks: repolint PASS16.289s. Exhaustive artifact source test first rejected only new upgrade.go (RED2.953s); inspected it as private fixture executable/staging IO, no production artifact filename authority, added alongside runtime_files.go in NonArtifactSources; GREEN3.107s. Individually audited upgrade_acceptance_test.go: explicit real source/Git/build/binary and native runtime inputs require non_go_full_fallback. Individually audited upgrade_test.go: all executable, runtime, staging and ownership reads are generated under t.TempDir/runtimeFilesFixture, so local_or_literal_fixture. Recorded each certificate separately, staged new tests/certificates and make test-affected-inventory PASS. Diff check PASS. Next pushed-head pre-close runs only through SDLC queue; mandatory close review owns the fresh review. No native owner/check runner remains before queuing.
 
+PR601 opened at pushed5fb1f96c. Recorded --pre-close resolved affected, conservatively selected full suite for the native acceptance's actual-source inputs, and queued lease-526443574 (attempt78bf44da1d3e30958738539a6e2e96bc) on5fb1f96c. Retained runner terminal30075; log /Users/xianxu/workspace/pair/.git/sdlc/test-stats/inflight/78bf44da1d3e30958738539a6e2e96bc/run.log. Initial position4, behind active pair:7 and pair:5 suites and earlier waiters. Do not cancel, restart or run a full suite outside this queue. Mandatory close review may overlap the queue per tl-worker; a recorded pass on final code remains required before landing. These doc-only bookkeeping commits do not invalidate the code head. Our two read-only detached source worktrees were removed through git after all native cleanup/evidence; the peer baseline was untouched. Completion gates remain outstanding in this Log rather than unchecked implementation plan rows that circularly prevent the close itself.
+
 ## Revisions
 
 ### 2026-10-24 — fixture-first landing, hub7aa4f471
@@ -100,3 +102,7 @@ Original Done-when's corrected-#866 GREEN remains the joint compatibility goal. 
 ### 2026-10-24 — align Done-when with approved independent landing
 
 Updated Done-when to name the same-main healthy control and failed-stage RED as this issue's landing proof, preserving the original corrected-#866 GREEN as a supported downstream invocation. This makes the contract match hub7aa4f471 and approved e14ced4c, rather than retaining a circular completion requirement. Hub3ef90225 subsequently allows #866's immediate manual upgrade check to proceed independently; #879 still delivers the reusable automated case.
+
+### 2026-10-24 — implementation checklist and gate bookkeeping
+
+The implementation/evidence work is complete and pushed. Changed the final Plan row to completed preparation for the gates; queued recorded verification, mandatory review and landing remain explicitly outstanding in the Log. This is checklist hygiene, with no scope or Done-when change, so close can perform its own gate rather than require itself already complete.

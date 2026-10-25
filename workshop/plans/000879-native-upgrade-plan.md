@@ -57,23 +57,23 @@ All externally persisted input is read through existing bounded typed parsers. B
 
 Files: add cmd/internal/testcouch/upgrade.go and upgrade_test.go; narrowly reuse runtime_files.go copier if necessary.
 
-- [ ] Write portable RED controls: live console, another admitted operation, cancellation and invalid candidate refuse; incomplete executable publication cannot become a runnable candidate; three installed byte contents and PAIR_HOME actually change on success while namespace/RunID/fixtures are identical.
-- [ ] Run only those controls, count1, and confirm the intended missing behavior fails.
-- [ ] Implement detached-only ReplaceBuild with the existing begin/mutex/lifetime and copier. Always remove owned staging files; never remove old state or readiness receipts.
-- [ ] Add pure cohort mismatch controls (missing/extra/duplicate actor, changed complete binding, changed PID/generation/native ID) and filesystem cancellation/partial-publication controls.
-- [ ] Run focused testcouch tests count1 and focused race count1, sequential. Commit with issue and Agent trailers.
+- [x] Write portable RED controls: live console, another admitted operation, cancellation and invalid candidate refuse; incomplete executable publication cannot become a runnable candidate; three installed byte contents and PAIR_HOME actually change on success while namespace/RunID/fixtures are identical.
+- [x] Run only those controls, count1, and confirm the intended missing behavior fails.
+- [x] Implement detached-only ReplaceBuild with the existing begin/mutex/lifetime and copier. Always remove owned staging files; never remove old state or readiness receipts.
+- [x] Add pure cohort mismatch controls (missing/extra/duplicate actor, changed complete binding, changed PID/generation/native ID) and filesystem cancellation/partial-publication controls.
+- [x] Run focused testcouch tests count1 and focused race count1, sequential. Commit with issue and Agent trailers.
 
 ## Task 2: same two-build acceptance for healthy and failed candidates
 
 Files: add cmd/couch/upgrade_acceptance_test.go; modify atlas/couch-testing.md; individually audit/add affected-reader certificate when inventory identifies it.
 
-- [ ] Add opt-in TestDisposableCouchBuildUpgrade, reading explicit baseline/candidate source paths. It builds both coupled sets through BuildOwned and registers cleanup before fleets.
-- [ ] For each personality prepare/start old explicit hub + worker. Assert old public actor bindings and fixture readiness; snapshot exact native socket file identity and thread/session identities. Check the pre-#866 readiness markers are naturally absent, without deleting or creating them.
-- [ ] Register one ordinary parent and one side document through the old executable using the existing bridge's public registration pattern. Retain returned IDs; candidate lookup/read must return those same IDs and document content. Snapshot old thread records through the public list and typed store reader for comparison.
-- [ ] Detach old console and replace the physical executable triplet plus candidate PAIR_HOME using Task1. Preserve existing actor processes, sockets, roots, registration and native conversation IDs.
-- [ ] Start candidate and require fresh startup adoption, public --list and --actors showing every baseline slot; use explicit --resume for each warm target, follow the operation receipt to confirmed success, then exercise console selection/attach with the real terminal policy. Independently require positive clients on the exact old session and unchanged socket/actor identities. Do not treat an old ready.json or record alone as proof candidate startup/attachment succeeded.
-- [ ] On failure record phase, candidate startup/CLI error and whether native helper started; run existing Close and AssertCleaned on independent cleanup context. RED requires the expected resume-unknown/listing/missing readiness receipt refusal, not an unrelated timeout or cleanup failure.
-- [ ] Run healthy baseline-to-same-baseline control first (count1, sequential personalities). Then run the exact same case baseline-to-failed-stage and save its expected nonzero outcome and bounded evidence under workshop/evidence/000879/. No passing retry can replace that RED.
+- [x] Add opt-in TestDisposableCouchBuildUpgrade, reading explicit baseline/candidate source paths. It builds both coupled sets through BuildOwned and registers cleanup before fleets.
+- [x] For each personality prepare/start old explicit hub + worker. Assert old public actor bindings and fixture readiness; snapshot exact native socket file identity and thread/session identities. Check the pre-#866 readiness markers are naturally absent, without deleting or creating them.
+- [x] Register one ordinary parent and one side document through the old executable using the existing bridge's public registration pattern. Retain returned IDs; candidate lookup/read must return those same IDs and document content. Snapshot old thread records through the public list and typed store reader for comparison.
+- [x] Detach old console and replace the physical executable triplet plus candidate PAIR_HOME using Task1. Preserve existing actor processes, sockets, roots, registration and native conversation IDs.
+- [x] Start candidate and require fresh startup adoption, public --list and --actors showing every baseline slot; use explicit --resume for each warm target, follow the operation receipt to confirmed success, then exercise console selection/attach with the real terminal policy. Independently require positive clients on the exact old session and unchanged socket/actor identities. Do not treat an old ready.json or record alone as proof candidate startup/attachment succeeded.
+- [x] On failure record phase, candidate startup/CLI error and whether native helper started; run existing Close and AssertCleaned on independent cleanup context. RED requires the expected resume-unknown/listing/missing readiness receipt refusal, not an unrelated timeout or cleanup failure.
+- [x] Run healthy baseline-to-same-baseline control first (count1, sequential personalities). Then run the exact same case baseline-to-failed-stage and save its expected nonzero outcome and bounded evidence under workshop/evidence/000879/. No passing retry can replace that RED.
 
 Invocation contract (source checkouts supplied read-only by caller):
 
@@ -83,10 +83,10 @@ This test asserts compatibility and intentionally fails on the bad candidate. No
 
 ## Task 3: evidence and independent landing
 
-- [ ] Record both exact source/build identities, native RED signature, all cleanup results and healthy-control result in issue Log/evidence. Update atlas with invocation and when it is required; no change to local gate configuration.
-- [ ] Stage new tests, run make test-affected-inventory; audit each named reader's actual sources and repair only its certificate. Run focused tests needed for any changes.
-- [ ] Run recorded pre-close through the queue; close with mandatory fresh review, disposition findings, push PR and enter sdlc merge. Hub offered a queue grant; request it only once the concrete PR is ready.
-- [ ] Report landed fixture API, exact invocation and RED evidence to hub/pair:5. #866 integrates landed main, runs this same case against its correction and owns the corrected GREEN; #879 does not depend on its unlanded branch.
+- [x] Record both exact source/build identities, native RED signature, all cleanup results and healthy-control result in issue Log/evidence. Update atlas with invocation and when it is required; no change to local gate configuration.
+- [x] Stage new tests, run make test-affected-inventory; audit each named reader's actual sources and repair only its certificate. Run focused tests needed for any changes.
+
+Outstanding workflow gates (owned by their verbs, tracked in issue Log): recorded queued pre-close pass; mandatory close review and finding dispositions; merge/archive; hub outcome report with landed API/invocation/evidence. Hub offered a queue grant; request only with concrete PR ready. Corrected #866's separate manual proof is independent; no unlanded branch dependency.
 
 One atomic review boundary at issue close; no Mx tags. No estimate until change-code admits the full plan. This is harness/testing work; no production zellijquery change, operator restart, live state repair or stage deployment.
 
@@ -95,3 +95,7 @@ One atomic review boundary at issue close; no Mx tags. No estimate until change-
 ### 2026-10-24 — implementation seams and independent #866 check
 
 Pure cohort facts/comparison live beside their acceptance consumer in cmd/couch/upgrade_acceptance_test.go and use scalar device/inode socket identity, so mismatch tests need no IO. Runtime replacement remains in testcouch/upgrade.go. The old and candidate checkouts need their own generated (ignored) runtime bundle; create only in owned disposable sources, preserving clean tracked source. Physical selection uses each retained Binding.Tag rather than fixture:0, because the shared menu deliberately treats repo:N filters as numbered-slot-only. Distinct old drafts are typed through that console gesture, respecting the prohibition on a hub driving its own slot with --keys. These qualify the approved oracle, rather than changing production authority. Stop the personality series on its first failed case or uncertain cleanup. Hub3ef90225 allows #866's manual immediate upgrade check independently; this fixture continues toward its own landing.
+
+### 2026-10-24 — executed oracle details and gate checklist
+
+Public --list is compact; --show provides the candidate process's typed read of the complete old composite record address. Public --resume internally polls and prints a raw final OperationReceipt; an already-live no-op may omit Tag, so full old-cohort proof is checked immediately after every success. The stage RED captures the initialization-unverified listing refusal at adoption, preceding the helper timeout; the clipped path and unreached later oracles are explicit in evidence, and helper_started is not invented when unavailable. Implemented steps are ticked; workflow gates remain outstanding prose/Log so they do not circularly block the close that performs them.
