@@ -3,6 +3,7 @@ package couchcore
 import (
 	"context"
 	"errors"
+	"os"
 	"testing"
 	"time"
 
@@ -101,5 +102,33 @@ func TestRetireBenchSlotVacant(t *testing.T) {
 	env.Proc.Set(778, "id-orphan")
 	if _, err := env.Couch.RetireBenchSlot(context.Background(), RebootTarget{Path: local.slot.WorktreeRoot}); survivorCode(err) != SlotOpBenchSurvivors {
 		t.Fatalf("vacant slot with a live orphan: %v", err)
+	}
+}
+
+// BR-3: survivors this teardown named are recorded before the judgement, so a
+// retry after the agent stopped (no LeftRunning any more) still refuses; a
+// registry that cannot record them refuses too.
+func TestBenchSurvivorsAreRecordedForTheRetry(t *testing.T) {
+	env := newTestEnv(t, "/repo")
+	env.Proc.Set(790, "id-left")
+	left := []LeftRunningOrphan{{Origin: "slot:bench", Thread: ThreadAddress{RepoScope: "bench", Tag: "now"}, Process: ProcessIdentity{PID: 790, Identity: "id-left"}, Command: "npm", LeftAt: time.Now()}}
+	if err := env.Couch.refuseBenchSurvivors("bench", left); survivorCode(err) != SlotOpBenchSurvivors {
+		t.Fatalf("first attempt: %v", err)
+	}
+	if err := env.Couch.refuseBenchSurvivors("bench", nil); survivorCode(err) != SlotOpBenchSurvivors {
+		t.Fatalf("retry lost the survivor: %v", err)
+	}
+
+	broken := newTestEnv(t, "/repo")
+	broken.Proc.Set(790, "id-left")
+	registry := NewLeftRunningRegistry(broken.Couch.Namespace)
+	if err := os.MkdirAll(registry.dir(), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(registry.Path(), []byte(`{"schema_version":2,"orphans":[]}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := broken.Couch.refuseBenchSurvivors("bench", left); err == nil {
+		t.Fatal("an unrecordable survivor did not refuse")
 	}
 }

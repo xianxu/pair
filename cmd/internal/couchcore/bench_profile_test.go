@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"os"
 	"reflect"
 	"strings"
@@ -160,5 +161,18 @@ func TestBenchStartCarriesProvenance(t *testing.T) {
 	}
 	if result.Archived != old.Address {
 		t.Fatalf("embedded reboot result lost: %+v", result.RebootResult)
+	}
+}
+
+// BR-2: a reboot that only archives (the checkout is gone) starts nothing, so
+// bench-start refuses instead of reporting success without a launch.
+func TestBenchStartRefusesAnArchiveOnlyReboot(t *testing.T) {
+	env, old := primaryRebootFixture(t)
+	env.Couch.Path.(*FakePathOps).Fail(old.StartingPath)
+	argv := []string{"--bench"}
+	result, err := env.Couch.BenchStart(t.Context(), RebootTarget{Address: old.Address, Agent: "codex", Argv: &argv})
+	var refusal *SlotOperationError
+	if !errors.As(err, &refusal) || refusal.Code != SlotOpBenchNotStarted || result.Provenance != nil {
+		t.Fatalf("archive-only bench-start: %+v %v", result, err)
 	}
 }

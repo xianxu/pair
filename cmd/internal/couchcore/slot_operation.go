@@ -20,6 +20,9 @@ const (
 	// SlotOpBenchSurvivors: bench-retire found processes the slot's agents
 	// started still running, so it did not report the slot vacant (pair#847).
 	SlotOpBenchSurvivors = "bench-retire-survivors"
+	// SlotOpBenchNotStarted: bench-start's reboot only archived the record
+	// (unreadable, or its checkout is gone) and launched nothing.
+	SlotOpBenchNotStarted = "bench-start-not-started"
 )
 
 // SlotOperationError is a typed refusal: a code from the list above and the

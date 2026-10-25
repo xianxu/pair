@@ -73,8 +73,13 @@ func (c *Couch) BenchStart(ctx context.Context, t RebootTarget) (BenchStartResul
 	result, err := c.Reboot(ctx, t)
 	out := BenchStartResult{RebootResult: result}
 	started, ok := result.Started()
-	if err != nil || !ok {
+	if err != nil {
 		return out, err
+	}
+	if !ok {
+		// An archive-only reboot launches nothing; a bench-start that starts
+		// no agent is not a success.
+		return out, &SlotOperationError{Code: SlotOpBenchNotStarted, Detail: "the reboot archived the record and started nothing: " + result.Reason}
 	}
 	record, err := c.Threads.GetThread(started.Record.Thread)
 	if err != nil {

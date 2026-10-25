@@ -121,6 +121,14 @@ func (c *Couch) benchSurvivors(scope string, left []LeftRunningOrphan) ([]LeftRu
 }
 
 func (c *Couch) refuseBenchSurvivors(scope string, left []LeftRunningOrphan) error {
+	// Teardown names LeftRunning only while the agent is listed, and its own
+	// registration failure is only a note. Record them here, failing closed,
+	// so a retry after the agent stopped still finds them in the registry.
+	if len(left) > 0 {
+		if err := NewLeftRunningRegistry(c.Namespace).Add(context.Background(), left); err != nil {
+			return fmt.Errorf("bench-retire: left-running processes could not be recorded, so a retry could not see them: %w", err)
+		}
+	}
 	survivors, err := c.benchSurvivors(scope, left)
 	if err != nil {
 		return fmt.Errorf("bench-retire: left-running processes could not be read: %w", err)
