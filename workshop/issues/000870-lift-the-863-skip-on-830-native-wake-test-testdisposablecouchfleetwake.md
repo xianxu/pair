@@ -38,7 +38,7 @@ flow: {kind: quick, provenance: inferred, spec: "eeca357d", done: "1b7e3866"}
 
 - [x] Remove the pair#863 skip; T6's first phase uses Fleet.Start, waits for the second hub agent and both hub registrations (WaitActors 2), then the main hub launches the plain worker. The now-unused wakeFleetStartHub helper goes; wakeFleetOpenSwitcher stays for the Resume-from-disk phase.
 - [x] Run natively, unsandboxed, PAIR_NATIVE_COUCH_FLEET=1, for Claude and Codex (go test ./cmd/couch -run ^TestDisposableCouchFleetWake$).
-- [ ] Inventory, pre-close, close, land.
+- [x] Inventory, pre-close, close, land.
 
 ## Log
 
