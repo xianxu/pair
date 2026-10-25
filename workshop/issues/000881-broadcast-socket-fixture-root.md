@@ -1,13 +1,21 @@
 ---
 id: 000881
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-10-24
-updated: 2026-10-24
+updated: 2026-10-25
 estimate_hours:
-card_mirror: '0ddc8eeba07055c7acb10d972c5fb50289bda1ef' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '1ad3c730c6b31314e6809a52bc329df839e28049' # card fields mirrored from issue-cards; edit via sdlc
 flake_tests: [github.com/xianxu/pair/cmd/internal/broadcast.TestNamedTunnelServesFromPrivateSocket]
+started: 2026-10-25T00:44:15-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: Xian’s MacBook Pro
+    workspace: pair:5
+    worktree: /Users/xianxu/workspace/worktree/pair-slot5/pair
+    repository: github.com/xianxu/pair
 ---
 
 # Broadcast socket fixture exceeds managed TMPDIR path budget
@@ -28,7 +36,9 @@ Keep the production Unix-socket/TCP fallback behavior unchanged. Make socket-req
 
 ## Plan
 
-- [ ]
+- [ ] Reproduce deterministically with a long inherited TMPDIR; check the complete worst-case derived listener path against the 100-byte budget and retain real Unix/config/mode/cleanup assertions.
+- [ ] Delegate shortDir to testpair.ShortRoot (ARCH-DRY); add a catalog guard and mutation controls for this fixture allocator.
+- [ ] Verify the named tunnel and too-long TCP fallback, the broadcast package and catalog; record the affected check.
 
 ## Log
 
@@ -39,3 +49,5 @@ TL4b528f6a requested a main control in the same checkout path before filing. Aft
 A diagnostic-only Go overlay added a t.Logf of filepath.Join(pl.dir,"s"), its byte length and maxSocketPath without changing logic. One run passed at100 bytes. A bounded count3 run failed twice at101 bytes and passed once at100 bytes (overall FAIL0.504s). Exact failing path: /Volumes/TestScratch/tmp/sdlc-run-affected-64175-1517064309/cb3769456254/couch-broadcast-1449130918/s (101 bytes); second failing path has cb3378850947/couch-broadcast-3179157916/s (101 bytes). Passing path cb159981107/couch-broadcast-1720210679/s is100 bytes. Cloudflared.Listen's application budget is100, kept below Darwin's104-byte sun_path. The random decimal suffix lengths explain fail/pass on unchanged main. Diagnostic overlay stays outside tracked source at /Volumes/TestScratch/tmp/pair865-broadcast-control.CNseYR/overlay.json; no production or assertion edit.
 
 2026-10-24 registration evidence: original failed #865 head9676dff56fc63b95885f3ec084127d766ca1976e passed the unmodified focused test in0.301s in the identical checkout path when TMPDIR/GOTMPDIR were shortened to /Volumes/TestScratch/tmp. This is focused-versus-recorded evidence with an explicit environment difference, not a full-suite passing retry. Registered the exact test on this unclaimed card via sdlc flake register, using that observation together with the main failure and100/101-byte diagnostic controls above. #865 is using the supported saved affected resume; no passing status is assumed.
+
+2026-10-25: Quick-flow plan posted to hub, proceeding unless objected. Existing production allocation and fallback remain unchanged. A larger production seam or a second allocator would duplicate an existing owner without fixing fixture hermeticity. The regression sets TMPDIR only after checking native Unix availability, so a fixture-created long path cannot turn the intended failure into a skip. The complete path check reserves ten decimal suffix bytes, removing the observed 100/101-byte random-suffix dependence.
