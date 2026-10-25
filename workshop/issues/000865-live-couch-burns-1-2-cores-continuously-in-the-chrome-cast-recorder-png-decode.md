@@ -68,6 +68,8 @@ Baseline focused Endpoint sync/publication/resize/EOF/input-failure checks PASS0
 
 Plan-quality round1 returned PQ-1 existing-transition-fidelity and PQ-2 function-test-strategy. Source Endpoint.Resize358–386 confirms same-geometry returns early, failed acknowledgement changes no state, and a successful geometry change clears syncState before the next publication. Corrected the plan's previously wrong held-resize statement and swept its ordering claims. Replaced the semantic case inventory with named-function adversarial strategies and mechanical guards, preserving allocation counts. No M2 production code written; the original M2 buffer ownership scope is unchanged. Lessons append remains deferred until #879 lands.
 
+Plan-quality round3 remained CLEAN and estimate-quality INFO; change-code admitted implementation atfbff1659a after the settled derivation. Advisory concerns are retained: this is a whole-issue estimate, M2 semantic/performance verification may exceed its optimistic module allowance, and active final-integration work must be accounted explicitly. M1 attribution is ready for its mandatory boundary review; M2 production code remains unchanged. Added the live-attribution link and causal limits to the already-indexed profiling atlas page.
+
 ## Estimate
 
 Produced via brain/data/life/42shots/velocity/estimate-logic-v3.1.md against baseline-v3.1.md. Method A only for the now-settled plan; the source is marked stale and this derivation remains provisional. Plan-quality round2 is CLEAN before this reconciliation. The original2.92325h derivation remains verbatim in pre-m2-issue.md; elapsed work and actuals do not set these numbers.
@@ -92,8 +94,14 @@ design-buffer: 0.15
 total: 2.63925
 ```
 
+Accounting boundary:2.63925h estimates the whole #865 authoring/attribution/correction item, not remaining effort. The original profiler implementation was authored under #865 before #871 extracted it; #871's separate selective extraction/landing effort is not included again here. M2's performance-proof module includes reader audits, inventory and active recorded-check handling; the review primitives include active boundary/landing integration work. Idle FIFO waiting for #879 is excluded. The bounded adversarial tests and baseline/candidate replay may exceed this allowance; keep their verification contract intact and record measured actuals rather than fitting implementation to the estimate.
+
 ## Revisions
 
 ### 2026-10-24 — measured owner and fresh-main M2
 
 Reason: the original recorder hypothesis was unsupported, #871 independently delivered the profiler, scaled controls were parked, and an operator live profile now names the allocation owner. Delta: current Spec/Done-when/Plan replace the speculative optimization and pending-profile state with the TL-approved private-buffer correction and counted budget; complete former artifacts remain linked historical captures rather than disappearing. M1 retains its genuine attribution review boundary, and M2 its correction boundary. Aged CPU and fseventsd causality remain explicit limits, not implied fixes. Fresh-main isolation and deferred common lessons follow hub f6c298b1; no stack on #879 or unlanded profiler/harness code.
+
+### 2026-10-24 — post-quality estimate reconciliation
+
+After plan-quality cleared, replaced only the historical unknown M2 Method B allowance with the two settled smaller-module activities; retained original M1 primitive amounts and their provenance. Added the whole-issue versus #871 extraction accounting boundary and named active verification/integration coverage following estimate-quality INFO. This changes neither the approved implementation nor its test budgets; actuals remain measured by SDLC.
