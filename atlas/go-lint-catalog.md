@@ -123,6 +123,20 @@ couchmessage transport fixture keeps an owned short root because cleanup
 consumers replace its RPC leaf with production wrapper/PID/hash names; a
 long-TMPDIR regression binds those actual derived endpoints.
 
+The local `broadcast-socket-fixture-root` rule (pair#881) protects the
+package-level `broadcast.shortDir` fixture owner in
+`cmd/internal/broadcast/cloudflared_test.go`. It must directly return the
+imported `testpair.ShortRoot` result, leaving room for the private tunnel
+directory and socket leaf even under a long inherited TMPDIR. The matcher in
+`internal/repolint/local_catalog_test.go` checks top-level return expressions,
+recognizes imported aliases and rejects local shadows. It is a syntax guard
+for this enumerated constructor, not control-flow analysis or detection of
+renamed/alternative allocators. Literal mutation controls live in
+`internal/repolint/broadcast_fixture_root_rule_test.go`; the real listener
+regression is `TestNamedTunnelServesFromPrivateSocket`, including its complete
+path budget, configuration, permissions and cleanup. Production's explicit
+long-path TCP fallback remains covered separately.
+
 Timing regressions drive the event under test after readiness: registration
 budgets, lock contention, recorder drain timeout and Chrome's last-page grace
 have private controllable seams with unchanged production defaults. A negative

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"github.com/xianxu/pair/cmd/internal/artifactpath"
 	"github.com/xianxu/pair/cmd/internal/readiness"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -40,6 +41,34 @@ type retainedReadyWorld struct {
 	attempt *terminalOSAttempt
 }
 
+func (w *retainedReadyWorld) Acquire(ctx context.Context) (io.Closer, error) {
+	w.event("acquire")
+	lease, err := w.attempt.Acquire(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return retainedReadyLease{lease, w.handoffWorld}, nil
+}
+
+type retainedReadyLease struct {
+	io.Closer
+	world *handoffWorld
+}
+
+func (l retainedReadyLease) Close() error {
+	l.world.event("release")
+	return l.Closer.Close()
+}
+
+func prepareRetainedReadyGuard(t *testing.T, a *terminalOSAttempt) {
+	t.Helper()
+	t.Setenv("HOME", t.TempDir())
+	a.socketRoot = filepath.Join(filepath.Dir(a.socket), "native")
+	t.Setenv("ZELLIJ_SOCKET_DIR", a.socketRoot)
+	a.socket = filepath.Join(a.socketRoot, "contract_version_1", a.name)
+	a.nonce = "current-launch"
+}
+
 func (w *retainedReadyWorld) Check(ctx context.Context) error {
 	w.event("check")
 	return w.attempt.Check(ctx)
@@ -54,6 +83,7 @@ func TestColdLaunchChecksCrossAgentSurvivorUnderLease(t *testing.T) {
 	world := newHandoffWorld()
 	world.admission <- errors.New("unexpected start")
 	attempt := &terminalOSAttempt{rt: *NewOSRuntime(root, "/pair"), name: name, scope: "scope", tag: "work", agent: "codex", socket: filepath.Join(root, "absent-socket"), create: true}
+	prepareRetainedReadyGuard(t, attempt)
 	_, e := CoordinateTerminalHandoff(context.Background(), &retainedReadyWorld{world, attempt}, time.Second)
 	if e == nil || !strings.Contains(e.Error(), "live agent") {
 		t.Fatalf("did not refuse survivor: %v", e)
@@ -67,7 +97,11 @@ func TestColdLaunchUnknownReadinessRefusesUnderLease(t *testing.T) {
 	for _, kind := range []string{"malformed", "oversized", "directory"} {
 		t.Run(kind, func(t *testing.T) {
 			root := t.TempDir()
-			path := AgentReadyPath(root, "work", "claude")
+			owner, _ := artifactpath.NewStorageOwner(root, "scope", "work")
+			if err := os.MkdirAll(owner.Directory(), 0700); err != nil {
+				t.Fatal(err)
+			}
+			path := AgentReadyPath(owner.Directory(), "work", "claude")
 			switch kind {
 			case "malformed":
 				os.WriteFile(path, []byte("{"), 0600)
@@ -78,7 +112,8 @@ func TestColdLaunchUnknownReadinessRefusesUnderLease(t *testing.T) {
 			}
 			world := newHandoffWorld()
 			world.admission <- errors.New("unexpected start")
-			attempt := &terminalOSAttempt{rt: *NewOSRuntime(root, "/pair"), name: fmt.Sprintf("pair528-unknown-%d", os.Getpid()), tag: "work", agent: "codex", socket: filepath.Join(root, "absent"), create: true}
+			attempt := &terminalOSAttempt{rt: *NewOSRuntime(root, "/pair"), name: fmt.Sprintf("pair528-unknown-%d", os.Getpid()), scope: "scope", tag: "work", agent: "codex", socket: filepath.Join(root, "absent"), create: true}
+			prepareRetainedReadyGuard(t, attempt)
 			_, e := CoordinateTerminalHandoff(context.Background(), &retainedReadyWorld{world, attempt}, time.Second)
 			if e == nil || !strings.Contains(e.Error(), "readiness") {
 				t.Fatalf("accepted unknown readiness: %v", e)
@@ -96,9 +131,19 @@ func TestColdLaunchAcceptsProvenDeadRetainedAgent(t *testing.T) {
 		t.Fatal(e)
 	}
 	root := t.TempDir()
+	owner, _ := artifactpath.NewStorageOwner(root, "scope", "work")
+	if err := os.MkdirAll(owner.Directory(), 0700); err != nil {
+		t.Fatal(err)
+	}
 	ready, _ := readiness.Encode(readiness.ReadyRecord{Tag: "work", Agent: "claude", Session: "old", Nonce: "old", PID: cmd.Process.Pid})
-	os.WriteFile(AgentReadyPath(root, "work", "claude"), []byte(ready), 0600)
-	attempt := &terminalOSAttempt{rt: *NewOSRuntime(root, "/pair"), name: fmt.Sprintf("pair528-dead-%d", os.Getpid()), tag: "work", agent: "codex", socket: filepath.Join(root, "absent"), create: true}
+	os.WriteFile(AgentReadyPath(owner.Directory(), "work", "claude"), []byte(ready), 0600)
+	attempt := &terminalOSAttempt{rt: *NewOSRuntime(root, "/pair"), name: fmt.Sprintf("pair528-dead-%d", os.Getpid()), scope: "scope", tag: "work", agent: "codex", socket: filepath.Join(root, "absent"), create: true}
+	prepareRetainedReadyGuard(t, attempt)
+	lease, err := attempt.Acquire(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer lease.Close()
 	if e := attempt.Check(context.Background()); e != nil {
 		t.Fatal("dead readiness blocked recovery", e)
 	}

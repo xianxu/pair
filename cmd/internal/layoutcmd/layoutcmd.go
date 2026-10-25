@@ -3,13 +3,13 @@
 package layoutcmd
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"github.com/xianxu/pair/cmd/internal/zellijquery"
 	"github.com/xianxu/pair/cmd/internal/zellijreply"
 	"io"
 	"os"
-	"os/exec"
 
 	"github.com/xianxu/pair/cmd/internal/notifytransport"
 	"github.com/xianxu/pair/cmd/internal/procutil"
@@ -338,10 +338,16 @@ func (OSRuntime) TerminalPaneIDs() ([]string, error) {
 }
 
 func (OSRuntime) RunZellijAction(args ...string) error {
+	return OSRuntime{}.RunZellijActionContext(context.Background(), args...)
+}
+
+// RunZellijActionContext retains the enclosing mutation deadline.
+func (OSRuntime) RunZellijActionContext(ctx context.Context, args ...string) error {
 	cmdArgs := append([]string{"action"}, args...)
-	out, err := exec.Command("zellij", cmdArgs...).CombinedOutput()
+	var out bytes.Buffer
+	err := zellijquery.RunNativeCommand(ctx, cmdArgs, nil, nil, &out, &out)
 	if err != nil {
-		return &zellijActionError{err, string(out)}
+		return &zellijActionError{err, out.String()}
 	}
 	return nil
 }

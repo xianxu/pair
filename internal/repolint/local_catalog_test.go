@@ -12,6 +12,16 @@ import (
 // Copy the shared catalog before extending it: Pair rules must not alter the
 // upstream catalog used by sleepSites to identify existing sleep debt.
 var pairCatalog = append(append([]golint.Rule(nil), golint.Catalog...), golint.Rule{
+	Name:     "broadcast-socket-fixture-root",
+	Incident: "pair#881",
+	Message:  "delegate broadcast shortDir to testpair.ShortRoot; inherited TMPDIR can exceed the complete Unix socket path budget",
+	Match:    syntaxMatch(broadcastSocketFixtureRoots),
+}, golint.Rule{
+	Name:     "zellij-native-admission",
+	Incident: "pair#866",
+	Message:  "route bounded native commands through namespace admission; preserve explicit creator/interactive exceptions",
+	Match:    func(*ast.File, *golint.CheckContext) []ast.Node { return nil },
+}, golint.Rule{
 	Name:     "test-fifo-empty-handoff",
 	Incident: "pair#679",
 	Message:  "write a nonempty FIFO payload before closing a test writer; an empty open/close can strand Darwin readers",
@@ -281,4 +291,33 @@ func birthProbeAdmissionBudgets(file *ast.File) []ast.Node {
 		return true
 	})
 	return matches
+}
+
+// This enumerated socket-fixture owner must return the shared allocator's root.
+// Merely calling the allocator while returning another path does not qualify.
+func broadcastSocketFixtureRoots(file *ast.File) []ast.Node {
+	if file.Name.Name != "broadcast" {
+		return nil
+	}
+	for _, decl := range file.Decls {
+		fn, ok := decl.(*ast.FuncDecl)
+		if !ok || fn.Recv != nil || fn.Name.Name != "shortDir" {
+			continue
+		}
+		valid := false
+		if fn.Body != nil {
+			for _, stmt := range fn.Body.List {
+				ret, ok := stmt.(*ast.ReturnStmt)
+				if !ok || len(ret.Results) != 1 {
+					continue
+				}
+				call, ok := ast.Unparen(ret.Results[0]).(*ast.CallExpr)
+				valid = ok && importedZellijReference(file, ast.Unparen(call.Fun), "github.com/xianxu/pair/cmd/internal/testpair", "ShortRoot")
+			}
+		}
+		if !valid {
+			return []ast.Node{fn}
+		}
+	}
+	return nil
 }

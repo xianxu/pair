@@ -10,6 +10,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from unittest import mock
 
 ROOT = Path(__file__).resolve().parents[1]
 PREFIX = "github.com/xianxu/pair/"
@@ -194,6 +195,21 @@ class MakeEntrypoint(unittest.TestCase):
         self.assertEqual([(r["kind"], r["args"]) for r in rows],
                          [("make", ["test-affected-inventory"])])
 
+    def test_wrapped_recipe_still_rejects_unclaimed_files(self):
+        makefile = ROOT / "Makefile.local"
+        original = Path.read_text
+        source = makefile.read_text()
+        anchor = "test-lua-recipes:\n"
+        self.assertEqual(source.count(anchor), 1)
+        changed = source.replace(anchor, anchor + "\tbash tests/unclaimed-native-fixture.sh\n", 1)
+
+        def read_text(path, *args, **kwargs):
+            return changed if path == makefile else original(path, *args, **kwargs)
+
+        with mock.patch.object(Path, "read_text", read_text):
+            with self.assertRaisesRegex(AssertionError, "lua does not claim test-lua's tests/unclaimed-native-fixture.sh"):
+                self.test_recipe_ownership()
+
     def test_recipe_ownership(self):
         result = subprocess.run(["make", "-prRn", "-f", "Makefile.local", "test", "PAIR_TEST_BINARY=/unused", "GOFLAGS="],
                                 cwd=ROOT, text=True, capture_output=True)
@@ -227,6 +243,18 @@ class MakeEntrypoint(unittest.TestCase):
                 recipe = re.search(r"^" + target + r":[^\n]*\n((?:\t[^\n]*\n)+)", source, re.M)
                 self.assertIsNotNone(recipe, target)
                 files = re.findall(r"(?:bash|sh|python3(?: -B)?|nvim -l) ((?:tests|doctor|nvim)/[^\s]+)", recipe[1])
+                wrapper = "tests/lib/with-pair-test-binary.sh"
+                if wrapper in files:
+                    # Shared candidate placement is a full-selection input;
+                    # ownership still covers every recipe behind that wrapper.
+                    self.assertEqual(files, [wrapper])
+                    self.assertTrue(any(fnmatch.fnmatchcase(wrapper, pattern) for pattern in config["full"]))
+                    inner = target + "-recipes"
+                    self.assertEqual(recipe[1].strip(), f"bash {wrapper} $(TEST_RECIPE_MAKE) {inner}")
+                    recipe = re.search(r"^" + inner + r":[^\n]*\n((?:\t[^\n]*\n)+)", source, re.M)
+                    self.assertIsNotNone(recipe, inner)
+                    files = re.findall(r"(?:bash|sh|python3(?: -B)?|nvim -l) ((?:tests|doctor|nvim)/[^\s]+)", recipe[1])
+                    self.assertTrue(files, f"{inner} has no audited recipe files")
                 for path in files:
                     self.assertTrue(any(fnmatch.fnmatchcase(path, pattern) for pattern in group["paths"]),
                                     f"{group['name']} does not claim {target}'s {path}")

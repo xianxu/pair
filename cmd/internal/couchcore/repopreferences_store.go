@@ -98,7 +98,8 @@ func (s *ThreadStore) rememberRepoConfigurationContext(ctx context.Context, repo
 				continue
 			}
 		}
-		if busy != nil && ctx.Err() != nil && errors.Is(err, ctx.Err()) {
+		// A wait capped at the deadline (pair#854) can end it before ctx.Err is set.
+		if busy != nil && (errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled)) {
 			return fmt.Errorf("remember repository arguments: %w (store stayed busy: %w)", err, busy)
 		}
 		return err

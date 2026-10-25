@@ -1709,6 +1709,7 @@ CLI. It runs in-process against the store and needs no supervisor.
   - `ResolveEdits` (`sessionsync/edits.go`) resolves every record against the file, all or nothing: an empty, not-found or overlapping record refuses the batch as `edits-invalid`, listing each one (`Refusal.Invalid`, JSON `Invalid`), and nothing is written.
   - The review pane's Lua resolver (`reconstruct.resolve`) runs the same fixtures, in `testdata/edit-records`.
   - Apply resolves after the lock, hash and owed checks, then writes through the same prepared write as `write`.
+  - **Apply shadow (#862):** preparation projects actual changed byte runs through unchanged old-shadow/current-file intervals (`sessionsync/apply_shadow.go`), rather than resolving record occurrences again. Only those mapped ranges and the generated restamp advance; broad/no-op records do not acknowledge unchanged text. The bounded existing line diff and a monotone interval sweep preserve unrelated unread edits. Any unmappable range or missing baseline retains the entire prior shadow while the document apply succeeds with a warning, composed with round/late-lock warnings. Inspect diff, review remaining edits, then explicitly `read --all` to acknowledge them; `read --section` does not advance the shadow. No new metadata, retry or publication owner.
   - **The round:** every agent write that changes the file (`write --all|--section|--frontmatter` and `apply`) replaces the round sidecar.
     - Where it lives: `.<file>.round`, or `state/<ID>/round.json` for a registered document. It is carried by register and forget, and kept by rename.
     - What it holds: `{base_hash, result_hash, at, presentation, spans}`, derived by `DeriveRound` (`round.go`) from a capped line diff (`linediff.go`) narrowed to the changed bytes.
@@ -3648,6 +3649,10 @@ park leave (`leave_park.go`):
   therefore poll it within `storeReadLockWait` and then return
   `ErrThreadStoreBusy`. Before #827 they refused at the first EWOULDBLOCK, which
   is what left fan-out parks behind. Retention maintenance still yields at once.
+  The wait never outlives the caller's deadline (`storeLockBound`, pair#854): a
+  caller with less budget than the wait waits only that long, and gets
+  `context.DeadlineExceeded` rather than busy when the deadline ends it. Park
+  recovery writes and empty-startup creation (#873) take the bound.
   `isStoreContention` names both forms (typed busy, raw EWOULDBLOCK/EAGAIN).
   Repository-argument publication retries contention until the caller's
   deadline and refuses a caller without one (#877); at the deadline its error

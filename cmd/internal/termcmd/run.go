@@ -14,7 +14,6 @@ import (
 	"github.com/xianxu/pair/cmd/internal/terminal"
 	"io"
 	"os"
-	"os/exec"
 	"strings"
 	"time"
 
@@ -25,6 +24,7 @@ import (
 	"github.com/xianxu/pair/cmd/internal/procutil"
 	"github.com/xianxu/pair/cmd/internal/workbenchshortcut"
 	"github.com/xianxu/pair/cmd/internal/zellijpane"
+	"github.com/xianxu/pair/cmd/internal/zellijquery"
 	"github.com/xianxu/pair/cmd/internal/zellijreply"
 	"golang.org/x/term"
 	"strconv"
@@ -1030,17 +1030,8 @@ func (OSRuntime) RunZellijActionQuiet(args ...string) error {
 // every wheel tick, outside the writer loop and outside the paint gate, and
 // after #199 M4 there is no frame to absorb it.
 func runZellij(args []string, stdout, stderr io.Writer) error {
-	cmd := exec.Command("zellij", args...)
-	// NO STDIN EITHER. The pane's stdin is in RAW MODE and carries the
-	// operator's keystrokes; handing it to a subprocess lets that process
-	// consume them, and none of termcmd's verbs (focus-pane-id, scroll-up,
-	// scroll-down, rename-pane) read stdin at all. Both this file and
-	// atlas/architecture.md claimed "neither descriptor" while this line gave
-	// away a third one.
-	cmd.Stdin = nil
-	cmd.Stdout = stdout
-	cmd.Stderr = stderr
-	return cmd.Run()
+	// Actions never consume the raw terminal input.
+	return zellijquery.RunNativeCommand(context.Background(), args, nil, nil, stdout, stderr)
 }
 
 // diagnosticWidth bounds what any single diagnostic may put on the pane. Wide

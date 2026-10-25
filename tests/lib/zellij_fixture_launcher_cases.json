@@ -1636,5 +1636,23 @@
       "pair-new"
     ],
     "expect": "accept"
+  },
+  {
+    "name": "recovery-readiness.live-session",
+    "source": "cmd/internal/launcher/recovery_readiness_test.go:TestExplicitRecoveryOfUnmarkedEndpointKeepsExactAuthority",
+    "kind": "sessions-full",
+    "payload": [
+      "pair-work"
+    ],
+    "expect": "accept"
+  },
+  {
+    "name": "recovery-readiness.retired-session",
+    "source": "cmd/internal/launcher/recovery_readiness_test.go:TestExplicitRecoveryOfUnmarkedEndpointKeepsExactAuthority",
+    "kind": "sessions-full",
+    "payload": [
+      "other"
+    ],
+    "expect": "accept"
   }
 ]
