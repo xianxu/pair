@@ -87,6 +87,7 @@ cmd/internal/testdisk/budget.go. Independent work can start from main; no
 stacking on #737, and no source edits were made to the archive fixtures here.
 
 ### 2026-10-25 — resumed in pair:11
+- 2026-10-25: closed — Recorded pre-close suite PASS exit 0 in 14m4s on unchanged implementation dd3570f1aa18dcffc1eed4beb2a387088362103b; complete couchcmd PASS 77.066s with original 96 MiB write guard; all suite packages PASS. Exact max+1 child output, refusal/cleanup, padding failures and excess-write guard PASS. Same-selection native writes save 8392704 bytes. Bounded evidence: workshop/evidence/000886/pre-close.txt. BR-1 required verification supplied; later commits prose only. (done-when: contract moved since change-code; judged by the close review); review verdict: SHIP
 
 Recovered the specified previous recording (startup only) and empty local Log;
 claim and start-plan brought fresh main details, including the filed scope.
