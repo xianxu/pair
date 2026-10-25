@@ -69,6 +69,12 @@ func (c *Couch) recoveryLaunchProfile(ctx context.Context, record ThreadRecord, 
 }
 
 func (c *Couch) recoveryLaunchProfileForSelection(ctx context.Context, record ThreadRecord, selection RecoverySelection) (LaunchProfile, error) {
+	if bench, err := selectionBenchProfile(selection); err != nil || bench != nil {
+		if err != nil {
+			return LaunchProfile{}, err
+		}
+		return bench.resolution().Profile, nil
+	}
 	if selection.Agent == "" {
 		return c.recoveryLaunchProfile(ctx, record, selection.Kind)
 	}
