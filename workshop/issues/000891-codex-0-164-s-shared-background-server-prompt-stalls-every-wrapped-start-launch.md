@@ -15,7 +15,7 @@ claimant:
     workspace: pair:8
     worktree: /Users/xianxu/workspace/worktree/pair-slot8/pair
     repository: github.com/xianxu/pair
-flow: {kind: quick, provenance: inferred, spec: "35fb6ad0", done: "7aee7188"}
+flow: {kind: full, provenance: inferred}
 ---
 
 # Codex 0.164's shared background server prompt stalls every wrapped start; launch so it can't appear
@@ -69,6 +69,8 @@ Landing after close: `sdlc pr`; `sdlc merge --yes`; report the outcome to ops:0.
 ## Log
 
 ### 2026-10-25
+- 2026-10-25: closed — tests: focused launcher/readiness/wrapcmd PASS; BR-4 fixed (PAIR_AGENT_VERSION written every launch, empty clears an inherited value; stale-env tests for failed probe and claude); probe bounded with WaitDelay; standalone codex gate test added. Full suite exit 0 on the final integrated head 01e0396cd (13m39s, sdlc-local/suite; prior heads 32a7dd6ad 16m11s and 0726d114 17m11s, code unchanged after). make test-affected-inventory passes. Manual PTY check (120x40, no keys): fixed argv reaches the composer with 0 occurrences of "incompatible feature settings"; pre-change control reproduces the three-way prompt once; shared daemon PID 6294 untouched. BR-1 disputed as factually wrong: --no-daemon is in codexBoolGlobalOption and TestFreshAgentArgsWalksPastNoDaemon passes. (done-when: contract moved since change-code; judged by the close review); review verdict: SHIP
+- 2026-10-25: flow upgraded quick → full — 107 added lines in code files (limit 100); an earlier round of this close already ran the full review
 
 - Codex 0.164 evidence (read-only probes, no session started): `codex --version` → `codex-cli 0.164.0`;
   `codex --help` lists `--no-daemon` ("Run without the shared background server, even if it is already
