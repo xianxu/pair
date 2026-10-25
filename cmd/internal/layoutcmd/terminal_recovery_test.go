@@ -74,7 +74,7 @@ func TestNewTerminalRecreatesConfirmedAbsentPane(t *testing.T) {
 				t.Fatalf("lost terminal not recreated: %+v", effects)
 			}
 			args := effects[0].Args
-			want := []string{"action", "new-pane", "--direction", "right", "--tab-id", "0", "--no-focus", "--name", "terminal", "--", "sh", "-c", `zellij action rename-pane --pane-id "$ZELLIJ_PANE_ID" terminal 2>/dev/null; exec pair term`}
+			want := []string{"action", "new-pane", "--direction", "right", "--tab-id", "0", "--no-focus", "--name", "terminal", "--", "sh", "-c", `pair internal zellij-command -- action rename-pane --pane-id "$ZELLIJ_PANE_ID" terminal 2>/dev/null; exec pair term`}
 			if !reflect.DeepEqual(args, want) {
 				t.Fatalf("recovery is not bound to caller's tab: %q want %q", args, want)
 			}

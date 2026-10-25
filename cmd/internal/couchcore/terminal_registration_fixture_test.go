@@ -1,6 +1,7 @@
 package couchcore
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -15,6 +16,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/xianxu/pair/cmd/internal/launcher"
 	"github.com/xianxu/pair/cmd/internal/osfs"
 	"github.com/xianxu/pair/cmd/internal/readiness"
 	"github.com/xianxu/pair/cmd/internal/testpair"
@@ -53,6 +55,12 @@ func registrationTerminalFixture() error {
 		return nil
 	}
 	if filepath.Base(os.Args[0]) == "pair-wrap" {
+		// Model the real layout's first-pane command before entering pair wrap.
+		// AgentReady alone cannot release the creator's namespace lease (#866).
+		paneEnv := append(os.Environ(), "ZELLIJ_SESSION_NAME="+os.Getenv("PAIR_SESSION_NAME"), "ZELLIJ_PANE_ID=1")
+		if err := launcher.PublishPaneReady(context.Background(), paneEnv); err != nil {
+			return err
+		}
 		agent := exec.Command(filepath.Join(filepath.Dir(os.Args[0]), "claude"), "--fixture-agent")
 		agent.Env, err = registrationFixtureEnvironment()
 		if err != nil {

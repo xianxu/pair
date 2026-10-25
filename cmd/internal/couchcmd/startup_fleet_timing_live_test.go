@@ -1568,7 +1568,11 @@ func TestFleetPostQueryClientValidationRejectsContradictoryOrUnknownEvidence(t *
 }
 
 func TestFleetQueryCollectorScopesConcurrentParentOperations(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "zellij")
+	dir := t.TempDir()
+	// The reply fixture has no native endpoints; keep admission inside its root.
+	t.Setenv("HOME", dir)
+	t.Setenv("ZELLIJ_SOCKET_DIR", filepath.Join(dir, "native"))
+	path := filepath.Join(dir, "zellij")
 	script := "#!/bin/sh\ncase \"$*\" in\n" +
 		" 'list-sessions --short') " + zellijtest.ShellCase(t, "couch.fleet.short") + " ;;\n" +
 		" 'list-sessions --no-formatting') " + zellijtest.ShellCase(t, "couch.fleet.full") + " ;;\n" +

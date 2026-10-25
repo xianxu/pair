@@ -17,6 +17,7 @@ import (
 	"github.com/xianxu/pair/cmd/internal/osfs"
 	"github.com/xianxu/pair/cmd/internal/procutil"
 	"github.com/xianxu/pair/cmd/internal/sessioninventory"
+	"github.com/xianxu/pair/cmd/internal/zellijquery"
 )
 
 // OSRuntime implements Runtime with real git/nvim/zellij/fs calls; the fs
@@ -100,12 +101,11 @@ const ReviewScript = "nvim/review.lua"
 // server opens the pane). PAIR_NVIM_PID_FILE is exported so review.lua's VimEnter
 // can record the embed pid for cleanup.
 func (OSRuntime) SpawnReviewPane(cwd, lua, absFile, nvimPidFile string) error {
-	cmd := exec.Command("zellij", "run", "--floating", "--close-on-exit", "--name", "review",
+	args := []string{"run", "--floating", "--close-on-exit", "--name", "review",
 		"--width", "100%", "--height", "100%", "--x", "0", "--y", "0", "--cwd", cwd,
-		"--", "nvim", "-u", lua, absFile)
-	cmd.Env = append(os.Environ(), "PAIR_NVIM_PID_FILE="+nvimPidFile)
-	cmd.Stdin, cmd.Stdout, cmd.Stderr = os.Stdin, os.Stdout, os.Stderr
-	return cmd.Run()
+		"--", "nvim", "-u", lua, absFile}
+	env := append(zellijquery.ChildEnvironment(nil), "PAIR_NVIM_PID_FILE="+nvimPidFile)
+	return zellijquery.RunNativeCommand(context.Background(), args, env, os.Stdin, os.Stdout, os.Stderr)
 }
 
 func (OSRuntime) EstablishedSessionID(dataDir, scopeKey, tag, agent string) (string, sessioninventory.BindingStatus) {

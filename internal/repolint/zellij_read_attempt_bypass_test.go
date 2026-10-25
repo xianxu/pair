@@ -32,6 +32,13 @@ func TestZellijReadAttemptBypassRule(t *testing.T) {
 			repository := newFakeRepository()
 			repository.index["cmd/internal/"+tc.pkg+"/query.go"] = source
 			findings, _, count, err := scanTrackedWithRepository(repository, "repo", func(string) ([]byte, error) { return source, nil })
+			var attempts []locatedFinding
+			for _, finding := range findings {
+				if finding.Finding.Rule == "zellij-read-attempt-bypass" {
+					attempts = append(attempts, finding)
+				}
+			}
+			findings = attempts // isolate this rule from the independent admission contract
 			if err != nil || count != 1 || len(findings) != tc.want {
 				t.Fatalf("count=%d err=%v findings=%+v want=%d", count, err, findings, tc.want)
 			}

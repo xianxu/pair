@@ -1436,9 +1436,9 @@ local function attach_image()
     -- Send Ctrl+V to the agent pane. Order is fixed: window must be open
     -- (above) before the bytes flow back, or we miss the marker.
     if has_ui() then
-      vim.fn.system('zellij action move-focus up')
-      vim.fn.system('zellij action write 22')
-      vim.fn.system('zellij action move-focus down')
+      PairZellijTrace.system({ 'zellij', 'action', 'move-focus', 'up' })
+      PairZellijTrace.system({ 'zellij', 'action', 'write', '22' })
+      PairZellijTrace.system({ 'zellij', 'action', 'move-focus', 'down' })
     end
     poll_capture(bufnr, ns, extmark_id, cap_path, done_path,
                  vim.loop.now(), PAIR_IMAGE_FIRST_POLL_MS)
@@ -3219,7 +3219,7 @@ do
   _G._pair_lifecycle = {
     run = function(argv)
       return command.run(argv, {
-        system = vim.fn.system,
+        system = PairZellijTrace.system,
         status = function() return vim.v.shell_error end,
         notify = vim.notify,
         error_level = vim.log.levels.ERROR,
@@ -3514,7 +3514,7 @@ local LAYOUT_BY_LEVEL = { 'minimized', 'small', 'third' }
 local function zellij_swap(direction)
   -- direction = 'next' or 'previous'
   if has_ui() then
-    vim.fn.system({ 'zellij', 'action', direction .. '-swap-layout' })
+    PairZellijTrace.system({ 'zellij', 'action', direction .. '-swap-layout' })
   end
 end
 
@@ -3542,7 +3542,7 @@ local function layout_goto(target)
     -- so the keystroke is a true no-op visually.
     if cur == 'minimized' then
       if has_ui() then
-        vim.fn.system({ 'zellij', 'action', 'move-focus', 'up' })
+        PairZellijTrace.system({ 'zellij', 'action', 'move-focus', 'up' })
       end
     else
       vim.cmd('startinsert')
@@ -3578,7 +3578,7 @@ local function layout_goto(target)
   -- puts the buffer into insert mode automatically.
   if target == 'minimized' then
     if has_ui() then
-      vim.fn.system({ 'zellij', 'action', 'move-focus', 'up' })
+      PairZellijTrace.system({ 'zellij', 'action', 'move-focus', 'up' })
     end
   else
     vim.cmd('startinsert')
@@ -3630,7 +3630,7 @@ layout_write('small')
 -- so the script resolves its inputs the same way the Alt+/ Run does. The
 -- new floating pane takes focus, landing the user in the viewer.
 local function pair_scrollback_prev_prompt()
-  vim.fn.system({
+  PairZellijTrace.system({
     'zellij', 'run', '--floating', '--close-on-exit', '--name', 'scrollback',
     '--width', '100%', '--height', '100%', '--x', '0', '--y', '0',
     '--', 'pair', 'scrollback', 'open', '--jump', 'prev',
@@ -3647,7 +3647,7 @@ do
       '--width', '100%', '--height', height, '--x', '0', '--y', y, '--',
     }
     vim.list_extend(argv, command)
-    local output = vim.fn.system(argv)
+    local output = PairZellijTrace.system(argv)
     if vim.v.shell_error ~= 0 then
       vim.notify('pair: cannot open ' .. name .. ': ' .. output, vim.log.levels.ERROR)
     end
@@ -3665,7 +3665,7 @@ do
 end
 
 function _G.PairScrollbackOpen()
-  vim.fn.system({
+  PairZellijTrace.system({
     'zellij', 'run', '--floating', '--close-on-exit', '--name', 'scrollback',
     '--width', '100%', '--height', '100%', '--x', '0', '--y', '0',
     '--', 'pair', 'scrollback', 'open',
@@ -3688,7 +3688,7 @@ end
 
 function _G.PairFocusAgent()
   if has_ui() then
-    vim.fn.system({ 'zellij', 'action', 'move-focus', 'up' })
+    PairZellijTrace.system({ 'zellij', 'action', 'move-focus', 'up' })
   end
 end
 

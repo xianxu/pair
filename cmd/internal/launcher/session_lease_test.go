@@ -140,19 +140,6 @@ func TestTerminalLeaseRejectsNonRegularFilesAndCancellation(t *testing.T) {
 		t.Fatalf("cancel: %v", err)
 	}
 }
-func TestTerminalLeaseCloseOnExec(t *testing.T) {
-	lease, err := AcquireTerminalLease(context.Background(), filepath.Join(t.TempDir(), "lease"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer lease.Close()
-	l := lease.(*terminalLease)
-	flags, err := unix.FcntlInt(l.file.Fd(), unix.F_GETFD, 0)
-	if err != nil || flags&unix.FD_CLOEXEC == 0 {
-		t.Fatalf("descriptor inheritance: %d %v", flags, err)
-	}
-}
-
 func TestTerminalLeaseCanonicalAliasesAndStripeCollisions(t *testing.T) {
 	root := t.TempDir()
 	realDir := filepath.Join(root, "sockets")

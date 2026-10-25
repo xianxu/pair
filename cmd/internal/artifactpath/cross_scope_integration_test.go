@@ -91,7 +91,10 @@ func TestCompositeBindingsIsolateGoShellNeovimAndBothLayouts(t *testing.T) {
 			t.Fatal(err)
 		}
 		text := string(raw)
-		for _, binding := range []string{"$PAIR_DRAFT_PATH", "$PAIR_AGENT_PANE_PATH", "$PAIR_SCROLLBACK_RAW_PATH"} {
+		if !strings.Contains(text, "pair internal pane-ready;") {
+			t.Fatalf("%s must delegate scoped pane publication before native commands", layout)
+		}
+		for _, binding := range []string{"$PAIR_DRAFT_PATH", "$PAIR_SCROLLBACK_RAW_PATH"} {
 			if !strings.Contains(text, binding) {
 				t.Errorf("%s does not consume exact binding %s", layout, binding)
 			}

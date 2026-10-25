@@ -23,7 +23,31 @@ func TestMain(m *testing.M) {
 	// any PAIR_DATA_DIR outside it (pair#450). Tests that exercise a selected
 	// root set it themselves.
 	os.Unsetenv("COUCH_PAIR_DATA_DIR")
-	os.Exit(testpair.Run(m))
+	os.Exit(runPrivateLauncherTests(m))
+}
+
+func runPrivateLauncherTests(m *testing.M) int {
+	root, err := os.MkdirTemp("", "pair-launcher-")
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		return 1
+	}
+	defer os.RemoveAll(root)
+	// Native fakes must never inspect a running Couch's namespace or write its
+	// readiness cache. Individual path/native fixtures select their own roots.
+	if err := os.Setenv("HOME", root); err != nil {
+		return 1
+	}
+	sockets, err := testpair.NewShortRoot()
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		return 1
+	}
+	defer os.RemoveAll(sockets)
+	if err := os.Setenv("ZELLIJ_SOCKET_DIR", sockets); err != nil {
+		return 1
+	}
+	return testpair.Run(m)
 }
 
 type observingLiveSessionOps struct {

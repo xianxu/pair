@@ -85,6 +85,9 @@ func TestLookupSocketUsesNativeSymlinkParentTraversal(t *testing.T) {
 				if got := sessionSocketPresent("pair-a"); got != nativePresent {
 					t.Errorf("native socket present=%v, admission observed=%v; root=%q", nativePresent, got, root)
 				}
+				if nativePresent {
+					qualifyLookupSocketFixture(t, "pair-a")
+				}
 				args := []string{"--session", "pair-a", "action", "list-clients"}
 				frames := []emptyReplyFrame{{Args: args, Exit: 1, Stderr: "There is no active session!\n"}}
 				if nativePresent {

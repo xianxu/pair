@@ -31,10 +31,11 @@ protected dispatch and explicitly identifies cleanup and diagnostic exemptions.
 Terminal notes use Couch-owned synchronous frame/layout data only; their former
 native query and asynchronous enrichment have been removed by operator decision.
 
-`cmd/internal/zellijexec` owns synchronous read-only query processes. It creates
+`cmd/internal/zellijexec` owns synchronous bounded command processes. It creates
 a private process group, cancels that group, joins the direct CLI child, bounds
 pipe draining and stops owned descendants on every completion path. It is not
-used for creating a server, interactive attachment or native mutations.
+used for creating a server or interactive attachment. Bounded mutations use
+the same joined collector after their existing effect authority admits them.
 Descendants deliberately leaving the group are outside that ownership contract.
 Couch's remaining restart-client query entrypoint uses this owner; native note
 geometry lookup has been removed.
@@ -152,6 +153,56 @@ two matching exact visibility results. Token/session/endpoint/activation checks
 run before observations and effects. Show/hide explicitly target the admitted
 tab; hide-and-return shares that token and draft identity without a nested
 confirmation. Visibility refusal keeps the completed activation and ready target.
+
+## Startup readiness and native exclusion (#866)
+
+`cmd/internal/zellijquery` coordinates cooperating bounded native commands with
+one kernel namespace lease. Automatic reads, background title observations and
+explicit recovery wait behind a live cooperating creator until its exact first
+pane publishes and releases exclusion. Once a command holds the lease, legacy
+endpoints remain observable regardless of missing or stale markers; marker
+contents and namespace endpoint counts do not grant probe permission. The
+original five-second/caller deadline includes exclusion waits. Passive
+marker/cache reads take no lease, and mutations are not replayed.
+
+Cold creation holds the existing session handoff lease before the namespace
+lease. The first actual agent-pane command is `pair internal pane-ready`, before
+any guarded rename. Its additive pane sidecar names the complete canonical
+namespace/scope/tag/agent/session/nonce. Only the creator can match this evidence
+to its launch, publish the positive namespace marker and release exclusion.
+AgentReady remains the independent later agent-startup requirement; waiting for
+it while protecting the earlier rename would deadlock.
+
+Bounded Go callers share the command seam; shell and Lua call
+`pair internal zellij-command -- <native arguments>`. The helper owns native
+stdio and exit collection and cancels/joins its child on termination. Native
+`ExecKillSession` first replaces Pair with this joined helper; non-native test
+overrides retain their existing execution. Lua resolves the executable through
+the launcher's PATH, including copied runtime-bundle installations.
+
+Explicit authorized recovery retains its `Source.ExplicitRecovery` caller seam
+and the same exclusion as automatic reads. Ordinary startup adoption, listing,
+warm attach and explicit resume can all observe pre-upgrade unmarked sessions;
+no legacy receipt is synthesized. They retain the existing observation and
+recovery contracts and their upstream risk outside the live creator interval.
+Ordinary interactive attach/native reconnect also remains uncovered and never
+holds the namespace lease for its interactive lifetime. Creator death releases
+the kernel lease without proving readiness; foreign/older clients do not
+cooperate. This is bounded avoidance, not a repair to Zellij's lifecycle.
+
+`artifactpath/zellij_readiness.go` owns fixed256 permanent lock stripes and one
+current marker per session, with at most128 current markers per namespace and
+8KiB records. That publication bound never caps legacy endpoint discovery.
+Generic GC cannot unlink these families. `RetireReadyAfter` captures exact
+generation evidence before existing authorized retirement, then removes only
+that unchanged marker under namespace exclusion; successors and unknown bytes
+survive. No marker grants process-cleanup authority.
+
+The finite Go/shell/KDL/Lua source inventory is enforced by Pair's
+`internal/repolint` catalog extension. Guard controls cover creator ordering,
+owner death, canonical aliases, cancellation, exact retirement, additive raw
+unknown fields and counted8/16 qualification work. Shared disposable native
+qualification lives in `cmd/couch/zellij_startup_readiness_fleet_test.go`.
 
 ## Production query ownership
 
