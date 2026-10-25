@@ -15,6 +15,7 @@ claimant:
     workspace: pair:9
     worktree: /Users/xianxu/workspace/worktree/pair-slot9/pair
     repository: github.com/xianxu/pair
+flow: {kind: quick, provenance: inferred, spec: "2d363bc1", done: "02b75684"}
 ---
 
 # Reusable upgrade test: candidate build adopts, lists and resumes warm sessions created by main
