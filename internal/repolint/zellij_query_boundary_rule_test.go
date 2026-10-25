@@ -13,8 +13,13 @@ import (
 func pairCatalogFor(filename string) []golint.Rule {
 	catalog := append([]golint.Rule(nil), pairCatalog...)
 	for i := range catalog {
+		if catalog[i].Name == "test-module-cache-owner" && strings.HasSuffix(filename, "_test.go") {
+			catalog[i].Match = syntaxMatch(unmanagedModuleCaches)
+		}
 		if catalog[i].Name == "zellij-native-admission" {
-			catalog[i].Match = func(file *ast.File, _ *golint.CheckContext) []ast.Node { return zellijNativeAdmissionBypasses(filename, file) }
+			catalog[i].Match = func(file *ast.File, _ *golint.CheckContext) []ast.Node {
+				return zellijNativeAdmissionBypasses(filename, file)
+			}
 		}
 		if catalog[i].Name == "test-fifo-empty-handoff" && strings.HasSuffix(filename, "_test.go") {
 			catalog[i].Match = syntaxMatch(emptyFIFOHandoffs)

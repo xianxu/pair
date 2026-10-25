@@ -1,12 +1,22 @@
 ---
 id: 000887
-status: open
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-10-25
 updated: 2026-10-25
 estimate_hours:
-card_mirror: 'a2bb7be9e9c6d7e6c0ba8b507cb085d8dedcadac' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: 'f663bf1be4a91362d0382e381de1b1120d7ede34' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-25T08:28:36-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: Xian’s MacBook Pro
+    workspace: pair:4
+    worktree: /Users/xianxu/workspace/worktree/pair-slot4/pair
+    repository: github.com/xianxu/pair
+flow: {kind: quick, provenance: inferred, spec: "d1fced33", done: "31311ba4"}
+actual_hours: 0.75
 ---
 
 # Tests that set GOMODCACHE under TMPDIR leave read-only module caches behind; clean them via one helper
@@ -33,8 +43,62 @@ read-only module cache across the suite instead of creating one per test, if tha
 
 ## Plan
 
-- [ ]
+- [x] Pin nested read-only cache deletion, symlink preservation, idempotence and automatic cleanup.
+- [x] Add testpair.RemoveCacheTree and CacheTempDir; convert launcher teardown and named cache-capable fixture allocations. Cleanup errors fail the owner after children join.
+- [x] Add a Pair catalog guard with positive/negative fixtures; audit disposable-HOME Go writers.
+- [x] Run targeted checks and inventory, push the implementation and queue the required pre-close check.
 
 ## Log
 
+### 2026-10-25 — Fresh boarding suite retained after merge readiness
+
+Recovery merge terminal49437 exited1 at train readiness (normal pending CI plus missing local record on new Log head), before holding a landing turn. Followed the named affected --boarding command; it refused full selection at tests/affected-readers/cmd/internal/launcher/session_quiescence_live_test.go.json and explicitly named a full-suite proof alternative. Started that exact supported command once: sdlc local-check run --name suite --rev bd1b2b1e2b8a6566433993515bfda92edbf1f72d.
+
+Retained terminal18283, lease-1813296862, attemptb05dcdd3b5a0895ab79c7c7d0673bee3 in independent snapshot /Volumes/TestScratch/local-checks/sdlc-local-2099088582. Initial FIFO8; no test result yet. Do not cancel, duplicate, retry the failed resume or restart the session while queued. Hub report d1d62e62-d31c-4998-aeb4-e2d1b0380e7f submitted/receipt to inspect. Exact next step: inspect this run on bd1b2b1e; pass means re-enter sdlc merge promptly, failure means classify/report by exact name before any retry. The canonical checkout is free (no merge runner), so authorized #857 work may continue on its own branch while this snapshot waits.
+
+### 2026-10-25 — Resume infrastructure refusal; supported integrated recovery
+
+The public-repository CI hold was lifted by TL77666a8c; Pair uses public Actions and normal CI gates remain. Retained resume terminal10687 acquired after2518s and exited1 BEFORE the selected test ran. Exact build failure: cmd/internal/runtimebundle/embed.go:8:41: pattern assets/runtime/files: no matching files found. Parent4e5a9fb7f3bcf56333a82921fe7b9dc2, child5c61293150f7e75bd2686cd1eed845f2, tested head228ce8f808ed7723331a5ec2559a156f6b45eb2e. Exact final refusal: no saved attempt verifies: resume proof for parent 4e5a9fb7f3bcf56333a82921fe7b9dc2 is unavailable: child identity, completion or log digest is invalid; fix/advance the code and run a suite on a new head.
+
+This is missing asset-generation preparation in the exact-test child, not another fixture assertion failure. Hub report c25b06e3-e4a8-48b8-ab03-5b2c19d269ab submitted. TL42b81fd4 filed ariadne#636 and directs supported recovery: re-enter sdlc merge for a fresh authoritative integrated suite on current main; #897 remains registered if its known fixture failure recurs. Do not retry the resume, modify its snapshot, bypass CI or substitute manual test evidence. #857 partial route implementation is separately committed/pushed and clean, with no background writer; it waits while this merge holds the canonical checkout. Next: push this Log and re-enter merge once, retain that runner to completion.
+
 ### 2026-10-25
+- 2026-10-25: closed — Shared read-only cleanup controls PASS0.182s; actual launcher TestMain subprocess PASS0.286s, proving cache removal and nonzero teardown failure. Original ignored-defer source overlay fails BOTH assertions. Build-owner/legacy PASS1.726s; native cmd/go cache conformance PASS12.494s; 30 catalog controls plus tracked-source census PASS6.743s; artifact census PASS3.455s. Inventory PASS after individual reader audits. Atlas and lesson updated. No shared cache or retained631 evidence touched. Implementation plan complete; required recorded full check on8449f364 is retained as lease-1191244849 with identical runtime/tests; its pass precedes landing. Close/merge lifecycle work remains in Log, no unimplemented code. (done-when: contract moved since change-code; judged by the close review); review verdict: SHIP
+
+Hub and ariadne:5 independently identify retained pair-launcher-*/go/pkg/mod trees: 566 read-only directories, roughly6000 entries/77MB, from ignored cleanup after private HOME. No retained evidence tree touched. Current testdisk already reuses ambient GOMODCACHE; testcouch build settings are fakes. Hub dfef3fa6 approved the shared cleanup plan.
+
+### 2026-10-25 — Fixture lifetime fixed and qualified
+
+Original RemoveAll shim fails the filesystem regression with permission denied on nested read-only module content. Shared RemoveCacheTree passes read-only removal, missing-root idempotence, relative/root-path refusal, symlink target preservation and returned removal errors; CacheTempDir proves child cleanup runs before root removal. Focused helper tests PASS0.182s. Launcher child-process regression through the real TestMain PASS0.286s: a synthetic extracted module tree is gone after exit, and a blocked parent makes cleanup fail the process. A temporary source overlay restoring only the original ignored root defer makes BOTH controls fail (cache retained and false-success exit); no source mutation or retained module evidence touched.
+
+Build-owner/legacy compatibility tests PASS1.726s; native cmd/go cache conformance PASS12.494s. Rule controls and full tracked-source catalog PASS6.743s. The rule is deliberately function-local syntax: direct temporary roots, aliases, literal Join descendants, Setenv/env strings and keyed cache fields; exact registered/deferred cleanup, shadow and unused-closure negatives. It does not prove dynamic paths, reassignments or interprocedural flows. Catalog lives in Pair's extension of the shared golint catalog, with incident887.
+
+Reader audit before individual certificate refresh: launcher reads only controlled fixture roots; owner_build and legacy_build retain existing non-Go builder/environment fallback; testdisk retains fixed-scanner ownership of repo go.mod/go.sum and its explicit local fixture; new catalog matcher and filename binding consume AST/literal inputs only. Refreshed each named certificate separately, then inventory PASS. Other real Go consumers already pass/inherit ambient caches or capture buildEnv before disposable HOME; the retained whole-package HOME producer was launcher. No machine settings, shared caches, retained631 trees or pair:0 state changed. Next: commit/push, required recorded pre-close and mandatory close, then merge.
+
+### 2026-10-25 — Recorded check retained; workflow-row correction
+
+PR612 is open. Required pre-close selected the full-suite fallback on pushed8449f364138d32169f871f1b9ca0f0badc267c6c, retained terminal31020 / lease-1191244849 / attempt15583ade57ba5289e60f01326d854790 in its independent snapshot /Volumes/TestScratch/local-checks/sdlc-local-1723631917. Latest observed next in FIFO, not yet a test result. Do not cancel or duplicate it. Close terminal46722 measured exact0.50h but refused before review because its own close/merge gates were incorrectly grouped in an implementation checkbox. The completed check-queue operation is now the checkbox; close and landing remain outstanding here in the Log. No runtime/test change. Next: fresh close, inspect this exact recorded result, then merge when reviewed and green; no measurement waiver.
+
+### 2026-10-25 — Landing checkpoint
+
+2026-10-25: close round1 SHIP with zero findings, evidence7ee5188b01b0fd737703892f0418dc6659f03346, measured exact0.75h. Required recorded full suite on8449f364138d32169f871f1b9ca0f0badc267c6c PASS exit0 in16m18s, lease-1191244849 / attempt15583ade57ba5289e60f01326d854790. Saved .git/sdlc/local-checks/8449f364138d32169f871f1b9ca0f0badc267c6c/suite.log, SHA256 prefix65cd53470fd2. Runtime/tests unchanged since that qualified head; only workflow/close bookkeeping followed. Launcher package passed84.807s, including real TestMain cleanup. No known-flake rerun or unexplained failure on this run. Next: push this outcome and enter merge promptly; its integration owns authoritative validation. The independent857 re-look diagnosis checkpoint is pushed on its own branch, with no runtime edits; pair:0 is owned by pair:5's882 stage.
+
+## Revisions
+
+### 2026-10-25 — Integration blocked by an independently classified fixture flake
+
+Retained merge terminal78202 exited1 after integration228ce8f808ed7723331a5ec2559a156f6b45eb2e. Integration attempt4e5a9fb7f3bcf56333a82921fe7b9dc2 failed only wrapcmd.TestTerminalDriveSnapshotCoherentAcrossConcurrentPaints (12m25s, log prefixf4d8f54eb95f). Exact diagnostic: generation2, completefalse, cellB, tail[A,B cursor]. Automatic main baseline11fece5cfb3b7da9ab93e6e592ec4f940919887a passed16m44s (unrecorded diagnostic, SysV warning). wrapcmd source/test diff between those heads is empty.
+
+One original-test targeted run on the exact failing head passed0.03s/package0.425s. Deterministic two-feed control independently returns that exact alleged mixed state: Tail intentionally includes scrollback before current screen, cursor row2 is B; the fixture incorrectly checks the first historical row. Evidence/driver: /Volumes/TestScratch/tmp/pair-slot4/pair887-wrap-flake.U9Vjev. Filed and registered unclaimed pair#897 under the standing exact-head fail/pass flake rule; no unrelated fixture change folded into887.
+
+Supported resume retained terminal10687, parent4e5a9fb7f3bcf56333a82921fe7b9dc2 / child5c61293150f7e75bd2686cd1eed845f2 / lease-1731530244 at228ce8f8, independent checkout /Volumes/TestScratch/local-checks/sdlc-local-4235769819. Last observed FIFO7, no result yet. Hold merge re-entry until the hub announces GitHub Actions billing recovery; no Actions rerun or bypass. Canonical checkout may handle already-authorized857 locally while this isolated exact-test resume waits. Do not duplicate the resume or restart the session.
+
+### 2026-10-25 — Correct the producer census; approved by hub dfef3fa6
+
+The retained producer is launcher/session_quiescence_live_test.go's TestMain: private HOME implicitly supplies GOPATH and GOMODCACHE, and ignored RemoveAll leaves extracted read-only modules. Preserve the named fixtures' isolation while giving cache-capable owned roots shared cleanup. One chmod-before-descent directory walk plus RemoveAll skips symlinks and returns errors; CacheTempDir registers cleanup before returning. Launcher cleanup runs after testpair.Run and converts failure to exit1. No shared cache or retained ariadne#631 evidence is removed. No new user state, format, timer or registry. Cost O(N) walk plus O(N) removal, once per owned tree. ARCH-DRY/ARCH-RETENTION: the allocating fixture owns teardown.
+
+The catalog guard rejects raw temporary GOMODCACHE allocations and private-HOME TestMain removal that bypasses shared cleanup; syntax enforcement does not prove arbitrary computed environments. Filesystem tests cover nested0555 directories, files0444, symlink targets unchanged, absence and cleanup order.
+
+### 2026-10-25 — Separate verification setup from lifecycle gates
+
+The final implementation checkbox records completed targeted checks, inventory, push and recorded-check queueing. Close and merge are lifecycle operations tracked in the Log, preventing a circular unchecked close/merge requirement. Required verification and landing criteria are unchanged.

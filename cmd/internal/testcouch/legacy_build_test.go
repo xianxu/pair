@@ -65,7 +65,7 @@ func TestLegacyBuildProcess(t *testing.T) {
 func TestLegacyBuildPreservesCandidateSelectionAndProcessLifetime(t *testing.T) {
 	for _, mode := range []string{"supplied", "fallback"} {
 		t.Run(mode, func(t *testing.T) {
-			root := t.TempDir()
+			root := testpair.CacheTempDir(t)
 			tools, home, scratch := filepath.Join(root, "tools"), filepath.Join(root, "home"), filepath.Join(root, "scratch")
 			for _, dir := range []string{tools, home, scratch, filepath.Join(tools, "cache")} {
 				if err := os.Mkdir(dir, 0700); err != nil {

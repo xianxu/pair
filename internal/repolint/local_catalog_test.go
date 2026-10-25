@@ -12,6 +12,11 @@ import (
 // Copy the shared catalog before extending it: Pair rules must not alter the
 // upstream catalog used by sleepSites to identify existing sleep debt.
 var pairCatalog = append(append([]golint.Rule(nil), golint.Catalog...), golint.Rule{
+	Name:     "test-module-cache-owner",
+	Incident: "pair#887",
+	Message:  "allocate temporary module caches with testpair.CacheTempDir or register exact-root testpair.RemoveCacheTree cleanup; private HOME roots may contain implicit Go module caches",
+	Match:    func(*ast.File, *golint.CheckContext) []ast.Node { return nil }, // bound to test filenames by pairCatalogFor
+}, golint.Rule{
 	Name:     "broadcast-socket-fixture-root",
 	Incident: "pair#881",
 	Message:  "delegate broadcast shortDir to testpair.ShortRoot; inherited TMPDIR can exceed the complete Unix socket path budget",

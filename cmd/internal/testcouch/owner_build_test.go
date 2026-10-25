@@ -7,13 +7,15 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/xianxu/pair/cmd/internal/testpair"
 )
 
 func TestBuildEnvironmentRejectsAmbientConfiguration(t *testing.T) {
 	t.Setenv("PAIR_TEST_BINARY", "/foreign/pair")
 	t.Setenv("GOFLAGS", "-toolexec=/foreign/tool")
 	t.Setenv("HTTPS_PROXY", "https://foreign")
-	root := t.TempDir()
+	root := testpair.CacheTempDir(t)
 	env, err := buildEnvironment(root, filepath.Join(root, "tools"), goCaches{GOCACHE: root, GOMODCACHE: root})
 	if err != nil {
 		t.Fatal(err)
@@ -42,7 +44,7 @@ func TestBuildOwnedExplicitCheckoutAndPartialCleanup(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	scratch := t.TempDir()
+	scratch := testpair.CacheTempDir(t)
 	calls := 0
 	failure := errors.New("offline dependency unavailable")
 	deps := buildDependencies{resolve: func(string) (string, error) { return "/bin/sh", nil }, run: func(ctx context.Context, program string, args []string, dir string, env []string) (string, error) {
@@ -94,7 +96,7 @@ func TestBuildOwnedUsesOnlySelectedCandidateAndOfflineCommands(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	scratch := t.TempDir()
+	scratch := testpair.CacheTempDir(t)
 	override := filepath.Join(scratch, "exact-couch")
 	if err := os.WriteFile(override, []byte("#!/bin/sh\nexit 0\n"), 0700); err != nil {
 		t.Fatal(err)
@@ -185,7 +187,7 @@ func TestBuildOwnedCancellationPreservesPreparationOwner(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	scratch := t.TempDir()
+	scratch := testpair.CacheTempDir(t)
 	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 	deps := buildDependencies{resolve: func(string) (string, error) { return "/bin/sh", nil }, run: func(ctx context.Context, program string, args []string, dir string, env []string) (string, error) {

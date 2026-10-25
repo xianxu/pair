@@ -26,13 +26,18 @@ func TestMain(m *testing.M) {
 	os.Exit(runPrivateLauncherTests(m))
 }
 
-func runPrivateLauncherTests(m *testing.M) int {
+func runPrivateLauncherTests(m *testing.M) (code int) {
 	root, err := os.MkdirTemp("", "pair-launcher-")
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		return 1
 	}
-	defer os.RemoveAll(root)
+	defer func() {
+		if err := testpair.RemoveCacheTree(root); err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			code = 1
+		}
+	}()
 	// Native fakes must never inspect a running Couch's namespace or write its
 	// readiness cache. Individual path/native fixtures select their own roots.
 	if err := os.Setenv("HOME", root); err != nil {
@@ -43,7 +48,12 @@ func runPrivateLauncherTests(m *testing.M) int {
 		fmt.Fprintln(os.Stderr, err)
 		return 1
 	}
-	defer os.RemoveAll(sockets)
+	defer func() {
+		if err := testpair.RemoveCacheTree(sockets); err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			code = 1
+		}
+	}()
 	if err := os.Setenv("ZELLIJ_SOCKET_DIR", sockets); err != nil {
 		return 1
 	}

@@ -706,6 +706,8 @@ var SourceClassifications = []SourceClassification{
 // the artifact namespace requires an explicit SourceClassification.
 // pair:m5-concept pure
 var NonArtifactSources = []string{
+	// #887 removes private fixture roots; it has no Pair artifact naming authority.
+	"cmd/internal/testpair/cachetree.go",
 	// #866 audited individually: native argv admission, generic file leases,
 	// and pure readiness qualification carry no artifact filename authority.
 	"cmd/internal/zellijquery/command.go",
