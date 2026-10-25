@@ -36,15 +36,15 @@ plus a persisted-state read (registries, thread store, side-doc records) created
 
 ## Done when
 
-- The upgrade fixture exists and runs headless within bounds; it reproduces the 10-24 failure against 93a57a38 (RED)
-  and passes against the corrected pair#866.
+- The upgrade fixture exists and runs headless within bounds; it passes a same-main healthy control and reproduces
+  the 10-24 failure against 93a57a38 (RED). The same fixture is available for corrected pair#866's GREEN after landing.
 - Changes to live-session or persisted-state contracts are required to pass it (documented in the AGENTS.local or
   atlas test guidance and referenced by the close review).
 - The combined-stage procedure (ariadne#600) can call it as the warm-start check.
 
 ## Plan
 
-- [ ] Add one guarded build replacement operation to the existing native Fleet and portable publication controls.
+- [x] Add one guarded build replacement operation to the existing native Fleet and portable publication controls.
 - [ ] Add an opt-in two-build native upgrade acceptance case for Claude and Codex, with exact identities, public listing/resume/attach and persisted document checks.
 - [ ] Qualify a same-build healthy control; capture the old-main to failed-stage RED without modifying readiness receipts; document invocation and cleanup proof.
 - [ ] Pass recorded checks and boundary review, then land the fixture so #866 can run the same case against its correction.
@@ -69,8 +69,16 @@ NEXT targeted healthy control: env PAIR_NATIVE_COUCH_UPGRADE=1 PAIR_COUCH_UPGRAD
 
 Healthy-control attempt1 failed before any native fleet allocation in0.436s: BuildOwned's couch build needs generated runtimebundle/assets/runtime/files, absent from a pristine checkout. This is a source preparation precondition, not a compatibility RED. Peer baseline remains unchanged. Created a separate owned detached baseline at /Volumes/TestScratch/pair879-stage.OeEwVU/baseline, exact38fe8ea272d960705134e21ad3fbf61d26a4bb00; ran each checkout's own go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime in it and the stage checkout. Both statuses remain clean (generated assets are ignored by repository design). NEXT control uses that owned baseline path for both source variables; same saved log path, prior failure recorded here. No native descendants need reconciliation from attempt1.
 
+Healthy-control attempt2 compiled the coupled main triplet with verified vcs.revision38fe8ea and vcs.modified=false, then failed both personalities before replacement: public --keys refuses a hub driving its own slot. Both exact fleets cleaned successfully; total48.069s. This is a fixture setup error, not compatibility RED. Corrected setup to use the same real console selection/typing gesture for both old slot drafts. The native oracle still checks those distinct old drafts after candidate physical attachment. Attempt3 is running sequentially at /tmp/pair879-upgrade-healthy2.log; no background native work from attempts1/2 remains.
+
+Hub3ef90225-cd97-46cb-8d99-87fbce26491f removed #879 from #866's critical path: pair:5 will manually prove the immediate restage upgrade. #879 continues to land the reusable fixture when ready. No native helper sharing/stacked branch dependency is required for #866's immediate landing.
+
 ## Revisions
 
 ### 2026-10-24 — fixture-first landing, hub7aa4f471
 
 Original Done-when's corrected-#866 GREEN remains the joint compatibility goal. For #879's independent landing, the hub explicitly requires the reusable fixture plus captured RED against93a57a38 first; #866 integrates it only after #879 lands and records the corrected GREEN. This removes a circular dependency without stacking branches or duplicating the fixture. #879 must also pass a same-build native control to demonstrate that its oracle and cleanup work. No production correction, live fleet manipulation or full local suite outside the queue is in scope. Targeted runs only; hub offers a queue grant.
+
+### 2026-10-24 — align Done-when with approved independent landing
+
+Updated Done-when to name the same-main healthy control and failed-stage RED as this issue's landing proof, preserving the original corrected-#866 GREEN as a supported downstream invocation. This makes the contract match hub7aa4f471 and approved e14ced4c, rather than retaining a circular completion requirement. Hub3ef90225 subsequently allows #866's immediate manual upgrade check to proceed independently; #879 still delivers the reusable automated case.

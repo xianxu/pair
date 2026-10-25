@@ -87,19 +87,13 @@ func TestDisposableCouchBuildUpgrade(t *testing.T) {
 				t.Fatalf("baseline worker: %v", err)
 			}
 			before := snapshotUpgrade(t, ctx, fleet)
-			t.Setenv("COUCH_ISOLATED_ROOT", fleet.Roots.Root)
 			for n := 0; n <= 1; n++ {
-				if err := waitFleet(ctx, func() (bool, error) { observation, err := fleet.ObserveDrive(ctx, n); return observation.Idle, err }); err != nil {
-					t.Fatal(err)
-				}
 				slot := fmt.Sprintf("fixture:%d", n)
-				var response couchmessage.Response
-				if err := json.Unmarshal([]byte(upgradeCLI(t, ctx, fleet, "--keys", slot, "text:upgrade-"+slot, "--json")), &response); err != nil {
+				upgradeSelect(t, ctx, fleet, slot)
+				if err := fleet.Input([]byte("upgrade-" + slot)); err != nil {
 					t.Fatal(err)
 				}
-				if response.Operation == nil || response.Operation.Status != couchmessage.ReceiptSucceeded {
-					t.Fatalf("baseline unique draft not confirmed for %s", slot)
-				}
+				forceFleetWaitScreen(t, ctx, fleet, "upgrade-"+slot)
 			}
 			documents := upgradeDocuments(t, ctx, fleet)
 			oldList := upgradeCLI(t, ctx, fleet, "--list")
@@ -186,11 +180,7 @@ func TestDisposableCouchBuildUpgrade(t *testing.T) {
 				}
 				// Open the real switcher, choose the old slot and attach through its
 				// ordinary Enter gesture, then require native client evidence.
-				wakeFleetOpenSwitcher(t, ctx, fleet)
-				if err := fleet.Input([]byte(slot)); err != nil {
-					t.Fatal(err)
-				}
-				forceFleetPress(t, fleet, "\r", 13, 1)
+				upgradeSelect(t, ctx, fleet, slot)
 				forceFleetWaitScreen(t, ctx, fleet, "upgrade-"+slot)
 				upgradeClients(t, ctx, fleet, before[slot].Binding.Session, true)
 			}
@@ -387,6 +377,20 @@ func upgradeClients(t *testing.T, ctx context.Context, fleet *testcouch.Fleet, s
 		return (len(clients) > 0) == wantAttached, nil
 	}); err != nil {
 		t.Fatalf("native client evidence attached=%v session=%s: %v", wantAttached, session, err)
+	}
+}
+
+func upgradeSelect(t *testing.T, ctx context.Context, fleet *testcouch.Fleet, slot string) {
+	t.Helper()
+	wakeFleetOpenSwitcher(t, ctx, fleet)
+	if err := fleet.Input([]byte(slot)); err != nil {
+		t.Fatal(err)
+	}
+	forceFleetPress(t, fleet, "\r", 13, 1)
+	if err := waitFleet(ctx, func() (bool, error) {
+		return !strings.Contains(fleet.Screen(), "Ctrl+Y copy last notice / selected error"), nil
+	}); err != nil {
+		t.Fatalf("physical selection of %s stayed in switcher: %v; screen=%s", slot, err, fleet.Screen())
 	}
 }
 
