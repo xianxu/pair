@@ -64,6 +64,10 @@ Durable plan: [workshop/plans/000847-hub-scoped-cli-to-provision-and-retire-benc
 - [ ] Task 6: native acceptance (claude and codex)
 - [ ] Task 7: docs and close
 
+## Estimate
+
+8 h, from the plan's tasks: Provisions predicate 0.75 h; explicit profile through Reboot's Fresh path 1.5 h (two resolution sites, recovery semantics); strict retirement with registry check 1.25 h; operations, guard and receipt provenance 1.5 h; CLI 0.5 h; native acceptance with testcouch `.hub` claims, claude and codex, 1.75 h (native iteration measured at 2-3 runs on #870); docs, inventory, close 0.75 h.
+
 ## Log
 
 ### 2026-10-23
