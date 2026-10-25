@@ -149,3 +149,20 @@ a real final-code check pass remains required before landing.
   postconditions so close is not asked to tick its own future review. Plan now
   records completed targeted verification and queue admission; full recorded
   pass and review remain explicit requirements before landing. Scope unchanged.
+
+### 2026-10-25 — first close review, qualification pending
+
+Close round 1 returned REWORK with BR-1 (Important, unverifiable,
+required-verification-evidence): complete couchcmd at 96 MiB and the recorded
+pre-close pass remain outstanding. No code defect or contract revision was
+requested. Independent focused protocol/fixture tests passed; reviewer measured
+8511488 bytes for its combined selection and confirmed actual-excess refusal.
+Its ad-hoc complete-package attempt timed out at four minutes during
+TestForcedSwitchSupervisorRejectsChangedAuthority without a final write verdict;
+that is incomplete evidence, not an established branch defect.
+
+Accepted BR-1: await retained recorded suite lease-3072633283, preserve both
+complete-package budget output and recorded result, then rerun ordinary close
+with that evidence to dispose the entire finding family. Do not change code or
+weaken Done when to satisfy a pending check. Hub informed. The allowed overlap
+saved no close round here because qualification is an explicit acceptance term.
