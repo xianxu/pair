@@ -3670,7 +3670,8 @@ command, for model-bench runs.
   checked at admission and again at the queued effect gate; a hubless Couch refuses.
 - **`bench-start`** (`couch --bench-start repo:N --agent A --agent-args "…" --confirm`):
   Reboot's Fresh path with an exact profile (`RebootTarget.Argv`, `ArgvSourceExplicit`),
-  on a vacant or live slot. A recovery launch is never remembered, so it never writes the
+  on a vacant or live slot; a live agent is parked first (`parkBenchSlot`, shared with
+  bench-retire), so the relaunch has no running processes for a stop-set confirmation. A recovery launch is never remembered, so it never writes the
   per-repository saved parameters production slots share. Model switch is another
   bench-start. Its receipt carries `Provenance` (`couchcore.LaunchProvenance`: root,
   tag, Pair session, generation = the session's start nonce, agent, argv, argv source).

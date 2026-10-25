@@ -31,32 +31,19 @@ func (c *Couch) RetireBenchSlot(ctx context.Context, t RebootTarget) (BenchRetir
 	if (t.Path == "") == (t.Address == ThreadAddress{}) {
 		return BenchRetirement{}, errors.New("bench-retire needs exactly one slot path or thread address")
 	}
-	address := t.Address
-	if t.Path != "" {
-		_, record, err := c.recoveryTarget(ctx, ResumeTarget{Path: t.Path})
-		if errors.Is(err, ErrThreadNotFound) {
-			scope, err := launcher.ResolveRepoScope(t.Path)
-			if err != nil {
-				return BenchRetirement{}, err
-			}
-			if err := c.refuseBenchSurvivors(scope.Key, nil); err != nil {
-				return BenchRetirement{}, err
-			}
-			return BenchRetirement{Vacant: true}, nil
-		}
+	address, vacant, err := c.parkBenchSlot(ctx, t, "bench-retire")
+	if err != nil {
+		return BenchRetirement{}, err
+	}
+	if vacant {
+		scope, err := launcher.ResolveRepoScope(t.Path)
 		if err != nil {
 			return BenchRetirement{}, err
 		}
-		address = record.Address
-	}
-	state, _, err := c.classifyForAction(ctx, address)
-	if err != nil {
-		return BenchRetirement{}, fmt.Errorf("bench-retire %s: %w", address.Tag, err)
-	}
-	if state == ThreadLive {
-		if _, err := c.Park(ctx, address, "normal"); err != nil {
-			return BenchRetirement{}, fmt.Errorf("bench-retire %s: park: %w", address.Tag, err)
+		if err := c.refuseBenchSurvivors(scope.Key, nil); err != nil {
+			return BenchRetirement{}, err
 		}
+		return BenchRetirement{Vacant: true}, nil
 	}
 	r, err := c.prepareRetirement(ctx, address)
 	if err != nil {
@@ -80,6 +67,33 @@ func (c *Couch) RetireBenchSlot(ctx context.Context, t RebootTarget) (BenchRetir
 		}
 	}
 	return BenchRetirement{Archived: address}, nil
+}
+
+// parkBenchSlot resolves a bench target to its thread and parks a live agent,
+// the graceful stop both bench verbs share; vacant reports a slot path with
+// no thread. A parked thread then needs no stop set from Reboot or archive.
+func (c *Couch) parkBenchSlot(ctx context.Context, t RebootTarget, verb string) (ThreadAddress, bool, error) {
+	address := t.Address
+	if t.Path != "" {
+		_, record, err := c.recoveryTarget(ctx, ResumeTarget{Path: t.Path})
+		if errors.Is(err, ErrThreadNotFound) {
+			return ThreadAddress{}, true, nil
+		}
+		if err != nil {
+			return ThreadAddress{}, false, err
+		}
+		address = record.Address
+	}
+	state, _, err := c.classifyForAction(ctx, address)
+	if err != nil {
+		return address, false, fmt.Errorf("%s %s: %w", verb, address.Tag, err)
+	}
+	if state == ThreadLive {
+		if _, err := c.Park(ctx, address, "normal"); err != nil {
+			return address, false, fmt.Errorf("%s %s: park: %w", verb, address.Tag, err)
+		}
+	}
+	return address, false, nil
 }
 
 // benchSurvivors are the processes a slot's agents started that may still

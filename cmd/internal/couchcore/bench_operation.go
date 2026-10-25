@@ -58,6 +58,18 @@ func (c *Couch) BenchStart(ctx context.Context, t RebootTarget) (BenchStartResul
 	if t.Argv == nil {
 		return BenchStartResult{}, fmt.Errorf("bench-start needs explicit argv")
 	}
+	if _, err := ParseBenchProfile(t.Agent, *t.Argv); err != nil {
+		return BenchStartResult{}, err
+	}
+	// A live agent is parked first, as bench-retire does, so the Fresh
+	// relaunch has no running processes to put in a stop set.
+	address, vacant, err := c.parkBenchSlot(ctx, t, "bench-start")
+	if err != nil {
+		return BenchStartResult{}, err
+	}
+	if !vacant {
+		t = RebootTarget{Address: address, Agent: t.Agent, Argv: t.Argv}
+	}
 	result, err := c.Reboot(ctx, t)
 	out := BenchStartResult{RebootResult: result}
 	started, ok := result.Started()

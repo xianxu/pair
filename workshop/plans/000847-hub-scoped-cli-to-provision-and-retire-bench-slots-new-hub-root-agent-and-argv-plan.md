@@ -125,3 +125,7 @@
 - Unit/in-package tests per task; native `TestDisposableCouchBenchSlots` for claude and codex.
 - Production untouchable: refusal cases in Tasks 1, 4 and 6.
 - Compatibility: existing hub ownership, reboot, switch-agent and receipt tests unchanged and green; `.hub` grammar untouched.
+
+## Revisions
+
+- 2026-10-25 (native acceptance): Reboot on a live slot answers with a recovery-confirmation stop set, which would cost the bench hub a second command and drop the provenance. bench-start now parks a live agent first (`parkBenchSlot`, the graceful stop bench-retire already used) and reboots the parked thread; one launch path still. The native harness also lacked `lsof`, which teardown uses for lease holders; it joins the harness's explicit runtime utilities. Bench ops are declared `PresentationTUI` without a row action, not `PresentationInternal`: `couch --internal` has no hub gate, and a CLI test pins its refusal.
