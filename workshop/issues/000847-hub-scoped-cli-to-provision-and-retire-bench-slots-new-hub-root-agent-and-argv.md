@@ -1,13 +1,21 @@
 ---
 id: 000847
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-10-23
-updated: 2026-10-23
+updated: 2026-10-25
 estimate_hours:
 collaboration-mode: collaboration
-card_mirror: 'fd1b41a413aaaec0120b8065838a1c1e81e63adf' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '23b26ef734fa02e75908bbd6008f87e2146ec155' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-25T03:06:32-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: Xian’s MacBook Pro
+    workspace: pair:6
+    worktree: /Users/xianxu/workspace/worktree/pair-slot6/pair
+    repository: github.com/xianxu/pair
 ---
 
 # Hub-scoped CLI to provision and retire bench slots (new hub root, agent and argv, fresh) without a Couch restart or console steps
@@ -46,7 +54,20 @@ tool, not its run engine (metis has no agent management).
 
 ## Plan
 
-- [ ]
+Draft for TL review (2026-10-25); not yet approved.
+
+What exists (mapped): `--switch-agent repo:N --agent A --agent-args … --confirm` (hub-gated by authorizeHubMutation, works on a vacant slot, explicit argv replaces saved repo parameters); `--reboot repo:N --confirm` (fresh; a vacant slot fresh-starts; no agent/argv); `--set-model` (live drive op). Missing: a "slot this hub provisioned" notion (the main hub owns every unclaimed slot by default), an exact-profile fresh start/restart, receipt provenance, and any slot retirement.
+
+Design:
+1. Bench ownership predicate `HubOwnership.Provisions(caller, target)`: true only when the caller is a non-main hub and the target resolves to it through an explicit `.hub` claim (exact `repo:N` or whole `repo`). Default main-hub ownership never qualifies, so production slots are structurally out of reach. Existing `.hub` claim files and slot layout are unchanged (transitional compatibility).
+2. Two new hub slot operations through the existing broker path (slotOperations, handleHubSlotOperation, admission check plus queued effect guard re-proving caller and Provisions):
+   - `couch --bench-start repo:N --agent A --agent-args "…" --confirm`: fresh start of a vacant slot, or fresh restart of a live one, with exactly that profile (argv source explicit; replaces saved parameters, as switch-agent does). Switching model = another bench-start with new argv (fresh, new generation). Reuses Reboot with RebootTarget gaining the launch profile.
+   - `couch --bench-retire repo:N --confirm`: stop the agent and archive its thread so the slot is vacant and the next bench-start is clean. Worktree kept (the bench runner owns checkouts).
+   Existing verbs keep their current gates and behavior.
+3. Receipt provenance: OperationReceipt gains optional Root, Session (pair session name), Generation (launch nonce) and LaunchProfile {agent, argv, argv source} on a succeeded bench-start; additive, omitempty.
+4. Tests: unit for Provisions and the guard; testcouch gains `.hub` claim support; native (claude and codex): main hub fixture:0, bench hub fixture:1 claiming fixture:2; bench hub bench-starts fixture:2 with exact argv (receipt and fixture-observed argv match), bench-starts again with new argv (new generation), retires it; bench-start/retire on an unclaimed production slot and from the main hub refuse. Atlas + couch SKILL.
+
+Full flow expected (code beyond the quick-flow shell); durable plan at workshop/plans/ after TL approval.
 
 ## Log
 
