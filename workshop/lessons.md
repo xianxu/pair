@@ -7,6 +7,8 @@ representative evidence, not an exhaustive index.
 
 ## Proof and verification
 
+- #872: Every new production Go file needs an explicit artifactpath inventory classification, including pure evidence structs and private test-harness diagnostics. Run TestProductionArtifactReferencesAreExactlyClassified with the focused qualification before queuing a full check; reader-hash inventory alone does not cover that separate source census.
+
 - #863 suite: when a result gains an ownership predicate, sweep existing positive fixtures for the required authority and retain separate empty/metadata-only negatives. A startup fixture must declare its history explicitly; an empty namespace is not evidence of a previous shutdown. Keep exact joined-diagnostic and declared-operation assertions current with the same approved contract.
 
 - #863 BR-3: A published start claim needs one failure owner before launch ownership begins. Discovery/enrollment failures must roll back against the store that accepted the claim, independently of whether namespace routing is available; release native authority only after exact nonce/revision cleanup and positive absence. Pin post-publication failures and successful handoff, not only the later launch tail.
