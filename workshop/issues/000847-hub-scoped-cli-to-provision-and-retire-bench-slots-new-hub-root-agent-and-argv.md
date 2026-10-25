@@ -56,13 +56,13 @@ tool, not its run engine (metis has no agent management).
 
 Durable plan: [workshop/plans/000847-hub-scoped-cli-to-provision-and-retire-bench-slots-new-hub-root-agent-and-argv-plan.md](../plans/000847-hub-scoped-cli-to-provision-and-retire-bench-slots-new-hub-root-agent-and-argv-plan.md). TL approved the design 2026-10-25: distinct verbs sharing Reboot's implementation, retire keeps the worktree but proves no survivors, additive receipts, unchanged `.hub` files; the one remaining hand step is the initial Couch start with the bench root.
 
-- [ ] Task 1: Provisions predicate
-- [ ] Task 2: explicit launch profile through Reboot's Fresh path
-- [ ] Task 3: strict retirement
-- [ ] Task 4: operations, dispatch, guard, receipts
-- [ ] Task 5: CLI
-- [ ] Task 6: native acceptance (claude and codex)
-- [ ] Task 7: docs and close
+- [x] Task 1: Provisions predicate
+- [x] Task 2: explicit launch profile through Reboot's Fresh path
+- [x] Task 3: strict retirement
+- [x] Task 4: operations, dispatch, guard, receipts
+- [x] Task 5: CLI
+- [x] Task 6: native acceptance (claude and codex)
+- [x] Task 7: docs and close
 
 ## Estimate
 
@@ -91,3 +91,4 @@ Items in plan order: Provisions predicate; explicit profile through Reboot's Fre
 
 ### 2026-10-25
 Revisions: Done-when reworded per TL (hub-start dropped in the 10-23 scope revision; the one hand step is named).
+Implementation (commits 76ec41424, 54d669ef5, 6d89e0a79, 9c225aad3, 52fe353cb, adf28c138). Each new check was mutation-tested (reverting the code turns its test red): Provisions gate, vacant and recordful explicit-profile wiring, registry survivors and unknown-liveness rule. Native TestDisposableCouchBenchSlots PASS for claude (33.4 s) and codex (33.2 s). Found on the native runs and folded in (plan Revisions): bench-start parks a live agent before its Fresh reboot (Reboot otherwise asks a stop-set confirmation and the provenance would be lost); the harness lacked lsof for teardown. Caught in implementation: declaring bench ops PresentationInternal would have made `couch --internal bench-start` an ungated path; they are actor ops, and a CLI test pins the refusal.
