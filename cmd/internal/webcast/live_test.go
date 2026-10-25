@@ -2,7 +2,9 @@ package webcast
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"strings"
 	"syscall"
@@ -106,7 +108,15 @@ func (h liveHarness) activate(t *testing.T, id string) {
 // clickControl clicks the in-page control with real mouse input at its
 // position: its shadow root is closed, so nothing outside can reach it.
 func (h liveHarness) clickControl(t *testing.T) {
+	t.Helper()
 	session := h.session(t, "")
+	call := func(method string, params, result any) error { return h.c.call(session, method, params, result) }
+	if err := clickLiveControl(call, time.Now().Add(10*time.Second)); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func clickLiveControl(call func(string, any, any) error, deadline time.Time) error {
 	// The host contains fixed-position panels and no longer has the button's
 	// geometry. CDP can inspect its closed shadow root without weakening it.
 	var point [2]float64
@@ -116,14 +126,14 @@ func (h liveHarness) clickControl(t *testing.T) {
 				NodeID int `json:"nodeId"`
 			} `json:"root"`
 		}
-		if err := h.c.call(session, "DOM.getDocument", map[string]any{"depth": 0}, &document); err != nil {
+		if err := call("DOM.getDocument", map[string]any{"depth": 0}, &document); err != nil {
 			return err
 		}
 		query := func(parent int, selector string) (int, error) {
 			var result struct {
 				NodeID int `json:"nodeId"`
 			}
-			err := h.c.call(session, "DOM.querySelector", map[string]any{"nodeId": parent, "selector": selector}, &result)
+			err := call("DOM.querySelector", map[string]any{"nodeId": parent, "selector": selector}, &result)
 			if err == nil && result.NodeID == 0 {
 				err = errors.New("control node is not mounted")
 			}
@@ -140,7 +150,7 @@ func (h liveHarness) clickControl(t *testing.T) {
 				} `json:"shadowRoots"`
 			} `json:"node"`
 		}
-		if err := h.c.call(session, "DOM.describeNode", map[string]any{"nodeId": host, "depth": 1, "pierce": true}, &description); err != nil {
+		if err := call("DOM.describeNode", map[string]any{"nodeId": host, "depth": 1, "pierce": true}, &description); err != nil {
 			return err
 		}
 		if len(description.Node.ShadowRoots) != 1 {
@@ -150,39 +160,65 @@ func (h liveHarness) clickControl(t *testing.T) {
 		if err != nil {
 			return err
 		}
-		var box struct {
-			Model struct {
-				Border        []float64 `json:"border"`
-				Width, Height float64
-			} `json:"model"`
+		var object struct {
+			Object struct {
+				ID string `json:"objectId"`
+			} `json:"object"`
 		}
-		if err := h.c.call(session, "DOM.getBoxModel", map[string]any{"nodeId": button}, &box); err != nil {
+		if err := call("DOM.resolveNode", map[string]any{"nodeId": button}, &object); err != nil {
 			return err
 		}
-		if len(box.Model.Border) != 8 || box.Model.Width <= 0 || box.Model.Height <= 0 {
-			return errors.New("control has no usable box")
+		if object.Object.ID == "" {
+			return errors.New("control object is unavailable")
 		}
-		point = [2]float64{(box.Model.Border[0] + box.Model.Border[4]) / 2, (box.Model.Border[1] + box.Model.Border[5]) / 2}
+		var inspection struct {
+			Result struct {
+				Value struct {
+					X, Y   float64
+					Usable bool
+				} `json:"value"`
+			} `json:"result"`
+			Exception json.RawMessage `json:"exceptionDetails"`
+		}
+		err = call("Runtime.callFunctionOn", map[string]any{
+			"objectId": object.Object.ID, "returnByValue": true,
+			"functionDeclaration": `function(){
+ const r=this.getBoundingClientRect(),root=this.getRootNode(),x=r.x+r.width/2,y=r.y+r.height/2;
+ let visible=this.isConnected&&!this.disabled;
+ for(let n=this;n;n=n.parentElement||n.getRootNode().host){
+  const s=getComputedStyle(n);
+  if(s.display==='none'||s.visibility!=='visible'||Number(s.opacity)===0)visible=false;
+ }
+ return {x,y,usable:visible&&r.width>0&&r.height>0&&r.left>=0&&r.top>=0&&r.right<=innerWidth&&r.bottom<=innerHeight&&this.contains(root.elementFromPoint(x,y))&&document.elementFromPoint(x,y)===root.host};
+}`}, &inspection)
+		err = errors.Join(err, call("Runtime.releaseObject", map[string]any{"objectId": object.Object.ID}, nil))
+		if err != nil {
+			return err
+		}
+		if len(inspection.Exception) > 0 || !inspection.Result.Value.Usable {
+			return errors.New("control is not visible and clickable")
+		}
+		point = [2]float64{inspection.Result.Value.X, inspection.Result.Value.Y}
 		return nil
 	}
-	deadline := time.Now().Add(10 * time.Second)
 	for {
 		err := locate()
 		if err == nil {
 			break
 		}
 		if time.Now().After(deadline) {
-			t.Fatalf("control not found: %v", err)
+			return fmt.Errorf("control not found: %w", err)
 		}
 		time.Sleep(100 * time.Millisecond)
 	}
 	for _, typ := range []string{"mousePressed", "mouseReleased"} {
-		if err := h.c.call(session, "Input.dispatchMouseEvent", map[string]any{
+		if err := call("Input.dispatchMouseEvent", map[string]any{
 			"type": typ, "x": point[0], "y": point[1], "button": "left", "clickCount": 1,
 		}, nil); err != nil {
-			t.Fatal(err)
+			return err
 		}
 	}
+	return nil
 }
 
 // quitByHand closes Chrome without going through Close, as Cmd+Q would.

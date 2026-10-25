@@ -2941,3 +2941,5 @@ and external temporary roots rather than relying on the host's TMPDIR.
 - #844 recorded check: after adding production Go files, run the existing focused artifactpath source-classification test before queuing the long suite; reader inventory and repolint cover different contracts. Classify each file by actual artifact usage, and add exact vocabulary use-site support with rejection tests when legitimate typed constants are inexpressible. Never rename vocabulary to evade the guard or grow its known-debt list.
 
 - #844 BR-4: an approved post-close verification fix that adds an executable checker contract can require full close even when it changes no product policy. Follow the scope guard with the existing ledger; do not treat plan approval as authority to narrow that review.
+
+- #858 BR-1: a native control fixture must prove visible, enabled, in-viewport hit geometry before dispatch; positive box dimensions alone admit visibility:hidden, opacity-zero and clipped controls. Exercise the real closed-shadow DOM and count forwarded mouse events so refusal means zero input.

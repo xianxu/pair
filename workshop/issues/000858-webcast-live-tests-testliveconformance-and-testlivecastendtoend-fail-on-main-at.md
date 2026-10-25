@@ -70,3 +70,15 @@ Updated only liveHarness.clickControl in live_test.go. It asks CDP for the host'
 Before fix TestLiveConformance failed17.15s at pause with PhaseLive; after fix it passes1.56s/package1.815s including pause and resume. A separate, non-overlapping TestLiveCastEndToEnd run passes1.36s/package1.532s and sees the paused empty viewer state. Both commands set WEBCAST_LIVE_CHROME=1, use -count=1 and -timeout=90s; existing liveChrome launches Headless:true with private t.TempDir and joined cleanup. Shared-consumer sweep finds exactly these two native callers (conformance invokes pause and resume) and the fakeHarness equivalent. No stale host-center click remains in other fixture callers.
 
 No new global lint rule: the outer-host-center operation is valid when a host owns a single button and is not a generally forbidden API; the regression is the existing real column/native control path. Quick plan sent to hub (receipt7656d516 submitted), proceeding unless objection. Next: fake conformance, required inventory, commit/push, recorded pre-close and mandatory small-diff review. Pair:0 untouched and857 check retained independently.
+
+## Revisions
+
+### 2026-10-25 — BR-1 readiness boundary and native refusal qualification
+
+Make the existing hidden-control refusal explicit before input: resolve the actual button, inspect computed visibility/opacity through its ancestors, require the whole box in the viewport, and verify both shadow-root and document hit targets. Readiness is one shared gate for pause/resume and end-to-end pause; the existing10s deadline stays unchanged. Debugger objects are released before dispatch. No production state or new capability is added. Test the gate through real Chrome for visible/restored, hidden, transparent, offscreen, clipped and missing controls; a refused attempt must send zero mouse events.
+
+### 2026-10-25 — Review findings and red/green correction
+
+Close round1 REWORK: BR-1 correctly notes positive dimensions do not establish usability; BR-2 reviewer Chrome failed before opening a page (GPU/sandbox startup). The measured actual succeeded normally at0.07h; no waiver applied. Added TestLiveControlReadiness using the real closed-shadow DOM and a forwarding CDP call counter, not fake geometry. Before the readiness predicate it fails all4 unusable cases in1.04s. After the predicate it passes all cases in1.09s/package1.421s, with zero input on refusal and real state transitions when visible/restored; missing node also refuses without input. The shared fixture now returns errors instead of making the unit caller fatal, allowing exact pre-dispatch assertions with a zero-wait test deadline. Production callers retain the original10s readiness deadline.
+
+Next: commit the reviewed-class fix, cancel only the stale queued858 affected lease-1361220752 through sdlc (never857), retain source-pinned native pass and controlled old-fixture RED logs, push and queue a fresh pre-close. Full re-close answers BR-1 and supplies BR-2 counter-measurement. No pair:0 action.
