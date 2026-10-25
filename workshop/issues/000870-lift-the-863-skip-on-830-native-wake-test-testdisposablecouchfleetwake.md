@@ -15,6 +15,7 @@ claimant:
     workspace: pair:6
     worktree: /Users/xianxu/workspace/worktree/pair-slot6/pair
     repository: github.com/xianxu/pair
+flow: {kind: quick, provenance: inferred, spec: "eeca357d", done: "1b7e3866"}
 ---
 
 # Lift the #863 skip on #830 native wake test (TestDisposableCouchFleetWake)
