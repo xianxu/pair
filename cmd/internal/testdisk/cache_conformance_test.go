@@ -22,7 +22,7 @@ func TestGoCacheWriteBudgetConformance(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	fixture := t.TempDir()
+	fixture := testpair.CacheTempDir(t)
 	module := "module github.com/xianxu/pair/cmd/conformance\n\ngo 1.26.3\n\nrequire github.com/xianxu/pair v0.0.0\nreplace github.com/xianxu/pair => " + fmt.Sprintf("%q", repo) + "\n"
 	writeCacheFixture(t, filepath.Join(fixture, "go.mod"), module)
 	sums, err := os.ReadFile(filepath.Join(repo, "go.sum"))

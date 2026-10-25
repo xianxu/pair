@@ -118,6 +118,16 @@ locally with `go test ./internal/repolint -count=1 -v`.
 
 ## Test fixtures
 
+Read-only module caches in disposable roots use `testpair.RemoveCacheTree`
+(#887), which makes owned directories writable before removal without following
+symlinks. `testpair.CacheTempDir` registers that teardown for test-owned roots;
+TestMain owners check the returned error after all children join. A private HOME
+can implicitly create `go/pkg/mod` even without an explicit GOMODCACHE setting.
+Shared module caches are never passed to this remover. The Pair-local
+`test-module-cache-owner` rule checks direct temporary GOMODCACHE assignments and
+raw removal of the same private HOME root; its function-local syntax model does
+not infer arbitrary computed environments or interprocedural ownership.
+
 Socket-root exceptions budget the full address each consumer derives. The
 couchmessage transport fixture keeps an owned short root because cleanup
 consumers replace its RPC leaf with production wrapper/PID/hash names; a

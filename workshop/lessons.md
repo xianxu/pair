@@ -7,6 +7,8 @@ representative evidence, not an exhaustive index.
 
 ## Proof and verification
 
+- #887: A disposable HOME also becomes Go's default GOPATH when cache settings are absent. Remove owned roots through the shared read-only-cache teardown after children join, and make cleanup errors fail TestMain; ignored RemoveAll can leave thousands of extracted module files. Never apply private-root cleanup to an ambient shared cache.
+
 - #865 PQ-1/PQ-2: Trace actual no-op, refused and successful resize transitions before describing publication lifetimes. Measure private capture storage separately from required consumer clones; qualify retained copies, erased/absent cells and geometry changes with controlled emulator tests.
 
 - #879: Pin public CLI output shapes in portable controls before native qualification. Compact list uses labels/paths; show carries full addresses. Public resume already polls and emits a raw final receipt, and an already-live success may omit Tag; require unchanged independent actor/process/socket identity around that result. Use opaque tags for exact menu selection, since repo:N filters apply to numbered slot rows.

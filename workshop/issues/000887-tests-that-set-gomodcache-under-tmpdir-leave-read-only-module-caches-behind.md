@@ -42,9 +42,9 @@ read-only module cache across the suite instead of creating one per test, if tha
 
 ## Plan
 
-- [ ] Pin nested read-only cache deletion, symlink preservation, idempotence and automatic cleanup.
-- [ ] Add testpair.RemoveCacheTree and CacheTempDir; convert launcher teardown and named cache-capable fixture allocations. Cleanup errors fail the owner after children join.
-- [ ] Add a Pair catalog guard with positive/negative fixtures; audit disposable-HOME Go writers.
+- [x] Pin nested read-only cache deletion, symlink preservation, idempotence and automatic cleanup.
+- [x] Add testpair.RemoveCacheTree and CacheTempDir; convert launcher teardown and named cache-capable fixture allocations. Cleanup errors fail the owner after children join.
+- [x] Add a Pair catalog guard with positive/negative fixtures; audit disposable-HOME Go writers.
 - [ ] Run targeted checks, inventory, pushed pre-close, close and merge.
 
 ## Log
@@ -52,6 +52,14 @@ read-only module cache across the suite instead of creating one per test, if tha
 ### 2026-10-25
 
 Hub and ariadne:5 independently identify retained pair-launcher-*/go/pkg/mod trees: 566 read-only directories, roughly6000 entries/77MB, from ignored cleanup after private HOME. No retained evidence tree touched. Current testdisk already reuses ambient GOMODCACHE; testcouch build settings are fakes. Hub dfef3fa6 approved the shared cleanup plan.
+
+### 2026-10-25 — Fixture lifetime fixed and qualified
+
+Original RemoveAll shim fails the filesystem regression with permission denied on nested read-only module content. Shared RemoveCacheTree passes read-only removal, missing-root idempotence, relative/root-path refusal, symlink target preservation and returned removal errors; CacheTempDir proves child cleanup runs before root removal. Focused helper tests PASS0.182s. Launcher child-process regression through the real TestMain PASS0.286s: a synthetic extracted module tree is gone after exit, and a blocked parent makes cleanup fail the process. A temporary source overlay restoring only the original ignored root defer makes BOTH controls fail (cache retained and false-success exit); no source mutation or retained module evidence touched.
+
+Build-owner/legacy compatibility tests PASS1.726s; native cmd/go cache conformance PASS12.494s. Rule controls and full tracked-source catalog PASS6.743s. The rule is deliberately function-local syntax: direct temporary roots, aliases, literal Join descendants, Setenv/env strings and keyed cache fields; exact registered/deferred cleanup, shadow and unused-closure negatives. It does not prove dynamic paths, reassignments or interprocedural flows. Catalog lives in Pair's extension of the shared golint catalog, with incident887.
+
+Reader audit before individual certificate refresh: launcher reads only controlled fixture roots; owner_build and legacy_build retain existing non-Go builder/environment fallback; testdisk retains fixed-scanner ownership of repo go.mod/go.sum and its explicit local fixture; new catalog matcher and filename binding consume AST/literal inputs only. Refreshed each named certificate separately, then inventory PASS. Other real Go consumers already pass/inherit ambient caches or capture buildEnv before disposable HOME; the retained whole-package HOME producer was launcher. No machine settings, shared caches, retained631 trees or pair:0 state changed. Next: commit/push, required recorded pre-close and mandatory close, then merge.
 
 ## Revisions
 
