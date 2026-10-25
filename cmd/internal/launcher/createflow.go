@@ -827,17 +827,16 @@ func runCreate(opts LaunchOptions, env Env, rt Runtime, live []Session, decision
 		// not a saved user argument; prepend before any prompt/-- delimiter.
 		commandArgs = append([]string{"--disable", "shell_snapshot"}, commandArgs...)
 	}
-	if agent == "codex" {
-		agentVersion := rt.AgentVersion(agent)
-		if agentVersion != "" {
-			rt.SetEnv(AgentVersionEnv, agentVersion)
-		}
+	// The probed version rides the launch env into the wrapper's ready record.
+	// Set it on every launch so a value inherited from an outer pane is never
+	// recorded as this launch's; "" means no reliable version (pair#891).
+	agentVersion := rt.AgentVersion(agent)
+	rt.SetEnv(AgentVersionEnv, agentVersion)
+	if agent == "codex" && versionAtLeast(agentVersion, codexNoDaemonVersion) && !hasFlag(agentArgs, "--no-daemon") {
 		// A shared Codex background server started with other feature settings
 		// stops the launch at a prompt a Couch slot cannot answer; a private
 		// server cannot mismatch. Never restart or contact the shared one.
-		if versionAtLeast(agentVersion, codexNoDaemonVersion) && !hasFlag(agentArgs, "--no-daemon") {
-			commandArgs = append([]string{"--no-daemon"}, commandArgs...)
-		}
+		commandArgs = append([]string{"--no-daemon"}, commandArgs...)
 	}
 	// The prompt rides beside the argv, never in it: the ledger and saved
 	// config above took agentArgs, and the wrapper re-derives a later fresh

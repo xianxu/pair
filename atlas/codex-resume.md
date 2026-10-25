@@ -14,16 +14,18 @@ identity; indirect compatibility is not proof.
 
 ## Private app server
 
-The launcher probes `codex --version` once (read-only, 3s bound) and exports
-the parsed version as `PAIR_AGENT_VERSION`; the wrapper copies it into the
-ready record's `agent_version`. At 0.164.0 and above every Codex launch also
-gets a leading `--no-daemon`, so the session runs without the machine's shared
-background server and cannot be stopped by its incompatible-feature-settings
-prompt (pair#891). Below the gate, or when the probe is unparseable, the argv
-is unchanged, so an unknown CLI never gains a flag it may not support. Pair
-never restarts or contacts the shared server. The flag is a Codex global
-option in `codexBoolGlobalOption`, so the wrapper's fresh-start strip still
-walks past it to drop a stale `resume <id>`.
+The launcher probes `codex --version` once (read-only, 3s bound) and sets
+`PAIR_AGENT_VERSION` on every launch — the parsed version, or empty when the
+probe is unavailable; the empty write also clears any value inherited from an
+outer pane, so the wrapper copies this launch's version (and nothing stale)
+into the ready record's `agent_version`. At 0.164.0 and above every Codex
+launch also gets a leading `--no-daemon`, so the session runs without the
+machine's shared background server and cannot be stopped by its
+incompatible-feature-settings prompt (pair#891). Below the gate, or when the
+probe is unparseable, the argv is unchanged, so an unknown CLI never gains a
+flag it may not support. Pair never restarts or contacts the shared server.
+The flag is a Codex global option in `codexBoolGlobalOption`, so the wrapper's
+fresh-start strip still walks past it to drop a stale `resume <id>`.
 
 The version is a launch-time value: an in-pane fresh start reuses the launch's
 env and argv, so a mid-session Codex upgrade keeps the old record (and the old

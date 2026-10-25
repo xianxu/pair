@@ -1330,7 +1330,11 @@ func (r OSRuntime) AgentVersion(agent string) string {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), agentVersionProbeTimeout)
 	defer cancel()
-	out, err := exec.CommandContext(ctx, agent, "--version").Output()
+	cmd := exec.CommandContext(ctx, agent, "--version")
+	// A shim that forks the real CLI can keep stdout open after the kill;
+	// WaitDelay stops Wait on the inherited pipe too, so the bound holds.
+	cmd.WaitDelay = time.Second
+	out, err := cmd.Output()
 	if err != nil {
 		return ""
 	}

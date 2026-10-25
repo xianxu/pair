@@ -455,3 +455,13 @@ Reason: the new helper ignored the `--` boundary, so a prompt word `--no-daemon`
 opt-out (and it duplicated the existing flag predicate, ARCH-DRY). Delta: the seam calls
 `hasFlag(agentArgs, "--no-daemon")`; the dedicated helper is gone, the test notes read `hasFlag`, and a new
 launch test pins a post-`--` prompt word. The snippets above keep the original shape.
+
+### 2026-10-25 — boundary-review findings folded in
+
+BR-4 (Important): `PAIR_AGENT_VERSION` was set only after a successful codex probe, so a value inherited from
+an outer pane could reach the ready record for a failed probe or for another agent. Delta: the seam sets it on
+every launch (empty when unknown); a test pre-seeds a stale value for both a failed codex probe and a claude
+launch. Minors: the probe command sets `WaitDelay` (a forked CLI shim keeping stdout open cannot hold the 3s
+bound), and a standalone (non-Couch) codex launch test pins the `--no-daemon` gate. BR-1 (claimed missing
+table entry) is factually wrong: `--no-daemon` is in `codexBoolGlobalOption` and
+`TestFreshAgentArgsWalksPastNoDaemon` passes; disputed with that run.

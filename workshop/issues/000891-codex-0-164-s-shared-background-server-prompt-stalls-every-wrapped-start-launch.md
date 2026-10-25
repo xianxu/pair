@@ -51,9 +51,10 @@ it ran (the hub notice on a version change is the follow-up #894).
 
 Part A of `workshop/plans/000891-codex-no-daemon-and-version-notice-plan.md` (Tasks 1–2); Part B is #894.
 
-- [x] A1: launcher probes `codex --version` once per launch (3s bound, failure silent), exports
-      `PAIR_AGENT_VERSION` when known, and prepends `--no-daemon` at ≥ 0.164.0 unless the caller already passed
-      it. All Codex launches; the shared server is never contacted or restarted.
+- [x] A1: launcher probes `codex --version` once per launch (3s bound, failure silent), sets
+      `PAIR_AGENT_VERSION` on every launch (empty when unknown, clearing any inherited value), and prepends
+      `--no-daemon` at ≥ 0.164.0 unless the caller already passed it. All Codex launches; the shared server is
+      never contacted or restarted.
 - [x] A2: launcher tests pin 0.164.0 (flag + env), 0.163.0 and a failed probe (argv unchanged; the version is
       still recorded when known), and an explicit `--no-daemon` (no duplicate). `FreshAgentArgs` walks past the
       new leading flag (it is in `codexBoolGlobalOption`), so a fresh start still drops `resume <id>`.
@@ -121,8 +122,30 @@ Landing after close: `sdlc pr`; `sdlc merge --yes`; report the outcome to ops:0.
   freshness threshold. Merged origin/main into the branch (32a7dd6ad; no conflicts, `go build ./...` clean; the
   review window is unchanged, #304) and re-ran the full suite on the merged head: exit 0 in 16m11s, recorded
   as `sdlc-local/suite` on 32a7dd6a. `make test-affected-inventory` passes on the merged tree.
+- Boundary review round 1: FIX-THEN-SHIP with BR-1/BR-4 blocking; fixed BR-4 and both Minors, disputed BR-1.
+  - BR-4 (Important, real class): the seam now probes for every agent and always `SetEnv(PAIR_AGENT_VERSION,
+    version)` (empty when unknown), so a value inherited from an outer pane cannot be recorded for a failed
+    probe or another agent. `TestAgentVersionEnvOverwritesAnInheritedValue` pre-seeds a stale value for a
+    failed codex probe and for a claude launch; the failed-probe test now requires the cleared empty value.
+  - Minor: the probe command sets `cmd.WaitDelay = 1s`, so a shim that forks the CLI and keeps stdout open
+    cannot outlive the 3s context bound.
+  - Minor: `TestStandaloneCodexLaunchOptsOutOfTheSharedServer` pins the gate on a non-Couch codex launch
+    (`--no-daemon --no-alt-screen`).
+  - BR-1 disputed as factually wrong: `--no-daemon` is in `codexBoolGlobalOption` since 13b06a465, and both
+    `TestFreshAgentArgsWalksPastNoDaemon` and `TestCodexLaunchOptsOutOfTheSharedServer` pass on this head. The
+    wrapper fresh-start path (`wrap.go` → `FreshAgentArgs` → `codexResumeCommandIndex` → the table) consumes
+    the leading flag and drops `resume <id>`.
+  - Context choice kept: the probe uses `context.Background()`; it is read-only and bounded (3s + 1s worst
+    case), so threading the launch context through the Runtime seam buys at most 3s of cancellation.
 
 ## Revisions
+
+### 2026-10-25 — inherited env cleared (boundary review BR-4)
+
+Reason: `PAIR_AGENT_VERSION` was written only after a successful probe and only for codex, so a value inherited
+from an outer pane could reach the ready record for a failed probe or another agent.
+Delta: the seam writes it on every launch (empty when unknown) and A1 says so; the probe gains `WaitDelay` and a
+standalone gate test; BR-1 is disputed as factually wrong.
 
 ### 2026-10-25 — V3 split from the landing steps
 
