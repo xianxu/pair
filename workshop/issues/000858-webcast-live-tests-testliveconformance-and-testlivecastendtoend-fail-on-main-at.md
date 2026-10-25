@@ -71,6 +71,12 @@ Before fix TestLiveConformance failed17.15s at pause with PhaseLive; after fix i
 
 No new global lint rule: the outer-host-center operation is valid when a host owns a single button and is not a generally forbidden API; the regression is the existing real column/native control path. Quick plan sent to hub (receipt7656d516 submitted), proceeding unless objection. Next: fake conformance, required inventory, commit/push, recorded pre-close and mandatory small-diff review. Pair:0 untouched and857 check retained independently.
 
+### 2026-10-25 — Source-pinned native qualification retained
+
+On committed code7b104dd55c2078641b813b72b628e8e769314ec3, all three targeted native commands pass separately, count1, zero skips: TestLiveConformance (log SHA256e8d6b9bd703aff3364be21c5827cc81984ebc9a637290eedcff517362b54533b), TestLiveCastEndToEnd (dfd26b5fb0ed56d16dcaaa919cc89b89234b790af78991eeda8f029b5f08ff32), and TestLiveControlReadiness (f954e304a4a44378c05f1ef619e97f533b08e01141310857137a2fadf68ba66e). Complete logs/metadata are in this issue's canonical .side/evidence/native directory, pinning argv, environment, head, exit and source cleanliness. A controlled overlay reverts only live_test.go to clean-main63d35ac8 and omits the new helper-dependent readiness test: TestLiveConformance again fails at the actual pause assertion (exit1, wall20.370s), log SHA2564b370ec1521573f4b5be18112000157c79fca7fe305c86957b4360095d716fa2. Metadata pins the exact reverted source bytes; no source or timeout was changed for the passing measurements. The temporary overlay directory was removed after use.
+
+The stale858 check was still queued, not running, and was cancelled through sdlc local-check cancel --run lease-1361220752; its retained terminal80615 exited1 with context canceled, not a test failure. Queue the fixed source once after pushing the evidence/dispute. The independent857 suite finished PASS12m57s on70f5246cf (log prefixe80a0c145c3b), reported to hub; it remains waiting for tomorrow's stage look. Pair:0 untouched. BR-2 receives the measured host evidence via formal dispute; BR-1 receives the actual readiness fix and native refusal regression, not a waiver.
+
 ## Revisions
 
 ### 2026-10-25 — BR-1 readiness boundary and native refusal qualification
