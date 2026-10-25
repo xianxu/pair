@@ -82,6 +82,11 @@ func TestMountUnmountJoinsOwnedShutdown(t *testing.T) {
 				}
 				releaseNext()
 				synctest.Wait()
+				select {
+				case <-nextDone:
+				default:
+					t.Error("new mount did not finish after its closure")
+				}
 			})
 		})
 	}

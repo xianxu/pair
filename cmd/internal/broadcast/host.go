@@ -251,11 +251,12 @@ func (h *Host) watch(gen uint64, served <-chan error, handle Handle) {
 	if h.gen != gen || h.state != hostOpen {
 		return
 	}
+	closing := h.beginCloseLocked()
 	for mt := range h.mounts {
+		mt.closeDone = closing.done
 		mt.lose(reason)
 		delete(h.mounts, mt)
 	}
-	h.beginCloseLocked()
 }
 
 // beginCloseLocked tears down the open server and tunnel in the background.
@@ -326,6 +327,9 @@ type Mount struct {
 	once   sync.Once
 	err    error
 	exited chan struct{}
+	// Protected by host.mu; retained after routing removal so teardown joins
+	// this generation's close, even if the Host has reopened meanwhile.
+	closeDone <-chan struct{}
 }
 
 // Base is the Host's public base URL, without a trailing slash.
@@ -356,19 +360,21 @@ func (mt *Mount) lose(reason error) {
 }
 
 // Unmount stops serving the handler. The last Unmount closes the Host and
-// returns once its tunnel and server are closed. Idempotent.
+// joins its tunnel/server closure. Lost mounts join the closure that removed
+// them, even after the Host reopens. Idempotent, including concurrent calls.
 func (mt *Mount) Unmount() {
 	h := mt.host
 	h.mu.Lock()
-	if _, ok := h.mounts[mt]; !ok {
-		h.mu.Unlock()
-		return
+	if _, ok := h.mounts[mt]; ok {
+		delete(h.mounts, mt)
+		if closing := h.releaseIfUnwantedLocked(); closing != nil {
+			mt.closeDone = closing.done
+		}
 	}
-	delete(h.mounts, mt)
-	closing := h.releaseIfUnwantedLocked()
+	done := mt.closeDone
 	h.mu.Unlock()
-	if closing != nil {
-		<-closing.done
+	if done != nil {
+		<-done
 	}
 }
 

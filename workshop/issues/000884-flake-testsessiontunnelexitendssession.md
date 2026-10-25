@@ -50,9 +50,9 @@ Old Mount after Host reopen | Old receipt already complete | Unmount remains ide
 
 ## Plan
 
-- [ ] Pin lost/last/repeated Unmount shutdown ownership with synctest and the existing held fake handle; observe baseline RED before production code.
-- [ ] Retain and join the exact existing shutdown receipt; qualify generation isolation and real SSE lifecycle with bounded targeted/race controls.
-- [ ] Record the lifecycle rule, inventory audit and queued pre-close verification; close through the mandatory review and land normally.
+- [x] Pin lost/last/repeated Unmount shutdown ownership with synctest and the existing held fake handle; observe baseline RED before production code.
+- [x] Retain and join the exact existing shutdown receipt; qualify generation isolation and real SSE lifecycle with bounded targeted/race controls.
+- [ ] Record the lifecycle rule, inventory audit and final-head verification.
 
 ## Log
 
@@ -61,3 +61,11 @@ Old Mount after Host reopen | Old receipt already complete | Unmount remains ide
 Source diagnosis: Host.watch currently calls Mount.lose, deletes it from mounts, and starts Host.beginCloseLocked. Session.watch then calls Stop/teardown; Unmount sees absence and returns immediately, and locks.End revokes the SSE gate before the pending end event necessarily drains. Server.events selects closed subscription against canceled request, so some schedules return EOF. The existing teardown comment explicitly requires locks to end after mount shutdown. Proposed correction retains the existing exact close attempt per Mount under Host.mu before Exited becomes observable; approval requested from hub07f05913 before code. Historical high-count reviewer evidence was read but not rerun. #886 is the next dispatched item after884 lands.
 
 Hub1bc491d0 approved exact-attempt receipts and quick flow before code. change-code admitted quick. RED: TestMountUnmountJoinsOwnedShutdown uses synctest with the real Host.watch/Unmount/beginCloseLocked, idle HTTP server and existing channel-held fake handle. Baseline fails deterministically: all3 calls return early after tunnel loss and server loss;2 repeated calls return early after last ordinary Unmount. No network timing or high repetition. It also pins old/new close generation isolation. Baseline test exit1 in0.190s.
+
+GREEN: exact-attempt receipt correction is15 added production lines. New deterministic regression PASS0.215s; seven selected lifecycle tests count10 PASS1.357s, their race count10 PASS28.805s. Final additional generation-completion assertion qualified by complete broadcast package PASS75.037s and focused join race PASS1.244s. Catalog PASS11.539s. Staged reader inventory PASS: the new regression constructs only in-memory Host/HTTP-server/channel state and uses existing fake handles; it reads no repository artifact and needs no reader certificate change. Atlas and lesson record routing-removal versus joined teardown; this semantic lifetime rule is enforced by controlled ordering rather than an unreliable syntactic lint heuristic. No retries, deadline changes or live operator state.
+
+## Revisions
+
+### 2026-10-25 — executable delivery checklist
+
+Removed future close/landing actions from the final Plan checkbox; they remain workflow postconditions, not code deliverables that must be claimed before the close gate. No change to the approved lifetime design or Done-when.
