@@ -452,6 +452,36 @@ func Operations() []Operation {
 			},
 		},
 		{
+			// Bench verbs (pair#847) are a bench hub's actor commands on a slot
+			// its .hub claims, gated by HubOwnership.Provisions: never switcher
+			// rows (no RowAction, absent from ActorActions) and never
+			// `couch --internal` (that path has no hub gate). bench-start is
+			// reboot with an exact profile; bench-retire a retirement that
+			// proves no survivor.
+			Name: OpBenchStart, Summary: "Start a claimed bench slot fresh with an exact agent and argv",
+			Execution: ExecuteLiveOwner, Effect: EffectProcess, Confirmation: ConfirmRequired, Result: ResultStart,
+			Presentation: PresentationTUI,
+			Args: []ArgSpec{
+				{Name: "ref", Summary: "exact slot reference"},
+				{Name: "path", Summary: "slot host checkout", Implicit: true},
+				{Name: "repo-scope", Summary: "repository scope derived from caller context", Implicit: true},
+				{Name: "tag", Summary: "exact thread tag from trusted owner context", Implicit: true},
+				{Name: "agent", Summary: "agent for the fresh conversation", Implicit: true},
+				{Name: "argv", Summary: "explicit startup parameters as a JSON array", Implicit: true},
+			},
+		},
+		{
+			Name: OpBenchRetire, Summary: "Retire a claimed bench slot once nothing its agents started survives",
+			Execution: ExecuteLiveOwner, Effect: EffectProcess, Confirmation: ConfirmRequired, Result: ResultStop,
+			Presentation: PresentationTUI,
+			Args: []ArgSpec{
+				{Name: "ref", Summary: "exact slot reference"},
+				{Name: "path", Summary: "slot host checkout", Implicit: true},
+				{Name: "repo-scope", Summary: "repository scope derived from caller context", Implicit: true},
+				{Name: "tag", Summary: "exact thread tag from trusted owner context", Implicit: true},
+			},
+		},
+		{
 			// Reap ends an orphaned server's whole tree (#399): its agent may
 			// still be writing, so it is confirmed, and it admits only a row
 			// whose orphan verdict holds on a second observation.

@@ -159,13 +159,17 @@ func (s *slotOperations) handle(ctx context.Context, caller couchmessage.Binding
 			}
 			return s.candidate(key, r.Target, r.CandidateKey, started, progress, finished, guards...)
 		}
+		opts, err := slotOperationOptions(r)
+		if err != nil {
+			return err
+		}
 		if len(guards) > 0 {
 			if s.guardedRun == nil {
 				return errors.New("hub-aware operation queue unavailable")
 			}
-			return s.guardedRun(key, r.Op, r.Target, couchcore.LiveRestartOptions{SameBinary: r.SameBinary, ForceUnknown: r.ForceUnknown}, guards[0], started, progress, finished)
+			return s.guardedRun(key, r.Op, r.Target, opts, guards[0], started, progress, finished)
 		}
-		return s.run(key, r.Op, r.Target, couchcore.LiveRestartOptions{SameBinary: r.SameBinary, ForceUnknown: r.ForceUnknown}, started, progress, finished)
+		return s.run(key, r.Op, r.Target, opts, started, progress, finished)
 	}, queueKeys...)
 }
 
@@ -423,6 +427,9 @@ func classifySlotOperationOutcome(value any, err error) couchmessage.ReceiptOutc
 	if reboot, ok := value.(couchcore.RebootResult); ok {
 		out.Archived = string(reboot.Archived.Tag)
 	}
+	if bench, ok := value.(couchcore.BenchStartResult); ok {
+		out.Archived, out.Provenance = string(bench.Archived.Tag), bench.Provenance
+	}
 	if warned, ok := value.(interface{ Warning() string }); ok {
 		out.Warning = warned.Warning()
 	}
@@ -480,4 +487,20 @@ func (n notedResult) Warning() string {
 func recoveryActor(caller couchmessage.Binding) string {
 	b, _ := json.Marshal(caller)
 	return "hub:" + string(b)
+}
+
+// slotOperationOptions are a request's slot-operation options; bench-start's
+// exact profile comes from the request's agent and explicit argv (pair#847).
+func slotOperationOptions(r couchmessage.Request) (couchcore.LiveRestartOptions, error) {
+	opts := couchcore.LiveRestartOptions{SameBinary: r.SameBinary, ForceUnknown: r.ForceUnknown}
+	if r.Op != couchcore.OpBenchStart {
+		return opts, nil
+	}
+	argv, _ := r.AgentArgs.Argv()
+	profile, err := couchcore.ParseBenchProfile(r.Agent, argv)
+	if err != nil {
+		return opts, err
+	}
+	opts.Bench = &profile
+	return opts, nil
 }

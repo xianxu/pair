@@ -144,3 +144,21 @@ func TestVacantSlotFreshStartTakesExplicitProfile(t *testing.T) {
 		t.Fatal("saved parameters changed")
 	}
 }
+
+// BenchStart's provenance is read back from the record the launch committed.
+func TestBenchStartCarriesProvenance(t *testing.T) {
+	env, old := primaryRebootFixture(t)
+	argv := []string{"--bench", "proof"}
+	result, err := env.Couch.BenchStart(t.Context(), RebootTarget{Address: old.Address, Agent: "codex", Argv: &argv})
+	if err != nil {
+		t.Fatal(err)
+	}
+	started, ok := result.Started()
+	p := result.Provenance
+	if !ok || p == nil || p.Tag != string(started.Record.Thread.Tag) || p.Root == "" || p.Agent != "codex" || !reflect.DeepEqual(p.Argv, argv) || p.ArgvSource != string(ArgvSourceExplicit) {
+		t.Fatalf("provenance %+v started %+v", p, started.Record)
+	}
+	if result.Archived != old.Address {
+		t.Fatalf("embedded reboot result lost: %+v", result.RebootResult)
+	}
+}

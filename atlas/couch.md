@@ -3658,6 +3658,29 @@ park leave (`leave_park.go`):
   deadline and refuses a caller without one (#877); at the deadline its error
   carries both the context error and the last busy.
 
+**Bench slots** (pair#847). A bench hub manages the worker slots its `.hub` claims by
+command, for model-bench runs.
+- **The one hand step:** the bench tool writes the bench root's `.hub` from the run
+  descriptor (exact `repo:N` claims), and the operator starts Couch once with the bench
+  root as an extra hub (`couch <main-root> <bench-root>`); `.hub` files are read only for
+  explicit hubs, at startup. Every run step after that is a command from the bench hub.
+- **Authority:** `HubOwnership.Provisions` admits only a non-main hub on a slot it holds by
+  its own explicit claim (exact or whole-repo); default (main-hub) ownership, a runtime
+  move and a conflicting claim never qualify, so production slots are out of reach. It is
+  checked at admission and again at the queued effect gate; a hubless Couch refuses.
+- **`bench-start`** (`couch --bench-start repo:N --agent A --agent-args "…" --confirm`):
+  Reboot's Fresh path with an exact profile (`RebootTarget.Argv`, `ArgvSourceExplicit`),
+  on a vacant or live slot. A recovery launch is never remembered, so it never writes the
+  per-repository saved parameters production slots share. Model switch is another
+  bench-start. Its receipt carries `Provenance` (`couchcore.LaunchProvenance`: root,
+  tag, Pair session, generation = the session's start nonce, agent, argv, argv source).
+- **`bench-retire`** (`couch --bench-retire repo:N --confirm`): parks a live agent, tears
+  the tree down, and archives only when no process any of the slot's agents started
+  survives — this teardown's `LeftRunning` plus every registered orphan of the slot's
+  scope in `orphans.json` (unknown liveness counts). Otherwise it refuses
+  `bench-retire-survivors`, naming them, and keeps the record. The worktree stays.
+- Both are actor operations only: never switcher rows and never `couch --internal`.
+
 **Asleep slots** (#830). A full quit marks what it parks; `couch --wake`, from
 the main hub, brings back the other hubs.
 - **Mark:** Leave's fresh drives begin their park with `BeginParkAsleep`, which
