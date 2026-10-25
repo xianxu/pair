@@ -48,3 +48,11 @@ A new launch requires a new directory; failed output is never overwritten.
 backend and output failures qualify ownership/cancellation; the real runtime
 conformance test checks all three profiles with `go tool pprof`. Native workload
 measurement remains #865; this profiler extraction does not authorize a live restart.
+
+The [#865 live attribution](../workshop/evidence/000865/live-profile.md) records
+the 2026-10-24 operator-approved capture: about1.48 cores during startup slot
+reattachment, with synchronized-output screen capture the largest sampled
+allocator. A later same-process observation was about0.41 cores. That difference
+does not identify the cause of an hours-old cost; an aged profile is a separate
+measurement. Cumulative owners overlap, allocation accounting can lag GC, and
+neither allocation churn nor this CPU profile establishes fseventsd causality.

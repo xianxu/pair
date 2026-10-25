@@ -13,6 +13,14 @@ Clipboard writes, notifications, title/directory changes and bells are ordered,
 origin-bearing effects; snapshots cannot replay them. Clipboard reads are explicitly
 unsupported and receive an empty response.
 
+Capture reuses the endpoint's private Cells/Rows backing at unchanged geometry
+(#865). Every cell and row is overwritten, including zero for absent backend
+cells; a geometry change replaces both buffers with exact current lengths.
+Snapshot and Publication retain independent consumer clones. There is no shared
+pool or spare geometry cache. Counted capture budgets and bounded synchronized
+ingest comparisons are recorded in
+[the allocation evidence](../workshop/evidence/000865/capture-allocation.md).
+
 Backend snapshots cross a repair boundary in `terminal/cell_degrade.go` (#727).
 Unsafe cells become width-one U+FFFD in owned screen/history rows, including
 broken wide-cell neighbours; the backend is unchanged. Direct `Frame` and panel

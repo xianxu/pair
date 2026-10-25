@@ -1,0 +1,6 @@
+=== RUN   TestLiveConformance
+    conformance_test.go:74: page control paused: timed out at {Recovery: Phase:live Tab:{ID:446654E88E6B9EABD9370A3FA50B748D URL:data:text/html,%3Ctitle%3Eone%3C%2Ftitle%3E%3Cp%3Eone Title:one} HasTab:true}
+--- FAIL: TestLiveConformance (16.72s)
+FAIL
+FAIL	github.com/xianxu/pair/cmd/internal/webcast	16.982s
+FAIL

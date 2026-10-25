@@ -1,0 +1,26 @@
+{
+  "head": "7b104dd55c2078641b813b72b628e8e769314ec3",
+  "command": [
+    "go",
+    "test",
+    "-overlay",
+    "/Volumes/TestScratch/pair858-native-9iw8cnxx/overlay.json",
+    "./cmd/internal/webcast",
+    "-run",
+    "^TestLiveConformance$",
+    "-count=1",
+    "-v",
+    "-timeout=90s"
+  ],
+  "environment": {
+    "WEBCAST_LIVE_CHROME": "1"
+  },
+  "exit": 1,
+  "seconds": 20.37,
+  "log_sha256": "4b370ec1521573f4b5be18112000157c79fca7fe305c86957b4360095d716fa2",
+  "headless": "liveChrome LaunchOptions.Headless=true; private t.TempDir profile; cleanup Close joins owned Chrome",
+  "source_diff_empty": true,
+  "reversion_source": "63d35ac8295d6b4ff04001c683b038eca1d0e3d7:cmd/internal/webcast/live_test.go",
+  "reversion_sha256": "3730492955df936b5b69033aeab40baed5ea72fda5392925ce133b2632d40582",
+  "new_readiness_fixture_omitted": true
+}

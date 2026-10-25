@@ -7,6 +7,8 @@ representative evidence, not an exhaustive index.
 
 ## Proof and verification
 
+- #865 PQ-1/PQ-2: Trace actual no-op, refused and successful resize transitions before describing publication lifetimes. Measure private capture storage separately from required consumer clones; qualify retained copies, erased/absent cells and geometry changes with controlled emulator tests.
+
 - #879: Pin public CLI output shapes in portable controls before native qualification. Compact list uses labels/paths; show carries full addresses. Public resume already polls and emits a raw final receipt, and an already-live success may omit Tag; require unchanged independent actor/process/socket identity around that result. Use opaque tags for exact menu selection, since repo:N filters apply to numbered slot rows.
 - #879 BR-1–3: Keep historical reproduction prerequisites separate from reusable compatibility oracles; cover genuine old/new writer states and candidate publication without mutating their evidence. After implementation moves a concept, update its authoritative plan table as well as the revision log, and add README discovery for each new operator invocation.
 - #866 CI: a private namespace under os.TempDir can exceed the native Unix socket name budget on macOS runners. TestMain owners must reuse the shared short-root allocator, and a child-process regression must verify long-TMPDIR startup and owner cleanup; local RAM-disk paths conceal this failure.
@@ -2969,6 +2971,9 @@ and external temporary roots rather than relying on the host's TMPDIR.
 
 - #844 BR-4: an approved post-close verification fix that adds an executable checker contract can require full close even when it changes no product policy. Follow the scope guard with the existing ledger; do not treat plan approval as authority to narrow that review.
 
+- #858 BR-1: a native control fixture must prove visible, enabled, in-viewport hit geometry before dispatch; positive box dimensions alone admit visibility:hidden, opacity-zero and clipped controls. Exercise the real closed-shadow DOM and count forwarded mouse events so refusal means zero input.
+
+- #858 recorded-check follow-up: moving a wait loop changes the exact function-owned sleep-debt site even when its duration is unchanged. Keep admitted waits with their original owner or remove them; run the tracked-source catalog before queuing a refactored fixture. The debt list may only shrink and must not be expanded/renamed to bypass the failure.
 - #881: A Unix availability probe can fit while a later private directory plus socket leaf exceeds the application budget. Use the shared short-root allocator for the fixture owner, assert the complete worst-case derived path under a long inherited TMPDIR, and check Unix/config/permissions/cleanup without converting fixture overflow to a skip. The catalog guards the allocator owner.
 
 - #881 BR-1: A fixture-only fix can introduce an architectural surface through its catalog rule. Every new Pair-local ownership rule needs its atlas mapping in the same change, naming the protected owner, matcher limits and executable regression; do not waive atlas solely because production code is unchanged.
