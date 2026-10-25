@@ -1,12 +1,12 @@
 ---
 id: 000879
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-10-24
 updated: 2026-10-24
 estimate_hours:
-card_mirror: '5c74e5497e758ccb4ae96fd56e96c1a061b06f33' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '8effd4c55c4283340d3b553b2c1080875b2f57c0' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-24T17:15:49-07:00
 claimant:
     operator: Xian Xu
@@ -16,6 +16,7 @@ claimant:
     worktree: /Users/xianxu/workspace/worktree/pair-slot9/pair
     repository: github.com/xianxu/pair
 flow: {kind: full, provenance: inferred}
+actual_hours: 0.90
 ---
 
 # Reusable upgrade test: candidate build adopts, lists and resumes warm sessions created by main
