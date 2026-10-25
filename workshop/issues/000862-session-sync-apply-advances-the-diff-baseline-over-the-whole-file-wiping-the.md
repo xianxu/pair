@@ -222,6 +222,35 @@ and close evidence. GitHub conformance, merge-check and both local-gates
 checks were green on71974fc8fb33326976e1ed1eca7dbddf16dbb0d6. Next: push
 this proof and re-enter one authoritative merge runner, preserving its turn.
 
+### 2026-10-24 — integration queued interruption; test/build freeze checkpoint
+
+Original authoritative merge runner terminal79877 integrated current main
+cleanly at e3e9176789cfb31727c7b708fdfa969bc1ac19b9, passed publish/instance
+gates and integrated-head CI, then queued its full suite as
+attempt59fcc8ce6be911594cdd7b24a3c54357 / lease-2339040081.
+The runner later exited1 while still waiting for admission, last heartbeat
+wait1929s/FIFO2. Exact final error:
+“CI gate: local check suite: refusing to run an unbounded suite: suite lock interrupted: context canceled”.
+No integration tests ran; this is queue/control interruption, not passing or
+failing product test evidence, and no flake is registered. The cause of
+cancellation is not established. Both printed inflight/final suite-log paths
+were checked and absent. A clearly labelled observed terminal excerpt is
+retained in workshop/evidence/000862/integration-e3e91767-queue-interrupted.txt.
+
+Authenticated hubd18f4720 prohibits any new local test/build until its lift.
+No new run, requeue, build or native matrix was started. Existing branch
+suite PASS17m31s, close SHIP and corrected ariadne#615 handoff remain valid;
+the integration is pushed and no source change is needed. No own test or
+merge runner remains live. Hub report attempt returned “couch: unavailable:
+caller pair:3 current: context deadline exceeded” without a receipt, so it
+is not claimed delivered.
+
+Stopped with only this evidence/Log checkpoint. Next after the authenticated
+lift: inspect SDLC landing/local-check state for this exact integrated head,
+follow its supported recovery (recorded check/re-entry if required), retain
+one runner, and land PR599 only after integrated verification. Do not blindly
+retry during the freeze or classify the interruption as a flake.
+
 ## Revisions
 
 ### 2026-10-24 — separate dependent fake adoption, TL-approved
