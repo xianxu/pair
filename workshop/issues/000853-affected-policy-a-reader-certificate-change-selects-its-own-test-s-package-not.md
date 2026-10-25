@@ -104,6 +104,7 @@ Ops approved the provider split (delivery e3fddf94-32aa-4044-99a5-c68e0cd84276).
 **NEXT ACTION:** after ariadne#598 lands, resume this branch, integrate main and the provider, audit all certificate readers, finalize the consumer plan and obtain TL approval before change-code. Include #825's request_lifetime certificate and cmd/couch main_test.go/editorial_acceptance_test.go exact selections, unknown/deleted/renamed cases, explicit full precedence and actual native fixture reads. Local-gates configuration needs operator verification. In the meantime TL explicitly directed pair:1 to work #844 on its own branch from main; no stacking.
 
 ### 2026-10-25 — implemented (pair:6)
+- 2026-10-25: closed — pre-close suite on pushed head a7acc677 exit 0 in 12m10s (recorded sdlc-local/suite); make test-affected-inventory clean; make test-affected-runner test-affected-config pass; new TestCertificatesAndCouchTestsNarrow, TestCertificateReads, test_record_keeps_declared_reads pass and fail under mutation (main affected.json; record dropping members) (done-when: contract moved since change-code; judged by the close review); review verdict: SHIP
 
 TL approved the plan (delivery df08c2a2) and then option A for the pin (delivery 280602da).
 - **TL's question:** main's suite is green today. Its checkout has no sibling ariadne, so `tests/affected-config-test.py`
