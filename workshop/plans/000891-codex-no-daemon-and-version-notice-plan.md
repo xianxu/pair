@@ -1,17 +1,16 @@
-# Codex private app-server launch + version-change notice Implementation Plan
+# Codex private app-server launch (Part A) Implementation Plan
 
 > **For agentic workers:** Consult AGENTS.md Section 3 (Subagent Strategy) to determine the appropriate execution approach: use superpowers-subagent-driven-development (if subagents are suitable per AGENTS.md) or superpowers-executing-plans to implement this plan. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** A wrapped Codex 0.164+ start never reaches the shared background server (so the unanswerable
-"incompatible feature settings" prompt cannot appear), and Couch reports a Codex version change to the hub once.
+**Goal:** A wrapped Codex ≥ 0.164 launch runs without the machine's shared background server (so the
+unanswerable "incompatible feature settings" prompt cannot appear), and every launch records the CLI version it
+ran.
 
-**Architecture:** The launcher probes `codex --version` (read-only, bounded), records it in
+**Architecture:** The launcher probes `codex --version` once (read-only, bounded), exports the parsed version as
 `PAIR_AGENT_VERSION`, and prepends `--no-daemon` when the version supports it. The wrapper copies the version
-into the ready record. Couch, on each successful fresh registration, compares the recorded version against a
-durable per-agent baseline (`agent-versions.json`) and publishes one notice when it differs.
+into the ready record. Part B (the once-per-change hub notice and its baseline store) is #894.
 
-**Tech Stack:** Go; zellij; existing `readiness`, `couchcore.OSReadyReader`, `NoticeClass`/`RouteNotice`
-notice pipeline; `strictjson`; atomic namespace-file stores.
+**Tech Stack:** Go; zellij; `readiness` ready record; `strictjson`; the existing launcher Runtime seam.
 
 ---
 
@@ -21,31 +20,20 @@ notice pipeline; `strictjson`; atomic namespace-file stores.
 
 | Name | Lives in | Status |
 |------|----------|--------|
-| `parseAgentVersion` | `cmd/internal/launcher/agent_version.go` | new |
-| `versionAtLeast` | `cmd/internal/launcher/agent_version.go` | new |
+| `parseAgentVersion`, `versionAtLeast`, `argumentPresent` | `cmd/internal/launcher/agent_version.go` | new |
 | `AgentVersion` ready-record field | `cmd/internal/readiness/record.go` | modified |
-| `AgentVersionStore` + `AgentVersionObserver` | `cmd/internal/couchcore/agent_versions.go` | new |
-| `NoticeAgentVersionChanged` | `cmd/internal/couchcore/notice_route.go` | new |
+| `codexBoolGlobalOption` table entry | `cmd/internal/launcher/agentargs.go` | modified |
 
 - **`parseAgentVersion` / `versionAtLeast`** — `codex --version` prints `codex-cli 0.164.0`; parse the last
-  token only when it matches `X.Y.Z[-…]`, and compare numerically. Unparseable output yields `""` and
-  `versionAtLeast` is false, so an unknown CLI never gains a flag it may not support.
-  - Relationships: 1:1 with a launch probe.
-  - DRY rationale: first occurrence of "which agent CLI versions get which launch policy"; the axis widens
-    here if another agent ever needs a version-gated flag.
-- **`AgentVersion` ready-record field** — optional `agent_version` the wrapper copies from the launcher env.
-  `readiness.Decode` already tolerates unknown members, so old and new binaries interoperate in both
-  directions; `Validate` bounds it (≤64 bytes, valid UTF-8, no control characters).
-- **`AgentVersionStore` + `AgentVersionObserver`** — the store is `namespace/agent-versions.json`
-  (`{"versions":{"codex":"0.164.0"}}`), written atomically; the observer wraps a `FreshRegistration` func,
-  reads the version from the ready record, and returns the previous version exactly once per change. The
-  first observation for an agent is the silent baseline. Only one Couch process writes a namespace (the
-  supervisor lease), so an in-process mutex is the sync; no flock.
-  - Relationships: one store per Couch namespace; N:1 observer calls per launch poll (only a successful
-    registration touches the store).
-- **`NoticeAgentVersionChanged`** — a `NoticeClass`; it has no special route case, so `RouteNotice` gives it
-  the default owning-hub behavior (feed + hub when the owner is enabled). Add it to the exhaustive class
-  table in `notice_route_test.go`.
+  token only when it matches `X.Y.Z[-…]`, compare numerically. Unparseable output yields `""` and
+  `versionAtLeast` is false, so an unknown CLI never gains a flag it may not support. `argumentPresent` keeps a
+  caller-supplied `--no-daemon` from being duplicated.
+- **`AgentVersion` ready-record field** — optional `agent_version`, bounded (≤64 bytes, valid UTF-8, no control
+  characters). `Decode` already tolerates unknown members, so the record interoperates across an upgrade in
+  both directions.
+- **`codexBoolGlobalOption` entry** — the single table the wrapper's fresh-start strip walks. Without
+  `--no-daemon` in it, `stripCodexResumeSubcommand` stops at the new leading flag and a fresh start inside a
+  resumed Codex pane would silently keep `resume <id>`. The flag and the table entry land together.
 
 ### Integration points
 
@@ -54,28 +42,23 @@ notice pipeline; `strictjson`; atomic namespace-file stores.
 | `Runtime.AgentVersion` | `cmd/internal/launcher/runtime.go`, `osruntime.go` | new | `codex --version` |
 | launch argv policy | `cmd/internal/launcher/createflow.go` | modified | agent argv |
 | `publishAgentReady` | `cmd/internal/wrapcmd/wrap.go` | modified | ready record |
-| `OSReadyReader.RecordedAgentVersion` | `cmd/internal/couchcore/switchcontext.go` | new | ready record |
-| `messageService.watchAgentVersions` | `cmd/internal/couchcmd/agent_version_notice.go` | new | `c.FreshRegistration`, `publishSystemNotice` |
 
 - **`Runtime.AgentVersion`** — `OSRuntime` runs `exec.CommandContext(ctx, agent, "--version")` under a 3s
   timeout, codex only; failure returns `""` and leaves the old path untouched. Injected as a new
-  `AgentVersionOps` sub-interface of `launcher.Runtime` so `fakeRuntime` controls it (default `""` keeps every
-  existing argv pin unchanged).
+  `AgentVersionOps` sub-interface of `launcher.Runtime`; the fake's default `""` keeps every existing argv pin
+  unchanged.
 - **launch argv policy** — after `inlineModeArgs` and the `shell_snapshot` block: probe once, `rt.SetEnv(
-  AgentVersionEnv, version)` whenever the probe succeeded (so the version is recorded even below the gate),
-  and prepend `--no-daemon` when `versionAtLeast(version, {0,164,0})` and the caller did not already pass it.
+  AgentVersionEnv, version)` whenever the probe succeeded (the version is recorded even below the gate), and
+  prepend `--no-daemon` when `versionAtLeast(version, {0,164,0})` and the caller did not already pass it.
   Applies to all Codex launches, not only `couchOwned`: a pair launch must not depend on a machine-global
-  server another program owns. It never restarts or contacts the shared server.
+  server another program owns. It never contacts or restarts the shared server.
 - **`publishAgentReady`** — one more field read from `os.Getenv(launcher.AgentVersionEnv)`.
-- **`OSReadyReader.RecordedAgentVersion`** — mirrors `RecordedChild`: reads the ready file alone and returns
-  the recorded version with `ok=false` when absent.
-- **`messageService.watchAgentVersions`** — installed in `startMessageServiceWithStartup` right after
-  `installNoticeDelivery` (the first point where the console, the delivery binder and the launch observer all
-  exist); wraps `c.FreshRegistration`, and on a version change calls `publishSystemNotice` with
-  `Class: NoticeAgentVersionChanged`, `Kind: "status"`, `Thread: address`, `Label: tag`. Notices without a
-  hub owner stay in the feed; the store still records the change, so the hub sees it once when it returns.
-  Exception, by design: the first-ever `StartupFresh` launch happens before the service exists and is silent
-  anyway (empty store = baseline).
+
+### Deferred: Part B (#894)
+
+`OSReadyReader.RecordedAgentVersion`, a durable `namespace/agent-versions.json` baseline, `AgentVersionObserver`
+on `c.FreshRegistration`, and `NoticeAgentVersionChanged` were designed with Part A and seam-verified; they are
+filed as unclaimed #894 with the design summary in its body. Nothing in this plan depends on them.
 
 ---
 
@@ -84,12 +67,12 @@ notice pipeline; `strictjson`; atomic namespace-file stores.
 **Files:**
 - Modify: `cmd/internal/readiness/record.go`
 - Test: `cmd/internal/readiness/record_test.go`
-- Modify: `cmd/internal/wrapcmd/wrap.go:627`
+- Modify: `cmd/internal/wrapcmd/wrap.go:661`
 - Test: `cmd/internal/wrapcmd/readiness_test.go`
 
 - [ ] **Step 1: Write the failing tests**
 
-`record_test.go` — extend the round-trip test with `AgentVersion: "0.164.0"`, and add:
+`record_test.go` — add `AgentVersion: "0.164.0"` to the round-trip fixture, and:
 
 ```go
 func TestReadyRecordBoundsAgentVersion(t *testing.T) {
@@ -115,11 +98,11 @@ func TestReadyRecordBoundsAgentVersion(t *testing.T) {
 - [ ] **Step 2: Run to verify failure**
 
 Run: `go test ./cmd/internal/readiness ./cmd/internal/wrapcmd -run 'ReadyRecord|PublishAgentReady' -count=1`
-Expected: FAIL — unknown field `AgentVersion`, missing env plumbing.
+Expected: FAIL — unknown field `AgentVersion`; env not plumbed.
 
 - [ ] **Step 3: Implement**
 
-`record.go`: add the field after `LaunchOrdinal`, and the bound in `Validate`:
+`record.go`, after `LaunchOrdinal`:
 
 ```go
 	// AgentVersion is the CLI version the launcher probed at launch (e.g.
@@ -127,13 +110,16 @@ Expected: FAIL — unknown field `AgentVersion`, missing env plumbing.
 	AgentVersion string `json:"agent_version,omitempty"`
 ```
 
+and in `Validate`'s switch:
+
 ```go
 	case len(record.AgentVersion) > 64 || !utf8.ValidString(record.AgentVersion) ||
 		strings.IndexFunc(record.AgentVersion, unicode.IsControl) >= 0:
 		return fmt.Errorf("ready record: invalid agent version")
 ```
 
-`wrap.go`, in the `readiness.Encode(readiness.ReadyRecord{…})` literal: `AgentVersion: os.Getenv(launcher.AgentVersionEnv),`.
+`wrap.go`, in the `readiness.Encode(readiness.ReadyRecord{…})` literal:
+`AgentVersion: os.Getenv(launcher.AgentVersionEnv),`.
 
 - [ ] **Step 4: Run tests**
 
@@ -147,7 +133,7 @@ git add cmd/internal/readiness cmd/internal/wrapcmd
 git commit -m '#891: ready record carries the probed agent version' --trailer 'Agent: qoder/-/-'
 ```
 
-### Task 2: Launcher probes the version and opts Codex out of the shared server
+### Task 2: Launcher probe, `--no-daemon`, and the Codex flag table
 
 **Files:**
 - Create: `cmd/internal/launcher/agent_version.go`
@@ -157,6 +143,7 @@ git commit -m '#891: ready record carries the probed agent version' --trailer 'A
 - Modify: `cmd/internal/launcher/osruntime.go`
 - Modify: `cmd/internal/launcher/createflow.go:822`
 - Modify/Test: `cmd/internal/launcher/createflow_test.go` (fake), new `createflow_agent_version_test.go`
+- Modify/Test: `cmd/internal/launcher/agentargs.go:106`, `cmd/internal/launcher/agentargs_test.go`
 
 - [ ] **Step 1: Write the failing pure tests**
 
@@ -165,12 +152,12 @@ git commit -m '#891: ready record carries the probed agent version' --trailer 'A
 ```go
 func TestParseAgentVersion(t *testing.T) {
 	for in, want := range map[string]string{
-		"codex-cli 0.164.0\n": "0.164.0",
-		"0.164.0":             "0.164.0",
+		"codex-cli 0.164.0\n":         "0.164.0",
+		"0.164.0":                     "0.164.0",
 		"codex-cli 0.164.0-alpha.1\n": "0.164.0-alpha.1",
-		"":                    "",
-		"codex-cli":           "",
-		"codex-cli 0.164\n":   "",
+		"":                            "",
+		"codex-cli":                   "",
+		"codex-cli 0.164\n":           "",
 	} {
 		if got := parseAgentVersion(in); got != want {
 			t.Fatalf("parse(%q) = %q want %q", in, got, want)
@@ -191,10 +178,18 @@ func TestVersionAtLeast(t *testing.T) {
 }
 ```
 
+`agentargs_test.go`, beside the existing `stripCodexResumeSubcommand` cases:
+
+```go
+if got := FreshAgentArgs("codex", []string{"--no-daemon", "--disable", "shell_snapshot", "resume", "id1"}); !reflect.DeepEqual(got, []string{"--no-daemon", "--disable", "shell_snapshot"}) {
+	t.Fatalf("fresh start kept the resume binding: %v", got)
+}
+```
+
 - [ ] **Step 2: Run to verify failure**
 
-Run: `go test ./cmd/internal/launcher -run 'ParseAgentVersion|VersionAtLeast' -count=1`
-Expected: FAIL — functions undefined.
+Run: `go test ./cmd/internal/launcher -run 'ParseAgentVersion|VersionAtLeast|FreshAgentArgs|CodexResume' -count=1`
+Expected: FAIL — helpers undefined; the fresh-start test keeps `resume id1`.
 
 - [ ] **Step 3: Implement the pure helpers**
 
@@ -203,7 +198,12 @@ Expected: FAIL — functions undefined.
 ```go
 package launcher
 
-import "regexp"
+import (
+	"regexp"
+	"strconv"
+	"strings"
+	"time"
+)
 
 // agentVersionProbeTimeout bounds the read-only `<agent> --version` probe; a
 // wedged install must never delay a launch past it.
@@ -251,7 +251,6 @@ func versionAtLeast(version string, want [3]int) bool {
 	return true
 }
 
-// argumentPresent reports an exact argv element.
 func argumentPresent(args []string, want string) bool {
 	for _, arg := range args {
 		if arg == want {
@@ -262,9 +261,13 @@ func argumentPresent(args []string, want string) bool {
 }
 ```
 
-- [ ] **Step 4: Run pure tests**
+`agentargs.go` `codexBoolGlobalOption`: add `"--no-daemon"` to the case list. Swept readers of the same walk:
+`freshValueOption` handles value options only (a boolean needs no entry), and the native-resume selector does
+not parse leading flags — `codexResumeCommandIndex` is the only reader of the bool table.
 
-Run: `go test ./cmd/internal/launcher -run 'ParseAgentVersion|VersionAtLeast' -count=1`
+- [ ] **Step 4: Run the pure + parser tests**
+
+Run: `go test ./cmd/internal/launcher -run 'ParseAgentVersion|VersionAtLeast|FreshAgentArgs|CodexResume' -count=1`
 Expected: PASS.
 
 - [ ] **Step 5: Write the failing launch tests**
@@ -273,44 +276,41 @@ In `createflow_test.go`: add `agentVersions map[string]string` to `fakeRuntime`,
 `newFakeRuntime`, and implement `func (f *fakeRuntime) AgentVersion(agent string) string { return
 f.agentVersions[agent] }`.
 
-New `createflow_agent_version_test.go`, mirroring `TestRequiredNativeResumeBindingLaunchesExactRootWithoutDefaults`
-for setup:
+New `createflow_agent_version_test.go` reusing the resume setup from
+`TestRequiredNativeResumeBindingLaunchesExactRootWithoutDefaults` (`bindingStatuses["work|codex"] =
+BindingEstablished`, `establishedSessions["work|codex"] = "native-root-1"`, Couch thread scope/tag,
+`ResumeRequired`/`RequiredSessionID`):
 
 ```go
-func codexResumeWithVersion(t *testing.T, version string, agentArgs []string) (LaunchOptions, *fakeRuntime, int, error) {
-	// bindingStatuses["work|codex"]=BindingEstablished, establishedSessions["work|codex"]="native-root-1",
-	// CouchThreadScope/Tag, ResumeRequired/RequiredSessionID as in the existing resume test;
-	// rt.agentVersions["codex"] = version when version != "".
-}
-
 func TestCodexLaunchOptsOutOfTheSharedServer(t *testing.T) {
-	// version "0.164.0": want launchArgsText == "--no-daemon --disable shell_snapshot resume native-root-1 --sandbox workspace-write --no-alt-screen"
+	// rt.agentVersions["codex"] = "0.164.0"
+	// want launchArgsText == "--no-daemon --disable shell_snapshot resume native-root-1 --sandbox workspace-write --no-alt-screen"
 	// and rt.env["PAIR_AGENT_VERSION"] == "0.164.0"
 }
 
 func TestCodexLaunchBeforeTheGateIsUnchanged(t *testing.T) {
-	// version "0.163.0": want no "--no-daemon" token, and PAIR_AGENT_VERSION still "0.163.0"
+	// "0.163.0": no "--no-daemon" token; PAIR_AGENT_VERSION still "0.163.0"
 }
 
 func TestCodexLaunchHonorsAnExplicitNoDaemon(t *testing.T) {
-	// version "0.164.0", AgentArgs begins with "--no-daemon": exactly one occurrence
+	// "0.164.0" with AgentArgs beginning "--no-daemon": exactly one occurrence
 }
 
 func TestCodexLaunchWithoutAVersionProbeIsUnchanged(t *testing.T) {
-	// version "": --disable shell_snapshot resume ... and no PAIR_AGENT_VERSION in rt.env
+	// "": exact pre-change argv and no PAIR_AGENT_VERSION in rt.env
 }
 ```
 
-Use `argumentPresent` (or `strings.Fields`) on `launchArgsText(t, rt.env)` to assert occurrences.
+Assert token occurrence with `argumentPresent(strings.Fields(launchArgsText(t, rt.env)), "--no-daemon")`.
 
 - [ ] **Step 6: Run to verify failure**
 
 Run: `go test ./cmd/internal/launcher -run 'CodexLaunch' -count=1`
-Expected: FAIL — `fakeRuntime` lacks `AgentVersion`/`agentVersions`; argv lacks `--no-daemon`.
+Expected: FAIL — `fakeRuntime` lacks the method; argv lacks `--no-daemon`.
 
 - [ ] **Step 7: Implement the seam**
 
-`runtime.go`: add
+`runtime.go`:
 
 ```go
 // AgentVersionOps probes the installed agent CLI's version, read-only.
@@ -368,7 +368,7 @@ const AgentVersionEnv = "PAIR_AGENT_VERSION"
 
 - [ ] **Step 8: Run the launcher package**
 
-Run: `go test ./cmd/internal/launcher -count=1`
+Run: `go test ./cmd/internal/launcher ./cmd/internal/readiness ./cmd/internal/wrapcmd -count=1`
 Expected: PASS, including every pre-existing argv pin (default fake version is "").
 
 - [ ] **Step 9: Commit**
@@ -378,314 +378,73 @@ git add cmd/internal/launcher
 git commit -m '#891: launch Codex against a private app server at 0.164+' --trailer 'Agent: qoder/-/-'
 ```
 
-### Task 3: Couch reads the recorded version
+### Task 3: Docs, manual check, close
 
 **Files:**
-- Modify: `cmd/internal/couchcore/switchcontext.go` (after `RecordedChild`)
-- Test: `cmd/internal/couchcore/switchcontext_test.go`
-
-- [ ] **Step 1: Write the failing test**
-
-Next to `TestFreshRegistrationAcceptsTheExactReadyRecord`, write the same fixture with
-`AgentVersion: "0.164.0"`, then assert `reader.RecordedAgentVersion(ctx, record.Address, "codex", "attempt")`
-returns `("0.164.0", true, nil)`; a record without the field returns `ok=false`; a stale nonce returns
-`ok=false, err=nil`.
-
-- [ ] **Step 2: Run to verify failure**
-
-Run: `go test ./cmd/internal/couchcore -run RecordedAgentVersion -count=1`
-Expected: FAIL — method undefined.
-
-- [ ] **Step 3: Implement**
-
-```go
-// RecordedAgentVersion names the agent CLI version the launch's ready file
-// records (pair#891). ok is false when the record carries none.
-func (r OSReadyReader) RecordedAgentVersion(ctx context.Context, address ThreadAddress, agent, attempt string) (string, bool, error) {
-	ready, err := r.readReadyFile(ctx, address, agent, attempt)
-	if errors.Is(err, errObsoleteReady) || (err == nil && ready == nil) {
-		return "", false, nil
-	}
-	if err != nil {
-		return "", false, err
-	}
-	return ready.AgentVersion, ready.AgentVersion != "", nil
-}
-```
-
-- [ ] **Step 4: Run tests**
-
-Run: `go test ./cmd/internal/couchcore -run 'RecordedAgentVersion|FreshRegistration' -count=1`
-Expected: PASS.
-
-- [ ] **Step 5: Commit**
-
-```bash
-git add cmd/internal/couchcore/switchcontext.go cmd/internal/couchcore/switchcontext_test.go
-git commit -m '#891: read the recorded agent version from the ready record' --trailer 'Agent: qoder/-/-'
-```
-
-### Task 4: Durable store + once-per-change observer
-
-**Files:**
-- Create: `cmd/internal/couchcore/agent_versions.go`
-- Test: `cmd/internal/couchcore/agent_versions_test.go`
-
-- [ ] **Step 1: Write the failing tests**
-
-```go
-func TestAgentVersionStoreReportsEachChangeOnce(t *testing.T) {
-	store := NewAgentVersionStore(t.TempDir())
-	step := func(version string) (string, bool) {
-		previous, changed, err := store.Observe("codex", version)
-		if err != nil {
-			t.Fatal(err)
-		}
-		return previous, changed
-	}
-	if previous, changed := step("0.163.0"); changed || previous != "" {
-		t.Fatalf("first observation reported %q %t", previous, changed)
-	}
-	if _, changed := step("0.163.0"); changed {
-		t.Fatal("same version reported")
-	}
-	if previous, changed := step("0.164.0"); !changed || previous != "0.163.0" {
-		t.Fatalf("change = %q %t", previous, changed)
-	}
-	if _, changed := step("0.164.0"); changed {
-		t.Fatal("change reported twice")
-	}
-	// A fresh instance reads the same baseline from disk.
-	reopened := NewAgentVersionStore(store.path)
-	if previous, changed := reopened.Observe("codex", "0.163.0"); !changed || previous != "0.164.0" {
-		t.Fatalf("reopen change = %q %t", previous, changed)
-	}
-}
-
-func TestAgentVersionObserverOnlyObservesSuccessfulRegistrations(t *testing.T) {
-	// Inner returns (false,nil): Read must not be called.
-	// Inner returns an error: Read must not be called.
-	// Inner true but Read ok=false: store untouched (Observe on the next launch
-	//     with a version still reports from the old baseline).
-	// Inner true and Read "0.164.0": baseline silent, second call quiet, then
-	//     Read "0.165.0" reports once with previous "0.164.0".
-}
-
-func TestAgentVersionStoreRefusesACorruptRecord(t *testing.T) {
-	// write "{" to the path; Observe returns an error and does not overwrite.
-}
-```
-
-Also a `-race`-friendly test: N goroutines observe the same changed version after a baseline and exactly one
-report fires.
-
-- [ ] **Step 2: Run to verify failure**
-
-Run: `go test ./cmd/internal/couchcore -run 'AgentVersion' -count=1`
-Expected: FAIL — undefined.
-
-- [ ] **Step 3: Implement `agent_versions.go`**
-
-Follow `launchfailure_store.go`'s read shape (`provisionSafePath`, `unix.O_NOFOLLOW|O_NONBLOCK`, regular-file
-check, 64 KiB limit, `strictjson.Decode`) and `writeAtomicBytesWithPattern(s.path, raw, ".agent-versions-*")`
-after `provisionMkdirAll`. Public surface:
-
-```go
-type AgentVersionStore struct {
-	path string
-	mu   sync.Mutex
-}
-
-func NewAgentVersionStore(namespaceDir string) *AgentVersionStore
-func (s *AgentVersionStore) Path() string
-
-// Observe records version as agent's latest, returning the previous version
-// with changed=true exactly once per change. The first observation is the
-// silent baseline.
-func (s *AgentVersionStore) Observe(agent, version string) (previous string, changed bool, err error)
-
-// AgentVersionObserver wraps a fresh-registration observer: after each
-// successful registration it reads the launch's recorded agent version and
-// reports a change once.
-type AgentVersionObserver struct {
-	Inner  func(context.Context, ThreadAddress, string, string) (bool, error)
-	Read   func(context.Context, ThreadAddress, string, string) (string, bool, error)
-	Store  *AgentVersionStore
-	Report func(address ThreadAddress, agent, previous, current string)
-}
-func (o AgentVersionObserver) Registered(ctx context.Context, address ThreadAddress, agent, attempt string) (bool, error)
-```
-
-`Registered` returns the inner result unchanged; telemetry failures never fail a registration.
-
-File shape: `{"versions":{"codex":"0.164.0"}}`, `agent_versions` JSON tags, `Versions` normalized to an
-empty map on read.
-
-- [ ] **Step 4: Run tests**
-
-Run: `go test ./cmd/internal/couchcore -run 'AgentVersion' -count=1 -race`
-Expected: PASS.
-
-- [ ] **Step 5: Commit**
-
-```bash
-git add cmd/internal/couchcore/agent_versions.go cmd/internal/couchcore/agent_versions_test.go
-git commit -m '#891: durable agent-version baseline reports each change once' --trailer 'Agent: qoder/-/-'
-```
-
-### Task 5: One hub notice per version change
-
-**Files:**
-- Modify: `cmd/internal/couchcore/notice_route.go`
-- Test: `cmd/internal/couchcore/notice_route_test.go`
-- Create: `cmd/internal/couchcmd/agent_version_notice.go`
-- Test: `cmd/internal/couchcmd/agent_version_notice_test.go`
-- Modify: `cmd/internal/couchcmd/message_service.go:580`
-
-- [ ] **Step 1: Write the failing tests**
-
-`notice_route_test.go`: add `NoticeAgentVersionChanged` to the `classes` table (the default-route expectation
-already covers it).
-
-`agent_version_notice_test.go`:
-
-```go
-func TestWatchAgentVersionsPublishesOneNoticePerChange(t *testing.T) {
-	s := &messageService{}
-	var got []couchtty.Notice
-	publish := func(n couchtty.Notice) { got = append(got, n) }
-	s.noticeOutput.Store(&publish)
-	c := &couchcore.Couch{FreshRegistration: func(context.Context, couchcore.ThreadAddress, string, string) (bool, error) {
-		return true, nil
-	}}
-	version := "0.163.0"
-	read := func(context.Context, couchcore.ThreadAddress, string, string) (string, bool, error) {
-		return version, version != "", nil
-	}
-	s.watchAgentVersions(c, read, couchcore.NewAgentVersionStore(t.TempDir()))
-	ctx, address := context.Background(), couchcore.ThreadAddress{RepoScope: "/repo", Tag: "work"}
-	for i := 0; i < 3; i++ { _, _ = c.FreshRegistration(ctx, address, "codex", "n") }
-	version = "0.164.0"
-	for i := 0; i < 3; i++ { _, _ = c.FreshRegistration(ctx, address, "codex", "n") }
-	if len(got) != 1 || got[0].Class != couchcore.NoticeAgentVersionChanged || got[0].Kind != "status" ||
-		got[0].Thread != address || !strings.Contains(got[0].Body, "0.163.0") || !strings.Contains(got[0].Body, "0.164.0") {
-		t.Fatalf("notices = %+v", got)
-	}
-}
-```
-
-- [ ] **Step 2: Run to verify failure**
-
-Run: `go test ./cmd/internal/couchcmd ./cmd/internal/couchcore -run 'WatchAgentVersions|NoticeRoute' -count=1`
-Expected: FAIL — undefined class and method.
-
-- [ ] **Step 3: Implement**
-
-`notice_route.go`: `NoticeAgentVersionChanged NoticeClass = "agent-version-changed"`.
-
-`agent_version_notice.go`:
-
-```go
-// watchAgentVersions reports an agent CLI version change once per change, from
-// the ready record of each launch Couch observes (pair#891).
-func (s *messageService) watchAgentVersions(c *couchcore.Couch, read func(context.Context, couchcore.ThreadAddress, string, string) (string, bool, error), store *couchcore.AgentVersionStore) {
-	if c.FreshRegistration == nil {
-		return
-	}
-	observer := couchcore.AgentVersionObserver{
-		Inner: c.FreshRegistration,
-		Read:  read,
-		Store: store,
-		Report: func(address couchcore.ThreadAddress, agent, previous, current string) {
-			s.publishSystemNotice(couchtty.Notice{
-				Class:  couchcore.NoticeAgentVersionChanged,
-				Kind:   "status",
-				Thread: address,
-				Label:  string(address.Tag),
-				Body: fmt.Sprintf("%s version changed from %s to %s since its last launch; check that wrapped launches still start", agent, previous, current),
-			})
-		},
-	}
-	c.FreshRegistration = observer.Registered
-}
-```
-
-`message_service.go`, immediately after `service.installNoticeDelivery(console, startup)`:
-
-```go
-	service.watchAgentVersions(c, reader.RecordedAgentVersion, couchcore.NewAgentVersionStore(namespace))
-```
-
-- [ ] **Step 4: Run the packages**
-
-Run: `go test ./cmd/internal/couchcore ./cmd/internal/couchcmd -count=1`
-Expected: PASS.
-
-- [ ] **Step 5: Commit**
-
-```bash
-git add cmd/internal/couchcore/notice_route.go cmd/internal/couchcore/notice_route_test.go cmd/internal/couchcmd
-git commit -m '#891: notify the hub once when the agent version changes' --trailer 'Agent: qoder/-/-'
-```
-
-### Task 6: Docs, manual check, close
-
-**Files:**
-- Modify: `atlas/codex-resume.md` (Codex launch flags), `atlas/couch.md` (namespace store + notice)
+- Modify: `atlas/codex-resume.md`
 - Modify: `workshop/issues/000891-…md` (`## Log`)
 
 - [ ] **Step 1: Atlas**
 
-`atlas/codex-resume.md`: state the launch policy — codex ≥ 0.164.0 gets `--no-daemon` (private app server)
-and `PAIR_AGENT_VERSION` rides into the ready record; below the gate / unparseable probe → unchanged argv.
-`atlas/couch.md`: `agent-versions.json` in the store layout and the one-notice-per-change rule.
+`atlas/codex-resume.md`: the launch policy — codex ≥ 0.164.0 gets `--no-daemon` (private app server) and
+`PAIR_AGENT_VERSION` rides into the ready record; below the gate or an unparseable probe → unchanged argv. One
+line: an in-pane fresh start reuses the launch-time env/argv, so a mid-session Codex upgrade keeps the old
+version record until the next launch.
 
-- [ ] **Step 2: Focused + package tests**
+- [ ] **Step 2: Measure the probe cost**
 
-Run: `go test ./cmd/internal/launcher ./cmd/internal/readiness ./cmd/internal/wrapcmd ./cmd/internal/couchcore ./cmd/internal/couchcmd -count=1`
+Run: `time codex --version` (3 runs) and record the typical latency in `## Log` — it sits on the launch path.
+
+- [ ] **Step 3: Focused + package tests**
+
+Run: `go test ./cmd/internal/launcher ./cmd/internal/readiness ./cmd/internal/wrapcmd -count=1`
 Expected: PASS.
 
-- [ ] **Step 3: Manual check (real Codex 0.164, shared server left running)**
+- [ ] **Step 4: Manual PTY check (real Codex 0.164, shared server left running)**
 
 This machine's shared Codex server is already running with other settings (the 10-25 stall). Do **not**
 restart it and do not send it any keys. In a scratch dir:
 
 ```bash
 d=$(mktemp -d "${TMPDIR:-/tmp}/nodaemon.XXXXXX") || exit 1
-# fixed path (wrapped launch):
 script -q "$d/fixed.log" codex --no-daemon --sandbox read-only -C "${d:?}" &
 sleep 8; kill %1 2>/dev/null
-# control (current wrapped argv):
 script -q "$d/control.log" codex --sandbox read-only -C "${d:?}" &
 sleep 8; kill %1 2>/dev/null
 grep -c 'Background server has incompatible feature settings' "$d/fixed.log" "$d/control.log"
 ```
 
-Expected: fixed → 0, control → 1 (proving the mismatch is present and the flag avoids it). Record both
-counts and the Codex version in `## Log`. If the TUI cannot be driven headlessly, fall back to the launcher
-argv test plus the `--help` evidence and say so in the Log.
+Expected: fixed → 0, control → 1 (proves the mismatch is present and the flag avoids it). Record both counts
+and the Codex version in `## Log`. If the TUI cannot be driven headlessly, fall back to the launcher argv test
+plus the `--help` evidence and say so in the Log.
 
-- [ ] **Step 4: Affected-reader inventory and suite**
+- [ ] **Step 5: Affected-reader inventory and suite**
 
-Run: `make test-affected-inventory`; audit every named reader before using its printed per-file repair
-command (never refresh hashes in bulk). Then, on the pushed head: `sdlc local-check run --name suite`.
+Run: `make test-affected-inventory`; audit every named reader before using its printed per-file repair command
+(never refresh hashes in bulk). On the pushed head: `sdlc local-check run --name suite`.
 
-- [ ] **Step 5: Close, PR, merge, report**
+- [ ] **Step 6: Close, PR, merge, report**
 
 `sdlc close --issue 891 --verified '<tests + manual check evidence>'`, `sdlc pr`, `sdlc merge --yes`; report
 the outcome to ops:0.
 
 ## Estimate
 
-Proposed `estimate_hours: 3` (two packages, a durable store with tests, one manual check). Derived after the
-plan-quality gate, as the flow requires.
+Part A is scoped inside the quick-flow shell (no estimate on that flow). If the close measures it outside,
+derive an itemized `## Estimate` before the estimate gates.
 
 ## Revisions
 
 ### 2026-10-25 — split Part B out (TL steer)
 
 Reason: land the stall fix first, in the cheap window; the notice is independent follow-up work.
-Delta: #891 implements Task 1 (ready-record carrier), Task 2 (launcher probe + `--no-daemon`) and the manual
-check only. Tasks 3–5 (ready-record reader, store/observer, notice) and their tests move to unclaimed #894.
-Task 6's atlas split: `codex-resume.md` stays with #891; `couch.md`'s store/notice text goes with #894. The
-estimate note above applies only if #891 ends up outside the shell; as scoped it should stay inside.
+Delta: #891 keeps Task 1 (ready-record carrier), Task 2 (launcher probe + `--no-daemon`) and the manual check;
+the Couch-side design moved to unclaimed #894 (which cites this plan). Tasks 3–5 of the first draft were
+condensed into the deferred summary above.
+
+### 2026-10-25 — plan-quality finding folded in
+
+Finding PQ-1 (Important): `--no-daemon` was missing from `codexBoolGlobalOption`, so the wrapper's fresh-start
+strip would stop at the new leading flag and keep `resume <id>`. Delta: Task 2 now changes that table and tests
+`FreshAgentArgs` with the flag leading; the plan names the table as the single source for Codex global flags.
+Minors folded in: snippet imports, measured probe latency, stale version after a mid-session upgrade.
