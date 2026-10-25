@@ -183,3 +183,131 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-24T22:20:15-07:00 (FIX-THEN-SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 854 — flake: TestRepoConfigurationPublicationBoundsCompetingWriter |
+| repo | pair |
+| issue file | workshop/issues/000854-flake-testrepoconfigurationpublicationboundscompetingwriter.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | dc3031079bddd3c160cd9481fdef94f1ff29c83b..68c48a465da53014a25f71e274deea6ce927dace |
+| command | sdlc close --issue 854 |
+| reviewer | claude (anthropic; author anthropic) |
+| isolation | fenced |
+| timestamp | 2026-10-24T22:20:15-07:00 |
+| verdict | FIX-THEN-SHIP |
+
+## Review
+
+Two failures at head. Let me see why.
+
+Startup tests are blocked by the reviewer sandbox (git init refused), not by the code. Now the BR-2 mutation checks at the root-cause site and the join.
+
+Tree is clean. Retry the plain-branch mutation cleanly.
+
+```verdict
+verdict: FIX-THEN-SHIP
+confidence: high
+```
+
+The fix holds up at the root cause. `storeLockBound` (`threadstore.go:195`) caps the store-lock wait at whatever budget the caller has left. A wait that the cap ends returns `context.DeadlineExceeded` instead of busy, and a caller with more budget than the wait still gets a real busy. There is no retry and no longer timeout, which is what the Problem asked for. All three prior findings are disposed: BR-1 and BR-2 are fixed and checked, and BR-3 stays open as a non-blocking note. On BR-2, I removed each fix one at a time in this checkout and the matching test failed every time. Nothing blocks the gate. Two new Minor items remain: one wiring test hangs instead of failing when the regression it guards comes back, and the two empty-startup tests could not run in this sandbox.
+
+Done-when: current. The Revisions added two things: the startup acquisitions now use the cap, and the #877 publication path now reports "store stayed busy" even when the capped wait ends before `ctx.Err` is set. Both are covered by the existing clause "a store-lock wait is bounded by the caller's deadline … even when the context check cannot see it yet". Both modes in that clause (budget below the wait, and budget above it) have tests: `TestStoreLockWaitEndsAtTheCallerDeadline` and `TestStoreLockWaitWithinBudgetStaysBusy`.
+
+## 1. Strengths
+- **The deadline mark travels with the wait.** The `storeWait{d, deadline}` struct (`threadstore.go:186`) carries a "the deadline ended this" flag, so only a wait the cap actually ends becomes `DeadlineExceeded` (`storelock_unix.go:39`). A real busy from a nested lock inside the work keeps its busy label.
+- **The cap is computed at the right moment.** It is computed inside the coordinator callback, after the coordinator wait has used up budget (`park_recovery_store.go:26-27`). In startup, the inner bound is computed after the outer lock is taken (`startup_creation.go:62`).
+- **The tests reproduce the race on purpose.** `deadlineOnlyContext` (`store_lock_deadline_wiring_test.go:13`) has a deadline but an `Err` that stays nil. That is the exact race from the issue, made repeatable, so only a capped wait can end at it.
+- **The old signature is a thin wrapper.** `withStoreLockChecked` now just calls `withStoreLockBounded` with a fixed wait. The other callers that pass a fixed wait didn't change, and there is still a single code path.
+
+## Prior-finding verification
+- **BR-1 (doc comment):** The #827 comment now sits above `withStoreLockBounded` (`threadstore.go:202-207`) and mentions `storeLockBound`. `withStoreLockChecked` has its own one-line comment. Comment-only change, checked against the code.
+- **BR-2 (no test pins the call-site wiring):** I removed each fix one at a time and ran the tests:
+
+  | Mutation | Result |
+  |---|---|
+  | `park_recovery_store.go:27` (coordinated branch) back to the fixed `storeWait{d: storeReadLockWait}` | `TestUpdateLockWaitEndsAtTheCallerDeadline/coordinated` fails: "thread store busy; retry" after 1.01s |
+  | `:30` (plain branch) back to the fixed wait | `/plain` fails the same way |
+  | `repopreferences_store.go:102` back to the old `ctx.Err() != nil && errors.Is(err, ctx.Err())` condition | `TestRepoPreferencePublicationJoinsBusyAtACapOnlyDeadline` fails |
+
+  I could not run the startup-site tests here (see the unverifiable finding below).
+- **BR-3 (preview reads keep a fixed wait):** Still true. `retention.go:343` returns `ErrThreadStoreBusy` on either expiry, and `threadstore_preview.go:82` joins in `ctx.Err`, which can still be nil when the two deadlines coincide. The atlas entry and the Revisions keep this out of #854's scope. It stays a Minor note.
+
+## 2. Critical findings
+None.
+
+## 3. Important findings
+None.
+
+## 4. Minor findings
+- **The publication wiring test hangs instead of failing.** File: `store_lock_deadline_wiring_test.go:68`.
+  - If the park-recovery cap regresses, `TestRepoPreferencePublicationJoinsBusyAtACapOnlyDeadline` spins forever. Each attempt reports busy, `waitForStoreLockContext` (`storelock_unix.go:85`) waits on a `Done()` channel that is nil and never fires, and the loop never exits.
+  - I saw this happen: the mutation run hung until I killed it after more than 400s. Under the default 10-minute `go test` timeout, this would burn a package budget that is already 333s, and the failure would not name the test.
+  - It is the only test in the family that loops. The other two `deadlineOnly` tests make a single call and fail at 1s.
+  - Fix sketch: either give `deadlineOnlyContext` a `Done` channel that closes at deadline plus a grace period (for example `2*storeReadLockWait`), or run `publishSecond` under a test-level timer that calls `t.Fatal`. The window where `Err` is nil at the cap stays the same.
+- **The empty-startup tests can't run in this sandbox (unverifiable).** `TestEmptyStartupLockWaitEndsAtTheCallerDeadline` and `TestEmptyStartupLockWaitEndsAtACapOnlyDeadline` fail at the fixture: `slotrecovery_test.go:124`, "git init refused: … outside the reviewer's directories (sdlc #339)". The test temp dir is forced, so changing `TMPDIR` doesn't help. The Revisions claim that a startup_creation.go mutation turns red is not checked here. This is low risk, because the Revisions say the startup check already polls ctx.
+- **Unrelated comment in `withNestedPreviewLock`.** Its doc comment at `threadstore_preview.go:60` starts in the middle of a sentence ("never waits under that lock …"). This is outside the window, not part of this diff.
+
+## 5. Test coverage notes
+`TestRepoConfigurationPublicationBoundsCompetingWriter` passed at head (10.6s). Every store-lock test I could run in this sandbox passed at head; only the two empty-startup tests could not run (sandbox). The unit tests pin the cap (`storeLockBound`) on its own; the wiring tests pin each call site.
+
+## 6. Architectural notes
+- **ARCH-DRY: pass.** There is one wait policy: `withStoreLockChecked` delegates, and both startup acquisitions share `storeLockBound`. The one remaining near-duplicate is `retentionReadLock`'s own polling loop next to `acquireThreadStoreLockWithin`, which this window didn't introduce. If BR-3 is ever taken on, that is where the two would merge.
+- **ARCH-PURE: pass.** `storeLockBound` is a pure function of ctx and the wait, apart from reading the clock through `time.Until`. The lock IO stays in the thin `acquire*` layer.
+- **ARCH-PURPOSE: pass.** I counted every caller of `storeReadLockWait` with a cap. The park-recovery writes and both startup acquisitions take the cap. The only uncapped site is preview reads, and its scope is stated openly (BR-3), not quietly dropped.
+- **ARCH-EVOLVE: pass, not applicable.** No persisted format changes.
+
+## 7. Plan revision recommendations
+None. The Revisions match the code.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      The #827 comment now sits above withStoreLockBounded (threadstore.go:202-207) and names storeLockBound; withStoreLockChecked has its own one-line comment.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      Mutation-checked here: reverting park_recovery_store.go:27 fails the coordinated subtest, :30 fails the plain subtest, and restoring the old join at repopreferences_store.go:102 fails TestRepoPreferencePublicationJoinsBusyAtACapOnlyDeadline.
+  - id: BR-3
+    disposition: not-addressed
+    note: |
+      retention.go:343 still returns busy on a coincident expiry while ctx.Err can be nil (threadstore_preview.go:82); scoped out in atlas and Revisions, stays a Minor note.
+findings:
+  - id: new
+    severity: Minor
+    kind: defect
+    family: regression-test-fails-bounded
+    title: |
+      Cap-only publication wiring test hangs instead of failing when the park-recovery cap regresses
+    detail: |
+      With storeLockBound reverted at park_recovery_store.go:30, TestRepoPreferencePublicationJoinsBusyAtACapOnlyDeadline (store_lock_deadline_wiring_test.go:68) loops forever, because the nil Done of deadlineOnlyContext never fires waitForStoreLockContext (storelock_unix.go:85). Observed: the run hung past 400s. Only instance in the window (the other deadlineOnly tests are single calls). Fix: close Done at deadline plus a grace period, or guard publishSecond with a test-level timer.
+  - id: new
+    severity: Minor
+    kind: unverifiable
+    family: regression-test-pins-consumer-wiring
+    title: |
+      Empty-startup deadline tests could not run in the review sandbox
+    detail: |
+      Ran: go test ./cmd/internal/couchcore -run TestEmptyStartupLockWait -count=1 (also with TMPDIR moved into the checkout). Both tests fail at slotrecovery_test.go:124 with "git init refused ... outside the reviewer's directories (sdlc #339)". Evidence that would answer it: a host run showing both pass at 68c48a465 and that reverting startup_creation.go:62-63 to the fixed wait turns TestEmptyStartupLockWaitEndsAtACapOnlyDeadline red.
+```
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"bce650d8-6dd6-4572-9f9f-23f179c09ebc","repository":"github.com/xianxu/pair","issue_id":"000854","recipe":"small-diff-review","round":3,"attempt":1,"agent":"claude","root":"/Volumes/TestScratch/review-checkouts/7565fbdf6fca53d1","reviewed_head":"68c48a465da53014a25f71e274deea6ce927dace","slot":"pair:6","requested_at":"2026-10-25T05:11:03.490959Z"},"phase":"finished","pid":79969,"started_at":"2026-10-25T05:11:03.647318Z","finished_at":"2026-10-25T05:20:13.777745Z","session_id":"a48812a5-96a1-43b5-af92-d004e9b47332","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 3.68452075s
+head: "68c48a465da53014a25f71e274deea6ce927dace"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000411

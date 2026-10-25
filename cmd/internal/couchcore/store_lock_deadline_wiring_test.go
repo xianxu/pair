@@ -66,7 +66,16 @@ func TestEmptyStartupLockWaitEndsAtACapOnlyDeadline(t *testing.T) {
 func TestRepoPreferencePublicationJoinsBusyAtACapOnlyDeadline(t *testing.T) {
 	store, global, before := contendedPreferenceFixture(t)
 	defer holdStoreLock(t, global)()
-	err := publishSecond(store, deadlineOnly(8*storeReadLockWait))
+	// Only the cap ends this loop, so a regressed call site would spin: bound
+	// the test itself.
+	done := make(chan error, 1)
+	go func() { done <- publishSecond(store, deadlineOnly(8*storeReadLockWait)) }()
+	var err error
+	select {
+	case err = <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("publication never ended at a cap-only deadline")
+	}
 	if !errors.Is(err, context.DeadlineExceeded) || !errors.Is(err, ErrThreadStoreBusy) {
 		t.Fatalf("busy to a cap-only deadline: %v", err)
 	}

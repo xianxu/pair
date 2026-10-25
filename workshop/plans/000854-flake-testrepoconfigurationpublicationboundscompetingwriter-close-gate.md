@@ -88,6 +88,64 @@ rounds:
       recipe: small-diff-review
       isolation: fenced
       blocked: true
+    - reviewer_runs:
+        - version: 1
+          intent:
+            disposable_root: true
+            id: bce650d8-6dd6-4572-9f9f-23f179c09ebc
+            repository: github.com/xianxu/pair
+            issue_id: "000854"
+            recipe: small-diff-review
+            round: 3
+            attempt: 1
+            agent: claude
+            root: /Volumes/TestScratch/review-checkouts/7565fbdf6fca53d1
+            reviewed_head: 68c48a465da53014a25f71e274deea6ce927dace
+            slot: pair:6
+            requested_at: "2026-10-25T05:11:03.490959Z"
+          phase: finished
+          pid: 79969
+          started_at: "2026-10-25T05:11:03.647318Z"
+          finished_at: "2026-10-25T05:20:13.777745Z"
+          session_id: a48812a5-96a1-43b5-af92-d004e9b47332
+          outcome: returned
+      "n": 3
+      timestamp: "2026-10-24T22:20:15-07:00"
+      dispatched: "2026-10-24T22:10:59-07:00"
+      agent: claude
+      reviewer: claude (anthropic; author anthropic)
+      dispose:
+        - id: BR-1
+          disposition: addressed
+          note: 'The #827 comment now sits above withStoreLockBounded (threadstore.go:202-207) and names storeLockBound; withStoreLockChecked has its own one-line comment.'
+          round: 3
+        - id: BR-2
+          disposition: addressed
+          note: 'Mutation-checked here: reverting park_recovery_store.go:27 fails the coordinated subtest, :30 fails the plain subtest, and restoring the old join at repopreferences_store.go:102 fails TestRepoPreferencePublicationJoinsBusyAtACapOnlyDeadline.'
+          round: 3
+        - id: BR-3
+          disposition: not-addressed
+          note: retention.go:343 still returns busy on a coincident expiry while ctx.Err can be nil (threadstore_preview.go:82); scoped out in atlas and Revisions, stays a Minor note.
+          round: 3
+      findings:
+        - kind: defect
+          id: BR-4
+          severity: Minor
+          title: Cap-only publication wiring test hangs instead of failing when the park-recovery cap regresses
+          detail: 'With storeLockBound reverted at park_recovery_store.go:30, TestRepoPreferencePublicationJoinsBusyAtACapOnlyDeadline (store_lock_deadline_wiring_test.go:68) loops forever, because the nil Done of deadlineOnlyContext never fires waitForStoreLockContext (storelock_unix.go:85). Observed: the run hung past 400s. Only instance in the window (the other deadlineOnly tests are single calls). Fix: close Done at deadline plus a grace period, or guard publishSecond with a test-level timer.'
+          family: regression-test-fails-bounded
+          round: 3
+        - kind: unverifiable
+          id: BR-5
+          severity: Minor
+          title: Empty-startup deadline tests could not run in the review sandbox
+          detail: 'Ran: go test ./cmd/internal/couchcore -run TestEmptyStartupLockWait -count=1 (also with TMPDIR moved into the checkout). Both tests fail at slotrecovery_test.go:124 with "git init refused ... outside the reviewer''s directories (sdlc #339)". Evidence that would answer it: a host run showing both pass at 68c48a465 and that reverting startup_creation.go:62-63 to the fixed wait turns TestEmptyStartupLockWaitEndsAtACapOnlyDeadline red.'
+          family: regression-test-pins-consumer-wiring
+          round: 3
+      recipe: small-diff-review
+      isolation: fenced
+      reviewed: 68c48a465da53014a25f71e274deea6ce927dace
+      blocked: false
 ---
 
 # Gate ledger — pair#854 (boundary-review)
@@ -115,8 +173,23 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-3** [Minor] `store-lock-wait-bounded-by-caller-deadline` Preview reads (retentionReadLock) keep a fixed storeReadLockWait independent of the caller deadline
   retention.go:330-345 polls for a fixed wait and returns ErrThreadStoreBusy; threadstore_preview.go:82 joins ctx.Err, which may not yet be set when the deadlines coincide, the same race this issue fixed for writes. Only remaining fixed-wait site in the tree; atlas scopes the guarantee to coordinated writes, so this is a note.
 
+## Round 3 — 2026-10-24T22:20:15-07:00 (claude) — passed
+
+### Disposed
+
+- BR-1 — addressed — The #827 comment now sits above withStoreLockBounded (threadstore.go:202-207) and names storeLockBound; withStoreLockChecked has its own one-line comment.
+- BR-2 — addressed — Mutation-checked here: reverting park_recovery_store.go:27 fails the coordinated subtest, :30 fails the plain subtest, and restoring the old join at repopreferences_store.go:102 fails TestRepoPreferencePublicationJoinsBusyAtACapOnlyDeadline.
+- BR-3 — not-addressed — retention.go:343 still returns busy on a coincident expiry while ctx.Err can be nil (threadstore_preview.go:82); scoped out in atlas and Revisions, stays a Minor note.
+
+### Raised
+
+- **BR-4** [Minor] `regression-test-fails-bounded` (kind: defect) Cap-only publication wiring test hangs instead of failing when the park-recovery cap regresses
+  With storeLockBound reverted at park_recovery_store.go:30, TestRepoPreferencePublicationJoinsBusyAtACapOnlyDeadline (store_lock_deadline_wiring_test.go:68) loops forever, because the nil Done of deadlineOnlyContext never fires waitForStoreLockContext (storelock_unix.go:85). Observed: the run hung past 400s. Only instance in the window (the other deadlineOnly tests are single calls). Fix: close Done at deadline plus a grace period, or guard publishSecond with a test-level timer.
+- **BR-5** [Minor] `regression-test-pins-consumer-wiring` (kind: unverifiable) Empty-startup deadline tests could not run in the review sandbox
+  Ran: go test ./cmd/internal/couchcore -run TestEmptyStartupLockWait -count=1 (also with TMPDIR moved into the checkout). Both tests fail at slotrecovery_test.go:124 with "git init refused ... outside the reviewer's directories (sdlc #339)". Evidence that would answer it: a host run showing both pass at 68c48a465 and that reverting startup_creation.go:62-63 to the fixed wait turns TestEmptyStartupLockWaitEndsAtACapOnlyDeadline red.
+
 ## Open findings
 
-- **BR-1** [Minor] `doc-comment-follows-logic` (kind: defect) The #827 lock-semantics doc comment stays on the withStoreLockChecked wrapper; withStoreLockBounded has none
-- **BR-2** [Important] `regression-test-pins-consumer-wiring` No deterministic test pins the storeLockBound wiring at withUpdateLockContext, the root-cause site
 - **BR-3** [Minor] `store-lock-wait-bounded-by-caller-deadline` Preview reads (retentionReadLock) keep a fixed storeReadLockWait independent of the caller deadline
+- **BR-4** [Minor] `regression-test-fails-bounded` (kind: defect) Cap-only publication wiring test hangs instead of failing when the park-recovery cap regresses
+- **BR-5** [Minor] `regression-test-pins-consumer-wiring` (kind: unverifiable) Empty-startup deadline tests could not run in the review sandbox
