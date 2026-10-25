@@ -38,7 +38,13 @@ func runPrivateLauncherTests(m *testing.M) int {
 	if err := os.Setenv("HOME", root); err != nil {
 		return 1
 	}
-	if err := os.Setenv("ZELLIJ_SOCKET_DIR", filepath.Join(root, "native")); err != nil {
+	sockets, err := testpair.NewShortRoot()
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		return 1
+	}
+	defer os.RemoveAll(sockets)
+	if err := os.Setenv("ZELLIJ_SOCKET_DIR", sockets); err != nil {
 		return 1
 	}
 	return testpair.Run(m)

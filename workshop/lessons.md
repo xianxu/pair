@@ -7,6 +7,8 @@ representative evidence, not an exhaustive index.
 
 ## Proof and verification
 
+- #866 CI: a private namespace under os.TempDir can exceed the native Unix socket name budget on macOS runners. TestMain owners must reuse the shared short-root allocator, and a child-process regression must verify long-TMPDIR startup and owner cleanup; local RAM-disk paths conceal this failure.
+
 - #866 BR-1/BR-2: Command names do not define read semantics: enumerate the supported native read class, including visibility, dumps and tab queries, and test the actual adapter against an unmarked endpoint. Unix-socket fixtures must use the shared short-root allocator even when an inherited temporary directory appears short locally; retain a long-TMPDIR control.
 
 - #866: Freeze the effective child environment before observing metadata and invoking a callback. Re-reading it when acquiring cleanup exclusion can lock a different namespace while removing the original namespace's evidence. Test environment changes during the callback and exact successor preservation.
