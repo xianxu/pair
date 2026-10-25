@@ -48,7 +48,7 @@ func TestDisposableCouchBuildUpgrade(t *testing.T) {
 	}
 	for _, kind := range []string{"claude", "codex"} {
 		caseCleaned := false
-		t.Run(kind, func(t *testing.T) {
+		casePassed := t.Run(kind, func(t *testing.T) {
 			fleet := testcouch.New(t, baseline, testcouch.Options{ExplicitHub: true, Workers: 1, AgentKind: kind, RuntimeBudget: 180 * time.Second, RetainStartupServerLog: true})
 			cleaned := false
 			defer func() {
@@ -87,15 +87,17 @@ func TestDisposableCouchBuildUpgrade(t *testing.T) {
 				t.Fatalf("baseline worker: %v", err)
 			}
 			before := snapshotUpgrade(t, ctx, fleet)
+			t.Log("upgrade phase: baseline actors ready; proving physical selection and old drafts")
 			for n := 0; n <= 1; n++ {
 				slot := fmt.Sprintf("fixture:%d", n)
-				upgradeSelect(t, ctx, fleet, slot)
+				upgradeSelect(t, ctx, fleet, before[slot].Binding.Tag)
 				if err := fleet.Input([]byte("upgrade-" + slot)); err != nil {
 					t.Fatal(err)
 				}
 				forceFleetWaitScreen(t, ctx, fleet, "upgrade-"+slot)
 			}
 			documents := upgradeDocuments(t, ctx, fleet)
+			t.Log("upgrade phase: old documents registered; detaching old console")
 			oldList := upgradeCLI(t, ctx, fleet, "--list")
 			for _, actor := range before {
 				if !strings.Contains(oldList, actor.Binding.Tag) {
@@ -108,12 +110,14 @@ func TestDisposableCouchBuildUpgrade(t *testing.T) {
 			for _, actor := range before {
 				upgradeClients(t, ctx, fleet, actor.Binding.Session, false)
 			}
+			t.Log("upgrade phase: old console detached and joined; replacing private runtime")
 			if err := fleet.ReplaceBuild(ctx, candidate); err != nil {
 				t.Fatal(err)
 			}
 			if err := fleet.RestartSupervisor(ctx); err != nil {
 				t.Fatalf("candidate startup adoption: %v; screen=%s", err, fleet.Screen())
 			}
+			t.Log("upgrade phase: candidate broker responding; checking exact old cohort and native clients")
 			after := snapshotUpgrade(t, ctx, fleet)
 			if err := compareUpgradeCohort(before, after); err != nil {
 				t.Fatalf("candidate adoption: %v", err)
@@ -151,6 +155,7 @@ func TestDisposableCouchBuildUpgrade(t *testing.T) {
 			}
 			for n := 0; n <= 1; n++ {
 				slot := fmt.Sprintf("fixture:%d", n)
+				t.Logf("upgrade phase: candidate explicit resume %s", slot)
 				var response couchmessage.Response
 				if err := json.Unmarshal([]byte(upgradeCLI(t, ctx, fleet, "--resume", slot, "--json")), &response); err != nil {
 					t.Fatal(err)
@@ -180,7 +185,7 @@ func TestDisposableCouchBuildUpgrade(t *testing.T) {
 				}
 				// Open the real switcher, choose the old slot and attach through its
 				// ordinary Enter gesture, then require native client evidence.
-				upgradeSelect(t, ctx, fleet, slot)
+				upgradeSelect(t, ctx, fleet, before[slot].Binding.Tag)
 				forceFleetWaitScreen(t, ctx, fleet, "upgrade-"+slot)
 				upgradeClients(t, ctx, fleet, before[slot].Binding.Session, true)
 			}
@@ -191,6 +196,9 @@ func TestDisposableCouchBuildUpgrade(t *testing.T) {
 		})
 		if !caseCleaned {
 			t.Fatal("personality series stopped after uncertain cleanup")
+		}
+		if !casePassed {
+			break
 		}
 	}
 }

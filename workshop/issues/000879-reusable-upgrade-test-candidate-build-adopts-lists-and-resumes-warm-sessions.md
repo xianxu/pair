@@ -73,6 +73,8 @@ Healthy-control attempt2 compiled the coupled main triplet with verified vcs.rev
 
 Hub3ef90225-cd97-46cb-8d99-87fbce26491f removed #879 from #866's critical path: pair:5 will manually prove the immediate restage upgrade. #879 continues to land the reusable fixture when ready. No native helper sharing/stacked branch dependency is required for #866's immediate landing.
 
+Healthy-control attempt3: Claude reached the runtime deadline in physical baseline selection, before any replacement: filter fixture:0 produced '(no match)' / 'no selection'. Exact old fleet root /Volumes/TestScratch/pc-1983732678 cleaned successfully. Source trace couchtty.visibleRootThreads proves parsed repo:N references select only numbered-slot rows; the primary ordinary row must use its exact opaque Binding.Tag. Updated both baseline and candidate physical selections to use the retained tag (canonical fixture:N remains correct for public resume). Added phase logs and first-failed-personality stop for future runs; the running attempt's already-compiled Codex case must finish its original bounded cleanup before any new native run. Cohort comparison targeted controls PASS0.230s. Pair:5 was notified through submitted bb82ce6d, then exact-tag finding sent89369839; its reply confirms adopting that driver seam and independently preparing generated assets. No production source changed and no requested stage RED claimed.
+
 ## Revisions
 
 ### 2026-10-24 — fixture-first landing, hub7aa4f471

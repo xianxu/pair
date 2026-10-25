@@ -89,3 +89,9 @@ This test asserts compatibility and intentionally fails on the bad candidate. No
 - [ ] Report landed fixture API, exact invocation and RED evidence to hub/pair:5. #866 integrates landed main, runs this same case against its correction and owns the corrected GREEN; #879 does not depend on its unlanded branch.
 
 One atomic review boundary at issue close; no Mx tags. No estimate until change-code admits the full plan. This is harness/testing work; no production zellijquery change, operator restart, live state repair or stage deployment.
+
+## Revisions
+
+### 2026-10-24 — implementation seams and independent #866 check
+
+Pure cohort facts/comparison live beside their acceptance consumer in cmd/couch/upgrade_acceptance_test.go and use scalar device/inode socket identity, so mismatch tests need no IO. Runtime replacement remains in testcouch/upgrade.go. The old and candidate checkouts need their own generated (ignored) runtime bundle; create only in owned disposable sources, preserving clean tracked source. Physical selection uses each retained Binding.Tag rather than fixture:0, because the shared menu deliberately treats repo:N filters as numbered-slot-only. Distinct old drafts are typed through that console gesture, respecting the prohibition on a hub driving its own slot with --keys. These qualify the approved oracle, rather than changing production authority. Stop the personality series on its first failed case or uncertain cleanup. Hub3ef90225 allows #866's manual immediate upgrade check independently; this fixture continues toward its own landing.
