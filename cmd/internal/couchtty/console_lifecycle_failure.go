@@ -85,6 +85,10 @@ func lifecycleCompletionWarningSource(value any, origin couchcore.ThreadAddress)
 		if result.SessionNotStopped {
 			selectSource(result.Archived)
 		}
+	case couchcore.BenchStartResult:
+		if result.SessionNotStopped {
+			selectSource(result.Archived)
+		}
 	case couchcore.ParkRecoveryResult:
 		if result.Diagnostic != "" {
 			selectSource(result.Thread.Address)

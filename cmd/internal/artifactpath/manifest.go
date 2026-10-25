@@ -716,6 +716,12 @@ var NonArtifactSources = []string{
 	"cmd/internal/couchcore/listed_session_evidence.go",
 	"cmd/internal/launcher/listing_evidence.go",
 	"cmd/internal/testcouch/caller_evidence.go",
+	// pair#847 bench verbs: profile validation, Reboot composition and thread
+	// records; orphans are read only through LeftRunningRegistry. None
+	// constructs or names a Pair artifact path.
+	"cmd/internal/couchcore/bench_operation.go",
+	"cmd/internal/couchcore/bench_profile.go",
+	"cmd/internal/couchcore/bench_retire.go",
 	// #871 owns explicit private diagnostics and in-memory lifecycle only.
 	"cmd/internal/couchcmd/profiling.go",
 	"cmd/internal/couchcmd/profiling_model.go",

@@ -93,15 +93,53 @@ func (s HubOwnership) hubForSlot(slot HubSlot) string {
 	}
 	return ""
 }
+
+// Provisions is the bench verbs' authority (pair#847): only a hub other than
+// the main hub, and only on a slot it holds by its own explicit .hub claim.
+// Default ownership is the main hub's, so production slots never qualify.
+func (s HubOwnership) Provisions(caller string, target HubSlot) error {
+	resolution, source := s.resolve(target)
+	switch {
+	case !s.IsHub(caller):
+		return fmt.Errorf("%s is not a hub", caller)
+	case caller == s.Main():
+		return fmt.Errorf("the main hub (%s) owns production slots; bench slots belong to another hub", caller)
+	case source == ownedAsHubSlot && resolution.Hub == caller:
+		return fmt.Errorf("a hub cannot drive its own slot")
+	case len(resolution.Conflicts) > 0:
+		return fmt.Errorf("slot claim conflicts between hubs %s and %v", resolution.Hub, resolution.Conflicts)
+	case source == ownedByOverride && resolution.Hub == caller:
+		return fmt.Errorf("slot was moved to %s at runtime, not claimed in its .hub", caller)
+	case source != ownedByClaim || resolution.Hub != caller:
+		return fmt.Errorf("slot is not claimed by hub %s (owner %s)", caller, resolution.Hub)
+	}
+	return nil
+}
+
+// ownershipSource says which rule Resolve applied.
+type ownershipSource uint8
+
+const (
+	ownedAsHubSlot ownershipSource = iota + 1
+	ownedByOverride
+	ownedByClaim
+	ownedByDefault
+)
+
 func (s HubOwnership) Resolve(slot HubSlot) HubResolution {
+	resolution, _ := s.resolve(slot)
+	return resolution
+}
+
+func (s HubOwnership) resolve(slot HubSlot) (HubResolution, ownershipSource) {
 	if slot.Validate() != nil {
-		return HubResolution{}
+		return HubResolution{}, 0
 	}
 	if hub := s.hubForSlot(slot); hub != "" {
-		return HubResolution{Hub: hub}
+		return HubResolution{Hub: hub}, ownedAsHubSlot
 	}
 	if hub := s.overrides[slot]; hub != "" {
-		return HubResolution{Hub: hub}
+		return HubResolution{Hub: hub}, ownedByOverride
 	}
 	out := HubResolution{Hub: s.Main()}
 	best := 0
@@ -126,7 +164,10 @@ func (s HubOwnership) Resolve(slot HubSlot) HubResolution {
 			out.Conflicts = append(out.Conflicts, h.Root)
 		}
 	}
-	return out
+	if best == 0 {
+		return out, ownedByDefault
+	}
+	return out, ownedByClaim
 }
 
 type HubMove struct {

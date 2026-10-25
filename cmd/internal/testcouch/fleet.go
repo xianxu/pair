@@ -21,7 +21,10 @@ import (
 type Options struct {
 	ExplicitHub bool
 	// Hubs names worker workspaces configured as additional hubs, in order.
-	Hubs          []int
+	Hubs []int
+	// HubClaims are the .hub claim lines written into an extra hub's root
+	// before the console starts (pair#847), e.g. {1: {"fixture:2"}}.
+	HubClaims     map[int][]string
 	Workers       int
 	AgentKind     string
 	RuntimeBudget time.Duration
@@ -45,6 +48,11 @@ func validateOptions(o Options) error {
 			return fmt.Errorf("extra hubs need an explicit primary hub and distinct provisioned workers")
 		}
 		seen[n] = true
+	}
+	for n := range o.HubClaims {
+		if !seen[n] {
+			return fmt.Errorf("hub claims belong to a configured extra hub")
+		}
 	}
 	return nil
 }
@@ -194,6 +202,9 @@ func (f *Fleet) start(ctx context.Context, waitReady bool) error {
 	}
 	defer func() { f.mu.Lock(); f.starting = false; f.mu.Unlock() }()
 	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if err := f.writeHubClaims(); err != nil {
 		return err
 	}
 	cmd := f.consoleCommand()
@@ -551,6 +562,17 @@ func (f *Fleet) Close(ctx context.Context) (result error) {
 	f.model = ReduceRun(f.model, RunEvent{Kind: "roots-removed"})
 	f.mu.Unlock()
 	f.t.Logf("native fleet cleaned: root=%s all owned generations absent; direct child and IO joined", f.Roots.Root)
+	return nil
+}
+
+// writeHubClaims writes each claiming hub's .hub; Couch reads it at startup.
+func (f *Fleet) writeHubClaims() error {
+	for n, claims := range f.Options.HubClaims {
+		path := filepath.Join(f.Workspaces.Workers[n], ".hub")
+		if err := os.WriteFile(path, []byte(strings.Join(claims, "\n")+"\n"), 0o600); err != nil {
+			return fmt.Errorf("write hub claims: %w", err)
+		}
+	}
 	return nil
 }
 

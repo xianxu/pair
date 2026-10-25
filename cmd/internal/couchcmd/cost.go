@@ -60,6 +60,8 @@ var verbCosts = map[string]verbCost{
 	"--resume-candidates":      costSeconds,
 	"--recovery-confirmation":  costHeavy,
 	"--reboot":                 costHeavy,
+	"--bench-start":            costHeavy,
+	"--bench-retire":           costHeavy,
 	"--relaunch":               costHeavy,
 	"--reload-context":         costHeavy,
 	"--prepare":                costHeavy,

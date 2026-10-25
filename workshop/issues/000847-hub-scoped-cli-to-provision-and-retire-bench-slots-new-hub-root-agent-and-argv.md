@@ -1,13 +1,23 @@
 ---
 id: 000847
-status: open
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-10-23
-updated: 2026-10-23
-estimate_hours:
+updated: 2026-10-25
+estimate_hours: 3.48
 collaboration-mode: collaboration
-card_mirror: 'fd1b41a413aaaec0120b8065838a1c1e81e63adf' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: 'bfdf559af8f37445f2afc4214855634cab3561c0' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-25T03:06:32-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: Xian’s MacBook Pro
+    workspace: pair:6
+    worktree: /Users/xianxu/workspace/worktree/pair-slot6/pair
+    repository: github.com/xianxu/pair
+flow: {kind: full, provenance: operator}
+actual_hours: 1.56
 ---
 
 # Hub-scoped CLI to provision and retire bench slots (new hub root, agent and argv, fresh) without a Couch restart or console steps
@@ -40,14 +50,48 @@ tool, not its run engine (metis has no agent management).
 
 ## Done when
 
-- A hub can bring up a bench hub and worker with exact agent and argv, verify them, and retire them, with no Couch
-  restart and no console steps (native test with fixture agents).
-- Production slots are untouchable by these verbs (test).
+- After the operator's one initial Couch start with the bench root as an extra hub (its `.hub` written by the bench tool), the bench hub brings up its claimed worker slot with an exact agent and argv, verifies it from the receipt's provenance, restarts it with new argv, and retires it with proof nothing it started survives: no Couch restart and no console steps (native test with fixture agents, claude and codex).
+- Production slots (main-hub owned, unclaimed) and calls from the main hub or a worker are refused by these verbs (tests).
 
 ## Plan
 
-- [ ]
+Durable plan: [workshop/plans/000847-hub-scoped-cli-to-provision-and-retire-bench-slots-new-hub-root-agent-and-argv-plan.md](../plans/000847-hub-scoped-cli-to-provision-and-retire-bench-slots-new-hub-root-agent-and-argv-plan.md). TL approved the design 2026-10-25: distinct verbs sharing Reboot's implementation, retire keeps the worktree but proves no survivors, additive receipts, unchanged `.hub` files; the one remaining hand step is the initial Couch start with the bench root.
+
+- [x] Task 1: Provisions predicate
+- [x] Task 2: explicit launch profile through Reboot's Fresh path
+- [x] Task 3: strict retirement
+- [x] Task 4: operations, dispatch, guard, receipts
+- [x] Task 5: CLI
+- [x] Task 6: native acceptance (claude and codex)
+- [x] Task 7: docs and close
+
+## Estimate
+
+Derived with estimate-logic-v3.1 against the v2 primitive table: the durable plan pre-resolves the design (spec-quality ×0.2, thorough-plan buffer 0.15); `impl=` at 40% of the table; familiarity ×1.5 for the broker guard and Fresh-recovery paths.
+
+```estimate
+model: estimate-logic-v3.1
+familiarity: 1.5
+item: smaller-go-module design=0.06 impl=0.2
+item: smaller-go-module design=0.06 impl=0.2
+item: smaller-go-module design=0.06 impl=0.2
+item: greenfield-go-module design=0.4 impl=0.32
+item: smaller-go-module design=0.06 impl=0.2
+item: greenfield-go-module design=0.1 impl=0.32
+item: atlas-docs design=0.04 impl=0.08
+item: milestone-review design=0.0 impl=0.2
+design-buffer: 0.15
+total: 3.48
+```
+
+Items in plan order: Provisions predicate; explicit profile through Reboot's Fresh path; strict retirement; operations, guard and receipts; CLI; native acceptance with testcouch `.hub` claims; atlas; close review.
 
 ## Log
 
 ### 2026-10-23
+
+### 2026-10-25
+- 2026-10-25: closed — Pre-close suite green on bf9f1501 (sdlc-local/suite, 13m33s). Round-1 BR-2 fixed: bench-start refuses an archive-only reboot with bench-start-not-started (TestBenchStartRefusesAnArchiveOnlyReboot; reverting the check fails it). BR-3 fixed: strict retire records teardown survivors in the left-running registry before judging and refuses if it cannot (TestBenchSurvivorsAreRecordedForTheRetry; reverting fails it). BR-5 console case added; BR-4 plan wording corrected. BR-6: the two vacant-slot tests pass on the host (sandbox git-init refusal only). Native acceptance TestDisposableCouchBenchSlots passed for claude and codex. Inventory check clean. Residual risk logged: registry 256-cap eviction.; review verdict: FIX-THEN-SHIP
+Revisions: Done-when reworded per TL (hub-start dropped in the 10-23 scope revision; the one hand step is named).
+Implementation (commits 76ec41424, 54d669ef5, 6d89e0a79, 9c225aad3, 52fe353cb, adf28c138). Each new check was mutation-tested (reverting the code turns its test red): Provisions gate, vacant and recordful explicit-profile wiring, registry survivors and unknown-liveness rule. Native TestDisposableCouchBenchSlots PASS for claude (33.4 s) and codex (33.2 s). Found on the native runs and folded in (plan Revisions): bench-start parks a live agent before its Fresh reboot (Reboot otherwise asks a stop-set confirmation and the provenance would be lost); the harness lacked lsof for teardown. Caught in implementation: declaring bench ops PresentationInternal would have made `couch --internal bench-start` an ungated path; they are actor ops, and a CLI test pins the refusal.
+Close review round 1 (FIX-THEN-SHIP): BR-2 and BR-3 fixed with mutation-checked tests (TestBenchStartRefusesAnArchiveOnlyReboot, TestBenchSurvivorsAreRecordedForTheRetry); BR-5 fixed; BR-4 plan wording corrected; BR-1 minor carried; BR-6 reviewer sandbox, host runs pass. Residual, accepted: the orphan registry's 256-entry global cap can evict a survivor recorded long before a retry; eviction needs 256 newer orphans in between.
