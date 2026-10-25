@@ -247,14 +247,22 @@ func (e *Endpoint) capture() Frame {
 	cur := e.backend.Cursor()
 	// vt's CursorStyle is the frame's shape family; the default carries no blink.
 	f.Cursor = Cursor{X: cur.X, Y: cur.Y, Visible: !cur.Hidden, Blink: cur.Style != vt.CursorDefault && !cur.Steady, Shape: int(cur.Style)}
-	f.Cells = make([]Cell, e.geometry.Cols*e.geometry.Rows)
-	f.Rows = make([]RowMetadata, e.geometry.Rows)
+	// published is private to this endpoint under mu; public readers get Clone.
+	// Keep only the current geometry's backing and overwrite every element below.
+	if e.published.Geometry == e.geometry && len(e.published.Cells) == e.geometry.Cols*e.geometry.Rows && len(e.published.Rows) == e.geometry.Rows {
+		f.Cells, f.Rows = e.published.Cells, e.published.Rows
+	} else {
+		f.Cells = make([]Cell, e.geometry.Cols*e.geometry.Rows)
+		f.Rows = make([]RowMetadata, e.geometry.Rows)
+	}
 	for y := 0; y < e.geometry.Rows; y++ {
 		m := e.backend.RowMetadata(y)
 		f.Rows[y] = RowMetadata{Wrapped: m.Wrapped, UsedColumns: m.UsedColumns}
 		for x := 0; x < e.geometry.Cols; x++ {
 			if c := e.backend.CellAt(x, y); c != nil {
 				f.Cells[y*e.geometry.Cols+x] = *c
+			} else {
+				f.Cells[y*e.geometry.Cols+x] = Cell{}
 			}
 		}
 		e.repairCapturedRow(f.Cells[y*e.geometry.Cols:(y+1)*e.geometry.Cols], "screen", y, 0)

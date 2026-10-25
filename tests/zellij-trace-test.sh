@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/pair-test-bootstrap.sh"
 # tests/zellij-trace-test.sh — zellij action tracing logs metadata without
 # leaking prompt bodies.
 set -euo pipefail
@@ -18,6 +19,14 @@ printf '%s\n' "\$*" >> "$ZLOG"
 printf 'zellij-ok'
 EOF
 chmod +x "$RT/bin/zellij"
+cat > "$RT/bin/pair" <<'SH'
+#!/bin/sh
+[ "$1 $2 $3" = 'internal zellij-command --' ] || exit 92
+shift 3
+printf '%s\n' helper >> "$PAIR_HELPER_LOG"
+exec zellij "$@"
+SH
+chmod +x "$RT/bin/pair"
 
 cat > "$RT/driver.lua" <<'LUA'
 local ROOT = os.getenv('PAIR_ROOT')
@@ -28,6 +37,16 @@ if not ok then
   out:close()
   vim.cmd('cquit')
 end
+assert(vim.deep_equal(trace.command({'zellij','action','write-chars',"one 'quoted' body"}),
+ {'pair','internal','zellij-command','--','action','write-chars',"one 'quoted' body"}))
+local old_home = vim.env.PAIR_HOME
+vim.env.PAIR_HOME = '/pair home'
+assert(trace.command({'zellij','action','noop'})[1] == 'pair', 'installed runtime has no bin/pair; use launcher PATH')
+assert(trace.command({'zellij','action','noop'}, '/pair home/bin/pair')[1] == 'pair', 'missing explicit runtime helper falls back to launcher PATH')
+vim.env.PAIR_HOME = old_home
+local unchanged = {'zellij','action','write-chars','', 'one\ntwo'}
+assert(vim.deep_equal(trace.command(unchanged), {'pair','internal','zellij-command','--','action','write-chars','', 'one\ntwo'}))
+assert(unchanged[1] == 'zellij' and #unchanged == 5, 'adapter must not mutate caller argv')
 local body = 'secret repro prompt body'
 local res = trace.action('draft.write-body', { 'zellij', 'action', 'write-chars', body }, {
   redact = { [4] = body },
@@ -48,12 +67,14 @@ LUA
 
 PATH="$RT/bin:$PATH" \
 PAIR_ROOT="$ROOT" \
+PAIR_HOME= PAIR_HELPER_LOG="$RT/helper-log" \
 PAIR_DATA_DIR="$RT" \
 PAIR_TAG=trace \
 PAIR_ZELLIJ_ACTIONS_PATH="$RT/zellij-actions-trace.jsonl" \
 RESULT="$RESULT" \
   run_headless --timeout 30 -- nvim --headless -u NONE -c "luafile $RT/driver.lua"
 
+test "$(wc -l < "$RT/helper-log" | tr -d ' ')" = 2
 TRACE="$RT/zellij-actions-trace.jsonl"
 fails=0
 pass() { printf '  ok   %s\n' "$1"; }

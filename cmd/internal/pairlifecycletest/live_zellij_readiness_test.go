@@ -3,16 +3,37 @@ package pairlifecycletest
 import (
 	"context"
 	"errors"
-	"github.com/xianxu/pair/cmd/internal/zellijtest"
+	"net"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/xianxu/pair/cmd/internal/testpair"
+	"github.com/xianxu/pair/cmd/internal/zellijquery"
+	"github.com/xianxu/pair/cmd/internal/zellijtest"
 )
 
 func TestControlledZellijWaitsForScreenRenderBeforeProbing(t *testing.T) {
-	dir := t.TempDir()
+	dir := testpair.ShortRoot(t)
+	t.Setenv("HOME", dir)
+	root := filepath.Join(dir, "native")
+	t.Setenv("ZELLIJ_SOCKET_DIR", root)
+	if err := os.MkdirAll(filepath.Join(root, "contract_version_1"), 0700); err != nil {
+		t.Fatal(err)
+	}
+	// A raw conformance fixture creates an endpoint without Pair launch markers.
+	// Its own owner waits for initial render before its first native observation.
+	endpoint, err := net.Listen("unix", filepath.Join(root, "contract_version_1", "owned-test"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		if err := endpoint.Close(); err != nil {
+			t.Error(err)
+		}
+	})
 	script := `#!/bin/sh
 case "$1" in
  delete-session) exit 0;;
@@ -48,6 +69,10 @@ exit 1
 	})
 	if _, err := os.Stat(early); !os.IsNotExist(err) {
 		t.Fatalf("session probed before initial client output: %v", err)
+	}
+	// The rendered legacy endpoint stays observable without a fabricated receipt.
+	if reply, err := (zellijquery.Source{}).Output(t.Context(), "list-sessions", "--no-formatting"); err != nil || !hasLiveSessionRow(string(reply), "owned-test") {
+		t.Fatalf("legacy fixture observation refused: reply=%q err=%v", reply, err)
 	}
 }
 

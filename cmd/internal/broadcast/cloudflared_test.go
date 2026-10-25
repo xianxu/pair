@@ -16,19 +16,15 @@ import (
 	"time"
 
 	"github.com/xianxu/pair/cmd/internal/procutil"
+	"github.com/xianxu/pair/cmd/internal/testpair"
 	"github.com/xianxu/pair/cmd/internal/testwait"
 )
 
-// shortDir is a directory this test creates and removes, short enough for a
-// unix socket path (t.TempDir can exceed macOS's 104-byte sun_path).
+// shortDir delegates socket fixture ownership and path budgeting to the shared
+// allocator, independently of a managed check's inherited TMPDIR (pair#881).
 func shortDir(t *testing.T) string {
 	t.Helper()
-	dir, err := os.MkdirTemp("", "cb")
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { os.RemoveAll(dir) })
-	return dir
+	return testpair.ShortRoot(t)
 }
 
 // fakeCloudflared writes an executable named cloudflared that runs body,
@@ -107,9 +103,24 @@ func needPS(t *testing.T) {
 
 func TestNamedTunnelServesFromPrivateSocket(t *testing.T) {
 	needUnixSockets(t)
+	// A managed check may inherit a parent that fits the availability probe
+	// but not the extra private listener directory. Qualify availability first:
+	// this fixture-created path must fail assertions rather than cause a skip.
+	long := filepath.Join(t.TempDir(), strings.Repeat("d", maxSocketPath))
+	if err := os.MkdirAll(long, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("TMPDIR", long)
 	bin, dir := fakeCloudflared(t, namedReady)
 	named := &NamedTunnel{Name: "couch-broadcast", Hostname: "live.example.com"}
-	l, h := openTunnel(t, Cloudflared{Named: named, Binary: bin, Guard: guardArgv(t), RunDir: shortDir(t)})
+	runDir := shortDir(t)
+	// os.MkdirTemp uses a uint32 decimal suffix: reserve its full ten bytes,
+	// and include both the private directory and socket leaf in the budget.
+	complete := filepath.Join(runDir, privateDirPrefix+"4294967295", "s")
+	if len(complete) > maxSocketPath {
+		t.Fatalf("complete fixture socket path is %d bytes, budget %d: %s", len(complete), maxSocketPath, complete)
+	}
+	l, h := openTunnel(t, Cloudflared{Named: named, Binary: bin, Guard: guardArgv(t), RunDir: runDir})
 	if h.URL() != "https://live.example.com" {
 		t.Fatalf("URL %q", h.URL())
 	}
@@ -132,6 +143,15 @@ func TestNamedTunnelServesFromPrivateSocket(t *testing.T) {
 	want := "tunnel: couch-broadcast\ningress:\n  - hostname: live.example.com\n    service: unix:" + pl.socket + "\n  - service: http_status:404\n"
 	if string(body) != want {
 		t.Fatalf("config:\n%s\nwant:\n%s", body, want)
+	}
+	if err := h.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if err := l.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(pl.dir); !os.IsNotExist(err) {
+		t.Fatalf("private listener directory survived Close: %v", err)
 	}
 }
 

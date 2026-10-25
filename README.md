@@ -554,6 +554,9 @@ couch --session-sync apply EDITS.json FILE --if-hash H [--fold ID] [--json]
                          a precise edit: {old, occurrence, new, explain} records applied all or none
                          (edits-invalid lists each bad record). New edits are clean text with highlight metadata;
                          agents preserve chat tags, their heading attachment, legacy settings and chat asks.
+                         Apply acknowledges only safely mapped changed ranges; unread edits elsewhere stay in diff.
+                         If the previous baseline is retained with a warning, inspect diff, review remaining edits,
+                         then explicitly read --all to acknowledge them. Section reads do not acknowledge edits.
 couch --session-sync migrate-editorial FILE [--json]
 couch --session-sync migrate-editorial FILE --confirm --if-hash H [--json]
                          operator-run exact map-to-tag preview, then confirmation using its full source SHA256.
@@ -888,6 +891,25 @@ initial ten-second birth probe is diagnostic, not a readiness cutoff. Once
 admitted, a working interactive client is independent of the startup deadline.
 Inspect an unconfirmed attempt with its existing recovery action before starting
 another one; expiration alone does not prove that the native agent is absent.
+
+🤖~Automatic observations refuse to probe a Zellij namespace containing an unknown~
+🤖~or unmarked legacy session; they retain unknown state. When upgrading, rebuild~
+🤖~Pair/Couch and relaunch the cooperating clients with the updated binaries.~
+🤖~Running processes keep their old behavior. Use the existing recovery workflow to~
+🤖~inspect and relaunch affected legacy threads. Explicit authorized recovery can~
+🤖~still inspect unmarked endpoints after the live creator releases exclusion; it~
+🤖~keeps its existing authorization checks. Unknown state or a readiness marker does~
+🤖~not authorize stopping a session.~
+
+🤖{Automatic observations and explicit recovery acquire the same namespace lease. They wait behind a live cooperating creator until its exact first pane publishes and releases exclusion. Once they hold the lease, legacy sessions without markers remain observable and attachable, including startup adoption and explicit resume; no migration receipt or legacy-thread relaunch is required. Creator death releases the lease and an unmarked survivor follows legacy behavior, with the accepted upstream risk outside that window. Existing authorization checks remain; a marker never authorizes stopping a session.}
+
+🤖{Update the Pair binary, Lua assets, and layouts together. Custom or older layouts selected through `PAIR_HOME` or another asset root must run `pair internal pane-ready` as the initial agent pane command before guarded native actions. If startup reports `terminal first-pane readiness unverified`, check for an old layout that omits that command; startup stops at its existing bound.}
+
+Startup exclusion protects bounded native commands from cooperating clients
+while the creator is alive. Interactive attach/reconnect, creator death, and
+foreign or older clients remain outside that protection. See
+[Startup readiness and native exclusion](atlas/zellij-reply-safety.md#startup-readiness-and-native-exclusion-866)
+for the scope and limits.
 
 `couch --resume repo:N` and `couch --reboot repo:N --confirm` run one slot's step
 through the running Couch. Only an agent in a live Couch slot may call them: Couch

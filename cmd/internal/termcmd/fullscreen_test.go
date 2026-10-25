@@ -117,6 +117,8 @@ func TestTerminalNativeAlreadyFocusedReturnClearsRecord(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Setenv("PATH", dir)
+	t.Setenv("HOME", dir)
+	t.Setenv("ZELLIJ_SOCKET_DIR", filepath.Join(dir, "native"))
 	for _, quiet := range []bool{false, true} {
 		f := &fakeRuntime{currentPaneID: "4", terminalPaneIDs: []string{"4"}, fullscreenRecord: "2 swap=BASE", panesJSON: `[{"id":2,"is_floating":false,"is_fullscreen":false,"title":"draft","terminal_command":"nvim -u /pair/nvim/init.lua d.md","is_plugin":false,"is_focused":false,"pane_x":0,"pane_y":0,"pane_columns":75,"pane_rows":39,"tab_id":1,"tab_position":1},{"id":4,"is_floating":true,"is_fullscreen":false,"title":"terminal","terminal_command":"pair term","is_plugin":false,"is_focused":false,"pane_x":0,"pane_y":0,"pane_columns":75,"pane_rows":39,"tab_id":1,"tab_position":1}]`}
 		if code := layoutcmd.RunToggleFocused(nil, nativeReturnFocusRuntime{f, quiet}, io.Discard); code != 0 || f.fullscreenRecord != "" || len(f.fullscreenErrors) != 0 {

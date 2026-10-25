@@ -17,9 +17,11 @@ func BenchmarkChildIngestRedraw(b *testing.B) {
 			kind, line = "mixed", strings.Repeat("e\u0301 界 👩\u200d💻 1\ufe0f\u20e3 ", 4)
 		}
 		var build strings.Builder
+		build.WriteString("\x1b[?2026h")
 		for row := 1; row <= 24; row++ {
 			fmt.Fprintf(&build, "\x1b[%d;1H%s\x1b[K", row, line)
 		}
+		build.WriteString("\x1b[?2026l")
 		payload := []byte(build.String())
 		for _, chunkSize := range []int{64, 4096} {
 			b.Run(fmt.Sprintf("%s/chunk%d", kind, chunkSize), func(b *testing.B) {

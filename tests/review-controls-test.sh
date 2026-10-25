@@ -12,7 +12,10 @@ for seam in OPEN MODE TARGET CONTEXT ROUND DEFINITION_REQUEST DEFINITION_RESULT;
   export "PAIR_REVIEW_${seam}_PATH=$RT/$seam"
 done
 export ZELLIJ_PANE_ID=9 ZELLIJ_SESSION_NAME=fixture-review
-mkdir "$RT/bin"
+mkdir -p "$RT/bin" "$RT/home"
+# Keep native admission on the suite-owned Pair executable and private namespace.
+bash "$ROOT/tests/lib/pair-test-binary.sh" "$RT/bin/pair"
+export HOME="$RT/home" ZELLIJ_SOCKET_DIR="$RT/native"
 cat > "$RT/bin/zellij" <<'PY'
 #!/usr/bin/env python3
 import json, os, sys

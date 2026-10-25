@@ -357,6 +357,8 @@ func TestClipboardFocusUsesExactDesiredStateSuccess(t *testing.T) {
 			root := t.TempDir()
 			calls := filepath.Join(root, "calls")
 			t.Setenv("PATH", root+string(os.PathListSeparator)+os.Getenv("PATH"))
+			t.Setenv("HOME", root)
+			t.Setenv("ZELLIJ_SOCKET_DIR", filepath.Join(root, "native"))
 			t.Setenv("PAIR_TEST_FOCUS_CALLS", calls)
 			t.Setenv("PAIR_TEST_FOCUS_ERROR", message)
 			script := "#!/bin/sh\nprintf 'call\\n' >> \"$PAIR_TEST_FOCUS_CALLS\"\nprintf '%s\\n' \"$PAIR_TEST_FOCUS_ERROR\" >&2\nexit 2\n"

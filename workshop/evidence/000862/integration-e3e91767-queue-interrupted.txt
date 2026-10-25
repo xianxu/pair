@@ -1,0 +1,15 @@
+Observed terminal excerpt, not a complete raw suite log.
+Recorded at 2026-10-24T19:13:07.421394-07:00
+
+Retained outer terminal: 79877
+Integrated Git head: e3e9176789cfb31727c7b708fdfa969bc1ac19b9
+Attempt: 59fcc8ce6be911594cdd7b24a3c54357
+Lease: lease-2339040081
+Final observed queue heartbeat: wait age 1929s, position 2.
+Final terminal exit: 1
+Exact final error:
+Error: CI gate: local check suite: refusing to run an unbounded suite: suite lock interrupted: context canceled
+
+The interruption occurred before queue admission; no integration test result.
+The printed inflight run.log and integrated-head suite.log paths were checked and absent.
+No cancellation/requeue was requested by this worker. No causal attribution to machine load is proved.
