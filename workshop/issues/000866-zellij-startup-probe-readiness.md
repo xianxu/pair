@@ -341,6 +341,10 @@ Cause: #866's launcher TestMain hermetic namespace was nested beneath inherited 
 
 New TestLauncherNativeNamespaceSurvivesLongTemporaryParent runs the actual TestMain in an owned child with a deliberately long TMPDIR and asserts short canonical0700 namespace plus removal on process exit. RED failed with the former long namespace; GREEN launcher0.230s/testpair0.166s. Exact four CI launcher live tests PASS4.322s, including quiescence/detach/quit and positive real-name acceptance; all use private native namespace and complete cleanup. Reader audit: changed session_quiescence_live_test.go still reads only its own temporary fixtures and opt-in private native fixture; no new repository/asset/build input. New TestMain regression uses its own compiled test process, temporary parent and reported owned namespace only; it never calls the candidate builder or reads repository sources. Refreshed only the named live-test certificate. Recorded pre-close and narrow re-close remain required for this fixture correction.
 
+### 2026-10-24 — corrected fixture CI and recorded suite PASS
+
+All GitHub checks passed on781a448d0fe854a279ae582676b2bae20f498ed4, including native conformance2m1s (run40164582248/job121082903119). The exact previous refusal is therefore resolved by the short-root fixture correction, with no CI rerun or bypass. Retained pre-close lease-1865372020 / attempt2bdfb7dbd07ef914805531d3a5afceaa admitted after2690s queue wait and passed the entire suite exit0 in12m50s. All non-Go and complete Go targets passed, no flake retry; couchcore259.459s, launcher61.212s, shared testpair13.547s, wrapcmd87.627s and query15.423s. Recorded sdlc-local/suite; complete log /Users/xianxu/workspace/pair/.git/sdlc/local-checks/781a448d0fe854a279ae582676b2bae20f498ed4/suite.log, SHA2562fb9e15beb9d3de6a810703110a86a6e534f968db94e6ca7594d0c7e6f0acd88. Optional real-docflow source smoke skipped explicitly; actual supplier qualification passed. Required final inventory PASS before narrow re-close. No source change after this tested head.
+
 ## Revisions
 
 ### 2026-10-24 — final plan bookkeeping and source ownership
