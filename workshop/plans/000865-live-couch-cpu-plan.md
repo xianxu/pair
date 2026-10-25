@@ -73,11 +73,11 @@ After change-code admits the design and its estimate reconciliation, mark the M1
 
 Files: modify cmd/internal/terminal/endpoint.go; add cmd/internal/terminal/endpoint_capture_test.go; extend cmd/internal/ptychild/ingest_redraw_benchmark_test.go with the DEC2026 envelope; update atlas/terminal.md; add bounded before/after evidence. Append workshop/lessons.md only after #879 lands. Audit only reader files the inventory names.
 
-- [ ] Write N/2N allocation/count regression tests first, covering fixed geometry and the doubled cell count. Run the exact new tests against unchanged capture and retain the expected failure.
-- [ ] Add the controlled function-level regressions below before reuse, using existing endpoint helpers and the actual emulator.
-- [ ] Implement the minimal change in capture: build fresh frame metadata, reuse private published Cells/Rows only when geometry/length match, otherwise allocate exact current lengths; write every row and every cell, with `Cell{}` for nil backend cells. Preserve repairCapturedRow and all publication call sites/Clone boundaries.
-- [ ] Run new counted tests and related Endpoint/history tests; race-check relevant controlled interleavings with count at most10. Iterate only on concrete failures.
-- [ ] Commit the RED tests and DEC2026 benchmark before the production correction, so that commit pins the unchanged capture with the identical test workload. Compare that baseline to the corrected candidate through bounded capture/ChildIngestRedraw replay; report allocation counts/bytes and CPU timing separately. Do not add a native scale matrix or new harness.
+- [x] Write N/2N allocation/count regression tests first, covering fixed geometry and the doubled cell count. Run the exact new tests against unchanged capture and retain the expected failure.
+- [x] Add the controlled function-level regressions below before reuse, using existing endpoint helpers and the actual emulator.
+- [x] Implement the minimal change in capture: build fresh frame metadata, reuse private published Cells/Rows only when geometry/length match, otherwise allocate exact current lengths; write every row and every cell, with `Cell{}` for nil backend cells. Preserve repairCapturedRow and all publication call sites/Clone boundaries.
+- [x] Run new counted tests and related Endpoint/history tests; race-check relevant controlled interleavings with count at most10. Iterate only on concrete failures.
+- [x] Commit the RED tests and DEC2026 benchmark before the production correction, so that commit pins the unchanged capture with the identical test workload. Compare that baseline to the corrected candidate through bounded capture/ChildIngestRedraw replay; report allocation counts/bytes and CPU timing separately. Do not add a native scale matrix or new harness.
 - [ ] Update the existing architecture map and evidence with the ownership/budget result. After #879 lands, append the deferred lesson. Individually audit changed readers and run make test-affected-inventory before close.
 
 | Risky function | Adversarial strategy / mechanical guard |
