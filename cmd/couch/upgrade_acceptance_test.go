@@ -160,31 +160,7 @@ func TestDisposableCouchBuildUpgrade(t *testing.T) {
 			for n := 0; n <= 1; n++ {
 				slot := fmt.Sprintf("fixture:%d", n)
 				t.Logf("upgrade phase: candidate explicit resume %s", slot)
-				var response couchmessage.Response
-				if err := json.Unmarshal([]byte(upgradeCLI(t, ctx, fleet, "--resume", slot, "--json")), &response); err != nil {
-					t.Fatal(err)
-				}
-				if response.Code != "ok" || response.Operation == nil {
-					t.Fatalf("candidate resume %s refused: %+v", slot, response)
-				}
-				id := response.Operation.ID
-				if err := waitFleet(ctx, func() (bool, error) {
-					result, err := fleet.ActorCLI(ctx, 0, "--operation-status", id, "--json")
-					if err != nil {
-						return false, err
-					}
-					var status couchmessage.Response
-					if err := json.Unmarshal([]byte(result.Stdout), &status); err != nil {
-						return false, err
-					}
-					if result.ExitCode != 0 || status.Operation == nil {
-						return false, fmt.Errorf("resume status unavailable: %s %s", result.Stdout, result.Stderr)
-					}
-					if status.Operation.Status.Terminal() && status.Operation.Status != couchmessage.ReceiptSucceeded {
-						return false, fmt.Errorf("resume %s: %+v", slot, status.Operation)
-					}
-					return status.Operation.Status == couchmessage.ReceiptSucceeded, nil
-				}); err != nil {
+				if err := validateUpgradeResume([]byte(upgradeCLI(t, ctx, fleet, "--resume", slot, "--json")), slot, before[slot].Binding.Tag); err != nil {
 					t.Fatalf("candidate explicit resume: %v", err)
 				}
 				// Open the real switcher, choose the old slot and attach through its
@@ -436,6 +412,53 @@ func TestUpgradeCohortComparisonRejectsChangedOldIdentity(t *testing.T) {
 			after["fixture:1"] = actor
 			if err := compareUpgradeCohort(before, after); (err == nil) != (scenario == "same") {
 				t.Fatalf("comparison for %s: %v", scenario, err)
+			}
+		})
+	}
+}
+
+func validateUpgradeResume(raw []byte, target, tag string) error {
+	var receipt couchmessage.OperationReceipt
+	if err := json.Unmarshal(raw, &receipt); err != nil {
+		return err
+	}
+	if receipt.ID == "" || receipt.Op != "resume" || receipt.Target != target || receipt.Tag != tag || receipt.Status != couchmessage.ReceiptSucceeded {
+		return fmt.Errorf("public resume did not confirm the old target: %+v", receipt)
+	}
+	return nil
+}
+
+func TestUpgradeResumeUsesThePublicFinalReceipt(t *testing.T) {
+	for _, scenario := range []string{"succeeded", "transport-envelope", "queued", "wrong-tag", "wrong-target", "wrong-op", "missing-id", "malformed"} {
+		t.Run(scenario, func(t *testing.T) {
+			receipt := couchmessage.OperationReceipt{ID: "id", Op: "resume", Target: "fixture:0", Tag: "old", Status: couchmessage.ReceiptSucceeded}
+			switch scenario {
+			case "queued":
+				receipt.Status = couchmessage.ReceiptQueued
+			case "wrong-tag":
+				receipt.Tag = "new"
+			case "wrong-target":
+				receipt.Target = "fixture:1"
+			case "wrong-op":
+				receipt.Op = "reboot"
+			case "missing-id":
+				receipt.ID = ""
+			}
+			raw, err := json.Marshal(receipt)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if scenario == "transport-envelope" {
+				raw, err = json.Marshal(couchmessage.Response{Code: "ok", Operation: &receipt})
+				if err != nil {
+					t.Fatal(err)
+				}
+			}
+			if scenario == "malformed" {
+				raw = []byte("{")
+			}
+			if err := validateUpgradeResume(raw, "fixture:0", "old"); (err == nil) != (scenario == "succeeded") {
+				t.Fatalf("receipt %s: %v", scenario, err)
 			}
 		})
 	}
