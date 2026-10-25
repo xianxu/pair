@@ -100,8 +100,8 @@ func TestDisposableCouchBuildUpgrade(t *testing.T) {
 			t.Log("upgrade phase: old documents registered; detaching old console")
 			oldList := upgradeCLI(t, ctx, fleet, "--list")
 			for _, actor := range before {
-				if !strings.Contains(oldList, actor.Binding.Tag) {
-					t.Fatalf("baseline list omitted %s", actor.Binding.Slot)
+				if !strings.Contains(oldList, actor.Ready.CWD) {
+					t.Fatalf("baseline list omitted %s: %s", actor.Binding.Slot, oldList)
 				}
 			}
 			if err := fleet.Detach(ctx); err != nil {
@@ -127,8 +127,12 @@ func TestDisposableCouchBuildUpgrade(t *testing.T) {
 			upgradeClients(t, ctx, fleet, after["fixture:0"].Binding.Session, true)
 			list := upgradeCLI(t, ctx, fleet, "--list")
 			for _, actor := range before {
-				if !strings.Contains(list, actor.Binding.Tag) {
+				if !strings.Contains(list, actor.Ready.CWD) {
 					t.Fatalf("candidate list omitted %s: %s", actor.Binding.Slot, list)
+				}
+				detail := upgradeCLI(t, ctx, fleet, "--show", actor.Binding.Slot)
+				if !strings.Contains(detail, actor.Binding.Tag) || !strings.Contains(detail, actor.Binding.Scope) {
+					t.Fatalf("candidate details omitted old address %s: %s", actor.Binding.Slot, detail)
 				}
 			}
 			for _, doc := range documents {
