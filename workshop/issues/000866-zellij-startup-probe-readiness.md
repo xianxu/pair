@@ -316,6 +316,10 @@ Authenticated hub1faf0af1 freezes every new local build/test, including targeted
 
 All existing SHIP, recorded suite, independent integrated warm-stage and operator PASS evidence remains valid and retained. This interruption is not a failed test or a flake and is not a landing. No owned runner remains. Wait for the hub's explicit freeze lift; then re-enter normal sdlc merge --yes on this issue branch, integrating main and running its required suite. Pair:4 still owns stage cleanup. #859 remains parked after M1 SHIP and #722's watched rerun remains pending.
 
+### 2026-10-24 — freeze lifted; resume normal landing
+
+Authenticated hub5df8f51e explicitly lifts the build/test freeze after the operator restarted fseventsd and resumed the suite queue. Read-only landing status confirms the former own merge PID94049 is gone and prints the exact issue-branch recovery command; no duplicate owned runner or surviving ticket is being replaced. Re-enter sdlc merge --branch 000866-zellij-startup-probe-readiness --yes, retaining prior accepted evidence and allowing normal main integration and queued verification. Full local suites outside the queue remain forbidden. Pair:0 and stage cleanup remain with pair:4.
+
 ## Revisions
 
 ### 2026-10-24 — final plan bookkeeping and source ownership
