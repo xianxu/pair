@@ -1,12 +1,12 @@
 ---
 id: 000887
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-10-25
 updated: 2026-10-25
 estimate_hours:
-card_mirror: 'f63a9ed09c229a0959161b9c8b358662e5b5c903' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: 'f663bf1be4a91362d0382e381de1b1120d7ede34' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-25T08:28:36-07:00
 claimant:
     operator: Xian Xu
@@ -16,6 +16,7 @@ claimant:
     worktree: /Users/xianxu/workspace/worktree/pair-slot4/pair
     repository: github.com/xianxu/pair
 flow: {kind: quick, provenance: inferred, spec: "d1fced33", done: "31311ba4"}
+actual_hours: 0.75
 ---
 
 # Tests that set GOMODCACHE under TMPDIR leave read-only module caches behind; clean them via one helper
