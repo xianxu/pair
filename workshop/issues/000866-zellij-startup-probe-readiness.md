@@ -283,6 +283,8 @@ Pushed evidence head983f7a9902e82bd259d7f75d274b4aee9f1de367 entered sdlc local-
 
 Normal automatic measurement at full close refused before dispatching review: measurement branch proof: measurement snapshot is 182432 bytes, over the version 4 bound of 131072 (119 sources, 1 branch records, 860 branch intervals). No window was printed. The old64KiB authorization has ended; the remaining128-source authorization does not apply to119 sources. Asked the hub for the named evidence repair or precise --no-actual authorization, without typed hours or reconstructing evidence. Close runner exited1; recorded pre-close lease-3449692818 remains queued with fleet-blocking priority, next to run. Native proof and corrected source remain unchanged.
 
+Hub10afb7d8 explicitly authorizes --no-actual for this exact182432-byte/v4-131072-bound refusal, citing in-progress ariadne#603. Full close retry records the exact refusal in --verified; no typed hours. Fresh affected-reader inventory passed again before retry.
+
 ## Revisions
 
 ### 2026-10-24 — final plan bookkeeping and source ownership
