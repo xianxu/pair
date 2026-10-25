@@ -166,3 +166,20 @@ complete-package budget output and recorded result, then rerun ordinary close
 with that evidence to dispose the entire finding family. Do not change code or
 weaken Done when to satisfy a pending check. Hub informed. The allowed overlap
 saved no close round here because qualification is an explicit acceptance term.
+
+### 2026-10-25 — recorded full suite PASS; BR-1 evidence supplied
+
+Retained pre-close lease-3072633283 completed: suite exit 0 in 14m4s, recorded
+sdlc-local/suite on implementation dd3570f1aa18dcffc1eed4beb2a387088362103b.
+Complete couchcmd passed in 77.066s with unchanged 96 MiB TestMain enforcement;
+complete testdisk passed in 18.396s. All Go, shell, editor and inventory checks
+passed, with no flake rerun. [Bounded verification record](../evidence/000886/pre-close.txt)
+retains the exact head, command, full-log digest and selected package results.
+The full raw log remains in the SDLC-owned local-check store.
+
+BR-1's entire required-verification-evidence class is now covered: both complete
+couchcmd within the original cap and successful recorded pre-close. The earlier
+review's four-minute ad-hoc timeout is superseded by this managed complete run.
+No code changed after the tested implementation; subsequent changes are issue,
+review and verification prose only. Request the ordinary close retry; keep the
+96 MiB budget and all acceptance requirements intact.
