@@ -193,9 +193,16 @@ func validMessageID(id string) bool {
 	return id != "" && len(id) <= 128 && utf8.ValidString(id) && strings.IndexFunc(id, func(r rune) bool { return unicode.IsSpace(r) || unicode.IsControl(r) }) < 0
 }
 
+// takesLaunchProfile: the operations that carry an agent and startup
+// parameters, switch-agent and bench-start (pair#847).
+func takesLaunchProfile(op string) bool { return op == "switch-agent" || op == couchcore.OpBenchStart }
+
 func ValidateRequest(r Request) error {
-	if r.Op != "switch-agent" && (!r.AgentArgs.IsZero() || r.InterruptFirst) {
-		return errors.New("startup parameters and interrupt-first apply only to switch-agent")
+	if r.InterruptFirst && r.Op != "switch-agent" {
+		return errors.New("interrupt-first applies only to switch-agent")
+	}
+	if !r.AgentArgs.IsZero() && !takesLaunchProfile(r.Op) {
+		return errors.New("startup parameters apply only to switch-agent and bench-start")
 	}
 	if r.Op != "reap-orphan-signal" && r.OrphanTarget != nil {
 		return errors.New("proven orphan target applies only to reap-orphan-signal")
@@ -396,7 +403,7 @@ func ValidateRequest(r Request) error {
 	if r.Binding != nil || r.Scope == "" || r.Tag == "" || r.Session == "" || r.Nonce == "" {
 		return errors.New("operation requires the calling conversation identity")
 	}
-	if r.Agent != "" && r.Op != "switch-agent" && (r.Op != "send" || !validFamily(r.Agent)) {
+	if r.Agent != "" && !takesLaunchProfile(r.Op) && (r.Op != "send" || !validFamily(r.Agent)) {
 		return errors.New("an agent filter applies only to send and must be a plain agent name")
 	}
 	if r.Confirmed && r.Op != "switch-agent" && r.Op != "set-model" && r.Op != "interrupt" && !couchcore.IsSlotOperation(r.Op) {

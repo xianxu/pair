@@ -601,6 +601,9 @@ func TestEverySlotOperationIsRoutedToTheSlotPath(t *testing.T) {
 		if op.Name == "switch-agent" {
 			argv = append(argv, "--agent", "codex")
 		}
+		if op.Name == couchcore.OpBenchStart {
+			argv = append(argv, "--agent", "codex", "--agent-args", "")
+		}
 		if confirms, _ := couchcore.OperationConfirms(op.Name); confirms {
 			argv = append(argv, "--confirm")
 		}

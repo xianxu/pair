@@ -15,6 +15,8 @@ const maxRuntimeFileBytes int64 = 512 << 20
 // physical fixture copies and never resolved through an ambient search path.
 var runtimeUtilities = []string{
 	"sh", "bash", "zsh", "env", "ps", "sed", "awk", "grep", "sort", "tr", "cut", "head", "tail", "cat", "mkdir", "dirname", "basename", "readlink", "uname", "stty", "true", "sleep", "tty", "which", "printf", "date", "chmod", "kill", "ln", "rm", "rmdir", "mktemp", "find", "du", "stat", "touch", "cp", "mv", "install",
+	// lsof: teardown lists lifetime-lease holders with it (bench-retire, pair#847).
+	"lsof",
 }
 
 const nativeTerminalConfig = "host_notification_protocol \"osc9\"\npane_frames false\nshow_startup_tips false\nshow_release_notes false\non_force_close \"quit\"\n"

@@ -11,6 +11,7 @@ import (
 	"github.com/xianxu/pair/cmd/internal/couchcore"
 	"github.com/xianxu/pair/cmd/internal/couchmessage"
 	"github.com/xianxu/pair/cmd/internal/couchtty"
+	"github.com/xianxu/pair/cmd/internal/launcher"
 	"github.com/xianxu/pair/cmd/internal/mockserve"
 	"github.com/xianxu/pair/cmd/internal/webcast/query"
 )
@@ -426,8 +427,29 @@ func parseMessageCLI(args []string) (cliInvocation, error) {
 		allowed["--same-binary"] = couchcore.SlotOperationTakesSameBinary(op)
 		allowed["--force-unknown"] = couchcore.SlotOperationTakesForceUnknown(op)
 		candidateKey := ""
+		var bench cliInvocation
 		for i := 2; i < len(args); i++ {
 			flag := args[i]
+			if (flag == "--agent" || flag == "--agent-args") && op == couchcore.OpBenchStart {
+				// bench-start's exact profile (pair#847), parsed as switch-agent's.
+				if seen[flag] || i+1 >= len(args) {
+					return bad()
+				}
+				seen[flag] = true
+				i++
+				if flag == "--agent" {
+					bench.messageAgent = args[i]
+					continue
+				}
+				argv, err := launcher.ParseLaunchParameters(args[i])
+				if err != nil {
+					return cliInvocation{}, err
+				}
+				if bench.switchArgs, err = couchmessage.NewSwitchArguments(argv); err != nil {
+					return cliInvocation{}, err
+				}
+				continue
+			}
 			if flag == "--candidate" && op == "resume" {
 				if candidateKey != "" || i+1 >= len(args) || args[i+1] == "" || strings.HasPrefix(args[i+1], "-") {
 					return bad()
@@ -447,8 +469,18 @@ func parseMessageCLI(args []string) (cliInvocation, error) {
 			}
 			return cliInvocation{}, fmt.Errorf("%s takes no --confirm", args[0])
 		}
+		if op == couchcore.OpBenchStart {
+			argv, present := bench.switchArgs.Argv()
+			if !present || !launcher.IsSupportedAgent(bench.messageAgent) {
+				return cliInvocation{}, fmt.Errorf("%s requires --agent <supported agent> and --agent-args (\"\" for none)", args[0])
+			}
+			if err := launcher.ValidateFreshAgentArgs(bench.messageAgent, argv); err != nil {
+				return cliInvocation{}, err
+			}
+		}
 		return cliInvocation{kind: cliMessage, messageOp: op, ref: args[1], confirmed: seen["--confirm"], jsonOutput: seen["--json"],
-			sameBinary: seen["--same-binary"], forceUnknown: seen["--force-unknown"], candidateKey: candidateKey}, nil
+			sameBinary: seen["--same-binary"], forceUnknown: seen["--force-unknown"], candidateKey: candidateKey,
+			messageAgent: bench.messageAgent, switchArgs: bench.switchArgs}, nil
 	case "--send-to":
 		agent := ""
 		if len(args) == 6 && args[2] == "--agent" {

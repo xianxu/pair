@@ -56,6 +56,8 @@ func TestParseCLIRejectsMalformedOrUnpublishedForms(t *testing.T) {
 		{"--internal"}, {"--internal=publish-description"}, {"--internal", ""},
 		{"--internal", "list"}, {"--internal", "start"}, {"--internal", "missing"},
 		{"--internal", "publish-description", "--"},
+		// Bench verbs exist only behind the hub gate (pair#847).
+		{"--internal", "bench-start"}, {"--internal", "bench-retire"},
 		{"--peek"}, {"--peek", ""}, {"--peek", "--json"}, {"--peek", "pair:1", "--lines"},
 		{"--peek", "pair:1", "--json", "--json"}, {"--peek", "pair:1", "--lines", "3", "--lines", "4"},
 		{"--peek", "pair:1", "extra"}, {"--peek", "pair:1", "--layout3"},

@@ -285,6 +285,9 @@ func exchangeSlotOperation(inv cliInvocation, op string, rt Runtime, call messag
 	admit.RecoveryConfirmation = inv.recoveryConfirmation
 	admit.ToHub, admit.Persist = inv.toHub, inv.persistHub
 	admit.SameBinary, admit.ForceUnknown = inv.sameBinary, inv.forceUnknown
+	if op == couchcore.OpBenchStart {
+		admit.Agent, admit.AgentArgs = inv.messageAgent, inv.switchArgs
+	}
 	if admit.ID, err = newRequestID(); err != nil {
 		return none, fmt.Errorf("create request ID: %w", err)
 	}

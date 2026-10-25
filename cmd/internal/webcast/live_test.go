@@ -2,6 +2,7 @@ package webcast
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"os"
 	"strings"
@@ -106,32 +107,123 @@ func (h liveHarness) activate(t *testing.T, id string) {
 // clickControl clicks the in-page control with real mouse input at its
 // position: its shadow root is closed, so nothing outside can reach it.
 func (h liveHarness) clickControl(t *testing.T) {
+	t.Helper()
 	session := h.session(t, "")
-	var r struct {
-		Result struct {
-			Value struct{ X, Y float64 } `json:"value"`
-		} `json:"result"`
-	}
-	expr := `(() => { const r = document.querySelector('[data-couchcast-ui]').getBoundingClientRect();
-		return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; })()`
+	call := func(method string, params, result any) error { return h.c.call(session, method, params, result) }
 	deadline := time.Now().Add(10 * time.Second)
 	for {
-		err := h.c.call(session, "Runtime.evaluate", map[string]any{"expression": expr, "returnByValue": true}, &r)
-		if err == nil && r.Result.Value.X > 0 {
-			break
+		ready, err := clickLiveControl(call)
+		if ready {
+			if err != nil {
+				t.Fatal(err)
+			}
+			return
 		}
 		if time.Now().After(deadline) {
-			t.Fatalf("control not found: %v %+v", err, r)
+			t.Fatalf("control not found: %v", err)
 		}
 		time.Sleep(100 * time.Millisecond)
 	}
+}
+
+// clickLiveControl attempts once. Ready distinguishes input errors (never
+// retried) from a still-unavailable control, before any mouse input.
+func clickLiveControl(call func(string, any, any) error) (ready bool, err error) {
+	// The host contains fixed-position panels and no longer has the button's
+	// geometry. CDP can inspect its closed shadow root without weakening it.
+	var point [2]float64
+	locate := func() error {
+		var document struct {
+			Root struct {
+				NodeID int `json:"nodeId"`
+			} `json:"root"`
+		}
+		if err := call("DOM.getDocument", map[string]any{"depth": 0}, &document); err != nil {
+			return err
+		}
+		query := func(parent int, selector string) (int, error) {
+			var result struct {
+				NodeID int `json:"nodeId"`
+			}
+			err := call("DOM.querySelector", map[string]any{"nodeId": parent, "selector": selector}, &result)
+			if err == nil && result.NodeID == 0 {
+				err = errors.New("control node is not mounted")
+			}
+			return result.NodeID, err
+		}
+		host, err := query(document.Root.NodeID, "couchcast-control[data-couchcast-ui]")
+		if err != nil {
+			return err
+		}
+		var description struct {
+			Node struct {
+				ShadowRoots []struct {
+					NodeID int `json:"nodeId"`
+				} `json:"shadowRoots"`
+			} `json:"node"`
+		}
+		if err := call("DOM.describeNode", map[string]any{"nodeId": host, "depth": 1, "pierce": true}, &description); err != nil {
+			return err
+		}
+		if len(description.Node.ShadowRoots) != 1 {
+			return errors.New("control shadow root is not mounted")
+		}
+		button, err := query(description.Node.ShadowRoots[0].NodeID, ".cast-button")
+		if err != nil {
+			return err
+		}
+		var object struct {
+			Object struct {
+				ID string `json:"objectId"`
+			} `json:"object"`
+		}
+		if err := call("DOM.resolveNode", map[string]any{"nodeId": button}, &object); err != nil {
+			return err
+		}
+		if object.Object.ID == "" {
+			return errors.New("control object is unavailable")
+		}
+		var inspection struct {
+			Result struct {
+				Value struct {
+					X, Y   float64
+					Usable bool
+				} `json:"value"`
+			} `json:"result"`
+			Exception json.RawMessage `json:"exceptionDetails"`
+		}
+		err = call("Runtime.callFunctionOn", map[string]any{
+			"objectId": object.Object.ID, "returnByValue": true,
+			"functionDeclaration": `function(){
+ const r=this.getBoundingClientRect(),root=this.getRootNode(),x=r.x+r.width/2,y=r.y+r.height/2;
+ let visible=this.isConnected&&!this.disabled;
+ for(let n=this;n;n=n.parentElement||n.getRootNode().host){
+  const s=getComputedStyle(n);
+  if(s.display==='none'||s.visibility!=='visible'||Number(s.opacity)===0)visible=false;
+ }
+ return {x,y,usable:visible&&r.width>0&&r.height>0&&r.left>=0&&r.top>=0&&r.right<=innerWidth&&r.bottom<=innerHeight&&this.contains(root.elementFromPoint(x,y))&&document.elementFromPoint(x,y)===root.host};
+}`}, &inspection)
+		err = errors.Join(err, call("Runtime.releaseObject", map[string]any{"objectId": object.Object.ID}, nil))
+		if err != nil {
+			return err
+		}
+		if len(inspection.Exception) > 0 || !inspection.Result.Value.Usable {
+			return errors.New("control is not visible and clickable")
+		}
+		point = [2]float64{inspection.Result.Value.X, inspection.Result.Value.Y}
+		return nil
+	}
+	if err := locate(); err != nil {
+		return false, err
+	}
 	for _, typ := range []string{"mousePressed", "mouseReleased"} {
-		if err := h.c.call(session, "Input.dispatchMouseEvent", map[string]any{
-			"type": typ, "x": r.Result.Value.X, "y": r.Result.Value.Y, "button": "left", "clickCount": 1,
+		if err := call("Input.dispatchMouseEvent", map[string]any{
+			"type": typ, "x": point[0], "y": point[1], "button": "left", "clickCount": 1,
 		}, nil); err != nil {
-			t.Fatal(err)
+			return true, err
 		}
 	}
+	return true, nil
 }
 
 // quitByHand closes Chrome without going through Close, as Cmd+Q would.

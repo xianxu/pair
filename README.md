@@ -587,6 +587,10 @@ couch --reboot repo:N --confirm [--json]
                          request Start fresh on the current binary; attributed running processes require an exact stop-set offer
 couch --recovery-confirmation TOKEN [--json]
                          approve that offer from the authenticated owning hub; no repeated target or TUI is needed
+couch --bench-start repo:N --agent NAME --agent-args PARAMETERS --confirm [--json]
+                         from a bench hub, on a slot its .hub claims: start fresh with exactly this agent and argv (never saved); the receipt carries provenance
+couch --bench-retire repo:N --confirm [--json]
+                         from a bench hub: archive the slot once nothing its agents started survives, else refuse naming them; keeps the worktree
 couch --switch-agent repo:N --agent NAME [--agent-args PARAMETERS] [--interrupt-first] --confirm [--json]
                          from the hub: switch another idle, clean slot using saved target-agent settings
 couch --keys repo:N STEP... [--json]

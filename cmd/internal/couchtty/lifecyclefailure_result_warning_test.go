@@ -35,6 +35,8 @@ func TestLifecycleSuccessResultAttentionUsesTypedWarningFacts(t *testing.T) {
 		{"switch-borrowed-attachment", couchcore.SwitchAgentResult{Outcome: couchcore.SwitchStarted, Record: start.Record}, false, target},
 		{"switch-cleanup", couchcore.SwitchAgentResult{Outcome: couchcore.SwitchStarted, Record: couchcore.ActorRecord{Thread: target}, Notice: "source cleanup refused; started fresh", CleanupWarning: "source cleanup refused"}, true, target},
 		{"reboot-adoption-and-archive", couchcore.RebootResult{Start: start, Archived: archived, SessionNotStopped: true}, true, archived},
+		{"bench-start-adoption-and-archive", couchcore.BenchStartResult{RebootResult: couchcore.RebootResult{Start: start, Archived: archived, SessionNotStopped: true}}, true, archived},
+		{"bench-start-borrowed-attachment", couchcore.BenchStartResult{RebootResult: couchcore.RebootResult{Start: start, Notice: "started fresh"}}, false, target},
 		{"park-retired-cleanup", couchcore.ParkRecoveryResult{Thread: couchcore.ThreadRecord{Address: target}, Diagnostic: "scrollback preservation incomplete"}, true, target},
 		{"park-next-command", couchcore.ParkRecoveryResult{Thread: couchcore.ThreadRecord{Address: target}, NextCommand: "resume pair:1", OperatorOutcome: "bookkeeping resolved"}, false, target},
 		{"ordinary-recovery", couchcore.RecoveryResumeResult{Notice: "resumed conversation"}, false, target},
