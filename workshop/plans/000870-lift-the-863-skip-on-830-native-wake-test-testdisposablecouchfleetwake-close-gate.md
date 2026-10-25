@@ -47,6 +47,45 @@ rounds:
       recipe: small-diff-review
       isolation: fenced
       blocked: true
+    - reviewer_runs:
+        - version: 1
+          intent:
+            disposable_root: true
+            id: 69c609cf-0d2f-4300-8a95-9aa6ad2d310c
+            repository: github.com/xianxu/pair
+            issue_id: "000870"
+            recipe: small-diff-review
+            round: 2
+            attempt: 1
+            agent: claude
+            root: /Volumes/TestScratch/review-checkouts/6cecbadd474c6ad4
+            reviewed_head: 5e8db46d9f0ccaeb784a1b9f19943d6b4a0006ad
+            slot: pair:6
+            requested_at: "2026-10-25T09:12:44.342449Z"
+          phase: finished
+          pid: 93496
+          started_at: "2026-10-25T09:12:44.545634Z"
+          finished_at: "2026-10-25T09:13:25.874012Z"
+          session_id: e4eb641a-ba03-4dbb-af4b-9f57c1077858
+          outcome: returned
+      "n": 2
+      timestamp: "2026-10-25T02:13:28-07:00"
+      dispatched: "2026-10-25T02:12:32-07:00"
+      agent: claude
+      reviewer: claude (anthropic; author anthropic)
+      dispose:
+        - id: BR-1
+          disposition: addressed
+          note: fleet_acceptance_test.go:417-425 asserts the "no asleep hubs to wake" stdout (wake.go:189 empty-outcome string), plain worker not live, and asleep map unchanged (0,1 awake; 2 asleep).
+          round: 2
+        - id: BR-2
+          disposition: not-addressed
+          note: 'Still Minor and non-blocking: wakeFleetConverse (fleet_acceptance_test.go:442-461) keeps its own Accepted-body wait loop; the implementer deferred the shared helper because it would touch sibling tests outside 870.'
+          round: 2
+      recipe: small-diff-review
+      isolation: fenced
+      reviewed: 5e8db46d9f0ccaeb784a1b9f19943d6b4a0006ad
+      blocked: false
 ---
 
 # Gate ledger — pair#870 (boundary-review)
@@ -63,7 +102,13 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-2** [Minor] `duplicated-accept-wait-loop` (kind: defect) wakeFleetConverse re-implements the Accepted-body wait loop already present in sibling tests (ARCH-DRY)
   Near-identical loops: fleet_acceptance_test.go:113-127, :439-450, startup_restart_fleet_test.go:197-211, slash_keys_acceptance_test.go:172. They could become one waitFleetAccepted(ctx, fleet, n, body) helper.
 
+## Round 2 — 2026-10-25T02:13:28-07:00 (claude) — passed
+
+### Disposed
+
+- BR-1 — addressed — fleet_acceptance_test.go:417-425 asserts the "no asleep hubs to wake" stdout (wake.go:189 empty-outcome string), plain worker not live, and asleep map unchanged (0,1 awake; 2 asleep).
+- BR-2 — not-addressed — Still Minor and non-blocking: wakeFleetConverse (fleet_acceptance_test.go:442-461) keeps its own Accepted-body wait loop; the implementer deferred the shared helper because it would touch sibling tests outside 870.
+
 ## Open findings
 
-- **BR-1** [Important] `done-when-clause-unasserted` (kind: defect) Repeat couch --wake ("a repeat starting nothing") is only logged, never asserted
 - **BR-2** [Minor] `duplicated-accept-wait-loop` (kind: defect) wakeFleetConverse re-implements the Accepted-body wait loop already present in sibling tests (ARCH-DRY)

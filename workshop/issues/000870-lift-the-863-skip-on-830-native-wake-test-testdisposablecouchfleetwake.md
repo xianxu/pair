@@ -42,6 +42,8 @@ flow: {kind: quick, provenance: inferred, spec: "eeca357d", done: "1b7e3866"}
 
 ## Log
 
+
+- 2026-10-25: closed — TestDisposableCouchFleetWake PASS natively (unsandboxed, PAIR_NATIVE_COUCH_FLEET=1) for claude (64.3 s) and codex (65.6 s): fresh two-hub Fleet.Start brings both hubs up (#863); full quit marks three threads asleep; cold start brings none back; main hub resumed from the switcher (Resume from disk); couch --wake: woke 1 of 1 asleep hubs: fixture:1; plain worker stays asleep; repeat couch --wake asserted: "no asleep hubs to wake", worker not live, asleep state unchanged (review BR-1). Three test defects found on the first native run and fixed (bare-name main-hub row, resumable transcript needs one accepted turn, asleep map keyed by workspace), logged. make test-affected-inventory clean after audited single-file re-records. Pre-close: sdlc-local/suite pass on 5e8db46d (11m56s). --no-actual under TL standing authorization (ariadne#603): "measurement branch proof: measurement snapshot is 219082 bytes, over the version 4 bound of 131072 (107 sources, 1 branch records, 1070 branch intervals)". --no-atlas: test-only change (one acceptance test plus its reader record), no new architectural surface; atlas/couch.md already describes asleep slots and couch --wake.; review verdict: SHIP
 ### 2026-10-24
 
 Native runs (unsandboxed, PAIR_NATIVE_COUCH_FLEET=1). T6's resume and wake phases had never run natively (#830 committed it skipped), and three test defects surfaced, none in Couch:

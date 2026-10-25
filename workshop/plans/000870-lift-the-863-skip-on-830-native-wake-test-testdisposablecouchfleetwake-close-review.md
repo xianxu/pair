@@ -91,3 +91,89 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000411
+
+---
+
+## Re-review — 2026-10-25T02:13:27-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 870 — Lift the #863 skip on #830 native wake test (TestDisposableCouchFleetWake) |
+| repo | pair |
+| issue file | workshop/issues/000870-lift-the-863-skip-on-830-native-wake-test-testdisposablecouchfleetwake.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 63d35ac8295d6b4ff04001c683b038eca1d0e3d7..5e8db46d9f0ccaeb784a1b9f19943d6b4a0006ad |
+| command | sdlc close --issue 870 |
+| reviewer | claude (anthropic; author anthropic) |
+| isolation | fenced |
+| timestamp | 2026-10-25T02:13:27-07:00 |
+| verdict | SHIP |
+
+## Review
+
+**Verdict: SHIP** for pair#870. BR-1 is fixed and BR-2 stays open as a Minor; nothing blocks.
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+The skip is gone, and the first phase now uses `Fleet.Start` plus `WaitAgent(1)` and `WaitActors(2)`, as the Spec and Plan say. Every Done-when clause is asserted, including the one BR-1 flagged: the repeat `couch --wake` now has three checks at `cmd/couch/fleet_acceptance_test.go:417-425`:
+- stdout contains "no asleep hubs to wake", which is the exact empty-result string from `wakeSummary` (`cmd/internal/couchcmd/wake.go:189`);
+- the plain worker has no live PID;
+- the asleep state is still slots 0 and 1 awake, slot 2 asleep.
+
+`go vet ./cmd/couch/` is clean. I couldn't run the native Claude and Codex runs in this checkout; those passes come from the implementer's Log, not from me. The only thing still open is BR-2, a Minor test-helper duplication that doesn't block.
+
+1. **Strengths**
+   - The asleep map is keyed by slot (from the workspace) and fails on any unknown thread (`fleet_acceptance_test.go:341-348`). That removes the dependence on generated tags and catches stray threads.
+   - The switcher gesture waits for the selected `▸ fixture  <primary>` row and for the "Resume from disk" action before typing (`:384-386`). That replaces a typed filter that matched nothing.
+   - The unused `wakeFleetStartHub` was deleted rather than left behind.
+   - Before parking, each hub the test later brings back accepts one turn (`:326-327`), since a hub with no conversation can't be resumed from disk.
+
+2. **Critical:** none.
+
+3. **Important:** none.
+
+4. **Minor:** BR-2 is still open (details in the findings block).
+
+5. **Test coverage**
+   - The full quit is checked to leave 3 asleep threads.
+   - The cold start is checked for no live agents.
+   - The resume path and the first `--wake` are checked through `WaitAgent(1)`, the worker's PID and the asleep map.
+   - The repeat `--wake` is now checked from stdout, the worker's PID and the asleep map.
+
+6. **Architecture**
+   - **ARCH-DRY:** flagged, as BR-2 only.
+   - **ARCH-PURE:** pass. This is test glue with no business logic.
+   - **ARCH-PURPOSE:** pass. All Done-when clauses are delivered.
+   - **ARCH-EVOLVE:** pass. No persisted format changes; the affected-reader JSON only updates its hash.
+
+7. **Plan revisions:** none. The Plan and Log match the code.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      fleet_acceptance_test.go:417-425 asserts the "no asleep hubs to wake" stdout (wake.go:189 empty-outcome string), plain worker not live, and asleep map unchanged (0,1 awake; 2 asleep).
+  - id: BR-2
+    disposition: not-addressed
+    note: |
+      Still Minor and non-blocking: wakeFleetConverse (fleet_acceptance_test.go:442-461) keeps its own Accepted-body wait loop; the implementer deferred the shared helper because it would touch sibling tests outside 870.
+```
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"69c609cf-0d2f-4300-8a95-9aa6ad2d310c","repository":"github.com/xianxu/pair","issue_id":"000870","recipe":"small-diff-review","round":2,"attempt":1,"agent":"claude","root":"/Volumes/TestScratch/review-checkouts/6cecbadd474c6ad4","reviewed_head":"5e8db46d9f0ccaeb784a1b9f19943d6b4a0006ad","slot":"pair:6","requested_at":"2026-10-25T09:12:44.342449Z"},"phase":"finished","pid":93496,"started_at":"2026-10-25T09:12:44.545634Z","finished_at":"2026-10-25T09:13:25.874012Z","session_id":"e4eb641a-ba03-4dbb-af4b-9f57c1077858","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 12.11588525s
+head: "5e8db46d9f0ccaeb784a1b9f19943d6b4a0006ad"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412
