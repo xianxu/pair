@@ -117,6 +117,10 @@ Landing after close: `sdlc pr`; `sdlc merge --yes`; report the outcome to ops:0.
   warning with unattributed segments. The prior run failed exactly on
   `agent_version.go: production source is absent from the exhaustive inventory`; 0726d114 classifies it in
   `NonArtifactSources`.
+- Integrate gate: the first close refused because origin/main had moved (11fece5cf, broadcast host) past the
+  freshness threshold. Merged origin/main into the branch (32a7dd6ad; no conflicts, `go build ./...` clean; the
+  review window is unchanged, #304) and re-ran the full suite on the merged head: exit 0 in 16m11s, recorded
+  as `sdlc-local/suite` on 32a7dd6a. `make test-affected-inventory` passes on the merged tree.
 
 ## Revisions
 
