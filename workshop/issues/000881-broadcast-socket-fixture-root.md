@@ -1,12 +1,12 @@
 ---
 id: 000881
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-10-24
 updated: 2026-10-25
 estimate_hours:
-card_mirror: '1ad3c730c6b31314e6809a52bc329df839e28049' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '2b9c23b76332f74465a85809621529da132bb1d4' # card fields mirrored from issue-cards; edit via sdlc
 flake_tests: [github.com/xianxu/pair/cmd/internal/broadcast.TestNamedTunnelServesFromPrivateSocket]
 started: 2026-10-25T00:44:15-07:00
 claimant:
@@ -17,6 +17,7 @@ claimant:
     worktree: /Users/xianxu/workspace/worktree/pair-slot5/pair
     repository: github.com/xianxu/pair
 flow: {kind: quick, provenance: inferred, spec: "6fec5b1d", done: "ba819485"}
+actual_hours: 0.35
 ---
 
 # Broadcast socket fixture exceeds managed TMPDIR path budget
