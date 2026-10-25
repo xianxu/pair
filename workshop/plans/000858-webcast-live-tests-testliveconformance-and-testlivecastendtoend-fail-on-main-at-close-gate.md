@@ -836,6 +836,13 @@ rounds:
       recipe: small-diff-review
       isolation: fenced
       blocked: true
+disputes:
+    - id: BR-2
+      rationale: The reviewer Chrome failure happens before page creation and does not contradict native pause qualification. Retained source-bound host passes now qualify both named native scenarios on the fixed committed code, with a controlled clean-main fixture reversion proving the original failure. BR-1 readiness is fixed and separately tested; no Chrome guard or timeout is disabled.
+      evidence: 'Canonical issue.side/evidence/native contains complete logs and JSON metadata on7b104dd55c2078641b813b72b628e8e769314ec3: separate WEBCAST_LIVE_CHROME=1 go test ./cmd/internal/webcast -run ^TestLiveConformance$ -count=1 -v -timeout=90s exit0 log SHA256e8d6b9bd703aff3364be21c5827cc81984ebc9a637290eedcff517362b54533b; analogous TestLiveCastEndToEnd exit0 SHA256dfd26b5fb0ed56d16dcaaa919cc89b89234b790af78991eeda8f029b5f08ff32; TestLiveControlReadiness exit0 SHA256f954e304a4a44378c05f1ef619e97f533b08e01141310857137a2fadf68ba66e. Overlay restoring clean-main63d35ac8 live_test.go makes conformance fail at page control paused (exit1,20.370s), SHA2564b370ec1521573f4b5be18112000157c79fca7fe305c86957b4360095d716fa2. All runs private-profile Headless:true, sequential count1; exact argv/head/source hashes and cleanup contract retained; later evidence-only changes.'
+      after: 1
+      timestamp: "2026-10-25T07:50:46Z"
+      by: Xian Xu on Xian’s MacBook Pro at pair:4 (/Users/xianxu/workspace/worktree/pair-slot4/pair)
 ---
 
 # Gate ledger — pair#858 (boundary-review)
@@ -852,7 +859,15 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-2** [Important] `native-regression-qualification` (kind: unverifiable) Native pause/resume and viewer-state regressions could not be verified
   Attempted separately at the pinned head: WEBCAST_LIVE_CHROME=1 go test ./cmd/internal/webcast -run '^TestLiveConformance$' -count=1 -v -timeout=90s and the equivalent command for '^TestLiveCastEndToEnd$'. Both failed before opening a page with “GPU process isn't usable”; the latter also reported “sandbox initialization failed: Operation not permitted”. Neither reached clickControl. Supply measured host evidence of both commands passing against the reviewed source, plus a clean-base failure or fix-reversion run showing the native regression goes red without the correction, or provide an environment where those checks can execute.
 
+## Disputes
+
+Findings the implementer declined (`sdlc finding dispute`), each answered by the
+next review round.
+
+- **BR-2** — after round 1 (2026-10-25T07:50:46Z, Xian Xu on Xian’s MacBook Pro at pair:4 (/Users/xianxu/workspace/worktree/pair-slot4/pair))
+  rationale: The reviewer Chrome failure happens before page creation and does not contradict native pause qualification. Retained source-bound host passes now qualify both named native scenarios on the fixed committed code, with a controlled clean-main fixture reversion proving the original failure. BR-1 readiness is fixed and separately tested; no Chrome guard or timeout is disabled.
+  evidence: Canonical issue.side/evidence/native contains complete logs and JSON metadata on7b104dd55c2078641b813b72b628e8e769314ec3: separate WEBCAST_LIVE_CHROME=1 go test ./cmd/internal/webcast -run ^TestLiveConformance$ -count=1 -v -timeout=90s exit0 log SHA256e8d6b9bd703aff3364be21c5827cc81984ebc9a637290eedcff517362b54533b; analogous TestLiveCastEndToEnd exit0 SHA256dfd26b5fb0ed56d16dcaaa919cc89b89234b790af78991eeda8f029b5f08ff32; TestLiveControlReadiness exit0 SHA256f954e304a4a44378c05f1ef619e97f533b08e01141310857137a2fadf68ba66e. Overlay restoring clean-main63d35ac8 live_test.go makes conformance fail at page control paused (exit1,20.370s), SHA2564b370ec1521573f4b5be18112000157c79fca7fe305c86957b4360095d716fa2. All runs private-profile Headless:true, sequential count1; exact argv/head/source hashes and cleanup contract retained; later evidence-only changes.
+
 ## Open findings
 
 - **BR-1** [Critical] `control-readiness-before-input` (kind: defect) Positive box dimensions do not establish that the control is visible and usable
-- **BR-2** [Important] `native-regression-qualification` (kind: unverifiable) Native pause/resume and viewer-state regressions could not be verified
