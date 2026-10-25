@@ -53,7 +53,7 @@ Old Mount after Host reopen | Old receipt already complete | Unmount remains ide
 
 - [x] Pin lost/last/repeated Unmount shutdown ownership with synctest and the existing held fake handle; observe baseline RED before production code.
 - [x] Retain and join the exact existing shutdown receipt; qualify generation isolation and real SSE lifecycle with bounded targeted/race controls.
-- [ ] Record the lifecycle rule, inventory audit and final-head verification.
+- [x] Record the lifecycle rule, inventory audit and final-head verification.
 
 ## Log
 
@@ -67,6 +67,8 @@ Hub1bc491d0 approved exact-attempt receipts and quick flow before code. change-c
 GREEN: exact-attempt receipt correction is15 added production lines. New deterministic regression PASS0.215s; seven selected lifecycle tests count10 PASS1.357s, their race count10 PASS28.805s. Final additional generation-completion assertion qualified by complete broadcast package PASS75.037s and focused join race PASS1.244s. Catalog PASS11.539s. Staged reader inventory PASS: the new regression constructs only in-memory Host/HTTP-server/channel state and uses existing fake handles; it reads no repository artifact and needs no reader certificate change. Atlas and lesson record routing-removal versus joined teardown; this semantic lifetime rule is enforced by controlled ordering rather than an unreliable syntactic lint heuristic. No retries, deadline changes or live operator state.
 
 Pre-close checkpoint: implementation866d3a04f pushed with PR611. Retained affected run98738, attempt57a86d9e15605725f5913e78bab635ee, lease352900744, is queued on that head (29 selected Go packages and shell group). Mandatory close review may overlap this check under tl-worker; --no-plan-check acknowledges only the remaining final recorded-verification checkbox. Behavioral implementation and targeted qualifications are complete. The recorded check must pass before landing; any reviewer code change requires a fresh check. Do not restart or create a continuation while this owned check is queued/running. #886 starts only after884 lands.
+
+Close review SHIP/high, no findings, evidencef86f79ccb267e35f14d38c0d2428d0337152a673. Independent reviewer reproduced baseline RED with a Go overlay, verified focused lifecycle tests normally/race and six shared-Host/rotation/cancellation controls; no source changes requested. Close measured0.21h as trusted-window under current603 accounting, with no typed actual or waiver. Retained affected attempt57a86d9e15605725f5913e78bab635ee passed on866d3a04f79915faa6e7a54000595bf383866e66:29 packages plus shell,4m57s, log SHA256 prefix89a0b807fa7b. All Plan deliverables complete. Next normal merge owns main integration and authoritative full suite; no manual main chase after this pass.
 
 ## Revisions
 
