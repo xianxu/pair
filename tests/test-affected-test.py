@@ -25,6 +25,15 @@ def runner():
     return module
 
 
+
+def full_matches(config, path):
+    """A `full` entry is a glob or {"glob": G, "except": [...]} (ariadne#598)."""
+    for rule in config["full"]:
+        glob, excepted = (rule, []) if isinstance(rule, str) else (rule["glob"], rule.get("except", []))
+        if fnmatch.fnmatchcase(path, glob) and not any(fnmatch.fnmatchcase(path, e) for e in excepted):
+            return True
+    return False
+
 class PureSelection(unittest.TestCase):
     def test_nested_module_scanners_use_their_own_module(self):
         m = runner()
@@ -248,7 +257,7 @@ class MakeEntrypoint(unittest.TestCase):
                     # Shared candidate placement is a full-selection input;
                     # ownership still covers every recipe behind that wrapper.
                     self.assertEqual(files, [wrapper])
-                    self.assertTrue(any(fnmatch.fnmatchcase(wrapper, pattern) for pattern in config["full"]))
+                    self.assertTrue(full_matches(config, wrapper))
                     inner = target + "-recipes"
                     self.assertEqual(recipe[1].strip(), f"bash {wrapper} $(TEST_RECIPE_MAKE) {inner}")
                     recipe = re.search(r"^" + inner + r":[^\n]*\n((?:\t[^\n]*\n)+)", source, re.M)
