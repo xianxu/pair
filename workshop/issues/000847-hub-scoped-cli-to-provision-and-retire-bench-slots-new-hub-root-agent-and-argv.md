@@ -5,9 +5,9 @@ deps: []
 github_issue:
 created: 2026-10-23
 updated: 2026-10-25
-estimate_hours:
+estimate_hours: 8
 collaboration-mode: collaboration
-card_mirror: '23b26ef734fa02e75908bbd6008f87e2146ec155' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '4746c27dbb318a991a600f8d1cad83945b4144b5' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-25T03:06:32-07:00
 claimant:
     operator: Xian Xu
@@ -66,7 +66,24 @@ Durable plan: [workshop/plans/000847-hub-scoped-cli-to-provision-and-retire-benc
 
 ## Estimate
 
-8 h, from the plan's tasks: Provisions predicate 0.75 h; explicit profile through Reboot's Fresh path 1.5 h (two resolution sites, recovery semantics); strict retirement with registry check 1.25 h; operations, guard and receipt provenance 1.5 h; CLI 0.5 h; native acceptance with testcouch `.hub` claims, claude and codex, 1.75 h (native iteration measured at 2-3 runs on #870); docs, inventory, close 0.75 h.
+Derived with estimate-logic-v3.1 against the v2 primitive table: the durable plan pre-resolves the design (spec-quality ×0.2, thorough-plan buffer 0.15); `impl=` at 40% of the table; familiarity ×1.5 for the broker guard and Fresh-recovery paths.
+
+```estimate
+model: estimate-logic-v3.1
+familiarity: 1.5
+item: smaller-go-module design=0.06 impl=0.2
+item: smaller-go-module design=0.06 impl=0.2
+item: smaller-go-module design=0.06 impl=0.2
+item: greenfield-go-module design=0.4 impl=0.32
+item: smaller-go-module design=0.06 impl=0.2
+item: greenfield-go-module design=0.1 impl=0.32
+item: atlas-docs design=0.04 impl=0.08
+item: milestone-review design=0.0 impl=0.2
+design-buffer: 0.15
+total: 3.48
+```
+
+Items in plan order: Provisions predicate; explicit profile through Reboot's Fresh path; strict retirement; operations, guard and receipts; CLI; native acceptance with testcouch `.hub` claims; atlas; close review.
 
 ## Log
 
