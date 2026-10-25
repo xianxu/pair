@@ -257,9 +257,17 @@ type NativeResumeOps interface {
 	ResolveNativeResume(context.Context, NativeResumeRequest) (NativeResumeResolution, error)
 }
 
+// AgentVersionOps probes the installed agent CLI's version, read-only.
+type AgentVersionOps interface {
+	// AgentVersion returns the installed CLI version ("0.164.0"), or "" when
+	// the probe is unavailable or the agent has no version probe.
+	AgentVersion(agent string) string
+}
+
 // Runtime is the full launcher effect seam.
 type Runtime interface {
 	NativeResumeOps
+	AgentVersionOps
 	ZellijOps
 	SnapshotOps
 	ListOps

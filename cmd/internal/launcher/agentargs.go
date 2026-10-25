@@ -106,7 +106,7 @@ func codexGlobalOptionWidth(args []string, i int) int {
 func codexBoolGlobalOption(arg string) bool {
 	switch arg {
 	case "--oss", "--strict-config", "--dangerously-bypass-approvals-and-sandbox",
-		"--dangerously-bypass-hook-trust", "--search", "--no-alt-screen":
+		"--dangerously-bypass-hook-trust", "--search", "--no-alt-screen", "--no-daemon":
 		return true
 	default:
 		return false

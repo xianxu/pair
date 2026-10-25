@@ -1322,6 +1322,21 @@ func (r OSRuntime) ClearCmuxOwner() {
 	r.Remove(filepath.Join(r.DataDir, "cmux-owner-"+wsID))
 }
 
+// AgentVersion probes the installed CLI; codex is the only agent whose launch
+// policy is version-gated (pair#891).
+func (r OSRuntime) AgentVersion(agent string) string {
+	if agent != "codex" {
+		return ""
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), agentVersionProbeTimeout)
+	defer cancel()
+	out, err := exec.CommandContext(ctx, agent, "--version").Output()
+	if err != nil {
+		return ""
+	}
+	return parseAgentVersion(string(out))
+}
+
 // --- helpers ---------------------------------------------------------------
 
 func fileExists(path string) bool {

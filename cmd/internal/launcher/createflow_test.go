@@ -69,6 +69,7 @@ type fakeRuntime struct {
 	existingThreads     []string
 	writeFailAt         string
 	inferAgent          map[string]string // tag -> paired agent (for `resume <tag>`)
+	agentVersions       map[string]string // agent -> probed CLI version ("" = no probe)
 	pickFunc            func(header string, options []string) string
 	listRows            []ListRow // ListSessions rows (for `pair list`)
 	listErr             error
@@ -190,6 +191,7 @@ func newFakeRuntime() *fakeRuntime {
 		establishedSessions: map[string]string{},
 		bindingStatuses:     map[string]sessioninventory.BindingStatus{},
 		inferAgent:          map[string]string{},
+		agentVersions:       map[string]string{},
 		promptOK:            true,
 		env:                 map[string]string{},
 		quitMarkers:         map[string]bool{},
@@ -376,6 +378,9 @@ func (f *fakeRuntime) DevRebuild(pairHome string) { f.devRebuilt = true }
 func (f *fakeRuntime) SetEnv(key, value string)       { f.env[key] = value }
 func (f *fakeRuntime) InZellijPane() bool             { return f.inPane }
 func (f *fakeRuntime) CommandExists(name string) bool { return !f.commandMissing[name] }
+
+// AgentVersionOps
+func (f *fakeRuntime) AgentVersion(agent string) string { return f.agentVersions[agent] }
 func (f *fakeRuntime) RecordOuterTTY(tag string, couch bool) {
 	f.ttyRecorded = append(f.ttyRecorded, tag+"|"+strconv.FormatBool(couch))
 }
