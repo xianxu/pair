@@ -43,7 +43,7 @@ The deterministic acceptance is zero additional capture cell/row backing allocat
 
 ## Plan
 
-- [ ] M1 — Reconcile landed #871 and close measured live attribution with retained historical limits.
+- [x] M1 — Reconcile landed #871 and close measured live attribution with retained historical limits.
 - [ ] M2 — Reuse endpoint-owned frame backing, qualify allocation bounds and publication semantics, then close the correction.
 
 Durable active plan: [live CPU plan](../plans/000865-live-couch-cpu-plan.md).
@@ -51,6 +51,7 @@ Durable active plan: [live CPU plan](../plans/000865-live-couch-cpu-plan.md).
 ## Log
 
 ### 2026-10-24 — earlier work preserved
+- 2026-10-24: closed M1 — Profiler delivery independently landed as871 PR592; preserved historical native controls415.469s and honest invalid scaled qualification/park decision. Operator-approved live profile metadata and exact executable agree on clean9bfd7ab51cef5f9d563b19dea087c9ef084c19c9; pprof parses all files. CPU44.80s/30.22s startup; sampled allocation delta20.86GiB with capture9.62GiB, mostly DEC2026 begin; later exact-PID18.77s/46s about0.41cores. Cumulative overlap, sampled accounting, aged-workload and fseventsd causality limits are explicit in evidence000865/live-profile.md and profiling atlas. Baseline Endpoint sync/resize/publication/EOF controls PASS0.157s; reader inventory PASS. M2 scope approved by huba1a107d5 and isolated execution by f6c298b1; planning admitted, no M2 production code or second full check. Lessons deferred until879 lands; pair0 unchanged.; review verdict: SHIP
 
 The complete earlier issue/plan, negative native control summary and invalid scaled qualification are preserved under evidence/000865. #871 delivered the profiler independently (PR592); no profiler or scaled-harness source is copied into this fresh-main correction. The archived branch is archive/000865-profile-attribution-pre-m2 at01bdfbe72710456ee1170dd54c5b86deba50f3e5 in the original common repository. Original remote issue head424ecac0ea56c6af0eeca557c617bd5466941166 was explicitly fetched and inspected before any new leased publication.
 
