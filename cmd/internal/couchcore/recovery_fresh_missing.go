@@ -36,7 +36,16 @@ func (c *Couch) startFreshRecoveryWithoutRecord(ctx context.Context, selection R
 	}
 	branch, issue := (OSRecoveryEvidenceReader{Git: c.Git}).recoveryBranchIssue(ctx, ThreadRecord{StartingPath: target.Slot.WorktreeRoot, WorkingPath: cwd})
 	orient := &threadrecord.RecoveryOrientation{Branch: branch, Issue: issue, Unavailable: "Previous TTY capture unavailable; use branch and issue evidence."}
-	started, err := c.startFreshSlotWithRecovery(ctx, selection.Target.Path, selection.Agent, false, nil, nil, orient, freshSlotRecordlessRecovery)
+	bench, err := selectionBenchProfile(selection)
+	if err != nil {
+		return RecoveryResumeResult{}, err
+	}
+	var preflight *LaunchProfileResolution
+	if bench != nil {
+		resolution := bench.resolution()
+		preflight = &resolution
+	}
+	started, err := c.startFreshSlotWithRecovery(ctx, selection.Target.Path, selection.Agent, false, nil, preflight, orient, freshSlotRecordlessRecovery)
 	return RecoveryResumeResult{Mode: Fresh, Start: started, Notice: "started fresh; previous TTY capture unavailable; use branch and issue evidence; any unproved owners were left untouched under their original identities; workspace setup was not refreshed"}, err
 }
 

@@ -45,7 +45,10 @@ func (c *Console) finishLifecycleAttempt(completed operationCompletion) operatio
 	}
 	completed.value, completed.err = completed.attempt.FinishContext(c.lifetime, completed.value, completed.err)
 	if warning := completed.attempt.DiagnosticWarning(); warning != "" {
-		c.Warn(Notice{Kind: "status", Thread: completed.origin.Address, Body: warning})
+		c.mu.Lock()
+		label, _ := c.threadRowLocked(completed.origin.Address)
+		c.mu.Unlock()
+		c.Warn(Notice{Class: couchcore.NoticeLifecycleAttemptDiagnostic, Kind: "status", Thread: completed.origin.Address, SourceRoot: completed.origin.RowKey.SlotPath, Label: label, Body: warning})
 	}
 	return completed
 }
@@ -79,6 +82,10 @@ func lifecycleCompletionWarningSource(value any, origin couchcore.ThreadAddress)
 			selectSource(result.Record.Address)
 		}
 	case couchcore.RebootResult:
+		if result.SessionNotStopped {
+			selectSource(result.Archived)
+		}
+	case couchcore.BenchStartResult:
 		if result.SessionNotStopped {
 			selectSource(result.Archived)
 		}

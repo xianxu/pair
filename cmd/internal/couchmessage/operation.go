@@ -92,9 +92,11 @@ type OperationReceipt struct {
 	Archived string `json:",omitempty"`
 	Warning  string `json:",omitempty"`
 	// Path is the checkout a prepare admission resolved (pair#434).
-	Path     string    `json:",omitempty"`
-	Admitted time.Time `json:",omitzero"`
-	Finished time.Time `json:",omitzero"`
+	Path string `json:",omitempty"`
+	// Provenance is a succeeded bench-start's launch proof (pair#847).
+	Provenance *couchcore.LaunchProvenance `json:",omitempty"`
+	Admitted   time.Time                   `json:",omitzero"`
+	Finished   time.Time                   `json:",omitzero"`
 }
 
 // Answer is what a status query reports for this receipt.
@@ -124,6 +126,7 @@ type ReceiptOutcome struct {
 	Confirmation                                           *couchcore.RecoveryConfirmationOffer
 	Status                                                 ReceiptStatus
 	Code, Detail, Diagnostic, Tag, Archived, Warning, Path string
+	Provenance                                             *couchcore.LaunchProvenance
 }
 
 // ReceiptEvent drives ApplyReceiptEvent.
@@ -198,6 +201,9 @@ func ApplyReceiptEvent(r OperationReceipt, e ReceiptEvent) (OperationReceipt, er
 		r.Confirmation = o.Confirmation
 		r.FailureNonce = o.FailureNonce
 		r.Status, r.Code, r.Detail, r.Diagnostic, r.Tag, r.Archived, r.Warning, r.Path, r.Finished = o.Status, o.Code, o.Detail, o.Diagnostic, o.Tag, o.Archived, o.Warning, o.Path, e.At
+		if o.Status == ReceiptSucceeded {
+			r.Provenance = o.Provenance
+		}
 		return r, nil
 	case ReceiptExpire:
 		switch {

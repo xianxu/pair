@@ -20,6 +20,9 @@ import (
 // no zellij of their own.
 func TestMessageAuthorityListedCheckReadsThePolledListing(t *testing.T) {
 	dir := t.TempDir()
+	// The executable models native replies without opening real endpoints.
+	t.Setenv("HOME", dir)
+	t.Setenv("ZELLIJ_SOCKET_DIR", filepath.Join(dir, "native"))
 	count := filepath.Join(dir, "calls")
 	stub := filepath.Join(dir, "zellij")
 	script := "#!/bin/sh\necho x >> " + count + "\nsleep 1\n" + `case "$*" in
@@ -91,6 +94,9 @@ func TestMessageThreadResolverChecksReadOnlyThePoller(t *testing.T) {
 		t.Fatal(err)
 	}
 	dir := t.TempDir()
+	// The executable models native replies without opening real endpoints.
+	t.Setenv("HOME", dir)
+	t.Setenv("ZELLIJ_SOCKET_DIR", filepath.Join(dir, "native"))
 	count := filepath.Join(dir, "calls")
 	stub := filepath.Join(dir, "zellij")
 	script := "#!/bin/sh\necho x >> " + count + "\nsleep 1\n" + `case "$*" in

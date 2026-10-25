@@ -23,13 +23,14 @@ const (
 type VocabularyContext string
 
 const (
-	GoStructTagVocabulary    VocabularyContext = "go-struct-tag"
-	GoCallArgumentVocabulary VocabularyContext = "go-call-argument"
-	GoCaseValueVocabulary    VocabularyContext = "go-case-value"
-	GoComparisonVocabulary   VocabularyContext = "go-comparison"
-	GoKeyValueVocabulary     VocabularyContext = "go-key-value"
-	GoReturnVocabulary       VocabularyContext = "go-return"
-	ExactLineVocabulary      VocabularyContext = "exact-line"
+	GoStructTagVocabulary     VocabularyContext = "go-struct-tag"
+	GoCallArgumentVocabulary  VocabularyContext = "go-call-argument"
+	GoCaseValueVocabulary     VocabularyContext = "go-case-value"
+	GoComparisonVocabulary    VocabularyContext = "go-comparison"
+	GoKeyValueVocabulary      VocabularyContext = "go-key-value"
+	GoReturnVocabulary        VocabularyContext = "go-return"
+	GoTypedConstantVocabulary VocabularyContext = "go-typed-constant"
+	ExactLineVocabulary       VocabularyContext = "exact-line"
 )
 
 // VocabularyAllowance names one exact non-path use of an artifact-family token.
@@ -60,6 +61,10 @@ var ResolvedBindings = append([]ResolvedBinding{
 	{Name: "editor-endpoint-state", Family: "editor-endpoint", Resolver: "EditorEndpoints", Member: "State"},
 	{Name: "editor-endpoint-stage", Family: "editor-endpoint", Resolver: "EditorEndpoints", Member: "Stage"},
 	{Name: "cache-session-lock", Family: "session-lock", Resolver: "ResolvePairCache", Member: "TerminalLease"},
+	// #866 readinessStore retains the resolved PairCachePaths as a typed field.
+	{Name: "cache-zellij-namespace-lease", Family: "zellij-namespace-lease", Resolver: "ResolvePairCache"},
+	{Name: "cache-zellij-ready-marker", Family: "zellij-ready-marker", Resolver: "ResolvePairCache"},
+	{Name: "composite-pane-checked", Family: "pane", Resolver: "Resolve", Member: "PaneChecked"},
 	{Name: "matched-changelog-family", Family: "changelog", Resolver: "MatchArtifact"},
 	{Name: "parsed-parked-capture", Family: "parked", Resolver: "ParseParkedCapture"},
 	{Name: "cache-native-lock", Family: "native-lock", Resolver: "ResolvePairCache", Member: "NativeLock"},
@@ -187,6 +192,8 @@ type SourceClassification struct {
 var Families = []Family{
 	{Name: "editor-endpoint", Token: "editor-endpoints"},
 	{Name: "session-lock", Token: "session-locks"},
+	{Name: "zellij-namespace-lease", Token: "zellij-scan-locks-v1"},
+	{Name: "zellij-ready-marker", Token: "zellij-ready-v1"},
 	{Name: "fullscreen-return", Token: "fullscreen-return-"},
 	{Name: "fullscreen-lock", Token: "fullscreen-lock-"},
 	{Name: "fullscreen-diagnostics", Token: "fullscreen-diagnostics-"},
@@ -241,6 +248,17 @@ var Families = []Family{
 // shell, Lua, and KDL sources.
 // pair:m5-concept pure
 var SourceClassifications = []SourceClassification{
+	// #844 these counted enum literals identify notice producers, never paths.
+	{Path: "cmd/internal/couchcore/notice_route.go", Kind: VocabularyConsumer, Families: []string{"agent", "continuation", "lifecycle"}, Vocabulary: []VocabularyAllowance{
+		goTypedConstantVocabulary("agent", "agent-priority-warning", "NoticeClass", "NoticeAgentPriorityWarning", 1),
+		goTypedConstantVocabulary("continuation", "continuation-scanner-failed", "NoticeClass", "NoticeContinuationScannerFailed", 1),
+		goTypedConstantVocabulary("continuation", "continuation-missed", "NoticeClass", "NoticeContinuationMissed", 1),
+		goTypedConstantVocabulary("continuation", "continuation-failed", "NoticeClass", "NoticeContinuationFailed", 1),
+		goTypedConstantVocabulary("lifecycle", "lifecycle-attempt-diagnostic", "NoticeClass", "NoticeLifecycleAttemptDiagnostic", 1),
+		goTypedConstantVocabulary("lifecycle", "lifecycle-result-warning", "NoticeClass", "NoticeLifecycleResultWarning", 1),
+		goTypedConstantVocabulary("lifecycle", "remote-lifecycle-diagnostic", "NoticeClass", "NoticeRemoteLifecycleDiagnostic", 1),
+		goTypedConstantVocabulary("lifecycle", "lifecycle-publisher-diagnostic", "NoticeClass", "NoticeLifecyclePublisherDiagnostic", 1),
+	}},
 	{Path: "cmd/internal/artifactpath/editor_endpoint.go", Kind: Constructor, Families: []string{"editor-endpoint"}},
 	{Path: "cmd/internal/couchcmd/editor_endpoint_service.go", Kind: ResolvedConsumer, Families: []string{"editor-endpoint"}, BindingNames: []string{"editor-endpoint-state", "editor-endpoint-stage"}},
 	{Path: "cmd/internal/editorendpoint/store.go", Kind: ResolvedConsumer},
@@ -274,6 +292,18 @@ var SourceClassifications = []SourceClassification{
 	{Path: "cmd/internal/nativelock/lock.go", Kind: ResolvedConsumer, Families: []string{"native-lock"}, BindingNames: []string{"cache-native-lock"}},
 	{Path: "cmd/internal/launcher/recovery_terminal_confirmed_owner.go", Kind: ResolvedConsumer},
 	{Path: "cmd/internal/artifactpath/session_lock.go", Kind: Constructor, Families: []string{"session-lock"}},
+	// #866 native readiness has one constructor authority and one bounded store.
+	{Path: "cmd/internal/artifactpath/zellij_readiness.go", Kind: Constructor, Families: []string{"zellij-namespace-lease", "zellij-ready-marker"}},
+	{Path: "cmd/internal/zellijquery/readiness_os.go", Kind: ResolvedConsumer, Families: []string{"zellij-namespace-lease", "zellij-ready-marker"}, BindingNames: []string{"cache-zellij-namespace-lease", "cache-zellij-ready-marker"}},
+	// Matching retirement consumes the store's resolved paths, never filename literals.
+	{Path: "cmd/internal/zellijquery/readiness_retirement.go", Kind: ResolvedConsumer},
+	{Path: "cmd/internal/launcher/pane_ready.go", Kind: ResolvedConsumer, Families: []string{"pane"}, BindingNames: []string{"scoped-pane"}},
+	{Path: "cmd/internal/panebirth/record.go", Kind: ResolvedConsumer, Families: []string{"pane"}, BindingNames: []string{"composite-pane-checked"}},
+	{Path: "cmd/pair-go/main.go", Kind: VocabularyConsumer, Families: []string{"pane"}, Vocabulary: []VocabularyAllowance{
+		goComparisonVocabulary("pane", "pane-ready", "runWithLegacyRuntime", 1),
+		goCallVocabulary("pane", "pair pane-ready: unexpected arguments\n", "fmt.Fprintf", 1, 1),
+		goCallVocabulary("pane", "pair pane-ready: %v\n", "fmt.Fprintf", 1, 1),
+	}},
 	{Path: "cmd/internal/launcher/session_handoff_os.go", Kind: ResolvedConsumer, Families: []string{"session-lock"}, BindingNames: []string{"cache-session-lock"}},
 	{Path: "cmd/internal/couchcmd/run.go", Kind: ResolvedConsumer},
 	{Path: "cmd/internal/scrollbackcmd/bounded.go", Kind: ResolvedConsumer},
@@ -511,7 +541,7 @@ var SourceClassifications = []SourceClassification{
 		goStructVocabulary("native-session", `json:"session_id"`, "SessionID", 1),
 	}},
 	{Path: "cmd/internal/titlepoller/runtime.go", Kind: ResolvedConsumer, Families: []string{"pane"}, BindingNames: []string{"scoped-pane-glob"}, Vocabulary: []VocabularyAllowance{
-		goCallVocabulary("pane", "--pane-id", "os/exec.Command", 5, 1),
+		goCallVocabulary("pane", "--pane-id", "os/exec.CommandContext", 6, 1),
 	}},
 	{Path: "cmd/internal/launcher/legacy_live.go", Kind: ResolvedConsumer, Families: []string{"pane"}, BindingNames: []string{"legacy-pane"}},
 	{Path: "cmd/internal/launcher/lifecycle.go", Kind: ResolvedConsumer,
@@ -676,6 +706,22 @@ var SourceClassifications = []SourceClassification{
 // the artifact namespace requires an explicit SourceClassification.
 // pair:m5-concept pure
 var NonArtifactSources = []string{
+	// #866 audited individually: native argv admission, generic file leases,
+	// and pure readiness qualification carry no artifact filename authority.
+	"cmd/internal/zellijquery/command.go",
+	"cmd/internal/zellijquery/lease.go",
+	"cmd/internal/zellijquery/readiness.go",
+	// pair#872: copied listing/projection values and private fixture diagnostics;
+	// no tagged Pair artifact paths are constructed or consumed here.
+	"cmd/internal/couchcore/listed_session_evidence.go",
+	"cmd/internal/launcher/listing_evidence.go",
+	"cmd/internal/testcouch/caller_evidence.go",
+	// pair#847 bench verbs: profile validation, Reboot composition and thread
+	// records; orphans are read only through LeftRunningRegistry. None
+	// constructs or names a Pair artifact path.
+	"cmd/internal/couchcore/bench_operation.go",
+	"cmd/internal/couchcore/bench_profile.go",
+	"cmd/internal/couchcore/bench_retire.go",
 	// #871 owns explicit private diagnostics and in-memory lifecycle only.
 	"cmd/internal/couchcmd/profiling.go",
 	"cmd/internal/couchcmd/profiling_model.go",
@@ -750,7 +796,6 @@ var NonArtifactSources = []string{
 	"cmd/internal/launcher/startup_budget.go",
 	"cmd/internal/startupbudget/budget.go",
 	// #823 editorial settings and embedded mode briefs name no Pair artifacts.
-	"cmd/internal/editorial/catalog.go",
 	"cmd/internal/editorial/document.go",
 	"cmd/internal/editorial/markdown.go",
 	"cmd/internal/editorial/source.go",
@@ -900,6 +945,17 @@ var NonArtifactSources = []string{
 	"cmd/internal/couchcore/attention_list.go",
 	"cmd/internal/couchcore/attention_store.go",
 	"cmd/internal/couchtty/console_attention.go",
+
+	// #844 notice routing owns ephemeral broker facts and UI projection, not
+	// Pair tag-artifact filenames. SourceRoot/OwnerRoot are cached identities;
+	// the backend delegates delivery to the existing message broker.
+	"cmd/internal/couchcmd/notice_delivery.go",
+	"cmd/internal/couchcmd/notice_delivery_backend.go",
+	"cmd/internal/couchcore/notice_delivery.go",
+	"cmd/internal/couchtty/console_notice_route.go",
+	// The shared inventory analyzer parses supplied source bytes and literal
+	// fixtures; it neither reads nor constructs session artifact paths.
+	"cmd/internal/testnotice/inventory.go",
 
 	// #587 resource accounting and bounded namespace snapshots are not Pair tag artifacts.
 	"cmd/internal/couchcmd/resources.go",
@@ -1362,6 +1418,7 @@ var NonArtifactSources = []string{
 	"cmd/internal/couchcmd/session_stale_model.go",
 	// #661 apply and rounds: pure resolution, diff and marker code, plus a
 	// round sidecar beside the shadow; no Pair artifact filenames.
+	"cmd/internal/sessionsync/apply_shadow.go", // #862 pure in-memory baseline projection
 	"cmd/internal/sessionsync/edits.go",
 	"cmd/internal/sessionsync/editorial_codec.go",
 	"cmd/internal/sessionsync/editorial.go",
@@ -1704,6 +1761,8 @@ var NonArtifactSources = []string{
 	"cmd/internal/couchtty/mouse.go",
 	"cmd/internal/couchtty/mousetrace.go",
 	"cmd/internal/couchtty/menu.go",
+	// #851 pure mouse selection owns no artifact paths or I/O.
+	"cmd/internal/couchtty/menu_mouse.go",
 	"cmd/internal/couchtty/console_operation_adoption.go",
 	"cmd/internal/couchtty/menu_operations.go",
 	"cmd/internal/couchtty/menu_copy.go",
@@ -1786,6 +1845,7 @@ var NonArtifactSources = []string{
 	"cmd/internal/testcouch/provision.go",
 	"cmd/internal/testcouch/roots.go",
 	"cmd/internal/testcouch/runtime_files.go",
+	"cmd/internal/testcouch/upgrade.go",
 	"cmd/internal/testcouch/terminal.go",
 	// pair#479 test wait helper: bounds a wait by the test deadline; names no file.
 	"cmd/internal/testwait/testwait.go",
@@ -2011,7 +2071,6 @@ var NonArtifactSources = []string{
 	"cmd/internal/zellijsession/zellijsession.go",
 	"cmd/internal/zellijtest/fake.go",
 	"cmd/internal/zellijtest/replies.go",
-	"cmd/pair-go/main.go",
 	"cmd/pair-launch-helper/main.go",
 	"cmd/probes/couchnestedrows/layout.kdl",
 	"cmd/probes/couchnestedrows/main.go",
@@ -2089,6 +2148,12 @@ func familyNames() []string {
 		names = append(names, family.Name)
 	}
 	return names
+}
+
+// goTypedConstantVocabulary grants only an explicit top-level const literal
+// with this exact named type and symbol; computed and inherited values do not qualify.
+func goTypedConstantVocabulary(family, value, typeName, symbol string, count int) VocabularyAllowance {
+	return VocabularyAllowance{Family: family, Value: value, Context: GoTypedConstantVocabulary, Use: typeName + "." + symbol, Count: count}
 }
 
 func goStructVocabulary(family, value, field string, count int) VocabularyAllowance {
@@ -2173,6 +2238,8 @@ type GCClassification struct {
 var GCClassifications = map[string]GCClassification{
 	"editor-endpoint":           {SessionRetention, GCProtected, "Couch EndpointOwner: exact process-incarnation collection; reusable stage after validated reopen"},
 	"session-lock":              {SessionRetention, GCProtected, "PairCachePaths.TerminalLease; stable coordination inode, never unlinked"},
+	"zellij-namespace-lease":    {SessionRetention, GCProtected, "PairCachePaths.ZellijNamespaceLease; fixed256 stable coordination inodes, never unlinked"},
+	"zellij-ready-marker":       {SessionRetention, GCProtected, "PairCachePaths.ZellijReadyMarker; at most128 current positive markers per namespace; exact-generation lifecycle retirement under namespace exclusion, never generic tag-age GC"},
 	"agent-default":             {SessionRetention, GCShared, "ScopePaths.AgentDefault"},
 	"native-lock":               {SessionRetention, GCProtected, "Permanent conversation flock inodes; never unlink online; operator-approved quiescent reclamation only"},
 	"native-session":            {SessionRetention, GCProtected, "LifecyclePaths.Request (embedded metadata only)"},

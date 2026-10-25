@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/xianxu/pair/cmd/internal/couchcore"
+	"github.com/xianxu/pair/cmd/internal/couchmessage"
 	"github.com/xianxu/pair/cmd/internal/couchtty"
 	"github.com/xianxu/pair/cmd/internal/historyarchive"
 	"github.com/xianxu/pair/cmd/internal/hostty"
@@ -188,7 +189,9 @@ func TestSupervisionWarningCompositionRaisesAttention(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer service.Close()
-	service.supervision.Load().notice("startup resend prompt unavailable; request fresh status")
+	// No connected hub exists in this fixture: exercise the typed class-3 fallback,
+	// rather than the old feed-only callback retained for legacy callers.
+	service.supervision.Load().warn(couchcore.NoticeStartupResendUnavailable, couchmessage.Binding{}, "startup resend prompt unavailable; request fresh status")
 	openWarningAttention(t, input, host, "startup resend prompt unavailable")
 }
 

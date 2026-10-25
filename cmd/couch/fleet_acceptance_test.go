@@ -291,9 +291,6 @@ func TestDisposableCouchFleetWake(t *testing.T) {
 	if os.Getenv("PAIR_NATIVE_COUCH_FLEET") != "1" {
 		t.Skip("set PAIR_NATIVE_COUCH_FLEET=1 or make test-couch-fleet")
 	}
-	// Remove this skip when pair#863 lands: it is the only thing stopping
-	// the run.
-	t.Skip("blocked by pair#863: a hub started from the switcher in a fresh explicit-hub fleet never becomes a live broker caller (couch --actors: caller lookup: recipient is not live)")
 	binaries := testcouch.Build(t)
 	for _, agent := range []string{"claude", "codex"} {
 		if !t.Run(agent, func(t *testing.T) {
@@ -307,23 +304,16 @@ func TestDisposableCouchFleetWake(t *testing.T) {
 			}
 			ctx, cancel := context.WithTimeout(t.Context(), 300*time.Second)
 			defer cancel()
-			// Since #739 no hub starts by itself; the operator starts the main
-			// hub from the switcher (#863 tracks Fleet.Start).
-			if err := fleet.StartCold(ctx); err != nil {
-				t.Fatal(err)
+			// A fresh namespace starts both configured hubs by itself (#863);
+			// the main hub then launches the plain worker.
+			if err := fleet.Start(ctx); err != nil {
+				t.Fatalf("fresh startup: %v\n%s", err, fleet.Screen())
 			}
-			wakeFleetStartHub(t, ctx, fleet, fleet.Workspaces.Primary, agent)
-			if err := fleet.WaitAgent(ctx, 0); err != nil {
-				t.Fatalf("main hub start: %v\n%s", err, fleet.Screen())
-			}
-			if err := fleet.WaitActors(ctx, 1); err != nil {
-				t.Fatalf("main hub registration: %v\n%s", err, fleet.Screen())
-			}
-			// fixture:1 is its own hub, so it is started the same way; the
-			// main hub launches the plain worker.
-			wakeFleetStartHub(t, ctx, fleet, fleet.Workspaces.Workers[1], agent)
 			if err := fleet.WaitAgent(ctx, 1); err != nil {
 				t.Fatalf("second hub start: %v\n%s", err, fleet.Screen())
+			}
+			if err := fleet.WaitActors(ctx, 2); err != nil {
+				t.Fatalf("hub registration: %v\n%s", err, fleet.Screen())
 			}
 			if err := fleet.StartWorker(ctx, 2); err != nil {
 				t.Fatal(err)
@@ -331,6 +321,10 @@ func TestDisposableCouchFleetWake(t *testing.T) {
 			if err := fleet.Resize(36, 132); err != nil {
 				t.Fatal(err)
 			}
+			// Only a conversation is resumable from disk: each hub the test
+			// later brings back accepts one turn first.
+			wakeFleetConverse(t, ctx, fleet, 1, 0, "wake-main-hub-turn-"+agent)
+			wakeFleetConverse(t, ctx, fleet, 0, 1, "wake-second-hub-turn-"+agent)
 			if err := fleet.ParkAndQuit(ctx); err != nil {
 				t.Fatal(err)
 			}
@@ -344,10 +338,16 @@ func TestDisposableCouchFleetWake(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
+				// Keyed by fixture slot: tags are generated, workspaces are not.
+				slots := map[string]string{fleet.Workspaces.Primary: "0", fleet.Workspaces.Workers[1]: "1", fleet.Workspaces.Workers[2]: "2"}
 				out := map[string]bool{}
 				for _, record := range snapshot.Records {
+					slot, known := slots[record.StartingPath]
+					if !known {
+						t.Fatalf("unexpected thread %s at %s", record.Address.Tag, record.StartingPath)
+					}
 					_, ok := couchcore.ThreadAsleep(record)
-					out[string(record.Address.Tag)] = ok
+					out[slot] = ok
 				}
 				return out
 			}
@@ -378,11 +378,12 @@ func TestDisposableCouchFleetWake(t *testing.T) {
 				}
 			}
 			// The operator resumes the main hub from the switcher.
+			// Its row reads as the bare repo name (slot 0) and is selected
+			// when the cold start opens the switcher; Tab opens its actions.
 			wakeFleetOpenSwitcher(t, ctx, fleet)
-			if err := fleet.Input([]byte("fixture:0")); err != nil {
-				t.Fatal(err)
-			}
+			forceFleetWaitScreen(t, ctx, fleet, "▸ fixture  "+fleet.Workspaces.Primary+" ")
 			forceFleetPress(t, fleet, "\t", 9, 1)
+			forceFleetWaitScreen(t, ctx, fleet, "Resume from disk")
 			if err := fleet.Input([]byte("Resume from disk")); err != nil {
 				t.Fatal(err)
 			}
@@ -413,6 +414,15 @@ func TestDisposableCouchFleetWake(t *testing.T) {
 				t.Fatalf("repeat couch --wake: %+v %v", again, err)
 			}
 			t.Logf("repeat couch --wake: %s", strings.TrimSpace(again.Stdout))
+			if !strings.Contains(again.Stdout, "no asleep hubs to wake") {
+				t.Fatalf("repeat couch --wake woke something: %+v", again)
+			}
+			if ready, err := fleet.Agent(2); err == nil && syscall.Kill(ready.PID, 0) == nil {
+				t.Fatalf("plain worker started by a repeat couch --wake: %+v", ready)
+			}
+			if woke := asleep(); woke["0"] || woke["1"] || !woke["2"] {
+				t.Fatalf("asleep after repeat wake: %v", woke)
+			}
 			cleanup, cancelCleanup := context.WithTimeout(context.Background(), 30*time.Second)
 			defer cancelCleanup()
 			if err := fleet.Close(cleanup); err != nil {
@@ -427,33 +437,27 @@ func TestDisposableCouchFleetWake(t *testing.T) {
 	}
 }
 
-// wakeFleetStartHub is the operator's start gesture for a hub with no row:
-// the switcher's start form, its path, the agent, then Enter to start.
-func wakeFleetStartHub(t *testing.T, ctx context.Context, fleet *testcouch.Fleet, dir, agent string) {
+// wakeFleetConverse sends one message from hub from to hub to and waits until
+// the receiving fixture records it as an accepted turn.
+func wakeFleetConverse(t *testing.T, ctx context.Context, fleet *testcouch.Fleet, from, to int, message string) {
 	t.Helper()
-	// The switcher may already be open (a cold start opens it); Ctrl+Space
-	// opens it, and Ctrl+Space in it opens the start form.
-	wakeFleetOpenSwitcher(t, ctx, fleet)
-	forceFleetPress(t, fleet, "\x00", 32, 5)
-	forceFleetWaitScreen(t, ctx, fleet, "start thread")
-	if err := fleet.Input([]byte(dir)); err != nil {
-		t.Fatal(err)
+	result, err := fleet.ActorCLI(ctx, from, "--send-to", fmt.Sprintf("fixture:%d", to), "--message", message)
+	if err != nil || result.ExitCode != 0 {
+		t.Fatalf("send to fixture:%d: %+v %v", to, result, err)
 	}
-	// Down moves to the agent field and requests the preview; "args
-	// repo-default" shows it accepted, and one Enter then starts the hub
-	// (pair#863's measured gesture).
-	forceFleetPress(t, fleet, "\x1b[B", 57353, 1)
-	for i := 0; i < 8 && !strings.Contains(fleet.Screen(), "agent "+agent); i++ {
-		forceFleetPress(t, fleet, "\x1b[C", 57351, 1)
-		next, stop := context.WithTimeout(ctx, 2*time.Second)
-		_ = waitFleet(next, func() (bool, error) { return strings.Contains(fleet.Screen(), "agent "+agent), nil })
-		stop()
-	}
-	forceFleetWaitScreen(t, ctx, fleet, "agent "+agent)
-	forceFleetWaitScreen(t, ctx, fleet, "args  repo-default")
-	forceFleetPress(t, fleet, "\r", 13, 1)
-	if err := waitFleet(ctx, func() (bool, error) { return !strings.Contains(fleet.Screen(), "start thread"), nil }); err != nil {
-		t.Fatalf("start form for %s stayed open: %v\n%s", dir, err, fleet.Screen())
+	if err := waitFleet(ctx, func() (bool, error) {
+		accepted, err := fleet.Accepted(to)
+		if errors.Is(err, os.ErrNotExist) {
+			return false, nil
+		}
+		for _, input := range accepted {
+			if strings.Contains(input.Body, message) {
+				return true, nil
+			}
+		}
+		return false, err
+	}); err != nil {
+		t.Fatalf("fixture:%d never accepted its turn: %v", to, err)
 	}
 }
 

@@ -99,13 +99,8 @@ func TestAutomaticInputStallSupervisorEffects(t *testing.T) {
 			if len(notices) != want {
 				t.Fatalf("notices=%q", notices)
 			}
-			n := strings.Count(host.Written(), "\x1b]777;notify;")
-			if valid && fault != "closed-desktop" {
-				if n != 1 {
-					t.Fatalf("notifications=%d: %q", n, host.Written())
-				}
-			} else if n != 0 {
-				t.Fatalf("notifications=%d", n)
+			if n := strings.Count(host.Written(), "\x1b]777;notify;"); n != 0 {
+				t.Fatalf("automatic stall emitted %d desktop notifications", n)
 			}
 			if valid && fault != "missing-hub" && fault != "hub-origin" {
 				receipt, err := r.s.broker.Status(caller, req.ID)
@@ -120,8 +115,7 @@ func TestAutomaticInputStallReconnectAndCapacity(t *testing.T) {
 	r, b := hubMessageRig(t)
 	worker := b[2]
 	calls := 0
-	r.s.SetDesktopNotify(func(context.Context, string, string) error { calls++; return nil })
-	r.s.supervision.Store(newSupervisionCoordinator(r.s, func(string) {}))
+	r.s.supervision.Store(newSupervisionCoordinator(r.s, func(string) { calls++ }))
 	if got := stallCall(t, r, stallRequest(worker, 2)); got.Code != "ok" {
 		t.Fatal(got)
 	}
@@ -165,16 +159,13 @@ func TestAutomaticInputStallOwningHub(t *testing.T) {
 	}
 }
 
-func TestAutomaticInputStallReservesBeforeBlockedIO(t *testing.T) {
+func TestAutomaticInputStallReservesBeforeBlockedOutput(t *testing.T) {
 	r, b := hubMessageRig(t)
 	worker := b[2]
 	entered, release := make(chan struct{}), make(chan struct{})
 	r.s.supervision.Store(newSupervisionCoordinator(r.s, func(string) {}))
-	r.s.SetDesktopNotify(func(context.Context, string, string) error {
-		close(entered)
-		<-release
-		return fmt.Errorf("write outcome unknown")
-	})
+	output := func(couchtty.Notice) { close(entered); <-release }
+	r.s.noticeOutput.Store(&output)
 	first := make(chan couchmessage.Response, 1)
 	go func() {
 		var got couchmessage.Response
@@ -185,7 +176,7 @@ func TestAutomaticInputStallReservesBeforeBlockedIO(t *testing.T) {
 		first <- got
 	}()
 	<-entered
-	// A duplicate completes while the first desktop write is still blocked.
+	// A duplicate completes while the first local output is still blocked.
 	duplicate := make(chan couchmessage.Response, 1)
 	go func() {
 		var got couchmessage.Response
@@ -198,10 +189,10 @@ func TestAutomaticInputStallReservesBeforeBlockedIO(t *testing.T) {
 			t.Errorf("duplicate %+v", got)
 		}
 	case <-time.After(2 * time.Second):
-		t.Error("duplicate blocked behind IO")
+		t.Error("duplicate blocked behind output")
 	}
 	close(release)
-	if got := <-first; got.Code != "uncertain" {
+	if got := <-first; got.Code != "ok" {
 		t.Fatalf("first %+v", got)
 	}
 	if got := stallCall(t, r, stallRequest(worker, 2)); got.Code != "ok" {
@@ -213,8 +204,7 @@ func TestAutomaticInputStallVerifiedReplacementResetsSequence(t *testing.T) {
 	r := newServiceRig(t)
 	worker := r.connect(2)
 	calls := 0
-	r.s.supervision.Store(newSupervisionCoordinator(r.s, func(string) {}))
-	r.s.SetDesktopNotify(func(context.Context, string, string) error { calls++; return nil })
+	r.s.supervision.Store(newSupervisionCoordinator(r.s, func(string) { calls++ }))
 	_ = stallCall(t, r, stallRequest(worker, 20))
 	r.disconnect(worker)
 	replacement := worker
@@ -309,10 +299,10 @@ func TestAutomaticInputStallUnsubmittedComposerNotice(t *testing.T) {
 	want := worker.Slot + "'s composer holds an unsubmitted automatic message; press Alt+Enter or clear it"
 	mu.Lock()
 	defer mu.Unlock()
-	if len(notices) != 1 || len(desktop) != 1 {
+	if len(notices) != 1 || len(desktop) != 0 {
 		t.Fatalf("notices=%q desktop=%q", notices, desktop)
 	}
-	for _, body := range []string{notices[0], desktop[0], receipt.Message.Body} {
+	for _, body := range []string{notices[0], receipt.Message.Body} {
 		if !strings.Contains(body, want) {
 			t.Errorf("missing recovery instruction %q in %q", want, body)
 		}
@@ -322,12 +312,19 @@ func TestAutomaticInputStallUnsubmittedComposerNotice(t *testing.T) {
 	}
 }
 
-func TestAutomaticInputStallAutomationOffRetiresOccurrenceKeepsOutputs(t *testing.T) {
+func TestAutomaticInputStallAutomationOffRetiresOccurrenceKeepsFeed(t *testing.T) {
 	r, b := hubMessageRig(t)
 	worker := b[2]
 	r.s.automation = newHubAutomationOwner(map[string]bool{"/repo0": true, "/repo1": false}, couchcore.StartupUnknown, nil)
 	var status, desktop atomic.Int64
-	r.s.supervision.Store(newSupervisionCoordinator(r.s, func(string) { status.Add(1) }))
+	r.s.supervision.Store(newSupervisionCoordinator(r.s, func(string) {}))
+	output := func(n couchtty.Notice) {
+		if n.Class != couchcore.NoticeAutomaticInputStall || !n.HubHandled || n.Thread != bindingThread(worker) {
+			t.Errorf("notice=%+v", n)
+		}
+		status.Add(1)
+	}
+	r.s.noticeOutput.Store(&output)
 	r.s.SetDesktopNotify(func(context.Context, string, string) error { desktop.Add(1); return nil })
 	req := stallRequest(worker, 2)
 	got := stallCall(t, r, req)
@@ -337,8 +334,8 @@ func TestAutomaticInputStallAutomationOffRetiresOccurrenceKeepsOutputs(t *testin
 	if got.Code != "ok" || got.Error != "" {
 		t.Fatalf("intentional suppression manufactured a delivery failure: %+v", got)
 	}
-	if status.Load() != 1 || desktop.Load() != 1 {
-		t.Fatalf("suppression hid local output: status=%d desktop=%d", status.Load(), desktop.Load())
+	if status.Load() != 1 || desktop.Load() != 0 {
+		t.Fatalf("suppression lost feed or emitted desktop: status=%d desktop=%d", status.Load(), desktop.Load())
 	}
 	if _, err := r.s.controlAutomation("/repo1", "on"); err != nil {
 		t.Fatal(err)
@@ -352,7 +349,7 @@ func TestAutomaticInputStallAutomationOffRetiresOccurrenceKeepsOutputs(t *testin
 	if _, ok, _ := r.s.broker.ReceiptSnapshot(req.ID); ok {
 		t.Fatal("turning automation on replayed old occurrence")
 	}
-	if status.Load() != 1 || desktop.Load() != 1 {
+	if status.Load() != 1 || desktop.Load() != 0 {
 		t.Fatal("reserved occurrence repeated desktop or status output")
 	}
 	// A distinct new stall remains eligible after explicit enabling.
@@ -363,8 +360,8 @@ func TestAutomaticInputStallAutomationOffRetiresOccurrenceKeepsOutputs(t *testin
 	if receipt, ok, _ := r.s.broker.ReceiptSnapshot(next.ID); !ok || receipt.Message.To != b[1] {
 		t.Fatalf("new occurrence lost hub delivery: %+v", receipt)
 	}
-	if status.Load() != 2 || desktop.Load() != 2 {
-		t.Fatal("new occurrence lost independent output")
+	if status.Load() != 2 || desktop.Load() != 0 {
+		t.Fatal("new occurrence lost feed or emitted desktop")
 	}
 }
 
@@ -376,12 +373,14 @@ func TestAutomaticInputStallPolicyEpochFencesBlockedStatusOutput(t *testing.T) {
 	unblock := func() { releaseOnce.Do(func() { close(release) }) }
 	t.Cleanup(unblock)
 	var statuses, desktop atomic.Int64
-	r.s.supervision.Store(newSupervisionCoordinator(r.s, func(string) {
+	r.s.supervision.Store(newSupervisionCoordinator(r.s, func(string) {}))
+	output := func(couchtty.Notice) {
 		if statuses.Add(1) == 1 {
 			close(entered)
 			<-release
 		}
-	}))
+	}
+	r.s.noticeOutput.Store(&output)
 	r.s.SetDesktopNotify(func(context.Context, string, string) error { desktop.Add(1); return nil })
 	req := stallRequest(worker, 2)
 	done := make(chan couchmessage.Response, 1)
@@ -415,8 +414,8 @@ func TestAutomaticInputStallPolicyEpochFencesBlockedStatusOutput(t *testing.T) {
 	if _, known, _ := r.s.broker.ReceiptSnapshot(req.ID); known {
 		t.Fatal("stale reserved stall crossed off-on policy epoch")
 	}
-	if statuses.Load() != 1 || desktop.Load() != 1 {
-		t.Fatal("policy change hid independent local outputs")
+	if statuses.Load() != 1 || desktop.Load() != 0 {
+		t.Fatal("policy change lost feed or emitted desktop")
 	}
 	if got := stallCall(t, r, stallRequest(worker, 3)); got.Code != "ok" {
 		t.Fatal(got)
@@ -429,7 +428,9 @@ func TestAutomaticInputStallPolicyEpochFencesBlockedStatusOutput(t *testing.T) {
 func TestAutomaticInputStallOriginalPermitReachesMailboxCommit(t *testing.T) {
 	r, b := hubMessageRig(t)
 	var statuses, desktop atomic.Int64
-	r.s.supervision.Store(newSupervisionCoordinator(r.s, func(string) { statuses.Add(1) }))
+	r.s.supervision.Store(newSupervisionCoordinator(r.s, func(string) {}))
+	output := func(couchtty.Notice) { statuses.Add(1) }
+	r.s.noticeOutput.Store(&output)
 	r.s.SetDesktopNotify(func(context.Context, string, string) error { desktop.Add(1); return nil })
 	seen := flipAutomationAtReserve(t, r.s, b[1], "/repo1")
 	request := stallRequest(b[2], 2)
@@ -442,13 +443,13 @@ func TestAutomaticInputStallOriginalPermitReachesMailboxCommit(t *testing.T) {
 	if _, known, _ := r.s.broker.ReceiptSnapshot(request.ID); known {
 		t.Fatal("stale stall input entered mailbox")
 	}
-	if statuses.Load() != 1 || desktop.Load() != 1 {
-		t.Fatal("suppression hid passive outputs")
+	if statuses.Load() != 1 || desktop.Load() != 0 {
+		t.Fatal("suppression lost feed or emitted desktop")
 	}
 	if got := stallCall(t, r, request); got.Code != "ok" {
 		t.Fatal(got)
 	}
-	if statuses.Load() != 1 || desktop.Load() != 1 {
+	if statuses.Load() != 1 || desktop.Load() != 0 {
 		t.Fatal("retired stall replayed")
 	}
 	next := stallRequest(b[2], 3)
@@ -457,5 +458,92 @@ func TestAutomaticInputStallOriginalPermitReachesMailboxCommit(t *testing.T) {
 	}
 	if receipt, known, _ := r.s.broker.ReceiptSnapshot(next.ID); !known || receipt.Message.To != b[1] {
 		t.Fatal("fresh occurrence lost valid admission")
+	}
+}
+
+func TestAutomaticInputStallTypedNoticeKeepsCanonicalDelivery(t *testing.T) {
+	r, b := hubMessageRig(t)
+	worker, hub := b[2], b[1]
+	r.waitWorkspace(worker)
+	var notices []couchtty.Notice
+	output := func(n couchtty.Notice) { notices = append(notices, n) }
+	r.s.noticeOutput.Store(&output)
+	legacy, desktop := 0, 0
+	r.s.supervision.Store(newSupervisionCoordinator(r.s, func(string) { legacy++ }))
+	r.s.SetDesktopNotify(func(context.Context, string, string) error { desktop++; return fmt.Errorf("unavailable") })
+	req := stallRequest(worker, 2)
+	if got := stallCall(t, r, req); got.Code != "ok" {
+		t.Fatal(got)
+	}
+	if got := stallCall(t, r, req); got.Code != "ok" {
+		t.Fatal(got)
+	}
+	if len(notices) != 1 || legacy != 0 || desktop != 0 {
+		t.Fatalf("typed=%+v legacy=%d desktop=%d", notices, legacy, desktop)
+	}
+	n := notices[0]
+	if n.Class != couchcore.NoticeAutomaticInputStall || !n.HubHandled || n.Thread != bindingThread(worker) || n.Origin != couchcore.NoticeSystemOrigin {
+		t.Fatalf("notice=%+v", n)
+	}
+	receipt, known, _ := r.s.broker.ReceiptSnapshot(req.ID)
+	if !known || receipt.Message.To != hub || receipt.Message.Body != n.Body {
+		t.Fatalf("canonical receipt=%+v known=%v notice=%+v", receipt, known, n)
+	}
+}
+
+func TestAutomaticInputStallTypedOwnerAvailability(t *testing.T) {
+	for _, state := range []string{"enabled", "disabled", "unavailable"} {
+		t.Run(state, func(t *testing.T) {
+			r, b := hubMessageRig(t)
+			worker, hub := b[2], b[1]
+			r.waitWorkspace(worker)
+			if state == "disabled" {
+				if _, err := r.s.controlAutomation("/repo1", "off"); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if state == "unavailable" {
+				r.disconnect(hub)
+			}
+			var notices []couchtty.Notice
+			output := func(n couchtty.Notice) { notices = append(notices, n) }
+			r.s.noticeOutput.Store(&output)
+			r.s.supervision.Store(newSupervisionCoordinator(r.s, func(string) { t.Error("typed output duplicated legacy feed") }))
+			desktop := 0
+			r.s.SetDesktopNotify(func(context.Context, string, string) error { desktop++; return nil })
+			req := stallRequest(worker, 2)
+			got := stallCall(t, r, req)
+			if state == "unavailable" {
+				if got.Code != "uncertain" || got.Error != "owning hub unavailable" {
+					t.Fatal(got)
+				}
+			} else if got.Code != "ok" {
+				t.Fatal(got)
+			}
+			if len(notices) != 1 || desktop != 0 {
+				t.Fatalf("notices=%+v desktop=%d", notices, desktop)
+			}
+			n := notices[0]
+			owner := r.s.NoticeOwner(couchcore.NoticeDeliveryOccurrence{Thread: n.Thread})
+			route := couchcore.RouteNotice(couchcore.NoticeRouteInput{Class: n.Class, Origin: n.Origin, Owner: owner.State, HubHandled: n.HubHandled})
+			if !route.Feed || route.Hub || route.Bell != (state == "unavailable") {
+				t.Fatalf("owner=%+v route=%+v notice=%+v", owner, route, n)
+			}
+			receipt, known, _ := r.s.broker.ReceiptSnapshot(req.ID)
+			if known != (state == "enabled") || known && receipt.Message.To != hub {
+				t.Fatalf("canonical receipt=%+v known=%v", receipt, known)
+			}
+			if state == "disabled" {
+				if _, err := r.s.controlAutomation("/repo1", "on"); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if got := stallCall(t, r, req); got.Code != "ok" {
+				t.Fatal(got)
+			}
+			if len(notices) != 1 {
+				t.Fatalf("reserved occurrence replayed: %+v", notices)
+			}
+		})
 	}
 }

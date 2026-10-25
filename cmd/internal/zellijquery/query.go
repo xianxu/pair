@@ -20,8 +20,11 @@ var ErrNoReply = errors.New("zellij query returned no reply")
 // Source configures one read boundary. Nil Env inherits the caller environment;
 // disposable fixtures supply their complete environment explicitly.
 type Source struct {
-	Path string
-	Env  []string
+	// ExplicitRecovery identifies a lifecycle observation at the existing caller
+	// seam. Both modes preserve legacy endpoints and exclude live creators.
+	ExplicitRecovery bool
+	Path             string
+	Env              []string
 	// Run defaults to zellijexec.Run, which owns and joins a private query
 	// group. A CLI already owning its whole group must select InheritedGroup
 	// so queries remain inside that owner's EOF/shutdown cleanup boundary.
@@ -112,7 +115,7 @@ func (s Source) readAttempt(ctx context.Context, callerDeadline time.Time, args 
 		path = "zellij"
 	}
 	cmd := exec.CommandContext(ctx, path, args...)
-	cmd.Env = s.Env
+	cmd.Env = ChildEnvironment(s.Env)
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout, cmd.Stderr = &stdout, &stderr
 	if observe, _ := ctx.Value(observerKey{}).(func(Observation)); observe != nil {
@@ -136,6 +139,21 @@ func (s Source) readAttempt(ctx context.Context, callerDeadline time.Time, args 
 			})
 		}()
 	}
+	acquire := AcquireProbe
+	if s.ExplicitRecovery {
+		acquire = AcquireExplicitCommand
+	}
+	lease, err := acquire(ctx, cmd.Env)
+	if err != nil {
+		result.ProcessErr = err
+		return result, err
+	}
+	defer func() {
+		if err := lease.Close(); err != nil {
+			result.ProcessErr = errors.Join(result.ProcessErr, err)
+			readErr = errors.Join(readErr, err)
+		}
+	}()
 	run := s.Run
 	if run == nil {
 		run = zellijexec.Run

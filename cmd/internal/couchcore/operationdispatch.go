@@ -366,6 +366,26 @@ func CouchLiveOwnerExecutor(c *Couch) OperationExecutor {
 				return nil, err
 			}
 			return c.Reboot(ctx, RebootTarget{Path: target.Path, Address: target.Address, Agent: a["agent"]})
+		case OpBenchStart, OpBenchRetire:
+			target, err := resolveRecoveryOperationTarget(ctx, c, a)
+			if err != nil && a["tag"] != "" {
+				var address ThreadAddress
+				address, err = resolveThreadForArchive(c, a)
+				target = ResumeTarget{Address: address}
+			}
+			if err != nil {
+				return nil, err
+			}
+			reboot := RebootTarget{Path: target.Path, Address: target.Address}
+			if call.Operation.Name == OpBenchRetire {
+				return c.RetireBenchSlot(ctx, reboot)
+			}
+			argv, err := DecodeArgumentArray([]byte(a["argv"]))
+			if err != nil {
+				return nil, err
+			}
+			reboot.Agent, reboot.Argv = a["agent"], &argv
+			return c.BenchStart(ctx, reboot)
 		case "reap":
 			if path := a["path"]; path != "" {
 				return c.Reap(ctx, ReapTarget{Path: path})

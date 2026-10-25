@@ -13,9 +13,44 @@ type AnnotationCleanup func(context.Context, uint64) error
 // AnnotationAdmission captures authority before reading a request body.
 // Its mutations recheck the permit at dispatch, including across Off/On cycles.
 type AnnotationAdmission struct {
-	board                    *Board
-	permit                   capability.Permit
-	operatorSketchGeneration *uint64
+	board     *Board
+	authority annotationAuthority
+}
+
+// annotationAuthority is issued only by this Board. A zero value grants nothing.
+type annotationAuthority struct {
+	kind       annotationAuthorityKind
+	permit     capability.Permit
+	generation uint64
+}
+type annotationAuthorityKind uint8
+
+const (
+	viewerAnnotation annotationAuthorityKind = iota
+	ownerAnnotation
+	ownerSketch
+)
+
+// AdmitOperatorAnnotationGeneration is for authenticated operator ingress only.
+// Unlike viewer permission, settled OFF still admits the cast owner's tools.
+func (b *Board) AdmitOperatorAnnotationGeneration(expected uint64) (AnnotationAdmission, error) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	a := AnnotationAdmission{board: b, authority: annotationAuthority{kind: ownerAnnotation, generation: expected}}
+	if err := b.admissionLocked(a.authority); err != nil {
+		return AnnotationAdmission{}, err
+	}
+	return a, nil
+}
+
+func (b *Board) admitOperatorAnnotation() (AnnotationAdmission, error) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	a := AnnotationAdmission{board: b, authority: annotationAuthority{kind: ownerAnnotation, generation: b.annotation.Generation}}
+	if err := b.admissionLocked(a.authority); err != nil {
+		return AnnotationAdmission{}, err
+	}
+	return a, nil
 }
 
 type annotationAttempt struct {
@@ -59,7 +94,7 @@ func (b *Board) AdmitOperatorSketchGeneration(expected uint64) (AnnotationAdmiss
 	if expected != b.annotation.Generation {
 		return AnnotationAdmission{}, ErrDisabled
 	}
-	return AnnotationAdmission{board: b, operatorSketchGeneration: &expected}, nil
+	return AnnotationAdmission{board: b, authority: annotationAuthority{kind: ownerSketch, generation: expected}}, nil
 }
 
 func (b *Board) admitAnnotationLocked() (AnnotationAdmission, error) {
@@ -70,7 +105,7 @@ func (b *Board) admitAnnotationLocked() (AnnotationAdmission, error) {
 	if !ok {
 		return AnnotationAdmission{}, ErrDisabled
 	}
-	return AnnotationAdmission{board: b, permit: p}, nil
+	return AnnotationAdmission{board: b, authority: annotationAuthority{permit: p}}, nil
 }
 
 // Check rechecks captured authority without acquiring the dispatch lock. The
@@ -82,26 +117,43 @@ func (a AnnotationAdmission) Check() error {
 	}
 	a.board.mu.Lock()
 	defer a.board.mu.Unlock()
-	if a.operatorSketchGeneration != nil {
-		if a.board.closed {
-			return ErrClosed
-		}
-		if *a.operatorSketchGeneration != a.board.annotation.Generation {
-			return ErrDisabled
-		}
-		return nil
-	}
-	return a.board.admissionLocked(a.permit)
+	return a.board.authorityLocked(a.authority, true)
 }
 
-func (b *Board) admissionLocked(p capability.Permit) error {
+func (b *Board) admissionLocked(a annotationAuthority) error {
+	return b.authorityLocked(a, false)
+}
+
+// surfaceAdmissionLocked prevents trusted owner authority from being used by
+// ordinary viewer entry points, and viewer grants from entering owner surfaces.
+func (b *Board) surfaceAdmissionLocked(a annotationAuthority, operator bool) error {
+	if (operator && a.kind != ownerAnnotation) || (!operator && a.kind != viewerAnnotation) {
+		return ErrDisabled
+	}
+	return b.admissionLocked(a)
+}
+
+func (b *Board) authorityLocked(a annotationAuthority, sketch bool) error {
 	if b.closed {
 		return ErrClosed
 	}
-	if !b.annotation.Admits(p) {
-		return ErrDisabled
+	switch a.kind {
+	case ownerAnnotation:
+		if a.generation == b.annotation.Generation && (b.annotation.Phase == capability.Off || b.annotation.Phase == capability.On) {
+			return nil
+		}
+	case ownerSketch:
+		// Console sketches historically use generation fencing independently of
+		// viewer cleanup. Do not extend this policy to owner Note or Pointer.
+		if sketch && a.generation == b.annotation.Generation {
+			return nil
+		}
+	case viewerAnnotation:
+		if b.annotation.Admits(a.permit) {
+			return nil
+		}
 	}
-	return nil
+	return ErrDisabled
 }
 
 func (b *Board) AnnotationCapability() capability.Snapshot {

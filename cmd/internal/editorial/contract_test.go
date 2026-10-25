@@ -10,6 +10,7 @@ import (
 	"testing"
 )
 
+// The #823 snapshot remains historical evidence, including frozen legacy modes.
 func TestContractPinnedSourceBytes(t *testing.T) {
 	raw, err := os.ReadFile("../../../workshop/evidence/000823/contract-provenance.json")
 	if err != nil {
@@ -29,16 +30,9 @@ func TestContractPinnedSourceBytes(t *testing.T) {
 	if pin.Commit != "4f10a45d038acb2324c5a19e74a78f4a593571e6" || len(pin.Files) != 39 {
 		t.Fatalf("unexpected source pin: %s %d", pin.Commit, len(pin.Files))
 	}
-	c, err := DefaultCatalog()
-	if err != nil {
-		t.Fatal(err)
-	}
 	for _, f := range pin.Files {
 		rel := strings.TrimPrefix(f.Source, "construct/local/universal-review/")
 		path := filepath.Join("testdata/contract", rel)
-		if strings.HasPrefix(rel, "modes/") {
-			path = rel
-		}
 		data, err := os.ReadFile(path)
 		if err != nil {
 			t.Error(err)
@@ -47,19 +41,6 @@ func TestContractPinnedSourceBytes(t *testing.T) {
 		digest := sha256.Sum256(data)
 		if len(data) != f.Bytes || hex.EncodeToString(digest[:]) != f.SHA256 {
 			t.Errorf("%s differs from pinned source", path)
-		}
-		if strings.HasPrefix(rel, "modes/") {
-			mode, ok := c.Lookup(strings.TrimSuffix(filepath.Base(rel), ".md"))
-			if !ok {
-				t.Fatalf("mode missing: %s", rel)
-			}
-			_, body, ok := strings.Cut(string(data[4:]), "\n---\n")
-			if !ok {
-				t.Fatalf("bad source frontmatter: %s", rel)
-			}
-			if mode.Brief != body {
-				t.Errorf("%s brief differs from exact pinned body", rel)
-			}
 		}
 	}
 }

@@ -38,6 +38,14 @@ which ("note \"…\" has unsaved edits; save or cancel it, then submit again").
 Resolving after dispatch uses each note's captured revision, so a note edited
 after the press stays open.
 
+In the trusted cast Chrome, **Note** and **Pointer** work while viewer annotation
+is OFF; the recorder authenticates the current isolated CDP context and document,
+not a claimed operator name. Pending cleanup, pause, remote driving and document
+retirement still refuse new work. Viewers require an ON grant and an annotating
+link; their Notes panel explains which access to request. Owner preparation and
+save keep their original generation, signed recovery scope and exact-operation
+unknown-outcome reconciliation.
+
 The private operator Chrome UI uses one **Notes** panel for annotations and
 sketches, with compact type icons and no thumbnails. Its fixed header carries
 informational pending counts and **Pending feedback is out of date: …** status.

@@ -29,6 +29,42 @@ func TestInternalExecAlarmDoesNotLaunchOrResolveRuntime(t *testing.T) {
 	}
 }
 
+func TestInternalPaneReadyDoesNotLaunchOrResolveRuntime(t *testing.T) {
+	t.Setenv("PAIR_TAG", "")
+	var stdout, stderr bytes.Buffer
+	if code := runWithLegacyRuntime([]string{"internal", "pane-ready"}, &stdout, &stderr, nil); code != 2 || !strings.Contains(stderr.String(), "pane-ready") {
+		t.Fatalf("internal pane readiness: code=%d stdout=%q stderr=%q", code, stdout.String(), stderr.String())
+	}
+}
+
+func TestInternalZellijCommandRoutesBeforeRuntimeAndPreservesExit(t *testing.T) {
+	root := t.TempDir()
+	t.Setenv("HOME", root)
+	t.Setenv("TMPDIR", root)
+	t.Setenv("ZELLIJ_SOCKET_DIR", filepath.Join(root, "sockets"))
+	t.Setenv("PATH", root)
+	if err := os.WriteFile(filepath.Join(root, "zellij"), []byte("#!/bin/sh\nprintf '%s\\n' \"$@\"\nprintf 'native diagnostic' >&2\nexit 17\n"), 0700); err != nil {
+		t.Fatal(err)
+	}
+	var stdout, stderr bytes.Buffer
+	code := runWithLegacyRuntime([]string{"internal", "zellij-command", "--", "action", "rename-pane", "two words; $(literal)"}, &stdout, &stderr, nil)
+	if code != 17 || stdout.String() != "action\nrename-pane\ntwo words; $(literal)\n" || !strings.Contains(stderr.String(), "native diagnostic") {
+		t.Fatalf("native route: code=%d stdout=%q stderr=%q", code, stdout.String(), stderr.String())
+	}
+}
+
+func TestInternalZellijCommandRefusesInvalidArgvBeforeRuntime(t *testing.T) {
+	for _, tail := range [][]string{nil, {"action", "rename-pane", "x"}, {"--"}, {"--", "attach", "demo"}} {
+		t.Run(strings.Join(tail, " "), func(t *testing.T) {
+			var stdout, stderr bytes.Buffer
+			code := runWithLegacyRuntime(append([]string{"internal", "zellij-command"}, tail...), &stdout, &stderr, nil)
+			if code != 2 || !strings.Contains(stderr.String(), "zellij-command") {
+				t.Fatalf("invalid native route: code=%d stdout=%q stderr=%q", code, stdout.String(), stderr.String())
+			}
+		})
+	}
+}
+
 func TestRunStreamingSubcommandRoutesChangelogToInjectedStderr(t *testing.T) {
 	// changelog with no flags → usage error to the *injected* stderr (proves the
 	// seam passes real stderr through, unlike the buffered Dispatch path).

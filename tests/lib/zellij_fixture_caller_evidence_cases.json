@@ -1,0 +1,9 @@
+[
+  {
+    "name": "caller-evidence-private-listing",
+    "source": "cmd/internal/testcouch/caller_evidence_test.go:TestCallerEvidenceListingUsesPrivateSocketBoundary",
+    "kind": "sessions-short",
+    "expect": "accept",
+    "payload": ["caller-session"]
+  }
+]

@@ -546,23 +546,23 @@ couch --session-sync write --frontmatter BODYFILE FILE --if-hash H
                          light: read or replace the complete leading --- block only; preserves body bytes
                          (including Updated) and unread body edits in diff, even without a previous baseline
 couch --session-sync read --all FILE --json
-                         the captured source/hash plus Read.Editorial: independently inherited collaboration,
-                         presentation and processing settings, briefs, scope/frontier and instruction. Region
-                         ranges use complete-document byte offsets, even on section reads. Section hashes are
-                         opaque: reuse the returned token; document or ancestor policy changes also stale it.
+                         the captured source/hash plus Read.Editorial: chat regions, protected source ranges
+                         and verbatim compatibility notices. Ranges use complete-document byte offsets, even
+                         on section reads. Section hashes are opaque: reuse the returned token; changes to
+                         chat tags or protected legacy sources can stale it even if the section body is unchanged.
 couch --session-sync apply EDITS.json FILE --if-hash H [--fold ID] [--json]
-                         a precise edit: {old, occurrence, new, explain} records applied all or none (edits-invalid
-                         lists each bad record); under a region's presentation-mode: propose Couch writes per-line accept/reject
-                         markers (propose-too-large / propose-unencodable mean: use a side-doc proposal);
-                         frontmatter, side-doc links answering a marker and their folds apply directly, and
-                         all canonical mode keys, processing-instruction, readable legacy aliases/maps and
-                         immediately adjacent heading mode comments are operator-owned in every display mode
+                         a precise edit: {old, occurrence, new, explain} records applied all or none
+                         (edits-invalid lists each bad record). New edits are clean text with highlight metadata;
+                         agents preserve chat tags, their heading attachment, legacy settings and chat asks.
+                         Apply acknowledges only safely mapped changed ranges; unread edits elsewhere stay in diff.
+                         If the previous baseline is retained with a warning, inspect diff, review remaining edits,
+                         then explicitly read --all to acknowledge them. Section reads do not acknowledge edits.
 couch --session-sync migrate-editorial FILE [--json]
 couch --session-sync migrate-editorial FILE --confirm --if-hash H [--json]
-                         operator-run exact preview, then confirmation using its full source SHA256. Converts
-                         legacy section maps to heading comments and fills missing canonical defaults while
-                         preserving aliases and opaque metadata. No supplied body or automatic review migration;
-                         held locks, stale source, conflicts, unmatched names and multiple legacy modes refuse.
+                         operator-run exact map-to-tag preview, then confirmation using its full source SHA256.
+                         Converts only when chat routing and eligible asks are preserved; names the section on
+                         refusal when numbered-only tags would lose legacy bullet or preamble asks. Never renumbers
+                         asks or fills mode keys. No supplied body or automatic migration; locks and stale source refuse.
 couch --session-sync round FILE --json
                          the last agent round (every changing agent write keeps one), with reasons from apply,
                          and whether the operator's next submit has cleared it; parley highlights it
@@ -587,6 +587,10 @@ couch --reboot repo:N --confirm [--json]
                          request Start fresh on the current binary; attributed running processes require an exact stop-set offer
 couch --recovery-confirmation TOKEN [--json]
                          approve that offer from the authenticated owning hub; no repeated target or TUI is needed
+couch --bench-start repo:N --agent NAME --agent-args PARAMETERS --confirm [--json]
+                         from a bench hub, on a slot its .hub claims: start fresh with exactly this agent and argv (never saved); the receipt carries provenance
+couch --bench-retire repo:N --confirm [--json]
+                         from a bench hub: archive the slot once nothing its agents started survives, else refuse naming them; keeps the worktree
 couch --switch-agent repo:N --agent NAME [--agent-args PARAMETERS] [--interrupt-first] --confirm [--json]
                          from the hub: switch another idle, clean slot using saved target-agent settings
 couch --keys repo:N STEP... [--json]
@@ -625,31 +629,34 @@ couch --skill            print the bundled agent coordination skill
 couch --adopt-store /absolute/store     preview adoption of an existing store
 ```
 
-Registered Markdown uses independent editorial settings. Without settings, the
-defaults are `collaboration-mode: discussion`, `presentation-mode: highlight`
-and `processing-mode: free-form`. Frontmatter sets document defaults;
-`processing-instruction` adds the operator's instruction. A mode comment on the
-line immediately after an ATX heading overrides the named settings for that
-section and its descendants; omitted settings inherit independently:
+Markdown review uses one collaborative mode. The operator's direct edits are
+content; ready `🤖` markers are questions or commands for the agent to interpret.
+Questions and unclear commands open linked side docs; clear commands act within
+the requested scope. New agent edits are always highlighted. A `@@chat@@` line
+directly above an ATX heading makes its section chat, with numbered items that
+each get an answer doc:
 
 ```markdown
----
-collaboration-mode: discussion
-presentation-mode: highlight
-processing-mode: free-form
----
-# Draft
-<!-- presentation-mode: propose; processing-mode: copy-edit -->
-Text to review.
+@@chat@@
+## Operator instructions
+1. Why use retries?
+2. Tighten the introduction.
 ```
 
-These settings and attached comments belong to the operator. Agents read the
-resolved policy through session-sync and preserve its source. To migrate a
-legacy document, the operator first runs `couch --session-sync migrate-editorial
-FILE --json`, inspects the exact preview, then confirms with `--confirm --if-hash
-H` using that preview's full source hash. See the
-[editorial policy map](atlas/couch-agentic-documents.md) for inheritance and
-compatibility details.
+The shared [collaborative editing contract](.agents/skills/xx-universal-review/collaboration-modes.md)
+and [round instructions](.agents/skills/xx-universal-review/round.md) own routing,
+scope, briefs and side-doc handling. Couch protects source structure; it does
+not classify natural-language requests or choose an editing brief.
+
+Retired mode and instruction keys are ignored with compatibility notices;
+legacy chat declarations retain their old ask grammar. Normal writes never
+add, remove or rewrite these keys. Existing recorded direct/highlight/propose
+rounds retain their historical presentation. To convert legacy section maps,
+the operator previews `couch --session-sync migrate-editorial FILE --json`,
+then confirms the reviewed candidate with `--confirm --if-hash H`. Conversion
+refuses if it would lose asks. See the
+[editorial caller contract](atlas/couch-agentic-documents.md) for compatibility
+and migration details.
 
 `couch --keys` and `couch --set-model` require a verified owning hub and one
 other exact live slot with an idle, empty agent composer. The separate Neovim
@@ -888,6 +895,25 @@ initial ten-second birth probe is diagnostic, not a readiness cutoff. Once
 admitted, a working interactive client is independent of the startup deadline.
 Inspect an unconfirmed attempt with its existing recovery action before starting
 another one; expiration alone does not prove that the native agent is absent.
+
+🤖~Automatic observations refuse to probe a Zellij namespace containing an unknown~
+🤖~or unmarked legacy session; they retain unknown state. When upgrading, rebuild~
+🤖~Pair/Couch and relaunch the cooperating clients with the updated binaries.~
+🤖~Running processes keep their old behavior. Use the existing recovery workflow to~
+🤖~inspect and relaunch affected legacy threads. Explicit authorized recovery can~
+🤖~still inspect unmarked endpoints after the live creator releases exclusion; it~
+🤖~keeps its existing authorization checks. Unknown state or a readiness marker does~
+🤖~not authorize stopping a session.~
+
+🤖{Automatic observations and explicit recovery acquire the same namespace lease. They wait behind a live cooperating creator until its exact first pane publishes and releases exclusion. Once they hold the lease, legacy sessions without markers remain observable and attachable, including startup adoption and explicit resume; no migration receipt or legacy-thread relaunch is required. Creator death releases the lease and an unmarked survivor follows legacy behavior, with the accepted upstream risk outside that window. Existing authorization checks remain; a marker never authorizes stopping a session.}
+
+🤖{Update the Pair binary, Lua assets, and layouts together. Custom or older layouts selected through `PAIR_HOME` or another asset root must run `pair internal pane-ready` as the initial agent pane command before guarded native actions. If startup reports `terminal first-pane readiness unverified`, check for an old layout that omits that command; startup stops at its existing bound.}
+
+Startup exclusion protects bounded native commands from cooperating clients
+while the creator is alive. Interactive attach/reconnect, creator death, and
+foreign or older clients remain outside that protection. See
+[Startup readiness and native exclusion](atlas/zellij-reply-safety.md#startup-readiness-and-native-exclusion-866)
+for the scope and limits.
 
 `couch --resume repo:N` and `couch --reboot repo:N --confirm` run one slot's step
 through the running Couch. Only an agent in a live Couch slot may call them: Couch
@@ -1251,7 +1277,8 @@ with bounded parallelism, most recently active first, without moving your keyboa
 Until a thread is ready it is greyed out: a placeholder on the status row, with
 a spinner on the one starting now, and a `queued` or `reattaching…` row in the
 switcher. Neither can be clicked or selected. A thread that fails to come back
-keeps Continue with its failure reason, and one click retries the warm attachment.
+keeps Continue with its failure reason. Select its row, then activate it to retry
+the warm attachment; an already-selected row takes one click.
 Quitting part-way leaves the rest detached for next time. Only a bare start
 does this, and it never resumes a parked thread.
 
@@ -1261,9 +1288,12 @@ its Zellij client; Couch's own detach is the switcher's Alt+d (#245).
 General messages no longer trail the tab bar, in either collapse or multiline
 mode. Open the switcher to see the latest retained message. Operation notices
 and clipboard feedback keep their own precedence there; a new feed message does
-not replace an operation error or progress notice. Actionable asynchronous
-warnings also appear in the attention list; routine progress, success and key
-feedback stay in the switcher.
+not replace an operation error or progress notice. Diagnostics go to the owning
+hub and the feed. The bell holds explicit hub notifications, failures of your
+own cast or drive actions, and actionable events without a connected owning hub.
+A connected hub with automation off keeps its diagnostics feed-only, with no
+replay when enabled. Routine progress, success and key feedback stay in the
+switcher.
 
 The first thread for a repository uses its primary checkout (`:0`). Starting
 another fills the lowest free number (`:1`, `:2`, …), under
@@ -1530,10 +1560,15 @@ history in place. With an empty list it stays put and says nothing is waiting.
 It no longer jumps to the newest page or accepts a switcher row. Ordinary
 `Enter` still selects a switcher row or the selected attention item.
 
-The **notification list (bell)** (pair#673) shows what is waiting on you, newest first. It holds the hub's `couch --notify` messages, actionable asynchronous Couch warnings,
-slots blocked on a permission prompt or picker, and slots whose turn ended with
-a question to you. While the list has items, the right end of the status row
-shows `🔔N`, red if a slot is blocked on a prompt; click it to open the list too.
+The **notification list (bell)** (pair#673) shows what needs you, newest first:
+the hub's `couch --notify` messages, failures of your own casts and drive actions,
+and actionable events with no connected owning hub. Other diagnostics, blocked
+prompts, pickers and judged questions go to their owning hub and the feed. A
+connected hub with automation off suppresses generated hub input and fallback
+bell items; enabling it does not replay those events. Couch crashes and failure
+to start its own hub also reach the bell. Routine progress and expected stops
+stay feed-only. While the list has items, the right end of the status row shows
+`🔔N`, red if a fallback item is a blocked prompt; click it to open the list too.
 The list opens at the top right. `Up`/`Down` (or `k`/`j`) move, `Enter` or a
 click jumps to the item's attached thread and removes the item. A global Couch
 warning or an item whose thread is no longer attached opens the switcher
@@ -1696,7 +1731,10 @@ capability is enabled:
 - `👽` controls remote driving; its **drive link** also lets viewers ask to
   drive while driving is on.
 
-Annotation and remote driving start **OFF**, independently. A link and its code
+Viewer annotation and remote driving start **OFF**, independently. In the cast
+Chrome, the trusted operator can use **Note** and **Pointer** without enabling
+viewer annotation. Pausing, remote driving and unresolved cleanup still block
+those tools. A link and its code
 remain valid when a capability is off, but holding them does not enable it:
 the server refuses annotation or driving until the operator enables that
 capability. Turning annotation off clears the current marks while preserving
@@ -1823,7 +1861,8 @@ click your 💭 pin for a populated editor, **Save** to revise its text, or
 **Cancel** to leave it unchanged. The original author and box stay the same,
 and revised notes show **edited**. The operator's overlay in cast Chrome also
 opens existing pins with the pen Off, but can edit only notes made by the
-operator, not viewers' notes. Annotation OFF and view-only links are read-only;
+operator, not viewers' notes. For viewers, Annotation OFF and view-only links
+are read-only; the Notes panel explains how to request access from the owner;
 while a new note's Save is pending, its text is temporarily locked to prevent
 a duplicate creation. Text revisions and resolver attribution stay in the web
 recording; resolved notes still disappear from the live page.
@@ -1961,10 +2000,18 @@ stays open. Capture any needed native transcript coordinates before switching;
 the previous tty recording remains available through `couch --peek repo:N
 --previous`.
 
-The status row and the switcher are **clickable**: a click on an actor's chip, or
-anywhere in its rows in the switcher, switches to it, and empty space does
-nothing. A click is always a manual switch, so `Ctrl-Backspace` undoes it even
-when the actor was paging. couch enables click reporting for itself and withholds
+The status row and the switcher are **clickable**. In the open switcher, clicking
+a different eligible row selects it without switching; clicking the selected row
+activates it. A rapid double click selects then activates exactly once, and a
+slower second click also activates: no timer is involved. Chips inside the open
+switcher follow the same rule. A chip hidden by a filter or group first reveals
+and selects its row, clearing only what hides it; from a nested menu, the first
+chip click returns to the root and selects. Chips outside the switcher still
+switch immediately, `+N` keeps opening its group, and empty space does nothing.
+Keyboard navigation and Enter are unchanged.
+
+An activating click is always manual, so `Ctrl-Backspace` undoes it even when
+the actor was paging. couch enables click reporting for itself and withholds
 every report from a child that never asked for one, so mouse selection and scroll
 inside an attached Pair session are unaffected.
 
@@ -2689,6 +2736,14 @@ SDLC/Weave, Git, Zellij and nvim, and uses private state and queue roots without
 models or credentials. Portable helper tests run normally; the native consumer
 opts in only through this target or `PAIR_NATIVE_COUCH_FLEET=1`.
 See [fleet ownership and evidence](atlas/couch-testing.md).
+
+For warm upgrades, run the [two-build native qualification](atlas/couch-testing.md#warm-build-upgrade-qualification-879)
+with `PAIR_NATIVE_COUCH_UPGRADE=1`, `PAIR_COUCH_UPGRADE_BASE_SOURCE` and
+`PAIR_COUCH_UPGRADE_CANDIDATE_SOURCE` pointing to clean absolute source checkouts.
+Generate each checkout's ignored runtime bundle first with
+`go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime`
+from that checkout, then follow the linked invocation. The same fixture checks
+Claude and Codex warm adoption, listing, resume, attachment and old registries.
 
 External editor conformance consumers can build `make couch-conformance-bridge`
 and launch the absolute `bin/couch-conformance-bridge --scratch-parent /private/tmp`

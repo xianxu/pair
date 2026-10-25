@@ -8,6 +8,7 @@ import (
 	"os/exec"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/xianxu/pair/cmd/internal/zellijquery"
 	"github.com/xianxu/pair/cmd/internal/zellijreply"
@@ -33,6 +34,9 @@ var errSessionNameTooLong = errors.New("session name too long")
 // ZellijSource reads zellij session state through the zellij CLI.
 type ZellijSource struct {
 	Path string
+	// explicitRecovery identifies authorized recovery at the existing query seam;
+	// both modes preserve legacy endpoints and exclude live creators.
+	explicitRecovery bool
 	// queryRun is the synchronous process-ownership boundary. Nil uses the OS collector.
 	queryRun func(*exec.Cmd) error
 	// Listings, when set, answers the full list-sessions reply from a poller's
@@ -55,7 +59,7 @@ func (s ZellijSource) Snapshot() ([]Session, error) {
 // A caller asking about particular sessions wants SnapshotSessionsContext; one
 // that needs only "not exited" wants LivenessContext.
 func (s ZellijSource) SnapshotContext(ctx context.Context) ([]Session, error) {
-	return s.snapshot(ctx, func(string) bool { return true }, func(string) bool { return true })
+	return s.snapshot(ctx, func(string) bool { return true }, func(string) bool { return true }, nil)
 }
 
 // SnapshotSessionsContext classifies only the named sessions: one logical
@@ -67,7 +71,7 @@ func (s ZellijSource) SnapshotSessionsContext(ctx context.Context, names []strin
 		wanted[name] = true
 	}
 	in := func(name string) bool { return wanted[name] }
-	return s.snapshot(ctx, in, in)
+	return s.snapshot(ctx, in, in, nil)
 }
 
 // LivenessContext lists every pair session without asking any of them for
@@ -75,7 +79,14 @@ func (s ZellijSource) SnapshotSessionsContext(ctx context.Context, names []strin
 // (up to three attempts), and
 // nothing that scales with the host's session count.
 func (s ZellijSource) LivenessContext(ctx context.Context) ([]Session, error) {
-	return s.snapshot(ctx, func(string) bool { return false }, func(string) bool { return true })
+	return s.snapshot(ctx, func(string) bool { return false }, func(string) bool { return true }, nil)
+}
+
+// LivenessEvidenceContext pairs the liveness projection with its judged listing.
+func (s ZellijSource) LivenessEvidenceContext(ctx context.Context) ([]Session, ListingEvidence, error) {
+	var evidence ListingEvidence
+	sessions, err := s.snapshot(ctx, func(string) bool { return false }, func(string) bool { return true }, &evidence)
+	return sessions, evidence, err
 }
 
 // snapshot is the one call pattern and parser behind all three forms. keep
@@ -83,10 +94,13 @@ func (s ZellijSource) LivenessContext(ctx context.Context) ([]Session, error) {
 // kept, non-exited ones are asked for their clients -- a kept session not asked
 // is SessionLive, because an attach state that was not asked must not be
 // guessed.
-func (s ZellijSource) snapshot(ctx context.Context, ask, keep func(name string) bool) ([]Session, error) {
-	raw, err := s.listings(ctx)
+func (s ZellijSource) snapshot(ctx context.Context, ask, keep func(name string) bool, evidence *ListingEvidence) ([]Session, error) {
+	raw, at, err := s.listingsAt(ctx)
 	if err != nil {
 		return nil, err
+	}
+	if evidence != nil {
+		*evidence = newListingEvidence(raw, at)
 	}
 	states, err := sessionListingStates(raw)
 	if err != nil {
@@ -125,13 +139,19 @@ func (s ZellijSource) snapshot(ctx context.Context, ask, keep func(name string) 
 // listings is one coherent observation; independent short/full replies cannot
 // prove agreement while unrelated sessions start or end between subprocesses.
 func (s ZellijSource) listings(ctx context.Context) ([]byte, error) {
+	raw, _, err := s.listingsAt(ctx)
+	return raw, err
+}
+
+func (s ZellijSource) listingsAt(ctx context.Context) ([]byte, time.Time, error) {
 	if s.Listings != nil {
 		if err := ctx.Err(); err != nil {
-			return nil, err
+			return nil, time.Time{}, err
 		}
-		return s.Listings.Listings()
+		return s.Listings.listingsAt()
 	}
-	return s.fullListing(ctx)
+	raw, err := s.fullListing(ctx)
+	return raw, time.Now(), err
 }
 
 func (s ZellijSource) fullListing(ctx context.Context) ([]byte, error) {
@@ -173,7 +193,7 @@ func WithZellijQueryObserver(ctx context.Context, observe func(ZellijQueryObserv
 }
 
 func (s ZellijSource) runContext(ctx context.Context, args ...string) ([]byte, error) {
-	result, err := (zellijquery.Source{Path: s.Path, Run: s.queryRun}).ReadContext(ctx, args...)
+	result, err := (zellijquery.Source{Path: s.Path, Run: s.queryRun, ExplicitRecovery: s.explicitRecovery}).ReadContext(ctx, args...)
 	// Preserve the launcher's historical refusal for an unanswered unsupported
 	// request; screen-reading consumers use the shared source directly.
 	if err == nil && result.ProcessErr == nil && zellijReadKind(args) == zellijUnknownReply && len(bytes.TrimSpace(result.Stdout)) == 0 {

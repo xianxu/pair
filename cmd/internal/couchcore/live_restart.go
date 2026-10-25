@@ -27,6 +27,11 @@ const (
 	// refuses, busy-unknown unless forced, and a dirty tree is only noted,
 	// because reboot changes no files.
 	OpReboot = "reboot"
+	// OpBenchStart and OpBenchRetire are a bench hub's verbs on a slot it
+	// claims (pair#847): a Fresh reboot with an exact launch profile, and a
+	// retirement that proves nothing the slot's agents started survives.
+	OpBenchStart  = "bench-start"
+	OpBenchRetire = "bench-retire"
 )
 
 // LiveRestartFacts is everything the admission rule reads, gathered by a
@@ -69,6 +74,8 @@ type LiveRestartOptions struct {
 	ForceUnknown bool
 	// SameBinary admits a relaunch onto the binary already running.
 	SameBinary bool
+	// Bench is bench-start's exact launch profile (pair#847).
+	Bench *BenchProfile
 }
 
 // LiveRestartDecision: Code "" admits; Note is told to the caller either way.

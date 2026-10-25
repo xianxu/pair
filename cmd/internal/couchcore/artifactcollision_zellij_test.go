@@ -36,7 +36,11 @@ func sandboxedChecker(t *testing.T, dataDir string, sessions map[string]string) 
 	if got, err := exec.LookPath("zellij"); err != nil || got != path {
 		t.Fatalf("zellij resolves to %q (%v), want the stub %q -- the PATH shim is not in force", got, err, path)
 	}
-	t.Setenv("HOME", t.TempDir())
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	// Source qualifies passive endpoints before it invokes even an explicit stub.
+	// This fixture creates no native sockets; keep that scan in its owned root.
+	t.Setenv("ZELLIJ_SOCKET_DIR", filepath.Join(home, "native"))
 	t.Setenv("XDG_DATA_HOME", t.TempDir())
 
 	deleter := &fakeSessionDeleter{}
@@ -71,6 +75,36 @@ func sandboxedChecker(t *testing.T, dataDir string, sessions map[string]string) 
 		}
 	})
 	return checker, log
+}
+
+// A fake executable alone does not isolate Source's passive native namespace
+// scan. Poison an entirely owned inherited root so this regression never needs
+// an operator server and still catches a missing fixture namespace binding.
+func TestSandboxedCheckerIsolatesInheritedNativeNamespace(t *testing.T) {
+	poison := t.TempDir()
+	version := filepath.Join(poison, "contract_version_1")
+	if err := os.MkdirAll(version, 0700); err != nil {
+		t.Fatal(err)
+	}
+	unqualified := filepath.Join(version, "inherited-not-a-server")
+	if err := os.WriteFile(unqualified, []byte("untouched"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("ZELLIJ_SOCKET_DIR", poison)
+	data := t.TempDir()
+	const name = "📁fixture"
+	indexSession(t, data, addressA, name)
+	checker, log := sandboxedChecker(t, data, map[string]string{name: "attached"})
+	got, err := checker.ListedPairSessionContext(t.Context(), addressA, name)
+	if err != nil || !got.Present {
+		t.Fatalf("private listing consulted inherited namespace: %+v %v", got, err)
+	}
+	if n := pairlifecycletest.CountCalls(t, log, "list-sessions"); n != 1 {
+		t.Fatalf("native stub listings=%d, want one actual query", n)
+	}
+	if data, err := os.ReadFile(unqualified); err != nil || string(data) != "untouched" {
+		t.Fatalf("inherited namespace changed: %q %v", data, err)
+	}
 }
 
 // indexSession binds address to a zellij session name in the scope's

@@ -1,0 +1,4 @@
+=== RUN   TestLiveCastEndToEnd
+--- PASS: TestLiveCastEndToEnd (1.06s)
+PASS
+ok  	github.com/xianxu/pair/cmd/internal/webcast	1.232s

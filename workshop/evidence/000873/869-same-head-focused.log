@@ -1,0 +1,5 @@
+Exact source: git archive c6644e8d0ef6b81e7920e902d5cd7b592ad6c200
+Command: go test ./cmd/internal/testcouch/agentfixture -run ^TestCLILiveLeaderCancellationJoinsBeforeCompletion$ -count=1 -timeout=60s
+ok  	github.com/xianxu/pair/cmd/internal/testcouch/agentfixture	0.325s
+
+Exit: 0

@@ -51,7 +51,7 @@ func (a AnnotationAdmission) Edit(in EditIn) error {
 	b.command.Lock()
 	defer b.command.Unlock()
 	b.mu.Lock()
-	err := b.admissionLocked(a.permit)
+	err := b.surfaceAdmissionLocked(a.authority, false)
 	b.mu.Unlock()
 	if err != nil {
 		return err

@@ -1,0 +1,7 @@
+ok  	github.com/xianxu/pair/cmd/internal/webcast/board	0.200s
+ok  	github.com/xianxu/pair/cmd/internal/webcast/recorder	1.384s
+ok  	github.com/xianxu/pair/cmd/internal/webcast/notedraft	7.987s
+ok  	github.com/xianxu/pair/cmd/internal/webcast	2.416s
+ok  	github.com/xianxu/pair/cmd/internal/zellijquery	0.357s [no tests to run]
+ok  	github.com/xianxu/pair/cmd/internal/artifactpath	0.176s
+ok  	github.com/xianxu/pair/internal/repolint	14.263s

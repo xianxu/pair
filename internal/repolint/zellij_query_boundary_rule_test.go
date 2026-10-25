@@ -13,6 +13,9 @@ import (
 func pairCatalogFor(filename string) []golint.Rule {
 	catalog := append([]golint.Rule(nil), pairCatalog...)
 	for i := range catalog {
+		if catalog[i].Name == "zellij-native-admission" {
+			catalog[i].Match = func(file *ast.File, _ *golint.CheckContext) []ast.Node { return zellijNativeAdmissionBypasses(filename, file) }
+		}
 		if catalog[i].Name == "test-fifo-empty-handoff" && strings.HasSuffix(filename, "_test.go") {
 			catalog[i].Match = syntaxMatch(emptyFIFOHandoffs)
 		}
@@ -64,12 +67,14 @@ func zellijQueryBoundaryBypasses(filename string, file *ast.File) []ast.Node {
 
 func rawZellijCollectorOwner(filename string, fn *ast.FuncDecl) bool {
 	switch filename {
+	case "cmd/internal/zellijquery/command.go":
+		return fn.Name.Name == "RunNativeCommand" && fn.Recv == nil
 	case "cmd/internal/zellijquery/query.go":
 		return fn.Name.Name == "readAttempt" && zellijReceiver(fn, "Source")
 	case "cmd/internal/launcher/zellij_query_evidence.go":
 		return fn.Name.Name == "queryZellijVersion" && fn.Recv == nil
 	case "cmd/internal/testcouch/startup_evidence.go":
-		return fn.Name.Name == "dumpStartupPane" && zellijReceiver(fn, "Fleet")
+		return fn.Name.Name == "runStartupQuery" && zellijReceiver(fn, "Fleet")
 	}
 	return false
 }

@@ -43,21 +43,24 @@ func (s *ThreadStore) withEmptyStartupTarget(ctx context.Context, target *Thread
 		}
 		return nil
 	}
+	// Startup reservations are foreground work: previews may briefly hold either
+	// store lock outside the coordinator. Keep the existing bounded wait policy,
+	// within the caller's deadline (pair#854).
 	run := func() error {
-		return s.withStoreLockChecked(func() error {
+		return s.withStoreLockBounded(func() error {
 			if err := empty(s); err != nil {
 				return err
 			}
 			if target == s {
 				return publish()
 			}
-			return target.withStoreLockChecked(func() error {
+			return target.withStoreLockBounded(func() error {
 				if err := empty(target); err != nil {
 					return err
 				}
 				return publish()
-			}, func() error { return check(target) }, 0)
-		}, func() error { return check(s) }, 0)
+			}, func() error { return check(target) }, storeLockBound(ctx, storeReadLockWait))
+		}, func() error { return check(s) }, storeLockBound(ctx, storeReadLockWait))
 	}
 	if s.coordinator == nil {
 		return run()

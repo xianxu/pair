@@ -7,12 +7,30 @@ representative evidence, not an exhaustive index.
 
 ## Proof and verification
 
+- #865 PQ-1/PQ-2: Trace actual no-op, refused and successful resize transitions before describing publication lifetimes. Measure private capture storage separately from required consumer clones; qualify retained copies, erased/absent cells and geometry changes with controlled emulator tests.
+
+- #879: Pin public CLI output shapes in portable controls before native qualification. Compact list uses labels/paths; show carries full addresses. Public resume already polls and emits a raw final receipt, and an already-live success may omit Tag; require unchanged independent actor/process/socket identity around that result. Use opaque tags for exact menu selection, since repo:N filters apply to numbered slot rows.
+- #879 BR-1–3: Keep historical reproduction prerequisites separate from reusable compatibility oracles; cover genuine old/new writer states and candidate publication without mutating their evidence. After implementation moves a concept, update its authoritative plan table as well as the revision log, and add README discovery for each new operator invocation.
+- #866 CI: a private namespace under os.TempDir can exceed the native Unix socket name budget on macOS runners. TestMain owners must reuse the shared short-root allocator, and a child-process regression must verify long-TMPDIR startup and owner cleanup; local RAM-disk paths conceal this failure.
+
+- #866 BR-1/BR-2: Command names do not define read semantics: enumerate the supported native read class, including visibility, dumps and tab queries, and test the actual adapter against an unmarked endpoint. Unix-socket fixtures must use the shared short-root allocator even when an inherited temporary directory appears short locally; retain a long-TMPDIR control.
+
+- #866: Freeze the effective child environment before observing metadata and invoking a callback. Re-reading it when acquiring cleanup exclusion can lock a different namespace while removing the original namespace's evidence. Test environment changes during the callback and exact successor preservation.
+
+- #872: Every new production Go file needs an explicit artifactpath inventory classification, including pure evidence structs and private test-harness diagnostics. Run TestProductionArtifactReferencesAreExactlyClassified with the focused qualification before queuing a full check; reader-hash inventory alone does not cover that separate source census.
+- #862 BR-1: A corrected cross-repository contract must reach the receiving ticket before its handoff is complete. Local Revisions and a future instruction to consult the landed source do not supersede a stale prescription in the receiving Spec; publish the correction and verify its main copy.
+- #869 BR-1: Publishing a complete payload is insufficient when cancellation can race its external helper. Reap that helper first, then publish a payload-free readiness marker with a leader builtin. Qualify held-write and held-after-publication intervals; enumerate every readiness consumer.
+- #869: A readiness filename must publish the completed value. Shell redirection creates a file before printf writes its PID; write an adjacent private temporary file and rename only after success. Hold the writer in a conformance control so early visibility fails deterministically.
+
 - #863 suite: when a result gains an ownership predicate, sweep existing positive fixtures for the required authority and retain separate empty/metadata-only negatives. A startup fixture must declare its history explicitly; an empty namespace is not evidence of a previous shutdown. Keep exact joined-diagnostic and declared-operation assertions current with the same approved contract.
 
 - #863 BR-3: A published start claim needs one failure owner before launch ownership begins. Discovery/enrollment failures must roll back against the store that accepted the claim, independently of whether namespace routing is available; release native authority only after exact nonce/revision cleanup and positive absence. Pin post-publication failures and successful handoff, not only the later launch tail.
 - #860 BR-1/BR-2: A passing package race run can miss another live-fixture authority write. Enumerate the complete field family mechanically, allow only exact no-wrapper controls, and update Done-when whenever scope grows; extend the pre-start child-proof composition to native-exit fixtures too.
 - #860: Configure immutable service authority through the fixture's pre-start decorator. A connected snapshot may be published before admission effects finish reading authority, so waitConnected is not a mutation barrier. Keep actual ownership moves under hubRuntime's mutex, and pair race qualification with a deterministic check of constructor-derived policy for every configured hub, including after restart.
 
+- #838 BR-1: Preserving declaration bytes and their original heading separately does not preserve their association. Compare the candidate owner with the mapped original owner even under redundant authority that leaves effective routing unchanged; test both attachment transfer and legitimate heading-index shifts through public write seams.
+
+- #838 PQ-1: A shared authority projection must preserve independent facts for every consumer. A single winning Source label can hide legacy item grammar, and whole-document routing can hide still-owned tags. Enumerate routing, grammar, source protection and migration consumers; preserve their provenance in the shared owner and test mixed/overlapping authority against an independent oracle.
 - #841 BR-1/BR-2/BR-3: For a conservative visual aid, match final fitted display words and permit false negatives. Exclude generated metadata and ambiguous path/link/bracket chunks; skip wrapped row edges that may be fragments. Source-substring projection fails when fitting removes zero-width characters. Use fixed-clock grammar boundaries and exact clipped-row accents, not a test satisfied by any earlier colored label.
 - #825: A final file made visible by a hard link can be consumed before its publisher removes the temporary name. Retirement/capacity assertions must count mailbox records with the shared counter, not raw directory entries. Hold publication scratch in regression tests and retain negative controls for genuine records; never remove another producer's scratch to satisfy the oracle.
 
@@ -2901,6 +2919,27 @@ and external temporary roots rather than relying on the host's TMPDIR.
 
 - #850 BR5: independent viewport clamping is insufficient after composition. State the invariant for all eligible entities together: each must remain individually selectable with identical bounds, overlapping bounds and dense edge cases. A single bounded scrolling selector removes an impossible geometric packing problem; do not add a third positional heuristic.
 
+- #866 BR-5: At implementation reconciliation, audit every governing core-concept file and status against Git name-status, including newly split resolver files and unchanged policy seams; append an explicit replacement row for each mismatch.
+
+- #866 post-close Lua regression: Classify argv before evaluating adapter-specific providers. Cover non-native identity/RPC through the same run method with a provider that fails if consulted; native integration fixtures must execute the migrated helper seam.
+
+- #866 helper migration fixtures: Native CLI integration owns both the exact candidate Pair executable and a private native socket namespace. PATH must not resolve an older installed helper, and injected tracing executors must retain the guarded helper rather than invoke raw native commands.
+
+- #866 second pre-close: Put the exact candidate binary on PATH at Lua/native recipe entry, preserve it across fixture bootstrap, and prove an incompatible installed Pair cannot win. Run both complete review and Lua targets before requeuing after a helper migration failure; update caller assets and helper binary together.
+
+- #866 BR-6: Exact executable ownership is stronger than directory ownership. Normalize an arbitrary supplied test candidate to a private pair alias via the shared builder; test a differently named candidate beside a wrong sibling pair.
+
+- #866 dry-run follow-up: GNU Make executes recipe lines containing a direct MAKE reference even under -n. Keep graph inspection from entering wrapper setup, and audit the scripts behind explicit recipe wrappers rather than dropping ownership checks.
+- #866 all-target sweep: Qualify a supplier with its own module metadata and bounded source dependency closure from one checkout/ref; optional new dependencies must not disqualify valid older suppliers.
+- #866 copy completion: Attribute fixture completion to exact operation argv. A shared executable can also run background helpers; their successful exit must never satisfy another operation's completion channel.
+
+- #866 composed startup coverage: a terminal fake must execute the production first-pane publisher before agent readiness; AgentReady alone cannot model creator admission. Run every default Go package locally with suite flags after helper/lease migrations, and retain a named phase/session error for missing first-pane evidence at the existing startup bound.
+
+- #866 passive namespace hermeticity: replacing the native executable is insufficient when admission reads sockets before invoking it. Shared fake-query owners must bind a private socket namespace and prove isolation against an owned poisoned inherited namespace without touching a real server.
+
+- #866 BR-7: A newly approved production diagnostic after close expands behavior even when its bound and mechanism stay unchanged. Use the full close review; narrow fix-review applies only to the prior findings and their fixes.
+
+- #866 warm-upgrade regression: same-build restart does not qualify backward compatibility. Preserve legacy endpoint behavior across main-to-candidate adoption, listing and resume with natural missing receipts and unchanged process/socket identities. A receipt written only by a new creator cannot become permission for all existing sessions; use the live creator's owned lease for exclusion.
 - #863: Target-dependent launch semantics need catalog-backed primary and numbered-slot tests. A legacy fake with no SlotCatalog bypassed validation and accepted Fresh on a primary, hiding the real refusal; fixture convenience must not bypass the production routing boundary. Hold review inputs unchanged while an SDLC judge is running, or its correct result becomes stale.
 - #856 BR-1–3: when consolidating discovery into one surface, derive membership from accepted entities, independent of viewport placement; unavailable geometry is a row state. Project both corners of boxes and clips into client space, including nonuniform scale and container offset. Minimized controls retain status and remeasure on label growth; adopted editors must expand their presentation owner before focus. Pin these through production handlers as well as pure helpers.
 
@@ -2909,3 +2948,34 @@ and external temporary roots rather than relying on the host's TMPDIR.
 - #856 native gestures: preserve held-button identity in CDP mouseMoved events, matching the established native drag fixture. A none move can lose pending capture and leave the owner gesture poisoned; compare on a fresh gesture, and inspect admission/capture/cancel/host events before changing production lifetime behavior. Measure composed UI only after its intentional private-capture suppression has released.
 
 - #871: implementation Plan checkboxes describe deliverable behavior and qualification. Keep close/merge/report as explicit workflow postconditions rather than an unchecked self-reference that close itself demands; never tick a future landing to satisfy the guard.
+
+- #873: Lifecycle serialization does not exclude preview readers that take a subordinate store lock outside the coordinator. Empty-only startup reservations are foreground work: select the existing bounded foreground policy at every global/local acquisition, preserve before/after evidence checks, and pin maintenance as a zero-wait negative control.
+- #878: A context-aware outer select does not bound a synchronous mailbox snapshot. Check cancellation at each request admission, retain the existing joined cleanup owner, and test with a channel-held write plus queued work. Observe quota completion per correlated request; one short deadline over128 filesystem transactions measures aggregate load instead of the transition.
+- #851 BR-1/BR-2: When an approved input gesture changes, sweep every user-facing restatement, including retry instructions and selection-versus-activation language, rather than only the atlas's headline. Reconcile Done-when with the approved Spec and tested modes before close; remove superseded timing assumptions and enumerate inside/outside, hidden and nested behavior. Record the revision without changing the implementation contract.
+
+- #851 BR-3: Evaluate composed filters in their effective candidate universe. Exact-over-fuzzy matching is nonmonotonic: an outside exact match can suppress a valid scoped fuzzy result. Reveal checks must retain applicable scope for the filter, then retain both for view checks. Pin a mixed-restriction case and the converse cases where scope/filter removal is actually needed.
+
+- #876: splitting trusted-owner authority from viewer permission requires matching roles at every prepared-note consumer, including authenticated restoration. A signed token with the correct owner tuple does not make a viewer admission an operator admission; pin both directions and exact unknown-ACK reconciliation.
+
+- #876 BR-1: before close, compare every Core concepts path and status with the actual diff, including proposed files consolidated into existing files and unchanged adapters/CSS. Plan traceability is part of the delivered design; add a Revision when placement changes.
+- #876 BR-2: native evidence must retain the exact tested Git head, command/environment and exit result. A successful unpinned log cannot answer a review checkout whose browser fails to start; rerun on the pinned head and retain the environment distinction.
+- #844 PQ-1: implementation plans name each risky production function and one adversarial testing strategy/mechanical guard. Keep scenario inventories in executable tests; generated event sequences should assert independent duplicate-effect, epoch and resource invariants.
+- #844: an async routing queue must freeze readiness and automation epoch when the event occurs. Resolving only on dequeue can revive an OFF-period event after OFF/ON; prove publication/dequeue ordering with a controlled backend. Keep existing episode owners for picker/question sends so a routing refactor preserves timing, mute and deduplication.
+
+- #844 BR-1: unavailable recipient and revoked automation are different facts. Keep the resolved owner's generation even across disconnect, and test queued, pre-admission-refused and uncertain outcomes independently. Only a confirmed unadmitted occurrence with a current generation may fall back; no uncertain replay.
+- #844 BR-2: an attention-policy change must update README's warning summary and bell interaction description alongside the atlas. Search live descriptions by the old promised behavior before close; documentation parity is a source audit, not a wording-presence test.
+
+- #844 BR-1 round2: a generation counter has authority only inside its root. Validate the retained root separately from observing a handoff; accepting a destination adopts its own generation. Unknown readiness cannot erase that witness, and confirmed refusal needs an explicit non-admitting disposition state if readiness is deferred. Test old-root revocation before/after handoff as different orderings.
+
+- #844 recorded check: after adding production Go files, run the existing focused artifactpath source-classification test before queuing the long suite; reader inventory and repolint cover different contracts. Classify each file by actual artifact usage, and add exact vocabulary use-site support with rejection tests when legitimate typed constants are inexpressible. Never rename vocabulary to evade the guard or grow its known-debt list.
+
+- #844 BR-4: an approved post-close verification fix that adds an executable checker contract can require full close even when it changes no product policy. Follow the scope guard with the existing ledger; do not treat plan approval as authority to narrow that review.
+
+- #858 BR-1: a native control fixture must prove visible, enabled, in-viewport hit geometry before dispatch; positive box dimensions alone admit visibility:hidden, opacity-zero and clipped controls. Exercise the real closed-shadow DOM and count forwarded mouse events so refusal means zero input.
+
+- #858 recorded-check follow-up: moving a wait loop changes the exact function-owned sleep-debt site even when its duration is unchanged. Keep admitted waits with their original owner or remove them; run the tracked-source catalog before queuing a refactored fixture. The debt list may only shrink and must not be expanded/renamed to bypass the failure.
+- #881: A Unix availability probe can fit while a later private directory plus socket leaf exceeds the application budget. Use the shared short-root allocator for the fixture owner, assert the complete worst-case derived path under a long inherited TMPDIR, and check Unix/config/permissions/cleanup without converting fixture overflow to a skip. The catalog guards the allocator owner.
+
+- #881 BR-1: A fixture-only fix can introduce an architectural surface through its catalog rule. Every new Pair-local ownership rule needs its atlas mapping in the same change, naming the protected owner, matcher limits and executable regression; do not waive atlas solely because production code is unchanged.
+
+- #847: A new slot operation or production source file is caught by exhaustive registries that targeted -run patterns skip (artifactpath NonArtifactSources inventory, couchcore operation declarations, couchcmd every-slot-operation routing, arity and help-cost tables). Before pre-close, run those packages whole (`go test ./cmd/internal/artifactpath ./cmd/internal/couchcmd ./cmd/internal/couchcore`), not only the new tests. Also: never declare a hub-gated verb PresentationInternal, since `couch --internal` dispatches with no hub gate.

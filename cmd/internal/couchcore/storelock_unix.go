@@ -23,9 +23,10 @@ var onStoreLockContended func()
 // EWOULDBLOCK failed whenever a sibling's routing read or a switcher refresh
 // overlapped it -- the parks a full quit then left behind. It polls like
 // retentionReadLock, within wait and while check passes, and past wait
-// returns the typed ErrThreadStoreBusy.
-func acquireThreadStoreLockWithin(root string, wait time.Duration, check func() error) (*threadStoreLock, error) {
-	deadline := time.Now().Add(wait)
+// returns the typed ErrThreadStoreBusy -- or, for a wait the caller's deadline
+// cut short, that deadline (pair#854).
+func acquireThreadStoreLockWithin(root string, wait storeWait, check func() error) (*threadStoreLock, error) {
+	deadline := time.Now().Add(wait.d)
 	for {
 		lock, err := acquireThreadStoreLockMode(root, true)
 		if err == nil || !(errors.Is(err, unix.EWOULDBLOCK) || errors.Is(err, unix.EAGAIN)) {
@@ -35,6 +36,9 @@ func acquireThreadStoreLockWithin(root string, wait time.Duration, check func() 
 			return nil, err
 		}
 		if !time.Now().Before(deadline) {
+			if wait.deadline {
+				return nil, fmt.Errorf("lock thread store: %w", context.DeadlineExceeded)
+			}
 			return nil, fmt.Errorf("lock thread store: %w", ErrThreadStoreBusy)
 		}
 		if onStoreLockContended != nil {
