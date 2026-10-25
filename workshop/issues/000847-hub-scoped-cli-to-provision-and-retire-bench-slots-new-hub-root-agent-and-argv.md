@@ -48,27 +48,24 @@ tool, not its run engine (metis has no agent management).
 
 ## Done when
 
-- A hub can bring up a bench hub and worker with exact agent and argv, verify them, and retire them, with no Couch
-  restart and no console steps (native test with fixture agents).
-- Production slots are untouchable by these verbs (test).
+- After the operator's one initial Couch start with the bench root as an extra hub (its `.hub` written by the bench tool), the bench hub brings up its claimed worker slot with an exact agent and argv, verifies it from the receipt's provenance, restarts it with new argv, and retires it with proof nothing it started survives: no Couch restart and no console steps (native test with fixture agents, claude and codex).
+- Production slots (main-hub owned, unclaimed) and calls from the main hub or a worker are refused by these verbs (tests).
 
 ## Plan
 
-Draft for TL review (2026-10-25); not yet approved.
+Durable plan: [workshop/plans/000847-hub-scoped-cli-to-provision-and-retire-bench-slots-new-hub-root-agent-and-argv-plan.md](../plans/000847-hub-scoped-cli-to-provision-and-retire-bench-slots-new-hub-root-agent-and-argv-plan.md). TL approved the design 2026-10-25: distinct verbs sharing Reboot's implementation, retire keeps the worktree but proves no survivors, additive receipts, unchanged `.hub` files; the one remaining hand step is the initial Couch start with the bench root.
 
-What exists (mapped): `--switch-agent repo:N --agent A --agent-args … --confirm` (hub-gated by authorizeHubMutation, works on a vacant slot, explicit argv replaces saved repo parameters); `--reboot repo:N --confirm` (fresh; a vacant slot fresh-starts; no agent/argv); `--set-model` (live drive op). Missing: a "slot this hub provisioned" notion (the main hub owns every unclaimed slot by default), an exact-profile fresh start/restart, receipt provenance, and any slot retirement.
-
-Design:
-1. Bench ownership predicate `HubOwnership.Provisions(caller, target)`: true only when the caller is a non-main hub and the target resolves to it through an explicit `.hub` claim (exact `repo:N` or whole `repo`). Default main-hub ownership never qualifies, so production slots are structurally out of reach. Existing `.hub` claim files and slot layout are unchanged (transitional compatibility).
-2. Two new hub slot operations through the existing broker path (slotOperations, handleHubSlotOperation, admission check plus queued effect guard re-proving caller and Provisions):
-   - `couch --bench-start repo:N --agent A --agent-args "…" --confirm`: fresh start of a vacant slot, or fresh restart of a live one, with exactly that profile (argv source explicit; replaces saved parameters, as switch-agent does). Switching model = another bench-start with new argv (fresh, new generation). Reuses Reboot with RebootTarget gaining the launch profile.
-   - `couch --bench-retire repo:N --confirm`: stop the agent and archive its thread so the slot is vacant and the next bench-start is clean. Worktree kept (the bench runner owns checkouts).
-   Existing verbs keep their current gates and behavior.
-3. Receipt provenance: OperationReceipt gains optional Root, Session (pair session name), Generation (launch nonce) and LaunchProfile {agent, argv, argv source} on a succeeded bench-start; additive, omitempty.
-4. Tests: unit for Provisions and the guard; testcouch gains `.hub` claim support; native (claude and codex): main hub fixture:0, bench hub fixture:1 claiming fixture:2; bench hub bench-starts fixture:2 with exact argv (receipt and fixture-observed argv match), bench-starts again with new argv (new generation), retires it; bench-start/retire on an unclaimed production slot and from the main hub refuse. Atlas + couch SKILL.
-
-Full flow expected (code beyond the quick-flow shell); durable plan at workshop/plans/ after TL approval.
+- [ ] Task 1: Provisions predicate
+- [ ] Task 2: explicit launch profile through Reboot's Fresh path
+- [ ] Task 3: strict retirement
+- [ ] Task 4: operations, dispatch, guard, receipts
+- [ ] Task 5: CLI
+- [ ] Task 6: native acceptance (claude and codex)
+- [ ] Task 7: docs and close
 
 ## Log
 
 ### 2026-10-23
+
+### 2026-10-25
+Revisions: Done-when reworded per TL (hub-start dropped in the 10-23 scope revision; the one hand step is named).
