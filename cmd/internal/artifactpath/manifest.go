@@ -1787,6 +1787,7 @@ var NonArtifactSources = []string{
 	"cmd/internal/testcouch/provision.go",
 	"cmd/internal/testcouch/roots.go",
 	"cmd/internal/testcouch/runtime_files.go",
+	"cmd/internal/testcouch/upgrade.go",
 	"cmd/internal/testcouch/terminal.go",
 	// pair#479 test wait helper: bounds a wait by the test deadline; names no file.
 	"cmd/internal/testwait/testwait.go",
