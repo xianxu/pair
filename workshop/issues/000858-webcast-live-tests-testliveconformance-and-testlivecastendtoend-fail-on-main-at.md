@@ -6,7 +6,7 @@ github_issue:
 created: 2026-10-23
 updated: 2026-10-25
 estimate_hours:
-card_mirror: '7ee42352596b18a1d0ab4d3bd2c8e2eca63da488' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '404203b0e35e6e7243dbe15e14be86ef46e1d168' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-25T00:11:45-07:00
 claimant:
     operator: Xian Xu
@@ -16,7 +16,7 @@ claimant:
     worktree: /Users/xianxu/workspace/worktree/pair-slot4/pair
     repository: github.com/xianxu/pair
 flow: {kind: quick, provenance: inferred, spec: "56328961", done: "dc4bbbee"}
-actual_hours: 0.57
+actual_hours: 0.84
 ---
 
 # Webcast live tests TestLiveConformance and TestLiveCastEndToEnd fail on main at the in-page pause click
