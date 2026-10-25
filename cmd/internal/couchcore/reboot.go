@@ -11,10 +11,13 @@ import (
 
 // RebootTarget selects explicit Fresh recovery at a slot or exact thread.
 // Agent optionally chooses another agent's known configuration.
+// Argv, with Agent, is an explicit launch profile (pair#847): that exact agent
+// and argv, not remembered for the repository.
 type RebootTarget struct {
 	Path    string
 	Address ThreadAddress
 	Agent   string
+	Argv    *[]string
 }
 
 type RebootResult struct {
@@ -54,13 +57,18 @@ func (c *Couch) Reboot(ctx context.Context, t RebootTarget) (RebootResult, error
 	if (t.Path == "") == (t.Address == ThreadAddress{}) {
 		return RebootResult{}, errors.New("reboot needs exactly one slot path or thread address")
 	}
+	if t.Argv != nil {
+		if _, err := ParseBenchProfile(t.Agent, *t.Argv); err != nil {
+			return RebootResult{}, err
+		}
+	}
 	target := ResumeTarget{Address: t.Address, Path: t.Path}
 	if t.Path != "" {
 		_, record, err := c.recoveryTarget(ctx, target)
 		if err != nil {
 			// Recordless and malformed numbered slots retain the shared transaction's
 			// version, ownership and workspace admission; the facade has no stop path.
-			recovered, err := c.RecoverSelection(ctx, RecoverySelection{Target: target, Kind: RecoveryFresh, Agent: t.Agent})
+			recovered, err := c.RecoverSelection(ctx, RecoverySelection{Target: target, Kind: RecoveryFresh, Agent: t.Agent, Argv: t.Argv})
 			return RebootResult{Start: recovered.Start, Notice: recovered.Notice}, err
 		}
 		target = ResumeTarget{Address: record.Address}
@@ -102,7 +110,7 @@ func (c *Couch) Reboot(ctx context.Context, t RebootTarget) (RebootResult, error
 	}
 	record, decodeErr := backend.decodeThreadRaw(address, raw)
 	if backend.layout.Local {
-		recovered, err := c.RecoverSelection(ctx, RecoverySelection{Target: target, Kind: RecoveryFresh, Agent: t.Agent})
+		recovered, err := c.RecoverSelection(ctx, RecoverySelection{Target: target, Kind: RecoveryFresh, Agent: t.Agent, Argv: t.Argv})
 		return RebootResult{Start: recovered.Start, Archived: address, Notice: recovered.Notice}, err
 	}
 	facts := RebootFacts{Record: RebootRecordReadable}
@@ -138,7 +146,7 @@ func (c *Couch) Reboot(ctx context.Context, t RebootTarget) (RebootResult, error
 		}
 		return RebootResult{Archived: address, ArchiveOnly: true, Reason: reason, SessionNotStopped: true}, nil
 	}
-	recovered, err := c.RecoverSelection(ctx, RecoverySelection{Target: target, Kind: RecoveryFresh, Agent: t.Agent})
+	recovered, err := c.RecoverSelection(ctx, RecoverySelection{Target: target, Kind: RecoveryFresh, Agent: t.Agent, Argv: t.Argv})
 	return RebootResult{Start: recovered.Start, Archived: address, Notice: recovered.Notice}, err
 }
 

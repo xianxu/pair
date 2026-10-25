@@ -17,6 +17,12 @@ const (
 	SlotOpNoThread    = "no-thread"    // no Couch row stands for the slot
 	SlotOpAmbiguous   = "ambiguous"    // several rows stand for the slot
 	SlotOpNotOffered  = "not-offered"  // ActorActions does not offer the operation on the row
+	// SlotOpBenchSurvivors: bench-retire found processes the slot's agents
+	// started still running, so it did not report the slot vacant (pair#847).
+	SlotOpBenchSurvivors = "bench-retire-survivors"
+	// SlotOpBenchNotStarted: bench-start's reboot only archived the record
+	// (unreadable, or its checkout is gone) and launched nothing.
+	SlotOpBenchNotStarted = "bench-start-not-started"
 )
 
 // SlotOperationError is a typed refusal: a code from the list above and the
@@ -31,7 +37,11 @@ func (e *SlotOperationError) Error() string { return e.Code + ": " + e.Detail }
 // slotOperations are the actor operations a slot target may request: the ONE
 // list the protocol, the socket and admission all read (IsSlotOperation), so a
 // new verb cannot be half-added.
-var slotOperations = []string{OpRecoverPark, "resume", OpReboot, "reap", "recover", OpRelaunch, OpReloadContext, OpPrepare, "switch-agent"}
+var slotOperations = []string{OpRecoverPark, "resume", OpReboot, "reap", "recover", OpRelaunch, OpReloadContext, OpPrepare, "switch-agent", OpBenchStart, OpBenchRetire}
+
+// IsBenchOperation reports a verb only a bench hub may use, on a slot its
+// .hub claims (HubOwnership.Provisions).
+func IsBenchOperation(op string) bool { return op == OpBenchStart || op == OpBenchRetire }
 
 // IsSlotOperation reports whether op is a remote slot operation.
 func IsSlotOperation(op string) bool { return slices.Contains(slotOperations, op) }
@@ -184,6 +194,9 @@ func (c *Couch) prepareSlotOperation(ctx context.Context, op, target string, opt
 		return OperationCall{}, "", err
 	}
 	row, err := SelectSlotRow(rows, ref.Number, path)
+	if IsBenchOperation(op) {
+		return prepareBenchOperation(ctx, op, target, path, row, err, opts.Bench)
+	}
 	if err != nil && op == OpReboot {
 		if refusal, ok := err.(*SlotOperationError); ok && refusal.Code == SlotOpNoThread {
 			return OperationCall{Name: op, Args: map[string]string{"path": path, "ref": target}, Implicit: true, Context: ctx}, "", nil

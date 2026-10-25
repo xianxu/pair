@@ -119,6 +119,15 @@ func (s *messageService) handleHubSlotOperation(ctx context.Context, caller couc
 			}
 		}
 	}
+	if couchcore.IsBenchOperation(r.Op) {
+		// No hub configuration means no .hub claim to prove (pair#847).
+		if s.authority.hubs == nil {
+			return couchmessage.Response{Code: "refused", Error: r.Op + " needs a hub configuration: start Couch with the bench hub as an explicit hub"}
+		}
+		if _, err := slotOperationOptions(r); err != nil {
+			return couchmessage.Response{Code: "refused", Error: err.Error()}
+		}
+	}
 	if (s.authority.hubs == nil && r.Op != "recovery-confirmation" && r.Op != couchcore.OpRecoverPark) || r.Op == "operation-status" {
 		return s.slotOps.handle(ctx, caller, r)
 	}
@@ -188,6 +197,9 @@ func (s *messageService) checkHubSlotOperation(ctx context.Context, caller couch
 		return src.phase("caller", err)
 	}
 	if s.authority.hubs == nil {
+		if couchcore.IsBenchOperation(r.Op) {
+			return src.phase("bench slot", errors.New("no hub configuration to prove a .hub claim"))
+		}
 		return nil
 	}
 	origin, err := src.origin(ctx)
@@ -198,7 +210,14 @@ func (s *messageService) checkHubSlotOperation(ctx context.Context, caller couch
 	if err != nil {
 		return src.phase("target", err)
 	}
-	return authorizeHubMutation(origin, target, s.authority.hubs.snapshot())
+	state := s.authority.hubs.snapshot()
+	if couchcore.IsBenchOperation(r.Op) {
+		if err := state.Provisions(origin.WorktreeRoot, target); err != nil {
+			return src.phase("bench slot", err)
+		}
+		return nil
+	}
+	return authorizeHubMutation(origin, target, state)
 }
 
 // slotAdmissionBudget covers the complete lifecycle request, starting before

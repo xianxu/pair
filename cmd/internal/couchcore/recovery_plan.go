@@ -40,7 +40,8 @@ type RecoverySelection struct {
 	Target       ResumeTarget
 	Kind         RecoverySelectionKind
 	CandidateKey string
-	Agent        string // optional Fresh agent; argv still comes from saved configuration
+	Agent        string    // optional Fresh agent; argv comes from saved configuration unless Argv is set
+	Argv         *[]string // explicit Fresh argv (pair#847 bench profile); requires Agent
 	Reference    string
 }
 
