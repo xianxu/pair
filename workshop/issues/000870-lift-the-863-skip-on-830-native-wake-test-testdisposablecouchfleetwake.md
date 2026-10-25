@@ -37,9 +37,15 @@ flow: {kind: quick, provenance: inferred, spec: "eeca357d", done: "1b7e3866"}
 ## Plan
 
 - [x] Remove the pair#863 skip; T6's first phase uses Fleet.Start, waits for the second hub agent and both hub registrations (WaitActors 2), then the main hub launches the plain worker. The now-unused wakeFleetStartHub helper goes; wakeFleetOpenSwitcher stays for the Resume-from-disk phase.
-- [ ] Run natively, unsandboxed, PAIR_NATIVE_COUCH_FLEET=1, for Claude and Codex (go test ./cmd/couch -run ^TestDisposableCouchFleetWake$).
+- [x] Run natively, unsandboxed, PAIR_NATIVE_COUCH_FLEET=1, for Claude and Codex (go test ./cmd/couch -run ^TestDisposableCouchFleetWake$).
 - [ ] Inventory, pre-close, close, land.
 
 ## Log
 
 ### 2026-10-24
+
+Native runs (unsandboxed, PAIR_NATIVE_COUCH_FLEET=1). T6's resume and wake phases had never run natively (#830 committed it skipped), and three test defects surfaced, none in Couch:
+1. Resume gesture: the main hub's switcher row reads as the bare repo name `fixture` (slot 0), not `fixture:0`, so the typed filter matched nothing. The cold-start switcher already selects that row; the gesture now waits for the selected row at the primary workspace, then Tab and Resume from disk (same shape as forceFleetSelectAction).
+2. A fixture transcript is empty until a turn is accepted, so a hub with no conversation is not resumable ("native resume unavailable (none): native ID has no unique validated resumable root") - true of the real agent too. Each hub brought back (main via Resume from disk, second via couch --wake) now accepts one message first (wakeFleetConverse, the send-and-accept pattern of TestDisposableCouchFleet).
+3. The asleep map keyed by generated tags (`…-fixture-1`) instead of slots; it now keys by workspace and refuses an unknown thread.
+Final: TestDisposableCouchFleetWake PASS for claude (73.5 s) and codex (74.4 s): full quit marks three asleep, cold start brings none back, main hub resumes from the switcher, couch --wake woke 1 of 1 asleep hubs: fixture:1, plain worker stays asleep, repeat: no asleep hubs to wake.

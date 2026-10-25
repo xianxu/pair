@@ -321,6 +321,10 @@ func TestDisposableCouchFleetWake(t *testing.T) {
 			if err := fleet.Resize(36, 132); err != nil {
 				t.Fatal(err)
 			}
+			// Only a conversation is resumable from disk: each hub the test
+			// later brings back accepts one turn first.
+			wakeFleetConverse(t, ctx, fleet, 1, 0, "wake-main-hub-turn-"+agent)
+			wakeFleetConverse(t, ctx, fleet, 0, 1, "wake-second-hub-turn-"+agent)
 			if err := fleet.ParkAndQuit(ctx); err != nil {
 				t.Fatal(err)
 			}
@@ -334,10 +338,16 @@ func TestDisposableCouchFleetWake(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
+				// Keyed by fixture slot: tags are generated, workspaces are not.
+				slots := map[string]string{fleet.Workspaces.Primary: "0", fleet.Workspaces.Workers[1]: "1", fleet.Workspaces.Workers[2]: "2"}
 				out := map[string]bool{}
 				for _, record := range snapshot.Records {
+					slot, known := slots[record.StartingPath]
+					if !known {
+						t.Fatalf("unexpected thread %s at %s", record.Address.Tag, record.StartingPath)
+					}
 					_, ok := couchcore.ThreadAsleep(record)
-					out[string(record.Address.Tag)] = ok
+					out[slot] = ok
 				}
 				return out
 			}
@@ -368,11 +378,12 @@ func TestDisposableCouchFleetWake(t *testing.T) {
 				}
 			}
 			// The operator resumes the main hub from the switcher.
+			// Its row reads as the bare repo name (slot 0) and is selected
+			// when the cold start opens the switcher; Tab opens its actions.
 			wakeFleetOpenSwitcher(t, ctx, fleet)
-			if err := fleet.Input([]byte("fixture:0")); err != nil {
-				t.Fatal(err)
-			}
+			forceFleetWaitScreen(t, ctx, fleet, "▸ fixture  "+fleet.Workspaces.Primary+" ")
 			forceFleetPress(t, fleet, "\t", 9, 1)
+			forceFleetWaitScreen(t, ctx, fleet, "Resume from disk")
 			if err := fleet.Input([]byte("Resume from disk")); err != nil {
 				t.Fatal(err)
 			}
@@ -414,6 +425,30 @@ func TestDisposableCouchFleetWake(t *testing.T) {
 		}) {
 			break
 		}
+	}
+}
+
+// wakeFleetConverse sends one message from hub from to hub to and waits until
+// the receiving fixture records it as an accepted turn.
+func wakeFleetConverse(t *testing.T, ctx context.Context, fleet *testcouch.Fleet, from, to int, message string) {
+	t.Helper()
+	result, err := fleet.ActorCLI(ctx, from, "--send-to", fmt.Sprintf("fixture:%d", to), "--message", message)
+	if err != nil || result.ExitCode != 0 {
+		t.Fatalf("send to fixture:%d: %+v %v", to, result, err)
+	}
+	if err := waitFleet(ctx, func() (bool, error) {
+		accepted, err := fleet.Accepted(to)
+		if errors.Is(err, os.ErrNotExist) {
+			return false, nil
+		}
+		for _, input := range accepted {
+			if strings.Contains(input.Body, message) {
+				return true, nil
+			}
+		}
+		return false, err
+	}); err != nil {
+		t.Fatalf("fixture:%d never accepted its turn: %v", to, err)
 	}
 }
 
