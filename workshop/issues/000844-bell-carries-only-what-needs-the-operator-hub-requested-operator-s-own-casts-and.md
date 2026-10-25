@@ -243,6 +243,14 @@ Operator checklist for pair:4's combined stage, only after explicit hub build go
 
 NEXT ACTION: send pair:4 the exact current head plus checklist, then wait for hub-coordinated live acceptance. Do not touch pair:0 or independently build/stage. Once acceptance is recorded, enter sdlc merge --yes promptly and verify tracker done, archive and runner exit before reporting landing.
 
+### 2026-10-24 — combined live startup failed; landing held
+
+TL delivery9ec7ee5e-2ec7-4dec-be8e-4f28198230ca reports combined stage93a57a380d290105b497dfd620ffb9e2e5a15528 could not start with warm threads; operator reverted pair:0. No live acceptance is claimed. Hold #844 landing until pair:5 establishes the cause and hub authorizes continuation. Stage message_service.go, run.go, console.go, notice_delivery.go/backend and console_notice_route.go are byte-identical to tested f7f4ec08. Read-only audit found no synchronous startup wait on delivery IO: pre-service notices buffer, Bind is memory-only, routine reattach feedback does not enqueue effects, and broker delivery runs in bounded workers outside Console/delivery locks. This is negative evidence, not proof excluding an interaction.
+
+Targeted unmodified #844 startup/boot/global-warning/OFF/no-storm, two-hub focus and both failure-order race selection passed count1 in5.953s. No source edits, real namespace probes, pair:0 operations or full suite were run.
+
+Runtime evidence supplied by pair:5: launch-diagnostics/failures.json records resume refusals at17:06:14.691365 and17:06:33.984937 PDT, helper_started=false, because terminal listing could not verify Zellij initialization for session 📁1-447: missing ready receipt eac132c28b60eb49a504dcc0a904bccf4b42d1cf3dff948410f874d6236be8f2.json. crash/20261025T000820Z-83976.log is empty. Retained supervision17:05–17:08:20 contains three snapshots and no generated deliveries. Profile871 metadata confirms exact combined head, modified=false; CPU profile shows6.33s cumulative in ResumeCandidates/recoveryObservation out of13.92s samples, with recovery evidence collection prominent. These are pre-attachment/recovery leads for pair:5, not a diagnosis of #866. Evidence sent to pair:5; report hold and audit to hub, then await their cause/live verdict.
+
 ## Estimate
 
 Produced via brain/data/life/42shots/velocity/estimate-logic-v3.1.md against baseline-v3.1.md. Method A only. Calibration is flagged stale by estimate-source, so these are provisional ship-wall-clock hours. Read v2/v2.1 procedure and table: retain issue/spec design cost; use x0.2 design discount for approved module/integration/refactor decisions, 40% implementation conversion, familiarity 1.0 and 15% design buffer.
