@@ -772,3 +772,79 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000409
+
+---
+
+## Re-review — 2026-10-24T18:05:35-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 866 — Wait for Zellij readiness before startup probe clients |
+| repo | pair |
+| issue file | workshop/issues/000866-zellij-startup-probe-readiness.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 0859007d1bdee7f723eef4ba086e3ec18ff79312..2af137563f9f375555febae4129e2eada17a78f7 |
+| command | sdlc close --issue 866 |
+| reviewer | codex (openai; author openai) |
+| isolation | fenced |
+| timestamp | 2026-10-24T18:05:35-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+The pinned implementation matches the governing lease-only revision: live creators exclude bounded native commands, while legacy sessions remain observable without receipts. No new blocking findings. This verdict covers the reviewed range; the separately recorded suite and integration gates remain required.
+
+```findings
+{}
+```
+
+1. **Strengths**
+   - Shared admission preserves caller deadlines and validates scoped permits (`cmd/internal/zellijquery/readiness_os.go:171`).
+   - Exact first-pane identity releases exclusion before the independent AgentReady phase (`cmd/internal/launcher/session_handoff_os.go:226`).
+   - Additive codecs preserve nested unknown fields while rejecting malformed known fields and duplicate keys.
+   - Source guards include negative controls for Go, Lua, shell and layout bypasses. README and atlas explain rollout and accepted limits.
+
+2. **Critical findings:** None.
+
+3. **Important findings:** None.
+
+4. **Minor findings:** None.
+
+5. **Test coverage**
+   
+   Passed complete query, panebirth, artifactpath, repolint and pair-go packages; targeted launcher controls; native-mutation regressions across seven caller packages; Lua restore-client tests; and `make test-affected-inventory`.
+
+   Independently inspected and hash-verified the retained warm-upgrade driver and native log. Both agents preserved their original bindings and socket identities without receipt synthesis, with exact cleanup. Native qualification was not rerun during this review. Previously disposed findings remain disposed.
+
+6. **Architecture**
+   - **ARCH-DRY — Pass:** one shared lease and admission implementation.
+   - **ARCH-PURE — Pass:** codecs and identity validation remain separate from IO.
+   - **ARCH-PURPOSE — Pass:** creator exclusion and legacy compatibility are both delivered.
+   - **ARCH-MOCK — Pass:** stateful controls exercise the production seam; retained native evidence checks real behavior.
+   - **ARCH-CONSTRAINTS — Pass:** existing deadlines, bounded records and capacity limits remain enforced.
+   - **ARCH-SECURE — Pass:** exact identities, bounded metadata reads and argv-based execution protect the boundaries.
+   - **ARCH-ORDER — Pass:** controls cover stale publication, cancellation, owner death and release before AgentReady.
+   - **ARCH-FUNERAL — Pass:** fixed lock stripes and exact-generation marker retirement define artifact lifetimes.
+   - **ARCH-EVOLVE — Pass:** additive round trips preserve unknown members with strict validation.
+
+7. **Plan revision recommendations:** None. The appended governing revisions reconcile the implementation locations, admission policy and accepted coverage limits.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"84022fc7-53fa-4aa7-a385-f73130744617","repository":"github.com/xianxu/pair","issue_id":"000866","recipe":"milestone-review","round":9,"attempt":1,"agent":"codex","root":"/Volumes/TestScratch/review-checkouts/836662232fea2cb2","reviewed_head":"2af137563f9f375555febae4129e2eada17a78f7","slot":"pair:5","requested_at":"2026-10-25T00:58:10.5387Z"},"phase":"finished","pid":32626,"started_at":"2026-10-25T00:58:10.672629Z","finished_at":"2026-10-25T01:00:57.870273Z","session_id":"01a17090-aa45-7a72-80c6-45c92495ce40","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 2.89607625s
+head: "2af137563f9f375555febae4129e2eada17a78f7"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000411

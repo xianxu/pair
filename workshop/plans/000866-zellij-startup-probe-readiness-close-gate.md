@@ -386,6 +386,36 @@ rounds:
       isolation: fenced
       reviewed: f443e10748b4febc409571bd29ace9835dec3369
       blocked: false
+    - reviewer_runs:
+        - version: 1
+          intent:
+            disposable_root: true
+            id: 84022fc7-53fa-4aa7-a385-f73130744617
+            repository: github.com/xianxu/pair
+            issue_id: "000866"
+            recipe: milestone-review
+            round: 9
+            attempt: 1
+            agent: codex
+            root: /Volumes/TestScratch/review-checkouts/836662232fea2cb2
+            reviewed_head: 2af137563f9f375555febae4129e2eada17a78f7
+            slot: pair:5
+            requested_at: "2026-10-25T00:58:10.5387Z"
+          phase: finished
+          pid: 32626
+          started_at: "2026-10-25T00:58:10.672629Z"
+          finished_at: "2026-10-25T01:00:57.870273Z"
+          session_id: 01a17090-aa45-7a72-80c6-45c92495ce40
+          outcome: returned
+      "n": 9
+      timestamp: "2026-10-24T18:05:35-07:00"
+      dispatched: "2026-10-24T17:58:07-07:00"
+      agent: codex
+      reviewer: codex (openai; author openai)
+      recipe: milestone-review
+      isolation: fenced
+      reviewed: 2af137563f9f375555febae4129e2eada17a78f7
+      blocked: false
 ---
 
 # Gate ledger — pair#866 (boundary-review)
@@ -471,6 +501,8 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - BR-5 — addressed — The authoritative plan revision at lines 367-378 matches the pinned file statuses and actual resolver and handoff implementations.
 - BR-6 — addressed — Both Make targets use the exact-candidate alias owner. The Make/bootstrap regression passes with plain-pair beside an incompatible sibling pair.
 - BR-7 — addressed — This full whole-issue close review covers the expanded diagnostic scope recorded at plan lines 400-408. TestCreatorMissingPaneReadinessNamesSessionAtBound passes at head and fails with the diagnostic wrapper removed through a temporary Go overlay.
+
+## Round 9 — 2026-10-24T18:05:35-07:00 (codex) — passed
 
 ## Open findings
 
