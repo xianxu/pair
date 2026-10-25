@@ -1,0 +1,28 @@
+pair#886 recorded pre-close qualification
+Implementation head: dd3570f1aa18dcffc1eed4beb2a387088362103b
+Command: sdlc local-check run --pre-close
+Selection: affected -> suite (changed audited reader JSON)
+Suite command: make PAIR_GO_TRIMPATH=-trimpath test
+Result: exit 0 in 14m4s; recorded as sdlc-local/suite
+Full retained log: /Users/xianxu/workspace/pair/.git/sdlc/local-checks/dd3570f1aa18dcffc1eed4beb2a387088362103b/suite.log
+Full retained log SHA256: a0912105109bdf0534ee4c279ec3d8aeb1b72642cb831e37bedddb632aca18cc
+
+Selected complete-package results (verbatim from log):
+ok  	github.com/xianxu/pair/cmd/internal/couchcmd	77.066s
+ok  	github.com/xianxu/pair/cmd/internal/couchcore	334.693s
+ok  	github.com/xianxu/pair/cmd/internal/historyarchive	56.161s
+ok  	github.com/xianxu/pair/cmd/internal/testdisk	18.396s
+ok  	github.com/xianxu/pair/internal/repolint	9.629s
+
+CouchCmd cap: 96 << 20 = 100663296 bytes; unchanged on this branch.
+TestMain still runs testdisk.RunWithWriteBudget; successful complete-package
+execution therefore enforces this cap, including the over-budget error path.
+
+Same targeted archive protocol selection, before/after:
+go test ./cmd/internal/couchcmd -run '^TestRunArchivePass(Protocol|RefusesInvalidProtocol|CancellationAndInheritedDescriptors)$' -count=1 -v
+Before: write budget couchcmd: bytes=16891904 cap=100663296 repeats=1
+After:  write budget couchcmd: bytes=8499200 cap=100663296 repeats=1
+Saved: 8392704 own-process physical write bytes.
+
+No code changed after the implementation head; later commits retain logs,
+review findings and these verification records.

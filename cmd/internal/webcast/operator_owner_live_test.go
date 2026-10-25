@@ -92,12 +92,16 @@ func TestOperatorOwnerLiveAnnotationOff(t *testing.T) {
 	}
 	resize := func(height int) {
 		t.Helper()
-		call("Emulation.setDeviceMetricsOverride", map[string]any{"width": 1728, "height": height, "deviceScaleFactor": 1, "mobile": false}, nil)
+		if err := resizeLiveViewport(func(method string, params, result any) error {
+			return chrome.conn.Call(ctx, session, method, params, result)
+		}, 1728, height); err != nil {
+			t.Fatal(err)
+		}
 	}
-	resize(997)
 	wait("fixture document", func() bool {
 		return string(eval(0, `document.readyState==='complete'&&document.querySelector('button')?.textContent==='Save'`)) == "true"
 	})
+	resize(997)
 	if err = chrome.SetLive(true); err != nil {
 		t.Fatal(err)
 	}

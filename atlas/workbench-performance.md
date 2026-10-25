@@ -182,3 +182,15 @@ environment boundary. Literal explicit values remain unchanged. Tests intended
 to prove cold-cache behavior still own their cold cache. Direct real builds and
 whole-device before/after evidence are recorded with the issue; cache allocation,
 fixture-tree inventories and physical process/device counters are distinct views.
+
+The archive protocol overflow fixtures (#886) keep only their small prefix on
+disk and stream the suffix from the owned child in 32 KiB blocks. Both invalid
+stdout and valid JSON plus whitespace remain exactly
+`historyarchive.MaxContinuousReportBytes+1` bytes. The child-output test pins
+length/content; the counted padding writer pins linear block growth, and the
+protocol tests retain refusal, bounded logging and joined cleanup assertions.
+On Darwin the same targeted archive protocol selection fell from 16,891,904 to
+8,499,200 own-process physical write bytes (8,392,704 saved). This removes the
+redundant source-file writes; bounded production log writes remain. Couchcmd's
+ordinary allowance remains 96 MiB; scheduler work #737 must qualify its combined
+package at that allowance after integrating this repair.
