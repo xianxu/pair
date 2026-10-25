@@ -19,6 +19,25 @@ reviewer_runs:
       finished_at: "2026-10-24T10:38:19.402997Z"
       session_id: 01a16d7c-faaf-7ff1-9283-8ccb8f7cd3c3
       outcome: returned
+    - version: 1
+      intent:
+        id: 094231c0-fbf6-465e-b6c8-65bdf890daed
+        repository: github.com/xianxu/pair
+        issue_id: "000866"
+        recipe: estimate-quality
+        round: 1
+        attempt: 1
+        agent: codex
+        root: /Users/xianxu/workspace/worktree/pair-slot5/pair
+        reviewed_head: daa54c6de1ba05137718e1f58734e783e16c2b8c
+        slot: pair:5
+        requested_at: "2026-10-25T00:18:25.556135Z"
+      phase: finished
+      pid: 33515
+      started_at: "2026-10-25T00:18:25.721842Z"
+      finished_at: "2026-10-25T00:18:54.988231Z"
+      session_id: 01a1706c-450a-7e21-bdc7-3a18c5452f9f
+      outcome: returned
 gate: plan-quality
 issue: 866
 id_prefix: PQ
@@ -120,6 +139,32 @@ rounds:
       agent: codex
       reviewer: codex (openai; author openai)
       blocked: false
+    - reviewer_runs:
+        - version: 1
+          intent:
+            id: 96cd36e1-0211-4662-8e65-61157a5bdcd2
+            repository: github.com/xianxu/pair
+            issue_id: "000866"
+            recipe: plan-quality
+            round: 4
+            attempt: 1
+            agent: codex
+            root: /Users/xianxu/workspace/worktree/pair-slot5/pair
+            reviewed_head: daa54c6de1ba05137718e1f58734e783e16c2b8c
+            slot: pair:5
+            requested_at: "2026-10-25T00:17:57.160848Z"
+          phase: finished
+          pid: 20028
+          started_at: "2026-10-25T00:17:57.317269Z"
+          finished_at: "2026-10-25T00:18:19.979448Z"
+          session_id: 01a1706b-d79a-7821-9c62-e6f3adcdb4eb
+          outcome: returned
+      "n": 4
+      timestamp: "2026-10-24T17:18:20-07:00"
+      agent: codex
+      reviewer: codex (openai; author openai)
+      blocked: false
+      protocol_error: no valid findings block
 content_hash: 448818aedad8e4183d6dc11a984bbd4888e6eddeb21c5e000faab82d58055ff8
 ---
 
@@ -145,6 +190,10 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - PQ-2 — addressed — Immutable publication and explicit top-level/nested raw-member preservation cover rewrites, with strict validation and older-reader/newer-record round-trip tests.
 
 ## Round 3 — 2026-10-24T03:37:43-07:00 (codex) — passed
+
+## Round 4 — 2026-10-24T17:18:20-07:00 (codex) — passed
+
+**Protocol error:** no valid findings block — this round contributed no findings.
 
 ## Open findings
 
