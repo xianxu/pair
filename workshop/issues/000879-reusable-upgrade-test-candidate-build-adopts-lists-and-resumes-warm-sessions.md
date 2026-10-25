@@ -61,6 +61,8 @@ Second coordination send to pair:5 was refused before delivery with breaker-exha
 
 Hub e14ced4c-8af4-4800-ad7b-d9623214ca65 approved the committed plan: one Fleet owner, actual triplet copy replacement under its mutex, PAIR_HOME switch, same roots/RunID/fixtures/sockets, public startup/list/resume/physical attach with unchanged bindings/PIDs/sockets, old registry reads, Claude then Codex with one hub+worker, same-main healthy control then38fe8ea-to93a57a38 RED within20m targeted bound. Hub already relayed fixture-first sequencing to pair:5. Implementation starts only after change-code gate.
 
+change-code admitted the existing branch (quick inferred from current design; close measures the final code diff and upgrades its review if needed). Runtime replacement RED failed0.481s on the unimplemented operation. Added detached/joined-only replacement using the existing Fleet.begin and mutex, validated/staged physical copies and per-file rename. Failure after publication moves the existing OwnedRun to unknown before releasing admission mutex, with cleanup authority preserved. No new lifetime owner/state flags. Focused controls PASS0.374s, expanded partial-publication controls PASS0.518s; final focused race PASS1.881s. Cases include active/absent console, other operation, starting, canceled, missing/nonexec/symlink candidate, missing source, escaped bin, cancel after first rename and refused second rename; successful replacement verifies independent physical bytes and unchanged roots/RunID/fixtures/native tools.
+
 ## Revisions
 
 ### 2026-10-24 — fixture-first landing, hub7aa4f471
