@@ -291,9 +291,6 @@ func TestDisposableCouchFleetWake(t *testing.T) {
 	if os.Getenv("PAIR_NATIVE_COUCH_FLEET") != "1" {
 		t.Skip("set PAIR_NATIVE_COUCH_FLEET=1 or make test-couch-fleet")
 	}
-	// Remove this skip when pair#863 lands: it is the only thing stopping
-	// the run.
-	t.Skip("blocked by pair#863: a hub started from the switcher in a fresh explicit-hub fleet never becomes a live broker caller (couch --actors: caller lookup: recipient is not live)")
 	binaries := testcouch.Build(t)
 	for _, agent := range []string{"claude", "codex"} {
 		if !t.Run(agent, func(t *testing.T) {
@@ -307,23 +304,16 @@ func TestDisposableCouchFleetWake(t *testing.T) {
 			}
 			ctx, cancel := context.WithTimeout(t.Context(), 300*time.Second)
 			defer cancel()
-			// Since #739 no hub starts by itself; the operator starts the main
-			// hub from the switcher (#863 tracks Fleet.Start).
-			if err := fleet.StartCold(ctx); err != nil {
-				t.Fatal(err)
+			// A fresh namespace starts both configured hubs by itself (#863);
+			// the main hub then launches the plain worker.
+			if err := fleet.Start(ctx); err != nil {
+				t.Fatalf("fresh startup: %v\n%s", err, fleet.Screen())
 			}
-			wakeFleetStartHub(t, ctx, fleet, fleet.Workspaces.Primary, agent)
-			if err := fleet.WaitAgent(ctx, 0); err != nil {
-				t.Fatalf("main hub start: %v\n%s", err, fleet.Screen())
-			}
-			if err := fleet.WaitActors(ctx, 1); err != nil {
-				t.Fatalf("main hub registration: %v\n%s", err, fleet.Screen())
-			}
-			// fixture:1 is its own hub, so it is started the same way; the
-			// main hub launches the plain worker.
-			wakeFleetStartHub(t, ctx, fleet, fleet.Workspaces.Workers[1], agent)
 			if err := fleet.WaitAgent(ctx, 1); err != nil {
 				t.Fatalf("second hub start: %v\n%s", err, fleet.Screen())
+			}
+			if err := fleet.WaitActors(ctx, 2); err != nil {
+				t.Fatalf("hub registration: %v\n%s", err, fleet.Screen())
 			}
 			if err := fleet.StartWorker(ctx, 2); err != nil {
 				t.Fatal(err)
@@ -424,36 +414,6 @@ func TestDisposableCouchFleetWake(t *testing.T) {
 		}) {
 			break
 		}
-	}
-}
-
-// wakeFleetStartHub is the operator's start gesture for a hub with no row:
-// the switcher's start form, its path, the agent, then Enter to start.
-func wakeFleetStartHub(t *testing.T, ctx context.Context, fleet *testcouch.Fleet, dir, agent string) {
-	t.Helper()
-	// The switcher may already be open (a cold start opens it); Ctrl+Space
-	// opens it, and Ctrl+Space in it opens the start form.
-	wakeFleetOpenSwitcher(t, ctx, fleet)
-	forceFleetPress(t, fleet, "\x00", 32, 5)
-	forceFleetWaitScreen(t, ctx, fleet, "start thread")
-	if err := fleet.Input([]byte(dir)); err != nil {
-		t.Fatal(err)
-	}
-	// Down moves to the agent field and requests the preview; "args
-	// repo-default" shows it accepted, and one Enter then starts the hub
-	// (pair#863's measured gesture).
-	forceFleetPress(t, fleet, "\x1b[B", 57353, 1)
-	for i := 0; i < 8 && !strings.Contains(fleet.Screen(), "agent "+agent); i++ {
-		forceFleetPress(t, fleet, "\x1b[C", 57351, 1)
-		next, stop := context.WithTimeout(ctx, 2*time.Second)
-		_ = waitFleet(next, func() (bool, error) { return strings.Contains(fleet.Screen(), "agent "+agent), nil })
-		stop()
-	}
-	forceFleetWaitScreen(t, ctx, fleet, "agent "+agent)
-	forceFleetWaitScreen(t, ctx, fleet, "args  repo-default")
-	forceFleetPress(t, fleet, "\r", 13, 1)
-	if err := waitFleet(ctx, func() (bool, error) { return !strings.Contains(fleet.Screen(), "start thread"), nil }); err != nil {
-		t.Fatalf("start form for %s stayed open: %v\n%s", dir, err, fleet.Screen())
 	}
 }
 

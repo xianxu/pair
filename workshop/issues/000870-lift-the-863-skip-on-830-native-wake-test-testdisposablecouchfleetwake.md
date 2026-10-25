@@ -1,12 +1,20 @@
 ---
 id: 000870
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-10-24
 updated: 2026-10-24
 estimate_hours:
-card_mirror: '693c80fe6b5e8aeb73e009d6dfd9fbb8a29f6778' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: 'b42f6466728bc4de3693bee04e94b988e7041d79' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-24T07:08:58-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: Xian’s MacBook Pro
+    workspace: pair:6
+    worktree: /Users/xianxu/workspace/worktree/pair-slot6/pair
+    repository: github.com/xianxu/pair
 ---
 
 # Lift the #863 skip on #830 native wake test (TestDisposableCouchFleetWake)
@@ -27,7 +35,9 @@ card_mirror: '693c80fe6b5e8aeb73e009d6dfd9fbb8a29f6778' # card fields mirrored f
 
 ## Plan
 
-- [ ]
+- [x] Remove the pair#863 skip; T6's first phase uses Fleet.Start, waits for the second hub agent and both hub registrations (WaitActors 2), then the main hub launches the plain worker. The now-unused wakeFleetStartHub helper goes; wakeFleetOpenSwitcher stays for the Resume-from-disk phase.
+- [ ] Run natively, unsandboxed, PAIR_NATIVE_COUCH_FLEET=1, for Claude and Codex (go test ./cmd/couch -run ^TestDisposableCouchFleetWake$).
+- [ ] Inventory, pre-close, close, land.
 
 ## Log
 
