@@ -1,0 +1,278 @@
+package main
+
+import (
+	"context"
+	"crypto/sha256"
+	"debug/buildinfo"
+	"encoding/json"
+	"fmt"
+	"github.com/xianxu/pair/cmd/internal/artifactpath"
+	"github.com/xianxu/pair/cmd/internal/couchmessage"
+	"github.com/xianxu/pair/cmd/internal/testcouch"
+	"github.com/xianxu/pair/cmd/internal/testcouch/agentfixture"
+	"github.com/xianxu/pair/cmd/internal/zellijquery"
+	"github.com/xianxu/pair/cmd/internal/zellijreply"
+	"os"
+	"path/filepath"
+	"reflect"
+	"strings"
+	"testing"
+	"time"
+)
+
+func TestCombinedStageMainWarmUpgrade(t *testing.T) {
+	build := func(source string) testcouch.Binaries {
+		ctx, cancel := context.WithTimeout(t.Context(), 180*time.Second)
+		defer cancel()
+		owner, err := testcouch.BuildOwned(ctx, testcouch.BuildConfig{Source: source, ScratchParent: os.Getenv("COMBINED_SCRATCH")})
+		if owner != nil {
+			t.Cleanup(func() {
+				ctx, c := context.WithTimeout(context.Background(), 20*time.Second)
+				defer c()
+				if e := owner.Close(ctx); e != nil {
+					t.Error(e)
+				}
+			})
+		}
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Logf("build source=%s evidence=%+v", source, owner.Binaries.Evidence)
+		for name, path := range map[string]string{"pair": owner.Binaries.Pair, "couch": owner.Binaries.Couch, "helper": owner.Binaries.Helper} {
+			raw, e := os.ReadFile(path)
+			if e != nil {
+				t.Fatal(e)
+			}
+			t.Logf("binary %s sha256=%x", name, sha256.Sum256(raw))
+		}
+		return owner.Binaries
+	}
+	old := build(os.Getenv("COMBINED_MAIN_SOURCE"))
+	candidate := old
+	candidate.Source = os.Getenv("COMBINED_STAGE_SOURCE")
+	candidate.Couch = filepath.Join(candidate.Source, "bin/couch")
+	candidate.Pair = filepath.Join(candidate.Source, "bin/pair")
+	candidate.Helper = filepath.Join(candidate.Source, "bin/pair-launch-helper")
+	for name, path := range map[string]string{"couch": candidate.Couch, "pair": candidate.Pair, "helper": candidate.Helper} {
+		info, e := buildinfo.ReadFile(path)
+		if e != nil {
+			t.Fatal(e)
+		}
+		facts := map[string]string{}
+		for _, setting := range info.Settings {
+			facts[setting.Key] = setting.Value
+		}
+		if facts["vcs.revision"] != os.Getenv("COMBINED_STAGE_REVISION") || facts["vcs.modified"] != "false" {
+			t.Fatalf("staged %s facts=%v", name, facts)
+		}
+		raw, e := os.ReadFile(path)
+		if e != nil {
+			t.Fatal(e)
+		}
+		t.Logf("EXACT STAGED binary=%s path=%s revision=%s sha256=%x", name, path, facts["vcs.revision"], sha256.Sum256(raw))
+	}
+
+	for _, agent := range []string{"claude", "codex"} {
+		if !t.Run(agent, func(t *testing.T) {
+			f := testcouch.New(t, old, testcouch.Options{Workers: 1, ExplicitHub: true, AgentKind: agent, RuntimeBudget: 6 * time.Minute, RetainStartupServerLog: true})
+			setup, c := context.WithTimeout(t.Context(), 180*time.Second)
+			err := f.Prepare(setup)
+			c()
+			if err != nil {
+				t.Fatal(err)
+			}
+			for i := 1; i <= 1; i++ {
+				saved := f.Workspaces.Workers[1]
+				f.Workspaces.Workers[1] = f.Workspaces.Workers[i]
+				startupArgumentsBaseline(t, f)
+				f.Workspaces.Workers[1] = saved
+			}
+			ctx, cancel := context.WithTimeout(t.Context(), 6*time.Minute)
+			defer cancel()
+			if e := startupReadinessStartHub(ctx, f, agent); e != nil {
+				t.Fatal(e)
+			}
+			if e := f.StartWorker(ctx, 1); e != nil {
+				// Old-main CLI can start the worker then retry after warming and
+				// refuse stopping that now-live worker. Preserve that observation;
+				// setup accepts only a positive live agent and full registration.
+				t.Logf("old main worker CLI outcome=%v; checking exact live registration without retry", e)
+				if e = f.WaitAgent(ctx, 1); e != nil {
+					t.Fatal(e)
+				}
+				if e = f.WaitActors(ctx, 2); e != nil {
+					t.Fatal(e)
+				}
+			}
+			t.Log("main worker fixture live and registered")
+
+			response, e := f.Actors(ctx)
+			if e != nil {
+				t.Fatal(e)
+			}
+			bindings := map[string]couchmessage.Binding{}
+			ready := map[int]agentfixture.Ready{}
+			sockets := map[string]os.FileInfo{}
+			ns, e := zellijquery.ReadinessNamespace(f.Environment)
+			if e != nil {
+				t.Fatal(e)
+			}
+			cache, e := artifactpath.ResolvePairCache(f.Roots.Mutable["home"])
+			if e != nil {
+				t.Fatal(e)
+			}
+			absent := func(session string) {
+				path, e := cache.ZellijReadyMarker(ns, session)
+				if e != nil {
+					t.Fatal(e)
+				}
+				if _, e = os.Lstat(path); !os.IsNotExist(e) {
+					t.Fatalf("expected natural absent marker %s: %v", path, e)
+				}
+			}
+			for _, a := range response.Actors {
+				b := a.Binding
+				bindings[b.Slot] = b
+				absent(b.Session)
+				info, e := os.Lstat(filepath.Join(f.Roots.Mutable["sockets"], "contract_version_1", b.Session))
+				if e != nil {
+					t.Fatal(e)
+				}
+				sockets[b.Slot] = info
+				t.Logf("main warm binding=%+v", b)
+			}
+			if len(bindings) != 2 {
+				t.Fatalf("old actors=%d", len(bindings))
+			}
+			for i := 0; i <= 1; i++ {
+				r, e := f.Agent(i)
+				if e != nil {
+					t.Fatal(e)
+				}
+				ready[i] = r
+				t.Logf("old fixture slot=%d %+v", i, r)
+			}
+			t.Log("all main warm identities recorded; detaching old supervisor")
+			if e := f.Detach(ctx); e != nil {
+				t.Fatal(e)
+			}
+			for name, source := range map[string]string{"pair": candidate.Pair, "couch": candidate.Couch, "pair-launch-helper": candidate.Helper} {
+				raw, e := os.ReadFile(source)
+				if e != nil {
+					t.Fatal(e)
+				}
+				dst := filepath.Join(f.Roots.Mutable["bin"], name)
+				if e = os.WriteFile(dst+".upgrade", raw, 0700); e != nil {
+					t.Fatal(e)
+				}
+				if e = os.Rename(dst+".upgrade", dst); e != nil {
+					t.Fatal(e)
+				}
+			}
+			f.Binaries = candidate
+			for i, entry := range f.Environment {
+				if strings.HasPrefix(entry, "PAIR_HOME=") {
+					f.Environment[i] = "PAIR_HOME=" + candidate.Source
+				}
+			}
+			t.Log("candidate binaries installed; starting adoption")
+			if e := f.RestartSupervisor(ctx); e != nil {
+				t.Fatalf("candidate startup adoption: %v", e)
+			}
+			if e := f.WaitActors(ctx, 2); e != nil {
+				t.Fatal(e)
+			}
+			listing, e := f.ListThreads(ctx)
+			if e != nil {
+				t.Fatal(e)
+			}
+			t.Logf("candidate listing=%s", listing)
+			for i := 0; i <= 1; i++ {
+				t.Logf("candidate explicit resume and attach slot=%d", i)
+				slot := fmt.Sprintf("fixture:%d", i)
+				b := bindings[slot]
+				if b.Session == "" {
+					t.Fatalf("missing old binding %s", slot)
+				}
+				result, e := f.ActorCLI(ctx, 0, "--resume", slot, "--json")
+				if e != nil || result.ExitCode != 0 {
+					t.Fatalf("resume %s: %+v %v", slot, result, e)
+				}
+				var receipt couchmessage.OperationReceipt
+				if e = json.Unmarshal([]byte(result.Stdout), &receipt); e != nil || receipt.ID == "" || receipt.Op != "resume" || receipt.Target != slot || receipt.Status != couchmessage.ReceiptSucceeded || (receipt.Tag != "" && receipt.Tag != b.Tag) {
+					t.Fatalf("resume final receipt %s: %+v %v", slot, result, e)
+				}
+
+				t.Logf("explicit resume slot=%s receipt=%+v", slot, receipt)
+				// Public switcher attach, using exact retained opaque tag (fixture:0 is not a root-row filter).
+				if !strings.Contains(f.Screen(), "Ctrl+Y copy last notice / selected error") {
+					if e = f.Press("\x00", 32, 5); e != nil {
+						t.Fatal(e)
+					}
+				}
+				if e = startupArgumentsWait(ctx, func() (bool, error) {
+					return strings.Contains(f.Screen(), "Ctrl+Y copy last notice / selected error"), nil
+				}); e != nil {
+					t.Fatal(e)
+				}
+				if e = f.Input([]byte(b.Tag)); e != nil {
+					t.Fatal(e)
+				}
+				if e = startupArgumentsWait(ctx, func() (bool, error) { return strings.Contains(f.Screen(), b.Tag), nil }); e != nil {
+					t.Fatal(e)
+				}
+				if e = f.Press("\r", 13, 1); e != nil {
+					t.Fatal(e)
+				}
+				if e = startupArgumentsWait(ctx, func() (bool, error) {
+					return !strings.Contains(f.Screen(), "Ctrl+Y copy last notice / selected error"), nil
+				}); e != nil {
+					t.Fatalf("attach %s: %v screen=%s", slot, e, f.Screen())
+				}
+				source := zellijquery.Source{Path: candidate.Zellij, Env: f.Environment, ExplicitRecovery: true}
+				r, e := source.ReadContext(ctx, "--session", b.Session, "action", "list-clients")
+				if e != nil {
+					t.Fatal(e)
+				}
+				clients, e := zellijreply.ParseClients(r.Stdout)
+				if e != nil || len(clients) == 0 {
+					t.Fatalf("no native attached client %s: %s %v", slot, r.Stdout, e)
+				}
+				r, e = source.ReadContext(ctx, "list-sessions", "--no-formatting")
+				if e != nil || !strings.Contains(string(r.Stdout), b.Session) {
+					t.Fatalf("listing lacks %s: %s %v", slot, r.Stdout, e)
+				}
+				current, e := f.Agent(i)
+				if e != nil || !reflect.DeepEqual(current, ready[i]) {
+					t.Fatalf("agent changed slot=%s old=%+v new=%+v %v", slot, ready[i], current, e)
+				}
+				info, e := os.Lstat(filepath.Join(f.Roots.Mutable["sockets"], "contract_version_1", b.Session))
+				if e != nil || !os.SameFile(sockets[slot], info) {
+					t.Fatalf("socket replaced %s: %v", slot, e)
+				}
+				absent(b.Session)
+				t.Logf("GREEN exact warm attach agent=%s slot=%s session=%s clients=%+v unchanged_pid=%d generation=%s native=%s transcript=%s marker=absent socket=same", agent, slot, b.Session, clients, current.PID, current.Generation, current.NativeID, current.Transcript)
+			}
+			after, e := f.Actors(ctx)
+			if e != nil {
+				t.Fatal(e)
+			}
+			for _, a := range after.Actors {
+				if !reflect.DeepEqual(a.Binding, bindings[a.Binding.Slot]) {
+					t.Fatalf("binding changed old=%+v new=%+v", bindings[a.Binding.Slot], a.Binding)
+				}
+			}
+			cleanup, stop := context.WithTimeout(context.Background(), 25*time.Second)
+			defer stop()
+			if e = f.Close(cleanup); e != nil {
+				t.Fatal(e)
+			}
+			if e = f.AssertCleaned(); e != nil {
+				t.Fatal(e)
+			}
+			t.Logf("CLEAN run=%s root=%s", f.RunID, f.Roots.Root)
+		}) {
+			break
+		}
+	}
+}

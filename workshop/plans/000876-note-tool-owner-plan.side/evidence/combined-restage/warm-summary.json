@@ -1,0 +1,20 @@
+{
+  "stage": "9bfd7ab51cef5f9d563b19dea087c9ef084c19c9",
+  "main": "dc3031079bddd3c160cd9481fdef94f1ff29c83b",
+  "native_test_seconds": 146.58,
+  "package_seconds": 146.745,
+  "four_actor_assertions": [
+    "one_off_combined_warm_test.go:254: GREEN exact warm attach agent=claude slot=fixture:0 session=\ud83d\udcc19223554383986294785-1 clients=[{ID:1 PaneID:terminal_2 RunningCommand:nvim -u /Volumes/TestScratch/tmp/pair-slot4/pair-combined-warm-3iykmce8/main/nvim/init.lua /Volumes/TestScratch/pc-1716892339/data/pair/repos/ece4673df330394b/draft-9223554383986294785-fixture-1.md}] unchanged_pid=64046 generation=1792891534.909254 native=87015ac8-379d-4366-8793-0a1ffc7adb62 transcript=/Volumes/TestScratch/pc-1716892339/home/.claude/projects/-Volumes-TestScratch-pc-1716892339-fleet-fixture/87015ac8-379d-4366-8793-0a1ffc7adb62.jsonl marker=absent socket=same",
+    "one_off_combined_warm_test.go:254: GREEN exact warm attach agent=claude slot=fixture:1 session=\ud83d\udcc19223554383986294785-3 clients=[{ID:1 PaneID:terminal_2 RunningCommand:nvim -u /Volumes/TestScratch/tmp/pair-slot4/pair-combined-warm-3iykmce8/main/nvim/init.lua /Volumes/TestScratch/pc-1716892339/data/pair/repos/fa98ab2d41ea5ea0/draft-9223554383986294785-fixture-3.md}] unchanged_pid=75795 generation=1792891555.376207 native=e32ef75d-2cc0-434f-9ceb-b1ca88686065 transcript=/Volumes/TestScratch/pc-1716892339/home/.claude/projects/-Volumes-TestScratch-pc-1716892339-fleet-worktree-fixture-slot1-fixture/e32ef75d-2cc0-434f-9ceb-b1ca88686065.jsonl marker=absent socket=same",
+    "one_off_combined_warm_test.go:254: GREEN exact warm attach agent=codex slot=fixture:0 session=\ud83d\udcc19223554383986294786-1 clients=[{ID:1 PaneID:terminal_2 RunningCommand:nvim -u /Volumes/TestScratch/tmp/pair-slot4/pair-combined-warm-3iykmce8/main/nvim/init.lua /Volumes/TestScratch/pc-3762579188/data/pair/repos/e1d8d239a72123b6/draft-9223554383986294786-fixture-1.md}] unchanged_pid=616 generation=1792891596.704457 native=b6d573d9-34c4-41cf-8635-f4054ee01071 transcript=/Volumes/TestScratch/pc-3762579188/home/.codex/sessions/2026/10/25/rollout-fixture-b6d573d9-34c4-41cf-8635-f4054ee01071.jsonl marker=absent socket=same",
+    "one_off_combined_warm_test.go:254: GREEN exact warm attach agent=codex slot=fixture:1 session=\ud83d\udcc19223554383986294786-3 clients=[{ID:2 PaneID:terminal_0 RunningCommand:pair wrap --scrollback-log /Volumes/TestScratch/pc-3762579188/data/pair/repos/f723c1390c32c82d/scrollback-9223554383986294786-fixture-3-codex.raw --from-launch-env}] unchanged_pid=10737 generation=1792891613.770268 native=2566e5f8-756b-41ac-a7bb-74a7f0d9c836 transcript=/Volumes/TestScratch/pc-3762579188/home/.codex/sessions/2026/10/25/rollout-fixture-2566e5f8-756b-41ac-a7bb-74a7f0d9c836.jsonl marker=absent socket=same"
+  ],
+  "cleaned_fleet_roots": [
+    "/Volumes/TestScratch/pc-1716892339",
+    "/Volumes/TestScratch/pc-3762579188"
+  ],
+  "log_sha256": "7f87f8c973bcefd6cbf4950d01cadb5645c43d34c06a6811c4f19442c163340c",
+  "metadata_sha256": "b7c79232f43a58d7b8ec44385f856d87b27aa079e1bbb79fb8fed836cffc2d46",
+  "fresh_profile_folder_absent": true,
+  "stage_head_after": "9bfd7ab51cef5f9d563b19dea087c9ef084c19c9"
+}
