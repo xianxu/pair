@@ -39,9 +39,9 @@ The owner live fixture must observe completion of a requested viewport resize be
 
 ## Plan
 
-- [ ] Pin consumed-resize ordering with a held native event and establish RED.
-- [ ] Await the armed resize receipt in the owner fixture; verify native and lifecycle controls.
-- [ ] Record evidence, lifetime lesson, inventory and final verification.
+- [x] Pin consumed-resize ordering with a held native event and establish RED.
+- [x] Await the armed resize receipt in the owner fixture; verify native and lifecycle controls.
+- [x] Record evidence, lifetime lesson, inventory and final verification.
 
 ## Log
 
@@ -50,3 +50,16 @@ The owner live fixture must observe completion of a requested viewport resize be
 Claimed from main after884 landed. Dispatch4f39b992 asks890, then895, then888 one at a time, private headless Chrome only, targeted count<=10, no retry/timeout increase. Root investigation: owner test computes a hit-tested center in Runtime.evaluate, then dispatches separate CDP mousePressed/mouseReleased; final Save-label is inside a feedback panel after short-viewport resize and tool exit. Sketch895 similarly computes Done geometry before native input. Shared cause is unproven; inspect rendered/presented layout, event targets, and model completion before proposing a fix. Existing #858 live-control helper guards hidden/disabled geometry but is specific to the live toggle. No code changes yet. Baseline head11fece5cfb3b7da9ab93e6e592ec4f940919887a.
 
 Root captured with diagnostics and browser-only CPU throttle4:9/10 pass,1 failure46.273s total. Native Save coordinates260.09375 hit feedback-body after button moved248->206; model still label-required, generation0 allowed, host visible. [Capture](../evidence/000890/lost-click.md). Initial trace-only10/10 PASS34.626s. No passing retry used as fix. Hub plan c0cec94d posted before code; quick plan proceeding unless objected. Separate895/888 remain unclaimed until890 lands or shared-cause proof justifies a fold.
+
+Controlled native regression RED with metrics-only helper: resize completed before page handlers, exit1,1.011s. Receipt helper GREEN1.677s. First combined count10 qualification exposed initial-navigation context retirement at the new receipt: initial metrics previously ran before the fixture-document wait. Move that existing wait before the first receipt, so every barrier is armed in the intended document; no navigation retry or longer deadline. This is fixture setup ordering, not a changed browser product policy. Combined run is being allowed to finish; its failures are retained, and the corrected source needs fresh verification.
+
+Corrected document ordering plus resize receipt: controlled native regression and owner count10 PASS61.602s; browser-throttle4/trace owner count10 PASS46.813s with every Save click at218 after panel clamp; focused race PASS7.223s. Existing timeout and one-shot input remain. First combined qualification before document ordering correction failed48.349s (navigation context destruction), retained as failed evidence rather than passed over. Reader inventory PASS: new helper/regression uses only literal JS and private Chrome/t.TempDir, reads no repository artifact; no certificates changed. The ordering is semantic protocol behavior defended by the held-event regression and lesson, not an AST-identifiable Go API misuse.
+
+
+Catalog TestTrackedGoFilesPassCatalog PASS8.158s, whitespace check PASS. Final recorded pre-close check and normal merge still required before landing.
+
+## Revisions
+
+### 2026-10-25 — document-owned resize receipt
+
+A resize receipt belongs to the current document. Require the existing fixture-document readiness before the initial resize, while retaining the original viewport and60s context. The captured final-click root cause and remaining scope are unchanged.

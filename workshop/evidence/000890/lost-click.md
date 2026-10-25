@@ -132,3 +132,7 @@ Final native event excerpt:
   }
 ]
 ```
+
+## Corrected fixture
+
+The native held-event regression fails before the barrier (resize returned before page handlers,1.011s) and passes with it. Same geometry and metrics/wait error listener cleanup are checked with actual Chrome. Owner+regression count10 PASS61.602s; focused race PASS7.223s. Corrected owner with the same diagnostic trace and browser CPU throttle4 passed10/10 in46.813s; every Save click used y218 after rect top206. Corrected trace retained at /Volumes/TestScratch/tmp/pair890-fixedtrace.zgs8ozvg/run.log; SHA256 dcba0d71ac25d52aa4078125a96e4c3a2006e51e60066ea1ea492fb53c2b8433.
