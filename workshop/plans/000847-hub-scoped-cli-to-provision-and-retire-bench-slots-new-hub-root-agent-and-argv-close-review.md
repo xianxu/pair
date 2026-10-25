@@ -142,3 +142,119 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-25T05:57:32-07:00 (FIX-THEN-SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 847 — Hub-scoped CLI to provision and retire bench slots (new hub root, agent and argv, fresh) without a Couch restart or console steps |
+| repo | pair |
+| issue file | workshop/issues/000847-hub-scoped-cli-to-provision-and-retire-bench-slots-new-hub-root-agent-and-argv.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | b85cebd610807b9f779a83941241c6d720592dae..bf9f1501b2e4f293b77d7cc5b5af2a2b55993a4b |
+| command | sdlc close --issue 847 |
+| reviewer | claude (anthropic; author anthropic) |
+| isolation | fenced |
+| timestamp | 2026-10-25T05:57:32-07:00 |
+| verdict | FIX-THEN-SHIP |
+
+## Review
+
+Let me read the plan and the recent fix commits.
+
+Checking the prior fixes now: `run.go` has a type switch on `RebootResult`, and I need to confirm it also handles `BenchStartResult`.
+
+The other tests pass; only the two git-fixture tests hit the sandbox again. Now I'll revert each fix and check that its regression test fails.
+
+Both regression tests fail with their fix reverted. Next I'll check BR-4: whether the plan and atlas wording now matches the code.
+
+Most prior findings check out. Last step: running the broader package tests to confirm the tree is green.
+
+```verdict
+verdict: FIX-THEN-SHIP
+confidence: high
+```
+
+The two Important findings from earlier rounds are fixed, and each fix has a test that fails without it. I reverted each fix in the disposable checkout and ran its test. With BR-2 reverted, `TestBenchStartRefusesAnArchiveOnlyReboot` fails: an archive-only reboot produced a successful result with no provenance. With BR-3 reverted, `TestBenchSurvivorsAreRecordedForTheRetry` fails with "retry lost the survivor". Restoring the fixes makes both pass. The plan and atlas no longer claim the unknown-identity rule (BR-4). What remains is Minor: the BR-5 console warning change has no regression test, and one stale filename is still in the plan (BR-1). Neither blocks. The same two git-fixture tests (BR-6) still fail here because the sandbox refuses `git init`. The finding records a host run where they passed, so I withdraw it.
+
+1. **Strengths**
+   - `HubOwnership.Provisions` (`cmd/internal/couchcore/hub_ownership.go:100-117`) gets the ownership source from a factored `resolve` that returns it alongside the result, while `Resolve` keeps its signature. Default ownership, runtime moves and conflicting claims each refuse with their own error.
+   - `BenchStart` goes through Reboot's existing Fresh path and does not add a second launch path (ARCH-DRY). `parkBenchSlot` is shared by both bench verbs (`bench_retire.go:75-99`).
+   - Strict retire fails closed. Survivors are recorded before the decision (`bench_retire.go:123-131`), unknown liveness counts as a survivor, and a refused retire keeps the record.
+   - Receipt provenance is an additive `omitempty` field (ARCH-EVOLVE pass).
+   - README, atlas "Bench slots", SKILL.md and the cost tiers are all updated for the new verbs.
+
+2. **Critical findings:** none.
+
+3. **Important findings:** none new.
+
+4. **Minor findings**
+   - **BR-5 (still open):** `console_lifecycle_failure.go:88` added a `BenchStartResult` case, but `lifecyclefailure_result_warning_test.go` has no bench row. This is the 2nd finding in family `exhaustive-result-type-switch`, so the fix should cover the rule, not just this case. The rule: anything that embeds `RebootResult` must be matched wherever `RebootResult` is matched. Two ways to enforce it:
+     - match on an accessor interface (for example `interface{ Reboot() RebootResult }`) instead of concrete types; or
+     - add a table test that runs every wrapper through each such switch.
+     
+     The sites today are `console_lifecycle_failure.go:84-91`, `slot_operations.go:427-432` and `run.go:1277`. `run.go` is safe now only because a bench-start that starts nothing returns an error.
+   - **BR-1 (still open):** Task 1 in the plan still says "existing `hub_ownership_test.go` cases stay green", and that file does not exist. Tasks 1, 3 and 4 are now one strategy line each.
+   - **BR-3 residual (note only):** a survivor from an earlier generation can still be evicted by the 256-entry global registry cap between attempts. Within a single attempt the fresh `Add` keeps the newest entries, so this is unlikely in practice.
+
+5. **Test coverage notes**
+   - The `couchcore` bench/provisions tests pass, as do `couchmessage` and `couchtty`.
+   - Six tests fail here, all with "git init refused … sdlc #339", which is the sandbox:
+     - `couchcore`: `TestVacantSlotFreshStartTakesExplicitProfile`, `TestRetireBenchSlotVacant`
+     - `couchcmd`: `TestContinuationWriterPublishesExactCheckpointAcrossWorktrees`, `TestHubWorktreeIsTheStartupCheckout`, `TestRecoveryMenuReachesTerminalAfterActualHelperDeath`, `TestRecoveryNativeOnlyProductionComposition`
+   - I confirmed the cause for the two `couchcore` tests and three of the `couchcmd` ones. For `TestHubWorktreeIsTheStartupCheckout` I did not look at its failure output, so its cause is unconfirmed. Of the six, this diff only adds the two `couchcore` ones.
+   - I did not run the native acceptance test (`TestDisposableCouchBenchSlots`).
+
+6. **Architecture notes**
+   - Pass: ARCH-DRY, ARCH-PURE (Provisions and ParseBenchProfile are pure), ARCH-PURPOSE (all six verbs/steps driven from the bench hub, no console steps), ARCH-SECURE (production slots unreachable, argv validated), ARCH-EVOLVE.
+   - ARCH-MOCK: passes. It uses the existing FakeProc/FakePathOps seams.
+   - ARCH-ORDER: passes for this boundary. A retry after a refusal is covered by recording survivors before the decision. The admission-then-effect recheck of Provisions repeats the existing Wakes pattern.
+   - ARCH-FUNERAL: passes. The registry is bounded by the existing cap, and an archived thread follows the existing archive lifecycle.
+   - ARCH-CONSTRAINTS: N/A beyond the existing heavy-op tier, since these are operator-invoked verbs and not on a hot path.
+
+7. **Plan revisions:** Task 1 should name `hub_ownership_sequence_test.go`, not the nonexistent `hub_ownership_test.go`.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: not-addressed
+    note: |
+      Tasks 1/3/4 compressed, but Task 1 still cites nonexistent hub_ownership_test.go; Minor, non-blocking.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      bench_operation.go:79-83 returns SlotOpBenchNotStarted; reverting it makes TestBenchStartRefusesAnArchiveOnlyReboot fail.
+  - id: BR-3
+    disposition: addressed
+    note: |
+      refuseBenchSurvivors records LeftRunning fail-closed before judging; reverting makes TestBenchSurvivorsAreRecordedForTheRetry fail ("retry lost the survivor").
+  - id: BR-4
+    disposition: addressed
+    note: |
+      Plan line 61 and atlas now say unknown liveness counts and that registry entries carry exact identity, matching observeExactProcessOrUnknown and teardown.go:522.
+  - id: BR-5
+    disposition: not-addressed
+    note: |
+      Case added at console_lifecycle_failure.go:88 but no BenchStartResult row in lifecyclefailure_result_warning_test.go; family rule (wrappers of RebootResult matched wherever it is) not enforced. Minor.
+  - id: BR-6
+    disposition: withdrawn
+    note: |
+      Still refused by sandbox git init (sdlc #339) here; the recorded host run of both tests passing answers it.
+```
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"3644aa0d-8549-456b-b782-c936320951f3","repository":"github.com/xianxu/pair","issue_id":"000847","recipe":"milestone-review","round":3,"attempt":1,"agent":"claude","root":"/Volumes/TestScratch/review-checkouts/a13afa083b29d25c","reviewed_head":"bf9f1501b2e4f293b77d7cc5b5af2a2b55993a4b","slot":"pair:6","requested_at":"2026-10-25T12:51:28.52678Z"},"phase":"finished","pid":60028,"started_at":"2026-10-25T12:51:28.711645Z","finished_at":"2026-10-25T12:57:29.176486Z","session_id":"978beb4f-a792-4598-87fb-2664263c3edc","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 4.043222334s
+head: "bf9f1501b2e4f293b77d7cc5b5af2a2b55993a4b"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412

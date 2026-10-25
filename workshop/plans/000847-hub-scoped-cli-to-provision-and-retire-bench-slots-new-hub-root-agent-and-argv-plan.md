@@ -69,7 +69,7 @@
 
 - [ ] Strategy: one table derived from the ownership-source enum × caller role (main hub, other hub, worker, non-hub); only (other hub, claim-sourced, no conflict) passes, every other cell refuses with its distinct reason.
 - [ ] Run `go test ./cmd/internal/couchcore -run TestHubOwnershipProvisions` — FAIL (undefined).
-- [ ] Factor `resolve` with an ownership source; keep `Resolve`'s behavior (existing `hub_ownership_test.go` cases stay green); implement `Provisions`.
+- [ ] Factor `resolve` with an ownership source; keep `Resolve`'s behavior (existing `hub_ownership_sequence_test.go` cases stay green); implement `Provisions`.
 - [ ] Run the package's hub ownership tests — PASS. Commit `#847: bench ownership predicate`.
 
 ### Task 2: Explicit launch profile through Reboot's Fresh path
@@ -130,3 +130,4 @@
 
 - 2026-10-25 (native acceptance): Reboot on a live slot answers with a recovery-confirmation stop set, which would cost the bench hub a second command and drop the provenance. bench-start now parks a live agent first (`parkBenchSlot`, the graceful stop bench-retire already used) and reboots the parked thread; one launch path still. The native harness also lacked `lsof`, which teardown uses for lease holders; it joins the harness's explicit runtime utilities. Bench ops are declared `PresentationTUI` without a row action, not `PresentationInternal`: `couch --internal` has no hub gate, and a CLI test pins its refusal.
 - 2026-10-25 (close review round 1): BR-2 bench-start refuses `bench-start-not-started` when Reboot only archives; BR-3 strict retire records this teardown's LeftRunning in the registry before judging and refuses if it cannot, so a retry after the agent stopped still sees them; BR-5 console warning switch handles BenchStartResult; BR-4 the unknown-identity wording above is corrected to unknown liveness.
+- 2026-10-25 — close round 2 advisories: Task 1 named a nonexistent `hub_ownership_test.go`; the existing cases live in `hub_ownership_sequence_test.go` (BR-1). BR-5's family rule is now enforced by `BenchStartResult` rows in the console warning test.
