@@ -16,6 +16,7 @@ claimant:
     workspace: pair:6
     worktree: /Users/xianxu/workspace/worktree/pair-slot6/pair
     repository: github.com/xianxu/pair
+flow: {kind: quick, provenance: inferred, spec: "599e1fc3", done: "5090819f"}
 ---
 
 # Hub-scoped CLI to provision and retire bench slots (new hub root, agent and argv, fresh) without a Couch restart or console steps
