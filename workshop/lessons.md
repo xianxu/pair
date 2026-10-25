@@ -2970,3 +2970,5 @@ and external temporary roots rather than relying on the host's TMPDIR.
 - #844 BR-4: an approved post-close verification fix that adds an executable checker contract can require full close even when it changes no product policy. Follow the scope guard with the existing ledger; do not treat plan approval as authority to narrow that review.
 
 - #881: A Unix availability probe can fit while a later private directory plus socket leaf exceeds the application budget. Use the shared short-root allocator for the fixture owner, assert the complete worst-case derived path under a long inherited TMPDIR, and check Unix/config/permissions/cleanup without converting fixture overflow to a skip. The catalog guards the allocator owner.
+
+- #881 BR-1: A fixture-only fix can introduce an architectural surface through its catalog rule. Every new Pair-local ownership rule needs its atlas mapping in the same change, naming the protected owner, matcher limits and executable regression; do not waive atlas solely because production code is unchanged.
