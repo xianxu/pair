@@ -1,13 +1,13 @@
 ---
 id: 000866
-status: codecomplete
+status: working
 deps: []
 github_issue:
 created: 2026-10-24
 updated: 2026-10-24
 estimate_hours: 5.5
 severity: high
-card_mirror: '7bc9b5aa17d941067c2b610a48445e66e5207df9' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '5414ea1fd6c5ec6d0afea663b68b47f9dbf21637' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-24T02:48:13-07:00
 claimant:
     operator: Xian Xu
@@ -46,12 +46,14 @@ Installed binary /opt/homebrew/Cellar/zellij/0.45.1/bin/zellij. Verified local t
 - A deterministic stateful-fake/control proves no attach/detach probe before the selected readiness witness; uncertainty remains conservative and bounded by the caller's deadline.
 - A bounded shared disposable native qualification shows startup without the panic, with exact owned cleanup; preserve failing captures and do not claim a calibrated flake rate from two occurrences.
 - Record whether a standalone upstream reproducer is available; do not file an upstream report without one.
+- Legacy sessions without readiness markers retain startup adoption, listing and explicit resume behavior. Only a live cooperating creator's existing lease blocks native commands until its exact first pane publishes; no missing marker denies an ordinary probe after it obtains that lease.
 
 ## Plan
 
 - [x] Approve the readiness/coordination contour in [the durable plan](../plans/000866-zellij-startup-readiness-plan.md), then enter change-code; no estimate before its gate.
 - [x] Implement one readiness authority and bounded shared admission with deterministic regression controls and normal bypass prevention.
 - [x] Qualify shared disposable native startup and retain exact cleanup/failure evidence. Recorded pre-close and the final close/landing gates are tracked explicitly in the Log below.
+- [ ] Correct legacy warm startup under the approved lease-only live window; prove deterministic exclusion and old-main-to-candidate upgrade using #879 after it lands, then record the check and re-close before any new stage.
 
 ## Log
 
@@ -242,6 +244,16 @@ Round7 narrow close returned REWORK (BR-7, post-close-scope-control): the missin
 Retained recorded check lease-809461547 / attempt33b662572eb78ce3c68225873e207861 completed exit0 in11m58s after3016s queue wait. Exact tested source abd991c4b2486fc9fafad261550ad79de9d614e6; saved log /Users/xianxu/workspace/pair/.git/sdlc/local-checks/abd991c4b2486fc9fafad261550ad79de9d614e6/suite.log SHA2560224fe53773fc9866a0d01ef1927ca0c95fc1593c7ab9a6caaa6c7e8462906d2, recorded as sdlc-local/suite. All non-Go prerequisites and complete Go set passed: couchcore210.952s, historyarchive32.433s, launcher62.314s, wrapcmd56.838s, zellijquery10.713s and zellijtest14.638s. Loaded local package alarms did not repeat; no further timeout or fixture changes were needed.
 
 Full whole-issue close returned SHIP at round8, all BR1–7 addressed and no new findings. Reviewed f443e10748b4febc409571bd29ace9835dec3369; evidence commit fb62e6d27ce19964ebd5e422c1c492bbf47a9808, mirrored pushed head22624e032ed071806dd0003d115fcfee53998f42. Git confirms only issue/plan/review/lesson documentation changed after the tested source. Ready for TL/pair:4 coordinated operator startup stage with857; do not touch pair:0 or land before that stage is authorized and complete. Operator steps already delivered include the old-layout explanation for the new first-pane error. PR588 remains open.
+
+### 2026-10-24 — operator warm-start regression; approved corrective contour
+
+The authorized combined stage93a57a380d290105b497dfd620ffb9e2e5a15528 failed warm startup at17:05–17:08 PDT and was reverted by the operator. Profile /Users/xianxu/couch-profile-871/metadata.json pins that exact build, vcs.modified=false. failures.json under /Users/xianxu/.local/share/pair/couch/launch-diagnostics records two explicit ops hub resume refusals at17:06:14.691365/17:06:33.984937, helper_started=false: resume-unknown, terminal listing unavailable, observe listed session, Zellij initialization unverified because a pre-existing session447 had no ready marker. The matching supervision generations have empty slot snapshots; the reverted main restart populates retained actors. The17:08:20 crash file is zero bytes; it is not a panic capture. Pair:1 independently found the same failures and no synchronous #844 notice-startup wait.
+
+Source cause: resumeRouted calls listedTerminal before attach/helper creation; Artifacts.ListedPairSessionContext uses the default ZellijSource. AcquireProbe qualifies every namespace socket, rejecting any missing marker. Startup presence and Pair verifyCouchSessionAttach also use that source. Thus even an unrelated legacy endpoint prevents all observations and explicit warm recovery. The existing quiescence-only explicitRecovery override did not cover these ordinary paths. This contradicts the approved legacy/recovery scope; prior cold-start/same-build native tests did not exercise an actual upgrade.
+
+Hub dc7fe398 approved the simpler correction: the existing kernel creator lease is the only live-creator witness; remove namespace-wide positive-marker qualification as probe permission. Once exclusion is acquired, absent/stale receipts never deny legacy observation. Retain exact first-pane publication/release, named bound, joined command lifetimes and scoped preflight permits. No creator registry, journal, legacy census, widened timeout or marker synthesis. Creator death releases the lease and unmarked survivors are legacy, retaining the previously accepted crash-only upstream limit.
+
+Hub3f5fdfe7 updates execution order: #879 (pair:9) owns the single reusable upgrade fixture and lands it first; #866 must not stack on its branch. Deterministic RED/GREEN and the lease-only correction may proceed meanwhile. After #879 lands, integrate main and run actual main-built unmarked sessions -> failed candidate RED/control and corrected candidate GREEN, covering startup adoption, explicit resume and listing for all original Claude/Codex actors with identity/socket continuity and markers still absent. Earlier demand for native RED before any correction is superseded by this explicit sequencing. No stage before hub sequencing; warm start is the next operator stage's first check. #859 is parked after M1 SHIP; no source carried between branches.
 
 ## Revisions
 

@@ -406,3 +406,27 @@ At the existing startup bound, a creator without accepted exact pane evidence re
 ### 2026-10-24 — full close required for the post-close diagnostic
 
 BR-7 identifies the TL-approved missing-first-pane diagnostic as production behavior added after the finalized round6 close, beyond the earlier review findings. The narrow fix-review therefore cannot accept this expanded scope. Retain the approved diagnostic and run a full issue close review over the branch patch. This changes the review boundary, with no further implementation or acceptance change. The recorded pre-close check already queued on abd991c4 continues; this revision and review bookkeeping change documentation only.
+
+### 2026-10-24 17:16 PDT — governing lease-only live-creator correction
+
+Approved by hub dc7fe398 and sequencing3f5fdfe7. This revision supersedes every earlier marker-as-probe-permission rule, including automatic background probes. The failed operator stage showed that a pre-#866 endpoint has no receipt and consequently blocks all namespace listing, including startup adoption and explicit resume before helper creation. Missing evidence must not become a permanent new admission requirement for legacy sessions.
+
+The existing namespace kernel lease is the sole live-creator witness. AcquireProbe and AcquireExplicitCommand continue owning it through their joined bounded native invocation. A live cooperating creator holds it from before spawn until exact pane-ready publication/release; probes wait behind that window within their existing caller bound. Once a probe owns exclusion, unmarked or stale-marked endpoints are legacy and proceed as before. Creator Preflight remains a callback-scoped borrowed permit available only before Prepare; expired/foreign permits still refuse. Creator death releases the lease and its unmarked survivor is legacy; no durable orphan latch is introduced. Exact publication, named missing-pane error and release-before-AgentReady remain unchanged. This reduces mechanisms rather than adding a fourth one (ARCH-DRY, ARCH-ORDER).
+
+| Concept / integration | File | Change |
+|---|---|---|
+| AcquireProbe / acquireNative | cmd/internal/zellijquery/readiness_os.go | modified: exclusion and scoped permit remain; receipt qualification no longer grants native permission |
+| qualifyCandidates / passive socket candidate scan | cmd/internal/zellijquery/readiness_os.go | deleted when no production consumers remain; remove their obsolete counted permission tests |
+| ReadyMarker codecs / exact creator publisher / retirement | existing zellijquery readiness, launcher pane-ready and artifactpath files | retained; no new lifecycle state |
+| Shared old-build upgrade owner | #879's landed cmd/internal/testcouch support | reused only after landing on main; no stacked import or duplicate fixture |
+
+Actions remain start, observe/list, resume and existing explicit recovery. Legacy unmarked -> observable with existing behavior (no migration or marker repair action); live creator -> waiting until publication or existing bound; creator failure/death -> lease released and survivor treated as legacy with the known upstream risk; stale/foreign borrowed permit -> existing named refusal. No new UI control, persistence family, per-session registry or polling worker is introduced. Ready receipts retain existing bounds/retirement, but cannot deny legacy discovery.
+
+Implementation/test contracts:
+
+- [ ] AcquireProbe / Source.readAttempt: deterministic RED on a private unmarked endpoint plus a counted runner; after correction native read executes once. Missing, malformed or stale receipts outside a live creator window cannot deny either explicit or background reads. Fixture data and executable invocation count own the acceptance inventory.
+- [ ] CreatorGuard / scoped permits: hold the real creator lease while a controlled native runner waits; require zero native spawn until exact publication releases it, preserved caller cancellation and valid pre-Prepare borrowing; owner-death control proves kernel release without a marker denial. Keep exact pane identity and release-before-AgentReady controls.
+- [ ] After #879 lands, integrate main and reuse its actual old-main-to-candidate fixture. Keep the failed stage93a57a38 RED/control and corrected candidate GREEN for every original Claude/Codex actor: startup adoption, explicit resume, ordinary listing, same wrapper/agent/session/socket identities and naturally absent receipts before/after. No deleted markers or synthetic first panes as a substitute for the old build.
+- [ ] Update the finite caller/contract restatements, atlas and README to describe live-window exclusion and legacy compatibility; audit named readers individually, run targeted affected checks, queue the recorded pre-close, then full re-close. No broad local suites or native matrices outside the queue. Operator restage waits for the hub and checks warm startup first.
+
+The existing fixed namespace lease bounds all cooperating work; removing passive namespace enumeration eliminates its per-probe socket/marker scan. Ordinary admission cost is one canonicalization/lease acquisition, independent of endpoint count. No new external dependency is added. The fixture's owner, cleanup and budgets belong to #879; no second owner is created here (ARCH-CONSTRAINTS, ARCH-FUNERAL).
