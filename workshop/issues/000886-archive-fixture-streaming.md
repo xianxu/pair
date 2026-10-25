@@ -64,7 +64,7 @@ smaller payload, write-budget bypass or production cap increase.
 
 ## Plan
 
-- [ ] Stream the two oversize suffixes from the existing helper in bounded blocks;
+- [x] Stream the two oversize suffixes from the existing helper in bounded blocks;
   keep small prefix files and assert their setup size. Pin exact max+1 output
   length/content and bounded write sizes with an in-memory fixture test.
 - [ ] Run protocol/refusal/cancellation/descriptor tests and compare native
@@ -102,3 +102,29 @@ Coordination: main still has 96 MiB. TL and pair:3 agree #886 lands independentl
 #737 then integrates it, removes its temporary 104 MiB allowance and qualifies
 the combined scheduler package. Do not edit or stack on #737. Targeted runs only,
 count <=10, one at a time, per dispatch; recorded pre-close remains required.
+
+### 2026-10-25 — fixture implementation and targeted evidence
+
+The existing helper reads only its small prefix and emits padding in checked
+32 KiB writes. Both exact max+1 payloads now have child-output length/content
+checks; counted writer tests at N, 2N and the exact suffix size pin block growth,
+and writer failures/short writes propagate. The original refusal, diagnostics,
+partial-report authority, cancellation and inherited-descriptor assertions remain.
+No production code or cap changes. Reset fixture-only padding in setup to keep
+small cases independent of inherited environment.
+
+Same command before/after:
+go test ./cmd/internal/couchcmd -run
+'^TestRunArchivePass(Protocol|RefusesInvalidProtocol|CancellationAndInheritedDescriptors)$'
+-count=1 -v. Both PASS. Native own-process writes: 16891904 before, 8499200
+after; 8392704 bytes saved. New padding/failure/exact-child-output tests PASS
+separately, writing 12288 bytes total. The initial added padding test failed to
+compile against the missing generator before implementation, then passed.
+
+Reader audit: this file reads only t.TempDir fixture report/invocation/start/log
+files, this test executable, owned TCP handshake, and explicit helper environment.
+New padding adds no repository or external state reads. Retain disposition
+local_or_literal_fixture and repair only this file's inventory. Atlas records
+fixture ownership, exact payload contract, retained log writes and measured saving.
+TL confirms recorded pre-close may run complete couchcmd through machine queue;
+targeted-only applies to ad-hoc runs. Checkpointing before that queued run.
