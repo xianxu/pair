@@ -67,6 +67,8 @@ Native acceptance now compiles and skips by default; pure cohort identity contro
 
 NEXT targeted healthy control: env PAIR_NATIVE_COUCH_UPGRADE=1 PAIR_COUCH_UPGRADE_BASE_SOURCE=/Volumes/TestScratch/pair859-oldreader.QR5mna/tree PAIR_COUCH_UPGRADE_CANDIDATE_SOURCE=/Volumes/TestScratch/pair859-oldreader.QR5mna/tree go test ./cmd/couch -run '^TestDisposableCouchBuildUpgrade$' -count=1 -v -timeout=20m. Retain output /tmp/pair879-upgrade-healthy.log; only after positive cleanup run the exact same scenario with candidate /Volumes/TestScratch/pair879-stage.OeEwVU/tree and retain /tmp/pair879-upgrade-red.log. Stop and classify any different failure or cleanup uncertainty rather than accepting it as the requested RED.
 
+Healthy-control attempt1 failed before any native fleet allocation in0.436s: BuildOwned's couch build needs generated runtimebundle/assets/runtime/files, absent from a pristine checkout. This is a source preparation precondition, not a compatibility RED. Peer baseline remains unchanged. Created a separate owned detached baseline at /Volumes/TestScratch/pair879-stage.OeEwVU/baseline, exact38fe8ea272d960705134e21ad3fbf61d26a4bb00; ran each checkout's own go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime in it and the stage checkout. Both statuses remain clean (generated assets are ignored by repository design). NEXT control uses that owned baseline path for both source variables; same saved log path, prior failure recorded here. No native descendants need reconciliation from attempt1.
+
 ## Revisions
 
 ### 2026-10-24 — fixture-first landing, hub7aa4f471
