@@ -15,6 +15,7 @@ claimant:
     workspace: pair:4
     worktree: /Users/xianxu/workspace/worktree/pair-slot4/pair
     repository: github.com/xianxu/pair
+flow: {kind: quick, provenance: inferred, spec: "56328961", done: "dc4bbbee"}
 ---
 
 # Webcast live tests TestLiveConformance and TestLiveCastEndToEnd fail on main at the in-page pause click
