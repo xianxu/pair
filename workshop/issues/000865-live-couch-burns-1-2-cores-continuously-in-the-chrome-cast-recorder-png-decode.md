@@ -65,6 +65,8 @@ Prepared fresh main64e0a8452388843b1fd1791059368682eec1236e at /Users/xianxu/wor
 
 Baseline focused Endpoint sync/publication/resize/EOF/input-failure checks PASS0.157s on unchanged main-based production code. Design checkpointb9388b9b9 preserves the complete active scope and earlier artifacts; no lessons edit or full M2 check was run. Next is full-flow change-code admission for the two genuine attribution/correction boundaries; estimate reconciliation follows plan-quality clearance.
 
+Plan-quality round1 returned PQ-1 existing-transition-fidelity and PQ-2 function-test-strategy. Source Endpoint.Resize358–386 confirms same-geometry returns early, failed acknowledgement changes no state, and a successful geometry change clears syncState before the next publication. Corrected the plan's previously wrong held-resize statement and swept its ordering claims. Replaced the semantic case inventory with named-function adversarial strategies and mechanical guards, preserving allocation counts. No M2 production code written; the original M2 buffer ownership scope is unchanged. Lessons append remains deferred until #879 lands.
+
 ## Estimate
 
 The existing card estimate2.92325h belongs to the historical full M1/provisional-M2 plan and is preserved verbatim in pre-m2-issue.md. Reconcile the now-measured M2 design after plan-quality clears; do not backfit to elapsed work or type actuals.

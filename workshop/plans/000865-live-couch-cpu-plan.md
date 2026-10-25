@@ -42,8 +42,9 @@ Actions: Feed, Snapshot, Publication, Resize, EndInput, Close. No new action or 
 | ordinary output / capture | latest complete frame; owned consumer copy | feed or read; no added loss |
 | sync begin / mutations / repeated begin | pre-hold frame remains unchanged | read frozen copy or await release/timeout; repeated begin cannot postpone recovery |
 | release or timeout | current backend frame replaces private publication | read cloned current frame; previous retained copies remain immutable |
-| acknowledged resize | new geometry captured when existing policy publishes it | allocate exact new-geometry backing once; held old publication remains valid until release |
-| refused resize | prior backend geometry and publication | existing error/retry; do not mutate capture backing on failed acknowledgement |
+| successful geometry change | hold canceled; next publication uses new geometry | allocate exact new-geometry backing once; already-returned consumer clones remain independent |
+| same-geometry resize | existing hold/publication unchanged | no acknowledgement call or backing allocation |
+| PTY acknowledgement refused before backend change | prior backend geometry and publication | existing error/retry; do not mutate capture backing on failed acknowledgement |
 | EndInput / Close | existing final frame/history and close behavior | read final publication until Close; no lost final output or live child |
 
 The risky interleaving is a retained consumer frame followed by another sync capture or resize. The existing mutex prevents concurrent reuse, and Clone isolates the retained frame. Tests control time and acknowledgement callbacks to reproduce these orderings. This work adds no goroutine, asynchronous retry, IO effect or external uncertain outcome. Process death/late callbacks retain the existing owners and policies (ARCH-ORDER).
@@ -73,11 +74,19 @@ After change-code admits the design and its estimate reconciliation, mark the M1
 Files: modify cmd/internal/terminal/endpoint.go; add cmd/internal/terminal/endpoint_capture_test.go; extend cmd/internal/ptychild/ingest_redraw_benchmark_test.go with the DEC2026 envelope; update atlas/terminal.md; add bounded before/after evidence. Append workshop/lessons.md only after #879 lands. Audit only reader files the inventory names.
 
 - [ ] Write N/2N allocation/count regression tests first, covering fixed geometry and the doubled cell count. Run the exact new tests against unchanged capture and retain the expected failure.
-- [ ] Add semantic regressions before reuse: erased cells/styles/links, successful/failed resize and grow/shrink, previously retained Frames/Rows, same-feed pre-sync complete state, repeated begin, release/timeout and EOF/frozen history. Reuse existing endpoint helpers, controlled time and real emulator.
+- [ ] Add the controlled function-level regressions below before reuse, using existing endpoint helpers and the actual emulator.
 - [ ] Implement the minimal change in capture: build fresh frame metadata, reuse private published Cells/Rows only when geometry/length match, otherwise allocate exact current lengths; write every row and every cell, with `Cell{}` for nil backend cells. Preserve repairCapturedRow and all publication call sites/Clone boundaries.
 - [ ] Run new counted tests and related Endpoint/history tests; race-check relevant controlled interleavings with count at most10. Iterate only on concrete failures.
 - [ ] Commit the RED tests and DEC2026 benchmark before the production correction, so that commit pins the unchanged capture with the identical test workload. Compare that baseline to the corrected candidate through bounded capture/ChildIngestRedraw replay; report allocation counts/bytes and CPU timing separately. Do not add a native scale matrix or new harness.
 - [ ] Update the existing architecture map and evidence with the ownership/budget result. After #879 lands, append the deferred lesson. Individually audit changed readers and run make test-affected-inventory before close.
+
+| Risky function | Adversarial strategy / mechanical guard |
+|---|---|
+| Endpoint.capture | Alternate populated and erased/absent backend cells and row metadata; compare complete typed results to independent expected values while counting backing changes and allocations at N/2N. |
+| Endpoint.Snapshot / Publication | Retain consumer frames/history across later captures and mutate a returned copy; assert prior retained values and the next fresh result stay independent. |
+| Endpoint.Feed / updatePublication | Drive same-feed and split synchronized envelopes with controlled time and repeated transitions; assert the expected complete-state publication and recovery deadline, not callback counts. |
+| Endpoint.Resize | Inject refused, no-op and acknowledged geometry changes while held; assert acknowledgement, geometry/epoch, hold cancellation only on actual success and backing replacement on the next capture. |
+| Endpoint.EndInput | End a controlled synchronized output/history sequence; assert the final current publication, stable retained copy and joined input lifetime through the existing cleanup owner. |
 
 Targeted commands (one at a time): `go test ./cmd/internal/terminal -run 'TestEndpoint.*(Capture|Sync|Resize|Publication|EndInput)' -count=1`; relevant history tests; focused `-race` on the new capture tests and retained-frame ordering; bounded `-bench ... -benchtime=100x -count=1 -benchmem` on the identical selected replay. No whole-repo local suite.
 
@@ -88,3 +97,7 @@ Workflow postconditions: when #879's runner has ended, push the final head and r
 ### 2026-10-24 — measured M2 replaces the parked speculative plan
 
 The prior complete plan is retained at pre-m2-design.md, source01bdfbe72710456ee1170dd54c5b86deba50f3e5. M1 profiler implementation landed independently through #871; this branch contains its attribution reconciliation and the now-approved M2. The new active design is based on main64e0a8452388843b1fd1791059368682eec1236e, not the unlanded scaled harness or #879. Scope, causal limits, private ownership and counted acceptance follow the explicit TL approvals; no new authority or publication semantics are introduced.
+
+### 2026-10-24 — plan-quality round1 transition and strategy corrections
+
+PQ-1: inspected the entire existing Resize transition, including same-geometry early return and successful syncState reset. Corrected the state table: actual geometry change cancels the hold and the next publication captures new geometry; retained consumer clones remain independent. No-op and refused resize keep the old hold. PQ-2: replaced the prose semantic case inventory with one adversarial strategy and mechanical guard per risky function. These clarify existing contracts without adding behavior or changing the approved allocation correction.
