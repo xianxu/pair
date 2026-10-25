@@ -22,11 +22,11 @@ flow: {kind: full, provenance: inferred}
 
 ## Problem
 
-The original hours-old Couch used115–140% CPU while fseventsd was also busy. A short sample suggested image recording, but denser attribution did not support that owner. Historical measurements and decisions are retained in [the pre-M2 issue](../evidence/000865/pre-m2-issue.md) and [the pre-M2 design](../evidence/000865/pre-m2-design.md), pinned to preserved commit01bdfbe72710456ee1170dd54c5b86deba50f3e5.
+The original hours-old Couch used115–140% CPU while fseventsd was also busy. A short sample suggested image recording, but denser attribution did not support that owner. Historical measurements and decisions are retained in [the pre-M2 issue](https://github.com/xianxu/pair/blob/b9388b9b9c0b1a77f87904bec44ea3a8b3e8d246/workshop/evidence/000865/pre-m2-issue.md) and [the pre-M2 design](https://github.com/xianxu/pair/blob/b9388b9b9c0b1a77f87904bec44ea3a8b3e8d246/workshop/evidence/000865/pre-m2-design.md), pinned to preserved commit01bdfbe72710456ee1170dd54c5b86deba50f3e5.
 
 ## Spec
 
-M1 attribution is complete. The opt-in finite profiler was extracted and landed independently as pair#871 (PR592); its source, controls and launch documentation are on main. Disposable controls did not reproduce the sustained cost, and the TL explicitly parked further scale-harness work. The operator-approved live restart produced the exact-build profile analyzed in [live evidence](../evidence/000865/live-profile.md).
+M1 attribution is complete. The opt-in finite profiler was extracted and landed independently as pair#871 (PR592); its source, controls and launch documentation are on main. Disposable controls did not reproduce the sustained cost, and the TL explicitly parked further scale-harness work. The operator-approved live restart produced the exact-build profile analyzed in [live evidence](https://github.com/xianxu/pair/blob/b9388b9b9c0b1a77f87904bec44ea3a8b3e8d246/workshop/evidence/000865/live-profile.md).
 
 The live startup/reattachment window uses1.48 cores, with terminal.Endpoint.capture accounting for46.11% of the sampled allocation difference, principally at DEC2026 synchronized-output begin. A later same-process46s observation uses about0.41 cores. The hours-old1.3-core report may reflect an uptime effect; this startup profile does not resolve it. No recorder-dominance or fseventsd causality claim follows.
 
@@ -78,6 +78,8 @@ Plan-quality round3 remained CLEAN and estimate-quality INFO; change-code admitt
 
 2026-10-24 isolation handoff: hub264df7f6 approved finishing implementation in the admitted independent pair-m2 clone, then after879 lands bringing the exact committed branch into canonical pair:9 for final gates/PR/normal shared landing line. Preserve M1 reviewed ref and review-usage provenance with the branch. No reclaim/owner transfer or independent-clone landing; remove the disposable clone only after canonical handoff and completion. Current correction6f9e60b4a; repolint PASS7.424s. Final gates and shared lessons remain deferred, no second full check.
 
+2026-10-24 archive-link audit: sdlc landing archive moves selected issues/plans/assets/side docs without rewriting Markdown; generic workshop/evidence remains in place. Corrected six relative evidence links across current issue/plan to immutable already-pushed M1 commit permalinks. This is a documentation repair within the approved scope, with no production or lesson change; existing local Atlas evidence links remain valid.
+
 ## Estimate
 
 Produced via brain/data/life/42shots/velocity/estimate-logic-v3.1.md against baseline-v3.1.md. Method A only for the now-settled plan; the source is marked stale and this derivation remains provisional. Plan-quality round2 is CLEAN before this reconciliation. The original2.92325h derivation remains verbatim in pre-m2-issue.md; elapsed work and actuals do not set these numbers.
@@ -113,3 +115,7 @@ Reason: the original recorder hypothesis was unsupported, #871 independently del
 ### 2026-10-24 — post-quality estimate reconciliation
 
 After plan-quality cleared, replaced only the historical unknown M2 Method B allowance with the two settled smaller-module activities; retained original M1 primitive amounts and their provenance. Added the whole-issue versus #871 extraction accounting boundary and named active verification/integration coverage following estimate-quality INFO. This changes neither the approved implementation nor its test budgets; actuals remain measured by SDLC.
+
+### 2026-10-24 — evidence links survive archive
+
+The archive planner moves issue/plan bytes unchanged, but leaves workshop/evidence in place. Replaced the active issue/plan links to the preserved M1 evidence with exact commit permalinks at b9388b9b9c0b1a77f87904bec44ea3a8b3e8d246, already pushed with the M1 boundary. Evidence bytes, local Atlas links and all implementation/test contracts are unchanged.

@@ -27,9 +27,9 @@ Frame/Geometry unit logic stays pure; mutable emulator reads remain in Endpoint.
 
 ## Evidence and scope
 
-See [live profile](../evidence/000865/live-profile.md): exact clean9bfd7ab51cef5f9d563b19dea087c9ef084c19c9, startup44.80CPU seconds/30.22wall seconds; allocation delta20.86GiB, capture9.62GiB (46.11%), chiefly DEC2026 begin. Later same-process46s CPU≈0.41cores versus1.48 at startup. Sampled allocation deltas can lag GC and are not RSS or an exact allocation rate. The hours-old1.3-core condition may be an uptime effect worth a later aged profile. fseventsd causality remains unknown.
+See [live profile](https://github.com/xianxu/pair/blob/b9388b9b9c0b1a77f87904bec44ea3a8b3e8d246/workshop/evidence/000865/live-profile.md): exact clean9bfd7ab51cef5f9d563b19dea087c9ef084c19c9, startup44.80CPU seconds/30.22wall seconds; allocation delta20.86GiB, capture9.62GiB (46.11%), chiefly DEC2026 begin. Later same-process46s CPU≈0.41cores versus1.48 at startup. Sampled allocation deltas can lag GC and are not RSS or an exact allocation rate. The hours-old1.3-core condition may be an uptime effect worth a later aged profile. fseventsd causality remains unknown.
 
-M1 now reconciles profiler delivery under #871 and closes measured attribution. Earlier [issue](../evidence/000865/pre-m2-issue.md) and [design](../evidence/000865/pre-m2-design.md) remain historical captures, including negative/invalid synthetic results. None of their unlanded scaled-harness code enters this main-based branch. M2 targets the measured allocator only; inventory, JSON, terminal parsing and PTY reads retain separately measured costs.
+M1 now reconciles profiler delivery under #871 and closes measured attribution. Earlier [issue](https://github.com/xianxu/pair/blob/b9388b9b9c0b1a77f87904bec44ea3a8b3e8d246/workshop/evidence/000865/pre-m2-issue.md) and [design](https://github.com/xianxu/pair/blob/b9388b9b9c0b1a77f87904bec44ea3a8b3e8d246/workshop/evidence/000865/pre-m2-design.md) remain historical captures, including negative/invalid synthetic results. None of their unlanded scaled-harness code enters this main-based branch. M2 targets the measured allocator only; inventory, JSON, terminal parsing and PTY reads retain separately measured costs.
 
 Hub a1a107d5 approved this buffer/clone/count correction before code. Hub f6c298b1 permits isolated implementation while #879 waits, defers the shared lessons append until #879 lands, requires one targeted test at a time and prohibits a second full check while #879's runner is active. Keep pair:0's staged binary unchanged.
 
@@ -105,3 +105,7 @@ PQ-1: inspected the entire existing Resize transition, including same-geometry e
 ### 2026-10-24 — canonical final-gate handoff
 
 The approved isolated checkout is an independent ordinary clone because the numbered environment refuses linked dependency checkouts. Its directory alias is pair-m2. Hub264df7f6 approved finishing implementation there, then after879 lands transferring the exact branch and M1 review provenance into canonical pair:9 for all final gates and PR through the shared pair landing line; remove the disposable clone afterwards. This changes placement only, not code, owners, budgets or test requirements.
+
+### 2026-10-24 — evidence links survive archive
+
+The archive planner moves issue/plan bytes unchanged, but leaves workshop/evidence in place. Replaced the active issue/plan links to the preserved M1 evidence with exact commit permalinks at b9388b9b9c0b1a77f87904bec44ea3a8b3e8d246, already pushed with the M1 boundary. Evidence bytes, local Atlas links and all implementation/test contracts are unchanged.
