@@ -1,0 +1,7 @@
+branch attribution for 068eb706-6618-4e56-a4bd-be215a560ce4: concurrent claims have unknown, detached or ambiguous active branch during 2026-10-24T09:43:46Z → 2026-10-24T09:45:45Z
+
+7a71f3353 HEAD@{2026-10-24T02:46:09-07:00}: commit: #863: retain pinned-main startup qualification failure
+5d5a6014c HEAD@{2026-10-24T02:45:45-07:00}: checkout: moving from 4053f3da995746efcc1c6296cffbde4a67a7f343 to 000863-native-fleet-explicit-hub-fleet-start-broken-since-739-second-explicit-hub-fails
+4053f3da9 HEAD@{2026-10-24T02:43:46-07:00}: checkout: moving from 000863-native-fleet-explicit-hub-fleet-start-broken-since-739-second-explicit-hub-fails to 4053f3da995746efcc1c6296cffbde4a67a7f343
+5d5a6014c HEAD@{2026-10-24T02:43:12-07:00}: commit: #863: classify startup sources and re-audit native comparison reader
+371bde438 HEAD@{2026-10-24T02:42:05-07:00}: commit: #863: qualify held fresh orchestration and baseline native startup

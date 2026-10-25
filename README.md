@@ -461,9 +461,16 @@ Recovery confirmations stay on their row until you select it to review them.
 
 Hub automation controls Couch's generated input and scheduled runs. It starts on
 for a positively surviving hub after a normal restart, and off for missing hubs
-or a full-shutdown/unknown start. After a cold start, hubs stay stopped by design:
+🤖~or a full-shutdown/unknown start. After a cold start, hubs stay stopped by design:
 choose **Resume from disk** on a retained switcher row, or **Ctrl+Space → Start**
-with the hub directory when no row exists. Normal warm reattachment is unchanged.
+with the hub directory when no row exists. Normal warm reattachment is unchanged.~{or a full-shutdown/unknown start. A proven first start with no retained history
+is `fresh`: configured hubs start normally, with automation off. This includes
+unenrolled local stores and retained archives/recovery backups; startup rechecks
+that each target is empty before creating it and never replaces a conversation.
+After a known
+shutdown or an unknown start, missing hubs stay stopped: choose **Resume from
+disk** on a retained switcher row, or **Ctrl+Space → Start** when no row exists.
+Normal warm reattachment is unchanged.}
 The retained startup notice names missing hubs and says
 `hub automation off; say turn it on`. Automation status labels these hubs
 `missing at startup:`: that is startup history, not current liveness, and remains
@@ -539,23 +546,20 @@ couch --session-sync write --frontmatter BODYFILE FILE --if-hash H
                          light: read or replace the complete leading --- block only; preserves body bytes
                          (including Updated) and unread body edits in diff, even without a previous baseline
 couch --session-sync read --all FILE --json
-                         the captured source/hash plus Read.Editorial: independently inherited collaboration,
-                         presentation and processing settings, briefs, scope/frontier and instruction. Region
-                         ranges use complete-document byte offsets, even on section reads. Section hashes are
-                         opaque: reuse the returned token; document or ancestor policy changes also stale it.
+                         the captured source/hash plus Read.Editorial: chat regions, protected source ranges
+                         and verbatim compatibility notices. Ranges use complete-document byte offsets, even
+                         on section reads. Section hashes are opaque: reuse the returned token; changes to
+                         chat tags or protected legacy sources can stale it even if the section body is unchanged.
 couch --session-sync apply EDITS.json FILE --if-hash H [--fold ID] [--json]
-                         a precise edit: {old, occurrence, new, explain} records applied all or none (edits-invalid
-                         lists each bad record); under a region's presentation-mode: propose Couch writes per-line accept/reject
-                         markers (propose-too-large / propose-unencodable mean: use a side-doc proposal);
-                         frontmatter, side-doc links answering a marker and their folds apply directly, and
-                         all canonical mode keys, processing-instruction, readable legacy aliases/maps and
-                         immediately adjacent heading mode comments are operator-owned in every display mode
+                         a precise edit: {old, occurrence, new, explain} records applied all or none
+                         (edits-invalid lists each bad record). New edits are clean text with highlight metadata;
+                         agents preserve chat tags, their heading attachment, legacy settings and chat asks.
 couch --session-sync migrate-editorial FILE [--json]
 couch --session-sync migrate-editorial FILE --confirm --if-hash H [--json]
-                         operator-run exact preview, then confirmation using its full source SHA256. Converts
-                         legacy section maps to heading comments and fills missing canonical defaults while
-                         preserving aliases and opaque metadata. No supplied body or automatic review migration;
-                         held locks, stale source, conflicts, unmatched names and multiple legacy modes refuse.
+                         operator-run exact map-to-tag preview, then confirmation using its full source SHA256.
+                         Converts only when chat routing and eligible asks are preserved; names the section on
+                         refusal when numbered-only tags would lose legacy bullet or preamble asks. Never renumbers
+                         asks or fills mode keys. No supplied body or automatic migration; locks and stale source refuse.
 couch --session-sync round FILE --json
                          the last agent round (every changing agent write keeps one), with reasons from apply,
                          and whether the operator's next submit has cleared it; parley highlights it
@@ -571,6 +575,7 @@ couch --session-sync operator-release FILE --id ID --turn TOKEN --json
                          contract: atlas/couch-agentic-documents.md (agents still hold no lock)
 couch --recover-plan-from-sdlc   per-slot recovery report (JSON), see below
 couch --resume repo:N [--json]   from a live slot: Continue if listed live, otherwise resume an established native binding
+couch --wake [--json]            from the live main hub: resume every other hub a full quit put to sleep (asleep workers wait for their hub)
 couch --resume-candidates repo:N [--json]
                          preview explicit choices: screen-tail evidence or unconfirmed native ID, cwd and activity; no automatic selection
 couch --resume repo:N --candidate KEY [--json]
@@ -617,31 +622,34 @@ couch --skill            print the bundled agent coordination skill
 couch --adopt-store /absolute/store     preview adoption of an existing store
 ```
 
-Registered Markdown uses independent editorial settings. Without settings, the
-defaults are `collaboration-mode: discussion`, `presentation-mode: highlight`
-and `processing-mode: free-form`. Frontmatter sets document defaults;
-`processing-instruction` adds the operator's instruction. A mode comment on the
-line immediately after an ATX heading overrides the named settings for that
-section and its descendants; omitted settings inherit independently:
+Markdown review uses one collaborative mode. The operator's direct edits are
+content; ready `🤖` markers are questions or commands for the agent to interpret.
+Questions and unclear commands open linked side docs; clear commands act within
+the requested scope. New agent edits are always highlighted. A `@@chat@@` line
+directly above an ATX heading makes its section chat, with numbered items that
+each get an answer doc:
 
 ```markdown
----
-collaboration-mode: discussion
-presentation-mode: highlight
-processing-mode: free-form
----
-# Draft
-<!-- presentation-mode: propose; processing-mode: copy-edit -->
-Text to review.
+@@chat@@
+## Operator instructions
+1. Why use retries?
+2. Tighten the introduction.
 ```
 
-These settings and attached comments belong to the operator. Agents read the
-resolved policy through session-sync and preserve its source. To migrate a
-legacy document, the operator first runs `couch --session-sync migrate-editorial
-FILE --json`, inspects the exact preview, then confirms with `--confirm --if-hash
-H` using that preview's full source hash. See the
-[editorial policy map](atlas/couch-agentic-documents.md) for inheritance and
-compatibility details.
+The shared [collaborative editing contract](.agents/skills/xx-universal-review/collaboration-modes.md)
+and [round instructions](.agents/skills/xx-universal-review/round.md) own routing,
+scope, briefs and side-doc handling. Couch protects source structure; it does
+not classify natural-language requests or choose an editing brief.
+
+Retired mode and instruction keys are ignored with compatibility notices;
+legacy chat declarations retain their old ask grammar. Normal writes never
+add, remove or rewrite these keys. Existing recorded direct/highlight/propose
+rounds retain their historical presentation. To convert legacy section maps,
+the operator previews `couch --session-sync migrate-editorial FILE --json`,
+then confirms the reviewed candidate with `--confirm --if-hash H`. Conversion
+refuses if it would lose asks. See the
+[editorial caller contract](atlas/couch-agentic-documents.md) for compatibility
+and migration details.
 
 `couch --keys` and `couch --set-model` require a verified owning hub and one
 other exact live slot with an idle, empty agent composer. The separate Neovim
@@ -1262,17 +1270,23 @@ with bounded parallelism, most recently active first, without moving your keyboa
 Until a thread is ready it is greyed out: a placeholder on the status row, with
 a spinner on the one starting now, and a `queued` or `reattaching…` row in the
 switcher. Neither can be clicked or selected. A thread that fails to come back
-keeps Continue with its failure reason, and one click retries the warm attachment.
+keeps Continue with its failure reason. Select its row, then activate it to retry
+the warm attachment; an already-selected row takes one click.
 Quitting part-way leaves the rest detached for next time. Only a bare start
 does this, and it never resumes a parked thread.
 
 Resume does not allocate a temporary actor first or add a full native inventory
 scan. While a Pair pane is displayed, Alt+d reaches Pair, which detaches only
 its Zellij client; Couch's own detach is the switcher's Alt+d (#245).
-Messages on the reserved status row retire themselves: a momentary refusal
-("previous: nowhere to return to") goes after about twelve seconds, while an
-actor's exit stands until something replaces it -- one answers the keystroke you
-just pressed, the other explains why a pane disappeared.
+General messages no longer trail the tab bar, in either collapse or multiline
+mode. Open the switcher to see the latest retained message. Operation notices
+and clipboard feedback keep their own precedence there; a new feed message does
+not replace an operation error or progress notice. Diagnostics go to the owning
+hub and the feed. The bell holds explicit hub notifications, failures of your
+own cast or drive actions, and actionable events without a connected owning hub.
+A connected hub with automation off keeps its diagnostics feed-only, with no
+replay when enabled. Routine progress, success and key feedback stay in the
+switcher.
 
 The first thread for a repository uses its primary checkout (`:0`). Starting
 another fills the lowest free number (`:1`, `:2`, …), under
@@ -1539,13 +1553,19 @@ history in place. With an empty list it stays put and says nothing is waiting.
 It no longer jumps to the newest page or accepts a switcher row. Ordinary
 `Enter` still selects a switcher row or the selected attention item.
 
-The **notification list (bell)** (pair#673) shows what is waiting on you, newest first. It holds three kinds of item: the hub's `couch --notify` messages,
-slots blocked on a permission prompt or picker, and slots whose turn ended with
-a question to you. While the list has items, the right end of the status row
-shows `🔔N`, red if a slot is blocked on a prompt; click it to open the list too.
+The **notification list (bell)** (pair#673) shows what needs you, newest first:
+the hub's `couch --notify` messages, failures of your own casts and drive actions,
+and actionable events with no connected owning hub. Other diagnostics, blocked
+prompts, pickers and judged questions go to their owning hub and the feed. A
+connected hub with automation off suppresses generated hub input and fallback
+bell items; enabling it does not replay those events. Couch crashes and failure
+to start its own hub also reach the bell. Routine progress and expected stops
+stay feed-only. While the list has items, the right end of the status row shows
+`🔔N`, red if a fallback item is a blocked prompt; click it to open the list too.
 The list opens at the top right. `Up`/`Down` (or `k`/`j`) move, `Enter` or a
-click jumps to the item's slot and removes the item, `d` dismisses, and
-`Escape` closes. Choose **Clear all** or press `c` to empty the list. Opening,
+click jumps to the item's attached thread and removes the item. A global Couch
+warning or an item whose thread is no longer attached opens the switcher
+instead. `d` dismisses, and `Escape` closes. Choose **Clear all** or press `c` to empty the list. Opening,
 dismissing or clearing a prompt/question hides that occurrence until the slot
 stops waiting; a fresh occurrence shows again. Notification messages expire
 after 12 hours; an unresolved live prompt/question never expires. The list is
@@ -1585,9 +1605,9 @@ it asks the running Couch to share the recording and prints its replay link
 alone on stdout (any note goes to stderr), and with no Couch it refuses.
 `couch --broadcast-web-query` alone prints its usage. See [atlas/webcast-format.md](atlas/webcast-format.md#agent-queries-462).
 
-🤖{Sketch evidence uses the same operator submission chord, Shift+Ctrl+Alt+Return: the console shows Pending feedback with sketch and annotation counts, indexed shape thumbnails and notes before submission. The press submits the board's open notes and finished sketches as they are, offscreen ones included, with up to eight sketches; the rest wait for the next submission. What the page is doing never refuses it; only a note still being written does. One full-viewport replay image reconstructs, from the recording, where the newest chosen sketch finished, with matching number badges; original page URLs, literal element IDs and pressure paths stay unchanged. Saved note crops retain their original draw-time pixels. The sketch_page provenance is replay-rendered; pointer gestures and private tool UI are excluded. The Pending feedback panel is information, never a gate. Legacy shared and per-sketch bundles remain readable. Confirmed delivery removes only the submitted sketch versions and note revisions from the live display; unsent or newer feedback stays. Original ink and notes remain in recording history and replay. Local tools can inspect `couch --broadcast-web-query DIR sketches [--sketch ID] [--at MS] [--json]` or export a private image and metadata with `couch --broadcast-web-query DIR sketch-image --sketch ID --out NEW_DIR [--at MS]`. These tools never dispatch to an agent. See [sketch evidence and retry behavior](atlas/webcast-submission.md).}
+🤖{Sketch evidence uses the same operator submission chord, Shift+Ctrl+Alt+Return: the Notes panel header shows informational pending sketch and annotation counts; rows use small type icons and text, without thumbnails. The press submits the board's open notes and finished sketches as they are, offscreen ones included, with up to eight sketches; the rest wait for the next submission. What the page is doing never refuses it; only a note still being written does. One full-viewport replay image reconstructs, from the recording, where the newest chosen sketch finished, with matching number badges; original page URLs, literal element IDs and pressure paths stay unchanged. Saved note crops retain their original draw-time pixels. The sketch_page provenance is replay-rendered; pointer gestures and private tool UI are excluded. The pending status in the Notes header is information, never a gate. Legacy shared and per-sketch bundles remain readable. Confirmed delivery removes only the submitted sketch versions and note revisions from the live display; unsent or newer feedback stays. Original ink and notes remain in recording history and replay. Local tools can inspect `couch --broadcast-web-query DIR sketches [--sketch ID] [--at MS] [--json]` or export a private image and metadata with `couch --broadcast-web-query DIR sketch-image --sketch ID --out NEW_DIR [--at MS]`. These tools never dispatch to an agent. See [sketch evidence and retry behavior](atlas/webcast-submission.md).}
 
-🤖{Cast open notes appear in a yellow, scrolling panel. Minimize it to Notes (N), drag that button or the panel header, or move the focused handle with arrow keys (Shift for larger steps). Both forms share their position until reload. Sketch notes (N) opens a scrolling list of on-view sketches, with one identified Add note row for an unfinished label or View note row for a final, read-only label. Overlapping drawings remain individually selectable. Moving or minimizing these controls leaves anchored feedback and the Pending feedback selection unchanged.}
+🤖{Cast annotations and sketches share one yellow Notes panel. Minimize it to Notes (N), drag the button or panel header, or move the focused handle with arrow keys (Shift for larger steps). Both forms share their position until reload. Rows use small annotation/sketch icons, not thumbnails; Add note opens an unfinished sketch label, while View note reads a finished label. Hover or keyboard focus makes its confirmed page box or ink glow. Show on page scrolls to a confirmed original; when it cannot, it says so. Existing editors and pending status stay inside the panel. In cast Chrome, Live/Pause, Pointer, Pen with its colours, Note and useful Undo/Redo/Done share one protected tool column. Choose the sketch colour before starting Pen; it stays fixed for that sketch. Moving or minimizing the panel leaves saved feedback and submission selection unchanged.}
 
 `couch --broadcast-web-replay [ID|DIR] [--at MS]` plays recordings in the
 viewer: play, pause, speed, and a timeline that shows pauses as gaps, notes,
@@ -1897,12 +1917,14 @@ focus view explains how to tag a thread. The switcher remembers the last view us
 exits. Reopening clears search text but keeps the view. With text in the filter,
 Space is a literal search character; it does not toggle views.
 
-In the switcher, `Ctrl+Y` copies a selected operation diagnostic/error first,
-then the current capability diagnostic, then the full last retained status notice.
-Chrome shows at most 40 display cells of a status; copying includes clipped text,
-and retained feed notices remain copyable after expiry. Repeating the copy uses
-the current capability diagnostic while one is displayed, or the same feed notice
-until another arrives. A failed or unconfirmed attempt keeps its
+The switcher shows the latest retained feed message whenever no operation
+notice takes precedence. `Ctrl+Y` copies a selected operation diagnostic/error
+first, then the current capability diagnostic, then the full last retained feed
+notice, including clipped text and notices whose transient lifetime has expired.
+Chrome limits capability status text to 40 display cells; copying retains its
+full diagnostic. Repeating the copy uses the current capability diagnostic while
+one is displayed, or the same feed notice until another arrives. A failed or
+unconfirmed attempt keeps its
 original notice for **Ctrl+Y** retry even if a newer notice arrives; **Esc** dismisses
 the copy feedback without leaving the switcher. Navigation and background refreshes
 keep that feedback and ordinary operation errors independently visible.
@@ -1941,6 +1963,10 @@ another agent. Warm attachment does not establish a native binding: cold
 conversation resume still requires one. Open a thread's actions to **park**,
 **detach**, or **relaunch** it through Couch. In the switcher, `Alt+d` detaches
 all live threads and returns to the shell; `Alt+x` parks them after confirmation.
+The slots that full quit parks read **Asleep** in the switcher, unlike a slot you
+parked on its own. After the next start, resume the main hub from the switcher;
+from it, `couch --wake` resumes every other asleep hub. Each hub then wakes its
+own asleep workers, so plain parked slots stay parked.
 Those two chords are not intercepted while a Pair pane is displayed. They
 reach the agent or invoke the draft/right pane's existing Pair actions. Use the
 switcher for Couch's durable retirement.
@@ -1963,10 +1989,18 @@ stays open. Capture any needed native transcript coordinates before switching;
 the previous tty recording remains available through `couch --peek repo:N
 --previous`.
 
-The status row and the switcher are **clickable**: a click on an actor's chip, or
-anywhere in its rows in the switcher, switches to it, and empty space does
-nothing. A click is always a manual switch, so `Ctrl-Backspace` undoes it even
-when the actor was paging. couch enables click reporting for itself and withholds
+The status row and the switcher are **clickable**. In the open switcher, clicking
+a different eligible row selects it without switching; clicking the selected row
+activates it. A rapid double click selects then activates exactly once, and a
+slower second click also activates: no timer is involved. Chips inside the open
+switcher follow the same rule. A chip hidden by a filter or group first reveals
+and selects its row, clearing only what hides it; from a nested menu, the first
+chip click returns to the root and selects. Chips outside the switcher still
+switch immediately, `+N` keeps opening its group, and empty space does nothing.
+Keyboard navigation and Enter are unchanged.
+
+An activating click is always manual, so `Ctrl-Backspace` undoes it even when
+the actor was paging. couch enables click reporting for itself and withholds
 every report from a child that never asked for one, so mouse selection and scroll
 inside an attached Pair session are unaffected.
 
@@ -2576,6 +2610,15 @@ and 64 sessions across repeated launches; exhaustion refuses a new capture.
 Preserve or remove specific saved sessions to free their reservations. See the
 [live-capture runbook](atlas/couch-live-capture.md) for limits, legacy recordings,
 private-file handling, stop behavior and streaming extraction.
+
+🤖{### Finite Couch CPU profiles
+
+For a local CPU/allocation investigation, set `COUCH_PROFILE_DIR` to a new
+absolute directory under an existing parent when launching Couch. After a
+60-second warmup it records one 30-second CPU window and allocation snapshots,
+then stops. Profiling is off by default, opens no listener and never overwrites
+an existing destination. Keep the exact executable and remove the retained
+private files after the investigation. See [profiling and limits](atlas/couch-profiling.md).}
 
 ### SQLite backup qualification
 

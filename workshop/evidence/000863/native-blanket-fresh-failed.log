@@ -1,0 +1,54 @@
+=== RUN   TestDisposableFreshHubCaller
+    binaries.go:62: 44dd643057975dae782df6493fd3831ce8eb03f8
+        
+    binaries.go:62: git version 2.54.0 (Apple Git-157)
+        
+    binaries.go:62: sdlc version path=/Users/xianxu/workspace/ariadne/bin/sdlc revision=b65c6b11a04999f6411a9889045646e24a0a791a modified=false
+        
+    binaries.go:62: weave version dev
+        
+    binaries.go:62: zellij 0.45.1
+        
+    binaries.go:62: NVIM v0.11.7
+        Build type: Release
+        LuaJIT 2.1.1741730670
+        Run "nvim -V1 -v" for more info
+        
+=== RUN   TestDisposableFreshHubCaller/claude
+    owner.go:218: native fleet isolation: root=/Volumes/TestScratch/pc-901376384 run=4abfff9b8f858e293761541be62adf6b agent=claude workers=2
+    fresh_hub_registration_live_test.go:29: fresh primary startup: steward startup: context deadline exceeded; screen=; output=couch: fresh action requires an existing numbered slot
+        ; screen:
+    fleet.go:441: native server evidence before teardown: zellij_server_log path="/Volumes/TestScratch/pc-901376384/tmp/zellij-501/zellij-log/zellij.log" size=-1 offset=0 bytes=0 truncated=false read_error=openat tmp/zellij-501/zellij-log/zellij.log: no such file or directory tail=""
+    fleet.go:453: native startup evidence before teardown: pane queries share diagnostic_deadline=2026-10-24T01:27:10.818330239-07:00
+        wrapper_log truncated=false read_error=openat control/wrapper-startup.log: no such file or directory
+        wrapper diagnostics unavailable
+        wrapper startup records unavailable
+        failure identities unavailable: openat store/launch-diagnostics/failures.json: no such file or directory
+        startup_sources=0 truncated=false
+    fleet.go:501: native failure evidence before root removal: ; read_error=<nil>
+    fleet.go:504: native wrapper evidence after join: wrapper_log truncated=false read_error=openat control/wrapper-startup.log: no such file or directory
+        wrapper startup records unavailable
+        zellij_server_log path="/Volumes/TestScratch/pc-901376384/tmp/zellij-501/zellij-log/zellij.log" size=-1 offset=0 bytes=0 truncated=false read_error=openat tmp/zellij-501/zellij-log/zellij.log: no such file or directory tail=""
+    fleet.go:514: native fleet cleaned: root=/Volumes/TestScratch/pc-901376384 all owned generations absent; direct child and IO joined
+=== RUN   TestDisposableFreshHubCaller/codex
+    owner.go:218: native fleet isolation: root=/Volumes/TestScratch/pc-2056981420 run=7a5249e24df60cc78b559e5e08c3e70b agent=codex workers=2
+    fresh_hub_registration_live_test.go:29: fresh primary startup: steward startup: context deadline exceeded; screen=; output=couch: fresh action requires an existing numbered slot
+        ; screen:
+    fleet.go:441: native server evidence before teardown: zellij_server_log path="/Volumes/TestScratch/pc-2056981420/tmp/zellij-501/zellij-log/zellij.log" size=-1 offset=0 bytes=0 truncated=false read_error=openat tmp/zellij-501/zellij-log/zellij.log: no such file or directory tail=""
+    fleet.go:453: native startup evidence before teardown: pane queries share diagnostic_deadline=2026-10-24T01:30:41.504435448-07:00
+        wrapper_log truncated=false read_error=openat control/wrapper-startup.log: no such file or directory
+        wrapper diagnostics unavailable
+        wrapper startup records unavailable
+        failure identities unavailable: openat store/launch-diagnostics/failures.json: no such file or directory
+        startup_sources=0 truncated=false
+    fleet.go:501: native failure evidence before root removal: ; read_error=<nil>
+    fleet.go:504: native wrapper evidence after join: wrapper_log truncated=false read_error=openat control/wrapper-startup.log: no such file or directory
+        wrapper startup records unavailable
+        zellij_server_log path="/Volumes/TestScratch/pc-2056981420/tmp/zellij-501/zellij-log/zellij.log" size=-1 offset=0 bytes=0 truncated=false read_error=openat tmp/zellij-501/zellij-log/zellij.log: no such file or directory tail=""
+    fleet.go:514: native fleet cleaned: root=/Volumes/TestScratch/pc-2056981420 all owned generations absent; direct child and IO joined
+--- FAIL: TestDisposableFreshHubCaller (432.55s)
+    --- FAIL: TestDisposableFreshHubCaller/claude (210.66s)
+    --- FAIL: TestDisposableFreshHubCaller/codex (210.69s)
+FAIL
+FAIL	github.com/xianxu/pair/cmd/couch	432.747s
+FAIL

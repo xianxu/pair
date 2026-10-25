@@ -35,12 +35,14 @@ func wireGuardTestMemo(r *serviceRig, resolve func(context.Context, string) (cou
 func TestHubSwitchMutationAdmissionAndQueuedMove(t *testing.T) {
 	for _, queued := range []bool{false, true} {
 		t.Run(map[bool]string{false: "admission", true: "queued"}[queued], func(t *testing.T) {
-			r, q, hub, worker, _ := leanSwitchRig(t)
 			h := guardHubState(t)
 			if queued {
 				h.state, _ = h.state.Apply(couchcore.HubMove{Slots: []couchcore.HubSlot{{Repository: "/repo", Number: 2}}, Caller: "/repo1", Target: "/repo0", Revision: h.state.Revision()})
 			}
-			r.s.authority.hubs = h
+			r, q, hub, worker, _ := leanSwitchRig(t, func(a messageAuthority) messageAuthority {
+				a.hubs = h
+				return a
+			})
 			for _, b := range []couchmessage.Binding{hub, worker} {
 				n := 0
 				if b == worker {
@@ -81,7 +83,10 @@ func TestHubSwitchMutationAdmissionAndQueuedMove(t *testing.T) {
 func TestHubSlotMutationGuardsEveryOperationAndQueuedMove(t *testing.T) {
 	for _, op := range []string{"resume", "reboot", "reap", "relaunch", "reload-context", "prepare", "recover-park"} {
 		t.Run(op, func(t *testing.T) {
-			r, runner, _ := slotRig(t)
+			r, runner, _ := slotRig(t, func(a messageAuthority) messageAuthority {
+				a.hubs = guardHubState(t)
+				return a
+			})
 			caller := r.world.add(3)
 			r.world.set(caller, func(s *worldSlot) { n := 3; s.workspace.PrimaryRoot = "/repo"; s.workspace.Slot = &n })
 			// Register only after the world has its canonical slot facts, then
@@ -93,7 +98,6 @@ func TestHubSlotMutationGuardsEveryOperationAndQueuedMove(t *testing.T) {
 			r.slotOps.names = func(context.Context) ([]couchcore.RepositoryName, error) {
 				return []couchcore.RepositoryName{{Key: "/repo", Dir: "pair"}}, nil
 			}
-			r.s.authority.hubs = guardHubState(t)
 			wireGuardTestMemo(r, func(context.Context, string) (couchcore.HubSlot, error) {
 				return couchcore.HubSlot{Repository: "/repo", Number: 2}, nil
 			})
@@ -104,7 +108,9 @@ func TestHubSlotMutationGuardsEveryOperationAndQueuedMove(t *testing.T) {
 				t.Fatalf("cross-hub %s admitted: %+v", op, got)
 			}
 			h := r.s.authority.hubs
+			h.mu.Lock()
 			h.state, _ = h.state.Apply(couchcore.HubMove{Slots: []couchcore.HubSlot{{Repository: "/repo", Number: 2}}, Caller: "/repo1", Target: "/repo0", Revision: h.state.Revision()})
+			h.mu.Unlock()
 			var check func(context.Context) error
 			r.slotOps.guardedRun = func(key, op, target string, opts couchcore.LiveRestartOptions, guard func(context.Context) error, started func(), progress couchcore.OperationProgress, finished func(any, error)) error {
 				check = guard
@@ -122,7 +128,9 @@ func TestHubSlotMutationGuardsEveryOperationAndQueuedMove(t *testing.T) {
 				t.Fatal("replaced caller still authorized")
 			}
 			r.world.set(caller, func(s *worldSlot) { s.binding.Nonce = caller.Nonce })
+			h.mu.Lock()
 			h.state, _ = h.state.Apply(couchcore.HubMove{Slots: []couchcore.HubSlot{{Repository: "/repo", Number: 2}}, Caller: "/repo0", Target: "/repo1", Revision: h.state.Revision()})
+			h.mu.Unlock()
 			if err := check(context.Background()); err == nil {
 				t.Fatal("moved target still authorized")
 			}
@@ -131,11 +139,13 @@ func TestHubSlotMutationGuardsEveryOperationAndQueuedMove(t *testing.T) {
 }
 
 func TestHubSwitchReceiptScope(t *testing.T) {
-	r, _, main, _, _ := leanSwitchRig(t)
+	r, _, main, _, _ := leanSwitchRig(t, func(a messageAuthority) messageAuthority {
+		a.hubs = guardHubState(t)
+		return a
+	})
 	other := r.connect(1)
 	r.waitWorkspace(main)
 	r.waitWorkspace(other)
-	r.s.authority.hubs = guardHubState(t)
 	wireGuardTestMemo(r, func(context.Context, string) (couchcore.HubSlot, error) {
 		return couchcore.HubSlot{Repository: "/repo", Number: 2}, nil
 	})

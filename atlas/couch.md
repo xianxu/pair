@@ -12,13 +12,31 @@ the pty console, actor panel, notices, and complete local lifecycle shipped in
 
 ## What exists today
 
-### Startup and hub automation (#739)
+### Startup and hub automation (#739, #863)
 
 `couchcore/startup_policy.go` classifies one read-only bulk session observation.
-Implicit startup only warm-attaches surviving hubs; missing or unknown hubs stay
-in the switcher. After a cold start, no hub is launched automatically by design:
-choose Resume from disk on its retained row, or Ctrl+Space → Start with its hub
-directory if no row exists. Normal warm reattachment is unchanged. The retained
+A proven zero-history fleet is `fresh`: configured hubs start normally,
+with the launch hub selected and extra hubs queued serially; automation stays
+off. Proof includes namespace global/legacy current and archived records, and each
+configured local store independently of enrollment, including recovery backups.
+Missing, unsafe or uncertain evidence never grants creation authority. Each
+target is rechecked under the existing coordinator → global → local store lock
+order before its empty-only reservation is published. These foreground acquisitions
+use the existing bounded store wait so a concurrent inventory preview cannot
+force an immediate maintenance-style refusal (#873); cancellation and journal
+refusal are rechecked before publication. Startup cannot use general
+Open to cold-resume or Fresh to replace history that appeared after observation.
+A published numbered-hub claim stays owned through discovery and enrollment.
+Any failure before launch handoff rolls back its exact nonce/revision through
+the known local store, including when namespace enrollment failed; only positive
+record absence releases its native claim. Uncertain cleanup keeps authority
+occupied and reports the original failure together with its cleanup cause.
+The initial observation is retained through those launches, so the new
+sessions cannot turn their own automation on. Known prior history whose sessions
+are absent is `full-shutdown`; unreadable/unresolved evidence is `unknown`.
+Those states keep missing hubs in the switcher: choose Resume from disk on a
+retained row, or Ctrl+Space → Start if no row exists. Normal warm reattachment is
+unchanged. An empty surviving-only start result has no child and is never adopted. The retained
 startup notice names this recovery path. The `missing at startup:` field in
 automation status is the initial observation, not a live inventory; manually
 attaching a hub does not erase that startup history. Explicit lifecycle operations
@@ -105,8 +123,10 @@ or stalled-paint geometry cannot open a different group.
 Explicit multiline preserves #779's measured packing across at most two rows.
 Groups stay together unless one original group exceeds a full line; a continued
 row starts with the full repository label. Chrome/cast/capture controls remain
-at the start of row one, the attention badge at its right edge, and transient
-notices use free space on the final row. Beyond two rows, retained actors keep
+at the start of row one and the attention badge at its right edge. Neither
+style appends a general feed notice or separator after the chips (#812).
+Persistent capability warnings remain a separate chrome surface. Beyond two
+rows, retained actors keep
 their original order after priority selection; the final overflow counts hidden
 actors and flags hidden attention. Labels are sanitized/measured once, with
 O(B + A log A) bounded planning shared by both styles.
@@ -132,6 +152,70 @@ chrome rows.
 [Slot scratch](couch-scratch.md) maps optional TestScratch temp settings, the
 24-hour interior cleaner, stable socket namespaces and reboot-only metadata
 routing. Existing panes inherit changes only after relaunch.
+
+### General messages and actionable warnings (#812)
+
+`StatusModel` has no general notice field: `statusModelLocked`, the common
+`renderStatusCells` drawing pass and both packing styles reserve chrome for
+controls, capability warnings, capture/attention badges and actor chips.
+`console_menu.go` derives `MenuState.LatestFeed` from the newest retained
+`Feed.Messages()` entry under the console mutex. `menuSnapshotLocked` serves
+both the snapshot and actual panel publication paths. `RenderMenuView` clips
+that derived message to its banner budget only when no operation notice or
+refresh-pending notice takes precedence; copy feedback remains independent.
+The full retained source stays available to Ctrl+Y, including after transient
+expiry. This projection owns no additional history.
+
+`Console.Warn` retains feed once and hands a typed producer fact to the routing
+owner (#844). `couchcore/notice_route.go:RouteNotice` is the one eligibility
+policy: authenticated hub notifications, failures of the operator's own casts
+or drives, and actionable events without a connected owning hub reach the
+bell. Other diagnostics go to their owning hub and feed. Routine progress,
+expected stops, borrowed attachment and skipped freshness checks stay feed-only,
+even without a hub. A connected automation-OFF hub is present: no generated
+input, bell fallback or replay follows a later enable. Global diagnostics belong
+to the primary hub; detached sources retain typed source/slot ownership, never
+the focused actor. Raw child BEL and actor chips remain separate UI facts.
+
+`couchcore/notice_delivery.go:AdvanceNoticeDelivery` owns ephemeral routing
+transitions. The `couchcmd/notice_delivery.go` shell buffers startup until cached
+service readiness, freezes the occurrence's exact owner root/automation epoch and
+uses the existing guarded system-message ingress. Generation validity is checked
+against that root, independently of current destination readiness. An accepted
+pending handoff adopts the destination's root and epoch; the previous hub then
+ceases to control it. It bounds pending occurrences to 128,
+copied bodies to 4 KiB and concurrent admissions to four, with two-second
+admission contexts and two-minute tracking expiry. Uncertain admission keeps its
+canonical receipt ID and never resends. A confirmed admission refusal can retain
+one AwaitingDisposition entry while readiness is unknown: connected owners retire
+it feed-only, unavailable owners produce one fallback bell item, and a revoked
+generation retires it without replay. That phase cannot admit again. Unknown
+readiness preserves an already verified root/epoch. Pending state dies with
+Console; local workers cancel and join at shutdown. Capacity loss updates one aggregated bell
+item without resurrecting it after dismissal. Queue refusal/expiry with a live
+hub remains feed-only. Owner lookup is memory-only; broker IO and repaint run
+outside Console/publication locks.
+
+Prompt/question condition projections use the same policy while preserving
+blocked chips. The wait watcher retains its canonical episode delivery, timing
+and mute behavior; it does not duplicate a routing-owner send. Condition
+eligibility reconciles when ownership or connection changes, even if the picker
+itself is unchanged. Archive and automatic-input-stall paths no longer add
+unconditional attention or desktop output; canonical daily/sequence owners
+remain. `Console.ApplyNoticeAttention` projects an approved route without
+republishing feed. Whole-package producer inventories reject unclassified Warn
+calls and new direct attention additions outside the audited projection seams.
+
+Lifecycle attempts retain one terminal diagnostic owner. Successful typed
+cleanup/configuration warnings route to the hub; `CleanupWarning` remains a
+transient typed fact, with no English severity matching. Chrome recorder and
+board failures retain explicit operator-origin classes; ordinary safety/layout
+shutdown, fidelity success and transient drive-busy diagnostics stay feed-only.
+`noticeAttention` still bounds and sanitizes bell text, using the established
+console-to-attention lock order and repainting after unlock.
+Selecting an attached exact target follows that thread; global or detached
+items open the root switcher rather than falling back to the focused actor.
+Existing notification capacity, dismissal and expiry still own the lifetime.
 
 ### Per-slot switcher jobs (#576)
 
@@ -235,7 +319,8 @@ Stable lock inodes occupy 256 stripes in session-locks-v2 and are retained.
 
 Startup attachments and explicit Continue use the same single bounded retry.
 Background attachment does not block the console or steal focus. Every failure
-keeps its Continue outcome and shows a reason with a one-click warm attach retry;
+keeps its Continue outcome and shows a reason; activating its selected row
+retries the warm attachment (if its row is not selected, select it first);
 a later inventory observation may independently change the outcome.
 Authenticated wrappers reconnect and join the broker independently of panes;
 retained thread/workspace, positive terminal listing, readiness and exact process
@@ -808,8 +893,10 @@ count; a fresh attachment starts a new counter. No notification text is logged.
 **Notification list (bell) (pair#673, ephemeral lifecycle pair#733).** Ctrl+Return, Ctrl+Alt+a or the
 status row's 🔔N badge opens the top-right panel. Enter/click opens and removes
 an item, `d` dismisses, and the always-visible Clear all row or `c` empties it.
-Three sources report facts through the message service: hub notifications,
-blocked prompts (`publishBlocked`), and wait-watcher question episodes.
+Typed warning routes and authenticated hub notifications report eligible facts.
+Blocked prompts (`publishBlocked`) and wait-watcher question episodes appear
+only when their owning hub is unavailable; connected-hub conditions retain
+their chip/feed and canonical hub message instead (#844).
 `couchcore.AttentionList` owns the pure transitions: removing a live condition
 suppresses it until that kind/thread leaves its source set; a later occurrence
 is fresh. Only notification events expire at 12 hours, on the existing activity
@@ -1631,18 +1718,10 @@ CLI. It runs in-process against the store and needs no supervisor.
     - A no-op write keeps the previous round.
     - **No stale round:** the old sidecar is removed before the document moves, so a failed round write (a warning) leaves none.
   - `round FILE --json` answers `{Code, Error, Round, Cleared}` (the parley.nvim#383 contract). `Cleared` is any submit of the file after `at` in the raw ledger, folded submits included, through `submitNames`, which `OwedForDocument` also uses.
-  - **Propose:** under the document's `presentation: propose`, a non-frontmatter write keeps the base text and writes the body's diff as markers (`ProposeDocument`, `propose.go`), one per changed line. Unpaired blank lines are not marked.
-    - **The engine:** `BuildEdit`/`contentStep` (`round.go`) is shared with `pair review apply`, so both paths behave identically.
-    - **Applied directly** (`directUnderPropose`):
-      - records wholly inside the frontmatter, which is never proposed;
-      - a side-doc answer (`answersSideDoc`): a ready operator marker (`readyMarkerIn`, `marker.go`, the markers.lua grammar) replaced by a new `→ [proposal|discussion](PATH)` link;
-      - the fold a link's `🤖[fold in]` asks for, which keeps the link with ` (folded DATE)` (S3).
-    - **Refused:** a record crossing the frontmatter's end, or a body write changing the frontmatter (`propose-unencodable`).
-    - **Operator-owned keys:** `presentation` and `collaboration-mode` refuse any agent change on every path, `write --frontmatter` included (`operator-owned`).
-    - **Conformance:** `testdata/edit-records/conformance` holds ariadne#437's universal-review examples byte for byte. The file, shadow, hash and round all follow the written marker bytes.
-    - A hunk over 3 lines refuses with `propose-too-large`.
-    - A line the marker grammar can't carry refuses with `propose-unencodable`.
-    - Both refusals name the one fallback, a side-doc proposal.
+  - **Current writes (#838):** `BuildEdit` (`round.go`) is shared with `pair review apply`. New edits are clean text with highlight presentation; retired document presentation keys never select direct or proposal output. No three-line proposal limit applies to new writes.
+  - **Historical presentation:** old `Round.presentation` and `Span.presentation` values keep their direct/highlight/propose meanings through reading, records, commits and resume. An absent span value falls back to the round, then highlight. Known fields and duplicate keys remain strictly validated; unknown extensions, including nested values, survive rewrites. New writes do not reinterpret saved rounds.
+  - **Source protection:** normal writes preserve legacy mode/instruction keys and real `@@chat@@` tags and their heading attachment. Chat-item text is retained with only an answer-link append. A refused batch publishes no subset. Retired settings produce shared nonfatal notices instead of selecting a mode.
+  - **Shared semantics:** the reviewing agent follows the shared collaborative round instructions for questions, commands, scope and briefs. Couch enforces structural preservation, not natural-language intent. The snapshot, legacy grammar and lossless operator map-to-tag migration are mapped in [couch-agentic-documents.md](couch-agentic-documents.md#collaborative-snapshot-838).
 - **Ledger:** the message service's `messageEndpoint.Deliver`
   (`message_deliveries.go`) appends one row per delivery that may have
   reached the agent: submitted, indeterminate, an endpoint error, or a
@@ -1967,6 +2046,18 @@ and `couch --reboot repo:N --confirm` act on one slot from a live Couch slot:
    admission, removed 5 minutes after they turn terminal (swept on every
    admit and status) or when Couch exits; status answers only the slot that
    admitted them, and a receipt not held answers `unknown`.
+
+   When caller proof fails because its selected session is missing or EXITED,
+   the existing unavailable response carries `listing_evidence` JSON (#872).
+   `LivenessEvidenceContext` retains the exact parsed listing's completion time,
+   full byte count/SHA256 and a copied prefix of at most8192bytes, with explicit
+   truncation; JSON encodes those bytes as base64. `SelectedListingEvidence`
+   adds the selected address/name, claim count, row state and projected presence.
+   No second query substitutes for the judged frame, and a subsequent refresh
+   cannot rewrite it. Existing stale, malformed and ambiguous proofs still
+   refuse distinctly. Post-admission loss remains uncertain and never resends
+   the mutation. #872's one authorized native sample did not reproduce the
+   original loss; the cause remains unclassified until another occurrence.
 4. `consoleSlotOperations` wires `Console.EnqueueRemoteOperation`
    (`console_remote.go`) with `Couch.PrepareSlotOperation`: the job rides the
    switcher's `operationQueue`, `c.ops` and `finishOperation`. Prepare runs on
@@ -2351,8 +2442,11 @@ budget and bounded pipe cleanup. Successful tool exit confirms local copying.
 Explicit SSH environments skip the host clipboard. Missing, failed or timed-out
 tools fall back to `Presenter.Copy` through the serialized parent writer; its
 OSC 52 request has no delivery acknowledgment, so feedback says **unconfirmed**.
-Status-row clipping and expiry do not remove the diagnostic. Copy feedback stays
-in `MenuNotice`, so repeating the action does not copy its own confirmation.
+Switcher clipping and feed transient expiry do not remove the diagnostic. Copy
+feedback stays in `MenuState.CopyFeedback`, separate from operation
+`MenuState.Notice` and derived `MenuState.LatestFeed`, so repeating the action
+does not copy its own confirmation. An operation error or selected row's retained
+failure keeps its existing copy precedence.
 
 A read-only investigation for #604 found Ghostty's installed default permits
 `clipboard-write` and no local permission override; Zellij documents OSC 52 write
@@ -2471,7 +2565,9 @@ claim. The launcher then exports exact paths to Go helpers, shell, Neovim, and
 both Zellij layouts.
 Each resolved-consumer family is tied to a named resolver/member witness;
 closed vocabulary allowances separately cover exact non-path protocol and CLI
-uses. Every production source is exhaustively inventoried as one of those
+uses. Typed constant allowances additionally pin the declared type, symbol,
+literal and occurrence count; implicit, untyped and computed initializers do
+not qualify. Every production source is exhaustively inventoried as one of those
 classes or as a non-artifact source; new files have no implicit default, and a
 Go source that imports `artifactpath` cannot remain in the non-artifact class.
 Current resolved consumers have positive family-specific resolver/member (or
@@ -3340,7 +3436,14 @@ reasserting click-only mode over a child that needs drag motion.
 The existing Ctrl+vertical-wheel product policy remains explicit in the typed
 input adapter; it is separate from terminal mode ownership and tracked by #226.
 
-A click dispatches the SAME declared `switch` (or `resume`) operation Enter
+Inside the open switcher, a left press on a different row selects it without
+switching; a press on the selected visible row activates it (#851). A double
+click therefore selects then activates, with no timer. Chips inside the open
+switcher follow the same rule; a hidden chip first reveals and selects its
+row, while +N retains its group-opening action. Tab-bar chips outside the
+switcher still activate immediately. Keyboard behavior is unchanged.
+
+An activating click dispatches the SAME declared `switch` (or `resume`) operation Enter
 dispatches, chosen by the same `enterOperationFor` rule — one authority, because
 a restatement had already diverged on its first day. The one difference is that a
 click is always MANUAL: it suppresses the attention capture, so the landing is
@@ -3545,6 +3648,39 @@ park leave (`leave_park.go`):
   therefore poll it within `storeReadLockWait` and then return
   `ErrThreadStoreBusy`. Before #827 they refused at the first EWOULDBLOCK, which
   is what left fan-out parks behind. Retention maintenance still yields at once.
+  `isStoreContention` names both forms (typed busy, raw EWOULDBLOCK/EAGAIN).
+  Repository-argument publication retries contention until the caller's
+  deadline and refuses a caller without one (#877); at the deadline its error
+  carries both the context error and the last busy.
+
+**Asleep slots** (#830). A full quit marks what it parks; `couch --wake`, from
+the main hub, brings back the other hubs.
+- **Mark:** Leave's fresh drives begin their park with `BeginParkAsleep`, which
+  writes `ThreadRecord.Asleep` (`threadrecord.SleepMark`: nonce, at, cause) in the
+  same CAS as the park's begin. An individual park (`BeginPark`) clears it.
+- **Derived flag:** `ThreadAsleep` is the only reader. It says asleep only while
+  the verified park in force carries the mark's nonce. A rolled-back, replaced or
+  resumed park, or a mark an older build kept as an unknown member, is inert.
+  Resume registration and `ClearVerifiedPark` also drop the mark.
+- **Persistence:** the mark is a top-level, born-additive record member. Nested
+  park types are strict, so an older build would refuse a field added there.
+- **Surfaces:**
+  - The summary's `AsleepAt` makes a parked row read `Asleep · <age>`.
+  - `couch --recover-plan-from-sdlc` rows carry `asleep_at`. A woken hub's
+    fleet resume (ariadne#564) reads the asleep set and each slot's pending
+    work in one report.
+- **Wake:** the operator resumes the main hub from the switcher, then its TL
+  runs `couch --wake` (`couchcmd/wake.go`). The broker op `wake` admits only the
+  main hub's live binding (`HubOwnership.Wakes`). It reads the asleep set from
+  the store alone (`Couch.AsleepSlots`, no liveness probes) and admits one
+  ordinary `resume` per other asleep hub on the slot-operation queue. Each
+  resume's effect gate re-proves the caller, that the target is a hub, and that
+  it is still asleep, so a hub parked or resumed since admission is left alone.
+  The CLI polls every
+  receipt (`pollSlotOperation`, shared with the slot-operation CLI) and prints one
+  summary. A repeat is safe: a woken hub is no longer asleep, and one still
+  resuming is refused busy. Workers wait for their hub, and plain parked slots
+  stay put.
 
 The console drains its operation queue with `Limit+1` workers, so the pass
 alone can never occupy all of them. Remote and continuation jobs share the
@@ -3894,9 +4030,11 @@ Interactive `couch [<repo>]` startup uses `ObserveStartupContext` and
 `StartInteractive` selects only a positively surviving session for the exact
 primary or numbered hub. It ranks surviving candidates by recency and
 revalidates the selected session before attachment. Parked, missing
-or unknown sessions never authorize implicit cold resume or Fresh. Without a
-surviving launch hub, the switcher stays focused; extra surviving hubs attach in
-the background. Configured empty hubs have display-only entries naming the
+or unknown sessions never authorize implicit cold resume or Fresh. Only a
+separately proven zero-history startup authorizes opening configured hubs, after
+the observation is captured and with automation off. For a known shutdown or
+unknown startup without a surviving launch hub, the switcher stays focused;
+extra surviving hubs attach in the background. Configured empty hubs have display-only entries naming the
 existing Ctrl+Space Start form. Explicit Resume/Start retain their own guards.
 This replaces the earlier warm-before-cold startup ranking (#739).
 
@@ -4143,8 +4281,8 @@ created 0600.
 the Interceptor splits anything, so the file holds everything typed or pasted
 into the hosted agent — prompts, pasted secrets, credentials. It is a debugging
 instrument for a session you own, not something to leave on. If it cannot open
-its file it says so on the status row at control priority rather than tracing
-nothing: an empty trace would otherwise read as "no bytes arrived", which is the
+its file it records a control-priority message in the switcher and an attention
+warning rather than tracing nothing: an empty trace would otherwise read as "no bytes arrived", which is the
 exact ambiguity the probe exists to remove.
 
 `COUCH_TRACE=<path>` (`pair#206`) is a timing trace of startup and the
@@ -4174,8 +4312,8 @@ event cannot ship undocumented (`pair#265` BR-8).
 
 Unlike the keystroke trace, it records addresses, counts and timings, never
 content. The traces write through one `traceFile` (`trace.go`): opened 0600,
-at a path the composition root passes in, and reported on the status row when
-it cannot open. `PAIR_PROBE_SAMPLE_SECS=N make test-reattach-cost` samples
+at a path the composition root passes in. Failure to open it produces a retained
+switcher message and an attention warning. `PAIR_PROBE_SAMPLE_SECS=N make test-reattach-cost` samples
 `zellij action` latency and prints its window in unix ms, so the sampler's
 output lines up with the trace.
 
@@ -4191,9 +4329,9 @@ never done from a defer: Go runs defers while a panic unwinds, before the runtim
 writes the panic, so a deferred close would delete the file empty (BR-1). On the
 next start, files whose pid is still alive are skipped (a dying owner drops its
 lease before its panic is written), and every previous ending is folded into one
-standing notice:
+retained switcher notice and one attention warning:
 - a non-empty `.log` is a crash: a control notice
-  `previous couch crashed — see <path>` stands on the status row, and the file is
+  `previous couch crashed — see <path>` names the evidence, and the file is
   renamed `.crash`, so it is reported once;
 - an empty `.log` means the process died without a panic (SIGKILL, power loss, the
   memory killer): notice `previous couch ended abruptly (no panic recorded)`, and
@@ -4900,33 +5038,21 @@ zombie and would report an exited-but-unreaped child as running.
 non-control entry over capacity, never drop control. `couchtty/notice.go` uses
 it for the exit/bell feed.
 
-**`Control` also decides how long a notice STANDS** (`pair#185`). Nothing used
-to retire one -- no timer, no clear on keystroke, no expiry -- so a momentary
-refusal like `previous: nowhere to return to` sat on the status row until an
-unrelated notice displaced it, reading as current state. The type already
-carried the distinction: an exit is an OBLIGATION (it says why a pane
-disappeared, and is still true later), a refusal is an EVENT about the keystroke
-just pressed. So a transient notice carries a lifetime and a control notice does
-not. `Feed.Row()` walks from the tail skipping what has expired, which is why an
-expired transient can uncover a control notice underneath but never an older
-transient -- an older transient is staler, so it is never a better answer.
+**Feed retention and presentation are separate** (`pair#185`, `pair#812`).
+`Control` retains its existing feed policy: transient entries have a lifetime,
+control entries do not. `Feed.Row()` skips expired transients, and `Run` still
+maintains the existing deadline timer, but neither tab-bar renderer consumes
+that row. Expiry does not remove retained history: `Feed.Messages()` supplies
+the latest switcher message and the full Ctrl+Y copy source. Enqueue's bounded
+collapse and control-priority capacity policy remain the single history owner.
 
-The row's expiry is also a REPAINT obligation: nothing else is guaranteed to
-happen when a notice stops being true, so `Run` arms one timer for the row's own
-deadline beside `syncSpinner`. That dedup is an OPTIMISATION and not a
-correctness rule: re-arming every iteration would still fire at the right
-moment, because the remaining duration shrinks with the deadline. Recorded that
-way deliberately -- the first version of this note claimed the notice would
-never retire without it, which was false, and a false rationale outlives the
-line it justifies. `Feed` takes both its clock and its lifetime, because the two
-are exercised at different levels: pure expiry tests hand-advance a fake clock,
-a console test must let a real timer fire.
-
-Pushing a notice and painting it are ONE operation (`publishNotice`). They were
-two until a lifetime existed, when "the sentence appears whenever something else
-next paints" stopped being merely late: on an idle console nothing else paints,
-so a notice could expire entirely unseen, which is worse than one that
-overstayed.
+`publishNotice` retains a message and repaints after unlocking; when the switcher
+is open, the latest-feed projection can be displayed immediately. An operation
+notice keeps precedence, and clipboard feedback keeps its own surface. Routine
+feedback does not create an attention item. Explicit actionable asynchronous
+sources call `Console.Warn` instead, applying the existing bounded notification
+lifecycle once alongside the retained message; see [general messages and
+warnings](#general-messages-and-actionable-warnings-812).
 
 The goroutine loop that used to wrap it (`Actor`) was groundwork for
 `pair#147`, where messages between actors would begin to exist. That scope is

@@ -320,6 +320,14 @@ All existing SHIP, recorded suite, independent integrated warm-stage and operato
 
 Authenticated hub5df8f51e explicitly lifts the build/test freeze after the operator restarted fseventsd and resumed the suite queue. Read-only landing status confirms the former own merge PID94049 is gone and prints the exact issue-branch recovery command; no duplicate owned runner or surviving ticket is being replaced. Re-enter sdlc merge --branch 000866-zellij-startup-probe-readiness --yes, retaining prior accepted evidence and allowing normal main integration and queued verification. Full local suites outside the queue remain forbidden. Pair:0 and stage cleanup remain with pair:4.
 
+### 2026-10-24 — normal landing integration conflict recovery
+
+Train383 held this car before testing because its merge conflicts with current main. Integrated main8bf05aca8fccac77fe4d832e1da8d10736deb512 as the named recovery requires. Preserved both artifact classification inventories; retained optional same-provider processgroup sources and exact provider module metadata, including supported older planners without those packages or go.sum. Adapted the two new native-admission callbacks to current golint Match(File, CheckContext), preserving the rule body.
+
+The first complete tracked catalog run exposed main's exact fleet diagnostic ownership move: startup_evidence.go now executes the raw query in runStartupQuery, not dumpStartupPane. Added three controls; RED rejected the real new owner and wrongly accepted the former one. Renamed only that existing private diagnostic exception; GREEN plus complete tracked catalog PASS10.054s, readiness artifact targets PASS0.082s, production artifact/source classifications PASS2.688s. ProviderSourceTest PASS three tests0.406s (checkout metadata/support, pinned-ref isolation and older provider). No native runtime admission behavior changed. ARCH-DRY retains the existing diagnostic/query owner; no package exemption or new guard mechanism.
+
+Reader re-audit: zellij_query_boundary_rule_test.go is an AST rule library with no file inputs; zellij_query_boundary_test.go uses newFakeRepository and an injected literal-byte reader, so both remain local_or_literal_fixture. The native inventory rule enumerates tracked production Lua/KDL/shell inputs; its companion mutation test reads the finite named production sources and applies literal mutations, so both retain fixed_scanner ownership under the existing preflight. Refreshed only those four audited certificates. Full recorded integrated-head pre-close check and narrow conflict re-close remain required before re-entering merge; no prior branch or operator pass is substituted for integrated verification.
+
 ## Revisions
 
 ### 2026-10-24 — final plan bookkeeping and source ownership

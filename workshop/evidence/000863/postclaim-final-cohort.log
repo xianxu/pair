@@ -1,0 +1,29 @@
+=== RUN   TestFreshStartupPostClaimDiscoveryFailureRollsBack
+--- PASS: TestFreshStartupPostClaimDiscoveryFailureRollsBack (0.86s)
+=== RUN   TestFreshStartupPostClaimPreparationFailuresRollBack
+=== RUN   TestFreshStartupPostClaimPreparationFailuresRollBack/identity
+=== RUN   TestFreshStartupPostClaimPreparationFailuresRollBack/enrollment
+=== RUN   TestFreshStartupPostClaimPreparationFailuresRollBack/cancel-enrollment
+--- PASS: TestFreshStartupPostClaimPreparationFailuresRollBack (2.55s)
+    --- PASS: TestFreshStartupPostClaimPreparationFailuresRollBack/identity (0.83s)
+    --- PASS: TestFreshStartupPostClaimPreparationFailuresRollBack/enrollment (0.76s)
+    --- PASS: TestFreshStartupPostClaimPreparationFailuresRollBack/cancel-enrollment (0.96s)
+=== RUN   TestFreshStartupPostClaimRollbackPreservesUncertainSuccessor
+=== RUN   TestFreshStartupPostClaimRollbackPreservesUncertainSuccessor/revision
+=== RUN   TestFreshStartupPostClaimRollbackPreservesUncertainSuccessor/nonce
+=== RUN   TestFreshStartupPostClaimRollbackPreservesUncertainSuccessor/unreadable
+--- PASS: TestFreshStartupPostClaimRollbackPreservesUncertainSuccessor (4.27s)
+    --- PASS: TestFreshStartupPostClaimRollbackPreservesUncertainSuccessor/revision (1.45s)
+    --- PASS: TestFreshStartupPostClaimRollbackPreservesUncertainSuccessor/nonce (1.22s)
+    --- PASS: TestFreshStartupPostClaimRollbackPreservesUncertainSuccessor/unreadable (1.59s)
+=== RUN   TestFreshStartupPostClaimRollbackReleaseErrorIsSurfaced
+--- PASS: TestFreshStartupPostClaimRollbackReleaseErrorIsSurfaced (0.98s)
+=== RUN   TestFreshStartupPostClaimSuccessTransfersOwnership
+--- PASS: TestFreshStartupPostClaimSuccessTransfersOwnership (2.30s)
+=== RUN   TestFreshStartupPostClaimHandoffFailureHasOneRollback
+--- PASS: TestFreshStartupPostClaimHandoffFailureHasOneRollback (1.34s)
+=== RUN   TestFreshStartupPostClaimEnrollmentPublicationFailureRollsBack
+--- PASS: TestFreshStartupPostClaimEnrollmentPublicationFailureRollsBack (2.21s)
+PASS
+write budget couchcore: bytes=208896 cap=134217728 repeats=1
+ok  	github.com/xianxu/pair/cmd/internal/couchcore	14.790s

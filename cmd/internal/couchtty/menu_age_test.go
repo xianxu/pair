@@ -172,3 +172,30 @@ func ansiColourOf(line string) string {
 	}
 	return ""
 }
+
+// Asleep reads apart from parked (pair#830): wake brings back the asleep set,
+// so the operator must see which rows are in it. The age is the sleep's, not
+// the last activity's.
+func TestRootStateTextShowsAsleepApartFromParked(t *testing.T) {
+	now := time.Unix(1_700_000_000, 0)
+	slept := now.Add(-3 * time.Hour)
+	row := func(state couchcore.ActionableThreadState, asleep *time.Time) couchcore.ActionableThreadSummary {
+		return couchcore.ActionableThreadSummary{
+			Address: menuAddress("brain"), Name: "brain", State: state, LastActiveAt: now.Add(-5 * time.Hour), AsleepAt: asleep,
+		}
+	}
+	for _, tc := range []struct {
+		name  string
+		state couchcore.ActionableThreadState
+		at    *time.Time
+		want  string
+	}{
+		{"parked", couchcore.ThreadParked, nil, "Resume from disk · 5h ago"},
+		{"asleep", couchcore.ThreadParked, &slept, "Asleep · 3h ago"},
+		{"asleep but its session is detached", couchcore.ThreadDetached, &slept, "Continue · 5h ago · asleep"},
+	} {
+		if got := rootStateText(row(tc.state, tc.at), now); got != tc.want {
+			t.Errorf("%s: rootStateText = %q, want %q", tc.name, got, tc.want)
+		}
+	}
+}

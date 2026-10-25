@@ -159,7 +159,7 @@ func ParseCLI(args []string, operations []couchcore.Operation) (inv cliInvocatio
 			return parseEditorEndpointCLI(args)
 		case "--switch-agent", "--operation-status":
 			return parseSwitchAgentCLI(args)
-		case "--recovery-confirmation", "--resume-candidates", "--actors", "--send-to", "--message-status", "--skill", "--broadcast-list", "--resources", "--reap-orphans":
+		case "--recovery-confirmation", "--resume-candidates", "--actors", "--wake", "--send-to", "--message-status", "--skill", "--broadcast-list", "--resources", "--reap-orphans":
 			return parseMessageCLI(args)
 		}
 		// Slot operations come from the one verb list (couchcore.IsSlotOperation).
@@ -362,6 +362,11 @@ func parseMessageCLI(args []string) (cliInvocation, error) {
 			return bad()
 		}
 		return cliInvocation{kind: cliSkill}, nil
+	case "--wake":
+		if len(args) != 1 && !(len(args) == 2 && args[1] == "--json") {
+			return bad()
+		}
+		return cliInvocation{kind: cliMessage, messageOp: "wake", jsonOutput: len(args) == 2}, nil
 	case "--actors":
 		if len(args) != 1 && !(len(args) == 2 && args[1] == "--json") {
 			return bad()

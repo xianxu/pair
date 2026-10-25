@@ -627,7 +627,7 @@ func TestEveryOperationHasASummaryAndDescribedArgs(t *testing.T) {
 func TestOperationArityMatchesExpectation(t *testing.T) {
 	// Declared in the test rather than read from the operation itself, so
 	// this cannot degrade into asserting X == X.
-	want := map[string]int{"provision-workspace": 3, "request-continuation": 7, "continue-thread": 3, "retry-continuation": 4, "dismiss-continuation": 4, "continuation-status": 4, "prepare-switch-agent": 4, "switch-agent": 8, "prepare-start": 3, "start": 5, "start-hub": 1, "list": 0, "show": 2, "reconcile": 1, "peek": 7, "stop": 1, "alias": 3, "publish-description": 3, "switch": 2, "attach": 3, "park": 4, "detach": 3, "leave": 1, "resume": 6, "resume-candidates": 4, "recovery-confirmation": 1, "recover-park": 3, "reboot": 5, "reap": 3, "recover": 3, "archived": 0, "relaunch": 4, "reload-context": 4, "prepare": 5}
+	want := map[string]int{"provision-workspace": 3, "request-continuation": 7, "continue-thread": 3, "retry-continuation": 4, "dismiss-continuation": 4, "continuation-status": 4, "prepare-switch-agent": 4, "switch-agent": 8, "prepare-start": 3, "start": 5, "start-hub": 2, "list": 0, "show": 2, "reconcile": 1, "peek": 7, "stop": 1, "alias": 3, "publish-description": 3, "switch": 2, "attach": 3, "park": 4, "detach": 3, "leave": 1, "resume": 6, "resume-candidates": 4, "recovery-confirmation": 1, "recover-park": 3, "reboot": 5, "reap": 3, "recover": 3, "archived": 0, "relaunch": 4, "reload-context": 4, "prepare": 5}
 	for _, op := range couchcore.Operations() {
 		if got := len(op.Args); got != want[op.Name] {
 			t.Errorf("%s has %d args, want %d", op.Name, got, want[op.Name])
@@ -1914,7 +1914,13 @@ func TestCandidateResumeRetainsQueuedHubGuard(t *testing.T) {
 }
 
 func TestInitialHubBorrowedAttachmentNoticeAppearsOnFirstPaint(t *testing.T) {
-	for _, attachErr := range []error{nil, errors.New("attach refused")} {
+	for _, tc := range []struct {
+		attachErr          error
+		publicationFailure bool
+	}{
+		{nil, false}, {errors.New("attach refused"), false}, {nil, true},
+	} {
+		attachErr := tc.attachErr
 		host := hostty.NewFakeHost(ptychild.Size{Rows: 24, Cols: 160})
 		input, writer := io.Pipe()
 		console := couchtty.New(host, input)
@@ -1925,6 +1931,14 @@ func TestInitialHubBorrowedAttachmentNoticeAppearsOnFirstPaint(t *testing.T) {
 			t.Fatal(err)
 		}
 		start := couchcore.StartResult{Record: couchcore.ActorRecord{Thread: couchcore.ThreadAddress{RepoScope: "0123456789abcdef", Tag: "couch-0123456789abcdef"}, AttachmentNotice: "BORROWED ATTACH: old client is alive; retained lifecycle state was preserved."}, Handle: handle}
+		if tc.publicationFailure {
+			start.Configuration = &couchcore.AcceptedConfiguration{}
+			(&couchcore.Couch{}).PublishAdoptedConfiguration(start)
+			if !strings.Contains(start.Warning(), "startup parameters were not remembered") {
+				t.Fatal("missing publication failure fixture")
+			}
+		}
+
 		console.SetOperationDispatcher(func(call couchcore.OperationCall) (any, error) {
 			if call.Name != "attach" {
 				t.Fatalf("startup dispatched %s", call.Name)
@@ -1949,7 +1963,7 @@ func TestInitialHubBorrowedAttachmentNoticeAppearsOnFirstPaint(t *testing.T) {
 				t.Fatal("no initial console paint")
 			}
 		}
-		visible := strings.Contains(host.Written(), "BORROWED ATTACH: old client is alive; r…")
+		visible := strings.Contains(host.Written(), "BORROWED ATTACH: old client is alive;")
 		if attachErr == nil {
 			assertCopied(writer, start.Warning())
 		}
@@ -1963,6 +1977,10 @@ func TestInitialHubBorrowedAttachmentNoticeAppearsOnFirstPaint(t *testing.T) {
 		if visible != (attachErr == nil) {
 			t.Fatalf("initial borrowed warning visible=%v after adoption error=%v; paint=%q", visible, attachErr, host.Written())
 		}
+		if got := strings.Contains(host.Written(), couchtty.AttentionGlyph+"1"); got != tc.publicationFailure {
+			t.Fatalf("initial borrowed/configuration attention=%v want%v", got, tc.publicationFailure)
+		}
+
 		if console.ReattachPassArmed() != (attachErr == nil) {
 			t.Fatal("warm pass arming did not follow successful adoption")
 		}

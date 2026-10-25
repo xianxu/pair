@@ -45,7 +45,19 @@ func (c *Console) ActionableProvider() ActionableThreadProvider {
 func (c *Console) menuSnapshot() MenuState {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	return cloneMenuState(c.menu)
+	return c.menuSnapshotLocked()
+}
+
+// menuSnapshotLocked derives presentation from the existing bounded history.
+// The retained message survives transient row expiry; menu operation notices
+// remain separate owners. Callers hold c.mu.
+func (c *Console) menuSnapshotLocked() MenuState {
+	state := cloneMenuState(c.menu)
+	messages := c.feed.Messages()
+	if len(messages) > 0 {
+		state.LatestFeed = messages[len(messages)-1].Body
+	}
+	return state
 }
 
 func (c *Console) snapshotMenuObservations() []couchcore.LiveTTYObservation {
@@ -193,7 +205,7 @@ func (c *Console) finishMenuRefresh(result menuRefreshResult) {
 func (c *Console) reduceMenu(event MenuEvent) {
 	event.At = c.now()
 	c.mu.Lock()
-	if event.Kind == MenuEventKey || event.Kind == MenuEventMouseSwitch || event.Kind == MenuEventParkHotkey {
+	if event.Kind == MenuEventKey || event.Kind == MenuEventMouseSwitch || event.Kind == MenuEventMouseRowClick || event.Kind == MenuEventParkHotkey {
 		c.navigationGeneration++
 	}
 	c.ensureMenuLocked(couchcore.ThreadAddress{})
@@ -246,7 +258,7 @@ func (c *Console) showMenu() {
 // showMenuPublishing is showMenu for a caller already holding publishMu.
 func (c *Console) showMenuPublishing() {
 	c.mu.Lock()
-	state, size := cloneMenuState(c.menu), c.size
+	state, size := c.menuSnapshotLocked(), c.size
 	c.mu.Unlock()
 	bar, bottom, err := c.chrome()
 	if err != nil {

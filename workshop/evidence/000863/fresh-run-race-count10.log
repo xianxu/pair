@@ -1,0 +1,103 @@
+=== RUN   TestFreshStartupRunSerializesLaunchThroughAdoption
+--- PASS: TestFreshStartupRunSerializesLaunchThroughAdoption (0.39s)
+=== RUN   TestFreshStartupRunCancellationJoinsHeldEffect
+=== RUN   TestFreshStartupRunCancellationJoinsHeldEffect/launch
+=== RUN   TestFreshStartupRunCancellationJoinsHeldEffect/adoption
+--- PASS: TestFreshStartupRunCancellationJoinsHeldEffect (0.51s)
+    --- PASS: TestFreshStartupRunCancellationJoinsHeldEffect/launch (0.17s)
+    --- PASS: TestFreshStartupRunCancellationJoinsHeldEffect/adoption (0.34s)
+=== RUN   TestKnownShutdownRunDoesNotAdoptEmptyStartResults
+--- PASS: TestKnownShutdownRunDoesNotAdoptEmptyStartResults (0.07s)
+=== RUN   TestFreshStartupRunSerializesLaunchThroughAdoption
+--- PASS: TestFreshStartupRunSerializesLaunchThroughAdoption (0.47s)
+=== RUN   TestFreshStartupRunCancellationJoinsHeldEffect
+=== RUN   TestFreshStartupRunCancellationJoinsHeldEffect/launch
+=== RUN   TestFreshStartupRunCancellationJoinsHeldEffect/adoption
+--- PASS: TestFreshStartupRunCancellationJoinsHeldEffect (0.31s)
+    --- PASS: TestFreshStartupRunCancellationJoinsHeldEffect/launch (0.16s)
+    --- PASS: TestFreshStartupRunCancellationJoinsHeldEffect/adoption (0.15s)
+=== RUN   TestKnownShutdownRunDoesNotAdoptEmptyStartResults
+--- PASS: TestKnownShutdownRunDoesNotAdoptEmptyStartResults (0.03s)
+=== RUN   TestFreshStartupRunSerializesLaunchThroughAdoption
+--- PASS: TestFreshStartupRunSerializesLaunchThroughAdoption (0.23s)
+=== RUN   TestFreshStartupRunCancellationJoinsHeldEffect
+=== RUN   TestFreshStartupRunCancellationJoinsHeldEffect/launch
+=== RUN   TestFreshStartupRunCancellationJoinsHeldEffect/adoption
+--- PASS: TestFreshStartupRunCancellationJoinsHeldEffect (0.30s)
+    --- PASS: TestFreshStartupRunCancellationJoinsHeldEffect/launch (0.15s)
+    --- PASS: TestFreshStartupRunCancellationJoinsHeldEffect/adoption (0.15s)
+=== RUN   TestKnownShutdownRunDoesNotAdoptEmptyStartResults
+--- PASS: TestKnownShutdownRunDoesNotAdoptEmptyStartResults (0.05s)
+=== RUN   TestFreshStartupRunSerializesLaunchThroughAdoption
+--- PASS: TestFreshStartupRunSerializesLaunchThroughAdoption (0.61s)
+=== RUN   TestFreshStartupRunCancellationJoinsHeldEffect
+=== RUN   TestFreshStartupRunCancellationJoinsHeldEffect/launch
+=== RUN   TestFreshStartupRunCancellationJoinsHeldEffect/adoption
+--- PASS: TestFreshStartupRunCancellationJoinsHeldEffect (0.46s)
+    --- PASS: TestFreshStartupRunCancellationJoinsHeldEffect/launch (0.22s)
+    --- PASS: TestFreshStartupRunCancellationJoinsHeldEffect/adoption (0.24s)
+=== RUN   TestKnownShutdownRunDoesNotAdoptEmptyStartResults
+--- PASS: TestKnownShutdownRunDoesNotAdoptEmptyStartResults (0.04s)
+=== RUN   TestFreshStartupRunSerializesLaunchThroughAdoption
+--- PASS: TestFreshStartupRunSerializesLaunchThroughAdoption (0.58s)
+=== RUN   TestFreshStartupRunCancellationJoinsHeldEffect
+=== RUN   TestFreshStartupRunCancellationJoinsHeldEffect/launch
+=== RUN   TestFreshStartupRunCancellationJoinsHeldEffect/adoption
+--- PASS: TestFreshStartupRunCancellationJoinsHeldEffect (1.43s)
+    --- PASS: TestFreshStartupRunCancellationJoinsHeldEffect/launch (0.67s)
+    --- PASS: TestFreshStartupRunCancellationJoinsHeldEffect/adoption (0.76s)
+=== RUN   TestKnownShutdownRunDoesNotAdoptEmptyStartResults
+--- PASS: TestKnownShutdownRunDoesNotAdoptEmptyStartResults (0.10s)
+=== RUN   TestFreshStartupRunSerializesLaunchThroughAdoption
+--- PASS: TestFreshStartupRunSerializesLaunchThroughAdoption (1.08s)
+=== RUN   TestFreshStartupRunCancellationJoinsHeldEffect
+=== RUN   TestFreshStartupRunCancellationJoinsHeldEffect/launch
+=== RUN   TestFreshStartupRunCancellationJoinsHeldEffect/adoption
+--- PASS: TestFreshStartupRunCancellationJoinsHeldEffect (1.54s)
+    --- PASS: TestFreshStartupRunCancellationJoinsHeldEffect/launch (0.70s)
+    --- PASS: TestFreshStartupRunCancellationJoinsHeldEffect/adoption (0.84s)
+=== RUN   TestKnownShutdownRunDoesNotAdoptEmptyStartResults
+--- PASS: TestKnownShutdownRunDoesNotAdoptEmptyStartResults (0.12s)
+=== RUN   TestFreshStartupRunSerializesLaunchThroughAdoption
+--- PASS: TestFreshStartupRunSerializesLaunchThroughAdoption (1.21s)
+=== RUN   TestFreshStartupRunCancellationJoinsHeldEffect
+=== RUN   TestFreshStartupRunCancellationJoinsHeldEffect/launch
+=== RUN   TestFreshStartupRunCancellationJoinsHeldEffect/adoption
+--- PASS: TestFreshStartupRunCancellationJoinsHeldEffect (1.46s)
+    --- PASS: TestFreshStartupRunCancellationJoinsHeldEffect/launch (0.66s)
+    --- PASS: TestFreshStartupRunCancellationJoinsHeldEffect/adoption (0.80s)
+=== RUN   TestKnownShutdownRunDoesNotAdoptEmptyStartResults
+--- PASS: TestKnownShutdownRunDoesNotAdoptEmptyStartResults (0.10s)
+=== RUN   TestFreshStartupRunSerializesLaunchThroughAdoption
+--- PASS: TestFreshStartupRunSerializesLaunchThroughAdoption (1.22s)
+=== RUN   TestFreshStartupRunCancellationJoinsHeldEffect
+=== RUN   TestFreshStartupRunCancellationJoinsHeldEffect/launch
+=== RUN   TestFreshStartupRunCancellationJoinsHeldEffect/adoption
+--- PASS: TestFreshStartupRunCancellationJoinsHeldEffect (1.80s)
+    --- PASS: TestFreshStartupRunCancellationJoinsHeldEffect/launch (0.95s)
+    --- PASS: TestFreshStartupRunCancellationJoinsHeldEffect/adoption (0.84s)
+=== RUN   TestKnownShutdownRunDoesNotAdoptEmptyStartResults
+--- PASS: TestKnownShutdownRunDoesNotAdoptEmptyStartResults (0.11s)
+=== RUN   TestFreshStartupRunSerializesLaunchThroughAdoption
+--- PASS: TestFreshStartupRunSerializesLaunchThroughAdoption (2.55s)
+=== RUN   TestFreshStartupRunCancellationJoinsHeldEffect
+=== RUN   TestFreshStartupRunCancellationJoinsHeldEffect/launch
+=== RUN   TestFreshStartupRunCancellationJoinsHeldEffect/adoption
+--- PASS: TestFreshStartupRunCancellationJoinsHeldEffect (4.58s)
+    --- PASS: TestFreshStartupRunCancellationJoinsHeldEffect/launch (1.89s)
+    --- PASS: TestFreshStartupRunCancellationJoinsHeldEffect/adoption (2.70s)
+=== RUN   TestKnownShutdownRunDoesNotAdoptEmptyStartResults
+--- PASS: TestKnownShutdownRunDoesNotAdoptEmptyStartResults (0.18s)
+=== RUN   TestFreshStartupRunSerializesLaunchThroughAdoption
+--- PASS: TestFreshStartupRunSerializesLaunchThroughAdoption (4.69s)
+=== RUN   TestFreshStartupRunCancellationJoinsHeldEffect
+=== RUN   TestFreshStartupRunCancellationJoinsHeldEffect/launch
+=== RUN   TestFreshStartupRunCancellationJoinsHeldEffect/adoption
+--- PASS: TestFreshStartupRunCancellationJoinsHeldEffect (4.71s)
+    --- PASS: TestFreshStartupRunCancellationJoinsHeldEffect/launch (2.25s)
+    --- PASS: TestFreshStartupRunCancellationJoinsHeldEffect/adoption (2.46s)
+=== RUN   TestKnownShutdownRunDoesNotAdoptEmptyStartResults
+--- PASS: TestKnownShutdownRunDoesNotAdoptEmptyStartResults (0.20s)
+PASS
+write budget couchcmd: bytes=5406720 cap=1006632960 repeats=10
+ok  	github.com/xianxu/pair/cmd/internal/couchcmd	33.142s

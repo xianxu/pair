@@ -1,6 +1,8 @@
 import { createSketchPolicy, createSketchGesture } from './sketch-policy.js';
 import { createSketchRecordDisplay, paintSketchPaths, createSketchPaintScheduler } from './sketch-render.js';
-import { sketchNoteEntries, mountSketchNoteControls } from './sketch-notes.js';
+import { sketchNoteEntries } from './sketch-notes.js';
+import { mountFeedbackPanel } from './feedback-panel.js';
+import { mountFeedbackGlow } from './feedback-glow.js';
 
 // The controller owns input and drafts. The injected scene owns frozen DOM;
 // send/status are the only mutation/reconciliation boundary.
@@ -58,10 +60,14 @@ export function mountSketch(doc, win, view, options) {
     b.addEventListener('click', action);
     return b;
   };
+  const notesPanel = options.notesPanel || mountFeedbackPanel(doc, win, {parent:root});
+  const glow = mountFeedbackGlow(doc, win, {parent:box, box});
+  let hoverPaint = null;
   const layer = make('canvas', 'sketch-layer', box),
     observer = make('canvas', 'sketch-observer', box);
   const panel = make('div', 'sketch-label', root),
     labelInput = make('textarea', 'sketch-label-input', panel);
+  notesPanel.adoptEditor(panel);
   labelInput.setAttribute('aria-label', 'Required sketch label');
   labelInput.maxLength = 1024;
   const save = make('button', '', panel);
@@ -73,7 +79,7 @@ export function mountSketch(doc, win, view, options) {
   const notice = make('div', 'sketch-status', root);
   notice.setAttribute('role', 'status');
   const labels = make('div', 'sketch-pending-labels', root);
-  const sketchButton = button('Sketch', () => enter());
+  const sketchButton = button(view.tools ? '✎ Pen' : 'Sketch', () => view.tools && (state().active || entering) ? leave('watch') : enter());
   const colors = make('select', 'sketch-color', toolbar);
   for (const [i, c] of (options.palette || ['#ff0000']).entries()) {
     const o = make('option', '', colors);
@@ -90,14 +96,16 @@ export function mountSketch(doc, win, view, options) {
   const doneButton = button('Done', () => leave('watch'));
   const retryButton = button('Check confirmation', () => dispatch({ type: 'retry' }));
   const continueButton = button('Continue drawing', () => continueDrawing());
-  const noteControls = mountSketchNoteControls(doc, { parent: box, onAdd: (key) => {
+  const addNote = (key) => {
     // UI entries are display snapshots. The existing policy still owns label
     // capability, including an old author's unfinished label after handoff.
     const slot = state().slots.find(s => s.sketch === key && !s.retired && !s.finishing);
     if (!slot || disposed) return;
     if (state().active === key && ['drawing', 'preparing'].includes(state().phase)) leave('watch');
     else openLabel(key);
-  }});
+  };
+  const controls = {pen:sketchButton, colors, undo:undoButton, redo:redoButton, done:doneButton, retry:retryButton, continueDrawing:continueButton};
+  view.tools?.sketch(controls);
   const state = () => policy.snapshot();
   const active = () => state().active;
   const track = (p) => {
@@ -129,7 +137,8 @@ export function mountSketch(doc, win, view, options) {
     continueButton.hidden = !canContinue();
     sketchButton.disabled = !s.allowed || !s.live || s.ended;
     const unavailable = unavailableReason(s);
-    sketchButton.title = unavailable;
+    sketchButton.title = unavailable || 'Sketch (pen)';
+    sketchButton.setAttribute('aria-pressed', String(entering || drawingMode));
     doneButton.disabled = !entering && !s.active;
     noteButton.hidden = !s.active;
     noteButton.disabled = s.phase === 'finishing';
@@ -143,22 +152,20 @@ export function mountSketch(doc, win, view, options) {
         ? 'Saving…'
         : s.phase === 'reconciling' ? 'Confirmation pending. Check before continuing.'
         : !s.active && !toolbar.hidden ? unavailable : '');
-    if (notice.textContent !== noticeText) notice.textContent = noticeText;
+    if (notice.textContent !== '') notice.textContent = '';
+    notesPanel.setStatus('sketch', noticeText);
+    if (view.tools) {
+      colors.hidden = false;
+      undoButton.hidden = undoButton.disabled; redoButton.hidden = redoButton.disabled;
+      doneButton.hidden = !s.active && !entering; noteButton.hidden = true;
+      view.tools.sketchVisibility(!!s.active || entering || s.phase === 'reconciling' || canContinue());
+    }
     if (finishDeadline && !s.slots.some((x) => x.finishing) && !entering) {
       win.clearTimeout(finishDeadline.timer);
       finishDeadline.resolve();
       finishDeadline = null;
     }
-    if (labels.children.length !== s.pendingLabels.length || s.pendingLabels.some((key,i)=>labels.children[i].dataset.sketch!==key)) {
-      labels.replaceChildren();
-      for (const key of s.pendingLabels) {
-        const b = make('button', '', labels);
-        b.dataset.sketch = key;
-        b.textContent = 'Add note';
-        b.title = 'Open text for this unfinished sketch';
-        b.addEventListener('click', () => openLabel(key));
-      }
-    }
+    labels.hidden = true;
     scheduler.invalidate();
   }
   function dispatch(event) {
@@ -628,6 +635,7 @@ export function mountSketch(doc, win, view, options) {
     if (changed) labelInput.value = drafts.get(key) || '';
     labelTarget = key;
     show();
+    notesPanel.showEditor(panel);
     if (changed) labelInput.focus();
   }
   async function saveLabel() {
@@ -826,11 +834,41 @@ export function mountSketch(doc, win, view, options) {
       seenInk.add(key);
     }
     const viewport={width:rect.width,height:rect.height};
-    noteControls.update(sketchNoteEntries(paths, paths.map(p=>ink.get(pathKey(p))?.bounds), {
+    const rows=sketchNoteEntries(paths, paths.map(p=>ink.get(pathKey(p))?.bounds), {
       metadata: key => options.sketchMetadata ? options.sketchMetadata(key) : recordDisplay?.metadata(key),
       editable: new Set(state().slots.filter(s => !s.retired && !s.finishing).map(s => s.sketch)),
       viewport,
-    }), viewport);
+    });
+    const bySketch=new Map();
+    for(let i=0;i<paths.length;i++){
+      const group=bySketch.get(paths[i].sketch)||[];group.push({path:paths[i],target:paintTargets[i]});bySketch.set(paths[i].sketch,group);
+    }
+    hoverPaint={bySketch,transform,toClient,scale,document:view.model.docSeg,scene:scene.ready};
+    glow.resize();
+    const hover=entry=>{
+      if(!entry){glow.clear();return;}
+      const painted=hoverPaint;
+      if(!painted||painted.document!==view.model.docSeg||painted.scene!==scene.ready){glow.clear();return;}
+      const selected=painted.bySketch.get(entry.sketch)||[];
+      glow.draw(g=>{
+        g.shadowColor='#efbc52';g.shadowBlur=16;
+        for(const {path,target} of selected){
+          const confirmed=scene.ready ? target : view.placementOf?.(path,{originalOnly:true,withClip:true});
+          const placed=confirmed?.box||confirmed;if(!placed)continue;
+          g.save();
+          if(confirmed?.clip){const [x,y]=painted.toClient(confirmed.clip[0],confirmed.clip[1]);g.beginPath();g.rect(x,y,confirmed.clip[2]*painted.scale,confirmed.clip[3]*painted.scale);g.clip();}
+          paintSketchPaths(g,[path],{project:()=>placed,toClient:painted.toClient,scale:painted.scale});g.restore();
+        }
+      });
+    };
+    const reveal=entry=>{
+      const selected=hoverPaint?.bySketch.get(entry.sketch)||[];
+      const first=selected[0]?.path;
+      const shown=!scene.ready && first && view.reveal?.(first)===true;
+      notesPanel.setStatus('sketch',shown?'':'Cannot show on this page: anchor unavailable.');
+      if(shown)hover(entry);
+    };
+    notesPanel.setSketches(rows,{open:entry=>addNote(entry.sketch),hover,reveal,available:entry=>!!entry.bounds});
     forceInk = false;
     inkTransform = transformKey;
     // Reconcile by accepted point prefix. Unconfirmed samples remain visibly
@@ -922,6 +960,8 @@ export function mountSketch(doc, win, view, options) {
   const unAuthority = options.onAuthority?.(setAuthority);
   dispatch({ type: 'sync', ...options.authority() });
   return {
+    notes:notesPanel,
+    controls,
     enter,
     leave,
     beforeAnnotationMode,
@@ -964,7 +1004,9 @@ export function mountSketch(doc, win, view, options) {
       paintGeneration++;
       cancel();
       scheduler.dispose();
-      noteControls.dispose();
+      glow.dispose(); hoverPaint=null;
+      notesPanel.setSketches([]);
+      if(!options.notesPanel)notesPanel.dispose();
       recordDisplay = null;
       displayModel = null;
       placements.clear();

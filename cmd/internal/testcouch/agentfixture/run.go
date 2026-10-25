@@ -328,6 +328,11 @@ func Run(parent context.Context, c Config, stdin io.Reader, stdout io.Writer) (r
 				return errors.New("fixture result reservations exceed limit")
 			}
 			for _, entry := range entries {
+				// A snapshot can contain the full quota of synchronous writes.
+				// Observe cancellation before admitting another ordinary request.
+				if ctx.Err() != nil {
+					return nil
+				}
 				name := entry.Name()
 				if strings.HasPrefix(name, ".publish-") {
 					continue
@@ -473,12 +478,20 @@ func commandCLITimeout(c Command) time.Duration {
 	return c.Timeout
 }
 
-func runCLI(parent context.Context, executable string, c Command) Result {
-	deadline := time.Now().Add(commandCLITimeout(c))
+func commandCLIDeadline(c Command, now time.Time) time.Time {
+	deadline := now.Add(commandCLITimeout(c))
 	if c.DeadlineUnixNano != 0 && time.Unix(0, c.DeadlineUnixNano).Before(deadline) {
 		deadline = time.Unix(0, c.DeadlineUnixNano)
 	}
-	ctx, cancel := context.WithDeadline(parent, deadline)
+	return deadline
+}
+
+func runCLI(parent context.Context, executable string, c Command) Result {
+	return runCLIWithDeadline(parent, executable, c, context.WithDeadline)
+}
+
+func runCLIWithDeadline(parent context.Context, executable string, c Command, withDeadline func(context.Context, time.Time) (context.Context, context.CancelFunc)) Result {
+	ctx, cancel := withDeadline(parent, commandCLIDeadline(c, time.Now()))
 	defer cancel()
 	out, errout := &boundedOutput{}, &boundedOutput{}
 	cmd := exec.CommandContext(ctx, executable, c.Args...)

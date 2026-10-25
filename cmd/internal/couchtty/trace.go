@@ -165,7 +165,7 @@ func (c *Console) SetEventTrace(path string, processStart time.Time, options ...
 	c.mu.Unlock()
 	_ = previous.Close()
 	if err != nil {
-		c.publishNotice(Notice{Kind: "trace", Control: true, Body: err.Error()})
+		c.Warn(Notice{Class: couchcore.NoticeEventTraceFailed, Kind: "trace", Control: true, Body: err.Error()})
 		return err
 	}
 	tracer.record(processStart, traceStartup, couchcore.ThreadAddress{}, "")

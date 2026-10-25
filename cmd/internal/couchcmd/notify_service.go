@@ -6,6 +6,7 @@ import (
 
 	"github.com/xianxu/pair/cmd/internal/couchcore"
 	"github.com/xianxu/pair/cmd/internal/couchmessage"
+	"github.com/xianxu/pair/cmd/internal/couchtty"
 	"github.com/xianxu/pair/cmd/internal/notifyosc"
 )
 
@@ -58,8 +59,12 @@ func (s *messageService) handleNotify(ctx context.Context, r couchmessage.Reques
 	// The list does not depend on the terminal showing the escape (pair#673):
 	// a focused Ghostty tab drops it.
 	if id, err := newRequestID(); err == nil {
-		s.observeAttention(couchcore.AttentionFact{Kind: couchcore.AttentionNotify, Notify: couchcore.AttentionItem{
-			ID: "notify-" + id, Thread: bindingThread(caller), Label: label, Title: r.Title, Body: r.Body}})
+		if s.noticeOutput.Load() != nil {
+			s.publishSystemNotice(couchtty.Notice{Class: couchcore.NoticeHubRequested, Kind: "notify", Thread: bindingThread(caller), Label: label, Body: r.Title + ": " + r.Body})
+		} else if couchcore.RouteNotice(couchcore.NoticeRouteInput{Class: couchcore.NoticeHubRequested}).Bell {
+			s.observeAttention(couchcore.AttentionFact{Kind: couchcore.AttentionNotify, Notify: couchcore.AttentionItem{
+				ID: "notify-" + id, Thread: bindingThread(caller), Label: label, Title: r.Title, Body: r.Body}})
+		}
 	}
 	if err := (*write)(ctx, title, r.Body); err != nil {
 		return couchmessage.Response{Code: "uncertain", Error: err.Error()}

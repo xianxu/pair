@@ -852,11 +852,7 @@ func TestNativeReplyFixtureChildEnvironmentIsPrivate(t *testing.T) {
 }
 
 func TestNativeReplyNoiseCancellationJoinsOwnedConnections(t *testing.T) {
-	root, err := os.MkdirTemp("", "pnc-")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer os.RemoveAll(root)
+	root := testpair.ShortRoot(t)
 	listener, err := net.Listen("unix", filepath.Join(root, "socket"))
 	if err != nil {
 		t.Fatal(err)

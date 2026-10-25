@@ -1,0 +1,17 @@
+--- FAIL: TestEmptyStartupWaitsForPreviewAtBothLockSites (3.59s)
+    --- FAIL: TestEmptyStartupWaitsForPreviewAtBothLockSites/primary-global2 (0.79s)
+        startup_lock_test.go:41: foreground empty reservation refused preview contention: lock thread store: resource temporarily unavailable
+    --- FAIL: TestEmptyStartupWaitsForPreviewAtBothLockSites/primary-global4 (0.60s)
+        startup_lock_test.go:41: foreground empty reservation refused preview contention: lock thread store: resource temporarily unavailable
+    --- FAIL: TestEmptyStartupWaitsForPreviewAtBothLockSites/slot-global2 (0.70s)
+        startup_lock_test.go:41: foreground empty reservation refused preview contention: lock thread store: resource temporarily unavailable
+    --- FAIL: TestEmptyStartupWaitsForPreviewAtBothLockSites/slot-global4 (0.56s)
+        startup_lock_test.go:41: foreground empty reservation refused preview contention: lock thread store: resource temporarily unavailable
+    --- FAIL: TestEmptyStartupWaitsForPreviewAtBothLockSites/slot-local2 (0.46s)
+        startup_lock_test.go:41: foreground empty reservation refused preview contention: lock thread store: resource temporarily unavailable
+    --- FAIL: TestEmptyStartupWaitsForPreviewAtBothLockSites/slot-local4 (0.50s)
+        startup_lock_test.go:41: foreground empty reservation refused preview contention: lock thread store: resource temporarily unavailable
+FAIL
+write budget couchcore: bytes=49152 cap=134217728 repeats=1
+FAIL	github.com/xianxu/pair/cmd/internal/couchcore	3.870s
+FAIL

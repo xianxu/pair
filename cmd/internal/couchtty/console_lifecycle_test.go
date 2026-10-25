@@ -26,6 +26,7 @@ func TestLifecycleCompletionRequiresFinalAdoption(t *testing.T) {
 			address := menuAddress("new")
 			c.finishPreparedOperationForTest(operationCompletion{origin: MenuOperationOrigin{Operation: "start", Attempt: 1}, value: couchcore.StartResult{
 				Record: couchcore.ActorRecord{Thread: address, PID: 12, Identity: "one", Args: couchcore.StartArgs{Worktree: "/repo"}},
+				Handle: stubHandle{id: "one"},
 			}})
 			if fail && len(events) != 0 {
 				t.Fatalf("provisional success: %+v", events)
@@ -184,7 +185,7 @@ func TestLifecycleNewAdoptionResetsPreviousNeedsRelaunchEvidence(t *testing.T) {
 	c.SetLifecycleObserver(func(e LifecycleObservation) { events = append(events, e) })
 	c.observeLifecycleInventory([]couchcore.ActionableThreadSummary{row})
 	c.SetOperationDispatcher(func(couchcore.OperationCall) (any, error) { return nil, nil })
-	c.finishPreparedOperationForTest(operationCompletion{origin: MenuOperationOrigin{Operation: "resume", Attempt: 1}, value: couchcore.StartResult{Record: couchcore.ActorRecord{Thread: row.Address, PID: 123, Identity: "new", Args: couchcore.StartArgs{Worktree: couchcore.Worktree(row.Target.Slot.WorktreeRoot)}}}})
+	c.finishPreparedOperationForTest(operationCompletion{origin: MenuOperationOrigin{Operation: "resume", Attempt: 1}, value: couchcore.StartResult{Record: couchcore.ActorRecord{Thread: row.Address, PID: 123, Identity: "new", Args: couchcore.StartArgs{Worktree: couchcore.Worktree(row.Target.Slot.WorktreeRoot)}}, Handle: stubHandle{id: "new"}}})
 	// The replacement becomes unusable before a live inventory is accepted.
 	c.observeLifecycleInventory([]couchcore.ActionableThreadSummary{row})
 	if len(events) != 3 || events[0].Kind != "needs-relaunch" || events[1].Kind != "resumed" || events[2].Kind != "needs-relaunch" {

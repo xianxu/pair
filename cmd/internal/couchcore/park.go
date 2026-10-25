@@ -487,16 +487,17 @@ func hasActiveIncarnation(record ThreadRecord) bool {
 }
 
 func (c *PairLifecycleController) Park(ctx context.Context, address ThreadAddress) (ParkResult, error) {
-	return c.parkAwaiting(ctx, address, (*parkFuture).Await)
+	return c.parkAwaiting(ctx, address, (*parkFuture).Await, ParkCausePlain)
 }
 
 // parkJoined is Park for full-quit leave only: it waits for the exact admitted
-// future to settle even past ctx (#827, AwaitJoined).
-func (c *PairLifecycleController) parkJoined(ctx context.Context, address ThreadAddress) (ParkResult, error) {
-	return c.parkAwaiting(ctx, address, (*parkFuture).AwaitJoined)
+// future to settle even past ctx (#827, AwaitJoined). A fresh park begun here
+// carries cause (pair#830); an open transaction keeps what its begin wrote.
+func (c *PairLifecycleController) parkJoined(ctx context.Context, address ThreadAddress, cause ParkCause) (ParkResult, error) {
+	return c.parkAwaiting(ctx, address, (*parkFuture).AwaitJoined, cause)
 }
 
-func (c *PairLifecycleController) parkAwaiting(ctx context.Context, address ThreadAddress, await parkAwait) (ParkResult, error) {
+func (c *PairLifecycleController) parkAwaiting(ctx context.Context, address ThreadAddress, await parkAwait, cause ParkCause) (ParkResult, error) {
 	if err := c.validate(); err != nil {
 		return ParkResult{}, err
 	}
@@ -517,7 +518,7 @@ func (c *PairLifecycleController) parkAwaiting(ctx context.Context, address Thre
 		return ParkResult{}, err
 	}
 	return c.submitAwaiting(ctx, address, nonce, func(workCtx context.Context) (ParkResult, error) {
-		return c.park(workCtx, address, nonce)
+		return c.parkExpected(workCtx, address, nonce, 0, cause)
 	}, await)
 }
 
@@ -535,15 +536,11 @@ func (c *PairLifecycleController) ParkExpected(ctx context.Context, address Thre
 		return ParkResult{}, err
 	}
 	return c.submit(ctx, address, nonce, func(workCtx context.Context) (ParkResult, error) {
-		return c.parkExpected(workCtx, address, nonce, revision)
+		return c.parkExpected(workCtx, address, nonce, revision, ParkCausePlain)
 	})
 }
 
-func (c *PairLifecycleController) park(ctx context.Context, address ThreadAddress, nonce string) (ParkResult, error) {
-	return c.parkExpected(ctx, address, nonce, 0)
-}
-
-func (c *PairLifecycleController) parkExpected(ctx context.Context, address ThreadAddress, nonce string, revision uint64) (ParkResult, error) {
+func (c *PairLifecycleController) parkExpected(ctx context.Context, address ThreadAddress, nonce string, revision uint64, cause ParkCause) (ParkResult, error) {
 	current, err := c.Threads.GetThread(address)
 	if err != nil {
 		return ParkResult{}, err
@@ -564,7 +561,12 @@ func (c *PairLifecycleController) parkExpected(ctx context.Context, address Thre
 	}
 	identity := ParkIdentity{Nonce: nonce, Address: address, PID: incarnation.PID, ProcessIdentity: incarnation.Identity}
 	started := c.Clock.Now()
-	begun, err := c.Threads.BeginPark(address, current.Revision, identity)
+	var begun ThreadRecord
+	if cause == ParkCausePlain {
+		begun, err = c.Threads.BeginPark(address, current.Revision, identity)
+	} else {
+		begun, err = c.Threads.BeginParkAsleep(address, current.Revision, identity, started, cause)
+	}
 	duration := c.Clock.Now().Sub(started)
 	result := ParkResult{Thread: begun, RequestedCommitDuration: duration, SoftTargetMissed: duration >= parkCommitSoftTarget}
 	if err != nil {

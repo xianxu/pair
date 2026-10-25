@@ -2,6 +2,7 @@ package couchtty
 
 import (
 	"github.com/xianxu/pair/cmd/internal/broadcast"
+	"github.com/xianxu/pair/cmd/internal/couchcore"
 	"github.com/xianxu/pair/cmd/internal/webcast"
 	"github.com/xianxu/pair/cmd/internal/webcast/capability"
 )
@@ -116,7 +117,11 @@ func (c *Console) onWebCapabilityClick(kind webcast.CapabilityKind, right bool) 
 				if notice == "" {
 					notice = err.Error()
 				}
-				c.setNotice(notice)
+				if expectedControlFailure(err) {
+					c.setNotice(notice)
+				} else {
+					c.Warn(Notice{Class: couchcore.NoticeOperatorCapabilityFailed, Origin: couchcore.NoticeOperatorOrigin, Kind: "warning", Body: notice})
+				}
 				return nil
 			}
 			if intent == "enable-copy" {

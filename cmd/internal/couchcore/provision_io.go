@@ -27,7 +27,10 @@ type ProvisionIO interface {
 	Run(context.Context, ProvisionCommand) ([]byte, error)
 }
 
-type OSProvisionIO struct{ Env []string }
+type OSProvisionIO struct {
+	Env      []string
+	deadline func(context.Context, time.Duration) (context.Context, context.CancelFunc)
+}
 
 // ProgramIdentifier is an optional ProvisionIO capability: an identity for
 // the program Run would execute, which changes when that program is replaced
@@ -56,7 +59,11 @@ func (OSProvisionIO) ProgramIdentity(program string) string {
 func (runner OSProvisionIO) Run(ctx context.Context, request ProvisionCommand) ([]byte, error) {
 	if request.Timeout > 0 {
 		var cancel context.CancelFunc
-		ctx, cancel = context.WithTimeout(ctx, request.Timeout)
+		deadline := runner.deadline
+		if deadline == nil {
+			deadline = context.WithTimeout
+		}
+		ctx, cancel = deadline(ctx, request.Timeout)
 		defer cancel()
 	}
 	callerCtx := ctx

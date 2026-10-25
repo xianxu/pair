@@ -111,6 +111,8 @@ type Record struct {
 	// ProvenDownAt is when a teardown proved this record's tree gone, stamped
 	// on the record as it is archived (pair#695); a lifecycle success.
 	ProvenDownAt *time.Time `json:"proven_down_at,omitempty"`
+	// Asleep marks the park that a full shutdown made (pair#830); see SleepMark.
+	Asleep *SleepMark `json:"asleep,omitempty"`
 	// Unknown holds top-level members this build does not own, captured on
 	// decode and written back verbatim by EncodePersisted (pair#695 §2a), so a
 	// rewrite by an older build cannot erase a newer build's field. Only the

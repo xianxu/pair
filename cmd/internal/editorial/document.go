@@ -7,29 +7,27 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/xianxu/ariadne/pkg/sidedoc"
+
 	"github.com/yuin/goldmark/ast"
-	"go.yaml.in/yaml/v3"
 )
 
-// Effective contains the three independently resolved axes and processing brief metadata.
+// Effective is the single collaborative policy plus the chat item grammar.
 type Effective struct {
 	Collaboration string `json:"collaboration"`
+	Legacy        bool   `json:"legacy,omitempty"`
 	Presentation  string `json:"presentation"`
-	Processing    string `json:"processing"`
-	Instruction   string `json:"instruction,omitempty"`
-	Modes         []Mode `json:"modes"`
-	Scope         Scope  `json:"scope"`
-	Frontier      bool   `json:"frontier"`
 }
 
 // Heading identifies an ATX heading and its nearest parent in source coordinates.
 type Heading struct {
-	Range     Range             `json:"range"`
-	Level     int               `json:"level"`
-	Parent    int               `json:"parent"`
-	Name      string            `json:"name"`
-	Directive *OwnedSource      `json:"directive,omitempty"`
-	Overrides map[string]string `json:"overrides,omitempty"`
+	Range     Range        `json:"range"`
+	Level     int          `json:"level"`
+	Parent    int          `json:"parent"`
+	Name      string       `json:"name"`
+	Directive *OwnedSource `json:"directive,omitempty"`
+	Tag       *OwnedSource `json:"tag,omitempty"`
+	Protected bool         `json:"-"`
 }
 
 // Region is a contiguous source interval with one effective editorial policy.
@@ -37,14 +35,18 @@ type Region struct {
 	Range     Range     `json:"range"`
 	Heading   int       `json:"heading"`
 	Effective Effective `json:"effective"`
+	chat      int
 }
 
 // CompileStats counts this package's source/heading/map work, excluding Goldmark internals.
 type CompileStats struct {
-	LineAdvances      int
-	HeadingVisits     int
-	LegacyAssignments int
-	ListSourceEvents  int
+	LineAdvances     int
+	HeadingVisits    int
+	ListSourceEvents int
+	SharedScans      int
+	SectionEvents    int
+	ItemSourceBytes  int
+	ItemJoins        int
 }
 
 // RenderableBlock retains source placement and the actual content tail of a
@@ -76,142 +78,32 @@ type DocumentPolicy struct {
 	ListItems   []Range           `json:"-"`
 	CodeRanges  []Range           `json:"-"`
 	SourceHash  string            `json:"sourceHash"`
-	legacy      map[string]string
-	legacyField *sourceField
 	parsed      parsedSource
-	multiple    bool
+	scan        sidedoc.ChatScan
+	items       []chatItem
 }
 
-func defaultEffective(c *Catalog) Effective {
-	m, _ := c.ResolveProcessing("free-form")
-	return Effective{Collaboration: "discussion", Presentation: "highlight", Processing: m.Name, Modes: []Mode{m}, Scope: m.Scope, Frontier: m.Frontier}
-}
-func setProcessing(e *Effective, modes []Mode) {
-	if len(modes) == 0 {
-		return
-	}
-	e.Modes = append([]Mode(nil), modes...)
-	e.Processing = modes[0].Name
-	e.Scope = modes[0].Scope
-	e.Frontier = modes[0].Frontier
+func defaultEffective() Effective {
+	return Effective{Collaboration: "collaboration", Presentation: "highlight"}
 }
 
-// NormalizeHeading applies the pinned legacy map name normalization.
-func NormalizeHeading(s string) string {
-	s = strings.ToLower(strings.Join(strings.Fields(s), " "))
-	if strings.HasSuffix(s, ")") {
-		if i := strings.LastIndex(s, " ("); i >= 0 {
-			s = s[:i]
-		}
-	}
-	return strings.TrimSpace(s)
-}
-
-// Compile resolves a snapshot without changing source bytes.
-func Compile(src []byte, c *Catalog) (*DocumentPolicy, error) {
-	if c == nil {
-		return nil, fmt.Errorf("editorial catalog is required")
-	}
+// Compile adapts shared chat facts to one immutable original-byte snapshot.
+// Retired values never select processing or presentation and never refuse.
+func Compile(src []byte) (*DocumentPolicy, error) {
 	p, err := parseOwnedSource(src)
 	if err != nil {
 		return nil, err
 	}
-	d := &DocumentPolicy{Defaults: defaultEffective(c), Owned: p.owned, parsed: p, legacy: map[string]string{}}
+	scan := sidedoc.ChatSections(string(src))
+	d := &DocumentPolicy{Defaults: defaultEffective(), Owned: p.owned, parsed: p, scan: scan}
+	d.Stats.SharedScans = 1
 	hash := sha256.Sum256(src)
 	d.SourceHash = hex.EncodeToString(hash[:])
-	warn := func(f sourceField, msg string) { d.Diagnostics = append(d.Diagnostics, Diagnostic{f.Range, msg}) }
-	if f, ok := p.fields["collaboration-mode"]; ok {
-		if f.value.Kind == yaml.MappingNode {
-			d.legacyField = &f
-			warn(f, "legacy collaboration-mode map is deprecated")
-			if err := readLegacyMap(f.value, d); err != nil {
-				return nil, err
-			}
-		} else {
-			v, e := scalar(f)
-			if e != nil {
-				return nil, e
-			}
-			v, e = ResolveCollaboration(v)
-			if e != nil {
-				return nil, e
-			}
-			d.Defaults.Collaboration = v
-		}
+	for _, notice := range scan.Notices {
+		d.Diagnostics = append(d.Diagnostics, Diagnostic{Message: notice})
 	}
-	if f, ok := p.fields["presentation"]; ok {
-		warn(f, "presentation is deprecated; use presentation-mode")
-	}
-	f, ok := p.fields["presentation-mode"]
-	if !ok {
-		f, ok = p.fields["presentation"]
-	}
-	if ok {
-		v, e := scalar(f)
-		if e != nil {
-			return nil, e
-		}
-		if v != "" {
-			resolved, e := ResolvePresentation(v)
-			if e != nil {
-				warn(f, e.Error()+"; valid choices: highlight, direct, propose; using highlight")
-			} else {
-				d.Defaults.Presentation = resolved
-			}
-		}
-	}
-	var legacyModes []Mode
-	var legacyInstruction string
-	if f, ok := p.fields["process-instruction"]; ok {
-		warn(f, "process-instruction is deprecated")
-		_, hasMode := p.fields["processing-mode"]
-		_, hasInstruction := p.fields["processing-instruction"]
-		v, e := scalar(f)
-		if e != nil {
-			if !hasMode || !hasInstruction {
-				return nil, e
-			}
-		} else {
-			selectors, instruction, lexErr := splitLegacyProcessing(v)
-			d.multiple = len(selectors) > 1
-			if !hasInstruction {
-				legacyInstruction = instruction
-			}
-			if !hasMode {
-				if lexErr != nil {
-					return nil, lexErr
-				}
-				for _, selector := range selectors {
-					m, e := c.ResolveProcessing(selector)
-					if e != nil {
-						return nil, e
-					}
-					legacyModes = append(legacyModes, m)
-				}
-			}
-		}
-	}
-	if f, ok := p.fields["processing-mode"]; ok {
-		v, e := scalar(f)
-		if e != nil {
-			return nil, e
-		}
-		m, e := c.ResolveProcessing(v)
-		if e != nil {
-			return nil, e
-		}
-		setProcessing(&d.Defaults, []Mode{m})
-	} else if len(legacyModes) > 0 {
-		setProcessing(&d.Defaults, legacyModes)
-	}
-	if f, ok := p.fields["processing-instruction"]; ok {
-		v, e := scalar(f)
-		if e != nil {
-			return nil, e
-		}
-		d.Defaults.Instruction = v
-	} else {
-		d.Defaults.Instruction = legacyInstruction
+	for _, line := range scan.Misplaced {
+		d.Diagnostics = append(d.Diagnostics, Diagnostic{Message: fmt.Sprintf("@@chat@@ at line %d is not directly above a heading", line)})
 	}
 	// Goldmark owns Markdown structure, including code masking and heading recognition.
 	body := src[p.body:]
@@ -310,31 +202,6 @@ func Compile(src []byte, c *Catalog) (*DocumentPolicy, error) {
 			}
 			return ast.WalkContinue, nil
 		}
-		h, ok := n.(*ast.Heading)
-		if !ok || h.Lines().Len() == 0 {
-			return ast.WalkContinue, nil
-		}
-		seg := h.Lines().At(0)
-		pos := p.body + seg.Start
-		for lineCursor < len(lines) && lines[lineCursor].End <= pos {
-			lineCursor++
-			d.Stats.LineAdvances++
-		}
-		line := lineCursor
-		if line == len(lines) {
-			return ast.WalkContinue, nil
-		}
-		raw := bytes.TrimLeft(src[lines[line].Start:lines[line].End], " \t")
-		if len(raw) == 0 || raw[0] != '#' {
-			return ast.WalkContinue, nil
-		}
-		name := strings.TrimSpace(string(raw))
-		name = strings.TrimLeft(name, "#")
-		name = strings.TrimSpace(name)
-		if end := len(name) - len(strings.TrimRight(name, "#")); end > 0 && len(name) > end && (name[len(name)-end-1] == ' ' || name[len(name)-end-1] == '\t') {
-			name = strings.TrimSpace(name[:len(name)-end])
-		}
-		d.Headings = append(d.Headings, Heading{Range: lines[line], Level: h.Level, Parent: -1, Name: name})
 		return ast.WalkContinue, nil
 	})
 	d.Blocks = expandToLines(rawBlocks, lines)
@@ -343,219 +210,125 @@ func Compile(src []byte, c *Catalog) (*DocumentPolicy, error) {
 		d.Renderable = append(d.Renderable, fact)
 	}
 	d.ListItems = expandToLines(rawItems, lines)
-	// Parent stack and directive association follow source order.
+
+	// Heading identity comes from the shared parser, including setext headings.
+	headingsByLine := make(map[int]int, len(scan.Headings))
 	stack := []int{}
-	codeIndex := 0
-	commentCollaboration := make([]string, len(d.Headings))
-	matched := map[string]bool{}
-	d.Regions = append(d.Regions, Region{Range: Range{0, len(src)}, Heading: -1, Effective: d.Defaults})
-	for i := range d.Headings {
-		h := &d.Headings[i]
-		d.Stats.HeadingVisits++
+	for _, fact := range scan.Headings {
+		if fact.Line < 1 || fact.Line > len(lines) {
+			continue
+		}
+		h := Heading{Range: lines[fact.Line-1], Level: fact.Level, Parent: -1, Name: strings.TrimSpace(fact.Name)}
 		for len(stack) > 0 && d.Headings[stack[len(stack)-1]].Level >= h.Level {
 			stack = stack[:len(stack)-1]
 		}
-		e := d.Defaults
 		if len(stack) > 0 {
 			h.Parent = stack[len(stack)-1]
-			e = d.Regions[h.Parent+1].Effective
 		}
-		stack = append(stack, i)
-		if h.Parent >= 0 {
-			commentCollaboration[i] = commentCollaboration[h.Parent]
-		}
-		if v, ok := d.legacy[NormalizeHeading(h.Name)]; ok {
-			e.Collaboration = v
-			matched[NormalizeHeading(h.Name)] = true
-		}
-		if commentCollaboration[i] != "" {
-			e.Collaboration = commentCollaboration[i]
-		}
-		lineEnd := h.Range.End
-		for codeIndex < len(d.CodeRanges) && d.CodeRanges[codeIndex].End <= lineEnd {
-			codeIndex++
-		}
-		inCode := codeIndex < len(d.CodeRanges) && d.CodeRanges[codeIndex].Start <= lineEnd
-		if lineEnd < len(src) && !inCode {
-			end := bytes.IndexByte(src[lineEnd:], '\n')
-			if end < 0 {
-				end = len(src)
-			} else {
-				end += lineEnd + 1
-			}
-			r := Range{lineEnd, end}
-			raw := strings.TrimRight(string(src[r.Start:r.End]), "\r\n")
-			over, recognized, e2 := parseDirective(raw, c)
-			if e2 != nil {
-				return nil, fmt.Errorf("byte %d heading %q: %w", r.Start, h.Name, e2)
-			}
-			if recognized {
-				o := OwnedSource{Range: r, Key: "heading-directive", Raw: bytes.Clone(src[r.Start:r.End]), Heading: i}
-				h.Directive = &o
-				h.Overrides = over
-				d.Owned = append(d.Owned, o)
-				if v := over["collaboration-mode"]; v != "" {
-					e.Collaboration = v
-					commentCollaboration[i] = v
-				}
-				if v := over["presentation-mode"]; v != "" {
-					e.Presentation = v
-				}
-				if v := over["processing-mode"]; v != "" {
-					m, _ := c.ResolveProcessing(v)
-					setProcessing(&e, []Mode{m})
-				}
-				if end < len(src) {
-					nextEnd := bytes.IndexByte(src[end:], '\n')
-					if nextEnd < 0 {
-						nextEnd = len(src)
-					} else {
-						nextEnd += end
-					}
-					_, again, err := parseDirective(strings.TrimRight(string(src[end:nextEnd]), "\r\n"), c)
-					if again || err != nil {
-						return nil, fmt.Errorf("byte %d: multiple adjacent mode comments", end)
-					}
-				}
-			}
-		}
-		d.Regions[len(d.Regions)-1].Range.End = h.Range.Start
-		d.Regions = append(d.Regions, Region{Range: Range{h.Range.Start, len(src)}, Heading: i, Effective: e})
+		index := len(d.Headings)
+		d.Headings = append(d.Headings, h)
+		headingsByLine[fact.Line] = index
+		stack = append(stack, index)
+		d.Stats.HeadingVisits++
 	}
-	for name := range d.legacy {
-		if !matched[name] {
-			d.Diagnostics = append(d.Diagnostics, Diagnostic{d.legacyField.Range, fmt.Sprintf("legacy collaboration map names %q, which matches no heading", name)})
+	tags := make(map[int]bool, len(scan.Tags))
+	for _, line := range scan.Tags {
+		tags[line] = true
+	}
+	// Source ownership is independent of effective routing. In particular a
+	// whole-document legacy alias must not hide the tags inside it.
+	codeAtLine := make(map[int]bool)
+	cursor := 0
+	for i, r := range lines {
+		for cursor < len(d.CodeRanges) && d.CodeRanges[cursor].End <= r.Start {
+			cursor++
+		}
+		if cursor < len(d.CodeRanges) && d.CodeRanges[cursor].Start < r.End {
+			codeAtLine[i+1] = true
 		}
 	}
+	for line, index := range headingsByLine {
+		h := &d.Headings[index]
+		if line > 1 && tags[line-1] {
+			r := lines[line-2]
+			o := OwnedSource{Range: r, Key: "chat-tag", Raw: bytes.Clone(src[r.Start:r.End]), Heading: index}
+			h.Tag = &o
+			h.Protected = true
+		}
+		if line < len(lines) && !codeAtLine[line+1] && legacyDirective(string(src[lines[line].Start:lines[line].End])) {
+			r := lines[line]
+			o := OwnedSource{Range: r, Key: "heading-directive", Raw: bytes.Clone(src[r.Start:r.End]), Heading: index}
+			h.Directive = &o
+			h.Protected = true
+		}
+	}
+	// Append declarations in source order for the validator's monotone joins.
+	for i := range d.Headings {
+		h := &d.Headings[i]
+		if h.Tag != nil {
+			d.Owned = append(d.Owned, *h.Tag)
+		}
+		if h.Directive != nil {
+			d.Owned = append(d.Owned, *h.Directive)
+		}
+	}
+	// Shared sections are laminar and source ordered. Sweep each source line
+	// once; do not call the linear InChat/Innermost lookup for every item.
+	active := []int{}
+	next, heading := 0, -1
+	for i, r := range lines {
+		line := i + 1
+		for len(active) > 0 && scan.Sections[active[len(active)-1]].End < line {
+			active = active[:len(active)-1]
+			d.Stats.SectionEvents++
+		}
+		for next < len(scan.Sections) && scan.Sections[next].Heading < line {
+			if scan.Sections[next].End >= line {
+				active = append(active, next)
+			}
+			next++
+			d.Stats.SectionEvents++
+		}
+		if n, ok := headingsByLine[line]; ok {
+			heading = n
+		}
+		e := d.Defaults
+		chat := -1
+		if len(active) > 0 {
+			chat = active[len(active)-1]
+			e.Collaboration = "chat"
+			e.Legacy = scan.Sections[chat].Legacy
+		}
+		if len(d.Regions) > 0 {
+			last := &d.Regions[len(d.Regions)-1]
+			if last.Heading == heading && last.chat == chat {
+				last.Range.End = r.End
+				continue
+			}
+		}
+		d.Regions = append(d.Regions, Region{Range: r, Heading: heading, Effective: e, chat: chat})
+	}
+	if len(d.Regions) == 0 {
+		d.Regions = []Region{{Range: Range{0, len(src)}, Heading: -1, Effective: d.Defaults, chat: -1}}
+	}
+	d.items = compileChatItems(src, d)
 	return d, nil
 }
-func splitLegacyProcessing(v string) ([]string, string, error) {
-	v = strings.TrimSpace(v)
-	var selectors []string
-	for strings.HasPrefix(v, "[") {
-		end := strings.IndexByte(v, ']')
-		if end < 0 {
-			return selectors, v, fmt.Errorf("unclosed legacy processing selector")
-		}
-		selectors = append(selectors, v[1:end])
-		v = strings.TrimSpace(v[end+1:])
-	}
-	return selectors, v, nil
-}
-func parseLegacyProcessing(v string, c *Catalog) ([]Mode, string, error) {
-	selectors, instruction, e := splitLegacyProcessing(v)
-	if e != nil {
-		return nil, "", e
-	}
-	var modes []Mode
-	for _, selector := range selectors {
-		m, e := c.ResolveProcessing(selector)
-		if e != nil {
-			return nil, "", e
-		}
-		modes = append(modes, m)
-	}
-	return modes, instruction, nil
-}
 
-func parseDirective(raw string, c *Catalog) (map[string]string, bool, error) {
-	recognized := false
-	innerStart := strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(raw), "<!--"))
-	for _, part := range strings.Split(innerStart, ";") {
-		part = strings.TrimSpace(part)
-		for _, key := range []string{"collaboration-mode", "presentation-mode", "processing-mode"} {
-			if strings.HasPrefix(part, key) {
-				rest := part[len(key):]
-				if rest == "" || rest[0] == ':' || rest[0] == ' ' || rest[0] == '\t' || rest[0] == '\r' || rest[0] == '\n' {
-					recognized = true
-				}
-			}
+// legacyDirective only locates operator-owned raw bytes. Shared ChatSections
+// alone decides what the values mean (including malformed/ignored values).
+func legacyDirective(raw string) bool {
+	raw = strings.TrimSpace(raw)
+	if !strings.HasPrefix(raw, "<!--") || !strings.HasSuffix(raw, "-->") {
+		return false
+	}
+	for _, part := range strings.Split(strings.TrimSuffix(strings.TrimPrefix(raw, "<!--"), "-->"), ";") {
+		key, _, ok := strings.Cut(part, ":")
+		if ok && ownedKey(strings.TrimSpace(key)) {
+			return true
 		}
 	}
-
-	if !strings.HasPrefix(strings.TrimSpace(raw), "<!--") || !recognized {
-		return nil, false, nil
-	}
-	fail := func(msg string) (map[string]string, bool, error) {
-		return nil, true, fmt.Errorf("%s; valid collaboration: discussion, collaboration, chat; presentation: highlight, direct, propose; processing: catalog names or unique prefixes", msg)
-	}
-	if !strings.HasPrefix(raw, "<!-- ") || !strings.HasSuffix(raw, " -->") {
-		return fail("malformed mode declaration")
-	}
-	inner := raw[5 : len(raw)-4]
-	out := map[string]string{}
-	for _, part := range strings.Split(inner, "; ") {
-		key, value, ok := strings.Cut(part, ": ")
-		if !ok || value == "" || strings.TrimSpace(value) != value {
-			return fail("malformed mode declaration")
-		}
-		if _, ok := out[key]; ok {
-			return fail("duplicate " + key)
-		}
-		var err error
-		switch key {
-		case "collaboration-mode":
-			_, err = ResolveCollaboration(value)
-		case "presentation-mode":
-			_, err = ResolvePresentation(value)
-		case "processing-mode":
-			var m Mode
-			m, err = c.ResolveProcessing(value)
-			value = m.Name
-		default:
-			return fail("unknown declaration key " + key)
-		}
-		if err != nil {
-			return fail(err.Error())
-		}
-		out[key] = value
-	}
-	return out, true, nil
-}
-func readLegacyMap(n *yaml.Node, d *DocumentPolicy) error {
-	seen := map[string]bool{}
-	for i := 0; i < len(n.Content); i += 2 {
-		k, v := n.Content[i], n.Content[i+1]
-		if seen[k.Value] {
-			return fmt.Errorf("duplicate legacy map key %q", k.Value)
-		}
-		seen[k.Value] = true
-		if k.Value == "default" {
-			if v.Kind != yaml.ScalarNode {
-				return fmt.Errorf("legacy default must be scalar")
-			}
-			mode, e := ResolveCollaboration(v.Value)
-			if e != nil {
-				return e
-			}
-			d.Defaults.Collaboration = mode
-			continue
-		}
-		mode, e := ResolveCollaboration(k.Value)
-		if e != nil {
-			return e
-		}
-		var names []*yaml.Node
-		if v.Kind == yaml.SequenceNode {
-			names = v.Content
-		} else if v.Kind == yaml.ScalarNode {
-			names = []*yaml.Node{v}
-		} else {
-			return fmt.Errorf("legacy names must be scalar or list")
-		}
-		for _, name := range names {
-			if name.Kind != yaml.ScalarNode {
-				return fmt.Errorf("legacy name must be scalar")
-			}
-			d.Stats.LegacyAssignments++
-			normalized := NormalizeHeading(name.Value)
-			if prev, ok := d.legacy[normalized]; ok && prev != mode {
-				return fmt.Errorf("heading %q assigned both %s and %s", name.Value, prev, mode)
-			}
-			d.legacy[normalized] = mode
-		}
-	}
-	return nil
+	return false
 }
 
 // expandToLines widens sorted disjoint block facts using one monotone source walk.

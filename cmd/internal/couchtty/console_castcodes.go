@@ -3,6 +3,7 @@ package couchtty
 import (
 	"context"
 	"fmt"
+	"github.com/xianxu/pair/cmd/internal/couchcore"
 	"strconv"
 	"strings"
 	"sync"
@@ -492,7 +493,7 @@ func (c *Console) onCodeRotated(kind castKind, attempt uint64, link string, r ca
 	// never overwrite the notice from a newer, capped rotation.
 	paintNotice := false
 	if notice != "" {
-		paintNotice = c.publishNoticeLocked(Notice{Kind: "status", Body: notice})
+		paintNotice = c.publishWarningLocked(Notice{Class: couchcore.NoticeCastCodeLockout, Origin: couchcore.NoticeOperatorOrigin, Kind: "cast-lockout", Body: notice})
 	}
 	c.mu.Unlock() // before GoTracked, which takes c.mu
 	if paintNotice {

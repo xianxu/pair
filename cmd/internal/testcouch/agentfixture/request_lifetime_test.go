@@ -67,16 +67,18 @@ func TestRequestCancellationAcknowledgesJoinedChild(t *testing.T) {
 		t.Fatal(err)
 	}
 	marker := filepath.Join(config.Root, "child-pid")
-	if err := WriteCommand(config.ControlDir, Command{ID: "active", Kind: Exec, Timeout: time.Hour, Args: []string{"-c", `printf '%s' "$$" > "$1"; exec sleep 30`, "fixture", marker}}); err != nil {
+	if err := WriteCommand(config.ControlDir, Command{ID: "active", Kind: Exec, Timeout: time.Hour, Args: []string{"-c", fixtureLeaderPID, "fixture", marker}}); err != nil {
 		t.Fatal(err)
 	}
-	waitFixture(t, func() bool {
-		raw, err := os.ReadFile(marker)
-		_, parse := strconv.Atoi(string(raw))
-		return err == nil && parse == nil
-	})
-	raw, _ := os.ReadFile(marker)
-	pid, _ := strconv.Atoi(string(raw))
+	waitFixture(t, func() bool { return fixtureLeaderPIDReady(marker) })
+	raw, err := os.ReadFile(marker)
+	if err != nil {
+		t.Fatal(err)
+	}
+	pid, err := strconv.Atoi(string(raw))
+	if err != nil || pid <= 0 {
+		t.Fatalf("published PID=%q: %v", raw, err)
+	}
 	if err := CancelCommand(config.ControlDir, "active"); err != nil {
 		t.Fatal(err)
 	}
@@ -151,7 +153,7 @@ func TestQueuedRequestDeadlineIncludesAdmissionWait(t *testing.T) {
 		waitFixture(t, func() bool { _, err := os.Stat(marker); return err == nil })
 	}
 	marker := filepath.Join(config.Root, "expired-queued-spawn")
-	if err := WriteCommand(config.ControlDir, Command{ID: "queued-expiry", Kind: Exec, Timeout: 50 * time.Millisecond, Args: []string{"-c", `printf wrong > "$1"`, "fixture", marker}}); err != nil {
+	if err := WriteCommand(config.ControlDir, Command{ID: "queued-expiry", Kind: Exec, DeadlineUnixNano: time.Now().Add(-time.Hour).UnixNano(), Args: []string{"-c", `printf wrong > "$1"`, "fixture", marker}}); err != nil {
 		t.Fatal(err)
 	}
 	var result Result
@@ -230,7 +232,7 @@ func TestRetiredMailboxCountsRealRecords(t *testing.T) {
 }
 
 func TestCLIAdmissionTransition(t *testing.T) {
-	now := time.Now()
+	now := time.Unix(1700000000, 0)
 	for _, test := range []struct {
 		name     string
 		canceled bool
@@ -250,5 +252,19 @@ func TestCLIAdmissionTransition(t *testing.T) {
 				t.Fatalf("start=%v failure=%v", start, err)
 			}
 		})
+	}
+}
+
+func TestCLIAdmissionQueuedDeadlineRetainsItsAbsoluteBoundary(t *testing.T) {
+	now := time.Unix(1700000000, 0)
+	deadline := now.Add(time.Minute)
+	command := Command{DeadlineUnixNano: deadline.UnixNano()}
+	start, err := decideCLIAdmission(command, false, MaxConcurrentCLI, now)
+	if start || err != nil {
+		t.Fatalf("initial queue: start=%v err=%v", start, err)
+	}
+	start, err = decideCLIAdmission(command, false, MaxConcurrentCLI, deadline)
+	if start || !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("same queued deadline: start=%v err=%v", start, err)
 	}
 }

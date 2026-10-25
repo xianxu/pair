@@ -1,0 +1,104 @@
+{
+  "project": "Fieldwork",
+  "pages": {
+    "a": {
+      "title": "Today\u2019s board",
+      "subtitle": "A quiet place to move the work forward.",
+      "cards": [
+        {
+          "id": "card-one",
+          "title": "Make the first step clear",
+          "text": "A short introduction for the next person who opens this board.",
+          "tag": "In progress"
+        },
+        {
+          "id": "card-two",
+          "title": "Keep the important things close",
+          "text": "The details can wait until you need them.",
+          "tag": "Ready"
+        },
+        {
+          "id": "card-three",
+          "title": "Leave a useful trail",
+          "text": "Small decisions, written down while they are fresh.",
+          "tag": "Next"
+        }
+      ]
+    },
+    "b": {
+      "title": "Project notebook",
+      "subtitle": "Another tab, with its own page load.",
+      "cards": [
+        {
+          "id": "card-one",
+          "title": "A different page",
+          "text": "Returning to the board restores that load\u2019s notes.",
+          "tag": "Draft"
+        }
+      ]
+    },
+    "new": {
+      "title": "Today\u2019s board",
+      "subtitle": "A new tab at the same URL starts with no feedback.",
+      "cards": [
+        {
+          "id": "card-one",
+          "title": "Make the first step clear",
+          "text": "A short introduction for the next person who opens this board.",
+          "tag": "In progress"
+        },
+        {
+          "id": "card-two",
+          "title": "Keep the important things close",
+          "text": "The details can wait until you need them.",
+          "tag": "Ready"
+        },
+        {
+          "id": "card-three",
+          "title": "Leave a useful trail",
+          "text": "Small decisions, written down while they are fresh.",
+          "tag": "Next"
+        }
+      ]
+    }
+  },
+  "feedback": {
+    "a": [
+      {
+        "id": "n1",
+        "kind": "note",
+        "text": "Can this introduction be a little shorter?",
+        "anchor": "card-one"
+      },
+      {
+        "id": "s1",
+        "kind": "sketch",
+        "text": "Give this card more room to breathe.",
+        "anchor": "card-two",
+        "finished": true
+      },
+      {
+        "id": "s2",
+        "kind": "sketch",
+        "text": "",
+        "anchor": "card-three",
+        "finished": false
+      },
+      {
+        "id": "n2",
+        "kind": "note",
+        "text": "This anchor is no longer on this view.",
+        "anchor": null
+      }
+    ],
+    "b": [
+      {
+        "id": "b1",
+        "kind": "note",
+        "text": "Keep this notebook title.",
+        "anchor": "card-one"
+      }
+    ],
+    "new": []
+  }
+}

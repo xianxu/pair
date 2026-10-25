@@ -8,6 +8,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/xianxu/pair/cmd/internal/launcher"
 )
@@ -166,6 +167,9 @@ type RecoverThreadRef struct {
 	Tag       string `json:"tag"`
 	State     string `json:"state"`
 	Reason    string `json:"reason,omitempty"`
+	// AsleepAt is set when a full shutdown put this thread to sleep (pair#830):
+	// the set a hub's fleet resume wakes (ariadne#564). Additive, schema 1.
+	AsleepAt *time.Time `json:"asleep_at,omitempty"`
 }
 
 // RecoverClaims are the host's claims (Active/Inactive, against the host's
@@ -1204,7 +1208,7 @@ func slotEvidenceOf(s *recoverSlot, in RecoverPlanInput) slotFacts {
 	}
 	f.threadCount = len(s.threads)
 	for _, row := range s.threads {
-		f.agent.Rows = append(f.agent.Rows, RecoverThreadRef{RepoScope: row.Address.RepoScope, Tag: string(row.Address.Tag), State: string(row.State), Reason: string(row.Reason)})
+		f.agent.Rows = append(f.agent.Rows, RecoverThreadRef{RepoScope: row.Address.RepoScope, Tag: string(row.Address.Tag), State: string(row.State), Reason: string(row.Reason), AsleepAt: row.AsleepAt})
 	}
 	switch len(s.threads) {
 	case 0:

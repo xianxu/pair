@@ -30,9 +30,10 @@ function intersect(a,b) {
 }
 const rect = n => { const r=n.getBoundingClientRect(); return [r.left,r.top,r.width,r.height]; };
 // Return the anchor's top-page box and its visible clipping rectangle.
-function geometry(n, topDocument) {
+function geometry(n, topDocument, forReveal=false) {
   if (!n.isConnected || !n.getClientRects?.().length) return null;
   let box=rect(n), clip=null, current=n, depth=0;
+  if (forReveal && !box.every(Number.isFinite)) return null;
   if (!(box[2]>0 && box[3]>0)) return null;
   while (current && depth++<128) {
     if (!current.isConnected || !current.getClientRects?.().length) return null;
@@ -40,23 +41,30 @@ function geometry(n, topDocument) {
     if (!(ownBox[2] > 0 && ownBox[3] > 0)) return null;
     const win=current.ownerDocument.defaultView;
     let viewport=[0,0,win.innerWidth,win.innerHeight];
-    clip=clip ? intersect(clip,viewport) : viewport;
+    clip=forReveal ? viewport : clip ? intersect(clip,viewport) : viewport;
     if (!clip) return null;
     for (let p=current; p; p=parent(p)) {
       if (++depth>128) return null;
       const s=win.getComputedStyle(p);
+      // Scrolling through transformed ancestors cannot establish safe geometry.
+      if (forReveal && s.transform && s.transform !== 'none') return null;
       if ((s.clipPath && s.clipPath !== 'none') || (s.maskImage && s.maskImage !== 'none') ||
           (s.webkitMaskImage && s.webkitMaskImage !== 'none') || (s.clip && s.clip !== 'auto')) return null;
       if (s.display==='none'||s.visibility==='hidden'||s.visibility==='collapse'||s.contentVisibility==='hidden'||s.opacity==='0') return null;
       const b=rect(p), overflow=s.overflow || '';
       const x=/hidden|clip|scroll|auto/.test(s.overflowX||overflow), y=/hidden|clip|scroll|auto/.test(s.overflowY||overflow);
-      if (x || y) {
+      if (forReveal) {
+        // Scroll containers can bring an original into view; a hard clip cannot.
+        const hardX=/hidden|clip/.test(s.overflowX||overflow), hardY=/hidden|clip/.test(s.overflowY||overflow);
+        if ((hardX && (box[0]+box[2]<=b[0] || box[0]>=b[0]+b[2])) ||
+            (hardY && (box[1]+box[3]<=b[1] || box[1]>=b[1]+b[3]))) return null;
+      } else if (x || y) {
         const boundary=[x?b[0]:clip[0],y?b[1]:clip[1],x?b[2]:clip[2],y?b[3]:clip[3]];
         clip=intersect(clip,boundary);if(!clip)return null;
       }
     }
     if (current.ownerDocument===topDocument) {
-      if (!intersect(box,clip)) return null;
+      if (!forReveal && !intersect(box,clip)) return null;
       const dx=win.scrollX||0,dy=win.scrollY||0;
       return {box:[box[0]+dx,box[1]+dy,box[2],box[3]],clip:[clip[0]+dx,clip[1]+dy,clip[2],clip[3]]};
     }
@@ -110,7 +118,13 @@ export function createPlacement({document:documentOf,route,original=()=>null,sha
     const result={truncated,candidates:truncated?[]:nodes.filter(n=>n.nodeType===1).map(n=>facts(n,texts.get(n)?.text||''))};
     if(root===doc)cache=result;return result;
   };
-  return (note,{withClip=false,withWitness=false,originalOnly=false}={})=>{
+  const originalCandidate=(node,at)=>{
+    if(!node?.isConnected)return null;
+    const own=scan(node.ownerDocument,node);if(own.truncated)return null;
+    const chosen=own.candidates.find(c=>c.node===node);
+    return chosen&&scoreAnchor(at,chosen)>=0?chosen:null;
+  };
+  const place=(note,{withClip=false,withWitness=false,originalOnly=false}={})=>{
     try {
       const at=note.at,doc=documentOf();if(!at||!doc||(at.route&&at.route!==route()))return null;
       const node=original(at.node,note);
@@ -118,9 +132,7 @@ export function createPlacement({document:documentOf,route,original=()=>null,sha
       let chosen;
       if(node?.isConnected){
         // A reused recording ID with conflicting evidence never selects elsewhere.
-        const own=scan(node.ownerDocument,node);if(own.truncated)return null;
-        chosen=own.candidates.find(c=>c.node===node);
-        if(!chosen||scoreAnchor(at,chosen)<0)return null;
+        chosen=originalCandidate(node,at);if(!chosen)return null;
       }else{
         const data=scan(doc);if(data.truncated)return null;
         let scope=doc;
@@ -141,4 +153,17 @@ export function createPlacement({document:documentOf,route,original=()=>null,sha
       return withClip?{box,clip:g.clip}:box;
     }catch{return null;}
   };
+  // A UI navigation aid only: true means the owned original has strict visible
+  // placement after scrolling. It is never evidence for a saved submission.
+  // Smooth/asynchronous scrolling may return false; placement changes redraw it.
+  place.reveal=note=>{
+    try {
+      const at=note?.at,doc=documentOf();if(!at||!doc||(at.route&&at.route!==route()))return false;
+      const chosen=originalCandidate(original(at.node,note),at);
+      if(!chosen||!geometry(chosen.node,doc,true)||typeof chosen.node.scrollIntoView!=='function')return false;
+      chosen.node.scrollIntoView({block:'center',inline:'nearest'});
+      return !!place(note,{originalOnly:true});
+    }catch{return false;}
+  };
+  return place;
 }

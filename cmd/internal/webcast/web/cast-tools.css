@@ -1,0 +1,69 @@
+/* One protected tool column. Its only geometry input is feedbackLayout. */
+.cast-tools {
+  position: fixed;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 4px;
+  min-width: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  pointer-events: auto;
+  z-index: 45;
+  border-radius: 10px;
+  background: rgba(30, 34, 40, .9);
+  color: #fff;
+  font: 11px/1.2 system-ui, sans-serif;
+}
+.cast-tools .cast-tools-group {
+  box-sizing: border-box;
+  display: flex;
+  flex: 0 0 auto;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 0;
+  width: 100%;
+}
+.cast-tools .cast-tools-group:empty { display: none; }
+.cast-tools[hidden], .cast-tools [hidden] { display: none !important; }
+.cast-tools button, .cast-tools select {
+  position: static !important;
+  inset: auto !important;
+  transform: none !important;
+  box-sizing: border-box;
+  flex: 0 0 auto;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  min-height: 36px;
+  margin: 0;
+  padding: 5px 2px;
+  border: 1px solid #ffffff40;
+  border-radius: 6px;
+  background: #ffffff12;
+  color: inherit;
+  font: inherit;
+  text-align: center;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  overflow: hidden;
+  pointer-events: auto;
+  cursor: pointer;
+}
+.cast-tools button:disabled, .cast-tools select:disabled { opacity: .4; cursor: default; }
+.cast-tools button.on, .cast-tools button[aria-pressed="true"] { box-shadow: 0 0 0 2px #fff inset; }
+.cast-tools button:focus-visible, .cast-tools select:focus-visible { outline: 2px solid #fff; outline-offset: -2px; }
+.cast-tools .swatches {
+  position: static;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  width: 100%;
+  padding: 0;
+  box-sizing: border-box;
+}
+.cast-tools .swatch { width: 20px; height: 20px; min-height: 20px; padding: 0; border: 2px solid transparent; border-radius: 50%; }
+.cast-tools .swatch.on { border-color: #fff; }

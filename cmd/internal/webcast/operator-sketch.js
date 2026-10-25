@@ -1,5 +1,5 @@
 import { mountSketch } from './web/sketch.js';
-import { createSketchDisplay, paintSketchPaths } from './web/sketch-render.js';
+import { createSketchDisplay } from './web/sketch-render.js';
 import { createSketchDelivery, createSketchTransfer } from './web/sketch-delivery.js';
 
 // One context owns this transport. Its operation permissions survive timeout
@@ -66,7 +66,7 @@ export function mountOperatorSketch({host,root,box,report,view,annotation,palett
   const transport=createOperatorSketchTransport(envelope=>report({t:'sketch',request:envelope}),win,()=>authority.generation);
   let tool;
   const receiver=createOperatorSketchReceiver(payload=>{tool?.reconcileSketches({authoritative:true,clear:payload.batch?.patches.some(p=>p.clear===true)});tool?.refresh();});
-  const submissionPreview=createOperatorSubmissionPreview({root,receiver},doc);
+  const submissionPreview=createOperatorSubmissionPreview({root,receiver,setStatus:(key,text)=>annotation.notes?.setStatus(key,text)},doc);
   const ask=(kind,body={},epoch=authority.epoch)=>transport.ask(kind,body,epoch,kind==='scene-prepare'?60000:5000);
   const bounds=()=>box.getBoundingClientRect();
   const scale=()=>ready?.vp?Math.min(bounds().width/ready.vp.w,bounds().height/ready.vp.h):1;
@@ -112,7 +112,7 @@ export function mountOperatorSketch({host,root,box,report,view,annotation,palett
     dispose(){sceneVersion++;ready=null;opening?.cancel();opening=null;if(frame){const owned=frame;frame=null;owned.remove();if(win.__couchcastPrivateSceneFrame===owned)delete win.__couchcastPrivateSceneFrame;ask('scene-dispose').catch(()=>{});}},
   };
   const current=()=>({allowed:authority.ready&&authority.holder==='operator',epoch:authority.epoch,live:!view.model.paused&&!view.model.ended&&view.model.seg>0,ended:!!view.model.ended});
-  tool=mountSketch(doc,win,view,{root,box,scene,palette,paths:receiver.paths,sketchMetadata:receiver.metadata,authority:current,showUnavailable:true,unavailableHint:()=>authority.holder==='operator'?'Drawing is getting ready. Wait a moment to sketch.':'A viewer is driving. Ask them to release control so you can sketch.',send:(kind,body)=>ask(kind,body,body.epoch),status:body=>ask('sketch-status',body,body.epoch),onMode(active){bypass=true;try{annotation.setMode('watch');}finally{bypass=false;}if(frame)frame.hidden=!active;},onTool(mode){bypass=true;try{annotation.setMode(mode);}finally{bypass=false;}}});
+  tool=mountSketch(doc,win,view,{root,box,scene,palette,notesPanel:annotation.notes,paths:receiver.paths,sketchMetadata:receiver.metadata,authority:current,showUnavailable:true,unavailableHint:()=>authority.holder==='operator'?'Drawing is getting ready. Wait a moment to sketch.':'A viewer is driving. Ask them to release control so you can sketch.',send:(kind,body)=>ask(kind,body,body.epoch),status:body=>ask('sketch-status',body,body.epoch),onMode(active){bypass=true;try{annotation.setMode('watch');}finally{bypass=false;}if(frame)frame.hidden=!active;},onTool(mode){bypass=true;try{annotation.setMode(mode);}finally{bypass=false;}}});
   const previousBeforeMode=view.beforeAnnotationMode;
   const beforeMode=mode=>disposed||bypass?true:tool.beforeAnnotationMode(mode);
   view.beforeAnnotationMode=beforeMode;
@@ -157,30 +157,10 @@ export function mountOperatorSketch({host,root,box,report,view,annotation,palett
 // A read-only projection of the manager's frozen candidate identities. The
 // receiver owns accepted paths; this view never sends, selects an agent or
 // acknowledges a delivery. Go additionally fences its exact board generation.
-export function createOperatorSubmissionPreview({root,receiver},doc){
-  const panel=doc.createElement('section'),heading=doc.createElement('div'),list=doc.createElement('div');
-  panel.className='sketch-submission-preview';heading.className='sketch-submission-count';list.className='sketch-submission-cards';
-  panel.setAttribute('aria-label','Pending feedback');
-  panel.style.cssText='position:fixed;right:12px;bottom:90px;width:224px;max-height:42vh;overflow:auto;z-index:36;pointer-events:auto;background:#202124;color:#fff;border:1px solid #777;border-radius:6px;padding:8px;font:12px sans-serif';
-  panel.hidden=true;panel.append(heading,list);root.append(panel);
-  let disposed=false,last=null,fingerprint=null,cards=new Map(),noteCount=0;
+export function createOperatorSubmissionPreview({receiver,setStatus=()=>{}},doc){
+  let disposed=false,last=null,fingerprint=null,selectedCount=0,noteCount=0,informative=false;
   const uint=value=>typeof value==='string'&&/^(0|[1-9][0-9]{0,19})$/.test(value)&&BigInt(value)<=18446744073709551615n;
   const copyAck=()=>structuredClone(last);
-  function card(key,item,paths,note){
-    const node=doc.createElement('div'),canvas=doc.createElement('canvas'),label=doc.createElement('div'),index=doc.createElement('div');
-    node.className='sketch-submission-card';node.dataset.version=key;
-    node.style.cssText='margin-top:6px;border-top:1px solid #555;padding-top:6px';
-    canvas.width=200;canvas.height=88;canvas.setAttribute('aria-label',`Sketch ${item.id}`);
-    canvas.style.cssText='display:block;width:200px;height:88px;background:#fff;border-radius:3px';
-    label.className='sketch-submission-note';label.textContent=note;label.style.cssText='white-space:pre-wrap;overflow-wrap:anywhere;margin-top:4px';
-    const g=canvas.getContext?.('2d');if(!g)throw Error('Sketch preview image unavailable.');
-    let left=Infinity,top=Infinity,right=-Infinity,bottom=-Infinity;
-    for(const path of paths)for(const point of path.pts){const r=path.width/2;left=Math.min(left,point[0]-r);top=Math.min(top,point[1]-r);right=Math.max(right,point[0]+r);bottom=Math.max(bottom,point[1]+r);}
-    const width=Math.max(1,right-left),height=Math.max(1,bottom-top),scale=Math.min(184/width,72/height);
-    const offsetX=(200-width*scale)/2,offsetY=(88-height*scale)/2;
-    paintSketchPaths(g,paths,{scale,toClient:(x,y)=>[offsetX+(x-left)*scale,offsetY+(y-top)*scale]});
-    index.className='sketch-submission-index';node.append(index,canvas,label);return node;
-  }
   function publish(value){
     if(disposed)throw Error('Submission preview context retired.');
     if(typeof value?.host!=='string'||!value.host||!uint(value.generation)||!uint(value.revision)||!uint(value.operation))throw Error('Invalid submission preview identity.');
@@ -212,34 +192,28 @@ export function createOperatorSubmissionPreview({root,receiver},doc){
     }
     const cursor=receiver.cursor();
     if(typeof value.cursor?.epoch!=='string'||cursor.epoch!==value.cursor.epoch||cursor.seq!==value.cursor.seq)throw Error('Sketch preview receiver has not caught up to the required cursor.');
-    const paths=receiver.paths(),chosen=[];
-    for(const [position,item] of value.items.entries()){
-      const meta=receiver.metadata(item.id),ink=paths.filter(path=>path.sketch===item.id);
-      if(!meta||!['complete','interrupted'].includes(meta.phase)||!meta.label?.trim()||!ink.length)throw Error('Selected sketch preview is unavailable.');
-      const key=JSON.stringify([item.recording_id,item.id,item.next_sequence,item.digest]);
-      const node=cards.get(key)||card(key,item,ink,meta.label),index=String(position+1),badge=node.querySelector('.sketch-submission-index');
-      if(node.dataset.index!==index)node.dataset.index=index;
-      if(badge.textContent!==`Sketch ${index}`)badge.textContent=`Sketch ${index}`;
-      chosen.push({key,node});
+    // Availability is group-level evidence only. Do not visit accepted vertices
+    // or paint a second representation of feedback outside the Notes surface.
+    const available=new Set();
+    for(const path of receiver.paths())available.add(path.sketch);
+    for(const item of value.items){
+      const meta=receiver.metadata(item.id);
+      if(!meta||!['complete','interrupted'].includes(meta.phase)||!meta.label?.trim()||!available.has(item.id))throw Error('Selected sketch preview is unavailable.');
     }
-    const nextCards=new Map(chosen.map(({key,node})=>[key,node]));
-    for(const [key,node] of cards)if(!nextCards.has(key))node.remove();
-    // Do not move stable keyed nodes on an identical metadata refresh.
-    if(chosen.some(({node},i)=>list.children[i]!==node))for(const {node} of chosen)list.append(node);
-    const count=`Pending feedback: ${chosen.length} sketches, ${value.notes.length} annotation${value.notes.length===1?'':'s'}${value.remaining?`, ${value.remaining} more sketches`:''}${noteRemaining?`, ${noteRemaining} more annotations`:''}`;
-    if(heading.textContent!==count)heading.textContent=count;
-    delete panel.dataset.stale;list.style.opacity='';
-    noteCount=value.notes.length;panel.hidden=chosen.length===0&&noteCount===0&&value.remaining===0&&noteRemaining===0;cards=nextCards;last=ack;fingerprint=nextFingerprint;return copyAck();
+    const count=`Pending feedback: ${value.items.length} sketches, ${value.notes.length} annotation${value.notes.length===1?'':'s'}${value.remaining?`, ${value.remaining} more sketches`:''}${noteRemaining?`, ${noteRemaining} more annotations`:''}`;
+    selectedCount=value.items.length;noteCount=value.notes.length;
+    informative=selectedCount>0||noteCount>0||value.remaining>0||noteRemaining>0;
+    setStatus('preview',informative?count:'');
+    last=ack;fingerprint=nextFingerprint;return copyAck();
   }
   // The manager could not refresh: say so instead of leaving old counts that
   // look current. Display only; it acknowledges nothing and keeps the last ack.
   function stale(reason){
     if(disposed)return false;
     if(typeof reason!=='string'||!reason.trim())throw Error('Invalid stale preview reason.');
-    if(panel.hidden)return false;
-    panel.dataset.stale='true';list.style.opacity='0.4';
-    heading.textContent=`Pending feedback is out of date: ${reason.slice(0,300)}`;
+    if(!informative)return false;
+    setStatus('preview',`Pending feedback is out of date: ${reason.slice(0,300)}`);
     return true;
   }
-  return {publish,stale,captureBusy:()=>!disposed&&!panel.hidden&&(cards.size>0||noteCount>0),dispose(){if(disposed)return;disposed=true;cards.clear();last=null;panel.remove();}};
+  return {publish,stale,captureBusy:()=>!disposed&&(selectedCount>0||noteCount>0),dispose(){if(disposed)return;disposed=true;last=null;setStatus('preview','');}};
 }

@@ -185,3 +185,27 @@ func TestUploadReceiptRejectsCaseFoldDuplicateKeys(t *testing.T) {
 		t.Fatal("accepted case-ambiguous backend hashes")
 	}
 }
+
+func TestDriveJSONSharedScanPreservesOwnerPolicies(t *testing.T) {
+	for _, raw := range []string{`{"s":1,"ſ":2}`, `{"K":1,"K":2}`, `{"x":[{"escaped":1,"\u0065scaped":2}]}`} {
+		var out json.RawMessage
+		if err := decodeJSONNoDuplicateKeys([]byte(raw), &out, false); err == nil {
+			t.Fatalf("accepted ambiguous backend record %s", raw)
+		}
+	}
+	for _, depth := range []int{64, 65} {
+		raw := []byte(strings.Repeat("[", depth) + "0" + strings.Repeat("]", depth))
+		var out json.RawMessage
+		if err := decodeJSONNoDuplicateKeys(raw, &out, false); (err == nil) != (depth == 64) {
+			t.Fatalf("depth %d: %v", depth, err)
+		}
+	}
+	raw := []byte(`{"future": { "huge" : 1e9999, "precise" : 9007199254740993123456789 }}`)
+	var out map[string]json.RawMessage
+	if err := decodeJSONNoDuplicateKeys(raw, &out, false); err != nil {
+		t.Fatal(err)
+	}
+	if string(out["future"]) != `{ "huge" : 1e9999, "precise" : 9007199254740993123456789 }` {
+		t.Fatalf("changed unknown raw value: %s", out["future"])
+	}
+}

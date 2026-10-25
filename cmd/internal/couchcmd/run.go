@@ -497,7 +497,18 @@ func runTypedOperationStyle(op couchcore.Operation, parsed, prepareArgs map[stri
 	}
 	finish := func(console *couchtty.Console, c *couchcore.Couch, start couchcore.StartResult, out io.Writer) int {
 		wireTitles(console, c, rt.Getenv)
-		return runConsole(console, c, start, out, hubs)
+		run := func() int { return runConsole(console, c, start, out, hubs) }
+		if forceConsole && op.Name == "start" {
+			code, profileErr := runProfiledConsole(rt.Getenv, func(text string) {
+				console.Notify(couchtty.Notice{Kind: "profile", Control: true, Body: text})
+			}, run)
+			// Run has restored the terminal; shutdown diagnostics can now be printed.
+			if profileErr != nil {
+				fmt.Fprintln(stderr, "couch: profile incomplete at shutdown:", profileErr)
+			}
+			return code
+		}
+		return run()
 	}
 	return runTypedOperationWithConsoleStyle(op, parsed, prepareArgs, forceConsole, layout, style, inFile, outFile, stdin, stdout, stderr, rt, finish, setup...)
 }
@@ -582,6 +593,7 @@ func runTypedOperationWithConsoleStyle(op couchcore.Operation, parsed, prepareAr
 	}
 	if console != nil {
 		console.SetTabStyle(style)
+		defer console.CloseNoticeDelivery()
 		defer func() {
 			if captureErr := console.CloseCapture(); captureErr != nil {
 				fmt.Fprintln(stderr, "couch: capture incomplete:", captureErr)
@@ -631,9 +643,11 @@ func runTypedOperationWithConsoleStyle(op couchcore.Operation, parsed, prepareAr
 	if ownsLive && c.ScratchStartup != nil {
 		notify := func(text string) { fmt.Fprintln(stderr, "couch: "+text) }
 		if console != nil {
+			// This callback also reports ordinary opt-out and fallback choices;
+			// publishing every scratch status as attention would create noise.
 			notify = func(text string) { console.Notify(couchtty.Notice{Kind: "status", Body: text}) }
 		}
-		c.ScratchStartup(operationContext, notify)
+		c.ScratchStartup(withScratchWarnings(operationContext, console), notify)
 	}
 	if console != nil {
 		// Provisioning outlives initial attach and also runs from menu actions.
@@ -823,6 +837,14 @@ func consoleRunnerFor(name string, stdin io.Reader, hasTerminal bool, inFile, ou
 		stdin = osHost
 	}
 	console := couchtty.New(host, stdin)
+	console.SetNoticeDelivery(newNoticeDelivery(console))
+	ready := false
+	defer func() {
+		if !ready {
+			console.Stop()
+			console.CloseNoticeDelivery()
+		}
+	}()
 	console.SetCapture(recorder)
 	console.SetBroadcast(broadcastConfig)
 	console.SetWebcast(webcastConfig)
@@ -866,6 +888,7 @@ func consoleRunnerFor(name string, stdin io.Reader, hasTerminal bool, inFile, ou
 		}
 		return runtimebundle.TerminalEnvironment(root)
 	})
+	ready = true
 	return console, &couchcore.PtyRunner{
 		Environment: profile,
 		Size:        console.ChildSize,
@@ -898,10 +921,10 @@ func tracesForRuntime(rt Runtime) consoleTraceConfig {
 func installCrashReport(console *couchtty.Console, store string) {
 	_, reports, err := crashreport.Install(crashreport.Dir(store), time.Now(), os.Getpid(), crashreport.ProcessAlive)
 	if summary := crashreport.Summary(reports); summary != "" {
-		console.Notify(couchtty.Notice{Kind: "crash", Control: true, Body: summary})
+		console.Warn(couchtty.Notice{Class: couchcore.NoticePriorCouchCrash, Kind: "crash", Control: true, Body: summary})
 	}
 	if err != nil {
-		console.Notify(couchtty.Notice{Kind: "crash-capture", Control: true, Body: "crash capture unavailable: " + err.Error()})
+		console.Warn(couchtty.Notice{Class: couchcore.NoticeCrashCaptureSetupFailed, Kind: "crash-capture", Control: true, Body: "crash capture unavailable: " + err.Error()})
 	}
 }
 
@@ -936,6 +959,11 @@ func runConsole(console *couchtty.Console, c *couchcore.Couch, start couchcore.S
 	if len(roots) > 0 {
 		launchHub = roots[0]
 	}
+	start, err = startFreshPrimary(context.Background(), c, startup, launchHub, start)
+	if err != nil {
+		renderError(stdout, err)
+		return 1
+	}
 	console.Notify(couchtty.Notice{Kind: "startup", Control: true, Body: startupSummary(startup, launchHub)})
 
 	_, ok := start.Handle.(couchcore.TerminalHandle)
@@ -947,7 +975,7 @@ func runConsole(console *couchtty.Console, c *couchcore.Couch, start couchcore.S
 		}
 		return 1
 	}
-	if err := beginConsole(console, start, startup.Kind != couchcore.StartupNormal || !startup.Hubs[launchHub].Survived); err != nil {
+	if err := beginConsole(console, start, startup.Kind != couchcore.StartupFresh && (startup.Kind != couchcore.StartupNormal || !startup.Hubs[launchHub].Survived)); err != nil {
 		renderError(stdout, err)
 		return 1
 	}
@@ -960,7 +988,7 @@ func runConsole(console *couchtty.Console, c *couchcore.Couch, start couchcore.S
 		defer messages.Close()
 	}
 	if hubs != nil {
-		startExplicitHubs(console, hubs, c)
+		startExplicitHubs(console, hubs, startup, c)
 	}
 	code := console.Run()
 	recordConsoleExit(console.TerminalFailure())
@@ -989,9 +1017,16 @@ func beginConsole(console *couchtty.Console, start couchcore.StartResult, backgr
 	}
 	console.ArmReattachPass(start.Record.Thread)
 	if warning := start.Warning(); warning != "" {
-		// Startup adoption bypasses finishOperation; queue a standing notice
-		// for the first paint so slow startup cannot hide borrowed ownership.
-		console.Notify(couchtty.Notice{Kind: "status", Control: true, Body: warning})
+		// Retained attachment ownership is routine restart feedback. A failed
+		// configuration publication remains actionable, independently of it.
+		started, _ := start.Started()
+		started.Record.AttachmentNotice = ""
+		notice := couchtty.Notice{Class: couchcore.NoticeStartupConfigurationWarning, Kind: "status", Control: true, Thread: start.Record.Thread, Body: warning}
+		if started.Warning() != "" {
+			console.Warn(notice)
+		} else {
+			console.Notify(notice)
+		}
 	}
 	return nil
 }
@@ -1051,10 +1086,20 @@ func wireResolver(console *couchtty.Console, c *couchcore.Couch, configuredHubs 
 	couchLive := couchcore.CouchLiveOwnerExecutor(c)
 	console.SetOperationAttemptFactory(c.OperationAttemptForCall)
 	dispatch := func(call couchcore.OperationCall) (any, error) {
+		warningSource := couchtty.Notice{}
+		if call.FailureTarget != nil {
+			warningSource.Thread = call.FailureTarget.Address
+			warningSource.SourceRoot = call.FailureTarget.StartingPath
+			warningSource.Label = call.FailureTarget.Slot
+		} else if call.Args["repo-scope"] != "" && call.Args["tag"] != "" {
+			warningSource.Thread = couchcore.ThreadAddress{RepoScope: call.Args["repo-scope"], Tag: couchcore.ThreadTag(call.Args["tag"])}
+		}
 		return couchcore.DispatchOperation(couchcore.OperationExecutors{
-			Attempt:           c.OperationAttemptForCall,
-			DiagnosticWarning: func(text string) { console.Notify(couchtty.Notice{Kind: "status", Body: text}) },
-			DirectStore:       couchcore.DirectStoreExecutor(c),
+			Attempt: c.OperationAttemptForCall,
+			DiagnosticWarning: func(text string) {
+				console.Warn(couchtty.Notice{Class: couchcore.NoticeDispatcherDiagnostic, Kind: "status", Thread: warningSource.Thread, SourceRoot: warningSource.SourceRoot, Label: warningSource.Label, Body: text})
+			},
+			DirectStore: couchcore.DirectStoreExecutor(c),
 			LiveOwner: func(call couchcore.OperationCall) (any, error) {
 				if couchmessage.IsDriveOp(call.Name) {
 					return executeAgentDrive(call)
@@ -1080,7 +1125,7 @@ func wireResolver(console *couchtty.Console, c *couchcore.Couch, configuredHubs 
 							console.GoTracked(func() {
 								abortErr := c.AbortStarted(call.Context, start, attachErr)
 								if abortErr != nil && abortErr.Error() != attachErr.Error() {
-									console.Notify(couchtty.Notice{Kind: "status", Body: fmt.Sprintf("cleanup after a failed attach of %s: %v", start.Record.Thread.Tag, abortErr)})
+									console.Warn(couchtty.Notice{Class: couchcore.NoticeFailedAttachCleanup, Kind: "status", Thread: start.Record.Thread, Body: fmt.Sprintf("cleanup after a failed attach of %s: %v", start.Record.Thread.Tag, abortErr)})
 								}
 							})
 							return nil, err
@@ -1494,6 +1539,9 @@ func usageWith(w io.Writer, bindings []couchkeys.Binding) {
 	fmt.Fprintln(w, "             No self, startup parameter edits or context delivery. Read the receipt before retrying.")
 	verbLine(w, "--operation-status", "       couch --operation-status ID [--json]")
 	verbLine(w, "--resume", "       couch --resume repo:N [--candidate KEY] [--json]")
+	verbLine(w, "--wake", "       couch --wake [--json]")
+	fmt.Fprintln(w, "             From the live main hub only: resume every other hub a full quit put to")
+	fmt.Fprintln(w, "             sleep, and print one summary. Workers wait for their hub; rerun safely.")
 	verbLine(w, "--resume-candidates", "       couch --resume-candidates repo:N [--json]")
 	verbLine(w, "--recovery-confirmation", "       couch --recovery-confirmation TOKEN [--json]")
 	verbLine(w, "--reboot", "       couch --reboot repo:N --confirm [--json]")

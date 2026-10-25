@@ -45,9 +45,56 @@ func (c *Console) finishLifecycleAttempt(completed operationCompletion) operatio
 	}
 	completed.value, completed.err = completed.attempt.FinishContext(c.lifetime, completed.value, completed.err)
 	if warning := completed.attempt.DiagnosticWarning(); warning != "" {
-		c.Notify(Notice{Kind: "status", Body: warning})
+		c.mu.Lock()
+		label, _ := c.threadRowLocked(completed.origin.Address)
+		c.mu.Unlock()
+		c.Warn(Notice{Class: couchcore.NoticeLifecycleAttemptDiagnostic, Kind: "status", Thread: completed.origin.Address, SourceRoot: completed.origin.RowKey.SlotPath, Label: label, Body: warning})
 	}
 	return completed
+}
+
+// lifecycleCompletionWarningSource projects explicit successful-result warning
+// facts. Generic Warning text also carries normal continuation and next-command
+// feedback, so its wording grants no attention obligation. ParkResult cleanup
+// is deliberately absent: its queue-owned attempt already publishes that fact.
+func lifecycleCompletionWarningSource(value any, origin couchcore.ThreadAddress) (couchcore.ThreadAddress, bool) {
+	thread, actionable := origin, false
+	selectSource := func(address couchcore.ThreadAddress) {
+		actionable = true
+		if address != (couchcore.ThreadAddress{}) {
+			thread = address
+		}
+	}
+	if child, ok := value.(couchcore.StartedChild); ok {
+		started, _ := child.Started()
+		// Borrowed attachment preserves retained state during an ordinary
+		// restart; it is inspectable feedback, not an operator obligation.
+		// Clear only that typed field on a copy so configuration-publication
+		// failures remain actionable without classifying warning text.
+		started.Record.AttachmentNotice = ""
+		if started.Warning() != "" {
+			selectSource(started.Record.Thread)
+		}
+	}
+	switch result := value.(type) {
+	case couchcore.ArchiveResult:
+		if result.SessionNotStopped {
+			selectSource(result.Record.Address)
+		}
+	case couchcore.RebootResult:
+		if result.SessionNotStopped {
+			selectSource(result.Archived)
+		}
+	case couchcore.ParkRecoveryResult:
+		if result.Diagnostic != "" {
+			selectSource(result.Thread.Address)
+		}
+	case couchcore.SwitchAgentResult:
+		if result.CleanupWarning != "" {
+			selectSource(result.Record.Thread)
+		}
+	}
+	return thread, actionable
 }
 
 // OperationLifetime is the joined console lifetime for remote terminal work.

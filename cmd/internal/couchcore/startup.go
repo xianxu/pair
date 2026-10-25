@@ -129,6 +129,28 @@ func (c *Couch) startExplicitInteractive(ctx context.Context, args StartArgs) (S
 	if err != nil {
 		return StartResult{}, err
 	}
+	return c.startInteractiveResolution(ctx, resolution)
+}
+
+// StartFreshHub attempts creation after the initial zero-history observation.
+// Both primary and numbered targets must still be empty when their reservation
+// is committed. Startup cannot cold-resume, replace or retire retained history.
+func (c *Couch) StartFreshHub(ctx context.Context, path string) (StartResult, error) {
+	if err := ctx.Err(); err != nil {
+		return StartResult{}, err
+	}
+	resolution, err := c.resolveStartResolution(ctx, StartArgs{Cwd: path, Action: StartOpen})
+	if err != nil {
+		return StartResult{}, err
+	}
+	if resolution.Target.Kind == ThreadTargetSlot {
+		return c.startFreshSlotWithRecovery(ctx, resolution.Target.Slot.WorktreeRoot, resolution.RequestedAgent, true, &resolution, nil, nil, freshSlotEmptyStartup)
+	}
+	record, handle, err := c.spawnResolvedWithAdmission(ctx, resolution, nil, true)
+	return StartResult{Record: record, Handle: handle}, err
+}
+
+func (c *Couch) startInteractiveResolution(ctx context.Context, resolution StartResolution) (StartResult, error) {
 	if resolution.Target.Kind == ThreadTargetSlot {
 		return c.spawnManagedResolution(ctx, resolution)
 	}

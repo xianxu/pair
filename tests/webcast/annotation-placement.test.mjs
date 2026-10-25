@@ -140,3 +140,64 @@ test('historical page production adapter requires connected original identity in
   else assert.throws(run,/index 1.*path p unavailable/,failure);
  }
 });
+
+test('reveal scrolls only a confirmed original and recomputes strict placement',()=>{
+ const f=fixture(),calls=[];f.anchor.rect.top=900;
+ f.anchor.scrollIntoView=options=>{calls.push(options);f.anchor.rect.top=200;};
+ assert.equal(f.place(f.note,{originalOnly:true}),null);
+ assert.equal(f.place.reveal(f.note),true);
+ assert.deepEqual(calls,[{block:'center',inline:'nearest'}]);
+ assert.deepEqual(f.place(f.note,{originalOnly:true}),[20,210,40,20]);
+});
+
+test('reveal refuses untrusted, unsafe and foreign originals without scrolling',()=>{
+ for(const failure of ['missing','detached','conflicting','wrongroute','hidden','mask','transform','empty','foreign','clipped']){
+  const f=fixture();let calls=0;f.anchor.scrollIntoView=()=>calls++;
+  f.el('p',f.main,{},'Distinct article heading'); // A matching replacement is never authority.
+  if(failure==='missing')f.setOriginal(null);
+  if(failure==='detached'){f.main.childNodes=f.main.childNodes.filter(n=>n!==f.anchor);f.anchor.parentNode=null;}
+  if(failure==='conflicting')f.anchor.childNodes[0].nodeValue='Different article';
+  if(failure==='wrongroute')f.setRoute('https://example.test/b');
+  if(failure==='hidden')f.main.style.visibility='hidden';
+  if(failure==='mask')f.main.style.maskImage='url(mask.svg)';
+  if(failure==='transform')f.main.style.transform='rotate(30deg)';
+  if(failure==='empty')f.anchor.rect.width=0;
+  if(failure==='foreign'){const other=fixture();other.anchor.scrollIntoView=()=>calls++;f.setOriginal(other.anchor);}
+  if(failure==='clipped'){f.main.style.overflow='hidden';f.main.rect={left:0,top:0,width:5,height:5};}
+  assert.equal(f.place.reveal(f.note),false,failure);assert.equal(calls,0,failure);
+ }
+});
+
+test('reveal does not claim success before post-scroll strict geometry is available',()=>{
+ const f=fixture();let calls=0;f.anchor.rect.top=900;f.anchor.scrollIntoView=()=>calls++;
+ assert.equal(f.place.reveal(f.note),false);assert.equal(calls,1);
+});
+
+test('reveal traverses an offscreen frame only through connected safe owners',()=>{
+ for(const failure of ['none','detached','transformed','masked']){
+  const f=fixture(),inner=fixture(),frame=f.el('iframe',f.main);let calls=0;
+  frame.rect.top=900;inner.win.frameElement=frame;f.setOriginal(inner.anchor);
+  inner.anchor.scrollIntoView=()=>{calls++;frame.rect.top=100;};
+  if(failure==='detached'){f.main.childNodes=[];frame.parentNode=null;}
+  if(failure==='transformed')frame.style.transform='rotate(30deg)';
+  if(failure==='masked')frame.style.maskImage='url(mask.svg)';
+  assert.equal(f.place.reveal(f.note),failure==='none',failure);
+  assert.equal(calls,failure==='none'?1:0,failure);
+ }
+});
+
+test('Renderer reveal retains source guards and current-note ownership on repeated URLs',async()=>{
+ const {Renderer}=await import('../../cmd/internal/webcast/web/render.js');
+ for(const scenario of ['current','historic','unknown','source','wrongdoc','wrongtab','future']){
+  const f=fixture();f.note.id='n';f.note.at.node=7;let calls=0;
+  const renderer=Object.create(Renderer.prototype);Object.assign(renderer,{frame:{contentDocument:f.doc},model:{url:f.note.at.route,docSeg:2,tab:{id:'t'},t:4,notes:[{seg:2,note:f.note}]},dom:new Map([[7,f.anchor]]),ids:new WeakMap([[f.anchor,7]]),shadows:new Map()});
+  f.anchor.rect.top=900;f.anchor.scrollIntoView=()=>{calls++;f.anchor.rect.top=200;};
+  if(scenario==='historic')renderer.model.notes[0].seg=1;
+  if(scenario==='unknown')renderer.model.notes=[];
+  if(['source','wrongdoc','wrongtab','future'].includes(scenario)){
+   renderer.model.notes=[];f.note.source={doc:scenario==='wrongdoc'?1:2,tab:scenario==='wrongtab'?'other':'t',t:scenario==='future'?5:3};
+  }
+  const allowed=['current','source'].includes(scenario);
+  assert.equal(renderer.reveal(f.note),allowed,scenario);assert.equal(calls,allowed?1:0,scenario);
+ }
+});

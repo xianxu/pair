@@ -13,16 +13,23 @@ import (
 	"time"
 
 	"github.com/creack/pty"
+	"github.com/xianxu/pair/cmd/internal/couchcore"
 	"github.com/xianxu/pair/cmd/internal/couchidentity"
+	"github.com/xianxu/pair/cmd/internal/launcher"
 	"github.com/xianxu/pair/cmd/internal/testpair"
 )
 
 func TestBareCouchInstalledCommand(t *testing.T) {
+	t.Run("known shutdown requires explicit start", func(t *testing.T) { testBareCouchInstalledCommand(t, true) })
+	t.Run("zero history automatically starts hub", func(t *testing.T) { testBareCouchInstalledCommand(t, false) })
+}
+
+func testBareCouchInstalledCommand(t *testing.T, retainedHistory bool) {
 	root := repoRoot(t)
 	binDir := t.TempDir()
 	couchBin, fixtureBin := installedExecutables(t)
 
-	// Bare Couch opens an empty switcher; an explicit Start form launches the hub.
+	// Each case owns an independent fleet, store, fixture socket and call log.
 	fleet, err := filepath.EvalSymlinks(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
@@ -75,7 +82,7 @@ exec %q launch "$@"
 	}
 	t.Cleanup(func() { _ = os.RemoveAll(sockets) })
 
-	t.Run("pty opens empty switcher then explicitly starts and attaches hub", func(t *testing.T) {
+	t.Run("pty starts and attaches hub", func(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 		cmd := exec.CommandContext(ctx, couchBin)
@@ -91,6 +98,39 @@ exec %q launch "$@"
 			"PAIR_TEST_ZELLIJ_LOG="+filepath.Join(fixtureFiles, "zellij-calls"),
 			"PAIR_TEST_ZELLIJ_PANES="+filepath.Join(fixtureFiles, "panes.json"),
 		)
+		if retainedHistory {
+			// Prior history belongs to a different private target: it establishes a
+			// genuine shutdown without occupying the hub selected by the Start form.
+			var storeDir string
+			for _, entry := range cmd.Env {
+				if value, ok := strings.CutPrefix(entry, "COUCH_STORE_DIR="); ok {
+					storeDir = value
+				}
+			}
+			if storeDir == "" {
+				t.Fatal("installed fixture omitted its private store")
+			}
+			namespace, err := couchcore.ResolveCouchNamespace(storeDir, launchRoot)
+			if err != nil {
+				t.Fatal(err)
+			}
+			historicalPath, err := filepath.EvalSymlinks(t.TempDir())
+			if err != nil {
+				t.Fatal(err)
+			}
+			scope, err := launcher.ResolveRepoScope(historicalPath)
+			if err != nil {
+				t.Fatal(err)
+			}
+			_, err = couchcore.NewThreadStore(namespace).CreateThread(couchcore.ThreadRecord{
+				SchemaVersion: couchcore.ThreadSchemaVersion,
+				Address:       couchcore.ThreadAddress{RepoScope: scope.Key, Tag: "couch-0123456789abcdef"},
+				StartingPath:  historicalPath, WorkingPath: historicalPath, CreatedAt: time.Date(2026, 10, 24, 0, 0, 0, 0, time.UTC), Revision: 1,
+			})
+			if err != nil {
+				t.Fatalf("seed retained startup history: %v", err)
+			}
+		}
 		defer func() { _ = os.WriteFile(release, []byte("release"), 0600) }()
 		master, err := pty.Start(cmd)
 		if err != nil {
@@ -141,16 +181,28 @@ exec %q launch "$@"
 		}()
 
 		timedOut := false
-		phase := "empty switcher"
+		phase := "automatic fresh hub attachment"
+		if retainedHistory {
+			phase = "known-shutdown empty switcher"
+		}
 		var flowErr error
 		startupDeadline := time.NewTimer(15 * time.Second)
 		defer startupDeadline.Stop()
-		select {
-		case <-switcherReady:
-		case <-startupDeadline.C:
-			timedOut = true
+		if retainedHistory {
+			select {
+			case <-switcherReady:
+			case <-startupDeadline.C:
+				timedOut = true
+			}
+		} else {
+			// Zero history carries fresh-start permission. No form keys are sent.
+			select {
+			case <-consoleReady:
+			case <-startupDeadline.C:
+				timedOut = true
+			}
 		}
-		if !timedOut {
+		if retainedHistory && !timedOut {
 			// Initial presentation is evidence only. No Pair launcher or native
 			// wrapper may exist before the operator submits the explicit Start form.
 			calls, err := os.ReadFile(callLog)
@@ -251,6 +303,14 @@ exec %q launch "$@"
 		}
 		if !bytes.Contains(out, []byte("COUCH_INSTALLED_PAIR_MARKER")) {
 			t.Fatal("selected hub terminal was not attached")
+		}
+		if !retainedHistory {
+			if bytes.Contains(out, []byte("start thread")) {
+				t.Fatal("fresh startup unexpectedly opened the Start form")
+			}
+			if bytes.Contains(out, []byte("startup:")) && !bytes.Contains(out, []byte("startup: fresh")) {
+				t.Fatalf("fresh startup showed wrong kind: %q", out)
+			}
 		}
 		if _, err := os.Stat(filepath.Join(fixtureFiles, "ready")); err != nil {
 			t.Fatalf("hub wrapper readiness publication missing: %v", err)

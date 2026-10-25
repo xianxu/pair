@@ -2,6 +2,7 @@ package couchtty
 
 import (
 	"github.com/xianxu/pair/cmd/internal/castlock"
+	"github.com/xianxu/pair/cmd/internal/couchcore"
 
 	"context"
 	"github.com/xianxu/pair/cmd/internal/couchmessage"
@@ -201,7 +202,7 @@ func (c *Console) broadcastStarted(attempt uint64, s *broadcast.Session, err err
 		c.bcast = broadcastState{attempt: attempt}
 		c.mu.Unlock()
 		if err != nil {
-			c.setNotice("Broadcast failed to start: " + err.Error())
+			c.Warn(Notice{Class: couchcore.NoticeCastStartFailed, Origin: couchcore.NoticeOperatorOrigin, Kind: "warning", Body: "Broadcast failed to start: " + err.Error()})
 		}
 		return
 	}
@@ -217,7 +218,7 @@ func (c *Console) broadcastStarted(attempt uint64, s *broadcast.Session, err err
 		c.mu.Lock()
 		c.bcast = broadcastState{attempt: attempt}
 		c.mu.Unlock()
-		c.setNotice("Broadcast failed to start: " + err.Error())
+		c.Warn(Notice{Class: couchcore.NoticeCastStartFailed, Origin: couchcore.NoticeOperatorOrigin, Kind: "warning", Body: "Broadcast failed to start: " + err.Error()})
 		return
 	}
 	c.mu.Lock()
@@ -270,7 +271,7 @@ func (c *Console) broadcastEnded(s *broadcast.Session) {
 	c.forgetCastCodes(castScreen)
 	if !byOperator {
 		c.detachBroadcastScreen()
-		c.setNotice("Broadcast ended: " + broadcast.EndReason(s.Err()) + ".")
+		c.Warn(Notice{Class: couchcore.NoticeCastEndedUnexpectedly, Origin: couchcore.NoticeOperatorOrigin, Kind: "warning", Body: "Broadcast ended: " + broadcast.EndReason(s.Err()) + "."})
 		return
 	}
 	c.repaint()

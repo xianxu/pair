@@ -16,7 +16,7 @@ func TestParkCompletionWaitOverridesTheDefault(t *testing.T) {
 		name    string
 		wait    time.Duration
 		succeed bool
-	}{{name: "default", succeed: false}, {name: "relaunch-wait", wait: 2 * time.Second, succeed: true}} {
+	}{{name: "default", succeed: false}, {name: "relaunch-wait", wait: RelaunchParkWait, succeed: true}} {
 		t.Run(tc.name, func(t *testing.T) {
 			store, _, thread := createControllerThread(t)
 			now := time.Date(2026, 10, 16, 12, 0, 0, 0, time.UTC)
@@ -31,7 +31,9 @@ func TestParkCompletionWaitOverridesTheDefault(t *testing.T) {
 			controller := PairLifecycleController{
 				Threads: store, DataDir: t.TempDir(), Lifecycle: lifecycle, Sessions: artifacts,
 				Clock: FixedClock{T: now}, Nonce: func() (string, error) { return "park-slow-quit", nil },
-				Proc: proc, CompletionTimeout: 100 * time.Millisecond,
+				// Match the ordinary controller budget configured by New. The
+				// injected deadline below never starts a wall-clock timer.
+				Proc: proc, CompletionTimeout: 15 * time.Second,
 			}
 			budget := newSpendableBudget()
 			var selected time.Duration

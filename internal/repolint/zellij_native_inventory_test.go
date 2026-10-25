@@ -17,6 +17,9 @@ func TestZellijNativeAdmissionCatalog(t *testing.T) {
 	}{
 		{"source hook outside owner", "cmd/internal/new/native.go", `package new;import "github.com/xianxu/pair/cmd/internal/zellijquery";func bad(s zellijquery.Source){s.Run(cmd)}`, 1},
 		{"raw collector", "cmd/internal/new/native.go", `package new;import "github.com/xianxu/pair/cmd/internal/zellijexec";func bad(){zellijexec.Run(cmd)}`, 1},
+		{"fleet diagnostic owner", "cmd/internal/testcouch/startup_evidence.go", `package testcouch;import "github.com/xianxu/pair/cmd/internal/zellijexec";func(f *Fleet)runStartupQuery(){zellijexec.Run(cmd)}`, 0},
+		{"fleet former diagnostic owner", "cmd/internal/testcouch/startup_evidence.go", `package testcouch;import "github.com/xianxu/pair/cmd/internal/zellijexec";func(f *Fleet)dumpStartupPane(){zellijexec.Run(cmd)}`, 1},
+		{"fleet diagnostic wrong file", "cmd/internal/testcouch/consumer.go", `package testcouch;import "github.com/xianxu/pair/cmd/internal/zellijexec";func(f *Fleet)runStartupQuery(){zellijexec.Run(cmd)}`, 1},
 		{"dynamic native variable", "cmd/internal/new/native.go", `package new;import "os/exec";func bad(){path:="zellij";exec.CommandContext(ctx,path,args...)}`, 1},
 		{"direct process replacement", "cmd/internal/new/native.go", `package new;import "syscall";func bad(){syscall.Exec("/opt/bin/zellij",argv,env)}`, 1},
 		{"mutation", "cmd/internal/new/native.go", `package new; import "os/exec"; func bad(){exec.Command("zellij","action","rename-pane","x")}`, 1},

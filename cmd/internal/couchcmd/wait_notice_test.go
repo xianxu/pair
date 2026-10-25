@@ -322,8 +322,8 @@ type waitRig struct {
 }
 
 // newWaitRig runs hub pair:1 and a hello-v2 worker pair:2 showing screen.
-func newWaitRig(t *testing.T, settled, resting bool, screen []string) *waitRig {
-	w := &waitRig{serviceRig: newServiceRig(t), screen: screen, admitted: map[string]bool{}}
+func newWaitRig(t *testing.T, settled, resting bool, screen []string, decorate ...func(messageAuthority) messageAuthority) *waitRig {
+	w := &waitRig{serviceRig: newServiceRig(t, decorate...), screen: screen, admitted: map[string]bool{}}
 	w.world.hub = "/repo1"
 	w.restart(nil)
 	w.hub = w.world.add(1)
@@ -359,7 +359,14 @@ func (w *waitRig) v2wrapper(b couchmessage.Binding, pane couchmessage.PaneHandle
 		defer close(done)
 		c.Run(ctx, w.regSock, b, couchmessage.DefaultReconnectBackoff, 10*time.Millisecond)
 	}()
-	w.t.Cleanup(func() { cancel(); <-done })
+	stop := func() { cancel(); <-done }
+	w.serviceRig.mu.Lock()
+	if w.wrapperStops == nil {
+		w.wrapperStops = map[couchmessage.Binding]func(){}
+	}
+	w.wrapperStops[b] = stop
+	w.serviceRig.mu.Unlock()
+	w.t.Cleanup(stop)
 	w.attach(b, pane)
 	w.waitConnected(b, true)
 	return c
@@ -614,8 +621,8 @@ func TestWaitNoticeQuestionSetStartsAndEndsWithTheEpisode(t *testing.T) {
 	q.tickAt(12 * time.Minute)
 	n, f := last()
 	want := couchcore.AttentionCondition{Label: "pair:2", Title: "Should I merge it now?"}
-	if f.Kind != couchcore.AttentionQuestion || len(f.Live) != 1 || f.Live[bindingThread(q.worker)] != want {
-		t.Fatalf("question set after the episode = %+v", f)
+	if f.Kind != couchcore.AttentionQuestion || len(f.Live) != 0 || q.watcher.questionConditions[bindingThread(q.worker)] != want {
+		t.Fatalf("connected-owner question projection = %+v, episode=%+v", f, q.watcher.questionConditions)
 	}
 	q.tickAt(13 * time.Minute)
 	if again, _ := last(); again != n {
@@ -625,7 +632,7 @@ func TestWaitNoticeQuestionSetStartsAndEndsWithTheEpisode(t *testing.T) {
 	deadline := time.Now().Add(3 * time.Second)
 	for {
 		q.tickAt(time.Second)
-		if _, f := last(); f.Kind == couchcore.AttentionQuestion && len(f.Live) == 0 {
+		if _, f := last(); f.Kind == couchcore.AttentionQuestion && len(f.Live) == 0 && len(q.watcher.questionConditions) == 0 {
 			return
 		}
 		if time.Now().After(deadline) {

@@ -43,7 +43,7 @@ var zellijNativeFixtureOwners = map[string]string{
 	"cmd/internal/pairlifecycletest/live_zellij.go:StartControlledZellijWithOptions": "owned native fixture construction",
 	"cmd/internal/pairlifecycletest/live_zellij.go:close":                            "owned native fixture retirement",
 	"cmd/internal/pairlifecycletest/live_zellij.go:AddOwnerWrapperPane":              "owned native fixture construction",
-	"cmd/internal/testcouch/startup_evidence.go:dumpStartupPane":                     "owned fleet diagnostics",
+	"cmd/internal/testcouch/startup_evidence.go:runStartupQuery":                     "owned fleet diagnostics",
 }
 
 func zellijNativeAdmissionBypasses(filename string, file *ast.File) []ast.Node {

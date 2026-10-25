@@ -496,6 +496,10 @@ func primaryFreshStep(held ActionableThreadSummary) string {
 // in rather than re-derived so an interactive startup does not pay for a second
 // zellij snapshot on the path it just inventoried.
 func (c *Couch) spawnResolved(ctx context.Context, resolution StartResolution, rows []ActionableThreadSummary) (ActorRecord, Handle, error) {
+	return c.spawnResolvedWithAdmission(ctx, resolution, rows, false)
+}
+
+func (c *Couch) spawnResolvedWithAdmission(ctx context.Context, resolution StartResolution, rows []ActionableThreadSummary, emptyStartup bool) (ActorRecord, Handle, error) {
 	if err := launcher.ValidateFreshAgentArgs(resolution.Profile.Agent, resolution.Profile.Argv); err != nil {
 		return ActorRecord{}, nil, fmt.Errorf("start: invalid startup parameters: %w", err)
 	}
@@ -561,9 +565,9 @@ func (c *Couch) spawnResolved(ctx context.Context, resolution StartResolution, r
 			scope.Root, held.Label(), primaryFreshStep(held), held.Address.Tag)
 	}
 	startedAt := c.Clock.Now()
-	thread, err := c.Threads.AllocateThreadTag(scope.Key, resolution.CanonicalPath, startedAt, func() (string, error) {
+	thread, err := c.Threads.allocateThreadTag(ctx, scope.Key, resolution.CanonicalPath, startedAt, func() (string, error) {
 		return c.allocateConversationTag(ctx, filepath.Base(string(resolution.Worktree)))
-	}, c.Artifacts)
+	}, c.Artifacts, emptyStartup)
 	if err != nil {
 		return ActorRecord{}, nil, err
 	}
@@ -1288,7 +1292,11 @@ func observeExactProcess(proc ProcOps, expected ProcessIdentity) Liveness {
 }
 
 func (c *Couch) releaseClaimIfThreadAbsent(address ThreadAddress) error {
-	_, err := c.Threads.GetThread(address)
+	return c.releaseClaimIfStoreThreadAbsent(c.Threads, address)
+}
+
+func (c *Couch) releaseClaimIfStoreThreadAbsent(store *ThreadStore, address ThreadAddress) error {
+	_, err := store.GetThread(address)
 	if err == nil {
 		return nil
 	}

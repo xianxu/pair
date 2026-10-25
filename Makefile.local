@@ -4,7 +4,7 @@
 # Shared native fleet qualification; ordinary suites retain the portable tests.
 .PHONY: test-couch-fleet
 test-couch-fleet:
-	PAIR_NATIVE_COUCH_FLEET=1 go test ./cmd/couch -run '^TestDisposableCouchFleet(FullQuit)?$$' -count=1 -v -timeout=30m
+	PAIR_NATIVE_COUCH_FLEET=1 go test ./cmd/couch -run '^TestDisposableCouchFleet(FullQuit|Wake)?$$' -count=1 -v -timeout=30m
 
 # Share Go package compilation across worktrees without discarding caller flags
 # (for example -p=3). Set PAIR_GO_TRIMPATH= for diagnostic source paths.

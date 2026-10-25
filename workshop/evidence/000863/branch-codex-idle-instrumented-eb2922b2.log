@@ -1,0 +1,26 @@
+=== RUN   TestDisposableEditedRestart
+    binaries.go:62: eb2922b2206443b0fee6dd379ea4d084630fe9d8
+        
+    binaries.go:62: git version 2.54.0 (Apple Git-157)
+        
+    binaries.go:62: sdlc version path=/Users/xianxu/workspace/ariadne/bin/sdlc revision=8f3e340ec633957c6e199d2a86d5349b4b88c0ae modified=false
+        
+    binaries.go:62: weave version dev
+        
+    binaries.go:62: zellij 0.45.1
+        
+    binaries.go:62: NVIM v0.11.7
+        Build type: Release
+        LuaJIT 2.1.1741730670
+        Run "nvim -V1 -v" for more info
+        
+=== RUN   TestDisposableEditedRestart/codex
+    owner.go:218: native fleet isolation: root=/Volumes/TestScratch/pc-3558527559 run=a4213cdb6c17361a11e04dd95f8c6a7c agent=codex workers=1
+    startup_restart_fleet_test.go:70: idle precondition sampled=2026-10-24T03:08:03.360499-07:00 observed=2026-10-24T03:08:03.686813-07:00 native_pid=85364 native_generation=1792836474.194205 binding={Slot:fixture:1 Repository:/Volumes/TestScratch/pc-3558527559/fleet/fixture/.git Scope:0eb671ae36871b31 Tag:9223637294034976769-fixture-2 Session:📁9223637294034976769-2 Nonce:start-cd3cbe5d793bfe7e Agent:codex Version:codex-cli 0.152.0 PID:85003 Start:1792836473.312320} slots=[{ObservedCPUTimeNS:1611208083 ObservedDiskWriteBytes:593920 Slot:fixture:0 Thread:{RepoScope:4d4c9cf818f9f6bc Tag:9223637294034976769-fixture-1} CPUPercent:0x652056739710 RSSBytes:0x6520568ee940 WriteBytesPerSecond:0x652056739718 ProcessCount:10 IdleKnown:true Idle:true Reason:partial or warming-up} {ObservedCPUTimeNS:253412293 ObservedDiskWriteBytes:282624 Slot:fixture:1 Thread:{RepoScope:0eb671ae36871b31 Tag:9223637294034976769-fixture-2} CPUPercent:0x6520568ee948 RSSBytes:0x6520568ee960 WriteBytesPerSecond:0x6520568ee968 ProcessCount:10 IdleKnown:true Idle:true Reason:}]
+    startup_restart_fleet_test.go:77: idle precondition sampled=2026-10-24T03:08:16.357717-07:00 observed=2026-10-24T03:08:16.674969-07:00 native_pid=93752 native_generation=1792836491.508486 binding={Slot:fixture:1 Repository:/Volumes/TestScratch/pc-3558527559/fleet/fixture/.git Scope:0eb671ae36871b31 Tag:9223637294034976769-fixture-2 Session:📁9223637294034976769-3 Nonce:2225fb7f30d18801b041fc9ed58cb772 Agent:codex Version:codex-cli 0.152.0 PID:93320 Start:1792836490.754694} slots=[{ObservedCPUTimeNS:2304232583 ObservedDiskWriteBytes:1069056 Slot:fixture:0 Thread:{RepoScope:4d4c9cf818f9f6bc Tag:9223637294034976769-fixture-1} CPUPercent:0x6520568efa90 RSSBytes:0x6520568efa98 WriteBytesPerSecond:0x6520568efaa0 ProcessCount:10 IdleKnown:true Idle:true Reason:} {ObservedCPUTimeNS:408812707 ObservedDiskWriteBytes:397312 Slot:fixture:1 Thread:{RepoScope:0eb671ae36871b31 Tag:9223637294034976769-fixture-2} CPUPercent:0x6520568efdb0 RSSBytes:0x65205693b0a0 WriteBytesPerSecond:0x6520568efdb8 ProcessCount:10 IdleKnown:true Idle:true Reason:partial or warming-up}]
+    startup_restart_fleet_test.go:92: native edited restart: agent=codex resumed_receipt=0a9ec389-69b4-4125-80e3-e679ff726fa8 fallback_receipt=ed4901c4-124c-4eb7-bf2f-ad49f8bb1d75 old_native=ae242fd2-de0f-4d4e-913c-9966e8c2e574 fresh_native=9e81a339-3428-4d40-92ba-f8c7dcd85ea7 prior_transcript_sha256=972d638f91f1963e31e83be9ac145cc0c07e8c43ff02f8a2d82c73581379ecf7 warning="no previous conversation found; started fresh with the new parameters"
+    fleet.go:527: native fleet cleaned: root=/Volumes/TestScratch/pc-3558527559 all owned generations absent; direct child and IO joined
+--- PASS: TestDisposableEditedRestart (99.20s)
+    --- PASS: TestDisposableEditedRestart/codex (82.31s)
+PASS
+ok  	github.com/xianxu/pair/cmd/couch	99.417s

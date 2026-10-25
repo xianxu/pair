@@ -7,8 +7,14 @@ export class Element {
   hasPointerCapture(id) { return this.captured===id; }
   setPointerCapture(id) { this.captured=id; }
   releasePointerCapture(id) { if(this.captured===id) this.captured=null; }
-  append(...es) { this.children.push(...es); }
-  replaceChildren(...es) { this.children = es; }
+  append(...es) { for (const e of es) { e.remove?.(); e.parentNode=this; this.children.push(e); } }
+  appendChild(e) { this.append(e); return e; }
+  remove() { if(this.parentNode) { this.parentNode.children=this.parentNode.children.filter(e=>e!==this); this.parentNode=null; } }
+  insertBefore(e,before) { e.remove?.(); const i=this.children.indexOf(before); if(i<0)this.append(e);else {e.parentNode=this;this.children.splice(i,0,e);}return e; }
+  get nextSibling() { const es=this.parentNode?.children||[];return es[es.indexOf(this)+1]||null; }
+  contains(e) { return e===this||this.children.some(c=>c.contains(e)); }
+  removeEventListener(k,f) { this.listeners[k]=(this.listeners[k]||[]).filter(x=>x!==f); }
+  replaceChildren(...es) { for(const e of [...this.children])e.remove?.();this.children=[];this.append(...es); }
   setAttribute() {}
   addEventListener(k,f) { (this.listeners[k] ||= []).push(f); }
   querySelectorAll(s) { return this.children.flatMap((e) => [...(s === 'button' && e.tagName === 'button' ? [e] : []), ...e.querySelectorAll(s)]); }

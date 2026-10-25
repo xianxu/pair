@@ -170,6 +170,7 @@ func TestEditedRestartConsoleRemoteAdoption(t *testing.T) {
 					// A wide host retains controls; notice text still has the
 					// same 40-cell display cap, independently of host width.
 					cold.host.SetSize(ptychild.Size{Rows: 24, Cols: 512})
+					screen := startupWarmScreen(t, 512, 24, cold.host.Written)
 					// Admission creates the private accepted anchor while found; the
 					// real queued operation must honor subsequent positive absence.
 					prepare := service.s.switches.Load().prepare
@@ -295,21 +296,17 @@ func TestEditedRestartConsoleRemoteAdoption(t *testing.T) {
 						t.Fatalf("remote receipt lost combined notices: %+v", receipt)
 					}
 					if receipt.Warning != "" {
-						// Independent display oracles; the full combined receipt
-						// above and actual clipboard below retain both notices.
-						visible := "started, but startup parameters were no…"
-						if mode == "fresh" {
-							visible = "no previous conversation found; started…"
-						}
-						testwait.Until(t, "visible bounded edited restart notice", func() bool {
-							return strings.Contains(cold.host.Written(), visible)
-						})
-						// Ctrl+Y belongs to the switcher; actor focus forwards it.
-						if _, err := cold.input.Write([]byte{0}); err != nil {
+						// Inspect the current switcher frame, independently of the
+						// deleted tab notice, then copy the full combined receipt.
+						if _, err := cold.input.Write([]byte("\x1b[32;5u")); err != nil {
 							t.Fatal(err)
 						}
-						testwait.Until(t, "switcher copy action", func() bool {
-							return strings.Contains(cold.host.Written(), "Ctrl+Y copy last notice")
+						visible := "started, but startup parameters"
+						if mode == "fresh" {
+							visible = "no previous conversation found;"
+						}
+						testwait.Until(t, "visible edited restart switcher notice", func() bool {
+							return strings.Contains(strings.Join(strings.Fields(screen()), " "), visible)
 						})
 						assertCopied(cold.input, receipt.Warning)
 					}

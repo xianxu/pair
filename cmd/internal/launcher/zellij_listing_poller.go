@@ -88,13 +88,18 @@ func (p *ListingPoller) Refresh(ctx context.Context) {
 
 // Listings returns the latest validated full reply when it is at most MaxStale old.
 func (p *ListingPoller) Listings() (raw []byte, err error) {
+	raw, _, err = p.listingsAt()
+	return
+}
+
+func (p *ListingPoller) listingsAt() ([]byte, time.Time, error) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	if !p.known {
-		return nil, &ErrListingStale{Never: true, Last: p.failing}
+		return nil, time.Time{}, &ErrListingStale{Never: true, Last: p.failing}
 	}
 	if age := p.now().Sub(p.at); age > p.MaxStale {
-		return nil, &ErrListingStale{Age: age, Last: p.failing}
+		return nil, time.Time{}, &ErrListingStale{Age: age, Last: p.failing}
 	}
-	return p.raw, nil
+	return p.raw, p.at, nil
 }

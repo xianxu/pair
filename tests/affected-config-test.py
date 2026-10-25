@@ -77,7 +77,7 @@ def provider_sources():
                 elif name == "go.mod":
                     raise RuntimeError(f"provider {candidate} has no go.mod")
             return candidate, ref, result
-    message = ("upstream ariadne#517 affected/jsonstrict source unavailable; install it or set "
+    message = ("upstream affected planner and dependency sources unavailable; install them or set "
                "ARIADNE_AFFECTED_SOURCE (and optional ARIADNE_AFFECTED_REF) to qualify its candidate")
     if explicit:
         raise RuntimeError(message)

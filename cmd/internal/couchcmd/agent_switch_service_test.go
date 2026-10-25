@@ -101,11 +101,14 @@ func (q *leanSwitchQueue) job(i int) leanSwitchJob {
 	return q.jobs[i]
 }
 
-func leanSwitchRig(t *testing.T) (*serviceRig, *leanSwitchQueue, couchmessage.Binding, couchmessage.Binding, *couchmessage.SessionClient) {
+func leanSwitchRig(t *testing.T, decorate ...func(messageAuthority) messageAuthority) (*serviceRig, *leanSwitchQueue, couchmessage.Binding, couchmessage.Binding, *couchmessage.SessionClient) {
 	t.Helper()
 	w := newMessageWorld()
 	w.hub = "/repo0"
 	r := &serviceRig{t: t, world: w, slotGit: map[string]couchcore.SlotGitStatus{}}
+	if len(decorate) > 0 {
+		r.decorateAuthority = decorate[0]
+	}
 	r.slotOps = newSlotOperations(nil, func(context.Context) ([]couchcore.RepositoryName, error) {
 		return []couchcore.RepositoryName{{Key: "/repo/.git", Dir: "pair", Alias: "p"}}, nil
 	}, time.Now)

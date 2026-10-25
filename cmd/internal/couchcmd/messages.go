@@ -44,6 +44,9 @@ func runMessageCLIWithCall(inv cliInvocation, rt Runtime, stdout, stderr io.Writ
 	}
 	// The one verb list (pair#424): a hand-kept list here let relaunch and
 	// reload-context fall through to the message path, which sends no ID.
+	if inv.messageOp == "wake" {
+		return runWakeCLI(inv, rt, stdout, stderr, call, slotPollClock{now: time.Now, sleep: time.Sleep})
+	}
 	if inv.messageOp == "resume-candidates" {
 		return runResumeCandidatesCLI(inv, rt, stdout, stderr, call)
 	}
@@ -331,9 +334,21 @@ func exchangeSlotOperation(inv cliInvocation, op string, rt Runtime, call messag
 	case result.Code != "accepted" || result.Operation == nil:
 		return none, fmt.Errorf("%s: %s", result.Code, result.Error)
 	}
-	receipt := *result.Operation
 	status := callerIdentity(rt, "operation-status")
 	status.ID = admit.ID
+	receipt, err := pollSlotOperation(*result.Operation, inv.ref+" "+op, status, exchange, clock, progress)
+	if err != nil {
+		return uncertain(err.Error())
+	}
+	return receipt, nil
+}
+
+// pollSlotOperation polls one admitted receipt to a terminal status. Its error
+// is the detail of an outcome that became unknown, never a refusal.
+func pollSlotOperation(receipt couchmessage.OperationReceipt, label string, status couchmessage.Request,
+	exchange func(couchmessage.Request, time.Duration) (couchmessage.Response, error), clock slotPollClock, progress io.Writer) (couchmessage.OperationReceipt, error) {
+	var none couchmessage.OperationReceipt
+	uncertain := func(detail string) (couchmessage.OperationReceipt, error) { return none, errors.New(detail) }
 	start := clock.now()
 	// Every status line derives staleness from when Couch last answered, so
 	// a status repeated from before timed-out polls says so, and stops saying
@@ -355,7 +370,7 @@ func exchangeSlotOperation(inv cliInvocation, op string, rt Runtime, call messag
 			if p := receipt.Progress; p != nil && p.Stage != "" && !p.Started.IsZero() {
 				detail = fmt.Sprintf("%s (%s, %s)", receipt.Status, p.Stage, max(time.Duration(0), told.Sub(p.Started)).Round(time.Second))
 			}
-			fmt.Fprintf(progress, "couch: %s %s still %s after %s%s\n", inv.ref, op, detail, told.Sub(start).Round(time.Second), stale())
+			fmt.Fprintf(progress, "couch: %s still %s after %s%s\n", label, detail, told.Sub(start).Round(time.Second), stale())
 		}
 		clock.sleep(slotOperationPollInterval)
 		result, err := exchange(status, couchmessage.AdmissionTimeout)
