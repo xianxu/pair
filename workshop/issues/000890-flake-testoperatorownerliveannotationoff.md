@@ -62,6 +62,8 @@ Catalog TestTrackedGoFilesPassCatalog PASS8.158s, whitespace check PASS. Final r
 
 BR-1 response: first close review REWORK solely because fenced Chrome cannot initialize its sandbox/GPU; static review found no defect. At exact requested head4b0b9f8e9d4d9b0c9d5c137bff879c5432319669 with no source changes, host focused tests count3 PASS18.909s; original metrics-only overlay on the same head fails held-event assertion1.347s exit1. [Pinned commands, environment, exit results, complete logs and hashes](../evidence/000890/host-proof.md). This supplies the requested executable counterexample and positive evidence without weakening Chrome isolation. Existing recorded affected run87687 remains queued on the code-identical head; no second check queued.
 
+Final recorded affected attemptb5f8e0277b2b1c4d38cffd3a19e5e92b on4b0b9f8e9d4d9b0c9d5c137bff879c5432319669 passed six Go packages plus shell in3m24s, log SHA256 prefix728a4f325e6b, after3304s FIFO wait. No failure or retry. Close round2 SHIP/medium with no open findings; BR-1 withdrawn after reviewer verified host logs/hashes and code identity. Close evidencebd9a2cac5539a52f946cc37a2554bca2c048b885, measured0.46h trusted-window (build0.41,converge0.05), no typed actual. Next: normal merge owns main integration and its full suite; no manual main chase. #895, then888 remain the dispatched sequence after890 lands.
+
 ## Revisions
 
 ### 2026-10-25 — document-owned resize receipt
