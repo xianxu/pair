@@ -251,6 +251,28 @@ follow its supported recovery (recorded check/re-entry if required), retain
 one runner, and land PR599 only after integrated verification. Do not blindly
 retry during the freeze or classify the interruption as a flake.
 
+### 2026-10-24 — authenticated freeze lift; named recovery check queued
+
+Authenticated hub b9a94dc6-ff54-47d2-895e-567d4f930a39 lifted the freeze
+and resumed the machine queue. Verified the old merge had exited; no retained
+live runner/ticket could be duplicated. SDLC landing status identified the
+orphan and supplied its explicit branch re-entry. That re-entry exited at
+boarding because the interrupted integrated head lacks a recorded check.
+
+Followed its named affected --boarding command; it refused full selection
+for the portable apply-shadow corpus and explicitly supplied:
+sdlc local-check run --name suite --rev a7b8cd21ef4b0290d2cd0e33d2e86ad38dd4f4a9.
+Started exactly that check once. Retain terminal 28422, lease-422476124,
+attempt 94fd6ab5e1129500d1f3ae64dce5ff8a (last observed normal FIFO7).
+Its detached checkout is /Volumes/TestScratch/local-checks/sdlc-local-3678650012.
+No out-of-queue full suite, source edit, build matrix or duplicate run.
+Original branch PASS17m31s and whole close SHIP remain; the current check
+qualifies the clean main integration plus documentation-only checkpoint.
+Next: read this retained check to its terminal result; classify any failure
+before repetition. On PASS and green CI, re-enter one authoritative merge.
+No active merge runner remains while this recorded check waits. Hub report
+receipt f5cc91eb-a75e-4eb9-ac21-adce3f512fca records this recovery.
+
 ## Revisions
 
 ### 2026-10-24 — separate dependent fake adoption, TL-approved
