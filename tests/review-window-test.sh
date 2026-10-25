@@ -12,8 +12,8 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 export PAIR_TEST_ZELLIJ_REPLIES="$ROOT/tests/lib/zellij_fixture_replies.py"
 . "$ROOT/tests/lib/run-headless.sh"
-RT="$(mktemp -d "${TMPDIR:-/tmp}/pair-window-test.XXXXXX")"
-trap 'rm -rf "$RT"' EXIT
+RT="$(mktemp -d "${TMPDIR:-/tmp}/pair-window-test.XXXXXX")" || exit 1
+trap 'rm -rf "${RT:?}"' EXIT
 export ZELLIJ_PANE_ID=9 ZELLIJ_SESSION_NAME=fixture-review
 export PAIR_DRAFT_PATH="$RT/draft.md"
 export PAIR_LAYOUT_MODE_PATH="$RT/layout-mode-test"
@@ -31,6 +31,11 @@ fail() { printf '  FAIL %s\n' "$1"; fails=$((fails + 1)); }
 
 # stubs: zellij records argv; tput echoes a size
 mkdir -p "$RT/bin"
+# Guarded native queries use bare Pair from PATH; keep them on this checkout's
+# shared candidate rather than an installed binary from another checkout.
+bash "$ROOT/tests/lib/pair-test-binary.sh" "$RT/bin/pair"
+export PATH="$RT/bin:$PATH"
+export ZELLIJ_SOCKET_DIR="$RT/native"
 python3 "$PAIR_TEST_ZELLIJ_REPLIES" --case review-window.panes > "$RT/panes.json"
 cat > "$RT/bin/zellij" <<EOF
 #!/usr/bin/env bash
@@ -52,13 +57,13 @@ LUA
 grep -q 'cmd ok' "$RT/r1" && pass ":PairReview exists with complete=file" || fail ":PairReview command/completion"
 
 # ── 2. pair review open ───────────────────────────────────────────────────────
-if PATH="$RT/bin:$PATH" PAIR_DATA_DIR="$RT" PAIR_TAG=test PAIR_HOME="$ROOT" "$ROOT/bin/pair" review open "$RT/nope.md" 2>/dev/null; then
+if PATH="$RT/bin:$PATH" PAIR_DATA_DIR="$RT" PAIR_TAG=test PAIR_HOME="$ROOT" "$RT/bin/pair" review open "$RT/nope.md" 2>/dev/null; then
   fail "pair review open should error on a missing file"
 else
   pass "pair review open errors on a missing file"
 fi
 echo hi > "$RT/doc.md"; : > "$RT/zlog"
-PATH="$RT/bin:$PATH" PAIR_DATA_DIR="$RT" PAIR_TAG=test PAIR_HOME="$ROOT" "$ROOT/bin/pair" review open "$RT/doc.md" || true
+PATH="$RT/bin:$PATH" PAIR_DATA_DIR="$RT" PAIR_TAG=test PAIR_HOME="$ROOT" "$RT/bin/pair" review open "$RT/doc.md" || true
 z="$(cat "$RT/zlog")"
 case "$z" in *"run --floating"*) pass "spawns a floating pane";; *) fail "no floating run ($z)";; esac
 case "$z" in *"nvim -u $ROOT/nvim/review.lua"*) pass "launches nvim -u nvim/review.lua";; *) fail "no review.lua launch ($z)";; esac

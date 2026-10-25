@@ -52,6 +52,10 @@ func TestFixtureReplyGeneratorUnitContracts(t *testing.T) {
 // seeds through the same serializer used by the fake, including explicit faults.
 // It is deliberately independent of any positive test's branch being exercised.
 func TestEveryZellijFixtureReplyUsesProductionDecoder(t *testing.T) {
+	// Decoder fakes must not inherit the operator's native candidate set.
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("ZELLIJ_SOCKET_DIR", filepath.Join(home, "native"))
 	root := fixtureRoot(t)
 	raw, err := exec.Command("python3", "-B", filepath.Join(root, "tests/lib/zellij_fixture_replies.py"), "--catalog").CombinedOutput()
 	if err != nil {
@@ -120,6 +124,7 @@ func TestEveryZellijFixtureReplyUsesProductionDecoder(t *testing.T) {
 func checkFixtureProducerInventory(t *testing.T, root string, sources map[string]bool) {
 	t.Helper()
 	excluded := map[string]string{
+		"cmd/pair-go/zellij_command_test.go":                        "helper admission/lifetime fixture emits invocation and PID sentinels, not decodable native replies",
 		"cmd/internal/zellijtest/reply_contract_test.go":            "contract runner itself writes the shared envelope",
 		"cmd/internal/couchcore/startup_detach_timing_live_test.go": "optional native passthrough captures real installed replies verbatim",
 		"cmd/internal/couchcore/recovery_conformance_live_test.go":  "optional native fixture queries installed server; shell is an agent publisher",

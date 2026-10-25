@@ -11,25 +11,13 @@ import (
 	"testing"
 )
 
-// The agent pane's `args "-c"` line in the zellij layouts is the PRODUCER of
-// pane-<tag>-<agent>.json; titlepoller consumes its pane identity.
-// Every other test in the tree hand-writes that JSON, so nothing executed the
-// producer and nothing would notice it breaking (#133).
-//
-// The failure mode this guards is specific and silent: shell printf RECYCLES its
-// format string while arguments remain. Drop a `%s` and leave its argument and
-// printf emits the format twice — two concatenated JSON objects in one file, which
-// fails json.Unmarshal, so the poller skips the pane. No
-// test goes red, because none of them run this line.
-//
-// ARCH-MOCK: `zellij` and `pair` are faked on PATH — the same seam the real launch
-// resolves them through — so `exec pair wrap` is a no-op while the JSON-writing
-// prefix runs for real. `zellij` is a RECORDING fake, not a no-op: it captures
-// argv so the `rename-pane` half of the line is asserted too, since that hop
-// carries the startup pane title and is never observed live.
+// Execute the real layout bootstrap with a protocol fake of Pair's internal
+// publisher and guarded-command adapter. The publisher's codec has its own
+// panebirth tests; this checks that both layouts publish before guarded rename,
+// preserve native argv and pass the legacy pane fields to existing consumers.
 
 // agentPaneShellFromKDL extracts the agent pane's shell command from a layout.
-// The agent pane is identified by the pane_id JSON it writes, which distinguishes
+// The agent pane is identified by its pair wrap command, which distinguishes
 // it from the draft and terminal panes' own `args "-c"` lines.
 func agentPaneShellFromKDL(t *testing.T, layout string) string {
 	t.Helper()
@@ -40,13 +28,13 @@ func agentPaneShellFromKDL(t *testing.T, layout string) string {
 	const prefix = `args "-c" "`
 	for _, line := range strings.Split(string(data), "\n") {
 		trimmed := strings.TrimSpace(line)
-		if !strings.HasPrefix(trimmed, prefix) || !strings.Contains(trimmed, `pane_id`) {
+		if !strings.HasPrefix(trimmed, prefix) || !strings.Contains(trimmed, `pair wrap`) {
 			continue
 		}
 		body := strings.TrimSuffix(strings.TrimPrefix(trimmed, prefix), `"`)
 		return unescapeKDL(body)
 	}
-	t.Fatalf("%s: no agent pane `args \"-c\"` line containing pane_id", layout)
+	t.Fatalf("%s: no agent pane `args \"-c\"` line containing pair wrap", layout)
 	return ""
 }
 
@@ -105,7 +93,24 @@ func TestAgentPaneJSONRoundTripsThroughKDL(t *testing.T) {
 			argvLog := filepath.Join(dataDir, "zellij-argv")
 			panePath := filepath.Join(dataDir, "pane-t-claude.json")
 			recordingStub(t, binDir, "zellij", argvLog)
-			stubBin(t, binDir, "pair")
+			pairScript := `#!/bin/sh
+case "$1 $2" in
+  'internal pane-ready')
+    printf '{"pane_id":"%s","cwd":"%s"}\n' "$ZELLIJ_PANE_ID" "$PWD" > "$PAIR_AGENT_PANE_PATH" ;;
+  'internal zellij-command')
+    test -s "$PAIR_AGENT_PANE_PATH" || exit 91
+    shift 3
+    exec zellij "$@" ;;
+  'wrap --scrollback-log') exit 0 ;;
+  *) exit 92 ;;
+esac
+`
+			if err := os.WriteFile(filepath.Join(binDir, "pair"), []byte(pairScript), 0o755); err != nil {
+				t.Fatal(err)
+			}
+			if !strings.HasPrefix(shell, "pair internal pane-ready;") || !strings.Contains(shell, "pair internal zellij-command -- action rename-pane") {
+				t.Fatalf("pane readiness must publish before guarded rename: %s", shell)
+			}
 
 			cmd := exec.Command("sh", "-c", shell)
 			cmd.Dir = paneCwdDir
@@ -120,7 +125,7 @@ func TestAgentPaneJSONRoundTripsThroughKDL(t *testing.T) {
 				// The startup title createflow exports; the KDL reads it as
 				// ${PAIR_PANE_TITLE:-agent} and hands it to rename-pane.
 				"PAIR_PANE_TITLE=claude",
-				// PWD is what the printf records as "cwd"; a non-interactive sh
+				// PWD is what the pane publisher records as "cwd"; a non-interactive sh
 				// inherits it rather than recomputing it, so set it explicitly.
 				"PWD=" + paneCwdDir,
 				"HOME=" + t.TempDir(),
@@ -134,8 +139,7 @@ func TestAgentPaneJSONRoundTripsThroughKDL(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			// (b) Exactly ONE JSON object with a non-empty pane_id. A second
-			// decodable value means printf recycled its format.
+			// Exactly one sidecar object with the legacy pane fields.
 			dec := json.NewDecoder(strings.NewReader(string(raw)))
 			var first struct {
 				PaneID string `json:"pane_id"`

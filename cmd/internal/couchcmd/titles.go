@@ -20,6 +20,7 @@ import (
 	"github.com/xianxu/pair/cmd/internal/storagegc"
 	"github.com/xianxu/pair/cmd/internal/threadactivity"
 	"github.com/xianxu/pair/cmd/internal/titlepoller"
+	"github.com/xianxu/pair/cmd/internal/zellijquery"
 )
 
 type couchTitleFacts struct {
@@ -288,8 +289,13 @@ func (o *osCouchTitles) WriteWorkspaceOwner(ctx context.Context, t couchcore.Tit
 	return coordinator.PublishMetadata(ctx, owner, filepath.Base(path), []byte(raw))
 }
 func (*osCouchTitles) RenamePane(ctx context.Context, t couchcore.TitleTarget, pane, title string) error {
-	_, err := runStaleCommand(exec.CommandContext(ctx, "zellij", "--session", t.Session, "action", "rename-pane", "--pane-id", pane, title))
-	return err
+	env := zellijquery.ChildEnvironment(nil)
+	return zellijquery.WithReadyProbe(ctx, env, func(ctx context.Context) error {
+		cmd := exec.CommandContext(ctx, "zellij", "--session", t.Session, "action", "rename-pane", "--pane-id", pane, title)
+		cmd.Env = env
+		_, err := runStaleCommand(cmd)
+		return err
+	})
 }
 func (*osCouchTitles) RenameWorkspace(ctx context.Context, title string) error {
 	_, err := runStaleCommand(exec.CommandContext(ctx, "cmux", "rename-workspace", title))

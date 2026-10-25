@@ -9,8 +9,14 @@ representative evidence, not an exhaustive index.
 
 - #879: Pin public CLI output shapes in portable controls before native qualification. Compact list uses labels/paths; show carries full addresses. Public resume already polls and emits a raw final receipt, and an already-live success may omit Tag; require unchanged independent actor/process/socket identity around that result. Use opaque tags for exact menu selection, since repo:N filters apply to numbered slot rows.
 - #879 BR-1–3: Keep historical reproduction prerequisites separate from reusable compatibility oracles; cover genuine old/new writer states and candidate publication without mutating their evidence. After implementation moves a concept, update its authoritative plan table as well as the revision log, and add README discovery for each new operator invocation.
+- #866 CI: a private namespace under os.TempDir can exceed the native Unix socket name budget on macOS runners. TestMain owners must reuse the shared short-root allocator, and a child-process regression must verify long-TMPDIR startup and owner cleanup; local RAM-disk paths conceal this failure.
+
+- #866 BR-1/BR-2: Command names do not define read semantics: enumerate the supported native read class, including visibility, dumps and tab queries, and test the actual adapter against an unmarked endpoint. Unix-socket fixtures must use the shared short-root allocator even when an inherited temporary directory appears short locally; retain a long-TMPDIR control.
+
+- #866: Freeze the effective child environment before observing metadata and invoking a callback. Re-reading it when acquiring cleanup exclusion can lock a different namespace while removing the original namespace's evidence. Test environment changes during the callback and exact successor preservation.
 
 - #872: Every new production Go file needs an explicit artifactpath inventory classification, including pure evidence structs and private test-harness diagnostics. Run TestProductionArtifactReferencesAreExactlyClassified with the focused qualification before queuing a full check; reader-hash inventory alone does not cover that separate source census.
+- #862 BR-1: A corrected cross-repository contract must reach the receiving ticket before its handoff is complete. Local Revisions and a future instruction to consult the landed source do not supersede a stale prescription in the receiving Spec; publish the correction and verify its main copy.
 - #869 BR-1: Publishing a complete payload is insufficient when cancellation can race its external helper. Reap that helper first, then publish a payload-free readiness marker with a leader builtin. Qualify held-write and held-after-publication intervals; enumerate every readiness consumer.
 - #869: A readiness filename must publish the completed value. Shell redirection creates a file before printf writes its PID; write an adjacent private temporary file and rename only after success. Hold the writer in a conformance control so early visibility fails deterministically.
 
@@ -2911,6 +2917,27 @@ and external temporary roots rather than relying on the host's TMPDIR.
 
 - #850 BR5: independent viewport clamping is insufficient after composition. State the invariant for all eligible entities together: each must remain individually selectable with identical bounds, overlapping bounds and dense edge cases. A single bounded scrolling selector removes an impossible geometric packing problem; do not add a third positional heuristic.
 
+- #866 BR-5: At implementation reconciliation, audit every governing core-concept file and status against Git name-status, including newly split resolver files and unchanged policy seams; append an explicit replacement row for each mismatch.
+
+- #866 post-close Lua regression: Classify argv before evaluating adapter-specific providers. Cover non-native identity/RPC through the same run method with a provider that fails if consulted; native integration fixtures must execute the migrated helper seam.
+
+- #866 helper migration fixtures: Native CLI integration owns both the exact candidate Pair executable and a private native socket namespace. PATH must not resolve an older installed helper, and injected tracing executors must retain the guarded helper rather than invoke raw native commands.
+
+- #866 second pre-close: Put the exact candidate binary on PATH at Lua/native recipe entry, preserve it across fixture bootstrap, and prove an incompatible installed Pair cannot win. Run both complete review and Lua targets before requeuing after a helper migration failure; update caller assets and helper binary together.
+
+- #866 BR-6: Exact executable ownership is stronger than directory ownership. Normalize an arbitrary supplied test candidate to a private pair alias via the shared builder; test a differently named candidate beside a wrong sibling pair.
+
+- #866 dry-run follow-up: GNU Make executes recipe lines containing a direct MAKE reference even under -n. Keep graph inspection from entering wrapper setup, and audit the scripts behind explicit recipe wrappers rather than dropping ownership checks.
+- #866 all-target sweep: Qualify a supplier with its own module metadata and bounded source dependency closure from one checkout/ref; optional new dependencies must not disqualify valid older suppliers.
+- #866 copy completion: Attribute fixture completion to exact operation argv. A shared executable can also run background helpers; their successful exit must never satisfy another operation's completion channel.
+
+- #866 composed startup coverage: a terminal fake must execute the production first-pane publisher before agent readiness; AgentReady alone cannot model creator admission. Run every default Go package locally with suite flags after helper/lease migrations, and retain a named phase/session error for missing first-pane evidence at the existing startup bound.
+
+- #866 passive namespace hermeticity: replacing the native executable is insufficient when admission reads sockets before invoking it. Shared fake-query owners must bind a private socket namespace and prove isolation against an owned poisoned inherited namespace without touching a real server.
+
+- #866 BR-7: A newly approved production diagnostic after close expands behavior even when its bound and mechanism stay unchanged. Use the full close review; narrow fix-review applies only to the prior findings and their fixes.
+
+- #866 warm-upgrade regression: same-build restart does not qualify backward compatibility. Preserve legacy endpoint behavior across main-to-candidate adoption, listing and resume with natural missing receipts and unchanged process/socket identities. A receipt written only by a new creator cannot become permission for all existing sessions; use the live creator's owned lease for exclusion.
 - #863: Target-dependent launch semantics need catalog-backed primary and numbered-slot tests. A legacy fake with no SlotCatalog bypassed validation and accepted Fresh on a primary, hiding the real refusal; fixture convenience must not bypass the production routing boundary. Hold review inputs unchanged while an SDLC judge is running, or its correct result becomes stale.
 - #856 BR-1–3: when consolidating discovery into one surface, derive membership from accepted entities, independent of viewport placement; unavailable geometry is a row state. Project both corners of boxes and clips into client space, including nonuniform scale and container offset. Minimized controls retain status and remeasure on label growth; adopted editors must expand their presentation owner before focus. Pin these through production handlers as well as pure helpers.
 
@@ -2941,3 +2968,7 @@ and external temporary roots rather than relying on the host's TMPDIR.
 - #844 recorded check: after adding production Go files, run the existing focused artifactpath source-classification test before queuing the long suite; reader inventory and repolint cover different contracts. Classify each file by actual artifact usage, and add exact vocabulary use-site support with rejection tests when legitimate typed constants are inexpressible. Never rename vocabulary to evade the guard or grow its known-debt list.
 
 - #844 BR-4: an approved post-close verification fix that adds an executable checker contract can require full close even when it changes no product policy. Follow the scope guard with the existing ledger; do not treat plan approval as authority to narrow that review.
+
+- #881: A Unix availability probe can fit while a later private directory plus socket leaf exceeds the application budget. Use the shared short-root allocator for the fixture owner, assert the complete worst-case derived path under a long inherited TMPDIR, and check Unix/config/permissions/cleanup without converting fixture overflow to a skip. The catalog guards the allocator owner.
+
+- #881 BR-1: A fixture-only fix can introduce an architectural surface through its catalog rule. Every new Pair-local ownership rule needs its atlas mapping in the same change, naming the protected owner, matcher limits and executable regression; do not waive atlas solely because production code is unchanged.

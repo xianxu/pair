@@ -64,7 +64,8 @@ func TestReadContextRecoversProductionReadShapes(t *testing.T) {
 func TestReadContextCancellationJoinsBeforeNextAttempt(t *testing.T) {
 	ctx, cancel := context.WithCancel(t.Context())
 	calls := 0
-	source := Source{Run: func(*exec.Cmd) error { calls++; cancel(); return nil }}
+	env, _ := privateReadinessEnv(t)
+	source := Source{Env: env, Run: func(*exec.Cmd) error { calls++; cancel(); return nil }}
 	_, err := source.ReadContext(ctx, "action", "list-clients")
 	if !errors.Is(err, context.Canceled) || calls != 1 {
 		t.Fatalf("calls=%d err=%v", calls, err)
@@ -173,6 +174,25 @@ func TestReadContextSocketProbeUsesTheChildEnvironment(t *testing.T) {
 		})
 		t.Setenv("ZELLIJ_SOCKET_DIR", ambient)
 		source.Env = append(source.Env, "ZELLIJ_SOCKET_DIR="+child)
+		if childPresent {
+			namespace, e := ReadinessNamespace(source.Env)
+			if e != nil {
+				t.Fatal(e)
+			}
+			identity := ReadyIdentity{Namespace: namespace, Scope: "0123456789abcdef", Tag: "1-test-1", Agent: "claude", Session: "pair-a", Nonce: "start-fixture"}
+			creator, e := AcquireCreator(t.Context(), source.Env, identity)
+			if e != nil {
+				t.Fatal(e)
+			}
+			if e := creator.Prepare(t.Context()); e != nil {
+				creator.Close()
+				t.Fatal(e)
+			}
+			if e := creator.PublishReady(t.Context(), identity); e != nil {
+				creator.Close()
+				t.Fatal(e)
+			}
+		}
 		_, err = source.ReadContext(t.Context(), "--session", "pair-a", "action", "list-clients")
 		want := 1
 		if childPresent {

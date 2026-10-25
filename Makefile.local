@@ -320,7 +320,17 @@ test-runtimebundle: runtimebundle-generate
 # The review helpers are now built Go binaries (#93 M3), not committed shell
 # scripts — declare them as prereqs so a fresh-tree `make test` builds them
 # before the review suite execs `$ROOT/bin/pair-review-*`.
+# The shared builder supplies a temporary pair alias to the exact executable,
+# even when the supplied candidate has another filename. Bootstrap keeps PATH.
+.PHONY: test-review-recipes test-lua-recipes
+# Keep dry-run/database inspection side-effect free: a direct MAKE reference
+# forces execution under -n. The wrapper still receives the selected Make.
+TEST_RECIPE_MAKE = $(MAKE)
+test-review test-lua: export PAIR_TEST_BINARY := $(if $(PAIR_TEST_BINARY),$(PAIR_TEST_BINARY),$(abspath $(BIN_DIR)/pair))
 test-review: $(BIN_DIR)/pair
+	bash tests/lib/with-pair-test-binary.sh $(TEST_RECIPE_MAKE) test-review-recipes
+
+test-review-recipes:
 	bash tests/review-docflow-test.sh
 	bash tests/review-apply-test.sh
 	bash tests/review-applied-round-test.sh
@@ -360,7 +370,10 @@ test-run-headless:
 # Headless Lua tests for nvim/*.lua decision modules (issue #000027). nvim -l
 # runs a Lua script in nvim's interpreter with the full vim.api available, so
 # pure logic AND buffer-manipulation can be asserted without a UI.
-test-lua:
+test-lua: $(BIN_DIR)/pair
+	bash tests/lib/with-pair-test-binary.sh $(TEST_RECIPE_MAKE) test-lua-recipes
+
+test-lua-recipes:
 	nvim -l tests/zellij-observation_test.lua
 	nvim -l tests/review-restore-admission-test.lua
 	bash tests/nvim-route-poke-admission-test.sh

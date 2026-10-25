@@ -1,0 +1,310 @@
+=== RUN   TestDisposableZellijStartupReadiness
+    binaries.go:62: a14881593ed58eeabcf58e12863c15208d39bc66
+        
+    binaries.go:62: git version 2.54.0 (Apple Git-157)
+        
+    binaries.go:62: sdlc version path=/Users/xianxu/workspace/ariadne/bin/sdlc revision=05c95066452eca90fee3146f2e81b4b44106e83f modified=false
+        
+    binaries.go:62: weave version dev
+        
+    binaries.go:62: zellij 0.45.1
+        
+    binaries.go:62: NVIM v0.11.7
+        Build type: Release
+        LuaJIT 2.1.1741730670
+        Run "nvim -V1 -v" for more info
+        
+=== RUN   TestDisposableZellijStartupReadiness/claude
+    owner.go:218: native fleet isolation: root=/Volumes/TestScratch/pc-110300701 run=0441563802f651cc08ab0016ac658740 agent=claude workers=1
+    zellij_startup_readiness_fleet_test.go:47: primary startup: steward startup: context deadline exceeded; screen=threads                                                                                                                 
+        Ctrl+Y copy last notice / selected error · Ctrl+G hub automation on/off                                                 
+          hub · Ctrl+Space: start /Volumes/TestScratch/pc-110300701/fleet/fixture                                               
+          (no match)                                                                                                            
+                                                                                                                                
+                                                                                                                                
+                                                                                                                                
+                                                                                                                                
+                                                                                                                                
+                                                                                                                                
+                                                                                                                                
+                                                                                                                                
+                                                                                                                                
+                                                                                                                                
+                                                                                                                                
+                                                                                                                                
+                                                                                                                                
+                                                                                                                                
+                                                                                                                                
+                                                                                                                                
+                                                                                                                                
+                                                                                                                                
+                                                                                                                                
+                                                                                                                                
+                                                                                                                                
+                                                                                                                                
+                                                                                                                                
+                                                                                                                                
+                                                                                                                                
+                                                                                                                                
+                                                                                                                                
+        startup: full-shutdown; missing hubs: /…                                                                                
+        ; output=]10;?\]11;?\]4;0;?\]4;1;?\]4;2;?\]4;3;?\]4;4;?\]4;5;?\]4;6;?\]4;7;?\]4;8;?\]4;9;?\]4;10;?\]4;11;?\]4;12;?\]4;13;?\]4;14;?\]4;15;?\[?9l[?1000l[?1002l[?1003l[?1006l[?1004h[?2004h[>3u[?1003h[?1006h[?2026h[?25l[?6l[r[?7l[0m]8;;\[2J[1;1H[0m[38;5;245mthreads[0m[m                                                                                                                 [2;1HCtrl+Y copy last notice / selected error · Ctrl+G hub automation on/off                                                 [3;1H  hub · Ctrl+Space: start /Volumes/TestScratch/pc-110300701/fleet/fixture                                               [4;1H  (no match)                                                                                                            [5;1H                                                                                                                        [6;1H                                                                                                                        [7;1H                                                                                                                        [8;1H                                                                                                                        [9;1H                                                                                                                        [10;1H                                                                                                                        [11;1H                                                                                                                        [12;1H                                                                                                                        [13;1H                                                                                                                        [14;1H                                                                                                                        [15;1H                                                                                                                        [16;1H                                                                                                                        [17;1H                                                                                                                        [18;1H                                                                                                                        [19;1H                                                                                                                        [20;1H                                                                                                                        [21;1H                                                                                                                        [22;1H                                                                                                                        [23;1H                                                                                                                        [24;1H                                                                                                                        [25;1H                                                                                                                        [26;1H                                                                                                                        [27;1H                                                                                                                        [28;1H                                                                                                                        [29;1H                                                                                                                        [30;1H                                                                                                                        [31;1H                                                                                                                        [32;1Hstartup: full-shutdown; missing hubs: /…                                                                                ]8;;\[0m[?7h[1;1H[0 q[?2026l[?2026h[?25l[?6l[r[?7l[0m]8;;\[2;1Hth[2;4Head[2;8Hinventory[2;18Hunavailabl[2;29H      [2;36H     [2;42H [2;44H      [2;51H   [2;55H          [2;66H      [3;1HCtrl+Y copy last notice /[3;27Hselect[3;34Hd error · Ctrl+G hub automation on/off  [4;3Hhub[4;7H· Ctrl+Space:[4;21Hstart[4;27H/Volumes/TestScratch/pc-110300701/fleet/fixture[5;3H(no[5;7Hmatch)]8;;\[0m[?7h[1;1H[0 q[?2026l[?2026h[?25l[?6l[r[?7l[0m]8;;\[2;1HCt[2;4Hl+Y[2;8Hcopy last[2;18Hnotice / s[2;29Hlected[2;36Herror[2;42H·[2;44HCtrl+G[2;51Hhub[2;55Hautomation[2;66Hon/off[3;1H  hub · Ctrl+Space: start[3;27H/Volum[3;34Hs/TestScratch/pc-110300701/fleet/fixture[4;3H(no[4;7Hmatch)       [4;21H     [4;27H                                               [5;3H   [5;7H      ]8;;\[0m[?7h[1;1H[0 q[?2026l
+    zellij_startup_readiness_fleet_test.go:132: concurrent startup probes run=0441563802f651cc08ab0016ac658740 observations=241 sha256=8e47fe1c4583faf4f8a3cbbbb07c65e4c7bbbf3b0ad3ae40feec7dd78b46ee96
+        sample=0 started=2026-10-24T11:19:01.633505Z duration=55.611209ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=1 started=2026-10-24T11:19:02.633837Z duration=47.212917ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=2 started=2026-10-24T11:19:03.633681Z duration=66.290375ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=3 started=2026-10-24T11:19:04.63386Z duration=17.395208ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=4 started=2026-10-24T11:19:05.635138Z duration=26.216541ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=5 started=2026-10-24T11:19:06.6343Z duration=26.161667ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=6 started=2026-10-24T11:19:07.633964Z duration=23.751959ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=7 started=2026-10-24T11:19:08.6345Z duration=21.848292ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=8 started=2026-10-24T11:19:09.633778Z duration=17.151375ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=9 started=2026-10-24T11:19:10.633937Z duration=18.863292ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=10 started=2026-10-24T11:19:11.634435Z duration=17.303541ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=11 started=2026-10-24T11:19:12.634266Z duration=15.220709ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=12 started=2026-10-24T11:19:13.634022Z duration=21.435292ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=13 started=2026-10-24T11:19:14.634073Z duration=16.97175ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=14 started=2026-10-24T11:19:15.633931Z duration=15.816458ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=15 started=2026-10-24T11:19:16.634458Z duration=19.629458ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=16 started=2026-10-24T11:19:17.634722Z duration=19.249584ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=17 started=2026-10-24T11:19:18.634256Z duration=16.778459ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=18 started=2026-10-24T11:19:19.634201Z duration=22.419291ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=19 started=2026-10-24T11:19:20.634452Z duration=20.821417ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=20 started=2026-10-24T11:19:21.633689Z duration=22.087625ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=21 started=2026-10-24T11:19:22.634276Z duration=16.14825ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=22 started=2026-10-24T11:19:23.63383Z duration=16.414125ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=23 started=2026-10-24T11:19:24.633805Z duration=18.042333ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=24 started=2026-10-24T11:19:25.634652Z duration=19.797959ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=25 started=2026-10-24T11:19:26.634532Z duration=20.654625ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=26 started=2026-10-24T11:19:27.634613Z duration=34.062333ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=27 started=2026-10-24T11:19:28.633869Z duration=19.407792ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=28 started=2026-10-24T11:19:29.635522Z duration=37.513167ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=29 started=2026-10-24T11:19:30.633735Z duration=18.864041ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=30 started=2026-10-24T11:19:31.634539Z duration=21.751958ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=31 started=2026-10-24T11:19:32.634327Z duration=40.652708ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=32 started=2026-10-24T11:19:33.634222Z duration=21.716791ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=33 started=2026-10-24T11:19:34.636094Z duration=22.459417ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=34 started=2026-10-24T11:19:35.634108Z duration=17.822667ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=35 started=2026-10-24T11:19:36.633773Z duration=17.644917ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=36 started=2026-10-24T11:19:37.634573Z duration=38.727959ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=37 started=2026-10-24T11:19:38.63408Z duration=20.341167ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=38 started=2026-10-24T11:19:39.636052Z duration=15.234375ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=39 started=2026-10-24T11:19:40.634429Z duration=15.804125ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=40 started=2026-10-24T11:19:41.634426Z duration=18.782084ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=41 started=2026-10-24T11:19:42.633811Z duration=24.234875ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=42 started=2026-10-24T11:19:43.634529Z duration=26.300333ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=43 started=2026-10-24T11:19:44.634168Z duration=19.865667ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=44 started=2026-10-24T11:19:45.634512Z duration=21.494209ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=45 started=2026-10-24T11:19:46.634602Z duration=17.56225ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=46 started=2026-10-24T11:19:47.634254Z duration=16.741708ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=47 started=2026-10-24T11:19:48.634359Z duration=15.957375ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=48 started=2026-10-24T11:19:49.635468Z duration=16.889584ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=49 started=2026-10-24T11:19:50.633941Z duration=16.5185ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=50 started=2026-10-24T11:19:51.634313Z duration=20.574625ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=51 started=2026-10-24T11:19:52.634077Z duration=17.799ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=52 started=2026-10-24T11:19:53.633897Z duration=16.785125ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=53 started=2026-10-24T11:19:54.634394Z duration=18.003833ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=54 started=2026-10-24T11:19:55.633936Z duration=23.508458ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=55 started=2026-10-24T11:19:56.634674Z duration=17.910625ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=56 started=2026-10-24T11:19:57.634274Z duration=18.692583ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=57 started=2026-10-24T11:19:58.633912Z duration=17.090916ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=58 started=2026-10-24T11:19:59.633963Z duration=14.654833ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=59 started=2026-10-24T11:20:00.634277Z duration=15.961458ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=60 started=2026-10-24T11:20:01.634719Z duration=18.962791ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=61 started=2026-10-24T11:20:02.635154Z duration=21.496334ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=62 started=2026-10-24T11:20:03.634712Z duration=22.232ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=63 started=2026-10-24T11:20:04.634596Z duration=38.830458ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=64 started=2026-10-24T11:20:05.634639Z duration=29.2015ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=65 started=2026-10-24T11:20:06.634804Z duration=23.487916ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=66 started=2026-10-24T11:20:07.634807Z duration=16.395833ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=67 started=2026-10-24T11:20:08.634675Z duration=19.213916ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=68 started=2026-10-24T11:20:09.634393Z duration=17.256125ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=69 started=2026-10-24T11:20:10.634019Z duration=17.776667ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=70 started=2026-10-24T11:20:11.634744Z duration=17.851667ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=71 started=2026-10-24T11:20:12.634225Z duration=18.2175ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=72 started=2026-10-24T11:20:13.634044Z duration=21.631375ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=73 started=2026-10-24T11:20:14.634762Z duration=19.613666ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=74 started=2026-10-24T11:20:15.634315Z duration=15.61375ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=75 started=2026-10-24T11:20:16.635969Z duration=16.194917ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=76 started=2026-10-24T11:20:17.634461Z duration=16.855583ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=77 started=2026-10-24T11:20:18.635127Z duration=22.50725ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=78 started=2026-10-24T11:20:19.636067Z duration=21.631209ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=79 started=2026-10-24T11:20:20.634631Z duration=18.0105ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=80 started=2026-10-24T11:20:21.634884Z duration=18.6335ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=81 started=2026-10-24T11:20:22.634928Z duration=20.355791ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=82 started=2026-10-24T11:20:23.634611Z duration=22.415708ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=83 started=2026-10-24T11:20:24.634433Z duration=27.415125ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=84 started=2026-10-24T11:20:25.634272Z duration=16.972792ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=85 started=2026-10-24T11:20:26.634286Z duration=18.699625ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=86 started=2026-10-24T11:20:27.634624Z duration=79.374042ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=87 started=2026-10-24T11:20:28.634584Z duration=35.102917ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=88 started=2026-10-24T11:20:29.634928Z duration=27.330958ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=89 started=2026-10-24T11:20:30.634704Z duration=15.593166ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=90 started=2026-10-24T11:20:31.634814Z duration=18.418666ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=91 started=2026-10-24T11:20:32.63488Z duration=18.248083ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=92 started=2026-10-24T11:20:33.635361Z duration=18.038834ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=93 started=2026-10-24T11:20:34.634947Z duration=21.453958ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=94 started=2026-10-24T11:20:35.634626Z duration=20.429792ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=95 started=2026-10-24T11:20:36.634694Z duration=18.4925ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=96 started=2026-10-24T11:20:37.634954Z duration=18.985792ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=97 started=2026-10-24T11:20:38.634598Z duration=14.65ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=98 started=2026-10-24T11:20:39.634908Z duration=18.022958ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=99 started=2026-10-24T11:20:40.635843Z duration=16.57225ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=100 started=2026-10-24T11:20:41.634282Z duration=21.218708ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=101 started=2026-10-24T11:20:42.636232Z duration=40.6715ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=102 started=2026-10-24T11:20:43.63443Z duration=18.089833ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=103 started=2026-10-24T11:20:44.635086Z duration=26.894667ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=104 started=2026-10-24T11:20:45.634214Z duration=20.360834ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=105 started=2026-10-24T11:20:46.634751Z duration=20.072875ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=106 started=2026-10-24T11:20:47.634854Z duration=25.704834ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=107 started=2026-10-24T11:20:48.634626Z duration=23.562458ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=108 started=2026-10-24T11:20:49.634471Z duration=19.27825ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=109 started=2026-10-24T11:20:50.634551Z duration=19.163625ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=110 started=2026-10-24T11:20:51.634654Z duration=16.693ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=111 started=2026-10-24T11:20:52.634809Z duration=16.289084ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=112 started=2026-10-24T11:20:53.63489Z duration=17.390791ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=113 started=2026-10-24T11:20:54.63429Z duration=38.46975ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=114 started=2026-10-24T11:20:55.634888Z duration=17.855708ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=115 started=2026-10-24T11:20:56.635141Z duration=25.546875ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=116 started=2026-10-24T11:20:57.634667Z duration=18.951833ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=117 started=2026-10-24T11:20:58.635241Z duration=17.594709ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=118 started=2026-10-24T11:20:59.634635Z duration=20.115417ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=119 started=2026-10-24T11:21:00.635116Z duration=19.38275ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=120 started=2026-10-24T11:21:01.634625Z duration=21.104125ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=121 started=2026-10-24T11:21:02.634788Z duration=18.438917ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=122 started=2026-10-24T11:21:03.634841Z duration=15.887333ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=123 started=2026-10-24T11:21:04.634417Z duration=26.583458ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=124 started=2026-10-24T11:21:05.634779Z duration=20.782666ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=125 started=2026-10-24T11:21:06.63465Z duration=17.671667ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=126 started=2026-10-24T11:21:07.635053Z duration=15.909375ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=127 started=2026-10-24T11:21:08.634682Z duration=16.419792ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=128 started=2026-10-24T11:21:09.635096Z duration=14.37675ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=129 started=2026-10-24T11:21:10.635176Z duration=13.603709ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=130 started=2026-10-24T11:21:11.63495Z duration=17.379458ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=131 started=2026-10-24T11:21:12.635507Z duration=15.678416ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=132 started=2026-10-24T11:21:13.635081Z duration=16.289916ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=133 started=2026-10-24T11:21:14.634788Z duration=16.182834ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=134 started=2026-10-24T11:21:15.634766Z duration=24.505708ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=135 started=2026-10-24T11:21:16.635071Z duration=18.114791ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=136 started=2026-10-24T11:21:17.63445Z duration=12.956459ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=137 started=2026-10-24T11:21:18.635311Z duration=13.59625ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=138 started=2026-10-24T11:21:19.634777Z duration=15.349042ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=139 started=2026-10-24T11:21:20.635332Z duration=16.220959ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=140 started=2026-10-24T11:21:21.635361Z duration=15.7685ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=141 started=2026-10-24T11:21:22.634465Z duration=13.205917ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=142 started=2026-10-24T11:21:23.635177Z duration=13.211792ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=143 started=2026-10-24T11:21:24.63497Z duration=14.491667ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=144 started=2026-10-24T11:21:25.635101Z duration=12.852042ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=145 started=2026-10-24T11:21:26.635099Z duration=12.479084ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=146 started=2026-10-24T11:21:27.634965Z duration=12.010334ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=147 started=2026-10-24T11:21:28.635129Z duration=12.701166ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=148 started=2026-10-24T11:21:29.634897Z duration=12.625041ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=149 started=2026-10-24T11:21:30.635085Z duration=11.513292ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=150 started=2026-10-24T11:21:31.634945Z duration=14.382333ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=151 started=2026-10-24T11:21:32.634533Z duration=13.601083ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=152 started=2026-10-24T11:21:33.634674Z duration=14.128875ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=153 started=2026-10-24T11:21:34.634424Z duration=19.330833ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=154 started=2026-10-24T11:21:35.63437Z duration=16.840291ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=155 started=2026-10-24T11:21:36.634835Z duration=15.669875ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=156 started=2026-10-24T11:21:37.634753Z duration=14.853708ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=157 started=2026-10-24T11:21:38.63499Z duration=24.928541ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=158 started=2026-10-24T11:21:39.634503Z duration=12.19275ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=159 started=2026-10-24T11:21:40.634438Z duration=13.818458ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=160 started=2026-10-24T11:21:41.634671Z duration=13.502333ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=161 started=2026-10-24T11:21:42.635105Z duration=17.399209ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=162 started=2026-10-24T11:21:43.634772Z duration=15.267125ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=163 started=2026-10-24T11:21:44.63507Z duration=16.9755ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=164 started=2026-10-24T11:21:45.634466Z duration=21.908084ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=165 started=2026-10-24T11:21:46.634615Z duration=16.274584ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=166 started=2026-10-24T11:21:47.634892Z duration=20.180875ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=167 started=2026-10-24T11:21:48.634878Z duration=16.655084ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=168 started=2026-10-24T11:21:49.634702Z duration=14.783917ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=169 started=2026-10-24T11:21:50.634502Z duration=15.6075ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=170 started=2026-10-24T11:21:51.634802Z duration=17.775209ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=171 started=2026-10-24T11:21:52.634967Z duration=20.2145ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=172 started=2026-10-24T11:21:53.634927Z duration=19.068042ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=173 started=2026-10-24T11:21:54.635049Z duration=24.891458ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=174 started=2026-10-24T11:21:55.634281Z duration=14.185416ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=175 started=2026-10-24T11:21:56.634428Z duration=11.389791ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=176 started=2026-10-24T11:21:57.635602Z duration=20.88325ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=177 started=2026-10-24T11:21:58.634881Z duration=12.2665ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=178 started=2026-10-24T11:21:59.634859Z duration=17.027417ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=179 started=2026-10-24T11:22:00.635032Z duration=17.089084ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=180 started=2026-10-24T11:22:01.635104Z duration=17.564041ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=181 started=2026-10-24T11:22:02.634314Z duration=16.772417ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=182 started=2026-10-24T11:22:03.635097Z duration=15.821917ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=183 started=2026-10-24T11:22:04.634295Z duration=13.574167ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=184 started=2026-10-24T11:22:05.634883Z duration=12.818583ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=185 started=2026-10-24T11:22:06.634371Z duration=13.27275ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=186 started=2026-10-24T11:22:07.634285Z duration=11.897417ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=187 started=2026-10-24T11:22:08.634475Z duration=11.963875ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=188 started=2026-10-24T11:22:09.634747Z duration=11.641042ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=189 started=2026-10-24T11:22:10.634448Z duration=11.212209ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=190 started=2026-10-24T11:22:11.634996Z duration=10.705417ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=191 started=2026-10-24T11:22:12.634754Z duration=11.549542ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=192 started=2026-10-24T11:22:13.634307Z duration=12.337417ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=193 started=2026-10-24T11:22:14.634484Z duration=11.465792ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=194 started=2026-10-24T11:22:15.634846Z duration=11.101666ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=195 started=2026-10-24T11:22:16.634638Z duration=11.968708ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=196 started=2026-10-24T11:22:17.634837Z duration=15.428708ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=197 started=2026-10-24T11:22:18.634593Z duration=14.198333ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=198 started=2026-10-24T11:22:19.634498Z duration=15.968625ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=199 started=2026-10-24T11:22:20.635338Z duration=27.864083ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=200 started=2026-10-24T11:22:21.635949Z duration=18.9015ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=201 started=2026-10-24T11:22:22.634381Z duration=19.771958ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=202 started=2026-10-24T11:22:23.635012Z duration=33.457625ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=203 started=2026-10-24T11:22:24.635184Z duration=55.986042ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=204 started=2026-10-24T11:22:25.635008Z duration=44.129375ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=205 started=2026-10-24T11:22:26.636375Z duration=16.198708ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=206 started=2026-10-24T11:22:27.635139Z duration=16.003792ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=207 started=2026-10-24T11:22:28.635008Z duration=23.510542ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=208 started=2026-10-24T11:22:29.634673Z duration=30.164042ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=209 started=2026-10-24T11:22:30.634632Z duration=31.849708ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=210 started=2026-10-24T11:22:31.63534Z duration=34.786209ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=211 started=2026-10-24T11:22:32.635171Z duration=25.880291ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=212 started=2026-10-24T11:22:33.634815Z duration=18.305375ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=213 started=2026-10-24T11:22:34.634468Z duration=23.935916ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=214 started=2026-10-24T11:22:35.634936Z duration=34.072ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=215 started=2026-10-24T11:22:36.634596Z duration=22.963875ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=216 started=2026-10-24T11:22:37.634511Z duration=20.646625ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=217 started=2026-10-24T11:22:38.635079Z duration=25.479125ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=218 started=2026-10-24T11:22:39.634828Z duration=15.756791ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=219 started=2026-10-24T11:22:40.634614Z duration=17.726666ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=220 started=2026-10-24T11:22:41.634461Z duration=13.442666ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=221 started=2026-10-24T11:22:42.634858Z duration=24.789833ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=222 started=2026-10-24T11:22:43.635026Z duration=18.273417ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=223 started=2026-10-24T11:22:44.635104Z duration=12.669375ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=224 started=2026-10-24T11:22:45.635393Z duration=16.640458ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=225 started=2026-10-24T11:22:46.634735Z duration=14.692625ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=226 started=2026-10-24T11:22:47.636477Z duration=31.8845ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=227 started=2026-10-24T11:22:48.634613Z duration=17.134292ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=228 started=2026-10-24T11:22:49.63549Z duration=19.8705ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=229 started=2026-10-24T11:22:50.635333Z duration=63.579125ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=230 started=2026-10-24T11:22:51.635283Z duration=18.91075ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=231 started=2026-10-24T11:22:52.636372Z duration=20.710083ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=232 started=2026-10-24T11:22:53.635111Z duration=15.243ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=233 started=2026-10-24T11:22:54.636016Z duration=27.828625ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=234 started=2026-10-24T11:22:55.635355Z duration=24.464667ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=235 started=2026-10-24T11:22:56.635106Z duration=17.413083ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=236 started=2026-10-24T11:22:57.6346Z duration=11.722875ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=237 started=2026-10-24T11:22:58.635183Z duration=12.056292ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=238 started=2026-10-24T11:22:59.63527Z duration=12.002958ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=239 started=2026-10-24T11:23:00.634628Z duration=13.339041ms stdout="" stderr="No active zellij sessions found.\n" err=<nil>
+        sample=240 started=2026-10-24T11:23:01.634986Z duration=74.625µs stdout="" stderr="" err=context deadline exceeded
+    fleet.go:432: native server evidence before teardown: zellij_server_log path="/Volumes/TestScratch/pc-110300701/tmp/zellij-501/zellij-log/zellij.log" size=0 offset=0 bytes=0 truncated=false read_error=<nil> tail=""
+    fleet.go:444: native startup evidence before teardown: pane queries share diagnostic_deadline=2026-10-24T04:23:05.39112476-07:00
+        wrapper_log truncated=false read_error=openat control/wrapper-startup.log: no such file or directory
+        wrapper diagnostics unavailable
+        wrapper startup records unavailable
+        failure identities unavailable: openat store/launch-diagnostics/failures.json: no such file or directory
+        startup_sources=0 truncated=false
+    fleet.go:492: native failure evidence before root removal: ; read_error=<nil>
+    fleet.go:495: native wrapper evidence after join: wrapper_log truncated=false read_error=openat control/wrapper-startup.log: no such file or directory
+        wrapper startup records unavailable
+        zellij_server_log path="/Volumes/TestScratch/pc-110300701/tmp/zellij-501/zellij-log/zellij.log" size=0 offset=0 bytes=0 truncated=false read_error=<nil> tail=""
+    fleet.go:505: native fleet cleaned: root=/Volumes/TestScratch/pc-110300701 all owned generations absent; direct child and IO joined
+--- FAIL: TestDisposableZellijStartupReadiness (278.52s)
+    --- FAIL: TestDisposableZellijStartupReadiness/claude (245.83s)
+FAIL
+FAIL	github.com/xianxu/pair/cmd/couch	278.649s
+FAIL

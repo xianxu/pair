@@ -992,15 +992,52 @@ func (r OSRuntime) TouchQuitMarker(session string) {
 // pane dies, the outer bin/pair regains the tty). A missing binary falls through
 // so the caller isn't wedged (shell 1060).
 func (OSRuntime) ExecKillSession(session string) error {
-	argv := []string{"zellij", "kill-session", session}
-	if kc := os.Getenv("PAIR_KILL_CMD"); kc != "" {
-		argv = append(strings.Fields(kc), session)
+	argv, err := killSessionExecArgv(runningPairExe(""), os.Getenv("PAIR_KILL_CMD"), session)
+	if err != nil {
+		return err
+	}
+	if len(argv) > 4 && argv[1] == "internal" && argv[2] == "zellij-command" {
+		native := "zellij"
+		if filepath.IsAbs(argv[4]) {
+			native = argv[4]
+		}
+		if _, err := exec.LookPath(native); err != nil {
+			return err
+		}
 	}
 	path, err := exec.LookPath(argv[0])
 	if err != nil {
 		return err
 	}
 	return syscall.Exec(path, argv, os.Environ())
+}
+
+func killSessionExecArgv(pairExe, override, session string) ([]string, error) {
+	argv := []string{"zellij", "kill-session", session}
+	if override != "" {
+		fields := strings.Fields(override)
+		if len(fields) == 0 {
+			return nil, errors.New("empty kill command override")
+		}
+		argv = append(fields, session)
+	}
+	if filepath.Base(argv[0]) == "zellij" {
+		native := argv
+		if argv[0] == "zellij" {
+			native = argv[1:]
+		} else if !filepath.IsAbs(argv[0]) {
+			absolute, err := filepath.Abs(argv[0])
+			if err != nil {
+				return nil, err
+			}
+			native[0] = absolute
+		}
+		if !zellijquery.IsBoundedNativeCommand(native) {
+			return nil, errors.New("unsupported native kill command override")
+		}
+		return append([]string{pairExe, "internal", "zellij-command", "--"}, native...), nil
+	}
+	return argv, nil
 }
 
 // DeleteSession returns success only after the authorized server generations

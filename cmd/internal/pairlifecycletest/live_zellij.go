@@ -85,7 +85,10 @@ func StartControlledZellijWithOptions(ctx context.Context, session string, optio
 		}
 	}
 	for {
-		output, listErr := (zellijquery.Source{}).Output(ctx, "list-sessions", "--no-formatting")
+		// This controlled conformance input intentionally has no Pair launch marker.
+		// The observed server render above is this fixture's prerequisite; use the
+		// approved explicit fixture observation while retaining namespace exclusion.
+		output, listErr := (zellijquery.Source{ExplicitRecovery: true}).Output(ctx, "list-sessions", "--no-formatting")
 		if listErr == nil && hasLiveSessionRow(string(output), session) {
 			if options.LayoutFile != "" {
 				out, err := exec.CommandContext(ctx, "zellij", "--session", session, "action", "new-tab", "--layout", options.LayoutFile).CombinedOutput()

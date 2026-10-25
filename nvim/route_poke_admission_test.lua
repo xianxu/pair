@@ -1,6 +1,7 @@
 local here = debug.getinfo(1, 'S').source:sub(2):match('(.*/)') or './'
 local route = dofile(here .. 'workbench_route.lua')
 local poke = dofile(here .. 'pair_poke.lua')
+local trace = dofile(here .. 'zellij_trace.lua')
 local state_path = assert(vim.env.PAIR_FAKE_ZELLIJ_STATE)
 local function pane(id, command, tab, floating)
   return {id=id,is_plugin=false,is_floating=floating or false,is_fullscreen=false,is_focused=id==9,
@@ -41,7 +42,7 @@ for _,which in ipairs({'route','poke','return'})do
     reset(ps,faults);notices={}
     local result=invoke(which)
     local s=state();local healthy=mode=='healthy' or mode=='cosmetic'
-    assert(result==healthy,which..' '..mode..' result='..tostring(result))
+    assert(result==healthy,which..' '..mode..' result='..tostring(result)..' notices='..vim.inspect(notices))
     assert(#s.effects==(healthy and (which=='route' and 5 or 2) or 0),which..' '..mode..' effects='..vim.inspect(s.effects))
     assert(count_queries(s)==((mode=='wrong-first' or mode=='ambiguous' or mode=='source-missing' or mode=='other-tab' or mode=='source-plugin' or mode=='duplicate-key') and 1 or 2),which..' '..mode..' query count')
     assert(healthy or #notices>0,which..' '..mode..' silent refusal')
@@ -67,7 +68,7 @@ for _,which in ipairs({'route','poke','return'})do
     reset();local expired=false;local calls=0
     local parent={remaining=function()return expired and 0 or 4000 end,check=function()assert(not expired,'expired parent')end}
     _G.PairTestZellijExecutor=function(_,argv,opts)
-      local result=vim.system(argv,{text=true,timeout=opts.timeout_ms}):wait()
+      local result=vim.system(trace.command(argv),{text=true,timeout=opts.timeout_ms}):wait()
       calls=calls+1;if calls==2+prefix then expired=true end
       return result
     end
@@ -83,7 +84,7 @@ for _,which in ipairs({'route','poke','return'})do
     reset();notices={};local calls=0
     _G.PairTestZellijExecutor=function(_,argv,opts)
       calls=calls+1;if calls==boundary then error('spawn exception')end
-      return vim.system(argv,{text=true,timeout=opts.timeout_ms}):wait()
+      return vim.system(trace.command(argv),{text=true,timeout=opts.timeout_ms}):wait()
     end
     local ok,accepted=pcall(invoke,which)
     _G.PairTestZellijExecutor=nil
@@ -97,7 +98,7 @@ for _,which in ipairs({'route','poke','return'})do
   for _,key in ipairs({'ZELLIJ_PANE_ID','ZELLIJ_SESSION_NAME'})do
     reset();local original=vim.env[key];local calls=0
     _G.PairTestZellijExecutor=function(_,argv,opts)
-      local result=vim.system(argv,{text=true,timeout=opts.timeout_ms}):wait()
+      local result=vim.system(trace.command(argv),{text=true,timeout=opts.timeout_ms}):wait()
       calls=calls+1;if calls==2 then vim.env[key]='changed' end
       return result
     end
@@ -110,7 +111,7 @@ end
 reset()
 _G.PairTestZellijExecutor=function(_,argv,opts)
   if argv[3]=='list-panes' then assert(opts.timeout_ms<=5000,'ordinary return exceeded five-second total cap')end
-  return vim.system(argv,{text=true,timeout=opts.timeout_ms}):wait()
+  return vim.system(trace.command(argv),{text=true,timeout=opts.timeout_ms}):wait()
 end
 assert(route.return_to_draft({remaining=function()return 9000 end,check=function()end}))
 _G.PairTestZellijExecutor=nil
@@ -139,7 +140,7 @@ for prefix=0,4 do
   reset();local calls=0;local expired=prefix==0
   local parent={remaining=function()return expired and 0 or 4000 end,check=function()assert(not expired,'expired cached route')end}
   _G.PairTestZellijExecutor=function(_,argv,opts)
-    local result=vim.system(argv,{text=true}):wait()
+    local result=vim.system(trace.command(argv),{text=true}):wait()
     calls=calls+1;if calls==prefix then expired=true end
     return result
   end

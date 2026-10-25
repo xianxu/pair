@@ -1,11 +1,13 @@
 package wrapcmd
 
 import (
+	"fmt"
 	"github.com/xianxu/pair/cmd/internal/testpair"
 	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
 	"syscall"
@@ -29,6 +31,17 @@ func TestTitleWrapperHelper(t *testing.T) {
 	if os.Getenv("PAIR_617_TITLE_HELPER") != "1" {
 		return
 	}
+	fmt.Fprintln(os.Stderr, "title fixture: helper entered")
+	go func() {
+		timer := time.NewTimer(2 * time.Second)
+		defer timer.Stop()
+		<-timer.C
+		if _, err := os.Stat(os.Getenv("PAIR_617_AGENT_PID")); err != nil {
+			stack := make([]byte, 512*1024)
+			n := runtime.Stack(stack, true)
+			_, _ = os.Stderr.Write(stack[:n])
+		}
+	}()
 	os.Exit(Run([]string{"--scrollback-log", os.Getenv("PAIR_617_SCROLLBACK"), os.Getenv("PAIR_617_AGENT")}, os.Stdin, os.Stdout, os.Stderr))
 }
 
