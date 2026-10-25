@@ -15,6 +15,7 @@ claimant:
     workspace: pair:4
     worktree: /Users/xianxu/workspace/worktree/pair-slot4/pair
     repository: github.com/xianxu/pair
+flow: {kind: quick, provenance: inferred, spec: "d1fced33", done: "31311ba4"}
 ---
 
 # Tests that set GOMODCACHE under TMPDIR leave read-only module caches behind; clean them via one helper
