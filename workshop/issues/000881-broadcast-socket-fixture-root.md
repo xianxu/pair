@@ -16,6 +16,7 @@ claimant:
     workspace: pair:5
     worktree: /Users/xianxu/workspace/worktree/pair-slot5/pair
     repository: github.com/xianxu/pair
+flow: {kind: quick, provenance: inferred, spec: "6fec5b1d", done: "ba819485"}
 ---
 
 # Broadcast socket fixture exceeds managed TMPDIR path budget
