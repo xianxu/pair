@@ -14,6 +14,7 @@ import (
 	"github.com/xianxu/pair/cmd/internal/artifactpath"
 	"github.com/xianxu/pair/cmd/internal/couchcore"
 	"github.com/xianxu/pair/cmd/internal/couchmessage"
+	"github.com/xianxu/pair/cmd/internal/zellijtest"
 )
 
 func TestCallerEvidencePrioritizesFrozenCallerWithinFourSources(t *testing.T) {
@@ -163,8 +164,7 @@ func TestCallerEvidenceListingUsesPrivateSocketBoundary(t *testing.T) {
 	script := `#!/bin/sh
 printf '%s\n' "$@" > "$INVOCATIONS"
 printf 'socket=%s\nsession=%s\nsecret=%s\n' "$ZELLIJ_SOCKET_DIR" "$ZELLIJ_SESSION_NAME" "$AMBIENT_SECRET" >> "$INVOCATIONS"
-printf 'later native listing'
-`
+` + zellijtest.ShellCase(t, "caller-evidence-private-listing") + "\n"
 	if err = os.WriteFile(program, []byte(script), 0700); err != nil {
 		t.Fatal(err)
 	}
@@ -173,7 +173,7 @@ printf 'later native listing'
 	ctx, cancel := context.WithTimeout(t.Context(), time.Second)
 	defer cancel()
 	got, err := f.runStartupQuery(ctx, "", "list-sessions", "--no-formatting")
-	if err != nil || got != "later native listing" {
+	if err != nil || got != zellijtest.Case(t, "caller-evidence-private-listing").Stdout {
 		t.Fatalf("%q %v", got, err)
 	}
 	raw, err := os.ReadFile(invocations)
