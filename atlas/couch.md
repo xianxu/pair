@@ -21,7 +21,10 @@ off. Proof includes namespace global/legacy current and archived records, and ea
 configured local store independently of enrollment, including recovery backups.
 Missing, unsafe or uncertain evidence never grants creation authority. Each
 target is rechecked under the existing coordinator → global → local store lock
-order before its empty-only reservation is published. Startup cannot use general
+order before its empty-only reservation is published. These foreground acquisitions
+use the existing bounded store wait so a concurrent inventory preview cannot
+force an immediate maintenance-style refusal (#873); cancellation and journal
+refusal are rechecked before publication. Startup cannot use general
 Open to cold-resume or Fresh to replace history that appeared after observation.
 A published numbered-hub claim stays owned through discovery and enrollment.
 Any failure before launch handoff rolls back its exact nonce/revision through
