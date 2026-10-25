@@ -7,6 +7,8 @@ representative evidence, not an exhaustive index.
 
 ## Proof and verification
 
+- #865 PQ-1/PQ-2: Trace actual no-op, refused and successful resize transitions before describing publication lifetimes. Measure private capture storage separately from required consumer clones; qualify retained copies, erased/absent cells and geometry changes with controlled emulator tests.
+
 - #879: Pin public CLI output shapes in portable controls before native qualification. Compact list uses labels/paths; show carries full addresses. Public resume already polls and emits a raw final receipt, and an already-live success may omit Tag; require unchanged independent actor/process/socket identity around that result. Use opaque tags for exact menu selection, since repo:N filters apply to numbered slot rows.
 - #879 BR-1–3: Keep historical reproduction prerequisites separate from reusable compatibility oracles; cover genuine old/new writer states and candidate publication without mutating their evidence. After implementation moves a concept, update its authoritative plan table as well as the revision log, and add README discovery for each new operator invocation.
 - #866 CI: a private namespace under os.TempDir can exceed the native Unix socket name budget on macOS runners. TestMain owners must reuse the shared short-root allocator, and a child-process regression must verify long-TMPDIR startup and owner cleanup; local RAM-disk paths conceal this failure.
