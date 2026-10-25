@@ -1,12 +1,12 @@
 ---
 id: 000853
-status: working
+status: codecomplete
 deps: [ariadne#598]
 github_issue:
 created: 2026-10-23
 updated: 2026-10-25
 estimate_hours:
-card_mirror: '8cb6823933fb3dd0ebb92df33bde24f0d37f1709' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: 'af3c48383cf12bb574c76e0e0ac9f1c1f8c4d4b6' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-24T10:26:38-07:00
 claimant:
     operator: Xian Xu
@@ -16,6 +16,7 @@ claimant:
     worktree: /Users/xianxu/workspace/worktree/pair-slot6/pair
     repository: github.com/xianxu/pair
 flow: {kind: quick, provenance: inferred, spec: "92f102e0", done: "ea157c89"}
+actual_hours: 0.34
 ---
 
 # Affected policy: a reader-certificate change selects its own test's package, not the full suite
