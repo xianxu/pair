@@ -7,6 +7,8 @@ representative evidence, not an exhaustive index.
 
 ## Proof and verification
 
+- #879: Pin public CLI output shapes in portable controls before native qualification. Compact list uses labels/paths; show carries full addresses. Public resume already polls and emits a raw final receipt, and an already-live success may omit Tag; require unchanged independent actor/process/socket identity around that result. Use opaque tags for exact menu selection, since repo:N filters apply to numbered slot rows.
+
 - #869 BR-1: Publishing a complete payload is insufficient when cancellation can race its external helper. Reap that helper first, then publish a payload-free readiness marker with a leader builtin. Qualify held-write and held-after-publication intervals; enumerate every readiness consumer.
 - #869: A readiness filename must publish the completed value. Shell redirection creates a file before printf writes its PID; write an adjacent private temporary file and rename only after success. Hold the writer in a conformance control so early visibility fails deterministically.
 

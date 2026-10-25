@@ -45,8 +45,8 @@ plus a persisted-state read (registries, thread store, side-doc records) created
 ## Plan
 
 - [x] Add one guarded build replacement operation to the existing native Fleet and portable publication controls.
-- [ ] Add an opt-in two-build native upgrade acceptance case for Claude and Codex, with exact identities, public listing/resume/attach and persisted document checks.
-- [ ] Qualify a same-build healthy control; capture the old-main to failed-stage RED without modifying readiness receipts; document invocation and cleanup proof.
+- [x] Add an opt-in two-build native upgrade acceptance case for Claude and Codex, with exact identities, public listing/resume/attach and persisted document checks.
+- [x] Qualify a same-build healthy control; capture the old-main to failed-stage RED without modifying readiness receipts; document invocation and cleanup proof.
 - [ ] Pass recorded checks and boundary review, then land the fixture so #866 can run the same case against its correction.
 
 Durable plan: [native upgrade fixture](../plans/000879-native-upgrade-plan.md).
@@ -86,6 +86,8 @@ Attempt7 (/tmp/pair879-upgrade-healthy6.log) again reached candidate adoption, e
 Attempt8 /tmp/pair879-upgrade-healthy7.log is the first complete same-main healthy qualification: PASS127.301s (Claude60.22s, Codex58.19s). Both personalities passed actual triplet replacement, fresh candidate adoption, compact list/exact show, old parent/side registry identity and reads, public final resume receipts, physical exact-tag attachment with distinct retained drafts, positive native clients, and unchanged bindings/fixture PIDs/generations/native IDs/socket device+inode. Exact roots /Volumes/TestScratch/pc-733546003 and /Volumes/TestScratch/pc-3755470119 cleaned with all native generations absent, child/IO joined. This passing result does not erase the separately retained baseline-native panic occurrence in attempt6.
 
 NEXT requested RED: env PAIR_NATIVE_COUCH_UPGRADE=1 PAIR_COUCH_UPGRADE_BASE_SOURCE=/Volumes/TestScratch/pair879-stage.OeEwVU/baseline PAIR_COUCH_UPGRADE_CANDIDATE_SOURCE=/Volumes/TestScratch/pair879-stage.OeEwVU/tree go test ./cmd/couch -run '^TestDisposableCouchBuildUpgrade$' -count=1 -v -timeout=20m; output /tmp/pair879-upgrade-red.log. Same fixture/source head and real old state; only the selected coupled candidate source changes to93a57a38. No readiness-file mutation or expected-failure flag.
+
+Requested failed-stage RED captured, FAIL214.126s exit1 at candidate startup adoption after old Claude hub+worker readiness/drafts/registry creation, old detach/join and actual copied-triplet replacement. Candidate screen: startup unknown, observe zellij sessions, list-sessions --no-formatting, Zellij initialization is unverified; both old rows state could not be checked. Old-main healthy PASS and naturally absent readiness markers plus immutable stage qualifyCandidates source identify the expected compatibility refusal, preceding helper's steward-registration timeout. The screen clips the rest of the session/path; no full filename or public resume receipt is claimed. RED stopped at first failed personality, so later resume/attach and Codex stage run were not reached. Exact /Volumes/TestScratch/pc-1323742597 cleaned, no owner remains; full log sha256c587cbcfb6c1fbf912a385637b08bf0173753bb73a876bb4a8ff743074151c1b. [Evidence](../evidence/000879/native-upgrade.md) records both coupled build triplets, the healthy control and honest RED limits. NEXT: individual reader inventory audits, focused lint/checks, queued pre-close and mandatory close review; no additional native run or production correction planned.
 
 ## Revisions
 
