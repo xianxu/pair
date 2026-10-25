@@ -1,12 +1,12 @@
 ---
 id: 000881
-status: codecomplete
+status: done
 deps: []
 github_issue:
 created: 2026-10-24
 updated: 2026-10-25
 estimate_hours:
-card_mirror: '2b9c23b76332f74465a85809621529da132bb1d4' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '8bd0d45fb5e09eff914f7590ef702abd2258e8dc' # card fields mirrored from issue-cards; edit via sdlc
 flake_tests: [github.com/xianxu/pair/cmd/internal/broadcast.TestNamedTunnelServesFromPrivateSocket]
 started: 2026-10-25T00:44:15-07:00
 claimant:
