@@ -414,6 +414,15 @@ func TestDisposableCouchFleetWake(t *testing.T) {
 				t.Fatalf("repeat couch --wake: %+v %v", again, err)
 			}
 			t.Logf("repeat couch --wake: %s", strings.TrimSpace(again.Stdout))
+			if !strings.Contains(again.Stdout, "no asleep hubs to wake") {
+				t.Fatalf("repeat couch --wake woke something: %+v", again)
+			}
+			if ready, err := fleet.Agent(2); err == nil && syscall.Kill(ready.PID, 0) == nil {
+				t.Fatalf("plain worker started by a repeat couch --wake: %+v", ready)
+			}
+			if woke := asleep(); woke["0"] || woke["1"] || !woke["2"] {
+				t.Fatalf("asleep after repeat wake: %v", woke)
+			}
 			cleanup, cancelCleanup := context.WithTimeout(context.Background(), 30*time.Second)
 			defer cancelCleanup()
 			if err := fleet.Close(cleanup); err != nil {
