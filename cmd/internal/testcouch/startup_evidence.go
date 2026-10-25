@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"crypto/sha256"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -20,6 +21,7 @@ import (
 
 	"github.com/xianxu/pair/cmd/internal/artifactpath"
 	"github.com/xianxu/pair/cmd/internal/couchcore"
+	"github.com/xianxu/pair/cmd/internal/couchmessage"
 	"github.com/xianxu/pair/cmd/internal/readiness"
 	"github.com/xianxu/pair/cmd/internal/zellijexec"
 	"github.com/xianxu/pair/cmd/internal/zellijreply"
@@ -229,16 +231,21 @@ func startupDiagnosticDeadline(now, caller time.Time) (time.Time, error) {
 
 type startupSource struct{ scope, tag, agent, nonce string }
 
-// selectStartupSources prioritizes exact failure addresses, then the most
+// selectStartupSources prioritizes an explicit caller, exact failure addresses, then the most
 // recently emitted private wrapper identities. Each input is visited once;
 // sorting never holds more than five candidates and selection retains four.
-func selectStartupSources(history []couchcore.LaunchFailure, identities map[string]startupIdentity, agent string) ([]startupSource, bool, int) {
+func selectStartupSources(history []couchcore.LaunchFailure, identities map[string]startupIdentity, agent string, caller ...couchmessage.Binding) ([]startupSource, bool, int) {
 	var sources []startupSource
 	seen := map[string]bool{}
 	visited := 0
+	truncated := len(history) > 4 || len(identities) > 4
 	add := func(scope, tag, kind, nonce string) {
 		key := scope + "\x00" + tag
-		if scope == "" || tag == "" || seen[key] || len(sources) >= 4 {
+		if scope == "" || tag == "" || seen[key] {
+			return
+		}
+		if len(sources) >= 4 {
+			truncated = true
 			return
 		}
 		seen[key] = true
@@ -246,6 +253,10 @@ func selectStartupSources(history []couchcore.LaunchFailure, identities map[stri
 			kind = agent
 		}
 		sources = append(sources, startupSource{scope, tag, kind, nonce})
+	}
+	if len(caller) > 0 {
+		b := caller[0]
+		add(b.Scope, b.Tag, b.Agent, b.Nonce)
 	}
 	for _, failure := range history[:min(len(history), 4)] {
 		visited++
@@ -263,7 +274,7 @@ func selectStartupSources(history []couchcore.LaunchFailure, identities map[stri
 	for _, identity := range latest {
 		add(identity.Scope, identity.Tag, agent, "")
 	}
-	return sources, len(history) > 4 || len(identities) > 4, visited
+	return sources, truncated, visited
 }
 
 func (f *Fleet) captureStartupLog() string {
@@ -298,9 +309,14 @@ func (f *Fleet) captureStartupServerLog() string {
 }
 
 func (f *Fleet) captureStartupEvidence(ctx context.Context, dump startupDump) string {
+	return f.captureStartupEvidenceForCaller(ctx, dump, nil)
+}
+
+// An explicit caller has already reserved the shared query deadline.
+func (f *Fleet) captureStartupEvidenceForCaller(ctx context.Context, dump startupDump, callerBinding *couchmessage.Binding) string {
 	var out strings.Builder
 	queryCtx := ctx
-	if caller, bounded := ctx.Deadline(); bounded {
+	if caller, bounded := ctx.Deadline(); bounded && callerBinding == nil {
 		deadline, e := startupDiagnosticDeadline(time.Now(), caller)
 		if e != nil {
 			return fmt.Sprintf("startup evidence unavailable: %v", e)
@@ -346,7 +362,11 @@ func (f *Fleet) captureStartupEvidence(ctx context.Context, dump startupDump) st
 			fmt.Fprintln(&out, "failure source unavailable: incomplete failure address; consulting emitted wrapper identities")
 		}
 	}
-	sources, sourceCut, _ := selectStartupSources(history, identities, f.Options.AgentKind)
+	var preferred []couchmessage.Binding
+	if callerBinding != nil {
+		preferred = append(preferred, *callerBinding)
+	}
+	sources, sourceCut, _ := selectStartupSources(history, identities, f.Options.AgentKind, preferred...)
 	fmt.Fprintf(&out, "startup_sources=%d truncated=%t\n", len(sources), sourceCut)
 	census := map[string]bool{}
 	for _, source := range sources {
@@ -374,7 +394,7 @@ func (f *Fleet) captureStartupEvidence(ctx context.Context, dump startupDump) st
 			continue
 		}
 		readyRaw, readyCut, readyErr := r.read(readyPath, startupSourceBytes, false)
-		fmt.Fprintf(&out, "expected_ready=%q truncated=%t read_error=%v\n", filepath.Base(readyPath), readyCut, readyErr)
+		fmt.Fprintf(&out, "expected_ready=%q truncated=%t read_error=%v bytes=%d sha256=%x hash_scope=retained_bytes\n", filepath.Base(readyPath), readyCut, readyErr, len(readyRaw), sha256.Sum256(readyRaw))
 		if readyErr == nil && !readyCut {
 			record, decodeErr := readiness.Decode(string(readyRaw))
 			if decodeErr != nil {
@@ -384,6 +404,10 @@ func (f *Fleet) captureStartupEvidence(ctx context.Context, dump startupDump) st
 			}
 		} else {
 			fmt.Fprintln(&out, "ready identity unavailable")
+		}
+		if callerBinding != nil && source.scope == callerBinding.Scope && source.tag == callerBinding.Tag && (!ok || identity.Session != callerBinding.Session || identity.Nonce != callerBinding.Nonce || identity.PID != callerBinding.PID) {
+			fmt.Fprintln(&out, "caller binding mismatch: exact emitted identity unavailable; pane query refused")
+			continue
 		}
 		if !ok || identity.PID <= 0 || identity.Session == "" || identity.Nonce == "" || strings.Contains(identity.Session, "<truncated>") || strings.ContainsAny(identity.Session, "/\x00\n\r") {
 			fmt.Fprintln(&out, "pane dump unavailable: exact emitted launch identity unavailable")
@@ -399,6 +423,7 @@ func (f *Fleet) captureStartupEvidence(ctx context.Context, dump startupDump) st
 			fmt.Fprintln(&out, "pane attribution: emitted identity matches recorded launch nonce")
 		}
 		paneRaw, cut, paneErr := r.read(paths.Pane(agent), 4096, false)
+		fmt.Fprintf(&out, "pane_sidecar bytes=%d sha256=%x hash_scope=retained_bytes truncated=%t read_error=%v\n", len(paneRaw), sha256.Sum256(paneRaw), cut, paneErr)
 		var pane struct {
 			ID string `json:"pane_id"`
 		}
@@ -422,7 +447,7 @@ func (f *Fleet) captureStartupEvidence(ctx context.Context, dump startupDump) st
 		if cut {
 			text = text[:startupSourceBytes]
 		}
-		fmt.Fprintf(&out, "pane_dump session=%q pane=%q truncated=%t query_error=%v output=%q\n", identity.Session, pane.ID, cut, queryErr, text)
+		fmt.Fprintf(&out, "pane_dump session=%q pane=%q truncated=%t query_error=%v bytes=%d sha256=%x hash_scope=retained_bytes observed_at=%s output=%q\n", identity.Session, pane.ID, cut, queryErr, len(text), sha256.Sum256([]byte(text)), time.Now().UTC().Format(time.RFC3339Nano), text)
 		if queryErr != nil {
 			fmt.Fprintln(&out, "pane dump unavailable: native query failed (rollback may already have removed pane)")
 		}
@@ -450,8 +475,12 @@ func (f *Fleet) dumpStartupPane(ctx context.Context, session, pane string) (stri
 	if session == "" || session == "." || session == ".." || strings.ContainsAny(session, "/\x00\n\r") || strings.Contains(session, "<truncated>") || idErr != nil || id < 0 {
 		return "", errors.New("pane query requires an exact emitted session and numeric pane")
 	}
+	return f.runStartupQuery(ctx, session, "-s", session, "action", "dump-screen", "--pane-id", "terminal_"+pane)
+}
+
+func (f *Fleet) runStartupQuery(ctx context.Context, session string, args ...string) (string, error) {
 	if _, bounded := ctx.Deadline(); !bounded {
-		return "", errors.New("pane query requires bounded cleanup context")
+		return "", errors.New("native query requires bounded cleanup context")
 	}
 	// The native query gets no ambient environment or default socket fallback.
 	sockets := f.Roots.Mutable["sockets"]
@@ -475,7 +504,7 @@ func (f *Fleet) dumpStartupPane(ctx context.Context, session, pane string) (stri
 	}
 	query, cancel := zellijreply.AdmissionContext(ctx)
 	defer cancel()
-	cmd := exec.CommandContext(query, f.Binaries.Zellij, "-s", session, "action", "dump-screen", "--pane-id", "terminal_"+pane)
+	cmd := exec.CommandContext(query, f.Binaries.Zellij, args...)
 	cmd.Env = append([]string(nil), f.Environment...)
 	cmd.Env = append(cmd.Env, "ZELLIJ_SOCKET_DIR="+sockets, "ZELLIJ_SESSION_NAME="+session)
 	stdout, stderr := &startupOutput{}, &startupOutput{}

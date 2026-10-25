@@ -77,6 +77,7 @@ Go overlay removing only the new nil-cell assignment fails at cell1,0, which
 retains B; normal candidate passes. The tracked source was never mutated for that
 experiment. Existing repair/strict validation remains intact.
 
-Full recorded verification and final boundary review remain pending while #879's
-retained runner is active. The shared lessons append is explicitly deferred until
-#879 lands, as approved by the hub.
+These measurements precede the full recorded check and final boundary reviews;
+the issue Log and SDLC records carry their later results. After #879 landed
+PR601, the exact branch and M1 provenance moved into canonical pair:9, landed
+main was imported cleanly, and the deferred lesson was added as approved.

@@ -78,7 +78,7 @@ Files: modify cmd/internal/terminal/endpoint.go; add cmd/internal/terminal/endpo
 - [x] Implement the minimal change in capture: build fresh frame metadata, reuse private published Cells/Rows only when geometry/length match, otherwise allocate exact current lengths; write every row and every cell, with `Cell{}` for nil backend cells. Preserve repairCapturedRow and all publication call sites/Clone boundaries.
 - [x] Run new counted tests and related Endpoint/history tests; race-check relevant controlled interleavings with count at most10. Iterate only on concrete failures.
 - [x] Commit the RED tests and DEC2026 benchmark before the production correction, so that commit pins the unchanged capture with the identical test workload. Compare that baseline to the corrected candidate through bounded capture/ChildIngestRedraw replay; report allocation counts/bytes and CPU timing separately. Do not add a native scale matrix or new harness.
-- [ ] Update the existing architecture map and evidence with the ownership/budget result. After #879 lands, append the deferred lesson. Individually audit changed readers and run make test-affected-inventory before close.
+- [x] Update the existing architecture map and evidence with the ownership/budget result. After #879 lands, append the deferred lesson. Individually audit changed readers and run make test-affected-inventory before close.
 
 | Risky function | Adversarial strategy / mechanical guard |
 |---|---|
@@ -109,3 +109,7 @@ The approved isolated checkout is an independent ordinary clone because the numb
 ### 2026-10-24 — evidence links survive archive
 
 The archive planner moves issue/plan bytes unchanged, but leaves workshop/evidence in place. Replaced the active issue/plan links to the preserved M1 evidence with exact commit permalinks at b9388b9b9c0b1a77f87904bec44ea3a8b3e8d246, already pushed with the M1 boundary. Evidence bytes, local Atlas links and all implementation/test contracts are unchanged.
+
+### 2026-10-24 — canonical handoff completed after879
+
+Verified879 landed PR601 at f4bc565736d8f5c9b38a8bbd94c0409091f98c2f, carddone and archived. Fetched the exact isolated head e36f1266d88202733506d4978ed1958c2adbea26 plus its M1 reviewed/usage refs into canonical pair:9. Imported landed main4e3764c65acfff86a9073f1546e38251798005b7 cleanly before the first M2 recorded check, then added the deferred lesson against the now-shared latest file. M2 production code and counted proof are unchanged; final gates and PR run here through canonical pair ownership.

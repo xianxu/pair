@@ -3,6 +3,7 @@ package couchcmd
 import (
 	"context"
 	"fmt"
+	"github.com/xianxu/pair/cmd/internal/couchcore"
 
 	"github.com/xianxu/pair/cmd/internal/couchmessage"
 )
@@ -56,7 +57,7 @@ func (c *supervisionCoordinator) cueWorker(ctx context.Context, live couchmessag
 		c.cueCapacityNotified = true
 		c.mu.Unlock()
 		if first && c.notice != nil {
-			c.notice("worker start cue tracking is full; untracked workers receive no automatic orientation; hub should supply it")
+			c.warn(couchcore.NoticeWorkerCueUnavailable, to, "worker start cue tracking is full; untracked workers receive no automatic orientation; hub should supply it")
 		}
 		return
 	}
@@ -67,7 +68,7 @@ func (c *supervisionCoordinator) cueWorker(ctx context.Context, live couchmessag
 	c.mu.Unlock()
 	skip := func(reason string) {
 		if c.notice != nil {
-			c.notice(fmt.Sprintf("worker start cue to %s not delivered: %s; hub may supply orientation", to.Slot, reason))
+			c.warn(couchcore.NoticeWorkerCueUnavailable, to, fmt.Sprintf("worker start cue to %s not delivered: %s; hub may supply orientation", to.Slot, reason))
 		}
 	}
 	if c.service.authority.child == nil {

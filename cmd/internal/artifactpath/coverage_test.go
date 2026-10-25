@@ -624,17 +624,22 @@ func goVocabularyViolations(rel string, fileSet *token.FileSet, file *ast.File, 
 	allowances := make(map[string]VocabularyAllowance)
 	seen := make(map[string]int)
 	relevantFamilies := stringSet(classification.Families)
+	typedConstantFamilies := map[string]bool{}
 	parents := astParents(file)
 	var violations []string
 	for _, allowance := range classification.Vocabulary {
 		if allowance.Context != GoStructTagVocabulary && allowance.Context != GoCallArgumentVocabulary &&
 			allowance.Context != GoCaseValueVocabulary && allowance.Context != GoComparisonVocabulary &&
-			allowance.Context != GoKeyValueVocabulary && allowance.Context != GoReturnVocabulary || allowance.Count <= 0 {
+			allowance.Context != GoKeyValueVocabulary && allowance.Context != GoReturnVocabulary &&
+			allowance.Context != GoTypedConstantVocabulary || allowance.Count <= 0 {
 			violations = append(violations, fmt.Sprintf("%s: invalid Go vocabulary allowance %+v", rel, allowance))
 			continue
 		}
 		allowances[vocabularyKey(allowance)] = allowance
 		relevantFamilies[allowance.Family] = true
+		if allowance.Context == GoTypedConstantVocabulary {
+			typedConstantFamilies[allowance.Family] = true
+		}
 	}
 	ast.Inspect(file, func(node ast.Node) bool {
 		literal, ok := node.(*ast.BasicLit)
@@ -666,7 +671,41 @@ func goVocabularyViolations(rel string, fileSet *token.FileSet, file *ast.File, 
 		}
 		return true
 	})
+	violations = append(violations, implicitTypedConstantViolations(rel, fileSet, file, typedConstantFamilies)...)
 	violations = append(violations, vocabularyAllowanceCoverage(rel, classification, allowances, seen)...)
+	return violations
+}
+
+// An omitted const initializer inherits the preceding expression. It has no
+// explicit typed/literal use site and must not borrow another symbol's allowance.
+func implicitTypedConstantViolations(rel string, positions *token.FileSet, file *ast.File, families map[string]bool) []string {
+	var violations []string
+	ast.Inspect(file, func(node ast.Node) bool {
+		declaration, ok := node.(*ast.GenDecl)
+		if !ok || declaration.Tok != token.CONST {
+			return true
+		}
+		var inherited []ast.Expr
+		for _, entry := range declaration.Specs {
+			spec := entry.(*ast.ValueSpec)
+			if len(spec.Values) != 0 {
+				inherited = spec.Values
+				continue
+			}
+			for _, expr := range inherited {
+				value, ok := constantString(expr)
+				if !ok {
+					continue
+				}
+				for _, family := range Families {
+					if families[family.Name] && strings.Contains(value, family.Token) {
+						violations = append(violations, fmt.Sprintf("%s:%d: implicit %s vocabulary %q requires an explicit typed constant literal", rel, positions.Position(spec.Pos()).Line, family.Name, value))
+					}
+				}
+			}
+		}
+		return true
+	})
 	return violations
 }
 
@@ -713,6 +752,14 @@ func vocabularyUseForLiteral(file *ast.File, parents map[ast.Node]ast.Node, lite
 	}
 	for node := ast.Node(literal); node != nil; node = parents[node] {
 		switch parent := parents[node].(type) {
+		case *ast.ValueSpec:
+			declaration, ok := parents[parent].(*ast.GenDecl)
+			typeName, named := parent.Type.(*ast.Ident)
+			if ok && declaration.Tok == token.CONST && parents[declaration] == file && named &&
+				len(parent.Names) == 1 && len(parent.Values) == 1 && parent.Values[0] == literal {
+				return GoTypedConstantVocabulary, typeName.Name + "." + parent.Names[0].Name, 0, true
+			}
+			return "", "", 0, false
 		case *ast.Field:
 			if parent.Tag == literal && len(parent.Names) != 0 {
 				return GoStructTagVocabulary, parent.Names[0].Name, 0, true
@@ -1127,12 +1174,115 @@ func TestVocabularyConsumerContract(t *testing.T) {
 	allowSessionID := VocabularyAllowance{
 		Family: "native-session", Value: `json:"session_id"`, Context: GoStructTagVocabulary, Use: "ID", Count: 1,
 	}
+	allowTypedConstant := VocabularyAllowance{
+		Family: "native-session", Value: "session_id", Context: GoTypedConstantVocabulary, Use: "NoticeClass.NoticeHubRequested", Count: 1,
+	}
 	cases := []struct {
 		name          string
 		body          string
 		allowances    []VocabularyAllowance
 		wantViolation bool
 	}{
+		{
+			name:       "exact explicit typed constant",
+			body:       `package mutation; type NoticeClass string; const NoticeHubRequested NoticeClass = "session_id"`,
+			allowances: []VocabularyAllowance{allowTypedConstant},
+		},
+		{
+			name:       "exact explicit typed constant in group",
+			body:       `package mutation; type NoticeClass string; const ( Other NoticeClass = "routine"; NoticeHubRequested NoticeClass = "session_id" )`,
+			allowances: []VocabularyAllowance{allowTypedConstant},
+		},
+		{
+			name:          "typed constant allowance cannot authorize untyped constant",
+			body:          `package mutation; const NoticeHubRequested = "session_id"`,
+			allowances:    []VocabularyAllowance{allowTypedConstant},
+			wantViolation: true,
+		},
+		{
+			name:          "typed constant allowance cannot authorize local shadow",
+			body:          `package mutation; type NoticeClass string; func f(){ const NoticeHubRequested NoticeClass = "session_id" }`,
+			allowances:    []VocabularyAllowance{allowTypedConstant},
+			wantViolation: true,
+		},
+		{
+			name:          "typed constant allowance cannot authorize variable",
+			body:          `package mutation; type NoticeClass string; var NoticeHubRequested NoticeClass = "session_id"`,
+			allowances:    []VocabularyAllowance{allowTypedConstant},
+			wantViolation: true,
+		},
+		{
+			name:          "typed constant allowance rejects implicit type",
+			body:          `package mutation; type NoticeClass string; const ( Other NoticeClass = "routine"; NoticeHubRequested = "session_id" )`,
+			allowances:    []VocabularyAllowance{allowTypedConstant},
+			wantViolation: true,
+		},
+		{
+			name:          "typed constant allowance rejects implicit value",
+			body:          `package mutation; type NoticeClass string; const ( Other NoticeClass = "session_id"; NoticeHubRequested )`,
+			allowances:    []VocabularyAllowance{allowTypedConstant},
+			wantViolation: true,
+		},
+		{
+			name:          "typed constant allowance cannot hide inherited duplicate",
+			body:          `package mutation; type NoticeClass string; const ( NoticeHubRequested NoticeClass = "session_id"; Other )`,
+			allowances:    []VocabularyAllowance{allowTypedConstant},
+			wantViolation: true,
+		},
+		{
+			name:          "typed constant allowance rejects computed literal",
+			body:          `package mutation; type NoticeClass string; const NoticeHubRequested NoticeClass = "session_id" + "-path"`,
+			allowances:    []VocabularyAllowance{allowTypedConstant},
+			wantViolation: true,
+		},
+		{
+			name:          "typed constant allowance rejects split computation",
+			body:          `package mutation; type NoticeClass string; const NoticeHubRequested NoticeClass = "session_" + "id"`,
+			allowances:    []VocabularyAllowance{allowTypedConstant},
+			wantViolation: true,
+		},
+		{
+			name:          "typed constant allowance rejects parenthesized literal",
+			body:          `package mutation; type NoticeClass string; const NoticeHubRequested NoticeClass = ("session_id")`,
+			allowances:    []VocabularyAllowance{allowTypedConstant},
+			wantViolation: true,
+		},
+		{
+			name:          "typed constant allowance cannot authorize another symbol",
+			body:          `package mutation; type NoticeClass string; const Other NoticeClass = "session_id"`,
+			allowances:    []VocabularyAllowance{allowTypedConstant},
+			wantViolation: true,
+		},
+		{
+			name:          "typed constant allowance cannot authorize another type",
+			body:          `package mutation; type Other string; const NoticeHubRequested Other = "session_id"`,
+			allowances:    []VocabularyAllowance{allowTypedConstant},
+			wantViolation: true,
+		},
+		{
+			name:          "typed constant allowance requires exact literal",
+			body:          `package mutation; type NoticeClass string; const NoticeHubRequested NoticeClass = "session_id-path"`,
+			allowances:    []VocabularyAllowance{allowTypedConstant},
+			wantViolation: true,
+		},
+		{
+			name:          "typed constant allowance counts duplicates",
+			body:          `package mutation; type NoticeClass string; const NoticeHubRequested NoticeClass = "session_id"; const NoticeHubRequested NoticeClass = "session_id"`,
+			allowances:    []VocabularyAllowance{allowTypedConstant},
+			wantViolation: true,
+		},
+		{
+			name:          "typed constant allowance rejects multiple names",
+			body:          `package mutation; type NoticeClass string; const NoticeHubRequested, Other NoticeClass = "session_id", "routine"`,
+			allowances:    []VocabularyAllowance{allowTypedConstant},
+			wantViolation: true,
+		},
+		{
+			name:          "typed constant allowance requires exact count",
+			body:          `package mutation; type NoticeClass string; const NoticeHubRequested NoticeClass = "session_id"`,
+			allowances:    []VocabularyAllowance{{Family: "native-session", Value: "session_id", Context: GoTypedConstantVocabulary, Use: "NoticeClass.NoticeHubRequested", Count: 2}},
+			wantViolation: true,
+		},
 		{
 			name:       "direct named struct field",
 			body:       `package mutation; type op struct { Name string }; func ops() []op { return []op{{Name: "session_id"}} }`,

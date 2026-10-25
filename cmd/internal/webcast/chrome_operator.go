@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/xianxu/pair/cmd/internal/webcast/board"
-	"github.com/xianxu/pair/cmd/internal/webcast/capability"
 	"github.com/xianxu/pair/cmd/internal/webcast/recorder"
 	"github.com/xianxu/pair/cmd/internal/webcast/recording"
 )
@@ -195,7 +194,8 @@ func (c *Chrome) startOperator(b *board.Board) {
 					states[key] = permission
 				}
 				snapshot := b.AnnotationCapability()
-				permission.want(snapshot.Generation, target.active, snapshot.Phase == capability.On && target.active, next)
+				_, ownerErr := b.AdmitOperatorAnnotationGeneration(snapshot.Generation)
+				permission.want(snapshot.Generation, target.active, ownerErr == nil && target.active, next)
 				c.deliverOperatorPermission(target, permission, next)
 				if sketchRuntime != nil {
 					p := drawingPermissions[key]
@@ -339,14 +339,6 @@ func (c *Chrome) SetAnnotationMode(mode string) error {
 	if c.opts.Record == nil || c.opts.Record.Operator == nil {
 		return ErrNotRecording
 	}
-	var admission board.AnnotationAdmission
-	if mode != "watch" {
-		var err error
-		admission, err = c.opts.Record.Operator.AdmitAnnotation()
-		if err != nil {
-			return err
-		}
-	}
 	var target operatorTarget
 	done := make(chan struct{})
 	select {
@@ -365,6 +357,15 @@ func (c *Chrome) SetAnnotationMode(mode string) error {
 	}
 	if target.context == 0 {
 		return errors.New("the cast page is not ready for annotation")
+	}
+	var admission board.AnnotationAdmission
+	if mode != "watch" {
+		b := c.opts.Record.Operator
+		var err error
+		admission, err = b.AdmitOperatorAnnotationGeneration(b.AnnotationCapability().Generation)
+		if err != nil {
+			return err
+		}
 	}
 	data, _ := json.Marshal(mode)
 	var result struct {

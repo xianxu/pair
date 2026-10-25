@@ -310,7 +310,7 @@ func (s *OperatorSession) Close() {
 	}
 }
 func (s *OperatorSession) Note(request string, in NoteIn) OperatorReply {
-	a, _ := s.board.AdmitAnnotation()
+	a, _ := s.board.admitOperatorAnnotation()
 	return s.NoteAdmitted(a, request, in)
 }
 func (s *OperatorSession) NoteAdmitted(a AnnotationAdmission, request string, in NoteIn) OperatorReply {
@@ -326,7 +326,7 @@ func (s *OperatorSession) EditAdmitted(a AnnotationAdmission, request string, in
 	return s.run(a, request, "edit-note", in, func(emit Emit) (string, error) { return "", s.board.edit(in, true, emit) })
 }
 func (s *OperatorSession) Stroke(request string, in StrokeIn) OperatorReply {
-	a, _ := s.board.AdmitAnnotation()
+	a, _ := s.board.admitOperatorAnnotation()
 	return s.StrokeAdmitted(a, request, in)
 }
 func (s *OperatorSession) StrokeAdmitted(a AnnotationAdmission, request string, in StrokeIn) OperatorReply {
@@ -334,7 +334,7 @@ func (s *OperatorSession) StrokeAdmitted(a AnnotationAdmission, request string, 
 	return s.run(a, request, "stroke", in, func(emit Emit) (string, error) { return "", s.board.stroke(in, true, emit) })
 }
 func (s *OperatorSession) SetState(request string, seg int, in StateIn) OperatorReply {
-	a, _ := s.board.AdmitAnnotation()
+	a, _ := s.board.admitOperatorAnnotation()
 	return s.SetStateAdmitted(a, request, seg, in)
 }
 func (s *OperatorSession) SetStateAdmitted(a AnnotationAdmission, request string, seg int, in StateIn) OperatorReply {
@@ -410,7 +410,7 @@ func (s *OperatorSession) run(a AnnotationAdmission, request, kind string, in an
 			}
 		})
 	}
-	if a.board != s.board {
+	if a.board != s.board || a.authority.kind != ownerAnnotation {
 		settle(OperatorRefused, ErrDisabled)
 		return s.Status(request)
 	}
