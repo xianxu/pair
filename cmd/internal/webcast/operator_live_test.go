@@ -143,12 +143,12 @@ func TestOperatorLiveAnnotation(t *testing.T) {
 	if string(eval(`!!testRoot.querySelector('.annotate-rail')`)) != "true" {
 		t.Fatal("shared UI did not mount")
 	}
-	// Authority starts Off, even with a ready recording projection.
-	if err = c.SetAnnotationMode("note"); err == nil {
-		t.Fatal("default-off overlay accepted Note")
+	// Viewer authority starts OFF; the trusted owner has separate admission.
+	if err = c.SetAnnotationMode("note"); err != nil {
+		t.Fatalf("default-off owner Note: %v", err)
 	}
-	if string(eval(`testRoot.querySelector('.mode').disabled`)) != "true" {
-		t.Fatal("default-off rail enabled")
+	if string(eval(`testRoot.querySelector('.mode').disabled`)) != "false" {
+		t.Fatal("default-off owner rail disabled")
 	}
 	if err = bd.SetAnnotationAllowed(context.Background(), true); err != nil {
 		t.Fatal(err)
@@ -157,7 +157,7 @@ func TestOperatorLiveAnnotation(t *testing.T) {
 		t.Helper()
 		until := time.Now().Add(5 * time.Second)
 		for time.Now().Before(until) {
-			if string(eval(`!testRoot.querySelector('.mode').disabled`)) == strconv.FormatBool(allowed) {
+			if string(eval(`!testRoot.querySelector('.mode').disabled`)) == strconv.FormatBool(allowed) && string(eval(`globalThis.__couchcastAnnotationDelivery.generation`)) == strconv.Quote(strconv.FormatUint(bd.AnnotationCapability().Generation, 10)) {
 				return
 			}
 			time.Sleep(10 * time.Millisecond)
@@ -175,9 +175,9 @@ func TestOperatorLiveAnnotation(t *testing.T) {
 	if err = bd.SetAnnotationAllowed(context.Background(), false); err != nil {
 		t.Fatal(err)
 	}
-	waitPermission(false)
-	if err = c.SetAnnotationMode("note"); err == nil {
-		t.Fatal("capability-off overlay accepted Note")
+	waitPermission(true)
+	if err = c.SetAnnotationMode("note"); err != nil {
+		t.Fatalf("settled OFF owner Note: %v", err)
 	}
 	if err = bd.SetAnnotationAllowed(context.Background(), true); err != nil {
 		t.Fatal(err)

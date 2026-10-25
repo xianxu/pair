@@ -593,6 +593,7 @@ func runTypedOperationWithConsoleStyle(op couchcore.Operation, parsed, prepareAr
 	}
 	if console != nil {
 		console.SetTabStyle(style)
+		defer console.CloseNoticeDelivery()
 		defer func() {
 			if captureErr := console.CloseCapture(); captureErr != nil {
 				fmt.Fprintln(stderr, "couch: capture incomplete:", captureErr)
@@ -836,6 +837,14 @@ func consoleRunnerFor(name string, stdin io.Reader, hasTerminal bool, inFile, ou
 		stdin = osHost
 	}
 	console := couchtty.New(host, stdin)
+	console.SetNoticeDelivery(newNoticeDelivery(console))
+	ready := false
+	defer func() {
+		if !ready {
+			console.Stop()
+			console.CloseNoticeDelivery()
+		}
+	}()
 	console.SetCapture(recorder)
 	console.SetBroadcast(broadcastConfig)
 	console.SetWebcast(webcastConfig)
@@ -879,6 +888,7 @@ func consoleRunnerFor(name string, stdin io.Reader, hasTerminal bool, inFile, ou
 		}
 		return runtimebundle.TerminalEnvironment(root)
 	})
+	ready = true
 	return console, &couchcore.PtyRunner{
 		Environment: profile,
 		Size:        console.ChildSize,
@@ -911,10 +921,10 @@ func tracesForRuntime(rt Runtime) consoleTraceConfig {
 func installCrashReport(console *couchtty.Console, store string) {
 	_, reports, err := crashreport.Install(crashreport.Dir(store), time.Now(), os.Getpid(), crashreport.ProcessAlive)
 	if summary := crashreport.Summary(reports); summary != "" {
-		console.Warn(couchtty.Notice{Kind: "crash", Control: true, Body: summary})
+		console.Warn(couchtty.Notice{Class: couchcore.NoticePriorCouchCrash, Kind: "crash", Control: true, Body: summary})
 	}
 	if err != nil {
-		console.Warn(couchtty.Notice{Kind: "crash-capture", Control: true, Body: "crash capture unavailable: " + err.Error()})
+		console.Warn(couchtty.Notice{Class: couchcore.NoticeCrashCaptureSetupFailed, Kind: "crash-capture", Control: true, Body: "crash capture unavailable: " + err.Error()})
 	}
 }
 
@@ -1011,7 +1021,7 @@ func beginConsole(console *couchtty.Console, start couchcore.StartResult, backgr
 		// configuration publication remains actionable, independently of it.
 		started, _ := start.Started()
 		started.Record.AttachmentNotice = ""
-		notice := couchtty.Notice{Kind: "status", Control: true, Thread: start.Record.Thread, Body: warning}
+		notice := couchtty.Notice{Class: couchcore.NoticeStartupConfigurationWarning, Kind: "status", Control: true, Thread: start.Record.Thread, Body: warning}
 		if started.Warning() != "" {
 			console.Warn(notice)
 		} else {
@@ -1076,10 +1086,20 @@ func wireResolver(console *couchtty.Console, c *couchcore.Couch, configuredHubs 
 	couchLive := couchcore.CouchLiveOwnerExecutor(c)
 	console.SetOperationAttemptFactory(c.OperationAttemptForCall)
 	dispatch := func(call couchcore.OperationCall) (any, error) {
+		warningSource := couchtty.Notice{}
+		if call.FailureTarget != nil {
+			warningSource.Thread = call.FailureTarget.Address
+			warningSource.SourceRoot = call.FailureTarget.StartingPath
+			warningSource.Label = call.FailureTarget.Slot
+		} else if call.Args["repo-scope"] != "" && call.Args["tag"] != "" {
+			warningSource.Thread = couchcore.ThreadAddress{RepoScope: call.Args["repo-scope"], Tag: couchcore.ThreadTag(call.Args["tag"])}
+		}
 		return couchcore.DispatchOperation(couchcore.OperationExecutors{
-			Attempt:           c.OperationAttemptForCall,
-			DiagnosticWarning: func(text string) { console.Warn(couchtty.Notice{Kind: "status", Body: text}) },
-			DirectStore:       couchcore.DirectStoreExecutor(c),
+			Attempt: c.OperationAttemptForCall,
+			DiagnosticWarning: func(text string) {
+				console.Warn(couchtty.Notice{Class: couchcore.NoticeDispatcherDiagnostic, Kind: "status", Thread: warningSource.Thread, SourceRoot: warningSource.SourceRoot, Label: warningSource.Label, Body: text})
+			},
+			DirectStore: couchcore.DirectStoreExecutor(c),
 			LiveOwner: func(call couchcore.OperationCall) (any, error) {
 				if couchmessage.IsDriveOp(call.Name) {
 					return executeAgentDrive(call)
@@ -1105,7 +1125,7 @@ func wireResolver(console *couchtty.Console, c *couchcore.Couch, configuredHubs 
 							console.GoTracked(func() {
 								abortErr := c.AbortStarted(call.Context, start, attachErr)
 								if abortErr != nil && abortErr.Error() != attachErr.Error() {
-									console.Warn(couchtty.Notice{Kind: "status", Thread: start.Record.Thread, Body: fmt.Sprintf("cleanup after a failed attach of %s: %v", start.Record.Thread.Tag, abortErr)})
+									console.Warn(couchtty.Notice{Class: couchcore.NoticeFailedAttachCleanup, Kind: "status", Thread: start.Record.Thread, Body: fmt.Sprintf("cleanup after a failed attach of %s: %v", start.Record.Thread.Tag, abortErr)})
 								}
 							})
 							return nil, err

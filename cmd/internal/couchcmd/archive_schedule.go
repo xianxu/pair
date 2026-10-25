@@ -42,9 +42,8 @@ const (
 func newArchiveScheduler(pairData string, notify func(string), diagnostic ...func(string)) *archiveScheduler {
 	store := filepath.Join(pairData, "archive")
 	s := &archiveScheduler{store: store, now: time.Now, notify: notify}
-	// The feed projection is also used by notifyArchiveWarning, whose existing
-	// attention event is already owned by the message service. Only scheduler
-	// failures use the separate actionable callback.
+	// Inventory warnings use the typed message-service handoff when wired.
+	// Scheduler failures use the separate maintenance diagnostic callback.
 	s.diagnostic = notify
 	if len(diagnostic) > 0 && diagnostic[0] != nil {
 		s.diagnostic = diagnostic[0]

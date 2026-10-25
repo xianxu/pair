@@ -251,9 +251,10 @@ type waitWatcher struct {
 	// seen is the last judged episode per connected binding, pruned to the
 	// listing each tick; it dies with the service.
 	seen map[couchmessage.Binding]waitEpisode
-	// questions is the question set last handed to the attention list
-	// (pair#673); nil until the first tick publishes.
-	questions map[couchcore.ThreadAddress]couchcore.AttentionCondition
+	// questions is the bell-eligible set last handed to the attention list;
+	// questionConditions retains every active episode for routing and clearing.
+	questions          map[couchcore.ThreadAddress]couchcore.AttentionCondition
+	questionConditions map[couchcore.ThreadAddress]couchcore.AttentionCondition
 }
 
 // waitEpisode: an episode is one judged wait — the same reason and the same
@@ -268,6 +269,7 @@ type waitEpisode struct {
 	notified  bool
 	judged    string
 	judgedNot bool
+	retryHub  bool // a no-owner episode may use the canonical wait send when its owner connects
 }
 
 type waitKey struct {
@@ -360,6 +362,7 @@ func (w *waitWatcher) tick(ctx context.Context, now time.Time) {
 	if !ok {
 		connected := w.svc.broker.Connected()
 		if len(connected) == 0 {
+			w.publishQuestions(map[couchcore.ThreadAddress]couchcore.AttentionCondition{})
 			return
 		}
 		hub = connected[0]
@@ -412,7 +415,8 @@ func (w *waitWatcher) tick(ctx context.Context, now time.Time) {
 		}
 		key := waitKey{activity: row.LastActivity, settled: f.Settled != nil && *f.Settled, resting: f.Resting, pending: f.Pending, picker: f.Picker}
 		waiting = append(waiting, waitingRow{b, key.activity})
-		if ep, ok := w.seen[b]; ok && ((ep.notified && ep.key.activity == key.activity) || (ep.judgedNot && ep.key == key)) {
+		_, hasOwner := w.svc.hubBindingFor(b)
+		if ep, ok := w.seen[b]; ok && ((ep.notified && ep.key.activity == key.activity && (!ep.retryHub || !hasOwner)) || (ep.judgedNot && ep.key == key)) {
 			continue
 		}
 		if muted == nil {
@@ -446,7 +450,7 @@ func (w *waitWatcher) tick(ctx context.Context, now time.Time) {
 			}
 		}
 		judged := string(reason) + "\x00" + summary
-		if ep, ok := w.seen[b]; ok && ep.notified && ep.judged == judged {
+		if ep, ok := w.seen[b]; ok && ep.notified && !ep.retryHub && ep.judged == judged {
 			w.seen[b] = waitEpisode{key: key, notified: true, judged: judged} // output without a turn
 			continue
 		}
@@ -460,10 +464,10 @@ func (w *waitWatcher) tick(ctx context.Context, now time.Time) {
 		// Tail reading may yield while ownership changes. Resolve again at admission.
 		hub, hasHub := w.svc.hubBindingFor(b)
 		var sendErr error
-		if !permit.current(w.svc) {
+		if !hasHub {
+			// Classification is a local fact even when no owner can receive it.
+		} else if !permit.current(w.svc) {
 			sendErr = errHubAutomationOff
-		} else if !hasHub {
-			continue
 		} else if w.svc.generatedHubInputOff(hub) {
 			sendErr = errHubAutomationOff
 		} else if coordinator != nil {
@@ -474,8 +478,8 @@ func (w *waitWatcher) tick(ctx context.Context, now time.Time) {
 		if sendErr != nil && !errors.Is(sendErr, errHubAutomationOff) {
 			continue // hub busy or out of allowance: retried next tick
 		}
-		w.seen[b] = waitEpisode{key: key, notified: true, judged: judged}
-		if coordinator != nil {
+		w.seen[b] = waitEpisode{key: key, notified: true, judged: judged, retryHub: !hasHub}
+		if coordinator != nil && hasHub {
 			coordinator.waitNudged(b, reportID)
 		}
 	}

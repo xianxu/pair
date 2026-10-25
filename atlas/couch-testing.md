@@ -101,6 +101,17 @@ the real wrapper's composer/text classification across personalities, phases,
 draft shapes and geometries. These results qualify deterministic fixtures, not
 an installed model service.
 
+For caller-authentication failures, `CaptureCallerEvidence` freezes the genuine
+public Actors binding before worker startup and prioritizes that caller within
+the existing four-source diagnostic cap (#872). It retains the caller's exact
+emitted identity, ready/pane evidence and selected PID-generation observation;
+later native listings are separately timestamped and never described as the
+judged authorization frame. Private descriptor/socket checks, shared diagnostic
+deadline and exact cleanup remain in force. The opt-in
+`TestDisposableCallerListingDiagnostic` uses fixture Claude and five workers;
+its one authorized sample passed with cleanup, leaving the original cause
+unclassified. Native reruns still require the hub's authorization.
+
 Every fixture Exec checks group quiescence after its direct child and output join,
 including normal exit, signal and cancellation. A live or unreadable group is
 explicit cleanup uncertainty: command, result and cancellation evidence stay in
@@ -196,6 +207,48 @@ event log has no resize timestamps and does not prove historical causation.
 `TestTerminalDiagnosticSnapshotConcurrentResize` qualify transaction timing and
 coherent screen/resize copies. Recognition remains unchanged; #810 owns the
 approved follow-up plan for redraw and re-observation.
+
+## Warm build upgrade qualification (#879)
+
+Changes to live-session contracts or persisted registries/thread records must
+run `TestDisposableCouchBuildUpgrade` before close and reference the result in
+their verification evidence. The normal suite runs its portable controls and
+skips the opt-in native case. A combined stage can use this same command as its
+warm-start check, supplying two explicit clean source checkouts:
+
+```sh
+PAIR_NATIVE_COUCH_UPGRADE=1 \
+PAIR_COUCH_UPGRADE_BASE_SOURCE=/absolute/old-main-checkout \
+PAIR_COUCH_UPGRADE_CANDIDATE_SOURCE=/absolute/candidate-checkout \
+go test ./cmd/couch -run '^TestDisposableCouchBuildUpgrade$' -count=1 -v -timeout=20m
+```
+
+Prepare each disposable source checkout's generated runtime bundle first with
+`go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime`
+from that checkout. The generator writes ignored build inputs; tracked source
+must remain clean. The check builds coupled Pair, Couch and launch-helper
+executables with `BuildOwned`, verifying compiled commit identity, clean source
+and executable hashes. It does not modify either source checkout or use an
+ambient Pair test binary.
+
+Claude and Codex run sequentially, each with one genuine hub and one worker.
+The old build creates native sessions and parent/side document registrations.
+The existing `Fleet` detaches and joins the old console, then `ReplaceBuild`
+replaces its three private executable copies and `PAIR_HOME`. Roots, RunID,
+fixture agents and live native sockets remain owned by the same fleet. A
+partial publication refuses further commands and retains cleanup authority.
+
+The candidate must adopt the configured hub, list both old slots, read the old
+document registrations, explicitly resume and physically attach to each old
+session. Distinct old drafts, native clients and unchanged actor/process/socket
+identities qualify attachment. Readiness-marker counts are observed, never
+deleted or synthesized. Absence qualifies the historical pre-#866 capture;
+marker-bearing baselines and candidate publication are equally valid for the
+reusable test. A failed candidate makes the test fail;
+there is no expected-failure switch. Preserve the actual error and cleanup
+evidence when recording an incompatibility RED. Provisioning, runtime and
+cleanup use bounded independent contexts; uncertain cleanup retains the exact
+root and stops the personality series.
 
 ## External conformance bridge (#801)
 

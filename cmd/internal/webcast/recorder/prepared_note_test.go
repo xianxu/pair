@@ -12,7 +12,7 @@ import (
 func preparedFixture(t *testing.T) (*harness, *board.Board, board.AnnotationAdmission, board.NoteReservation) {
 	t.Helper()
 	h, b, _ := operatorHarness(t)
-	a, err := b.AdmitAnnotation()
+	a, err := b.AdmitOperatorAnnotationGeneration(b.AnnotationCapability().Generation)
 	if err != nil {
 		t.Fatal(err)
 	}

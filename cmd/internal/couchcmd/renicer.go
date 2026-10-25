@@ -198,6 +198,6 @@ func (r *renicer) pass() {
 // console warning. No current focus or slot-name re-resolution participates.
 func newConsoleRenicer(console *couchtty.Console, procs procSource, slots func() []couchmessage.Binding, agentPID func(couchmessage.Binding) (int, error), level, self int) *renicer {
 	return newRenicer(procs, slots, agentPID, level, self, func(binding couchmessage.Binding, text string) {
-		console.Warn(couchtty.Notice{Kind: "status", Thread: bindingThread(binding), Label: binding.Slot, Body: text})
+		console.Warn(couchtty.Notice{Class: couchcore.NoticeAgentPriorityWarning, Kind: "status", Thread: bindingThread(binding), Label: binding.Slot, Body: text})
 	})
 }

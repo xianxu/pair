@@ -148,15 +148,20 @@ func (r *Recorder) operatorBinding(e Event) bool {
 	if !ok {
 		return false
 	}
-	r.handleOperator(e.Session, ctx, req, e.annotation)
+	r.handleOperator(e.Session, ctx, req)
 	return true
 }
-func (r *Recorder) handleOperator(session string, ctx int64, req board.OperatorRequest, admission board.AnnotationAdmission) {
+func (r *Recorder) handleOperator(session string, ctx int64, req board.OperatorRequest) {
 	r.expireOperator()
 	if !r.operatorIdentity(session, ctx) || r.opts.Operator == nil {
 		r.operatorRefusal(session, ctx, req.Request, board.ErrStale)
 		return
 	}
+	// Identity is actor-owned: never issue owner authority from a binding
+	// label, claimed attribution, or an unverified context at enqueue time.
+	// Use the sender's generation so queued/delayed work cannot acquire a
+	// newer generation when it finally reaches the actor.
+	admission, _ := r.opts.Operator.AdmitOperatorAnnotationGeneration(req.Generation)
 	if r.handleDraftOperation(session, ctx, req, admission) {
 		return
 	}

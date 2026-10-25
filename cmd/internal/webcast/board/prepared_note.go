@@ -3,7 +3,6 @@ package board
 import (
 	"encoding/json"
 	"github.com/xianxu/pair/cmd/internal/broadcast"
-	"github.com/xianxu/pair/cmd/internal/webcast/capability"
 	"github.com/xianxu/pair/cmd/internal/webcast/notes"
 	"github.com/xianxu/pair/cmd/internal/webcast/recording"
 )
@@ -12,14 +11,14 @@ import (
 // private authority binds it to the issuing board, generation and surface.
 // It is a local service value, never an accepted client payload.
 type PreparedNote struct {
-	Document int
-	TabID    string
-	T        int64
-	At       recording.NoteAt
-	Region   recording.Box
-	board    *Board
-	permit   capability.Permit
-	operator bool
+	Document  int
+	TabID     string
+	T         int64
+	At        recording.NoteAt
+	Region    recording.Box
+	board     *Board
+	authority annotationAuthority
+	operator  bool
 }
 
 type PrepareNoteIn struct {
@@ -42,7 +41,7 @@ func (a AnnotationAdmission) PrepareNote(in PrepareNoteIn, operator bool) (Prepa
 	b := a.board
 	b.mu.Lock()
 	defer b.mu.Unlock()
-	if err := b.admissionLocked(a.permit); err != nil {
+	if err := b.surfaceAdmissionLocked(a.authority, operator); err != nil {
 		return PreparedNote{}, err
 	}
 	doc, err := b.annotationPageLocked(in.Seg, operator)
@@ -63,20 +62,20 @@ func (a AnnotationAdmission) PrepareNote(in PrepareNoteIn, operator bool) (Prepa
 	at = cloneNote(&recording.Note{At: at}).At
 	box := in.Box
 	at.Box = &box
-	return PreparedNote{Document: doc, TabID: b.st.Tab.ID, T: b.st.T, At: at, Region: region, board: b, permit: a.permit, operator: operator}, nil
+	return PreparedNote{Document: doc, TabID: b.st.Tab.ID, T: b.st.T, At: at, Region: region, board: b, authority: a.authority, operator: operator}, nil
 }
 
 // ReservePreparedNote never looks up the old node. Losing an element after its
 // capture must not replace or invalidate the evidence the operator annotated.
 // The caller persists its save intent before emitting this reserved record.
 func (a AnnotationAdmission) ReservePreparedNote(p PreparedNote, author Viewer, color int, text, captureRef string, operator bool) (NoteReservation, error) {
-	if a.board == nil || p.board != a.board || p.permit != a.permit || p.operator != operator {
+	if a.board == nil || p.board != a.board || p.authority != a.authority || p.operator != operator {
 		return NoteReservation{}, ErrDisabled
 	}
 	b := a.board
 	b.mu.Lock()
 	defer b.mu.Unlock()
-	if err := b.admissionLocked(a.permit); err != nil {
+	if err := b.surfaceAdmissionLocked(a.authority, operator); err != nil {
 		return NoteReservation{}, err
 	}
 	doc, err := b.annotationPageLocked(p.Document, operator)
@@ -139,7 +138,7 @@ func (a AnnotationAdmission) RestorePreparedNote(p PreparedNote, operator bool) 
 	b := a.board
 	b.mu.Lock()
 	defer b.mu.Unlock()
-	if err := b.admissionLocked(a.permit); err != nil {
+	if err := b.surfaceAdmissionLocked(a.authority, operator); err != nil {
 		return PreparedNote{}, err
 	}
 	doc, err := b.annotationPageLocked(p.Document, operator)
@@ -157,6 +156,6 @@ func (a AnnotationAdmission) RestorePreparedNote(p PreparedNote, operator bool) 
 		return PreparedNote{}, ErrShape
 	}
 	p.At = cloneNote(&recording.Note{At: p.At}).At
-	p.board, p.permit, p.operator = b, a.permit, operator
+	p.board, p.authority, p.operator = b, a.authority, operator
 	return p, nil
 }
