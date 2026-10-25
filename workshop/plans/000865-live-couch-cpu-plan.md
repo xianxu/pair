@@ -64,7 +64,7 @@ Files: issue, this plan, bounded evidence/000865 summaries; existing profiler/so
 
 - [x] Preserve the historical issue/design and native outcome summaries; record the exact operator profile identity, owners, limits and later CPU window.
 - [x] Reconcile #871's landed ownership/review and the TL-approved M2 scope; commit this design before any long gate.
-- [ ] Run baseline focused Endpoint sync/resize/EOF checks; retain results in the issue Log.
+- [x] Run baseline focused Endpoint sync/resize/EOF checks; retain results in the issue Log.
 
 After change-code admits the design and its estimate reconciliation, mark the M1 attribution deliverable complete and run `sdlc milestone-close --issue 865 --milestone M1 --verified 'exact evidence'`. Its mandatory fresh-context review verifies attribution, not the already separately reviewed profiler implementation. Fix named findings; no M2 production code before this boundary clears.
 

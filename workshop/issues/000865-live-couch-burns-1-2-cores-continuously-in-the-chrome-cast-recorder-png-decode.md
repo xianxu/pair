@@ -63,6 +63,8 @@ Hub a1a107d5 accepted the analysis and approved the exact private-buffer/consume
 
 Prepared fresh main64e0a8452388843b1fd1791059368682eec1236e at /Users/xianxu/workspace/worktree/pair-slot9/pair-m2. A sibling linked worktree was rejected because numbered-environment dependencies must be independent ordinary clones. Removed that clean unused linked checkout and created an independent no-hardlinks clone at the same path, preserving the original #879 tree. Standard tracker fetch and main upstream configuration satisfied the clone's publication preconditions. sdlc workspace verifies the same numbered environment host pair:9; start-plan865 admitted planning and refreshed the unchanged owner/card mirror. Its initial push warned stale info; fetched/inspected the remote issue head as instructed. Next: commit the design, baseline targeted endpoint checks, change-code plan-quality, estimate reconciliation, M1 attribution boundary, then M2 failing allocation tests and implementation. No M2 production code written yet.
 
+Baseline focused Endpoint sync/publication/resize/EOF/input-failure checks PASS0.157s on unchanged main-based production code. Design checkpointb9388b9b9 preserves the complete active scope and earlier artifacts; no lessons edit or full M2 check was run. Next is full-flow change-code admission for the two genuine attribution/correction boundaries; estimate reconciliation follows plan-quality clearance.
+
 ## Estimate
 
 The existing card estimate2.92325h belongs to the historical full M1/provisional-M2 plan and is preserved verbatim in pre-m2-issue.md. Reconcile the now-measured M2 design after plan-quality clears; do not backfit to elapsed work or type actuals.
