@@ -15,6 +15,7 @@ claimant:
     workspace: pair:8
     worktree: /Users/xianxu/workspace/worktree/pair-slot8/pair
     repository: github.com/xianxu/pair
+flow: {kind: quick, provenance: inferred, spec: "35fb6ad0", done: "7aee7188"}
 ---
 
 # Codex 0.164's shared background server prompt stalls every wrapped start; launch so it can't appear
