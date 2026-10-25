@@ -1875,6 +1875,9 @@ var NonArtifactSources = []string{
 	"cmd/internal/keyhelp/sources.go",
 	"cmd/internal/keyscmd/keyscmd.go",
 	"cmd/internal/launcher/agentargs.go",
+	// pair#891: parses `<agent> --version` output and gates launch argv; names
+	// no Pair artifact path.
+	"cmd/internal/launcher/agent_version.go",
 	"cmd/internal/launcher/birthwatch.go",
 	"cmd/internal/launcher/agent_command.go",
 	"cmd/internal/launcher/fresh_args.go",
