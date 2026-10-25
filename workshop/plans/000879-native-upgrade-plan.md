@@ -25,7 +25,7 @@
 |---|---|---|---|
 | Fleet.ReplaceBuild | cmd/internal/testcouch/upgrade.go | new | existing runtime executable copier, detached console, private bin and explicit environment |
 | Two-build native qualification | cmd/couch/upgrade_acceptance_test.go | new | BuildOwned, NewOwned, public candidate startup/list/resume/attach, existing fixture mailbox and native terminal queries |
-| Public document registration | existing native bridge registration pattern | reused | ordinary parent and side document registered by the old executable, read by candidate |
+| Public document registration | cmd/internal/testcouchbridge/native.go:NativeOwner.Readiness pattern | reused | ordinary parent and side document registered by the old executable, read by candidate |
 
 The cohort comparison is unit-tested without IO. Existing fixture personalities are the stateful agent double; the native acceptance is the conformance check against actual Zellij. Portable replacement tests use a real temporary private filesystem and executable files, rather than mock call counts. No new process launcher or cleanup authority.
 

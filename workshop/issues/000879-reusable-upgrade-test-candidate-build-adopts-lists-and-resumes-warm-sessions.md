@@ -58,6 +58,8 @@ Claimed and entered planning on a fresh main-based branch. Pair:5 confirmed it o
 
 Second coordination send to pair:5 was refused before delivery with breaker-exhausted: recipient peer-message allowance exhausted. No blind retry or alternate channel. Initial coordination receipt aa4331b5-25cb-4b25-b314-7426f205c9f1 was submitted and pair:5 replied with the required ownership seam. Hub will receive the concrete plan and this delivery limit.
 
+Hub e14ced4c-8af4-4800-ad7b-d9623214ca65 approved the committed plan: one Fleet owner, actual triplet copy replacement under its mutex, PAIR_HOME switch, same roots/RunID/fixtures/sockets, public startup/list/resume/physical attach with unchanged bindings/PIDs/sockets, old registry reads, Claude then Codex with one hub+worker, same-main healthy control then38fe8ea-to93a57a38 RED within20m targeted bound. Hub already relayed fixture-first sequencing to pair:5. Implementation starts only after change-code gate.
+
 ## Revisions
 
 ### 2026-10-24 — fixture-first landing, hub7aa4f471
