@@ -14,7 +14,7 @@ type lifecycleRemoteQueue struct {
 	couch    *couchcore.Couch
 	rows     func() []couchcore.ActionableThreadSummary
 	enqueue  func(string, string, func(context.Context) (couchcore.OperationCall, error), func(), func(any, error)) error
-	notify   func(couchcore.ThreadAddress, string)
+	notify   func(couchtty.Notice)
 	lifetime context.Context
 }
 
@@ -25,9 +25,7 @@ func newLifecycleRemoteQueue(console *couchtty.Console, c *couchcore.Couch) *lif
 			return nil
 		}
 		return snapshot.Rows
-	}, enqueue: console.EnqueueRemoteOperation, notify: func(thread couchcore.ThreadAddress, text string) {
-		console.Warn(couchtty.Notice{Kind: "status", Thread: thread, Body: text})
-	}}
+	}, enqueue: console.EnqueueRemoteOperation, notify: console.Warn}
 }
 
 // Enqueue gives preparation, execution, adoption and readiness one terminal
@@ -39,7 +37,10 @@ func (q *lifecycleRemoteQueue) Enqueue(key, op string, prepare func(context.Cont
 // EnqueueForReference retains the dispatched reference even without a cache hit.
 // Diagnostic evidence never changes operation admission or target resolution.
 func (q *lifecycleRemoteQueue) EnqueueForReference(key, op, reference string, prepare func(context.Context) (couchcore.OperationCall, error), started func(), finished func(any, error), awaits ...*func(context.Context) error) error {
-	target, _ := lifecycleFailureQueueTarget(q.rows(), key)
+	target, known := lifecycleFailureQueueTarget(q.rows(), key)
+	if !known {
+		target = couchcore.LifecycleFailureTarget{}
+	}
 	target.Target = reference
 	attempt, err := q.couch.OperationAttemptForCall(couchcore.OperationCall{Name: op, FailureTarget: &target})
 	if err != nil {
@@ -51,7 +52,7 @@ func (q *lifecycleRemoteQueue) EnqueueForReference(key, op, reference string, pr
 			warning := attempt.DiagnosticWarning()
 			if warning != "" {
 				if q.notify != nil {
-					q.notify(target.Address, warning)
+					q.notify(couchtty.Notice{Class: couchcore.NoticeRemoteLifecycleDiagnostic, Kind: "status", Thread: target.Address, SourceRoot: target.StartingPath, Label: target.Slot, Body: warning})
 				}
 				value = lifecycleRecordedOutcome{value: value, nonce: attempt.RecordedFailureNonce(), warning: warning}
 			}
@@ -67,6 +68,17 @@ func (q *lifecycleRemoteQueue) EnqueueForReference(key, op, reference string, pr
 			ctx = couchcore.WithOperationAttempt(ctx, attempt)
 		}
 		call, err := prepare(ctx)
+		if call.FailureTarget != nil {
+			if target.Address == (couchcore.ThreadAddress{}) {
+				target.Address = call.FailureTarget.Address
+			}
+			if target.StartingPath == "" {
+				target.StartingPath = call.FailureTarget.StartingPath
+			}
+			if target.Slot == "" {
+				target.Slot = call.FailureTarget.Slot
+			}
+		}
 		if attempt != nil {
 			attempt.ObserveCall(call)
 		}

@@ -6,7 +6,9 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/xianxu/pair/cmd/internal/couchcore"
 	"github.com/xianxu/pair/cmd/internal/couchmessage"
+	"github.com/xianxu/pair/cmd/internal/couchtty"
 )
 
 type automaticInputStallRecord struct {
@@ -55,7 +57,7 @@ func (s *messageService) handleAutomaticInputStall(ctx context.Context, r couchm
 	}
 	s.stalls.records[caller.Slot] = automaticInputStallRecord{Binding: caller, Sequence: report.Sequence}
 	s.stalls.Unlock()
-	// Bind the reserved occurrence before status/desktop effects can block.
+	// Bind the reserved occurrence before local output can block.
 	// Its verified owning hub and policy epoch come from memory only.
 	permit := s.captureOwnerHubInputPermit(caller)
 	outcome := "input still blocked"
@@ -67,8 +69,9 @@ func (s *messageService) handleAutomaticInputStall(ctx context.Context, r couchm
 		body = fmt.Sprintf("%s's composer holds an unsubmitted automatic message; %s. %s", caller.Slot, couchmessage.AutomaticInputRecoveryHint, body)
 	}
 	var failures []string
+	s.publishSystemNotice(couchtty.Notice{Class: couchcore.NoticeAutomaticInputStall, Kind: "status", Thread: bindingThread(caller), Body: body, HubHandled: true})
 	if c := s.supervision.Load(); c != nil {
-		if c.notice != nil {
+		if publish := s.noticeOutput.Load(); (publish == nil || *publish == nil) && c.notice != nil {
 			c.notice(body)
 		}
 		if permit.current(s) {
@@ -84,15 +87,6 @@ func (s *messageService) handleAutomaticInputStall(ctx context.Context, r couchm
 		}
 	} else {
 		failures = append(failures, "supervision output unavailable")
-	}
-	// Hub admission and desktop output are independent attempts. Never retry an
-	// uncertain desktop write or discard duplicate evidence on disconnect.
-	if write := s.desktopNotify.Load(); write != nil && *write != nil {
-		if err := (*write)(ctx, "Couch automatic input", body); err != nil {
-			failures = append(failures, "desktop notification: "+err.Error())
-		}
-	} else {
-		failures = append(failures, "desktop notification unavailable")
 	}
 	if len(failures) > 0 {
 		return couchmessage.Response{Code: "uncertain", Error: strings.Join(failures, "; ")}

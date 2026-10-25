@@ -14,10 +14,14 @@ import (
 )
 
 func operatorHarness(t *testing.T) (*harness, *board.Board, chan OperatorReply) {
+	return operatorHarnessAnnotation(t, true)
+}
+
+func operatorHarnessAnnotation(t *testing.T, allowed bool) (*harness, *board.Board, chan OperatorReply) {
 	h := newHarness(t)
 	b := board.New(notes.Structural{}, nil)
 	b.WithAnnotationCleanup(h.r.ClearAnnotations)
-	if err := b.SetAnnotationAllowed(context.Background(), true); err != nil {
+	if err := b.SetAnnotationAllowed(context.Background(), allowed); err != nil {
 		t.Fatal(err)
 	}
 	replies := make(chan OperatorReply, 64)
@@ -270,8 +274,7 @@ func TestOperatorPrivateWriteQueueRefusal(t *testing.T) {
 		h.r.mu.Lock()
 		h.r.operatorQueued = maxOperatorQueue
 		h.r.mu.Unlock()
-		admission, _ := h.r.opts.Operator.AdmitAnnotation()
-		h.r.handleOperator("A", 7, board.OperatorRequest{Op: "save-note", Request: "2", Save: &board.OperatorSave{Draft: draft.Draft, Color: 0, Text: "hello"}}, admission)
+		h.r.handleOperator("A", 7, board.OperatorRequest{Op: "save-note", Request: "2", Generation: h.r.opts.Operator.AnnotationCapability().Generation, Save: &board.OperatorSave{Draft: draft.Draft, Color: 0, Text: "hello"}})
 		h.r.mu.Lock()
 		h.r.operatorQueued = 0
 		h.r.mu.Unlock()
@@ -374,7 +377,7 @@ func TestOperatorTabReturnRetiresAcceptedLedgerAndAllowsFreshSave(t *testing.T) 
 	}
 }
 
-func TestOperatorDisabledPrepareRefused(t *testing.T) {
+func TestOperatorRetiredGenerationPrepareRefused(t *testing.T) {
 	h, b, replies := operatorHarness(t)
 	b.WithAnnotationCleanup(h.r.ClearAnnotations)
 	if err := b.SetAnnotationAllowed(context.Background(), false); err != nil {
@@ -413,8 +416,7 @@ func TestOperatorQueuedSaveGenerationAndHeldDraft(t *testing.T) {
 	draft := prepareOperator(t, h, replies)
 	b.WithAnnotationCleanup(func(context.Context, uint64) error { return nil })
 	if err := h.r.ask(context.Background(), func() {
-		a, _ := b.AdmitAnnotation()
-		h.r.handleOperator("A", 7, board.OperatorRequest{Op: "save-note", Request: "2", Save: &board.OperatorSave{Draft: draft.Draft, Color: 0, Text: "held text"}}, a)
+		h.r.handleOperator("A", 7, board.OperatorRequest{Op: "save-note", Request: "2", Generation: h.r.opts.Operator.AnnotationCapability().Generation, Save: &board.OperatorSave{Draft: draft.Draft, Color: 0, Text: "held text"}})
 		if err := b.SetAnnotationAllowed(context.Background(), false); err != nil {
 			t.Error(err)
 		}
@@ -480,8 +482,7 @@ func TestOperatorQueuedWriterDoesNotWaitForCleanupCommand(t *testing.T) {
 	draft := prepareOperator(t, h, replies)
 	off := make(chan error, 1)
 	if err := h.r.ask(context.Background(), func() {
-		a, _ := b.AdmitAnnotation()
-		h.r.handleOperator("A", 7, board.OperatorRequest{Op: "save-note", Request: "2", Save: &board.OperatorSave{Draft: draft.Draft, Color: 0, Text: "queued"}}, a)
+		h.r.handleOperator("A", 7, board.OperatorRequest{Op: "save-note", Request: "2", Generation: h.r.opts.Operator.AnnotationCapability().Generation, Save: &board.OperatorSave{Draft: draft.Draft, Color: 0, Text: "queued"}})
 		go func() { off <- b.SetAnnotationAllowed(context.Background(), false) }()
 		// Cleanup now holds command and waits behind this callback and writer.
 		until := time.Now().Add(time.Second)
@@ -555,7 +556,6 @@ func TestOperatorResolveRefusesRevisionChangedBeforeWrite(t *testing.T) {
 	if err := h.r.ask(context.Background(), func() {
 		// Admission freezes the revision, then a reopen wins before its queued writer.
 		event := operatorEvent(operatorRequest("resolve", "3", map[string]any{"seg": 1, "id": saved.ID, "state": rec.NoteResolved}), 7)
-		event.annotation, _ = b.AdmitAnnotation()
 		h.r.operatorBinding(event)
 		if !h.r.m.Emit(h.r.m.State().T, &rec.NoteState{ID: saved.ID, State: rec.NoteResolved}) || !h.r.m.Emit(h.r.m.State().T, &rec.NoteState{ID: saved.ID, State: rec.NoteOpen}) {
 			t.Error("fixture transition rejected")

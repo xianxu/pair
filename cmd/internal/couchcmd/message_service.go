@@ -199,12 +199,12 @@ type messageService struct {
 	// republished after every step like connected.
 	liveness atomic.Pointer[map[string]couchmessage.SlotLiveness]
 	// blocked hands the Console the threads behind a picker (pair#465). The
-	// mutex orders each change with the view's installation, so a stale set
-	// never lands after a newer one; the view itself never blocks.
+	// mutex protects the memory snapshot; publication happens after unlocking.
 	blocked struct {
 		sync.Mutex
-		view func(map[couchcore.ThreadAddress]bool)
-		last map[couchcore.ThreadAddress]bool
+		view    func(map[couchcore.ThreadAddress]bool)
+		last    map[couchcore.ThreadAddress]bool
+		prompts map[couchcore.ThreadAddress]couchcore.AttentionCondition
 	}
 	// after schedules a retry; tests replace it to fire retries on demand.
 	after func(time.Duration, func())
@@ -215,7 +215,9 @@ type messageService struct {
 	drives        atomic.Pointer[agentDriveService]
 	desktopNotify atomic.Pointer[func(context.Context, string, string) error]
 	// attention reports facts to the Console's attention list (pair#673).
-	attention atomic.Pointer[func(couchcore.AttentionFact)]
+	attention    atomic.Pointer[func(couchcore.AttentionFact)]
+	noticeOutput atomic.Pointer[func(couchtty.Notice)]
+	noticeBoot   map[string]bool // under mu; witnessed startup wrappers not yet connected
 	// Retained across disconnects; only a verified replacement supersedes a slot.
 	stalls struct {
 		sync.Mutex
@@ -575,17 +577,22 @@ func startMessageServiceWithStartup(console *couchtty.Console, c *couchcore.Couc
 	service.SetShares(console.Shares)
 	service.SetBlockedView(console.SetBlockedThreads)
 	service.SetAttention(console.ObserveAttention)
+	service.installNoticeDelivery(console, startup)
 	console.SetWrapperActivity(service.WrapperActivity)
 	service.showHub(console)
 	service.SetReplay(console.ReplayShare, console.SharedReplays)
 	service.SetSubmission(console.Submission)
 	service.recordDeliveries(namespace)
-	service.supervision.Store(newSupervisionCoordinator(service, func(text string) { console.Warn(couchtty.Notice{Kind: "status", Body: text}) }))
+	service.supervision.Store(newSupervisionCoordinator(service, func(text string) {
+		console.Notify(couchtty.Notice{Class: couchcore.NoticeRoutine, Kind: "status", Body: text})
+	}))
 	if lifecycleOn {
 		// Recipient churn during ordinary restart can leave a lifecycle
 		// announcement unavailable. Routine churn stays in the feed; typed
 		// terminal losses, metadata loss and capacity failure need attention.
-		publisher := startLifecyclePublisher(service, func(text string) { console.Notify(couchtty.Notice{Kind: "status", Body: text}) }, func(text string) { console.Warn(couchtty.Notice{Kind: "status", Body: text}) })
+		publisher := startLifecyclePublisher(service, func(text string) { console.Notify(couchtty.Notice{Kind: "status", Body: text}) }, func(text string) {
+			console.Warn(couchtty.Notice{Class: couchcore.NoticeLifecyclePublisherDiagnostic, Kind: "status", Body: text})
+		})
 		console.SetLifecycleObserver(publisher.observe)
 		wireNativeExitNotices(service, console)
 	}
@@ -626,7 +633,9 @@ func startMessageServiceWithStartup(console *couchtty.Console, c *couchcore.Couc
 	go func() { defer service.workers.Done(); inventory.runSampler(service.lifetime, sampler) }()
 	// History backup (#592): a daily continuous archive pass when configured.
 	archive := newArchiveScheduler(artifacts.PairLifecycleDataDir(), func(text string) { console.Notify(couchtty.Notice{Kind: "status", Body: text}) },
-		func(text string) { console.Warn(couchtty.Notice{Kind: "status", Body: text}) })
+		func(text string) {
+			console.Warn(couchtty.Notice{Class: couchcore.NoticeArchiveMaintenanceWarning, Kind: "status", Body: text})
+		})
 	archive.warn = func(ctx context.Context, body string) (string, error) {
 		return service.notifyArchiveWarning(ctx, body, archive.notify)
 	}
@@ -911,6 +920,7 @@ func (s *messageService) execute(e couchmessage.RegistryEffect) *couchmessage.Re
 		}
 		s.mu.Lock()
 		s.workspaces[e.Binding] = p.identity
+		delete(s.noticeBoot, p.identity.WorktreeRoot)
 		s.mu.Unlock()
 		_ = s.broker.ReconcileObservation(e.Binding, p.observation)
 	case couchmessage.EffectDisconnect:
@@ -1294,23 +1304,46 @@ func (s *messageService) SetBlockedView(view func(map[couchcore.ThreadAddress]bo
 func (s *messageService) publishBlocked(liveness map[string]couchmessage.SlotLiveness) {
 	set := map[couchcore.ThreadAddress]bool{}
 	prompts := map[couchcore.ThreadAddress]couchcore.AttentionCondition{}
+	notices := map[couchcore.ThreadAddress]couchtty.Notice{}
 	for _, l := range liveness {
-		if l.Picker != nil && *l.Picker {
-			thread := bindingThread(l.Binding)
-			set[thread] = true
-			prompts[thread] = couchcore.AttentionCondition{Label: l.Binding.Slot, Title: attentionPromptTitle}
+		if l.Picker == nil || !*l.Picker {
+			continue
 		}
+		thread := bindingThread(l.Binding)
+		set[thread] = true
+		condition := couchcore.AttentionCondition{Label: l.Binding.Slot, Title: attentionPromptTitle}
+		owner := s.NoticeOwner(couchcore.NoticeDeliveryOccurrence{Thread: thread})
+		if couchcore.RouteNotice(couchcore.NoticeRouteInput{Class: couchcore.NoticeLivePicker, Owner: owner.State}).Bell {
+			prompts[thread] = condition
+		}
+		// HubHandled means the existing wait watcher owns the canonical hub
+		// effect, including its threshold/mute/deduplication, not submitted IO.
+		notices[thread] = couchtty.Notice{Class: couchcore.NoticeLivePicker, Kind: "status", Thread: thread, Label: l.Binding.Slot, Body: attentionPromptTitle, Condition: noticeCondition(couchcore.NoticeLivePicker, thread), HubHandled: true}
 	}
 	s.blocked.Lock()
-	defer s.blocked.Unlock()
-	if maps.Equal(set, s.blocked.last) {
-		return
-	}
+	previous := s.blocked.last
+	changed := !maps.Equal(set, previous)
+	attentionChanged := s.blocked.prompts == nil || !maps.Equal(prompts, s.blocked.prompts)
 	s.blocked.last = set
-	if s.blocked.view != nil {
-		s.blocked.view(set)
+	s.blocked.prompts = prompts
+	view := s.blocked.view
+	s.blocked.Unlock()
+	if changed && view != nil {
+		view(set)
 	}
-	s.observeAttention(couchcore.AttentionFact{Kind: couchcore.AttentionPrompt, Live: prompts})
+	for thread, notice := range notices {
+		if !previous[thread] {
+			s.publishSystemNotice(notice)
+		}
+	}
+	for thread := range previous {
+		if !set[thread] {
+			s.publishSystemNotice(couchtty.Notice{Class: couchcore.NoticeLivePicker, Thread: thread, Condition: noticeCondition(couchcore.NoticeLivePicker, thread), Cleared: true})
+		}
+	}
+	if attentionChanged {
+		s.observeAttention(couchcore.AttentionFact{Kind: couchcore.AttentionPrompt, Live: prompts})
+	}
 }
 
 // SetReplay installs the console's replay shares: the requests, and the
@@ -1683,7 +1716,15 @@ func messageThreadResolver(c *couchcore.Couch, listings *launcher.ListingPoller)
 			return "", err
 		}
 		if !session.Present || session.Name != binding.Session {
-			return "", &couchmessage.RelaunchRequiredError{Cause: errors.New("message terminal is not positively listed")}
+			detail := "message terminal is not positively listed"
+			if session.ListingEvidence != nil {
+				if raw, err := json.Marshal(session.ListingEvidence); err == nil {
+					detail += "; listing_evidence=" + string(raw)
+				} else {
+					detail += "; listing evidence unavailable: " + err.Error()
+				}
+			}
+			return "", &couchmessage.RelaunchRequiredError{Cause: errors.New(detail)}
 		}
 		return record.WorkingPath, ctx.Err()
 	}

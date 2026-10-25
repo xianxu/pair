@@ -101,6 +101,17 @@ the real wrapper's composer/text classification across personalities, phases,
 draft shapes and geometries. These results qualify deterministic fixtures, not
 an installed model service.
 
+For caller-authentication failures, `CaptureCallerEvidence` freezes the genuine
+public Actors binding before worker startup and prioritizes that caller within
+the existing four-source diagnostic cap (#872). It retains the caller's exact
+emitted identity, ready/pane evidence and selected PID-generation observation;
+later native listings are separately timestamped and never described as the
+judged authorization frame. Private descriptor/socket checks, shared diagnostic
+deadline and exact cleanup remain in force. The opt-in
+`TestDisposableCallerListingDiagnostic` uses fixture Claude and five workers;
+its one authorized sample passed with cleanup, leaving the original cause
+unclassified. Native reruns still require the hub's authorization.
+
 Every fixture Exec checks group quiescence after its direct child and output join,
 including normal exit, signal and cancellation. A live or unreadable group is
 explicit cleanup uncertainty: command, result and cancellation evidence stay in

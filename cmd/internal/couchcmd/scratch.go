@@ -206,5 +206,7 @@ func withScratchWarnings(ctx context.Context, console *couchtty.Console) context
 	if console == nil {
 		return ctx
 	}
-	return context.WithValue(ctx, scratchWarningContextKey{}, func(text string) { console.Warn(couchtty.Notice{Kind: "status", Body: text}) })
+	return context.WithValue(ctx, scratchWarningContextKey{}, func(text string) {
+		console.Warn(couchtty.Notice{Class: couchcore.NoticeScratchMetadataWarning, Kind: "status", Body: text})
+	})
 }

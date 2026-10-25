@@ -1262,9 +1262,12 @@ its Zellij client; Couch's own detach is the switcher's Alt+d (#245).
 General messages no longer trail the tab bar, in either collapse or multiline
 mode. Open the switcher to see the latest retained message. Operation notices
 and clipboard feedback keep their own precedence there; a new feed message does
-not replace an operation error or progress notice. Actionable asynchronous
-warnings also appear in the attention list; routine progress, success and key
-feedback stay in the switcher.
+not replace an operation error or progress notice. Diagnostics go to the owning
+hub and the feed. The bell holds explicit hub notifications, failures of your
+own cast or drive actions, and actionable events without a connected owning hub.
+A connected hub with automation off keeps its diagnostics feed-only, with no
+replay when enabled. Routine progress, success and key feedback stay in the
+switcher.
 
 The first thread for a repository uses its primary checkout (`:0`). Starting
 another fills the lowest free number (`:1`, `:2`, …), under
@@ -1531,10 +1534,15 @@ history in place. With an empty list it stays put and says nothing is waiting.
 It no longer jumps to the newest page or accepts a switcher row. Ordinary
 `Enter` still selects a switcher row or the selected attention item.
 
-The **notification list (bell)** (pair#673) shows what is waiting on you, newest first. It holds the hub's `couch --notify` messages, actionable asynchronous Couch warnings,
-slots blocked on a permission prompt or picker, and slots whose turn ended with
-a question to you. While the list has items, the right end of the status row
-shows `🔔N`, red if a slot is blocked on a prompt; click it to open the list too.
+The **notification list (bell)** (pair#673) shows what needs you, newest first:
+the hub's `couch --notify` messages, failures of your own casts and drive actions,
+and actionable events with no connected owning hub. Other diagnostics, blocked
+prompts, pickers and judged questions go to their owning hub and the feed. A
+connected hub with automation off suppresses generated hub input and fallback
+bell items; enabling it does not replay those events. Couch crashes and failure
+to start its own hub also reach the bell. Routine progress and expected stops
+stay feed-only. While the list has items, the right end of the status row shows
+`🔔N`, red if a fallback item is a blocked prompt; click it to open the list too.
 The list opens at the top right. `Up`/`Down` (or `k`/`j`) move, `Enter` or a
 click jumps to the item's attached thread and removes the item. A global Couch
 warning or an item whose thread is no longer attached opens the switcher
@@ -1697,7 +1705,10 @@ capability is enabled:
 - `👽` controls remote driving; its **drive link** also lets viewers ask to
   drive while driving is on.
 
-Annotation and remote driving start **OFF**, independently. A link and its code
+Viewer annotation and remote driving start **OFF**, independently. In the cast
+Chrome, the trusted operator can use **Note** and **Pointer** without enabling
+viewer annotation. Pausing, remote driving and unresolved cleanup still block
+those tools. A link and its code
 remain valid when a capability is off, but holding them does not enable it:
 the server refuses annotation or driving until the operator enables that
 capability. Turning annotation off clears the current marks while preserving
@@ -1824,7 +1835,8 @@ click your 💭 pin for a populated editor, **Save** to revise its text, or
 **Cancel** to leave it unchanged. The original author and box stay the same,
 and revised notes show **edited**. The operator's overlay in cast Chrome also
 opens existing pins with the pen Off, but can edit only notes made by the
-operator, not viewers' notes. Annotation OFF and view-only links are read-only;
+operator, not viewers' notes. For viewers, Annotation OFF and view-only links
+are read-only; the Notes panel explains how to request access from the owner;
 while a new note's Save is pending, its text is temporarily locked to prevent
 a duplicate creation. Text revisions and resolver attribution stay in the web
 recording; resolved notes still disappear from the live page.

@@ -69,7 +69,7 @@ func rawZellijCollectorOwner(filename string, fn *ast.FuncDecl) bool {
 	case "cmd/internal/launcher/zellij_query_evidence.go":
 		return fn.Name.Name == "queryZellijVersion" && fn.Recv == nil
 	case "cmd/internal/testcouch/startup_evidence.go":
-		return fn.Name.Name == "dumpStartupPane" && zellijReceiver(fn, "Fleet")
+		return fn.Name.Name == "runStartupQuery" && zellijReceiver(fn, "Fleet")
 	}
 	return false
 }

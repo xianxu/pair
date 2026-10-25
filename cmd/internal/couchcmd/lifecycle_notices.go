@@ -424,8 +424,10 @@ func (p *lifecyclePublisher) run(ctx context.Context) {
 		diagnostics := p.diagnostics
 		p.diagnostics = map[string]lifecycleDiagnostic{}
 		p.mu.Unlock()
-		for _, message := range diagnostics {
-			if message.actionable && p.warning != nil {
+		for root, message := range diagnostics {
+			if message.actionable && p.service.noticeOutput.Load() != nil {
+				p.service.publishSystemNotice(couchtty.Notice{Class: couchcore.NoticeLifecyclePublisherDiagnostic, Kind: "status", OwnerRoot: root, Body: message.body})
+			} else if message.actionable && p.warning != nil {
 				p.warning(message.body)
 			} else if p.notice != nil {
 				p.notice(message.body)
