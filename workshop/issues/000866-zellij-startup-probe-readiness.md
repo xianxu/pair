@@ -285,6 +285,10 @@ Normal automatic measurement at full close refused before dispatching review: me
 
 Hub10afb7d8 explicitly authorizes --no-actual for this exact182432-byte/v4-131072-bound refusal, citing in-progress ariadne#603. Full close retry records the exact refusal in --verified; no typed hours. Fresh affected-reader inventory passed again before retry.
 
+### 2026-10-24 — explicit isolated-close authorization; staged integration stays mandatory
+
+Close next refused the noon-freshness gate (main503ba31b9,262 paths). A read-only merge-tree preview against origin/main found three conflicts (manifest, affected-config test and scanner reader certificate); no merge was applied. Authenticated hub c04b128d explicitly authorizes --no-integrate for this close and requires retaining the prioritized queued check: the restaged combo is built on current main, and pair:4 independently checks main-built warm sessions against that integrated stage before operator handoff. Landing still integrates main and runs the required suite. This is an explicit close-only sequencing exception, not integrated-code or landing evidence. Fresh inventory passed before the retry. No source or queued check was changed.
+
 ## Revisions
 
 ### 2026-10-24 — final plan bookkeeping and source ownership
