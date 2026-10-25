@@ -107,6 +107,9 @@ Part A of `workshop/plans/000891-codex-no-daemon-and-version-notice-plan.md` (Ta
     shell_snapshot setting, matching the spec's diagnosis.
 - Tests: `go test ./cmd/internal/launcher ./cmd/internal/readiness ./cmd/internal/wrapcmd -count=1` PASS
   (launcher 112.0 s, wrapcmd 143.1 s), `go build ./...` and `go vet` on the three packages clean.
+- Self-review fix before the boundary review: the seam's new `argumentPresent` ignored the `--` boundary (a
+  prompt word `--no-daemon` after `--` would have suppressed the opt-out) and duplicated `hasFlag`; the seam now
+  calls `hasFlag`, and `TestCodexLaunchTreatsPromptTextAsNoFlag` pins the post-`--` case.
 
 ## Revisions
 

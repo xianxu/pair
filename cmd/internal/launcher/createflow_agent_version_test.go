@@ -76,6 +76,18 @@ func TestCodexLaunchHonorsAnExplicitNoDaemon(t *testing.T) {
 	}
 }
 
+// A prompt word after `--` is not a flag: the launcher must still opt out of
+// the shared server.
+func TestCodexLaunchTreatsPromptTextAsNoFlag(t *testing.T) {
+	rt, code, err := codexResumeWithVersion(t, "0.164.0", []string{"--sandbox", "workspace-write", "--", "--no-daemon"})
+	if err != nil || code != 0 {
+		t.Fatalf("RunLaunch = %d, %v", code, err)
+	}
+	if got, want := launchArgsText(t, rt.env), "--no-daemon --disable shell_snapshot resume native-root-1 --sandbox workspace-write --no-alt-screen -- --no-daemon"; got != want {
+		t.Fatalf("argv = %q want %q", got, want)
+	}
+}
+
 func TestCodexLaunchWithoutAVersionProbeIsUnchanged(t *testing.T) {
 	rt, code, err := codexResumeWithVersion(t, "", []string{"--sandbox", "workspace-write"})
 	if err != nil || code != 0 {

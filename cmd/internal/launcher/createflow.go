@@ -835,7 +835,7 @@ func runCreate(opts LaunchOptions, env Env, rt Runtime, live []Session, decision
 		// A shared Codex background server started with other feature settings
 		// stops the launch at a prompt a Couch slot cannot answer; a private
 		// server cannot mismatch. Never restart or contact the shared one.
-		if versionAtLeast(agentVersion, codexNoDaemonVersion) && !argumentPresent(agentArgs, "--no-daemon") {
+		if versionAtLeast(agentVersion, codexNoDaemonVersion) && !hasFlag(agentArgs, "--no-daemon") {
 			commandArgs = append([]string{"--no-daemon"}, commandArgs...)
 		}
 	}

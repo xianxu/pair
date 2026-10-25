@@ -20,14 +20,14 @@ into the ready record. Part B (the once-per-change hub notice and its baseline s
 
 | Name | Lives in | Status |
 |------|----------|--------|
-| `parseAgentVersion`, `versionAtLeast`, `argumentPresent` | `cmd/internal/launcher/agent_version.go` | new |
+| `parseAgentVersion`, `versionAtLeast` | `cmd/internal/launcher/agent_version.go` | new |
 | `AgentVersion` ready-record field | `cmd/internal/readiness/record.go` | modified |
 | `codexBoolGlobalOption` table entry | `cmd/internal/launcher/agentargs.go` | modified |
 
 - **`parseAgentVersion` / `versionAtLeast`** — `codex --version` prints `codex-cli 0.164.0`; parse the last
   token only when it matches `X.Y.Z[-…]`, compare numerically. Unparseable output yields `""` and
-  `versionAtLeast` is false, so an unknown CLI never gains a flag it may not support. `argumentPresent` keeps a
-  caller-supplied `--no-daemon` from being duplicated.
+  `versionAtLeast` is false, so an unknown CLI never gains a flag it may not support. The existing `hasFlag`
+  keeps a caller-supplied `--no-daemon` from being duplicated (a prompt word after `--` is not a flag).
 - **`AgentVersion` ready-record field** — optional `agent_version`, bounded (≤64 bytes, valid UTF-8, no control
   characters). `Decode` already tolerates unknown members, so the record interoperates across an upgrade in
   both directions.
@@ -448,3 +448,10 @@ Finding PQ-1 (Important): `--no-daemon` was missing from `codexBoolGlobalOption`
 strip would stop at the new leading flag and keep `resume <id>`. Delta: Task 2 now changes that table and tests
 `FreshAgentArgs` with the flag leading; the plan names the table as the single source for Codex global flags.
 Minors folded in: snippet imports, measured probe latency, stale version after a mid-session upgrade.
+
+### 2026-10-25 — `argumentPresent` replaced by `hasFlag`
+
+Reason: the new helper ignored the `--` boundary, so a prompt word `--no-daemon` would have suppressed the
+opt-out (and it duplicated the existing flag predicate, ARCH-DRY). Delta: the seam calls
+`hasFlag(agentArgs, "--no-daemon")`; the dedicated helper is gone, the test notes read `hasFlag`, and a new
+launch test pins a post-`--` prompt word. The snippets above keep the original shape.

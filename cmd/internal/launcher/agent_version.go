@@ -52,12 +52,3 @@ func versionAtLeast(version string, want [3]int) bool {
 	}
 	return true
 }
-
-func argumentPresent(args []string, want string) bool {
-	for _, arg := range args {
-		if arg == want {
-			return true
-		}
-	}
-	return false
-}
