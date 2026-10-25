@@ -53,7 +53,7 @@ Installed binary /opt/homebrew/Cellar/zellij/0.45.1/bin/zellij. Verified local t
 - [x] Approve the readiness/coordination contour in [the durable plan](../plans/000866-zellij-startup-readiness-plan.md), then enter change-code; no estimate before its gate.
 - [x] Implement one readiness authority and bounded shared admission with deterministic regression controls and normal bypass prevention.
 - [x] Qualify shared disposable native startup and retain exact cleanup/failure evidence. Recorded pre-close and the final close/landing gates are tracked explicitly in the Log below.
-- [ ] Correct legacy warm startup under the approved lease-only live window; prove deterministic exclusion and old-main-to-candidate upgrade using the operator-authorized one-off disposable check (reusable #879 follows independently), then record the check and re-close before any new stage.
+- [x] Correct legacy warm startup under the approved lease-only live window; prove deterministic exclusion and actual old-main-to-candidate upgrade, update contracts and queue the recorded pre-close. The outstanding recorded result, full re-close and hub-sequenced stage remain explicitly tracked in the Log.
 
 ## Log
 
@@ -275,6 +275,10 @@ Retained setup/oracle attempts are not candidate failures: first build lacked ge
 
 Operator evidence retained read-only in the same directory: operator-supervision-window.jsonl SHA256321818e93894d761fbab155c4cdb7e7663b1ff76826a49dddbc0ee438d636d93; operator-failures.json SHA256549a14acc62c80fcac125b456f7f80f717625b79a99d35946ce6d2a580e6f521; operator-profile-metadata.json SHA256ed51fad2931935aa336afcfdf2a6a1493992b9820977f097c5417e2b05550a10. These fix the runtime time-window/profile attribution without modifying the operator's namespace. Recorded pre-close and full re-close are next; green native evidence alone does not authorize a stage or landing.
 
+### 2026-10-24 — recorded pre-close queued; full close review next
+
+Pushed evidence head983f7a9902e82bd259d7f75d274b4aee9f1de367 entered sdlc local-check run --pre-close. Train configuration selects affected, whose Makefile.local full-selection trigger correctly delegates to suite: make PAIR_GO_TRIMPATH=-trimpath test. Retained run lease-3449692818, attempt b94f542c8872b01cc6a32cb3bece0e61, queue position4 at admission; log /Users/xianxu/workspace/pair/.git/sdlc/test-stats/inflight/b94f542c8872b01cc6a32cb3bece0e61/run.log. This is queued, not PASS. Fresh make test-affected-inventory passed before the full close. Per tl-worker's explicit permission to overlap review with a retained recorded check, start the binary-owned full review while waiting; landing and final green handoff still require the exact unchanged-code recorded pass. No restart while this check is queued/running.
+
 ## Revisions
 
 ### 2026-10-24 — final plan bookkeeping and source ownership
@@ -329,3 +333,7 @@ total: 5.5
 ```
 
 Design2.38h x1.15 + implementation2.76h =5.497h, rounded5.5h of focused ship time. This includes the one mandatory close review, not a redundant milestone boundary.
+
+### 2026-10-24 — corrective implementation boundary bookkeeping
+
+The final Plan checkbox now names the completed correction/native proof and queued recorded check only. It no longer embeds its own future close as an unchecked implementation task; the outstanding suite result, full review and hub-sequenced stage are explicit in the Log. This bookkeeping does not waive any acceptance requirement or represent a queued check as passed.
