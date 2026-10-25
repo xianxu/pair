@@ -1,0 +1,4 @@
+=== RUN   TestLiveConformance
+--- PASS: TestLiveConformance (1.58s)
+PASS
+ok  	github.com/xianxu/pair/cmd/internal/webcast	1.751s

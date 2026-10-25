@@ -1,0 +1,21 @@
+{
+  "head": "5060c47a6f71f9b36740844ebbd955aacbabe874",
+  "command": [
+    "go",
+    "test",
+    "./cmd/internal/webcast",
+    "-run",
+    "^TestLiveConformance$",
+    "-count=1",
+    "-v",
+    "-timeout=90s"
+  ],
+  "environment": {
+    "WEBCAST_LIVE_CHROME": "1"
+  },
+  "exit": 0,
+  "seconds": 2.998,
+  "log_sha256": "2761ccb3662da23fdc1b21623434cc920387ac1c0177cbafc640e116859e7f86",
+  "source_diff_empty": true,
+  "headless": "liveChrome LaunchOptions.Headless=true; private t.TempDir profile; cleanup Close joins owned Chrome"
+}

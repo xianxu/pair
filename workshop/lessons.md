@@ -2971,6 +2971,9 @@ and external temporary roots rather than relying on the host's TMPDIR.
 
 - #844 BR-4: an approved post-close verification fix that adds an executable checker contract can require full close even when it changes no product policy. Follow the scope guard with the existing ledger; do not treat plan approval as authority to narrow that review.
 
+- #858 BR-1: a native control fixture must prove visible, enabled, in-viewport hit geometry before dispatch; positive box dimensions alone admit visibility:hidden, opacity-zero and clipped controls. Exercise the real closed-shadow DOM and count forwarded mouse events so refusal means zero input.
+
+- #858 recorded-check follow-up: moving a wait loop changes the exact function-owned sleep-debt site even when its duration is unchanged. Keep admitted waits with their original owner or remove them; run the tracked-source catalog before queuing a refactored fixture. The debt list may only shrink and must not be expanded/renamed to bypass the failure.
 - #881: A Unix availability probe can fit while a later private directory plus socket leaf exceeds the application budget. Use the shared short-root allocator for the fixture owner, assert the complete worst-case derived path under a long inherited TMPDIR, and check Unix/config/permissions/cleanup without converting fixture overflow to a skip. The catalog guards the allocator owner.
 
 - #881 BR-1: A fixture-only fix can introduce an architectural surface through its catalog rule. Every new Pair-local ownership rule needs its atlas mapping in the same change, naming the protected owner, matcher limits and executable regression; do not waive atlas solely because production code is unchanged.
