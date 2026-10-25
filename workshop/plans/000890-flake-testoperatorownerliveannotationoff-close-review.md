@@ -88,3 +88,93 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-25T11:05:05-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 890 — flake: TestOperatorOwnerLiveAnnotationOff |
+| repo | pair |
+| issue file | workshop/issues/000890-flake-testoperatorownerliveannotationoff.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 11fece5cfb3b7da9ab93e6e592ec4f940919887a..99919a7e9fd4cceb1746a2ef24758ceed9fd30a2 |
+| command | sdlc close --issue 890 |
+| reviewer | codex (openai; author openai) |
+| isolation | fenced |
+| timestamp | 2026-10-25T11:05:05-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: medium
+```
+
+The resize barrier matches the documented contract, preserves native input and the existing timeout, and has meaningful RED/GREEN host evidence. No code defect was identified. Local Chrome still fails before assertions, but the submitted evidence answers BR-1 on code unchanged at this pinned head.
+
+Done-when: current — its clauses cover consumed-resize ordering, unchanged geometry, error cleanup, native owner behavior, and the revised document-readiness requirement.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: withdrawn
+    note: |
+      Inspected host-proof.md and both complete logs; SHA256 hashes match. At requested head 4b0b9f8e9d4d9b0c9d5c137bff879c5432319669, both tests passed three repetitions in 18.909s, and the metrics-only overlay failed the held-event assertion in 1.347s. Git comparison confirms no cmd changes between that head and pinned head 99919a7e9fd4cceb1746a2ef24758ceed9fd30a2. This answers the requested positive and counterfactual measurements despite local Chrome startup failure.
+```
+
+1. **Strengths**
+
+   - `live_viewport_test.go:16` centralizes receipt creation, waiting, cancellation, and object release; cleanup errors preserve the original error.
+   - `operator_owner_live_test.go:101` establishes the fixture document before creating its document-owned receipt.
+   - The regression holds actual Chrome resize delivery, checks panel clamping after release, and exercises unchanged geometry and metrics/wait failures.
+   - `atlas/webcast.md` documents the helper and its readiness precondition.
+
+2. **Critical findings**
+
+   None.
+
+3. **Important findings**
+
+   None remaining.
+
+4. **Minor findings**
+
+   None.
+
+5. **Test coverage notes**
+
+   - Host evidence establishes three passing repetitions of both affected tests and a failing metrics-only control.
+   - The local focused command failed all repetitions during Chrome startup with “GPU process isn't usable”; no assertions executed locally.
+   - `TestTrackedGoFilesPassCatalog` passed in 6.549s.
+   - Pinned-range `git diff --check` passed; checkout remains unchanged.
+   - Completion of the recorded affected check and normal landing suite remains a landing prerequisite; this window does not establish their completion.
+
+6. **Architectural notes for upcoming work**
+
+   - **ARCH-DRY: pass.** Owner viewport changes share one helper.
+   - **ARCH-PURE: pass.** The change is thin integration glue with an injected CDP caller; it introduces no business logic mixed with IO.
+   - **ARCH-PURPOSE: pass.** Completion now depends on consumed resize, matching the synchronous handlers in `web/floating-panel.js:173` and `web/cast-tools.js:44`.
+   - **ARCH-EVOLVE: pass.** No persisted format changes.
+   - Atlas coverage is present. No new user-facing command, flag, or configuration requires a README update. No Core concepts table is claimed.
+
+7. **Plan revision recommendations**
+
+   None.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"32d76918-1d5e-457e-b080-5fed06b048fa","repository":"github.com/xianxu/pair","issue_id":"000890","recipe":"small-diff-review","round":2,"attempt":1,"agent":"codex","root":"/Volumes/TestScratch/review-checkouts/e381b82178cc6b83","reviewed_head":"99919a7e9fd4cceb1746a2ef24758ceed9fd30a2","slot":"pair:9","requested_at":"2026-10-25T18:03:31.138013Z"},"phase":"finished","pid":26688,"started_at":"2026-10-25T18:03:31.307558Z","finished_at":"2026-10-25T18:05:03.560874Z","session_id":"01a1743b-641e-7601-bd68-65a4970d97bd","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 3.324094s
+head: "99919a7e9fd4cceb1746a2ef24758ceed9fd30a2"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000409
