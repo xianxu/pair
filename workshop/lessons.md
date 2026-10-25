@@ -7,6 +7,7 @@ representative evidence, not an exhaustive index.
 
 ## Proof and verification
 
+- #872: Every new production Go file needs an explicit artifactpath inventory classification, including pure evidence structs and private test-harness diagnostics. Run TestProductionArtifactReferencesAreExactlyClassified with the focused qualification before queuing a full check; reader-hash inventory alone does not cover that separate source census.
 - #869 BR-1: Publishing a complete payload is insufficient when cancellation can race its external helper. Reap that helper first, then publish a payload-free readiness marker with a leader builtin. Qualify held-write and held-after-publication intervals; enumerate every readiness consumer.
 - #869: A readiness filename must publish the completed value. Shell redirection creates a file before printf writes its PID; write an adjacent private temporary file and rename only after success. Hold the writer in a conformance control so early visibility fails deterministically.
 
@@ -2921,3 +2922,14 @@ and external temporary roots rather than relying on the host's TMPDIR.
 - #851 BR-1/BR-2: When an approved input gesture changes, sweep every user-facing restatement, including retry instructions and selection-versus-activation language, rather than only the atlas's headline. Reconcile Done-when with the approved Spec and tested modes before close; remove superseded timing assumptions and enumerate inside/outside, hidden and nested behavior. Record the revision without changing the implementation contract.
 
 - #851 BR-3: Evaluate composed filters in their effective candidate universe. Exact-over-fuzzy matching is nonmonotonic: an outside exact match can suppress a valid scoped fuzzy result. Reveal checks must retain applicable scope for the filter, then retain both for view checks. Pin a mixed-restriction case and the converse cases where scope/filter removal is actually needed.
+- #844 PQ-1: implementation plans name each risky production function and one adversarial testing strategy/mechanical guard. Keep scenario inventories in executable tests; generated event sequences should assert independent duplicate-effect, epoch and resource invariants.
+- #844: an async routing queue must freeze readiness and automation epoch when the event occurs. Resolving only on dequeue can revive an OFF-period event after OFF/ON; prove publication/dequeue ordering with a controlled backend. Keep existing episode owners for picker/question sends so a routing refactor preserves timing, mute and deduplication.
+
+- #844 BR-1: unavailable recipient and revoked automation are different facts. Keep the resolved owner's generation even across disconnect, and test queued, pre-admission-refused and uncertain outcomes independently. Only a confirmed unadmitted occurrence with a current generation may fall back; no uncertain replay.
+- #844 BR-2: an attention-policy change must update README's warning summary and bell interaction description alongside the atlas. Search live descriptions by the old promised behavior before close; documentation parity is a source audit, not a wording-presence test.
+
+- #844 BR-1 round2: a generation counter has authority only inside its root. Validate the retained root separately from observing a handoff; accepting a destination adopts its own generation. Unknown readiness cannot erase that witness, and confirmed refusal needs an explicit non-admitting disposition state if readiness is deferred. Test old-root revocation before/after handoff as different orderings.
+
+- #844 recorded check: after adding production Go files, run the existing focused artifactpath source-classification test before queuing the long suite; reader inventory and repolint cover different contracts. Classify each file by actual artifact usage, and add exact vocabulary use-site support with rejection tests when legitimate typed constants are inexpressible. Never rename vocabulary to evade the guard or grow its known-debt list.
+
+- #844 BR-4: an approved post-close verification fix that adds an executable checker contract can require full close even when it changes no product policy. Follow the scope guard with the existing ledger; do not treat plan approval as authority to narrow that review.

@@ -19,9 +19,10 @@ import (
 var ErrPairSessionBindingAbsent = errors.New("exact Pair session binding is absent")
 
 type PairSessionBinding struct {
-	Name    string
-	Present bool
-	Owner   *launcher.SessionOwnerObservation
+	Name            string
+	Present         bool
+	Owner           *launcher.SessionOwnerObservation
+	ListingEvidence *SelectedListingEvidence
 }
 
 type SessionOwnerProber interface {
@@ -724,11 +725,22 @@ func (c ScopedThreadArtifactCollisionChecker) ListedPairSessionContext(ctx conte
 		}
 		return result, nil
 	}
-	sessions, err := c.Zellij.LivenessContext(ctx)
+	sessions, listing, err := c.Zellij.LivenessEvidenceContext(ctx)
 	if err != nil {
 		return result, fmt.Errorf("observe listed session: %w", err)
 	}
-	observation := ProjectSessionPresence(bindings, sessions, nil, claimsFromBindings(current))[address]
+	claims := claimsFromBindings(current)
+	observation := ProjectSessionPresence(bindings, sessions, nil, claims)[address]
+	selected := "missing"
+	for _, session := range sessions {
+		if session.Name == name {
+			selected = "live"
+			if session.State == launcher.SessionExited {
+				selected = "exited"
+			}
+		}
+	}
+	result.ListingEvidence = &SelectedListingEvidence{Address: address, Name: name, Claims: claims[name], SelectedState: selected, Projection: observation.State, Listing: listing}
 	switch observation.State {
 	case SessionPresent:
 		result.Present = true

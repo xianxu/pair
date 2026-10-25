@@ -2,6 +2,7 @@ package couchtty
 
 import (
 	"github.com/xianxu/pair/cmd/internal/castlock"
+	"github.com/xianxu/pair/cmd/internal/couchcore"
 
 	"context"
 	"errors"
@@ -60,7 +61,9 @@ func (c *Console) SetWebcast(cfg webcast.CastConfig) {
 	}
 	cfg.Warnf = func(format string, args ...any) {
 		msg := "Chrome cast: " + fmt.Sprintf(format, args...)
-		c.GoTracked(func() { c.setWarning(msg) })
+		c.GoTracked(func() {
+			c.Warn(Notice{Class: couchcore.NoticeCastDiagnostic, Origin: couchcore.NoticeOperatorOrigin, Kind: "warning", Body: msg})
+		})
 	}
 	c.webcastCfg = &cfg
 }
@@ -137,7 +140,7 @@ func (c *Console) webcastStarted(attempt uint64, cast *webcast.Cast, err error, 
 		c.wcast = webcastState{attempt: attempt}
 		c.mu.Unlock()
 		if err != nil {
-			c.setWarning("Chrome failed to start: " + err.Error())
+			c.Warn(Notice{Class: couchcore.NoticeChromeStartFailed, Origin: couchcore.NoticeOperatorOrigin, Kind: "warning", Body: "Chrome failed to start: " + err.Error()})
 		}
 		return
 	}
@@ -224,7 +227,7 @@ func (c *Console) webcastUpdated(cast *webcast.Cast, u webcast.Update) {
 	c.wcast.update = u
 	c.mu.Unlock()
 	if u.State.Recovery != "" && u.State.Recovery != oldRecovery {
-		c.setWarning(u.State.Recovery)
+		c.Warn(Notice{Class: couchcore.NoticeChromeRecovery, Origin: couchcore.NoticeOperatorOrigin, Kind: "warning", Body: u.State.Recovery})
 	}
 	c.repaint()
 }
@@ -265,7 +268,7 @@ func (c *Console) webcastEnded(cast *webcast.Cast) {
 	case errors.Is(err, webcast.ErrClosedByOperator):
 		c.setNotice("Chrome closed — cast ended.")
 	default:
-		c.setWarning("Chrome cast ended: " + err.Error())
+		c.Warn(Notice{Class: couchcore.NoticeChromeEndedUnexpectedly, Origin: couchcore.NoticeOperatorOrigin, Kind: "warning", Body: "Chrome cast ended: " + err.Error()})
 	}
 }
 

@@ -14,10 +14,20 @@ import (
 // part of its identity: two actors ringing are two obligations, while repeated
 // rings from one actor are one newer obligation.
 type Notice struct {
-	Actor   couchcore.ActorID
-	Kind    string
-	Body    string
-	Control bool
+	Class      couchcore.NoticeClass
+	Origin     couchcore.NoticeOrigin
+	OwnerRoot  string
+	SourceRoot string
+	SourceSlot *couchcore.HubSlot
+	// HubHandled means an existing canonical producer owns hub delivery; it
+	// never claims that submission succeeded. It prevents a second send.
+	HubHandled bool
+	Condition  string
+	Cleared    bool
+	Actor      couchcore.ActorID
+	Kind       string
+	Body       string
+	Control    bool
 	// Thread and Label identify an explicit warning source. An empty thread
 	// means a console-wide warning, never whichever actor happens to be focused.
 	Thread couchcore.ThreadAddress

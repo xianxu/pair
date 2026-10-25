@@ -166,37 +166,53 @@ refresh-pending notice takes precedence; copy feedback remains independent.
 The full retained source stays available to Ctrl+Y, including after transient
 expiry. This projection owns no additional history.
 
-Explicit actionable asynchronous sources use `Console.Warn` and
-`publishWarningLocked` to retain a feed message and apply one existing
-`AttentionNotify` event. Sources include unexpected exits, crash/trace and hub
-failures, cleanup/supervision warnings, failed continuations and actionable
-cast or lockout failures. Routine progress, success and key feedback remain
-feed-only; already-routed prompts, questions and hub notifications keep their
-existing owner. A relaunch-required background priority warning keeps the exact
-slot binding. Lifecycle publication failures classify typed outcomes; projection
-capacity warns once per publisher lifetime under its existing mutex. An archive
-warning without a connected hub remains one global attention item. Routine
-pointer safety/layout shutdown and scratch disk fallback/retry stay feed-only.
-Local queue, remote queue and direct-dispatch lifecycle attempts
-each retain one terminal diagnostic owner. `lifecycleCompletionWarningSource`
-projects typed successful-result cleanup/configuration facts; ordinary
-recovery guidance remains feed-only. Borrowed attachment ownership diagnostics
-remain feed-only at both initial startup and subsequent reattachment, preserving
-full switcher/clipboard text. Configuration-publication failures still raise
-attention independently of that routine attachment notice. Session freshness
-checks that are skipped also remain feed-only through
-`newConsoleSessionStaleWatcher`; generated stale reminders retain their existing
-supervision/message owner. Switch cleanup carries a transient
-non-serialized `CleanupWarning` fact rather than parsing its mixed Notice.
-No English-text severity matching or desktop side effect is
-introduced. `noticeAttention` bounds and sanitizes the event's text. Publication
-uses the existing console-to-attention lock order and repaints after unlocking.
-Chrome recording sources carry a separate optional `Warnf` callback through
-CastConfig/RecordOptions/recorder.Options, falling back to legacy Logf when
-absent. Successful fidelity reports, recovered resync/aggregate close reports
-and transient drive-busy diagnostics stay feed-only. Explicit recording/check
-failures warn at their source; remote-input uncertainty retains the existing
-changed Recovery state as its sole attention owner.
+`Console.Warn` retains feed once and hands a typed producer fact to the routing
+owner (#844). `couchcore/notice_route.go:RouteNotice` is the one eligibility
+policy: authenticated hub notifications, failures of the operator's own casts
+or drives, and actionable events without a connected owning hub reach the
+bell. Other diagnostics go to their owning hub and feed. Routine progress,
+expected stops, borrowed attachment and skipped freshness checks stay feed-only,
+even without a hub. A connected automation-OFF hub is present: no generated
+input, bell fallback or replay follows a later enable. Global diagnostics belong
+to the primary hub; detached sources retain typed source/slot ownership, never
+the focused actor. Raw child BEL and actor chips remain separate UI facts.
+
+`couchcore/notice_delivery.go:AdvanceNoticeDelivery` owns ephemeral routing
+transitions. The `couchcmd/notice_delivery.go` shell buffers startup until cached
+service readiness, freezes the occurrence's exact owner root/automation epoch and
+uses the existing guarded system-message ingress. Generation validity is checked
+against that root, independently of current destination readiness. An accepted
+pending handoff adopts the destination's root and epoch; the previous hub then
+ceases to control it. It bounds pending occurrences to 128,
+copied bodies to 4 KiB and concurrent admissions to four, with two-second
+admission contexts and two-minute tracking expiry. Uncertain admission keeps its
+canonical receipt ID and never resends. A confirmed admission refusal can retain
+one AwaitingDisposition entry while readiness is unknown: connected owners retire
+it feed-only, unavailable owners produce one fallback bell item, and a revoked
+generation retires it without replay. That phase cannot admit again. Unknown
+readiness preserves an already verified root/epoch. Pending state dies with
+Console; local workers cancel and join at shutdown. Capacity loss updates one aggregated bell
+item without resurrecting it after dismissal. Queue refusal/expiry with a live
+hub remains feed-only. Owner lookup is memory-only; broker IO and repaint run
+outside Console/publication locks.
+
+Prompt/question condition projections use the same policy while preserving
+blocked chips. The wait watcher retains its canonical episode delivery, timing
+and mute behavior; it does not duplicate a routing-owner send. Condition
+eligibility reconciles when ownership or connection changes, even if the picker
+itself is unchanged. Archive and automatic-input-stall paths no longer add
+unconditional attention or desktop output; canonical daily/sequence owners
+remain. `Console.ApplyNoticeAttention` projects an approved route without
+republishing feed. Whole-package producer inventories reject unclassified Warn
+calls and new direct attention additions outside the audited projection seams.
+
+Lifecycle attempts retain one terminal diagnostic owner. Successful typed
+cleanup/configuration warnings route to the hub; `CleanupWarning` remains a
+transient typed fact, with no English severity matching. Chrome recorder and
+board failures retain explicit operator-origin classes; ordinary safety/layout
+shutdown, fidelity success and transient drive-busy diagnostics stay feed-only.
+`noticeAttention` still bounds and sanitizes bell text, using the established
+console-to-attention lock order and repainting after unlock.
 Selecting an attached exact target follows that thread; global or detached
 items open the root switcher rather than falling back to the focused actor.
 Existing notification capacity, dismissal and expiry still own the lifetime.
@@ -877,8 +893,10 @@ count; a fresh attachment starts a new counter. No notification text is logged.
 **Notification list (bell) (pair#673, ephemeral lifecycle pair#733).** Ctrl+Return, Ctrl+Alt+a or the
 status row's 🔔N badge opens the top-right panel. Enter/click opens and removes
 an item, `d` dismisses, and the always-visible Clear all row or `c` empties it.
-Three sources report facts through the message service: hub notifications,
-blocked prompts (`publishBlocked`), and wait-watcher question episodes.
+Typed warning routes and authenticated hub notifications report eligible facts.
+Blocked prompts (`publishBlocked`) and wait-watcher question episodes appear
+only when their owning hub is unavailable; connected-hub conditions retain
+their chip/feed and canonical hub message instead (#844).
 `couchcore.AttentionList` owns the pure transitions: removing a live condition
 suppresses it until that kind/thread leaves its source set; a later occurrence
 is fresh. Only notification events expire at 12 hours, on the existing activity
@@ -2028,6 +2046,18 @@ and `couch --reboot repo:N --confirm` act on one slot from a live Couch slot:
    admission, removed 5 minutes after they turn terminal (swept on every
    admit and status) or when Couch exits; status answers only the slot that
    admitted them, and a receipt not held answers `unknown`.
+
+   When caller proof fails because its selected session is missing or EXITED,
+   the existing unavailable response carries `listing_evidence` JSON (#872).
+   `LivenessEvidenceContext` retains the exact parsed listing's completion time,
+   full byte count/SHA256 and a copied prefix of at most8192bytes, with explicit
+   truncation; JSON encodes those bytes as base64. `SelectedListingEvidence`
+   adds the selected address/name, claim count, row state and projected presence.
+   No second query substitutes for the judged frame, and a subsequent refresh
+   cannot rewrite it. Existing stale, malformed and ambiguous proofs still
+   refuse distinctly. Post-admission loss remains uncertain and never resends
+   the mutation. #872's one authorized native sample did not reproduce the
+   original loss; the cause remains unclassified until another occurrence.
 4. `consoleSlotOperations` wires `Console.EnqueueRemoteOperation`
    (`console_remote.go`) with `Couch.PrepareSlotOperation`: the job rides the
    switcher's `operationQueue`, `c.ops` and `finishOperation`. Prepare runs on
@@ -2535,7 +2565,9 @@ claim. The launcher then exports exact paths to Go helpers, shell, Neovim, and
 both Zellij layouts.
 Each resolved-consumer family is tied to a named resolver/member witness;
 closed vocabulary allowances separately cover exact non-path protocol and CLI
-uses. Every production source is exhaustively inventoried as one of those
+uses. Typed constant allowances additionally pin the declared type, symbol,
+literal and occurrence count; implicit, untyped and computed initializers do
+not qualify. Every production source is exhaustively inventoried as one of those
 classes or as a non-artifact source; new files have no implicit default, and a
 Go source that imports `artifactpath` cannot remain in the non-artifact class.
 Current resolved consumers have positive family-specific resolver/member (or
