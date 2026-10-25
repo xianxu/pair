@@ -40,7 +40,7 @@ Keep the production Unix-socket/TCP fallback behavior unchanged. Make socket-req
 
 - [x] Reproduce deterministically with a long inherited TMPDIR; check the complete worst-case derived listener path against the 100-byte budget and retain real Unix/config/mode/cleanup assertions.
 - [x] Delegate shortDir to testpair.ShortRoot (ARCH-DRY); add a catalog guard and mutation controls for this fixture allocator.
-- [ ] Verify the named tunnel and too-long TCP fallback, the broadcast package and catalog; record the affected check.
+- [x] Verify the named tunnel and too-long TCP fallback, the broadcast package and catalog; record the affected check.
 
 ## Log
 
@@ -67,3 +67,5 @@ Affected-reader audit: cloudflared_test.go reads only its own generated tunnel c
 2026-10-25: PR606 opened. Recorded pre-close on ce4bf5d4b0cf304c1fb7aabe6c5b62729938bb86 selected the full suite because the individually recertified reader inventory is in its window. Retained run lease-526714052, attempt643fd926eb3008e42362d031097e26d9, initially FIFO position6. All implementation qualification is complete; the final Plan row remains unchecked only for the recorded-check workflow. Under tl-worker rules the boundary review may overlap this retained queue wait, with the exact-head recorded pass still mandatory before landing. No further implementation change planned.
 
 2026-10-25 BR-1: round1 FIX-THEN-SHIP/high found only the missing local-catalog atlas mapping; all independent functional checks passed. Verified atlas/go-lint-catalog.md requires mapping every Pair-specific ownership policy. Added the sole new rule in this window, naming its protected constructor, shared allocator, import/shadow behavior, syntactic limitations, mutation tests and real listener regression. atlas/index.md already links the catalog page. Production/tests unchanged; retained suite and FIFO position remain valid. Re-running full close as the ledger requires explicit disposition; no close finalized in round1.
+
+2026-10-25 recorded pre-close PASS: lease-526714052 / attempt643fd926eb3008e42362d031097e26d9 on pushed code head ce4bf5d4b0cf304c1fb7aabe6c5b62729938bb86. FIFO wait3638s, complete suite exit0 in12m19s, no passing retry or split suite. All script/Lua/review/make-env and Go targets passed; broadcast29.829s, couchcore241.956s, repolint15.127s. Log /Users/xianxu/workspace/pair/.git/sdlc/local-checks/ce4bf5d4b0cf304c1fb7aabe6c5b62729938bb86/suite.log SHA2568702d60451c4d01561685ea0343de77a82d5b26578ab4dec2ebc367a78614848. Changes since tested head are only atlas/lessons/process evidence; the documented ancestor-suite reuse rule applies. Completed the final verification checklist row after the actual pass. Close round2 SHIP/high, BR-1 addressed, no open findings; automatic measured actual0.35h. Re-entering normal merge for PR606, integrating current main and its required checks; pair:0 remains untouched.
