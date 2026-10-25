@@ -178,3 +178,86 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-25T04:15:08-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 858 — Webcast live tests TestLiveConformance and TestLiveCastEndToEnd fail on main at the in-page pause click |
+| repo | pair |
+| issue file | workshop/issues/000858-webcast-live-tests-testliveconformance-and-testlivecastendtoend-fail-on-main-at.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 5e6e08ec7bd2238f0345f3d9e318eea957cdf8a7..c927d00d4d3b4840a771ad06dd80a5bd8c2f0754 |
+| command | sdlc close --issue 858 |
+| reviewer | codex (openai; author openai) |
+| isolation | fenced |
+| timestamp | 2026-10-25T04:15:08-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: medium
+```
+
+The interdiff restores the readiness wait to its admitted owner without changing deadlines or production behavior. Input errors remain outside readiness retries. No new defects or scope changes were found. Local native verification failed during Chrome startup; retained native evidence matches the reviewed fixture source.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      The visibility and hit-test gate remains intact. TestLiveControlReadiness retains hidden, transparent, offscreen, clipped and missing-control refusals with zero input assertions. The retained passing readiness log matches its hash and byte-identical fixture source.
+  - id: BR-2
+    disposition: withdrawn
+    note: |
+      Retained conformance, end-to-end and readiness logs match their metadata hashes and current fixture bytes. The baseline-reversion log records failure at the pause assertion. Local Chrome again fails before page creation, which does not contradict that evidence.
+```
+
+Done-when: current — it covers usable-control targeting, native pause/resume, viewer state, unchanged deadlines and production behavior. This window changes neither Spec nor Revisions.
+
+1. **Strengths**
+
+   - The existing 10-second deadline and 100-millisecond wait remain in `liveHarness.clickControl` (`live_test.go:113–125`).
+   - The caller treats input errors as terminal (`live_test.go:115–120`).
+   - The added regression asserts input-error identity, readiness classification and exactly one dispatch attempt (`live_control_test.go:82–92`).
+
+2. **Critical findings:** None.
+
+3. **Important findings:** None.
+
+4. **Minor findings:** None.
+
+5. **Test coverage notes**
+
+   - Passed: tracked-source sleep catalog, fake conformance, affected-reader inventory and diff whitespace checks.
+   - Local native readiness failed before page creation with Chrome’s “GPU process isn't usable” error.
+   - All seven retained native logs match their metadata hashes. The three post-fix passing measurements reference fixture files byte-identical to this head. No reversal was performed during this read-only review.
+
+6. **Architectural notes**
+
+   - **ARCH-DRY: pass.** One shared readiness/input implementation.
+   - **ARCH-PURE: pass.** Browser integration uses an injected CDP caller.
+   - **ARCH-PURPOSE: pass.** Restores catalog compliance while preserving control qualification and both native consumers.
+   - **ARCH-EVOLVE: pass.** No persisted-format changes.
+   - No new user-facing or architectural surface requires README or atlas updates. No Core concepts table applies.
+
+7. **Plan revision recommendations:** None.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"6bf3ed43-3b2c-45d9-bc51-94980a0ebc95","repository":"github.com/xianxu/pair","issue_id":"000858","recipe":"fix-review","round":3,"attempt":1,"agent":"codex","root":"/Volumes/TestScratch/review-checkouts/6c309c6d45c3c352","reviewed_head":"c927d00d4d3b4840a771ad06dd80a5bd8c2f0754","slot":"pair:4","requested_at":"2026-10-25T11:13:47.90201Z"},"phase":"finished","pid":51676,"started_at":"2026-10-25T11:13:48.003454Z","finished_at":"2026-10-25T11:15:06.87982Z","session_id":"01a172c4-4702-7933-a481-43d1c001950a","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 2.214712083s
+head: "c927d00d4d3b4840a771ad06dd80a5bd8c2f0754"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412
