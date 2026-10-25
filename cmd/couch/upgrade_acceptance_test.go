@@ -163,6 +163,9 @@ func TestDisposableCouchBuildUpgrade(t *testing.T) {
 				if err := validateUpgradeResume([]byte(upgradeCLI(t, ctx, fleet, "--resume", slot, "--json")), slot, before[slot].Binding.Tag); err != nil {
 					t.Fatalf("candidate explicit resume: %v", err)
 				}
+				if err := compareUpgradeCohort(before, snapshotUpgrade(t, ctx, fleet)); err != nil {
+					t.Fatalf("successful resume changed old cohort: %v", err)
+				}
 				// Open the real switcher, choose the old slot and attach through its
 				// ordinary Enter gesture, then require native client evidence.
 				upgradeSelect(t, ctx, fleet, before[slot].Binding.Tag)
@@ -422,17 +425,22 @@ func validateUpgradeResume(raw []byte, target, tag string) error {
 	if err := json.Unmarshal(raw, &receipt); err != nil {
 		return err
 	}
-	if receipt.ID == "" || receipt.Op != "resume" || receipt.Target != target || receipt.Tag != tag || receipt.Status != couchmessage.ReceiptSucceeded {
+	// An already-live no-op starts no child and can legitimately omit Tag.
+	// The caller independently compares the complete old cohort immediately
+	// after every successful receipt, including this no-op shape.
+	if receipt.ID == "" || receipt.Op != "resume" || receipt.Target != target || receipt.Tag != "" && receipt.Tag != tag || receipt.Status != couchmessage.ReceiptSucceeded {
 		return fmt.Errorf("public resume did not confirm the old target: %+v", receipt)
 	}
 	return nil
 }
 
 func TestUpgradeResumeUsesThePublicFinalReceipt(t *testing.T) {
-	for _, scenario := range []string{"succeeded", "transport-envelope", "queued", "wrong-tag", "wrong-target", "wrong-op", "missing-id", "malformed"} {
+	for _, scenario := range []string{"succeeded", "already-live", "transport-envelope", "queued", "wrong-tag", "wrong-target", "wrong-op", "missing-id", "malformed"} {
 		t.Run(scenario, func(t *testing.T) {
 			receipt := couchmessage.OperationReceipt{ID: "id", Op: "resume", Target: "fixture:0", Tag: "old", Status: couchmessage.ReceiptSucceeded}
 			switch scenario {
+			case "already-live":
+				receipt.Tag = ""
 			case "queued":
 				receipt.Status = couchmessage.ReceiptQueued
 			case "wrong-tag":
@@ -457,7 +465,7 @@ func TestUpgradeResumeUsesThePublicFinalReceipt(t *testing.T) {
 			if scenario == "malformed" {
 				raw = []byte("{")
 			}
-			if err := validateUpgradeResume(raw, "fixture:0", "old"); (err == nil) != (scenario == "succeeded") {
+			if err := validateUpgradeResume(raw, "fixture:0", "old"); (err == nil) != (scenario == "succeeded" || scenario == "already-live") {
 				t.Fatalf("receipt %s: %v", scenario, err)
 			}
 		})
