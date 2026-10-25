@@ -1,12 +1,12 @@
 ---
 id: 000870
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-10-24
-updated: 2026-10-24
+updated: 2026-10-25
 estimate_hours:
-card_mirror: 'b42f6466728bc4de3693bee04e94b988e7041d79' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: 'ab0c87d4617716b236045a477ee0067728ef455e' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-24T07:08:58-07:00
 claimant:
     operator: Xian Xu
@@ -16,6 +16,7 @@ claimant:
     worktree: /Users/xianxu/workspace/worktree/pair-slot6/pair
     repository: github.com/xianxu/pair
 flow: {kind: quick, provenance: inferred, spec: "eeca357d", done: "1b7e3866"}
+actual_hours: N/A
 ---
 
 # Lift the #863 skip on #830 native wake test (TestDisposableCouchFleetWake)
