@@ -50,6 +50,7 @@ read-only module cache across the suite instead of creating one per test, if tha
 ## Log
 
 ### 2026-10-25
+- 2026-10-25: closed — Shared read-only cleanup controls PASS0.182s; actual launcher TestMain subprocess PASS0.286s, proving cache removal and nonzero teardown failure. Original ignored-defer source overlay fails BOTH assertions. Build-owner/legacy PASS1.726s; native cmd/go cache conformance PASS12.494s; 30 catalog controls plus tracked-source census PASS6.743s; artifact census PASS3.455s. Inventory PASS after individual reader audits. Atlas and lesson updated. No shared cache or retained631 evidence touched. Implementation plan complete; required recorded full check on8449f364 is retained as lease-1191244849 with identical runtime/tests; its pass precedes landing. Close/merge lifecycle work remains in Log, no unimplemented code. (done-when: contract moved since change-code; judged by the close review); review verdict: SHIP
 
 Hub and ariadne:5 independently identify retained pair-launcher-*/go/pkg/mod trees: 566 read-only directories, roughly6000 entries/77MB, from ignored cleanup after private HOME. No retained evidence tree touched. Current testdisk already reuses ambient GOMODCACHE; testcouch build settings are fakes. Hub dfef3fa6 approved the shared cleanup plan.
 
