@@ -101,3 +101,7 @@ The prior complete plan is retained at pre-m2-design.md, source01bdfbe72710456ee
 ### 2026-10-24 — plan-quality round1 transition and strategy corrections
 
 PQ-1: inspected the entire existing Resize transition, including same-geometry early return and successful syncState reset. Corrected the state table: actual geometry change cancels the hold and the next publication captures new geometry; retained consumer clones remain independent. No-op and refused resize keep the old hold. PQ-2: replaced the prose semantic case inventory with one adversarial strategy and mechanical guard per risky function. These clarify existing contracts without adding behavior or changing the approved allocation correction.
+
+### 2026-10-24 — canonical final-gate handoff
+
+The approved isolated checkout is an independent ordinary clone because the numbered environment refuses linked dependency checkouts. Its directory alias is pair-m2. Hub264df7f6 approved finishing implementation there, then after879 lands transferring the exact branch and M1 review provenance into canonical pair:9 for all final gates and PR through the shared pair landing line; remove the disposable clone afterwards. This changes placement only, not code, owners, budgets or test requirements.
