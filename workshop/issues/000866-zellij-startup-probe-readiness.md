@@ -328,6 +328,10 @@ The first complete tracked catalog run exposed main's exact fleet diagnostic own
 
 Reader re-audit: zellij_query_boundary_rule_test.go is an AST rule library with no file inputs; zellij_query_boundary_test.go uses newFakeRepository and an injected literal-byte reader, so both remain local_or_literal_fixture. The native inventory rule enumerates tracked production Lua/KDL/shell inputs; its companion mutation test reads the finite named production sources and applies literal mutations, so both retain fixed_scanner ownership under the existing preflight. Refreshed only those four audited certificates. Full recorded integrated-head pre-close check and narrow conflict re-close remain required before re-entering merge; no prior branch or operator pass is substituted for integrated verification.
 
+### 2026-10-24 — integrated-head recorded suite PASS
+
+Retained pre-close run lease-3938208339 / attempt af3b24b4819f5ff90be84847d9101d70 admitted after3233s queue wait and completed exit0 in12m39s on d00aa8cf37c420b37a9ccf9ffce84c4ad487b818. The affected selector expanded to the full suite because Makefile.local is a full-selection input. Complete log /Users/xianxu/workspace/pair/.git/sdlc/local-checks/d00aa8cf37c420b37a9ccf9ffce84c4ad487b818/suite.log, SHA256 c46b96a99498ebc293184814505992a7ebf2afe5f62b1d215d36e0f8727492b7; recorded sdlc-local/suite. All non-Go and complete Go targets passed, no flake retry: couchcore278.776s, launcher56.893s, wrapcmd59.511s, agentfixture22.871s, query10.828s and repolint8.892s. The optional real-docflow smoke explicitly skipped for unavailable sibling source; supplier qualification ran and passed. Final required reader inventory PASS. Request the narrow conflict-resolution re-close, then re-enter normal landing; runtime source remains the operator-qualified lease-only correction.
+
 ## Revisions
 
 ### 2026-10-24 — final plan bookkeeping and source ownership
