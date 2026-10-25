@@ -17,6 +17,9 @@ const (
 	SlotOpNoThread    = "no-thread"    // no Couch row stands for the slot
 	SlotOpAmbiguous   = "ambiguous"    // several rows stand for the slot
 	SlotOpNotOffered  = "not-offered"  // ActorActions does not offer the operation on the row
+	// SlotOpBenchSurvivors: bench-retire found processes the slot's agents
+	// started still running, so it did not report the slot vacant (pair#847).
+	SlotOpBenchSurvivors = "bench-retire-survivors"
 )
 
 // SlotOperationError is a typed refusal: a code from the list above and the
