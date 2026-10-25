@@ -85,6 +85,10 @@ Round2 close finalized SHIP, BR-1 addressed and BR-2 withdrawn, evidence d0a8351
 
 The catalog deliberately admits only shrinking debt, so renaming its entry would be wrong. Retained the existing10s/100ms readiness wait in liveHarness.clickControl, its original exact admitted owner. The shared input helper now makes one attempt and distinguishes readiness misses from input errors so uncertain input is never retried. Native refusal coverage uses the one-attempt seam; added an injected input-error assertion requiring exactly one attempt. No catalog/gate/debt-file modification, production change or deadline change. Focused catalog PASS5.16s/package5.297s with all100 admitted sites, and native readiness PASS1.43s/package1.667s. Next: source-pinned native evidence, fresh pushed affected check and narrow re-close of this post-SHIP fix. Standing measurement waivers are retired by TL09ee0c34; omit actual flags and let close measure normally.
 
+### 2026-10-25 — Final wait-owner source qualified
+
+Fresh separate native runs on committed5060c47a6f71f9b36740844ebbd955aacbabe874 all pass without skips: conformance, end-to-end and readiness, including the input-error no-retry assertion. Complete post-wait-owner-*.log/json evidence is retained alongside the earlier source/reversion evidence. Log SHA256 values: conformance2761ccb3662da23fdc1b21623434cc920387ac1c0177cbafc640e116859e7f86; end-to-end6e8ebe267594137614e8aa57a0547e83e1fedfd9d4f8b677845435cb3b940bbb; readiness274e3dcb85d8b1d598102b873080047f931047506713417922bb3438b21a980a. All use private-profile Headless:true, count1, sequential commands; metadata pins argv/head/exit and source cleanliness. Retain the deterministic affected failure; fresh recorded check must run on this fixed head. Next: push evidence, queue once, inventory and narrow re-close of this post-SHIP fix; then enter merge only with the recorded pass. No waiver, debt-file edit, new production behavior or pair:0 action.
+
 ## Revisions
 
 ### 2026-10-25 — BR-1 readiness boundary and native refusal qualification

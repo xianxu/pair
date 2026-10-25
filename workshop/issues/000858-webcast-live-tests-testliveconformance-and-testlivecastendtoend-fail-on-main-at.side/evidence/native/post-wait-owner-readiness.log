@@ -1,0 +1,12 @@
+=== RUN   TestLiveControlReadiness
+=== RUN   TestLiveControlReadiness/hidden
+=== RUN   TestLiveControlReadiness/transparent
+=== RUN   TestLiveControlReadiness/offscreen
+=== RUN   TestLiveControlReadiness/clipped
+--- PASS: TestLiveControlReadiness (0.92s)
+    --- PASS: TestLiveControlReadiness/hidden (0.01s)
+    --- PASS: TestLiveControlReadiness/transparent (0.01s)
+    --- PASS: TestLiveControlReadiness/offscreen (0.01s)
+    --- PASS: TestLiveControlReadiness/clipped (0.01s)
+PASS
+ok  	github.com/xianxu/pair/cmd/internal/webcast	1.087s
