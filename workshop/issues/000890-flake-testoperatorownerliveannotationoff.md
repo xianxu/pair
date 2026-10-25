@@ -16,6 +16,7 @@ claimant:
     worktree: /Users/xianxu/workspace/worktree/pair-slot9/pair
     repository: github.com/xianxu/pair
 flake_tests: [github.com/xianxu/pair/cmd/internal/webcast.TestOperatorOwnerLiveAnnotationOff]
+flow: {kind: quick, provenance: inferred, spec: "b21f6d6f", done: "6ba36e92"}
 ---
 
 # flake: TestOperatorOwnerLiveAnnotationOff
