@@ -17,6 +17,7 @@ func TestPublishAgentReadyWritesRecordFromPairEnv(t *testing.T) {
 	t.Setenv("PAIR_TAG", "work")
 	t.Setenv("PAIR_SESSION_NAME", "pair-work")
 	t.Setenv("PAIR_LAUNCH_NONCE", "nonce-1")
+	t.Setenv("PAIR_AGENT_VERSION", "0.164.0")
 
 	p := &proxy{agentBasename: "codex"}
 	p.resolvePaths()
@@ -41,7 +42,7 @@ func TestPublishAgentReadyWritesRecordFromPairEnv(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Decode ready record: %v", err)
 	}
-	if got.Tag != "work" || got.Agent != "codex" || got.Session != "pair-work" || got.Nonce != "nonce-1" || got.PID != os.Getpid() {
+	if got.Tag != "work" || got.Agent != "codex" || got.Session != "pair-work" || got.Nonce != "nonce-1" || got.PID != os.Getpid() || got.AgentVersion != "0.164.0" {
 		t.Fatalf("ready record = %+v", got)
 	}
 }

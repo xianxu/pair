@@ -11,6 +11,10 @@ import (
 // shell splitting. Only explicit pair wrap --from-launch-env consumes it.
 const AgentCommandEnv = "PAIR_AGENT_COMMAND"
 
+// AgentVersionEnv carries the probed agent CLI version from the launcher to the
+// wrapper's ready record (pair#891).
+const AgentVersionEnv = "PAIR_AGENT_VERSION"
+
 type AgentCommand struct {
 	Executable string   `json:"executable"`
 	Argv       []string `json:"argv"`

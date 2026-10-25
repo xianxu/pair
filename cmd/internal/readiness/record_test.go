@@ -7,11 +7,12 @@ import (
 
 func TestReadyRecordRoundTrip(t *testing.T) {
 	raw, err := Encode(ReadyRecord{
-		Tag:     "work",
-		Agent:   "codex",
-		Session: "pair-work",
-		Nonce:   "nonce-1",
-		PID:     123,
+		Tag:          "work",
+		Agent:        "codex",
+		Session:      "pair-work",
+		Nonce:        "nonce-1",
+		PID:          123,
+		AgentVersion: "0.164.0",
 	})
 	if err != nil {
 		t.Fatalf("Encode returned error: %v", err)
@@ -20,8 +21,24 @@ func TestReadyRecordRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Decode returned error: %v", err)
 	}
-	if got.Tag != "work" || got.Agent != "codex" || got.Session != "pair-work" || got.Nonce != "nonce-1" || got.PID != 123 {
+	if got.Tag != "work" || got.Agent != "codex" || got.Session != "pair-work" || got.Nonce != "nonce-1" || got.PID != 123 || got.AgentVersion != "0.164.0" {
 		t.Fatalf("Decode = %+v, want original record", got)
+	}
+}
+
+func TestReadyRecordBoundsAgentVersion(t *testing.T) {
+	base := ReadyRecord{Tag: "t", Agent: "codex", Session: "s", Nonce: "n", PID: 1}
+	for _, bad := range []string{strings.Repeat("9", 65), "0.164\x00.0", "0.164\n.0"} {
+		record := base
+		record.AgentVersion = bad
+		if _, err := Encode(record); err == nil {
+			t.Fatalf("accepted %q", bad)
+		}
+	}
+	ok := base
+	ok.AgentVersion = "0.164.0"
+	if _, err := Encode(ok); err != nil {
+		t.Fatal(err)
 	}
 }
 
