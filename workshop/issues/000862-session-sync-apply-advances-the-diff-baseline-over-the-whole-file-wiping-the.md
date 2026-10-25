@@ -273,6 +273,22 @@ before repetition. On PASS and green CI, re-enter one authoritative merge.
 No active merge runner remains while this recorded check waits. Hub report
 receipt f5cc91eb-a75e-4eb9-ac21-adce3f512fca records this recovery.
 
+### 2026-10-24 — integrated recorded suite accepted; resume landing
+
+Retained terminal28422 completed exit0. The full recorded suite on integrated
+head a7b8cd21ef4b0290d2cd0e33d2e86ad38dd4f4a9 ran 12m35s; its only failed
+test was the registered #794 TestCommandWrappersJoinCanceledDescendants
+(provision subtest). SDLC automatically reran the whole top-level test in its
+exact cmd/internal/testcouch package: child39fac28515f186b99de74981529cfc81
+passed (test0.08s, package0.264s). SDLC recorded sdlc-local/suite PASS with
+known-flake #794 on that head. Parent raw exit2 is retained, not described as
+an unqualified clean run. Parent attempt94fd6ab5e1129500d1f3ae64dce5ff8a log:
+/Users/xianxu/workspace/pair/.git/sdlc/test-stats/failed/94fd6ab5e1129500d1f3ae64dce5ff8a.log
+SHA256 94def345cd4a12967869a3fd5bf347904ebea29c314324c60848c834bc41dcec.
+No source edits or additional manual reruns. PR599 CI is green. Next: re-enter
+one sdlc merge runner, retain it through settlement, verify landing and report
+to the hub; then stand by for the hub's #737 assignment decision.
+
 ## Revisions
 
 ### 2026-10-24 — separate dependent fake adoption, TL-approved
