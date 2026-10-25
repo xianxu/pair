@@ -37,8 +37,8 @@ Keep the production Unix-socket/TCP fallback behavior unchanged. Make socket-req
 
 ## Plan
 
-- [ ] Reproduce deterministically with a long inherited TMPDIR; check the complete worst-case derived listener path against the 100-byte budget and retain real Unix/config/mode/cleanup assertions.
-- [ ] Delegate shortDir to testpair.ShortRoot (ARCH-DRY); add a catalog guard and mutation controls for this fixture allocator.
+- [x] Reproduce deterministically with a long inherited TMPDIR; check the complete worst-case derived listener path against the 100-byte budget and retain real Unix/config/mode/cleanup assertions.
+- [x] Delegate shortDir to testpair.ShortRoot (ARCH-DRY); add a catalog guard and mutation controls for this fixture allocator.
 - [ ] Verify the named tunnel and too-long TCP fallback, the broadcast package and catalog; record the affected check.
 
 ## Log
@@ -52,3 +52,11 @@ A diagnostic-only Go overlay added a t.Logf of filepath.Join(pl.dir,"s"), its by
 2026-10-24 registration evidence: original failed #865 head9676dff56fc63b95885f3ec084127d766ca1976e passed the unmodified focused test in0.301s in the identical checkout path when TMPDIR/GOTMPDIR were shortened to /Volumes/TestScratch/tmp. This is focused-versus-recorded evidence with an explicit environment difference, not a full-suite passing retry. Registered the exact test on this unclaimed card via sdlc flake register, using that observation together with the main failure and100/101-byte diagnostic controls above. #865 is using the supported saved affected resume; no passing status is assumed.
 
 2026-10-25: Quick-flow plan posted to hub, proceeding unless objected. Existing production allocation and fallback remain unchanged. A larger production seam or a second allocator would duplicate an existing owner without fixing fixture hermeticity. The regression sets TMPDIR only after checking native Unix availability, so a fixture-created long path cannot turn the intended failure into a skip. The complete path check reserves ten decimal suffix bytes, removing the observed 100/101-byte random-suffix dependence.
+
+2026-10-25 implementation evidence: the exact named-tunnel regression first failed deterministically on the old helper: complete socket path 231 bytes, budget 100 (FAIL0.186s). The assertion includes the private directory prefix, full ten-byte decimal suffix and socket leaf. After delegating shortDir to testpair.ShortRoot, the named Unix tunnel, explicit too-long TCP fallback and directory-removal tests all PASS count3 (0.582s), preserving mode0700 and exact cloudflared argv/config checks. The named test now explicitly closes the tunnel and listener and observes directory removal. No production code changed.
+
+Catalog RED: the new literal-fixture mutation test rejected none of five bad allocator variants before the rule existed. GREEN: shared and aliased imports pass; inherited TMPDIR, t.TempDir, unused shared-root call, wrong import and shadowed package all produce the pair#881 finding. The tracked catalog plus these controls PASS6.826s. The rule is in Pair's extension of pkg/golint and owns the existing broadcast shortDir constructor, rather than adding an allocator policy (ARCH-DRY).
+
+Affected-reader audit: cloudflared_test.go reads only its own generated tunnel config/argv/run records and private fake executables; subprocess inputs are literal fixture commands or this test executable. It reads no repository source. Retained local_or_literal_fixture and individually recertified that one changed reader. make test-affected-inventory PASS. The new lint test uses literal source in the existing fake repository seam and reads no repository source itself.
+
+2026-10-25: Targeted package qualification: go test -race ./cmd/internal/broadcast -run ^Test -count=1 PASS159.797s, including the callers sharing shortDir, process guards and orphan cleanup. No candidate tests remain running. Preparing the recorded affected check on the pushed head.
