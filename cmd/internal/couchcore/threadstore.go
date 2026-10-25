@@ -176,11 +176,7 @@ func (s *ThreadStore) withStoreLock(fn func() error) error {
 	return s.withStoreLockChecked(fn, nil, 0)
 }
 
-// A check selects polled nested locking: the root coordinator must never wait
-// unboundedly for an independently busy Couch store. Maintenance passes wait 0
-// and yields at the first contention; a foreground writer waits out a brief
-// preview read for up to wait (#827). Ordinary writers pass nil and retain
-// their blocking lock semantics.
+// withStoreLockChecked is withStoreLockBounded with a fixed wait.
 func (s *ThreadStore) withStoreLockChecked(fn func() error, check func() error, wait time.Duration) error {
 	return s.withStoreLockBounded(fn, check, storeWait{d: wait})
 }
@@ -205,6 +201,12 @@ func storeLockBound(ctx context.Context, wait time.Duration) storeWait {
 	return storeWait{d: wait}
 }
 
+// A check selects polled nested locking: the root coordinator must never wait
+// unboundedly for an independently busy Couch store. Maintenance passes wait 0
+// and yields at the first contention; a foreground writer waits out a brief
+// preview read for up to wait (#827), never past its caller's deadline when the
+// wait came from storeLockBound (pair#854). Ordinary writers pass nil and retain
+// their blocking lock semantics.
 func (s *ThreadStore) withStoreLockBounded(fn func() error, check func() error, wait storeWait) (err error) {
 	if s != nil {
 		if err := s.validateBackendPath(); err != nil {
