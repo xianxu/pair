@@ -15,6 +15,7 @@ claimant:
     workspace: pair:6
     worktree: /Users/xianxu/workspace/worktree/pair-slot6/pair
     repository: github.com/xianxu/pair
+flow: {kind: quick, provenance: inferred, spec: "92f102e0", done: "ea157c89"}
 ---
 
 # Affected policy: a reader-certificate change selects its own test's package, not the full suite
