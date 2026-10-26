@@ -62,6 +62,17 @@ func TestStripCodexResumeSubcommand(t *testing.T) {
 	}
 }
 
+// A launch-time --no-daemon (pair#891) leads the encoded argv; the fresh-start
+// strip must walk past it, or a fresh start inside a resumed Codex pane keeps
+// the resume binding.
+func TestFreshAgentArgsWalksPastNoDaemon(t *testing.T) {
+	got := FreshAgentArgs("codex", []string{"--no-daemon", "--disable", "shell_snapshot", "resume", "id1"})
+	want := []string{"--no-daemon", "--disable", "shell_snapshot"}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("FreshAgentArgs() = %v, want %v", got, want)
+	}
+}
+
 func TestResumeTokenPerAgent(t *testing.T) {
 	cases := []struct {
 		agent, sid string

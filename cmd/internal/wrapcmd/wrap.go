@@ -661,6 +661,7 @@ func (p *proxy) publishAgentReady(pid int) error {
 	raw, err := readiness.Encode(readiness.ReadyRecord{
 		AgentIdentity: p.readyProcessIdentity,
 		LaunchOrdinal: launchOrdinal,
+		AgentVersion:  os.Getenv(launcher.AgentVersionEnv),
 		Tag:           tag,
 		Agent:         p.agentBasename,
 		Session:       session,
