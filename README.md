@@ -1,3 +1,5 @@
+> **Frozen snapshot of 2026-10-25; development continues privately.**
+
 # pair
 
 A small launcher that gives TUI coding agents (Claude Code, Codex, Antigravity, Muse, Qoder, and Grok) a real input field — backed by Neovim. Pair wraps around TTY terminal, and with that, has access to all input/output from the agents and can customize everything.
